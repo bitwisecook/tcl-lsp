@@ -2683,7 +2683,10 @@ mod tests {
         );
         let structured = structured.top_level.semantic_facts.executable();
         assert!(structured.function().is_some());
-        assert_eq!(structured.opaque_regions().count(), 1);
+        // `if` is projected into executable edges, so it is a structured
+        // region rather than an opaque compatibility barrier.
+        assert_eq!(structured.opaque_regions().count(), 0);
+        assert_eq!(structured.structured_regions().count(), 1);
         assert!(structured.world_state_ssa().is_none());
 
         let ir = crate::lowering::lower_to_ir("puts hello", &registry());

@@ -33,7 +33,7 @@ const FIXTURES: &[Fixture] = &[
 ];
 
 #[test]
-fn real_jobs_lower_and_keep_semantics_around_opaque_regions() {
+fn real_jobs_lower_and_keep_semantics_around_boundary_regions() {
     let registry = static_context_for("tcl8.6").commands();
 
     for fixture in FIXTURES {
@@ -54,22 +54,28 @@ fn real_jobs_lower_and_keep_semantics_around_opaque_regions() {
             fixture.name,
         );
 
+        // A boundary region is either a structured control region with real
+        // executable edges or one of the remaining opaque compatibility
+        // barriers (an inlined `uplevel`/`eval` body, a `dict for` cursor).
         let mixed_region = unit.all_body_function_units().find(|function| {
             let executable = function.semantic_facts.executable();
             executable.function().is_some()
-                && executable.opaque_regions().next().is_some()
+                && (executable.structured_regions().next().is_some()
+                    || executable.opaque_regions().next().is_some())
                 && (executable.invocations().next().is_some()
                     || executable.lowered_operations().next().is_some())
         });
         let mixed_region = mixed_region.unwrap_or_else(|| {
             panic!(
-                "{} should retain ordinary semantic operations on at least one side of an opaque region",
+                "{} should retain ordinary semantic operations on at least one side of a boundary region",
                 fixture.name,
             )
         });
         let executable = mixed_region.semantic_facts.executable();
+        let boundaries =
+            executable.structured_regions().count() + executable.opaque_regions().count();
         assert!(
-            executable.completion_inputs().count() > executable.opaque_regions().count(),
+            executable.completion_inputs().count() > boundaries,
             "{} must not turn the whole mixed function into one decline",
             fixture.name,
         );

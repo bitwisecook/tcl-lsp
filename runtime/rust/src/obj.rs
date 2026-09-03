@@ -309,19 +309,58 @@ pub(crate) unsafe fn set_string_rep(obj: *mut TclObj, bytes: &[u8]) {
 }
 
 /// Read a `TCL_INT_TYPE` object's wide value from its internal rep.
-/// (Only the bignum tower reads these directly; gated so the no-backend build
-/// stays dead-code-clean under `-D warnings`.)
-#[cfg(have_tommath)]
 pub(crate) fn wide_of(obj: *mut TclObj) -> TclWideInt {
     // SAFETY: caller has checked `obj`'s type is `TCL_INT_TYPE`.
     unsafe { (*obj).wide() }
 }
 
 /// Read a `TCL_DOUBLE_TYPE` object's value from its internal rep.
-#[cfg(have_tommath)]
 pub(crate) fn double_of(obj: *mut TclObj) -> f64 {
     // SAFETY: caller has checked `obj`'s type is `TCL_DOUBLE_TYPE`.
     unsafe { (*obj).double() }
+}
+
+/// Whether `obj` already carries a materialised string rep.
+///
+/// A type whose `update_string_proc` is `None` can only be attached to an
+/// object that has one, since there would otherwise be no way back to a
+/// spelling.
+// The only caller is `expr`, which is `have_tommath`-gated.
+#[cfg(have_tommath)]
+pub(crate) fn has_string_rep(obj: *mut TclObj) -> bool {
+    // SAFETY: `obj` is a live object.
+    !unsafe { (*obj).bytes }.is_null()
+}
+
+/// Whether a just-parsed numeric internal rep may be cached back onto `obj`.
+///
+/// C Tcl caches unconditionally: `TclParseNumber` (`tclStrToD.c`) writes the rep
+/// it built straight onto the object it parsed, whatever the refcount, because
+/// the **string** rep is kept — every other holder still reads the same
+/// spelling, it just no longer pays to re-parse it. That reasoning holds here
+/// for the two shapes where the string rep *is* the value: a plain string (no
+/// typed rep to destroy), and any unshared object. A *shared* object already
+/// carrying some other typed rep — a list, a dict — is left alone instead:
+/// [`change_type`] frees that rep, and the other holders would pay to rebuild
+/// what they still want.
+pub(crate) fn may_cache_parsed_rep(obj: *mut TclObj) -> bool {
+    obj_type_ptr(obj).is_null() || !is_shared(obj)
+}
+
+/// Cache a parsed wide-integer rep onto `obj`, keeping its string rep, so the
+/// next numeric use reads the rep instead of re-parsing the spelling. A no-op
+/// where [`may_cache_parsed_rep`] declines.
+pub(crate) fn cache_wide_rep(obj: *mut TclObj, value: TclWideInt) {
+    if may_cache_parsed_rep(obj) {
+        change_type(obj, &TCL_INT_TYPE, value as u64);
+    }
+}
+
+/// [`cache_wide_rep`] for a parsed double.
+pub(crate) fn cache_double_rep(obj: *mut TclObj, value: f64) {
+    if may_cache_parsed_rep(obj) {
+        change_type(obj, &TCL_DOUBLE_TYPE, value.to_bits());
+    }
 }
 
 /// Copy `obj`'s string rep (shimmering via `update_string_proc` if needed).

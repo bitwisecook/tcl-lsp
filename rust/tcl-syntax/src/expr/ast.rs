@@ -587,7 +587,7 @@ impl ExprNode {
 
     /// Recursive variable collection helper.
     fn collect_vars(&self, grammar: tcl_dialect::LexerGrammar, out: &mut HashSet<String>) {
-        self.collect_vars_with(grammar, &|_text, name| name.to_owned(), out);
+        self.collect_vars_with(Some(grammar), &|_text, name| name.to_owned(), out);
     }
 
     /// Test-only: the default-grammar form. Production callers hold the
@@ -615,18 +615,41 @@ impl ExprNode {
     ) -> HashSet<String> {
         let mut result = HashSet::new();
         self.collect_vars_with(
-            grammar,
+            Some(grammar),
             &|text, _name| crate::naming::element_var_name(text).to_owned(),
             &mut result,
         );
         result
     }
 
+    /// Every variable read this expression **proves structurally**, with no
+    /// re-lex of the [`Self::Raw`] fallback text.
+    ///
+    /// [`Self::vars_with_grammar`] re-lexes `Raw` under the document's
+    /// grammar so liveness sees a read hidden in unparsed text. A caller
+    /// that already treats the presence of any `Raw` node as an *unbounded*
+    /// read gains nothing from that enumeration — and, holding no document
+    /// grammar of its own, would have to invent one to get it
+    /// (`docs/design/dialect-profile-model.md` §2.5: a document's grammar is
+    /// born once at the ingress and threaded, never defaulted). So this walk
+    /// stops at `Raw` exactly as it stops at [`Self::Command`], and needs no
+    /// grammar at all.
+    #[must_use]
+    pub fn vars_parsed_only(&self) -> HashSet<String> {
+        let mut result = HashSet::new();
+        self.collect_vars_with(None, &|_text, name| name.to_owned(), &mut result);
+        result
+    }
+
     /// The shared walk under [`Self::vars`] / [`Self::vars_element_qualified`]:
     /// `pick` maps a `Var` node's `(text, name)` to the reported name.
+    ///
+    /// `grammar` is the document's grammar used to re-lex the `Raw` fallback
+    /// text; `None` stops the walk at `Raw` instead
+    /// ([`Self::vars_parsed_only`]).
     fn collect_vars_with(
         &self,
-        grammar: tcl_dialect::LexerGrammar,
+        grammar: Option<tcl_dialect::LexerGrammar>,
         pick: &dyn Fn(&str, &str) -> String,
         out: &mut HashSet<String>,
     ) {
@@ -669,7 +692,11 @@ impl ExprNode {
             // detection (W214) sees the read. Nested vars inside command
             // substitutions are left to the SSA layer, matching the
             // `Self::Command` policy above.
-            Self::Raw { text } => collect_raw_vars_with(text, grammar, pick, out),
+            Self::Raw { text } => {
+                if let Some(grammar) = grammar {
+                    collect_raw_vars_with(text, grammar, pick, out);
+                }
+            }
         }
     }
 }

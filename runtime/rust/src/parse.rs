@@ -45,14 +45,26 @@
 //! run whose escapes were decoded owns its bytes (`Cow::Owned`). The module is
 //! `unsafe`-free.
 //!
-//! [`scan_parts`] (the component decomposer) is shared with [`crate::subst`].
+//! ## Where the pieces live
+//!
+//! The **within-word** decomposition is not implemented here. [`WordPart`],
+//! [`VarRef`], [`WordBody`] and the scan that produces them are re-exports of
+//! [`tcl_lexer::word_parts`], the one owner shared with `tcl-vm` and (next
+//! lane) the compiler's segmenter. This module owns only the *script* level:
+//! splitting a script into commands and their words, via the canonical
+//! `tcl-lexer` token stream, and applying the word-delimiter rules
+//! (`{braced}` is literal, `"quoted"` must close) before handing each word's
+//! content to the owner.
+//!
+//! This crate used to carry its own copy of the decomposer (`scan_parts`,
+//! `scan_var_name`, `skip_command_subst`, `parse_var_ref`) with `subst.rs`
+//! mirroring it — two of the four copies bucket R10 found. They are gone.
 
 #![forbid(unsafe_code)]
 
 use std::borrow::Cow;
 
-use tcl_core_types::RecursionLimit;
-use tcl_lexer::{EscapeSyntax, Lexer, LexerConfig, SourceMap, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,50 +77,10 @@ pub enum WordKind {
     Braced,
 }
 
-/// One substitution component of a non-literal word (or `subst` input).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WordPart<'s> {
-    /// A resolved literal run: text with its backslash escapes already decoded
-    /// (via the canonical [`tcl_syntax::backslash`] decoder) when backslash
-    /// substitution is active. Borrows the source when there was nothing to
-    /// decode (the fast path); owns the decoded bytes otherwise. There is no
-    /// separate "backslash" component — escapes fold into the surrounding run,
-    /// so this matches Tcl's `subst` output with one decoder, not two.
-    Text(Cow<'s, [u8]>),
-    /// `$name` / `${name}` / `$arr(index)`.
-    Variable(VarRef<'s>),
-    /// `[...]` command substitution — the inner script (brackets stripped).
-    Command(&'s [u8]),
-    /// A malformed construct C's parser rejects, carrying the error it raises
-    /// (currently only [`tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR`], from an
-    /// unterminated `${…}`).
-    ///
-    /// The scanner is infallible by design — it is shared with the LSP-facing
-    /// word parser, which must keep tokenizing broken source — so the error
-    /// travels as a *part* and the evaluator raises it when the left-to-right
-    /// walk reaches it. That is exactly C's order: in `subst` a command
-    /// substitution earlier in the same template has already run and kept its
-    /// side effects before the bad `${` is reported (issue #1457).
-    ParseError(&'static str),
-}
-
-/// A variable reference. `name` is the bare/`${}` name (always literal). For an
-/// `$arr(index)` reference, `index` holds the index's own components (the index
-/// is itself substituted at eval time).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VarRef<'s> {
-    pub name: &'s [u8],
-    pub index: Option<Vec<WordPart<'s>>>,
-}
-
-/// A word's content: either a literal (no substitution) or a component list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WordBody<'s> {
-    /// The bytes are the value — no substitution. (`SIMPLE_WORD` fast path.)
-    Literal(&'s [u8]),
-    /// Components to substitute and concatenate.
-    Parts(Vec<WordPart<'s>>),
-}
+// The word-component model is the shared owner's — re-exported under the
+// names this crate's evaluator (`interp.rs`) and `subst` already use, so the
+// consumers stay put while the implementation moved down a crate.
+pub use tcl_lexer::word_parts::{VarRef, WordBody, WordPart};
 
 /// One parsed word.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,75 +114,16 @@ pub struct Command<'s> {
     pub end: usize,
 }
 
-// ---------------------------------------------------------------------------
-// Low-level scanners — return byte offsets into `src`.
-// ---------------------------------------------------------------------------
-
-/// Advance past one balanced `[...]` command substitution. `pos` must index the
-/// `[`; returns the offset just past the matching `]`. `\<any>` escapes a
-/// bracket. Used by [`scan_parts`].
-pub fn skip_command_subst(src: &[u8], pos: usize) -> usize {
-    let len = src.len();
-    let mut p = pos + 1;
-    let mut depth: usize = 1;
-    while p < len && depth > 0 {
-        if src[p] == b'\\' && p + 1 < len {
-            p += 2;
-            continue;
-        }
-        if src[p] == b'[' {
-            depth += 1;
-        } else if src[p] == b']' {
-            depth -= 1;
-        }
-        p += 1;
-    }
-    p
-}
-
-// ---------------------------------------------------------------------------
-// Component scanner — the shared parse-level decomposition (also used by subst).
-// ---------------------------------------------------------------------------
-
-/// Is `c` a valid first byte of an unbraced `$name` variable reference?
-/// Letters, digits, underscore, or `:` (namespace separator). Crucially, a `$`
-/// **not** followed by one of these (or `{`) is a literal `$` in Tcl
-/// (`tclParse.c` `Tcl_ParseVarName`).
-fn is_var_name_byte(c: u8) -> bool {
-    c.is_ascii_alphanumeric() || c == b'_' || c == b':'
-}
-
-/// Scan an `$name` identifier (already past the `$`), returning the end offset.
-/// Accepts alphanumerics / `_` and `::` namespace separators.
-fn scan_var_name(src: &[u8], start: usize) -> usize {
-    tcl_core_types::naming::scan_var_name_end(src, start)
-}
-
-/// Cap on `$name(index)` nesting depth [`scan_parts`] will recurse into while
-/// parsing an array-index expression's own substitution components. The
-/// index-parsing call is self-recursive with no natural bound —
-/// `$a($b($c(...)))` recurses one native-stack frame group per `(` — so
-/// pathologically deep/generated input (reachable via ordinary `subst`/word
-/// substitution, no special syntax needed) could otherwise abort the process
-/// with an uncatchable stack overflow (issue #996). Empirically, the same
-/// class of unguarded nested-array-index recursion overflowed the native
-/// stack (SIGABRT) between depth 100-150 on a 256 KiB stack, still crashing
-/// at depth 2000 on a 1 MiB stack (this crate's own sweep; see
-/// `tcl_lexer::lexer::MAX_ARRAY_INDEX_DEPTH`, which measured the same
-/// construct at the lexer layer and crashed in the same 20,000-25,000 range
-/// on a 2 MiB thread). 64 mirrors that constant: far past any array-index
-/// nesting real Tcl code uses, comfortably under every measured crash
-/// threshold above with room to spare for a smaller WASM host stack.
-const MAX_SCAN_PARTS_DEPTH: RecursionLimit = RecursionLimit(64);
-
 /// Decompose a span into substitution components, with each substitution kind
 /// independently enabled (`do_vars`/`do_cmds`/`do_bs` ↔ `subst`'s
-/// `-novariables`/`-nocommands`/`-nobackslashes`). Returns [`WordBody::Literal`]
-/// when no enabled substitution actually occurs (the borrow fast path).
+/// `-novariables`/`-nocommands`/`-nobackslashes`).
 ///
-/// Shared by the word parser (bare/quoted words: all three enabled) and
-/// [`crate::subst`]. Does **not** evaluate — `Variable`/`Command` parts carry
-/// spans for the eval loop (T1.3/T1.4) to resolve.
+/// A thin adapter over the shared owner
+/// [`tcl_lexer::word_parts::decompose`] — kept as this crate's spelling
+/// because `subst` and the word builder both call it with three booleans, not
+/// a struct. All the semantics (C's exact parse-error messages, the
+/// release-variant `${…}` and array-index rules, the borrow fast path) are the
+/// owner's.
 pub fn scan_parts(
     src: &[u8],
     do_vars: bool,
@@ -218,170 +131,18 @@ pub fn scan_parts(
     do_bs: bool,
     config: LexerConfig,
 ) -> WordBody<'_> {
-    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, config, 0)
-}
-
-/// [`scan_parts`]'s implementation, threading the `$name(index)` nesting
-/// `depth` through the self-recursive index-parsing call — see
-/// [`MAX_SCAN_PARTS_DEPTH`]. Past the cap, a nested `$name(index)`'s index is
-/// no longer itself scanned for substitutions; it is kept as a literal text
-/// run instead (mirroring `tcl_lexer::lexer::scan_array_index_body`'s
-/// graceful degradation), so pathologically deep input degrades gracefully
-/// rather than recursing further.
-fn scan_parts_at_depth(
-    src: &[u8],
-    do_vars: bool,
-    do_cmds: bool,
-    do_bs: bool,
-    config: LexerConfig,
-    depth: u32,
-) -> WordBody<'_> {
-    let escapes = config.escapes;
-    let len = src.len();
-    let triggered = src
-        .iter()
-        .any(|&c| (do_vars && c == b'$') || (do_cmds && c == b'[') || (do_bs && c == b'\\'));
-    if !triggered {
-        return WordBody::Literal(src);
-    }
-    // Computed once per call (not per-character): whether this call is
-    // already at/past the depth cap, so any `$name(index)` found in this
-    // span keeps its index as literal text instead of recursing further.
-    let past_cap = MAX_SCAN_PARTS_DEPTH.exceeded(depth);
-
-    let mut parts: Vec<WordPart> = Vec::new();
-    let mut lit_start = 0usize;
-    let mut i = 0usize;
-
-    while i < len {
-        let c = src[i];
-        if do_vars
-            && c == b'$'
-            && i + 1 < len
-            && (src[i + 1] == b'{' || is_var_name_byte(src[i + 1]))
-        {
-            flush_text(&mut parts, src, lit_start, i, do_bs, escapes);
-            i += 1;
-            if src[i] == b'{' {
-                // `${name}` — the close rule is release-specific
-                // (`Tcl_ParseVarName`): 8.x ends the name at the first literal
-                // `}`, 9.x counts nested braces and skips `\X` pairs, so
-                // `subst {${a{b}c}}` reads `a{b` under 8.6 and `a{b}c` under
-                // 9.0 (issue #1457). Resolved through the one shared owner.
-                i += 1;
-                let ns = i;
-                match tcl_lexer::braced_var_name_end(src, ns, config.braced_var) {
-                    tcl_lexer::BracedVarEnd::Closed(ne) => {
-                        i = ne + 1; // consume the `}`
-                        parts.push(WordPart::Variable(VarRef {
-                            name: &src[ns..ne],
-                            index: None,
-                        }));
-                    }
-                    // C raises here rather than reading a name that runs to
-                    // end-of-input; the 9.x rule also calls `${a\}` and `${a{b}`
-                    // unterminated where 8.x closes them.
-                    tcl_lexer::BracedVarEnd::Unterminated => {
-                        i = len;
-                        parts.push(WordPart::ParseError(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
-                    }
-                }
-            } else {
-                // $name  (optionally  $arr(index))
-                let ns = i;
-                i = scan_var_name(src, i);
-                let name = &src[ns..i];
-                if i < len && src[i] == b'(' {
-                    let scan =
-                        tcl_lexer::scan_array_index(src, i, config.array_index, config.braced_var);
-                    let (ks, ke) = match scan.end {
-                        tcl_lexer::ArrayIndexEnd::Closed(end) => (i + 1, end - 1),
-                        tcl_lexer::ArrayIndexEnd::Unterminated => (i + 1, len),
-                    };
-                    i = match scan.end {
-                        tcl_lexer::ArrayIndexEnd::Closed(end) => end,
-                        tcl_lexer::ArrayIndexEnd::Unterminated => len,
-                    };
-                    if scan.invalid.is_some() {
-                        parts.push(WordPart::ParseError(
-                            tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX,
-                        ));
-                        lit_start = i;
-                        continue;
-                    }
-                    // The index is itself substituted at eval time — unless
-                    // this call is already past the depth cap, in which case
-                    // the index is kept as a literal run instead of recursing.
-                    let index = if past_cap {
-                        vec![WordPart::Text(Cow::Borrowed(&src[ks..ke]))]
-                    } else {
-                        match scan_parts_at_depth(
-                            &src[ks..ke],
-                            do_vars,
-                            do_cmds,
-                            do_bs,
-                            config,
-                            depth + 1,
-                        ) {
-                            WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
-                            WordBody::Parts(p) => p,
-                        }
-                    };
-                    parts.push(WordPart::Variable(VarRef {
-                        name,
-                        index: Some(index),
-                    }));
-                } else {
-                    parts.push(WordPart::Variable(VarRef { name, index: None }));
-                }
-            }
-            lit_start = i;
-        } else if do_cmds && c == b'[' {
-            flush_text(&mut parts, src, lit_start, i, do_bs, escapes);
-            let end = skip_command_subst(src, i);
-            // inner script = between the brackets; `end` is one past `]`
-            let inner_end = if end > i + 1 && src[end - 1] == b']' {
-                end - 1
-            } else {
-                end
-            };
-            parts.push(WordPart::Command(&src[i + 1..inner_end]));
-            i = end;
-            lit_start = i;
-        } else if do_bs && c == b'\\' && i + 1 < len {
-            // Escaped byte: skip the `\` and the byte it escapes so an escaped
-            // `$`/`[` is not a substitution boundary. Only the immediately
-            // following byte matters here (longer escapes' trailing digits are
-            // plain run text); the whole run is decoded once at `flush_text`.
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
-    flush_text(&mut parts, src, lit_start, len, do_bs, escapes);
-    WordBody::Parts(parts)
-}
-
-/// Push the literal run `src[start..end]` as a [`WordPart::Text`], decoding its
-/// backslash escapes via the shared decoder under the emulated release's
-/// grammar when `do_bs` (borrowing otherwise).
-fn flush_text<'s>(
-    parts: &mut Vec<WordPart<'s>>,
-    src: &'s [u8],
-    start: usize,
-    end: usize,
-    do_bs: bool,
-    escapes: EscapeSyntax,
-) {
-    if end > start {
-        let run = &src[start..end];
-        let text = if do_bs {
-            tcl_syntax::backslash::decode_bytes_in(run, escapes)
-        } else {
-            Cow::Borrowed(run)
-        };
-        parts.push(WordPart::Text(text));
-    }
+    tcl_lexer::word_parts::decompose(
+        src,
+        tcl_lexer::word_parts::SubstFlags {
+            vars: do_vars,
+            cmds: do_cmds,
+            backslashes: do_bs,
+            bare_var_refs: true,
+            // Source, so an unclosed `[` keeps C's parse error.
+            ..tcl_lexer::word_parts::SubstFlags::default()
+        },
+        config,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -524,6 +285,24 @@ fn flush_word<'s>(
     *expand = false;
 }
 
+/// C's parse errors for the two word delimiters this module owns — spelled by
+/// the shared owner, not re-typed here.
+///
+/// The lexer itself stays lenient about both — it is shared with the LSP,
+/// which must keep tokenizing broken source — so this eval-facing parser is
+/// the one that fails closed, carrying the failure as a
+/// [`WordPart::ParseError`] the evaluator raises when it reaches the word
+/// (issues #1576, #1586).
+use tcl_lexer::word_parts::{MISSING_CLOSE_BRACE, MISSING_QUOTE};
+
+/// Whether a `Str` (brace-delimited) token never found its closing `}` before
+/// end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the one
+/// owner of "does this delimited word's span actually reach its closer" —
+/// rather than re-deriving the answer from span arithmetic here.
+fn brace_token_unterminated(sm: &SourceMap<'_>, tok: Token) -> bool {
+    tcl_lexer::word_closer_offset(sm, tok).is_none()
+}
+
 fn build_word<'s>(
     sm: &SourceMap<'s>,
     src: &'s [u8],
@@ -538,6 +317,18 @@ fn build_word<'s>(
     // C does in its pre-parse pass. A word with no continuation borrows the
     // source unchanged; one with a continuation owns the collapsed bytes.
     if toks.len() == 1 && toks[0].kind == TokenType::Str {
+        if brace_token_unterminated(sm, toks[0]) {
+            // C aborts parsing outright here (`missing close-brace`); this
+            // scanner stays infallible by carrying the failure as a
+            // `ParseError` part for the evaluator to raise when it reaches
+            // this word — the same convention `${…}` uses (issue #1586).
+            return Word {
+                kind: WordKind::Braced,
+                expand,
+                body: WordBody::Parts(vec![WordPart::ParseError(MISSING_CLOSE_BRACE)]),
+                start: toks[0].span.start() as usize,
+            };
+        }
         let content = token_content(sm, src, toks[0]);
         let body = match tcl_syntax::backslash::collapse_brace_continuations(content) {
             Cow::Borrowed(b) => WordBody::Literal(b),
@@ -554,11 +345,28 @@ fn build_word<'s>(
     // scanner clears it on the *last* token of a quoted word and never sets it on
     // a single-token quoted word), so key off the opening source byte instead —
     // for a quoted word the first token's span always starts at the `"`.
-    let kind = if src.get(toks[0].span.start() as usize) == Some(&b'"') {
+    let start = toks[0].span.start() as usize;
+    let kind = if src.get(start) == Some(&b'"') {
         WordKind::Quoted
     } else {
         WordKind::Bare
     };
+    // A `"`-delimited word that never closes is C's `missing "`
+    // (`Tcl_ParseQuotedString`), and it aborts the parse — `eval {list a "b}`
+    // raises on 8.6.16 and 9.0.4 rather than reading `b` as the word. The
+    // lexer's recovery reads to end of input instead, so the close is
+    // re-derived from the shared owner, exactly as the braced word above does.
+    let unterminated_quote = kind == WordKind::Quoted
+        && core::str::from_utf8(src)
+            .is_ok_and(|text| tcl_lexer::word_parts::quoted_word_close(text, start).is_err());
+    if unterminated_quote {
+        return Word {
+            kind,
+            expand,
+            body: WordBody::Parts(vec![WordPart::ParseError(MISSING_QUOTE)]),
+            start,
+        };
+    }
     let mut parts: Vec<WordPart> = Vec::new();
     for &t in toks {
         let bytes = token_content(sm, src, t);
@@ -573,27 +381,67 @@ fn build_word<'s>(
             }
             // An empty (quote-marker) `Esc` contributes nothing.
             TokenType::Esc => {}
-            // A braced fragment mid-word (rare) is verbatim apart from the
-            // backslash-newline line continuation, which collapses to a space.
+            // A braced fragment mid-word (rare, e.g. the glued `{a}{b` second
+            // half) is verbatim apart from the backslash-newline line
+            // continuation, which collapses to a space — unless it never
+            // closes, in which case it's necessarily the last token in the
+            // word (nothing follows end of input) and fails the same way the
+            // single-token fast path above does.
             TokenType::Str => {
-                parts.push(WordPart::Text(
-                    tcl_syntax::backslash::collapse_brace_continuations(bytes),
-                ));
-            }
-            TokenType::Var => {
-                if array_index_parse_error(bytes, t.content_offset == 2, config) {
-                    parts.push(WordPart::ParseError(
-                        tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX,
-                    ));
+                if brace_token_unterminated(sm, t) {
+                    parts.push(WordPart::ParseError(MISSING_CLOSE_BRACE));
                 } else {
-                    parts.push(WordPart::Variable(parse_var_ref(
-                        bytes,
-                        t.content_offset == 2,
-                        config,
-                    )));
+                    parts.push(WordPart::Text(
+                        tcl_syntax::backslash::collapse_brace_continuations(bytes),
+                    ));
                 }
             }
-            TokenType::Cmd => parts.push(WordPart::Command(bytes)),
+            // Both `$` spellings resolve through the shared owner, reading
+            // the *source* at the token's `$` rather than the token's own
+            // content. The lexer's boundary is the lenient recovery it owes
+            // the LSP (an unterminated `${` reads a name running to end of
+            // input; an unterminated `$a(` reads `a(` as a name), so trusting
+            // it here would let direct Rust/WASM evaluation bypass the errors
+            // C raises: `missing close-brace for variable name` (#1586),
+            // `invalid character in array index` (#1732), `missing )`.
+            TokenType::Var => {
+                match tcl_lexer::word_parts::scan_var_ref(src, t.span.start() as usize, config) {
+                    Ok(Some(raw)) => {
+                        let index =
+                            raw.index
+                                .map(|idx| match scan_parts(idx, true, true, true, config) {
+                                    WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
+                                    WordBody::Parts(p) => p,
+                                });
+                        parts.push(WordPart::Variable(VarRef {
+                            name: raw.name,
+                            index,
+                        }));
+                    }
+                    // A `Var` token whose `$` opens no reference cannot come
+                    // out of the lexer; keep the bytes as text rather than
+                    // dropping the word's content if one ever did.
+                    Ok(None) => parts.push(WordPart::Text(Cow::Borrowed(bytes))),
+                    Err(msg) => parts.push(WordPart::ParseError(msg)),
+                }
+            }
+            // A `[…]` that never closes is C's `missing close-bracket` — or
+            // whatever error C meets first *inside* the bracket, since it
+            // parses the substituted script rather than hunting for the `]`.
+            // The lexer's recovery reads to end of input and hands back a
+            // `Cmd` token regardless, so the close is re-derived from the
+            // shared owner, exactly as the `{` and `"` words above are.
+            TokenType::Cmd => {
+                match tcl_lexer::word_parts::command_subst_close(
+                    src,
+                    t.span.start() as usize,
+                    tcl_lexer::word_parts::SubstFlags::default(),
+                    config,
+                ) {
+                    Ok(_) => parts.push(WordPart::Command(bytes)),
+                    Err(msg) => parts.push(WordPart::ParseError(msg)),
+                }
+            }
             _ => {}
         }
     }
@@ -606,7 +454,7 @@ fn build_word<'s>(
             kind,
             expand,
             body: WordBody::Literal(b""),
-            start: toks[0].span.start() as usize,
+            start,
         };
     }
     if let [WordPart::Text(Cow::Borrowed(b))] = parts.as_slice() {
@@ -614,54 +462,15 @@ fn build_word<'s>(
             kind,
             expand,
             body: WordBody::Literal(b),
-            start: toks[0].span.start() as usize,
+            start,
         };
     }
     Word {
         kind,
         expand,
         body: WordBody::Parts(parts),
-        start: toks[0].span.start() as usize,
+        start,
     }
-}
-
-/// Parse a `Var` token's content into name + optional array index. `braced`
-/// (the `${name}` form) suppresses index parsing (the whole content is the
-/// name); for `$arr(idx)` the index is itself substituted.
-fn parse_var_ref(bytes: &[u8], braced: bool, config: LexerConfig) -> VarRef<'_> {
-    if !braced && bytes.last() == Some(&b')') {
-        if let Some(open) = bytes.iter().position(|&c| c == b'(') {
-            let name = &bytes[..open];
-            let idx = &bytes[open + 1..bytes.len() - 1];
-            let index = match scan_parts(idx, true, true, true, config) {
-                WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
-                WordBody::Parts(p) => p,
-            };
-            return VarRef {
-                name,
-                index: Some(index),
-            };
-        }
-    }
-    VarRef {
-        name: bytes,
-        index: None,
-    }
-}
-
-/// Whether a lexer-produced variable token carries an array-index source byte
-/// forbidden by the selected release. The script lexer records the same fact
-/// as a recovery warning; this runtime parser turns it into an evaluable
-/// parse-error part so direct Rust/WASM interpretation cannot bypass #1732.
-fn array_index_parse_error(bytes: &[u8], braced: bool, config: LexerConfig) -> bool {
-    if braced {
-        return false;
-    }
-    let open = scan_var_name(bytes, 0);
-    bytes.get(open) == Some(&b'(')
-        && tcl_lexer::scan_array_index(bytes, open, config.array_index, config.braced_var)
-            .invalid
-            .is_some()
 }
 
 // ---------------------------------------------------------------------------
@@ -782,16 +591,6 @@ mod tests {
         }
     }
 
-    // ---- low-level scanners ----
-
-    #[test]
-    fn variable_scanner_consumes_colon_runs() {
-        assert_eq!(scan_var_name(b"a:::b rest", 0), 5);
-        assert_eq!(scan_var_name(b"::a:::b rest", 0), 7);
-        assert_eq!(scan_var_name(b"foo::: rest", 0), 6);
-        assert_eq!(scan_var_name(b"a:::b(k)", 0), 5);
-    }
-
     #[test]
     fn array_index_source_mask_follows_the_release() {
         for (dialect, malformed) in [
@@ -825,12 +624,6 @@ mod tests {
                 "Tcl 9 accepts escaped/substituted source: {source:?}"
             );
         }
-    }
-
-    #[test]
-    fn command_subst_balances_and_escapes() {
-        assert_eq!(skip_command_subst(b"[a [b] c] tail", 0), 9);
-        assert_eq!(skip_command_subst(b"[a\\] b] tail", 0), 7);
     }
 
     // ---- parse_command ----
@@ -1079,31 +872,27 @@ mod tests {
     /// A moderately nested array index (well under `MAX_SCAN_PARTS_DEPTH`)
     /// still scans into the full nested `Variable`/`index` component tree —
     /// the safety net must not fire, let alone flatten anything, on
-    /// realistic nesting depths. (The trailing `Text("))")`s are a pre-
-    /// existing, unrelated property of this scanner's `)`-terminator search
-    /// — it does not skip over a nested `$name(…)`'s own parens the way
-    /// `tcl_lexer`'s does, so only the *innermost* `)` closes each
-    /// outer-to-inner index in a multi-level chain like this one; not a
-    /// behaviour this fix changes.)
+    /// realistic nesting depths. The scanner's `)`-terminator search now
+    /// skips a nested `$name(…)`'s own parens, so each level closes on its
+    /// matching `)` and nothing spills out as trailing text — the C Tcl
+    /// reading (`set c(1) inner; set b(inner) mid; set a(mid) outer;
+    /// set x $a($b($c(1)))` yields `outer` under `tclsh9.0`).
     #[test]
     fn moderately_nested_array_index_still_scans_fully() {
         // $a($b($c(1)))
         let body = scan_parts(b"$a($b($c(1)))", true, true, true, LexerConfig::default());
         assert_eq!(
             body,
-            WordBody::Parts(vec![
-                WordPart::Variable(VarRef {
-                    name: b"a",
+            WordBody::Parts(vec![WordPart::Variable(VarRef {
+                name: b"a",
+                index: Some(vec![WordPart::Variable(VarRef {
+                    name: b"b",
                     index: Some(vec![WordPart::Variable(VarRef {
-                        name: b"b",
-                        index: Some(vec![WordPart::Variable(VarRef {
-                            name: b"c",
-                            index: Some(vec![WordPart::Text(Cow::Borrowed(&b"1"[..]))]),
-                        })]),
+                        name: b"c",
+                        index: Some(vec![WordPart::Text(Cow::Borrowed(&b"1"[..]))]),
                     })]),
-                }),
-                WordPart::Text(Cow::Borrowed(&b"))"[..])),
-            ])
+                })]),
+            }),])
         );
     }
 

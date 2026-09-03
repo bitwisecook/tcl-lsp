@@ -64,6 +64,7 @@ mod span;
 mod structural_index;
 mod substitution;
 mod tokens;
+pub mod word_parts;
 
 pub use expr_lexer::{
     ExprToken, ExprTokenType, math_functions as expr_math_functions, tokenise_expr,
@@ -99,6 +100,15 @@ pub use substitution::{
 // grammar axis shares it.
 pub use tcl_dialect::{ArrayIndexSyntax, BraceLineContinuation, BracedVarStyle, EscapeSyntax};
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
+// The word-component decomposer's model, re-exported flat so a consumer that
+// already imports `tcl_lexer::{braced_var_name_end, scan_array_index}` gets its
+// neighbour the same way.  The module itself stays public for the constants
+// and the doc entry point.
+pub use word_parts::{
+    MISSING_CLOSE_BRACE, MISSING_CLOSE_BRACKET, MISSING_PAREN, MISSING_QUOTE, RawVarRef,
+    SubstFlags, VarRef, WordBody, WordPart, command_subst_close, decompose, quoted_word_close,
+    scan_var_ref,
+};
 
 /// Return the physical line numbers whose first non-horizontal-whitespace
 /// character is a Tcl comment token.

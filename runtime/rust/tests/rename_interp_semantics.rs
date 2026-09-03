@@ -1,0 +1,320 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Oracle-pinned regression coverage for the r6a-rename-interp lane (#1412).
+//!
+//! Every expected message/result below was taken from a real `rename`/`interp`
+//! call against `tclsh9.0` (9.0.4), and cross-checked against `tclsh8.6`
+//! (8.6.16) wherever a comment says so. Each test runs the exact sheet quoted
+//! in its comment, so a reader can paste it into a real `tclsh` and re-derive
+//! the expectation without this harness.
+
+use tcl_runtime::interp::{Code, Interp};
+
+/// item 1: `rename` onto an occupied destination refuses and leaves both
+/// commands intact (`can't rename to "X": command already exists`), rather
+/// than silently destroying the destination.
+///
+/// tclsh9.0.4:
+///   proc a {} {return A}; proc b {} {return B}
+///   catch {rename a b} e   ;# => can't rename to "b": command already exists
+///   info commands a        ;# => a   (untouched)
+///   b                       ;# => B   (untouched)
+#[test]
+fn rename_onto_occupied_destination_refuses_and_leaves_both_intact() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"proc a {} {return A}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"proc b {} {return B}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"catch {rename a b} e; set e"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"can't rename to \"b\": command already exists".as_slice()
+    );
+    assert_eq!(interp.eval_str(b"info commands a"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"a".as_slice());
+    assert_eq!(interp.eval_str(b"b"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"B".as_slice());
+}
+
+/// item 1, self-rename corner: C's `TclRenameCommand` checks the
+/// destination's hash table *before* removing the source, so a same-slot
+/// self-rename finds the source itself occupying the slot and refuses too.
+///
+/// tclsh9.0.4:
+///   proc foo {} {return F}
+///   catch {rename foo foo} e   ;# => can't rename to "foo": command already exists
+///   foo                        ;# => F   (untouched)
+#[test]
+fn rename_onto_its_own_name_also_refuses() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"proc foo {} {return F}"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(b"catch {rename foo foo} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"can't rename to \"foo\": command already exists".as_slice()
+    );
+    assert_eq!(interp.eval_str(b"foo"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"F".as_slice());
+}
+
+/// item 2: `rename` across namespaces re-homes a proc — C's
+/// `TclRenameCommand` reassigns `cmdPtr->nsPtr`, so `namespace current`
+/// inside the body reports the *new* namespace, not the definition-time one.
+///
+/// tclsh9.0.4:
+///   namespace eval ::src { proc p {} { return [namespace current] } }
+///   namespace eval ::dst {}
+///   rename ::src::p ::dst::p
+///   ::dst::p   ;# => ::dst
+#[test]
+fn rename_across_namespaces_rehomes_a_proc() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(b"namespace eval ::src { proc p {} { return [namespace current] } }"),
+        Code::Ok
+    );
+    assert_eq!(interp.eval_str(b"namespace eval ::dst {}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"rename ::src::p ::dst::p"), Code::Ok);
+    assert_eq!(interp.eval_str(b"::dst::p"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"::dst".as_slice());
+}
+
+/// item 3: `interp`'s bad-option list must advertise only subcommands it
+/// dispatches. `target` is cheap (this runtime's two alias shapes make the
+/// interp-path trivial to compute) and now has an arm; `cancel`/`share`/
+/// `transfer` need infrastructure this runtime has none of (script
+/// cancellation, cross-interp channel sharing) and are dropped from the
+/// list rather than left advertised-but-undispatchable.
+///
+/// tclsh9.0.4 (for contrast — this runtime's list intentionally differs,
+/// naming only what it implements):
+///   catch {interp bogus} e
+///   => bad option "bogus": must be alias, aliases, bgerror, cancel,
+///      children, create, debug, delete, eval, exists, expose, hide,
+///      hidden, issafe, invokehidden, limit, marktrusted, recursionlimit,
+///      share, target, or transfer
+#[test]
+fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"catch {interp bogus} e; set e"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"bad option \"bogus\": must be alias, aliases, bgerror, children, \
+          create, debug, delete, eval, exists, expose, hide, hidden, issafe, \
+          invokehidden, limit, marktrusted, recursionlimit, or target"
+            .as_slice()
+    );
+    // Every name still in the list dispatches — `cancel`/`share`/`transfer`
+    // must not appear (removed from the option list, not silently rejected
+    // via the fallthrough).
+    assert_eq!(interp.eval_str(b"catch {interp cancel} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"bad option \"cancel\""));
+}
+
+/// item 3: `interp target path alias` — the interp-path from this interp to
+/// `alias`'s target interpreter. A same-interp alias's target is the
+/// interpreter it is installed in, so `interp target {} name` for a
+/// same-interp alias returns the empty list (tclsh9.0.4-pinned:
+/// `Tcl_GetInterpPath` returns `{}` when asker and target coincide).
+///
+/// tclsh9.0.4:
+///   proc foo {} {return hi}
+///   interp alias {} bar {} foo
+///   interp target {} bar        ;# => {}  (empty list)
+///   catch {interp target {} nosuch} e
+///   => alias "nosuch" in path "" not found
+#[test]
+fn interp_target_of_a_same_interp_alias_is_the_empty_path() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"proc foo {} {return hi}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp alias {} bar {} foo"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp target {} bar"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"".as_slice());
+    assert_eq!(
+        interp.eval_str(b"catch {interp target {} nosuch} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"alias \"nosuch\" in path \"\" not found".as_slice()
+    );
+}
+
+/// item 5: `interp invokehidden`'s `-namespace`/`-global` options establish
+/// the evaluation context (resolved from the **global** namespace regardless
+/// of the caller's current one, C's `TCL_GLOBAL_ONLY`), and an unrecognized
+/// option is a hard error rather than a silently-skipped no-op. There is no
+/// mutual-exclusion refusal for passing both — the issue's own claim of a
+/// `cannot use -global option and -namespace option together` error does not
+/// hold against either tclsh 8.6.16 or 9.0.4; the last option given simply
+/// wins, same as tclsh.
+///
+/// tclsh9.0.4:
+///   interp hide {} pwd
+///   catch {interp invokehidden {} -bogus pwd} e
+///   => bad option "-bogus": must be -global, -namespace, or --
+///   namespace eval ::ns5 { interp invokehidden {} -namespace bar pwd }
+///   namespace children :: bar     ;# => ::bar      (created at the global root)
+///   namespace children ::ns5      ;# => {}          (not under ::ns5)
+#[test]
+fn invokehidden_rejects_unknown_options_and_namespace_is_global_anchored() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"interp hide {} pwd"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(b"catch {interp invokehidden {} -bogus pwd} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"bad option \"-bogus\": must be -global, -namespace, or --".as_slice()
+    );
+    assert_eq!(
+        interp.eval_str(b"namespace eval ::ns5 { interp invokehidden {} -namespace bar pwd }"),
+        Code::Ok
+    );
+    assert_eq!(interp.eval_str(b"namespace children :: bar"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"::bar".as_slice());
+    assert_eq!(interp.eval_str(b"namespace children ::ns5"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"".as_slice());
+}
+
+/// item 7: `$child subcommand` and `interp subcommand` report the same
+/// `bad option` shape on an unrecognized subcommand — `$child`'s previously
+/// said `interp subcommand "X" is not supported in this runtime`, not a
+/// tclsh error shape at all. The two lists differ (the child command object
+/// never dispatches `children`/`create`/`delete`/`exists` — those are only
+/// ever spelled `interp <op> path`), but both are real tclsh `bad option`
+/// errors.
+///
+/// tclsh9.0.4:
+///   interp create kid
+///   catch {kid bogus} e
+///   => bad option "bogus": must be alias, aliases, bgerror, debug, eval,
+///      expose, hide, hidden, issafe, invokehidden, limit, marktrusted,
+///      or recursionlimit
+#[test]
+fn child_command_bad_option_matches_the_tclsh_shape() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"interp create kid"), Code::Ok);
+    assert_eq!(interp.eval_str(b"catch {kid bogus} e; set e"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"bad option \"bogus\": must be alias, aliases, bgerror, debug, eval, \
+          expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
+          or recursionlimit"
+            .as_slice()
+    );
+}
+
+/// item 4 (fixed before this lane started, pinned here as a regression
+/// guard): the delete form of `rename` — `rename name ""` — words its
+/// missing-source error `can't delete`, not `can't rename`.
+///
+/// tclsh9.0.4:
+///   catch {rename nosuch ""} e
+///   => can't delete "nosuch": command doesn't exist
+#[test]
+fn rename_delete_form_says_cant_delete() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(b"catch {rename nosuch {}} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"can't delete \"nosuch\": command doesn't exist".as_slice()
+    );
+}
+
+/// item 6 (fixed before this lane started, pinned here as a regression
+/// guard): `interp hide`/`expose` misses raise, and `expose` refuses an
+/// occupied destination instead of overwriting it.
+///
+/// tclsh9.0.4:
+///   catch {interp hide {} nosuchcmd} e     ;# => unknown command "nosuchcmd"
+///   catch {interp expose {} nosuchhidden} e ;# => unknown hidden command "nosuchhidden"
+///   proc visible {} {return v}
+///   interp hide {} pwd myhidden
+///   catch {interp expose {} myhidden visible} e
+///   => exposed command "visible" already exists
+///   visible   ;# => v   (untouched)
+#[test]
+fn hide_and_expose_misses_and_collisions_raise() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(b"catch {interp hide {} nosuchcmd} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"unknown command \"nosuchcmd\"".as_slice()
+    );
+    assert_eq!(
+        interp.eval_str(b"catch {interp expose {} nosuchhidden} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"unknown hidden command \"nosuchhidden\"".as_slice()
+    );
+    assert_eq!(interp.eval_str(b"proc visible {} {return v}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp hide {} pwd myhidden"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(b"catch {interp expose {} myhidden visible} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"exposed command \"visible\" already exists".as_slice()
+    );
+    assert_eq!(interp.eval_str(b"visible"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"v".as_slice());
+}
+
+/// A command-delete trace that re-creates the command as an **identical**
+/// alias leaves that new alias alive: command identity is per command token,
+/// not per target/prefix shape, so the in-flight `rename foo {}` must not
+/// delete the binding the callback just installed.
+///
+/// tclsh9.0.4 (and 8.6.16):
+///   proc real {args} {return R}
+///   interp alias {} foo {} real
+///   trace add command foo delete {apply {{old new op} {interp alias {} foo {} real}}}
+///   rename foo {}
+///   info commands foo   ;# => foo   (the re-created alias survives)
+///   foo                 ;# => R
+#[test]
+fn a_delete_trace_recreating_an_identical_alias_keeps_the_new_binding() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"proc real {args} {return R}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp alias {} foo {} real"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(
+            b"trace add command foo delete {apply {{old new op} {interp alias {} foo {} real}}}"
+        ),
+        Code::Ok
+    );
+    assert_eq!(interp.eval_str(b"rename foo {}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"info commands foo"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"foo".as_slice());
+    assert_eq!(interp.eval_str(b"foo"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"R".as_slice());
+}

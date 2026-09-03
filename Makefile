@@ -208,7 +208,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths xtask-dialect-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths xtask-dialect-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -757,7 +757,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
@@ -767,6 +767,10 @@ check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell 
 check-spectcl-compat-paths: ## Verify CI's SpecTcl dependency closure and central shipped-pack inventory
 	@echo "==> Checking SpecTcl compatibility path ownership"
 	@bash scripts/dev/test-spectcl-compat-paths.sh
+
+check-runtime-rust-paths: ## Verify CI's standalone-runtime dependency closure and job wiring (#1768)
+	@echo "==> Checking standalone runtime CI path ownership"
+	@bash scripts/dev/test-runtime-rust-paths.sh
 
 xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, and FILES table
 	@echo "==> Checking embedded Tcl standard-library provenance (cargo xtask)"
@@ -2314,8 +2318,31 @@ distclean: clean ## Remove build artifacts and node_modules
 # lint target so the local and CI PR gates cannot drift from this definition.
 RUNTIME_RUST_DIR := $(ROOT)runtime/rust
 
+# The standalone runtime's own suite. `runtime/rust` is its OWN cargo
+# workspace, so the root `cargo test --workspace` never reaches it and
+# `wasm-real-link` only builds/links it — this target is the only thing that
+# executes these tests, locally or in CI's `runtime-rust-tests` job (#1768).
+#
+# `--locked` keeps CI and a checkout resolving the identical dependency graph.
+#
+# TCL_TOMMATH_DIR is passed EXPLICITLY, never left to the build script's
+# fallback: without libtommath `build.rs` prints a `cargo:warning` and builds
+# with the bignum backend disabled, which un-registers `expr` (and the
+# `::tcl::mathfunc`/`mathop` ensembles) entirely. The suite still runs and can
+# still be green — while silently covering far less than it appears to, the
+# same trap issue #1542 documents for the real link. `ensure-tcl90-reference`
+# fetches the tree; if it is genuinely absent the build's own warning is the
+# loud part, so the variable is only exported when the directory exists.
 runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)
-	cd $(RUNTIME_RUST_DIR) && cargo test
+	@set -eu; \
+	tommath="$${TCL_TOMMATH_DIR:-$(ROOT)tmp/tcl9.0.4/libtommath}"; \
+	if [ ! -f "$$tommath/tommath.h" ]; then \
+		echo "WARNING: no libtommath at $$tommath — the numeric tower (and"; \
+		echo "         therefore 'expr') will be DISABLED in this run."; \
+		echo "         Fetch it with: make ensure-tcl90-reference"; \
+		tommath=""; \
+	fi; \
+	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
 	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings

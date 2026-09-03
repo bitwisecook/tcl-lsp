@@ -42,6 +42,7 @@ entry point, or gate moves without this contract being updated.
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
 | array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
+| word substitution components | `rust/tcl-lexer/src/word_parts.rs` | `decompose`; `scan_var_ref`; `command_subst_close`; `quoted_word_close`; `SubstFlags`; `WordPart`; `WordBody`; `VarRef`; `RawVarRef`; `MISSING_QUOTE`; `MISSING_CLOSE_BRACKET`; `MISSING_CLOSE_BRACE`; `MISSING_PAREN` | `LexerConfig` per emulated release (`${...}` close rule, array-index source mask, escape grammar); compiled-word vs source-word `$` spelling | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
@@ -305,15 +306,79 @@ entry point, or gate moves without this contract being updated.
     (`auto_path_eval`, `specialise_factories`), which passes
     `BracedVarStyle::default()` explicitly rather than silently.
 
-  Still uncovered, tracked as follow-ups: the runtime's script-word surface
-  (`runtime/rust/src/parse.rs::build_word`, which reads `${...}` from a lexed
-  `TokenType::Var` rather than through this scan), and `value_shapes`'
+  Still uncovered, tracked as follow-ups: `value_shapes`'
   `scan_pure_var_ref` / `is_braced_whole_name_array_ref` /
   `whole_word_scalar_var_name` — whose combined ~45 callers make them their
   own sweep, and each of which currently *declines* on a divergent shape
   rather than answering wrongly. Do not read this entry as claiming the
   codebase has one `${...}` decoder — it has one *for the surfaces named
   above*.
+
+- `word_parts::decompose` — the one splitter of a Tcl word (or a `subst`
+  template) into its substitution components: C's `ParseTokens` breakdown
+  into text runs with their backslash escapes folded in, `$name` /
+  `${name}` / `$arr(index)` references, and `[script]` substitutions, with
+  the `{*}` expansion flag and the parse errors C names carried alongside.
+
+  It exists because that walk had **four** implementations that drifted
+  (bucket R10): `runtime/rust/src/parse.rs`'s `scan_parts`, that crate's
+  `subst.rs` mirror, `tcl-vm`'s `subst.rs`, and the compiler's
+  `segmenter.rs` / `ir.rs` `WordExpr` builder. Only one raised C's `missing
+  close-bracket`; only one found a `]` without being fooled by a brace,
+  quote or comment in the substituted script; only one decoded a literal
+  run's escapes. `runtime/rust` and `tcl-vm` are consumers now; the
+  compiler's segmenter is the remaining adopter (see below).
+
+  The module sits in `tcl-lexer` because its dependencies already do —
+  `braced_var_name_end`, `scan_array_index`, `command_substitution_end`,
+  `close_quote_offset`, `backslash_subst_in` — and because the crate is
+  below `tcl-syntax`, both runtimes and the compiler, so every consumer
+  reaches it without inverting an edge.
+
+  Three properties are contractual:
+
+  - **Borrow-based.** `WordBody::Literal` and every `Variable` / `Command`
+    part are sub-slices of the caller's source; only a text run that
+    actually had an escape to decode owns its bytes. That keeps the literal
+    fast path zero-copy, which is what lets the runtime's `parse_cache`
+    hold parsed commands against a stable script slab
+    (memory-management.md MM-B.6) with the stale-slab hazard a *compile*
+    error rather than a runtime one. A future adopter must not "simplify"
+    this to owned bytes.
+  - **Errors are parts, not a `Result`.** A malformed construct becomes a
+    `WordPart::ParseError` carrying C's exact message (`missing "`,
+    `missing close-bracket`, `missing close-brace`, `missing close-brace
+    for variable name`, `missing )`, `invalid character in array index`),
+    and the parts scanned before it are still returned. That is C's order,
+    not leniency: `subst` substitutes incrementally, so `subst {[side][b}`
+    runs `side` and keeps its side effects before reporting the missing
+    bracket (8.6.16 and 9.0.4 agree). A consumer wanting C's *script*
+    order — `Tcl_ParseCommand` parses every word before evaluating any, so
+    nothing runs — scans all its words and raises the first `ParseError`
+    before resolving anything.
+  - **An unterminated `[` reports what is inside it.** C recurses into
+    `Tcl_ParseCommand` at the bracket rather than hunting for the matching
+    `]`, so `subst $t` with `t` = `[set y ${a{b]` is `missing close-brace
+    for variable name`, not `missing close-bracket`. The missing bracket is
+    the fallback, not the default.
+
+  The release axis is the whole `LexerConfig`: the `${...}` close rule
+  (#1457), the array-index source mask (#1732) and the escape grammar
+  (#1479). The one non-release axis is `SubstFlags::bare_var_refs`, false
+  for exactly one consumer — `tcl-vm`'s compiled-word `PUSH` operands,
+  where the compiler has already inlined or normalised every real
+  reference, so a surviving bare `$` is data. Modelling that as a flag on
+  the shared scan is what keeps the VM on this owner rather than justifying
+  a private copy.
+
+  **Not yet adopted: `tcl-compiler::segmenter`.** The fourth copy is still
+  live. The API is shaped for it — `decompose` takes a word's content span
+  plus a `LexerConfig` and returns parts whose byte extents are recoverable
+  from the borrows, which is what `WordExpr` / `WordPart` need to keep
+  their public shape, so `CommandTokens::from_segmented` maps part for
+  part. The segmenter keeps owning *command* and *word* boundaries; only
+  the within-word breakdown moves. Tracked in
+  `docs/design/lanes/wasm-native-lowering.md` § `r10-word-parts`.
 
 ### `tcl-cmd-core` — portable command logic
 

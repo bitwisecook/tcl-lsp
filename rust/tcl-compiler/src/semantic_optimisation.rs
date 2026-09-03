@@ -38,12 +38,24 @@ pub enum SemanticOptimisationPassId {
     FrameElision,
     /// Permit registry-resolved semantic operation and boundary proofs.
     SemanticOperationSpecialisation,
+    /// Permit the native lowering of executable IR into NLIR
+    /// (`crate::native_lowering`) and its consumption by a backend.
+    NativeLowering,
+    /// Permit the representation lattice to keep values native between
+    /// operations; disabled, every value is boxed and every operation dynamic.
+    RepresentationInference,
+    /// Permit trace-barrier elision: values may stay in native shadows across
+    /// cell accesses the variable-trace ledger proves unobserved.
+    TraceBarrierElision,
+    /// Permit demoting a proven-local procedure variable from a named cell to
+    /// an indexed runtime slot.
+    CellDemotion,
 }
 
 impl SemanticOptimisationPassId {
     /// Every pass identifier in a stable order, for explicit configuration UIs.
     #[must_use]
-    pub const fn all() -> [Self; 8] {
+    pub const fn all() -> [Self; 12] {
         [
             Self::LegacyAnalysisSpecialisation,
             Self::GuardedIntrinsic,
@@ -53,10 +65,33 @@ impl SemanticOptimisationPassId {
             Self::NativeInteger,
             Self::FrameElision,
             Self::SemanticOperationSpecialisation,
+            Self::NativeLowering,
+            Self::RepresentationInference,
+            Self::TraceBarrierElision,
+            Self::CellDemotion,
         ]
     }
 
-    const fn bit(self) -> u8 {
+    /// Stable Explorer/API spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LegacyAnalysisSpecialisation => "legacy-analysis-specialisation",
+            Self::GuardedIntrinsic => "guarded-intrinsic",
+            Self::CachedBoxedSlot => "cached-boxed-slot",
+            Self::MaterialisableSlot => "materialisable-slot",
+            Self::DirectProc => "direct-proc",
+            Self::NativeInteger => "native-integer",
+            Self::FrameElision => "frame-elision",
+            Self::SemanticOperationSpecialisation => "semantic-operation-specialisation",
+            Self::NativeLowering => "native-lowering",
+            Self::RepresentationInference => "representation-inference",
+            Self::TraceBarrierElision => "trace-barrier-elision",
+            Self::CellDemotion => "cell-demotion",
+        }
+    }
+
+    const fn bit(self) -> u16 {
         match self {
             Self::LegacyAnalysisSpecialisation => 1 << 0,
             Self::GuardedIntrinsic => 1 << 1,
@@ -66,6 +101,10 @@ impl SemanticOptimisationPassId {
             Self::NativeInteger => 1 << 5,
             Self::FrameElision => 1 << 6,
             Self::SemanticOperationSpecialisation => 1 << 7,
+            Self::NativeLowering => 1 << 8,
+            Self::RepresentationInference => 1 << 9,
+            Self::TraceBarrierElision => 1 << 10,
+            Self::CellDemotion => 1 << 11,
         }
     }
 }
@@ -76,7 +115,7 @@ impl SemanticOptimisationPassId {
 /// reachable only through a named [`SemanticOptimisationPassId`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SemanticOptimisationConfig {
-    enabled: u8,
+    enabled: u16,
 }
 
 impl SemanticOptimisationConfig {

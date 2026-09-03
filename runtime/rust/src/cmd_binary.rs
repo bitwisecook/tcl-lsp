@@ -258,8 +258,17 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return err(interp, b"not enough arguments for all format specifiers");
         };
         let name = obj_bytes(var);
+        // `arr(a)` writes the array *element*, not a literal scalar named
+        // `arr(a)` (issue #1577) — the same `split_array_ref` +
+        // `var_set`/`var_set_elem` routing `set` uses, so this doesn't
+        // hand-roll a second name parser.
+        let (base, elem) = crate::frame::split_array_ref(&name);
         let o = crate::bytearray::new_byte_array(val);
-        if let Err(e) = interp.var_set(&name, o) {
+        let stored = match &elem {
+            Some(k) => interp.var_set_elem(&base, k, o),
+            None => interp.var_set(&base, o),
+        };
+        if let Err(e) = stored {
             crate::interp::drop_fresh(o);
             return crate::builtins::var_error(interp, &name, e);
         }

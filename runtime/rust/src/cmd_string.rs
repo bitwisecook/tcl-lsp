@@ -56,7 +56,7 @@ pub fn install(interp: &mut Interp) {
 /// `append varName ?value ...?` — append to the string in `varName` (creating
 /// it if unset), growing the buffer in place (amortised O(1)) when the value is
 /// an unshared plain string, else copy-on-write. Returns the new value.
-fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"append varName ?value ...?");
     }

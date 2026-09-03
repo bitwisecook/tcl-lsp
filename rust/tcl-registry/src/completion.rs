@@ -42,6 +42,26 @@ pub fn canonical_completion_code(value: &str, numbers: tcl_syntax::number::Numbe
     Some(value as i32)
 }
 
+/// Map a Tcl completion-code *selector* to its code.
+///
+/// A selector is the word a `return -code` option or a `try … on` clause
+/// names: one of the five standard spellings, or any integer completion code
+/// in Tcl's accepted range.  Returns `None` for a word that is neither.
+#[must_use]
+pub fn completion_code_selector(
+    value: &str,
+    numbers: tcl_syntax::number::Numbers,
+) -> Option<CompletionCode> {
+    match value {
+        "ok" => Some(CompletionCode::Ok),
+        "error" => Some(CompletionCode::Error),
+        "return" => Some(CompletionCode::Return),
+        "break" => Some(CompletionCode::Break),
+        "continue" => Some(CompletionCode::Continue),
+        value => canonical_completion_code(value, numbers).map(CompletionCode::from_int),
+    }
+}
+
 /// The statically possible Tcl completion codes for an invocation.
 ///
 /// [`Self::Exact`] retains named Tcl codes and arbitrary integer codes alike:

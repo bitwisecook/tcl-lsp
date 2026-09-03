@@ -1443,7 +1443,16 @@ fn apply_instruction<'f>(
             }
             None
         }
-        ExecutableInstruction::ExpandWord { .. } | ExecutableInstruction::BuildArgv { .. } => None,
+        // Neither these nor the structured-control operations below carry a
+        // command dispatch of their own; a body statement that does is a
+        // separate instruction on the same graph.
+        ExecutableInstruction::ExpandWord { .. }
+        | ExecutableInstruction::BuildArgv { .. }
+        | ExecutableInstruction::MatchPattern { .. }
+        | ExecutableInstruction::IterateLists { .. }
+        | ExecutableInstruction::JoinCompletion { .. }
+        | ExecutableInstruction::WriteCompletionCell { .. }
+        | ExecutableInstruction::CompleteStructuredRegion(_) => None,
         ExecutableInstruction::Invoke(invoke) => {
             apply_invoke(state, &invoke.resolution, block, index, site)
         }
@@ -1457,6 +1466,25 @@ fn apply_instruction<'f>(
             }
             None
         }
+        // A condition or operand containing a command substitution still
+        // widens, exactly as a word evaluation does.
+        ExecutableInstruction::EvaluateExpr { expr, .. } => {
+            if executable_expr_world_hazard(expr) && !state.fully_widened() {
+                Arc::make_mut(state).widen_all(site);
+            }
+            None
+        }
+    }
+}
+
+/// Whether evaluating a structured-control operand can run commands that
+/// change mutable world contents.
+fn executable_expr_world_hazard(expr: &crate::executable_ir::ExecutableExpr) -> bool {
+    use crate::executable_ir::ExecutableExpr;
+    match expr {
+        ExecutableExpr::Condition { expr, .. } => !expr.command_texts().is_empty(),
+        ExecutableExpr::Operand { text, braced } => !*braced && text.contains('['),
+        ExecutableExpr::TrapPrefix { .. } => false,
     }
 }
 

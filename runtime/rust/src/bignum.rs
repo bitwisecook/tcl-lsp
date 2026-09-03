@@ -169,7 +169,16 @@ fn read(obj: *mut TclObj) -> Option<NumVal> {
     if tp == &TCL_BIGNUM_TYPE {
         return Some(NumVal::Big(Mp::copy_of(mp_ptr(obj))?));
     }
-    // Untyped (or other): classify the string rep.
+    // Untyped (or other): classify the string rep, then cache what we parsed
+    // back onto the object so the next use reads a rep instead of the spelling.
+    let value = parse_string_rep(obj)?;
+    cache_parsed_rep(obj, &value);
+    Some(value)
+}
+
+/// Classify an object's string rep through the shared [`tcl_syntax::number`]
+/// grammar, without touching the object's internal rep.
+fn parse_string_rep(obj: *mut TclObj) -> Option<NumVal> {
     let bytes = obj::bytes_of(obj);
     let s = core::str::from_utf8(&bytes).ok()?;
     use tcl_syntax::number::Number;
@@ -201,6 +210,91 @@ fn read(obj: *mut TclObj) -> Option<NumVal> {
             Some(NumVal::Big(Mp(m)))
         }
         Number::Nan { .. } => None,
+    }
+}
+
+/// Write the freshly parsed tower value back onto `obj` as its internal rep.
+///
+/// This is C's numeric write-back (`TclParseNumber` stores the rep it built on
+/// the object it parsed), and without it `incr x` / `expr {$x+1}` in a loop
+/// re-lex the same spelling on every iteration. The **string** rep is kept by
+/// [`obj::change_type`], so the object's spelling is unchanged: `"0x10"` reads
+/// as 16 and still prints `0x10`, exactly as in C Tcl.
+/// [`obj::may_cache_parsed_rep`] owns the "may we" question.
+fn cache_parsed_rep(obj: *mut TclObj, value: &NumVal) {
+    match value {
+        NumVal::Wide(w) => obj::cache_wide_rep(obj, *w),
+        NumVal::Float(f) => obj::cache_double_rep(obj, *f),
+        NumVal::Big(m) => {
+            if !obj::may_cache_parsed_rep(obj) {
+                return;
+            }
+            // The caller keeps the operand it was handed, so the object gets its
+            // own deep copy of the digits.
+            let Some(copy) = Mp::copy_of(m.ptr()) else {
+                return;
+            };
+            let boxed = Box::into_raw(Box::new(copy.into_inner()));
+            obj::change_type(obj, &TCL_BIGNUM_TYPE, boxed as u64);
+        }
+    }
+}
+
+/// How an object read as a `Tcl_WideInt` (`Tcl_GetWideIntFromObj`) came out.
+pub(crate) enum WideRead {
+    /// The value, as a wide integer.
+    Wide(i64),
+    /// An integer past the wide range — C's `integer value too large to
+    /// represent` / `ARITH IOVERFLOW`.
+    Overflow,
+    /// A number that is not an integer (a double, or NaN).
+    NotInteger,
+    /// Not a number at all.
+    NotNumeric,
+}
+
+/// Read `obj` as a wide integer with `Tcl_GetWideIntFromObj`'s classification,
+/// caching the parsed rep back onto the object like every other tower read.
+///
+/// A bignum that still fits a wide narrows here, exactly as C's bignum branch
+/// does even with auto-narrowing enabled.
+pub(crate) fn read_wide(obj: *mut TclObj) -> WideRead {
+    match read(obj) {
+        Some(NumVal::Wide(w)) => WideRead::Wide(w),
+        Some(NumVal::Big(m)) => {
+            // SAFETY: `m` owns a live mp_int.
+            if unsafe { mp_count_bits(m.ptr()) } <= 63 {
+                // SAFETY: the magnitude fits, so the signed read is exact.
+                WideRead::Wide(unsafe { mp_get_i64(m.ptr()) })
+            } else {
+                WideRead::Overflow
+            }
+        }
+        Some(NumVal::Float(_)) => WideRead::NotInteger,
+        None => {
+            // A NaN spelling is a number the tower declines, not a non-number:
+            // `Tcl_GetWideIntFromObj` still reports it as "expected integer".
+            if is_nan_operand(obj) {
+                WideRead::NotInteger
+            } else {
+                WideRead::NotNumeric
+            }
+        }
+    }
+}
+
+/// Read `obj` as a double with `Tcl_GetDoubleFromObj`'s widening (an integer or
+/// bignum promotes), caching the parsed rep back onto the object. `None` is a
+/// non-numeric value; a NaN spelling yields `Some(NaN)`, which the boolean
+/// context rejects and the double context accepts.
+pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    match read(obj) {
+        Some(NumVal::Wide(w)) => Some(w as f64),
+        Some(NumVal::Float(f)) => Some(f),
+        // SAFETY: `m` owns a live mp_int; C promotes a bignum to the nearest
+        // double (±Inf past the range).
+        Some(NumVal::Big(m)) => Some(unsafe { mp_get_double(m.ptr()) }),
+        None => is_nan_operand(obj).then_some(f64::NAN),
     }
 }
 
@@ -242,8 +336,23 @@ pub enum ArithError {
     /// An integer-only op (bit-op, `<<`, `>>`) got a float operand
     /// (`can't use floating-point value as operand of …`).
     NonInteger,
-    /// Integer `/` or `%` by zero, or `0 ** negative` (`divide by zero`).
+    /// Integer `/` or `%` by zero (`divide by zero`, `-errorcode ARITH
+    /// DIVZERO`). **Not** `0 ** negative` — C classes that as a domain
+    /// error, [`ArithError::ZeroToNegativePower`], with its own message and
+    /// `-errorcode` (`tclExecute.c`'s `EXPON_OF_ZERO`).
     DivideByZero,
+    /// `0 ** negative` on either the integer or the float tier
+    /// (`exponentiation of zero by negative power`, `-errorcode ARITH
+    /// DOMAIN`) — C's `EXPON_OF_ZERO`, a domain error rather than a division
+    /// by zero.
+    ZeroToNegativePower,
+    /// A double operation produced a `NaN` (`0.0/0.0`, `Inf-Inf`, `0.0*Inf`)
+    /// — C's `doubleResult` check in `tclExecute.c`, reported through
+    /// `TclExprFloatError` as `domain error: argument not in valid range`
+    /// with `-errorcode ARITH DOMAIN`. An *infinite* result is an ordinary
+    /// value (`1.0/0.0` is `Inf`), and a `NaN` operand is refused earlier as
+    /// an operand-type error, so only a produced `NaN` lands here.
+    NanResult,
     /// A negative shift count (`negative shift argument`).
     NegativeShift,
     /// An exponent too large to compute (`exponent too large`).
@@ -269,8 +378,8 @@ fn arith(op: IntOp, a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, Arith
     let y = num(b)?;
     let v = match (x, y) {
         // Float promotion: mixed or both float → double result.
-        (NumVal::Float(p), q) => NumVal::Float(float_op(op, p, as_f64(q))),
-        (p, NumVal::Float(q)) => NumVal::Float(float_op(op, as_f64(p), q)),
+        (NumVal::Float(p), q) => NumVal::Float(double_result(float_op(op, p, as_f64(q)))?),
+        (p, NumVal::Float(q)) => NumVal::Float(double_result(float_op(op, as_f64(p), q))?),
         // Wide fast path: checked op, overflow → bignum.
         (NumVal::Wide(p), NumVal::Wide(q)) => match wide_op(op, p, q) {
             Some(w) => NumVal::Wide(w),
@@ -306,6 +415,18 @@ fn float_op(op: IntOp, a: f64, b: f64) -> f64 {
         IntOp::Sub => a - b,
         IntOp::Mul => a * b,
     }
+}
+
+/// C's `doubleResult` gate (`tclExecute.c`): a produced `NaN` is a domain
+/// error, every other double result — infinities included — is a value.
+/// [`read`] folds a `NaN` spelling to `None`, so the operands here are never
+/// `NaN` themselves.
+#[inline]
+fn double_result(value: f64) -> Result<f64, ArithError> {
+    if value.is_nan() {
+        return Err(ArithError::NanResult);
+    }
+    Ok(value)
 }
 
 #[inline]
@@ -382,51 +503,24 @@ fn divmod(a: *mut TclObj, b: *mut TclObj, want_quotient: bool) -> Result<*mut Tc
     let x = num(a)?;
     let y = num(b)?;
     // `/` divides as floats when either operand is a float; `%` is integer-only,
-    // so a float operand is an error (`cannot use floating-point value …`).
+    // so a float operand is an error (`cannot use floating-point value ...`).
     if matches!(x, NumVal::Float(_)) || matches!(y, NumVal::Float(_)) {
         if !want_quotient {
             return Err(ArithError::NonInteger);
         }
         let (p, q) = (as_f64(x), as_f64(y));
-        return Ok(obj::new_double_obj(p / q));
+        return Ok(obj::new_double_obj(double_result(p / q)?));
     }
-    // Wide fast path.
-    if let (NumVal::Wide(p), NumVal::Wide(q)) = (&x, &y) {
-        let (p, q) = (*p, *q);
-        if q == 0 {
-            return Err(ArithError::DivideByZero);
-        }
-        // i64::MIN / -1 overflows the wide → bignum path below.
-        if !(p == i64::MIN && q == -1) {
-            let (quot, rem) = wide_floor_divmod(p, q);
-            return Ok(obj::new_wide_int_obj(if want_quotient {
-                quot
-            } else {
-                rem
-            }));
-        }
-    }
-    // Bignum path.
-    let pm = into_mp(x).ok_or(ArithError::Alloc)?;
-    let qm = into_mp(y).ok_or(ArithError::Alloc)?;
-    // SAFETY: `qm` is live; a zero divisor is `used == 0`.
-    if qm.0.used == 0 {
-        return Err(ArithError::DivideByZero);
-    }
-    let (quot, rem) = mp_floor_divmod(&pm, &qm)?;
-    Ok(store((if want_quotient { quot } else { rem }).into_inner()))
-}
-
-/// Floor division for wides: quotient toward −∞, remainder with the divisor's
-/// sign (`a == (a/b)*b + (a%b)`). `b != 0` and not the `MIN/-1` overflow.
-fn wide_floor_divmod(a: i64, b: i64) -> (i64, i64) {
-    let mut q = a / b;
-    let mut r = a % b;
-    if r != 0 && (r < 0) != (b < 0) {
-        q -= 1;
-        r += b;
-    }
-    (q, r)
+    // The integer tier is the shared tower's (`int_div` / `int_mod` over the
+    // libtommath adapter): the floor quotient, the divisor-signed remainder,
+    // and the zero-divisor refusal all come from that one owner (#1428).
+    let (p, q) = (tower_of(x)?, tower_of(y)?);
+    let r = if want_quotient {
+        tcl_syntax::number_tower::int_div(&p, &q)
+    } else {
+        tcl_syntax::number_tower::int_mod(&p, &q)
+    };
+    Ok(tower_obj(r.ok_or(ArithError::DivideByZero)?))
 }
 
 /// Floor division for bignums via `mp_div` (C-truncation) + the floor adjust:
@@ -696,20 +790,28 @@ fn mp_is_even(m: &Mp) -> bool {
     m.0.used == 0 || unsafe { *m.0.dp & 1 == 0 }
 }
 
-/// `out = base ** e` (e ≥ 2), via libtommath; guards an absurd exponent.
-fn mp_expt(base: &Mp, e: i64) -> Result<NumVal, ArithError> {
-    if e > i64::from(i32::MAX) {
-        return Err(ArithError::ExponentTooLarge);
+/// The `i64` stand-in for a beyond-wide exponent: the tower's `**` rules past
+/// `MAX_EXPONENT` depend only on the exponent's **sign and parity** (`(-1) **
+/// 10**20` is `1`; `2 ** 10**20` is "exponent too large"; `2 ** -10**20` is
+/// `0`), so folding a bignum exponent to an equal-sign, equal-parity wide is
+/// exact. The same fold `tcl-vm`'s `big_pow` uses.
+fn saturating_exponent(eb: &Mp) -> i64 {
+    use tcl_syntax::number_tower::MAX_EXPONENT;
+    match (mp_is_neg(eb), mp_is_even(eb)) {
+        (true, true) => -2,
+        (true, false) => -1,
+        (false, true) => MAX_EXPONENT + 1,
+        (false, false) => MAX_EXPONENT + 2,
     }
-    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
-    // SAFETY: live mp_ints; `e` fits c_int.
-    if unsafe { mp_expt_n(base.ptr(), e as c_int, &mut out.0) } != MP_OKAY {
-        return Err(ArithError::Alloc);
-    }
-    Ok(NumVal::Big(out))
 }
 
 /// `a ** b` over the tower (TIP 123 integer rules + float `pow`).
+///
+/// The integer tier is the shared owner's ([`tcl_syntax::number_tower::int_pow`]
+/// over the [`TowerMp`] adapter): the zero/`±1` base collapses, the
+/// negative-exponent floor, and C's `2^28` exponent ceiling all live there, so
+/// `3 ** 268435456` is an instant "exponent too large" rather than a
+/// multi-hundred-megabit allocation (#1428).
 pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     let base = num(a)?;
     let exp = num(b)?;
@@ -717,67 +819,26 @@ pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     if matches!(base, NumVal::Float(_)) || matches!(exp, NumVal::Float(_)) {
         let (p, q) = (as_f64(base), as_f64(exp));
         if p == 0.0 && q < 0.0 {
-            return Err(ArithError::DivideByZero);
+            return Err(ArithError::ZeroToNegativePower);
         }
-        return Ok(obj::new_double_obj(p.powf(q)));
+        return Ok(obj::new_double_obj(double_result(p.powf(q))?));
     }
-    let v = match exp {
-        NumVal::Wide(e) => pow_wide_exp(base, e)?,
-        NumVal::Big(eb) => pow_big_exp(base, &eb)?,
-        NumVal::Float(_) => unreachable!(),
+    let e = match exp {
+        NumVal::Wide(e) => e,
+        NumVal::Big(eb) => saturating_exponent(&eb),
+        NumVal::Float(_) => unreachable!("float exponents took the branch above"),
     };
-    Ok(to_obj(v))
-}
-
-/// `base ** e` with a normal (wide) exponent. A bignum `base` always has
-/// magnitude ≥ 2 (smaller values demote to a wide), so the `0`/`±1` special
-/// cases only apply to a wide base.
-fn pow_wide_exp(base: NumVal, e: i64) -> Result<NumVal, ArithError> {
-    if e == 0 {
-        return Ok(NumVal::Wide(1));
-    }
-    if e == 1 {
-        return Ok(base);
-    }
-    match base {
-        NumVal::Wide(0) => {
-            if e < 0 {
-                Err(ArithError::DivideByZero) // 0 ** negative
-            } else {
-                Ok(NumVal::Wide(0))
-            }
+    let base = tower_of(base)?;
+    match tcl_syntax::number_tower::int_pow(&base, e) {
+        Some(r) => Ok(tower_obj(r)),
+        // `int_pow` declines exactly two cases, which C reports differently: a
+        // zero base with a negative exponent is the `ARITH DOMAIN`
+        // "exponentiation of zero by negative power"; anything else is the
+        // exponent ceiling.
+        None if tcl_syntax::number_tower::BigIntOps::is_zero(&base) => {
+            Err(ArithError::ZeroToNegativePower)
         }
-        NumVal::Wide(1) => Ok(NumVal::Wide(1)),
-        NumVal::Wide(-1) => Ok(NumVal::Wide(if e % 2 == 0 { 1 } else { -1 })),
-        // |base| ≥ 2: a negative exponent floors to 0 (TIP 123); else compute.
-        b if e < 0 => {
-            drop(b);
-            Ok(NumVal::Wide(0))
-        }
-        b => mp_expt(&into_mp(b).ok_or(ArithError::Alloc)?, e),
-    }
-}
-
-/// `base ** e` with a huge (bignum) exponent — only `0`/`±1` bases have a
-/// representable result; any other base with a positive huge exponent is
-/// `ExponentTooLarge`, with a negative one floors to 0.
-fn pow_big_exp(base: NumVal, eb: &Mp) -> Result<NumVal, ArithError> {
-    let neg = mp_is_neg(eb);
-    match base {
-        NumVal::Wide(0) => {
-            if neg {
-                Err(ArithError::DivideByZero)
-            } else {
-                Ok(NumVal::Wide(0))
-            }
-        }
-        NumVal::Wide(1) => Ok(NumVal::Wide(1)),
-        NumVal::Wide(-1) => Ok(NumVal::Wide(if mp_is_even(eb) { 1 } else { -1 })),
-        b if neg => {
-            drop(b);
-            Ok(NumVal::Wide(0))
-        }
-        _ => Err(ArithError::ExponentTooLarge),
+        None => Err(ArithError::ExponentTooLarge),
     }
 }
 
@@ -844,83 +905,57 @@ pub fn bnot(a: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     }
 }
 
-/// A validated shift count: a small non-negative wide, or a beyond-wide
-/// positive bignum. The two shift directions disagree about the huge case —
-/// `<<` raises "integer value too large to represent" while `>>` collapses
-/// to the operand's sign (`2 >> 10**20` is `0`, `-2 >> 10**20` is `-1` —
-/// tclsh 8.6/9.0 verified) — so the caller decides.
-enum ShiftCount {
-    Small(i64),
-    HugePositive,
-}
-
-/// Read a non-negative shift count (integer-only). A negative count of any
-/// width is `NegativeShift`.
-fn shift_count(b: *mut TclObj) -> Result<ShiftCount, ArithError> {
-    match read_int(b)? {
-        IntVal::Wide(c) if c >= 0 => Ok(ShiftCount::Small(c)),
-        IntVal::Wide(_) => Err(ArithError::NegativeShift),
-        IntVal::Big(m) if mp_is_neg(&m) => Err(ArithError::NegativeShift),
-        IntVal::Big(_) => Ok(ShiftCount::HugePositive),
-    }
-}
-
-/// `a << b` over the tower (integer-only). Always via the bignum path
-/// (`mp_mul_2d`); `store` demotes a small result back to a wide.
-pub fn shl(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
-    let count = match shift_count(b)? {
-        ShiftCount::Small(c) => c,
-        ShiftCount::HugePositive => return Err(ArithError::TooLargeToRepresent),
-    };
-    if count > i64::from(i32::MAX) {
-        return Err(ArithError::TooLargeToRepresent);
-    }
-    let base = int_to_mp(read_int(a)?)?;
-    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
-    // SAFETY: live mp_ints; `count` fits c_int.
-    if unsafe { mp_mul_2d(base.ptr(), count as c_int, &mut out.0) } != MP_OKAY {
-        return Err(ArithError::Alloc);
-    }
-    Ok(store(out.into_inner()))
-}
-
-/// `a >> b` over the tower (integer-only, arithmetic/sign-extending).
-pub fn shr(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
-    let count = match shift_count(b)? {
-        ShiftCount::Small(c) => c,
-        // A beyond-wide count out-shifts any operand: collapse to the sign.
-        ShiftCount::HugePositive => {
-            let neg = match read_int(a)? {
-                IntVal::Wide(w) => w < 0,
-                IntVal::Big(m) => mp_is_neg(&m),
-            };
-            return Ok(obj::new_wide_int_obj(if neg { -1 } else { 0 }));
-        }
-    };
-    match read_int(a)? {
-        IntVal::Wide(w) => {
-            // Shifting a wide past its width saturates to 0 / -1 (sign).
-            let r = if count >= 64 {
-                if w < 0 {
-                    -1
-                } else {
-                    0
-                }
-            } else {
-                w >> count
-            };
-            Ok(obj::new_wide_int_obj(r))
-        }
+/// A shift count folded to a wide: a beyond-wide count keeps only its **sign**,
+/// which is all either direction needs (`>>` collapses to the operand's sign at
+/// any count past its width; `<<` refuses any count past `INT_MAX` anyway), so
+/// `i64::MAX` / `-1` are exact stand-ins.
+fn shift_count(b: *mut TclObj) -> Result<i64, ArithError> {
+    Ok(match read_int(b)? {
+        IntVal::Wide(c) => c,
         IntVal::Big(m) => {
-            let n = count.min(i64::from(i32::MAX)) as c_int;
-            let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
-            // SAFETY: live mp_ints.
-            if unsafe { mp_signed_rsh(m.ptr(), n, &mut out.0) } != MP_OKAY {
-                return Err(ArithError::Alloc);
+            if mp_is_neg(&m) {
+                -1
+            } else {
+                i64::MAX
             }
-            Ok(store(out.into_inner()))
         }
+    })
+}
+
+/// `a << b` over the tower (integer-only). The operand is read **before** the
+/// count (C reports a float left operand rather than the count problem:
+/// `expr {1.5 << -1}` is the operand-type error), a zero base short-circuits at
+/// any count (`0 << 10**20` is `0`), and the shift itself is the tower
+/// adapter's `mp_mul_2d`; `store` demotes a small result back to a wide.
+pub fn shl(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let base = int_tower(read_int(a)?);
+    let count = shift_count(b)?;
+    if count < 0 {
+        return Err(ArithError::NegativeShift);
     }
+    if tcl_syntax::number_tower::BigIntOps::is_zero(&base) {
+        return Ok(obj::new_wide_int_obj(0));
+    }
+    // C's `mp_mul_2d` count is an `int`; past `INT_MAX` it raises the overflow
+    // error rather than attempting an astronomic result.
+    let count = u32::try_from(count)
+        .ok()
+        .filter(|&c| i32::try_from(c).is_ok())
+        .ok_or(ArithError::TooLargeToRepresent)?;
+    Ok(tower_obj(tcl_syntax::number_tower::BigIntOps::shl(
+        &base, count,
+    )))
+}
+
+/// `a >> b` over the tower (integer-only, arithmetic/sign-extending) — the
+/// shared owner's [`int_shr`](tcl_syntax::number_tower::int_shr), including the
+/// width collapse (`2 >> 10**20` is `0`, `-2 >> 10**20` is `-1`) and the
+/// negative-count refusal.
+pub fn shr(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let value = int_tower(read_int(a)?);
+    let count = shift_count(b)?;
+    let r = tcl_syntax::number_tower::int_shr(&value, count).ok_or(ArithError::NegativeShift)?;
+    Ok(tower_obj(r))
 }
 
 /// The `bignum` type descriptor (the shimmer keystone for arbitrary-precision
@@ -1052,6 +1087,31 @@ fn store(mut mp: MpInt) -> *mut TclObj {
 // ---------------------------------------------------------------------------
 // The shared-tower backend adapter: `BigIntOps` over the real `mp_int`.
 // ---------------------------------------------------------------------------
+
+/// Lift an integer operand onto the shared tower's backend value. A float
+/// operand is `NonInteger` (the integer tiers of `**`/`/`/`%`/`<<`/`>>` are
+/// reached only once the float promotion has been ruled out).
+fn tower_of(v: NumVal) -> Result<TowerMp, ArithError> {
+    Ok(match v {
+        NumVal::Wide(w) => tcl_syntax::number_tower::BigIntOps::from_i64(w),
+        NumVal::Big(mp) => TowerMp(mp),
+        NumVal::Float(_) => return Err(ArithError::NonInteger),
+    })
+}
+
+/// Lift an already-validated integer operand ([`read_int`]) onto the tower.
+fn int_tower(v: IntVal) -> TowerMp {
+    match v {
+        IntVal::Wide(w) => tcl_syntax::number_tower::BigIntOps::from_i64(w),
+        IntVal::Big(m) => TowerMp(m),
+    }
+}
+
+/// Materialise a tower result as a fresh object, demoting when it fits a wide
+/// (`$big - $big` is `0`, never a one-word bignum).
+fn tower_obj(v: TowerMp) -> *mut TclObj {
+    to_obj(NumVal::Big(v.0))
+}
 
 /// The libtommath backend for the shared tower semantics
 /// (`tcl_syntax::number_tower::BigIntOps`) — the adapter that closes the
@@ -1372,6 +1432,32 @@ mod tests {
     }
 
     #[test]
+    fn a_produced_nan_is_a_domain_error_but_an_infinity_is_a_value() {
+        crate::counters::reset();
+        let zero = || rc1(obj::new_double_obj(0.0));
+        let one = || rc1(obj::new_double_obj(1.0));
+        // `0.0/0.0` is C's `doubleResult` domain error; `1.0/0.0` is Inf.
+        let (a, b) = (zero(), zero());
+        assert_eq!(div(a, b), Err(ArithError::NanResult));
+        drop1(a);
+        drop1(b);
+        assert_eq!(binop(div, one(), zero()).0, b"Inf");
+        // Inf - Inf and 0.0 * Inf are NaN the same way.
+        let inf = || rc1(obj::new_double_obj(f64::INFINITY));
+        let (a, b) = (inf(), inf());
+        assert_eq!(sub(a, b), Err(ArithError::NanResult));
+        drop1(a);
+        drop1(b);
+        let (a, b) = (zero(), inf());
+        assert_eq!(mul(a, b), Err(ArithError::NanResult));
+        drop1(a);
+        drop1(b);
+        // A finite overflow to Inf stays a value.
+        assert_eq!(binop(mul, inf(), one()).0, b"Inf");
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
     fn bignum_times_bignum() {
         crate::counters::reset();
         // (2**63) * (2**63) = 2**126
@@ -1504,10 +1590,12 @@ mod tests {
             binop(pow, int_obj(2), int_obj(128)).0,
             b"340282366920938463463374607431768211456"
         );
-        // 0 ** -1 → divide by zero
+        // 0 ** -1 is C's *domain* error, not a division by zero (tclsh
+        // 8.6.16/9.0.4: `exponentiation of zero by negative power`,
+        // `-errorcode ARITH DOMAIN`) — #1428.
         let z = int_obj(0);
         let m1 = int_obj(-1);
-        assert_eq!(pow(z, m1), Err(ArithError::DivideByZero));
+        assert_eq!(pow(z, m1), Err(ArithError::ZeroToNegativePower));
         drop1(z);
         drop1(m1);
         assert_eq!(crate::counters::finalize(), 0);

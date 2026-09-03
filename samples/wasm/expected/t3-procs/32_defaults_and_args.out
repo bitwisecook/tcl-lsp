@@ -1,0 +1,6 @@
+hello bob (0 extra)
+hi bob (0 extra)
+hi bob (3 extra)
+wrong # args: should be "greet name ?greeting? ?arg ...?"
+10
+18

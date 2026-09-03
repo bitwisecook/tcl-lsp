@@ -1,0 +1,9 @@
+::Stack push: 2
+::Stack pop: b
+b
+::Stack size: 1
+::Stack count: 1
+1
+1
+::Stack Peek: a
+a

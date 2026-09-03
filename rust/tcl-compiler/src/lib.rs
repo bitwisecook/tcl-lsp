@@ -132,6 +132,7 @@ pub mod lowering_hooks;
 pub mod memory_ssa;
 pub mod mixed_region_plan;
 pub mod native_integer_proof;
+pub mod native_lowering;
 pub mod object_types;
 // Name normalisation moved to the shared `tcl-syntax` crate; re-export so
 // `crate::naming::*` keeps resolving across the compiler.

@@ -9,7 +9,7 @@ behind it.
 | Tier | Runs | What |
 |---|---|---|
 | **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the `smoke_*` / `*_smoke.rs` subset, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
-| **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck. Skips only what demonstrably did not change (below). |
+| **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
 ## Decision rules / contracts
@@ -83,6 +83,18 @@ CI skips only what demonstrably did not change. The rules live in
 - **Docs-only** changes skip the cargo test steps; `python`, `test-ext`, and
   `test-ext-web` run only when their input paths changed (`test-ext-web` on
   `ext_changed` or `lsp_wasm_changed`, since it consumes both).
+- `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
+  (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
+  crate plus the path-dependency closure its own lockfile resolves. It is its
+  own job because `runtime/rust` is its own cargo workspace: the root
+  `cargo test --workspace` never reaches it, and `wasm-real-link` builds and
+  links it *without running its tests*, so before this job a standalone-runtime
+  semantic regression could land with every required check green (#1768). The
+  closure lives in `scripts/dev/runtime-rust-path.sh`, gated against the
+  committed lockfile by `scripts/dev/test-runtime-rust-paths.sh`
+  (`make check-runtime-rust-paths`, part of `xtask-check`), so it cannot
+  silently narrow. It is an additional semantic gate, not a replacement for
+  the real link.
 - `cargo-deny` never skips: new advisories arrive against unchanged trees.
 - Every skip fails safe: API error or ambiguity → run everything.
 

@@ -32,7 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_int_width, IntWidth, NumValue};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -115,10 +115,22 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Code::Ok;
         }
         "srand" => {
-            // The seed is the operand's low 64 bits (C's `TclGetWideBitsFromObj`);
-            // a non-integer operand is an error.
+            // The seed is the operand's low 64 bits (C's
+            // `TclGetWideBitsFromObj`), which takes an **integer** of any
+            // width and refuses a double rather than truncating it — tclsh
+            // 8.6.16: `expected integer but got "1.5"`, `-errorcode TCL VALUE
+            // INTEGER` (`TCL VALUE NUMBER` when the operand is not a number
+            // at all). The VM uses the identical wording (#1432).
             if !crate::bignum::is_integer(argv[1]) {
-                return interp.set_error(b"argument to math function didn't have numeric value");
+                let mut m = b"expected integer but got \"".to_vec();
+                m.extend_from_slice(&obj_bytes(argv[1]));
+                m.push(b'"');
+                let code: &[u8] = if crate::bignum::is_numeric(argv[1]) {
+                    b"TCL VALUE INTEGER"
+                } else {
+                    b"TCL VALUE NUMBER"
+                };
+                return interp.error_with_code(&m, code);
             }
             let seed = crate::bignum::truncate_to_wide(argv[1]);
             interp.set_result(obj::new_double_obj(interp.srand(seed)));
@@ -127,13 +139,20 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         _ => {}
     }
 
-    // `wide`/`int`/`entier` on an *integer* operand work on the tower directly,
-    // not via the f64-limited shared dispatch: `wide` wraps a too-big integer to
-    // a 64-bit signed value (C's truncation), and `int`/`entier` keep the
-    // (possibly bignum) integer exactly. (A *float* operand falls through to the
-    // shared dispatch.)
+    // Which width `int()` uses is the shared owner's release axis: Tcl 9.0
+    // binds `int` to the same unbounded `ExprIntFunc` as `entier`, 8.4-8.6
+    // keep its 64-bit window (#1382).
+    let int_width = IntWidth::for_tcl_version(interp.runtime_version());
+
+    // `wide`/`int`/`entier` on an *integer* operand work on the object directly
+    // rather than through the shared dispatch, so the result keeps the operand's
+    // own string rep (tclsh: `::tcl::mathfunc::entier 0x10` is `0x10`, not
+    // `16`). `wide` — and `int` in a windowing release — still take the low 64
+    // bits (C's truncation). A *float* operand falls through to the shared
+    // dispatch, which now has its own exact bignum path.
     if matches!(lname.as_str(), "wide" | "int" | "entier") && crate::bignum::is_integer(argv[1]) {
-        if lname == "wide" {
+        let windows = lname == "wide" || (lname == "int" && int_width == IntWidth::Windowed);
+        if windows {
             interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
                 argv[1],
             )));
@@ -153,17 +172,19 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    match dispatch_with_backend(&lname, &nums) {
-        Some(num) => {
+    // The shared dispatch's *typed* refusals (#1581): C reports an infinity in
+    // an integer conversion as `ARITH IOVERFLOW`, a NaN operand as `TCL VALUE
+    // DOUBLE NAN`, and only a genuine out-of-range argument as `ARITH DOMAIN`.
+    // Before this, every one of them became the generic domain error.
+    match try_dispatch_with_backend_int_width(&lname, &nums, int_width) {
+        Ok(num) => {
             interp.set_result(crate::bignum::math_num_to_obj(num));
             Code::Ok
         }
-        // A registered name with the right arity reaching `None` is a domain
-        // error (e.g. `sqrt(-1)`), with `-errorcode ARITH DOMAIN`.
-        None => interp.error_with_code(
-            b"domain error: argument not in valid range",
-            b"ARITH DOMAIN {domain error: argument not in valid range}",
-        ),
+        Err(e) => {
+            let err = crate::expr::math_func_err(e);
+            interp.error_with_code(&err.msg, err.code.as_deref().unwrap_or(b""))
+        }
     }
 }
 

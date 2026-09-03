@@ -2181,7 +2181,7 @@ mod tests {
     }
 
     #[test]
-    fn function_level_gvn_declines_unmapped_calls_inside_structured_source() {
+    fn function_level_gvn_maps_calls_inside_a_structured_conditional_body() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "if {$flag} {\nllength {a b}\nllength {a b}\n}",
@@ -2203,7 +2203,7 @@ mod tests {
             "the explicit legacy API still sees the nested string-classified calls"
         );
         assert!(
-            find_redundancies_for_function(
+            !find_redundancies_for_function(
                 &registry,
                 function,
                 Some(
@@ -2211,7 +2211,9 @@ mod tests {
                 )
             )
             .is_empty(),
-            "opaque structured source sites have no exact invocation mapping and must abstain"
+            "an `if` body is now executable-IR blocks, so its two identical pure \
+             calls have exact invocation mappings and the function-level API \
+             agrees with the legacy CFG API"
         );
     }
 
@@ -4449,7 +4451,7 @@ mod tests {
     }
 
     #[test]
-    fn repeated_stable_calls_in_a_while_body_abstain() {
+    fn repeated_stable_calls_in_a_while_body_are_mapped() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "while {$go} {\nllength {a b}\nllength {a b}\n}",
@@ -4470,7 +4472,7 @@ mod tests {
             "the explicit legacy API still sees the nested string-classified calls"
         );
         assert!(
-            find_redundancies_for_function(
+            !find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
                 Some(
@@ -4478,7 +4480,8 @@ mod tests {
                 )
             )
             .is_empty(),
-            "structured loop bodies are unmapped executable source and must abstain"
+            "a loop body is now executable-IR blocks with a real back edge, so \
+             the two identical pure calls in one iteration are mapped"
         );
     }
 

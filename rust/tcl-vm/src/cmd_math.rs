@@ -25,21 +25,12 @@
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, Signed, ToPrimitive};
 use tcl_runtime_api::Completion;
-use tcl_syntax::expr::mathfunc::{NumValue, dispatch_with_backend};
+use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, try_dispatch_with_backend_int_width};
 use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
-
-/// Coerce `v` to a double for the number-flavoured math functions
-/// (`abs`/`int`/`round`/`entier`/`isqrt`/`max`/`min`). Their non-numeric error
-/// in Tcl 9 is the generic `expected number but got "…"` — not the
-/// floating-point-specific wording `as_double` produces.
-fn num_arg(v: &Value) -> Result<f64, String> {
-    v.as_double()
-        .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
-}
 
 /// Coerce `v` to a double for the classification predicates (`isnan` /
 /// `isunordered` / …), which deliberately accept a literal `NaN` — inspecting
@@ -111,7 +102,36 @@ fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
 
-fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
+/// A shared math-function refusal as a VM completion, carrying C's verbatim
+/// message and `-errorcode` (#1581): `ARITH IOVERFLOW` for an infinity
+/// reaching an integer conversion, `TCL VALUE DOUBLE NAN` for a NaN operand,
+/// `ARITH DOMAIN` otherwise. `Abstain` cannot occur here — the VM's backend
+/// has an arbitrary-precision rung and its release is resolved — so it falls
+/// back to the generic domain error, as do the two refusals the caller words
+/// itself.
+fn math_func_err(e: tcl_syntax::expr::mathfunc::MathFuncError) -> Completion<Value> {
+    let message = e.message();
+    if message.is_empty() {
+        return domain_err();
+    }
+    err_with_code(message, e.error_code())
+}
+
+/// A `finite_num_arg` / `num_or_nan` failure as a completion, with C's
+/// `-errorcode`: the VM had the right message text for a NaN and an infinity
+/// but left `errorCode` as `NONE` (#1581).
+fn num_err(message: String) -> Completion<Value> {
+    use tcl_syntax::expr::errors;
+    if message == errors::NAN_MESSAGE {
+        err_with_code(message, errors::NAN_CODE)
+    } else if message == errors::IOVERFLOW_MESSAGE {
+        err_with_code(message, errors::IOVERFLOW_CODE)
+    } else {
+        err(message)
+    }
+}
+
+fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Value> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
     };
@@ -157,11 +177,11 @@ fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
         Ok(nums) => nums,
         Err(e) => return e,
     };
-    match dispatch_with_backend(name, &nums) {
-        Some(NumValue::Int(i)) => ok(Value::int(i)),
-        Some(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
-        Some(NumValue::Float(f)) => ok(Value::double(f)),
-        None => domain_err(),
+    match try_dispatch_with_backend_int_width(name, &nums, int_width) {
+        Ok(NumValue::Int(i)) => ok(Value::int(i)),
+        Ok(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
+        Ok(NumValue::Float(f)) => ok(Value::double(f)),
+        Err(e) => math_func_err(e),
     }
 }
 
@@ -189,7 +209,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
     match name.as_str() {
         "abs" => m_abs(args),
-        "int" => int_window(args, "int"),
+        "int" => m_int(vm, args),
         "wide" => m_wide(args),
         "entier" => m_entier(args),
         "double" => m_double(args),
@@ -198,7 +218,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "bool" => m_bool(args),
         "srand" => m_srand(vm, args),
         "rand" => m_rand(vm, args),
-        name => shared_math(name, args),
+        name => shared_math(name, args, IntWidth::for_tcl_version(vm.runtime_version())),
     }
 }
 
@@ -257,14 +277,29 @@ fn m_abs(args: &[Value]) -> Completion<Value> {
         return ok(crate::expr::big_value(&b.abs()));
     }
     match num_or_nan(x) {
-        Ok(f) if f.is_nan() => err("floating point value is Not a Number".to_string()),
+        Ok(f) if f.is_nan() => num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string()),
         Ok(f) => ok(Value::double(f.abs())),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
 fn m_wide(args: &[Value]) -> Completion<Value> {
     int_window(args, "wide")
+}
+
+/// `int(x)` — the one **release-split** conversion. Tcl 9.0 binds `int` and
+/// `entier` to the same unbounded `ExprIntFunc` (`tclBasic.c`), so
+/// `int(1e20)` is `100000000000000000000` and `int(2**64+1)` is
+/// `18446744073709551617`; Tcl 8.4-8.6 keep `int`'s signed-64-bit window, so
+/// the same two are `7766279631452241920` and `1`. Measured against
+/// tclsh8.6.16 and tclsh9.0.4 (#1382). The width itself is the shared owner's
+/// ([`IntWidth`]), so the VM and the WASM runtime cannot disagree about which
+/// release windows.
+fn m_int(vm: &Vm, args: &[Value]) -> Completion<Value> {
+    match IntWidth::for_tcl_version(vm.runtime_version()) {
+        IntWidth::Unbounded => entier_named(args, "int"),
+        IntWidth::Windowed | IntWidth::Unresolved => int_window(args, "int"),
+    }
 }
 
 /// `int(x)` / `wide(x)` — one conversion since 8.6 (`int` is no longer the
@@ -285,7 +320,7 @@ fn int_window(args: &[Value], name: &str) -> Completion<Value> {
     }
     match finite_num_arg(x) {
         Ok(f) => ok(Value::int(wide_window(&exact_trunc(f)))),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
@@ -295,7 +330,7 @@ fn m_double(args: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     match x.as_double() {
-        Ok(f) if f.is_nan() => err("floating point value is Not a Number"),
+        Ok(f) if f.is_nan() => num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string()),
         Ok(f) => ok(Value::double(f)),
         Err(e) => {
             if let Some(b) = crate::expr::value_as_bigint(x) {
@@ -305,7 +340,7 @@ fn m_double(args: &[Value]) -> Completion<Value> {
                 number::parse_whole(x.to_str().trim()),
                 Some(Number::Nan { .. })
             ) {
-                return err("floating point value is Not a Number");
+                return num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string());
             }
             err(e.message)
         }
@@ -331,7 +366,7 @@ fn m_round(args: &[Value]) -> Completion<Value> {
         Ok(f) => ok(crate::expr::big_value(
             &num_bigint::BigInt::from_f64(f.round()).unwrap_or_default(),
         )),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
@@ -355,14 +390,21 @@ fn m_isqrt(args: &[Value]) -> Completion<Value> {
         }
         return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
     }
-    let f = match num_arg(x) {
+    // `finite_num_arg`, not `num_arg`: an infinity is `ARITH IOVERFLOW` and a
+    // NaN is `TCL VALUE DOUBLE NAN` here, exactly as for the other integer
+    // conversions (tclsh: `isqrt(Inf)` / `isqrt(NaN)`) — #1581.
+    let f = match finite_num_arg(x) {
         Ok(f) => f,
-        Err(m) => return err(m),
+        Err(m) => return num_err(m),
     };
     if f < 0.0 {
         return err_with_code("square root of negative argument", DOMAIN_CODE);
     }
-    ok(Value::int(isqrt_i64(f.trunc() as i64)))
+    // Truncate exactly first: `isqrt(1e300)` is a 151-digit integer, not the
+    // root of a saturated wide (tclsh 8.6.16/9.0.4).
+    ok(crate::expr::big_value(&num_integer::Roots::sqrt(
+        &exact_trunc(f),
+    )))
 }
 
 fn isqrt_i64(n: i64) -> i64 {
@@ -385,7 +427,14 @@ fn isqrt_i64(n: i64) -> i64 {
 /// double becomes the full exact integer (`entier(1e300)` is all 309 digits),
 /// with no 64-bit window — that wrap is `int`/`wide`'s ([`int_window`]).
 fn m_entier(args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "entier") {
+    entier_named(args, "entier")
+}
+
+/// [`m_entier`]'s body under a caller-chosen function name, so Tcl 9.0's
+/// `int()` — which C binds to the same unbounded `ExprIntFunc` as `entier`
+/// (`tclBasic.c`) — reuses it while keeping its own arity wording.
+fn entier_named(args: &[Value], name: &str) -> Completion<Value> {
+    let x = match one(args, name) {
         Ok(v) => v,
         Err(c) => return c,
     };
@@ -397,7 +446,7 @@ fn m_entier(args: &[Value]) -> Completion<Value> {
     }
     match finite_num_arg(x) {
         Ok(f) => ok(crate::expr::big_value(&exact_trunc(f))),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
@@ -421,13 +470,23 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    let seed = if let Ok(n) = x.as_wide() {
-        n
-    } else {
-        match num_arg(x) {
-            Ok(f) => f.trunc() as i64,
-            Err(m) => return err(m),
-        }
+    // C reads the operand with `TclGetWideBitsFromObj`: an **integer** of any
+    // width, folded to its low 64 bits (`srand(2**64+7)` seeds as `7`). A
+    // double is refused, not truncated — tclsh8.6.16 says `expected integer
+    // but got "1.5"` (`-errorcode TCL VALUE INTEGER`, or `TCL VALUE NUMBER`
+    // for a non-number), and tclsh9.0.4 raises with an *empty* message
+    // because C passes a NULL interp to the conversion there. Both engines
+    // use 8.6's wording so they agree with each other (#1432); 9.0's
+    // empty-message quirk is left to the error-taxonomy work (#1581).
+    let Ok(seed) = x.as_wide() else {
+        return err_with_code(
+            format!("expected integer but got \"{}\"", x.to_str()),
+            if x.as_double().is_ok() {
+                "TCL VALUE INTEGER"
+            } else {
+                "TCL VALUE NUMBER"
+            },
+        );
     };
     vm.rand_seed_set(seed);
     ok(Value::double(vm.rand_next()))

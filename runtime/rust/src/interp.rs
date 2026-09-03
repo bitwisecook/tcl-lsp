@@ -290,7 +290,7 @@ type CmdTeardownCallback = (Vec<u8>, Vec<u8>);
 /// prefix, and whether it was registered through the deprecated 8.x
 /// `trace variable` form — which decides the op word its callback receives,
 /// here exactly as on the explicit-unset path.
-type VarTeardownCallback = (Vec<u8>, Vec<u8>, bool);
+type VarTeardownCallback = (Vec<u8>, Vec<u8>, Vec<u8>, bool);
 
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
@@ -414,6 +414,25 @@ pub(crate) struct ExceptionState {
     already_logged: bool,
 }
 
+/// How one variable access presents itself to the trace machinery — see
+/// [`Interp::trace_access`], which is the only place these four are decided.
+struct TraceAccess {
+    /// `name1` handed to the callback: the access spelling C passes through as
+    /// `part1`, with the array-element split C's `TclCallVarTraces` applies.
+    reported: Vec<u8>,
+    /// The element registered traces are matched against — the spelling's, or
+    /// the one a link resolved to.
+    match_elem: Option<Vec<u8>>,
+    /// `name2` handed to the callback (C's `part2` at the point of the call).
+    report_elem: Option<Vec<u8>>,
+    /// The element the *access spelling* named, which is what an aborting
+    /// trace's `(<type> trace on "…")` errorInfo frame reports: C snapshots
+    /// `element = part2` before recovering one from a linked `Var`.
+    spelling_elem: Option<Vec<u8>>,
+    /// Whether the containing array's whole-array traces take part.
+    whole_array: bool,
+}
+
 /// A captured slice of [`ExceptionState`] — the `errorInfo`/`errorCode`
 /// accumulation — moved between flows by [`Interp::snapshot_error`] /
 /// [`Interp::restore_error`] (see `coroprobe`).
@@ -510,6 +529,8 @@ pub enum Command {
     Alias {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
+        /// Per-instance identity — see [`Command::is_same_binding`].
+        identity: Rc<()>,
     },
     /// A `namespace import` redirect. Ordinary imports re-resolve `source` by
     /// name; an ensemble import additionally retains the source's stable command
@@ -544,7 +565,44 @@ pub enum Command {
     ParentAlias {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
+        /// Per-instance identity — see [`Command::is_same_binding`].
+        identity: Rc<()>,
     },
+}
+
+impl Command {
+    /// Whether `self` and `other` are the **same** command binding rather than
+    /// two bindings that happen to look alike.
+    ///
+    /// C answers this with the `Command *` token, and a command-delete trace is
+    /// exactly where the difference shows: a callback that re-creates the
+    /// command it is being told about (`proc foo {} …`) leaves a *different*
+    /// command at the same name, and C's deletion — which owns a captured token
+    /// whose hash entry the new command has taken over — must leave it alone.
+    /// Every shape that owns an `Rc` compares by pointer for that reason; the
+    /// rest carry their whole identity in their fields.
+    pub(crate) fn is_same_binding(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Builtin(a), Self::Builtin(b)) => std::ptr::fn_addr_eq(*a, *b),
+            (Self::Proc(a), Self::Proc(b)) => Rc::ptr_eq(a, b),
+            (Self::Ensemble(a), Self::Ensemble(b)) => Rc::ptr_eq(a, b),
+            (Self::Imported { identity: a, .. }, Self::Imported { identity: b, .. }) => {
+                Rc::ptr_eq(a, b)
+            }
+            // Aliases carry a token like every other `Rc`-owning shape: a
+            // delete trace that recreates `foo` as an *identical* alias
+            // leaves a different command at the name, and C's deletion must
+            // leave it alone. Structural equality said "same binding" and
+            // deleted the new one.
+            (Self::Alias { identity: a, .. }, Self::Alias { identity: b, .. })
+            | (Self::ParentAlias { identity: a, .. }, Self::ParentAlias { identity: b, .. }) => {
+                Rc::ptr_eq(a, b)
+            }
+            (Self::ChildInterp(a), Self::ChildInterp(b)) => a == b,
+            (Self::OoObject(a), Self::OoObject(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 thread_local! {
@@ -757,6 +815,13 @@ pub struct InterpState {
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
     /// accumulate.
     eval_depth: Cell<u32>,
+    /// The variable-trace generation: bumped every time the set of variable
+    /// traces changes, through the one `GuardDomain::VariableTrace`
+    /// invalidation chokepoint every add / remove / frame teardown / unset
+    /// already goes through. It is what makes the per-cell trace bit
+    /// (`frame::Cell::traced`) safe to cache — a stale entry is recomputed, not
+    /// trusted. Starts at `1` so `0` can be the never-computed sentinel.
+    var_trace_epoch: Cell<u64>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
     /// The code an `exit` requested, if any. `exit` does **not** terminate the
@@ -1036,14 +1101,6 @@ fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
     Err(m)
 }
 
-/// Whether `bytes` is a truthy boolean literal (for the `-frame` latch).
-fn parse_truth(bytes: &[u8]) -> bool {
-    matches!(
-        bytes.to_ascii_lowercase().as_slice(),
-        b"1" | b"true" | b"yes" | b"on"
-    )
-}
-
 /// Parse an `interp limit` integer option value (`expected integer but got "X"`).
 fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
     if let Ok(s) = std::str::from_utf8(bytes) {
@@ -1142,6 +1199,7 @@ impl Interp {
             arg_lines: RefCell::new(Vec::new()),
             arg_locs: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
+            var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
             exit_code: Cell::new(None),
             measure_overhead: Cell::new(0.0),
@@ -1626,6 +1684,13 @@ impl Interp {
     }
 
     pub(crate) fn invalidate_guard_domain(&self, domain: GuardDomain) {
+        if domain == GuardDomain::VariableTrace {
+            // Every change to the variable-trace set already funnels through
+            // here, so this is the one place the per-cell trace bit's epoch
+            // needs to move.
+            self.var_trace_epoch
+                .set(self.var_trace_epoch.get().wrapping_add(1).max(1));
+        }
         self.guards.borrow_mut().invalidate(domain);
     }
 
@@ -1668,6 +1733,22 @@ impl Interp {
         {
             return RenameOutcome::AliasLoop;
         }
+        // C's `TclRenameCommand` checks the destination's hash table before
+        // touching `old`'s (tclBasic.c), so an occupied destination — self-
+        // rename onto the same slot included — is refused before anything
+        // observable happens, same as the alias-loop guard above (issue
+        // #1412 item 1). A release-gated TclOO root this build hides reads
+        // as free here too (`is_gate_hidden_object_root`), same as every
+        // other "is this name taken?" check.
+        if let Some(occupant_fqn) = self
+            .namespaces
+            .borrow_mut()
+            .destination_occupant_fqn(self.current_ns.get(), new)
+        {
+            if !self.is_gate_hidden_object_root(&occupant_fqn) {
+                return RenameOutcome::TargetExists;
+            }
+        }
         // A builtin the emulated release does not carry is not there to be
         // renamed or deleted (#1462/#1463): rebinding it under a name the
         // registry has no spec for would hand it back ungated, defeating the
@@ -1694,7 +1775,10 @@ impl Interp {
         self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (C's TclRenameCommand:
         // the command still exists under its old name during the callback), with
-        // the fully-qualified old and new names.
+        // the fully-qualified old and new names. C deletes the command *token*
+        // it captured here, not whatever the name holds when the callback
+        // returns — so the binding is captured alongside the name.
+        let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
@@ -1735,7 +1819,25 @@ impl Interp {
         } else {
             None
         };
-        let raw = if new.is_empty() && import_token.is_some() {
+        // A delete-trace callback that re-creates the command (`proc foo {} …`)
+        // has bound a *new* command at the old name. C's captured token is
+        // `CMD_DYING` and no longer owns the hash entry, so its deletion leaves
+        // the fresh command standing (`Tcl_DeleteCommandFromToken`,
+        // tclBasic.c) — `foo` still exists, and calls the new body. Deleting
+        // "whatever is at the name now" would remove the callback's work
+        // instead. This is the command half of the rule the import branch just
+        // above already applies to its own identity. Issue #1633.
+        let recreated = new.is_empty()
+            && match (
+                &bound_before,
+                self.namespaces.borrow().resolve(self.current_ns.get(), old),
+            ) {
+                (Some(before), Some(now)) => !before.is_same_binding(&now),
+                _ => false,
+            };
+        let raw = if recreated {
+            RenameOutcome::Deleted
+        } else if new.is_empty() && import_token.is_some() {
             if removed_import_fqn.is_some() {
                 RenameOutcome::Deleted
             } else {
@@ -1788,8 +1890,11 @@ impl Interp {
                         self.oo_command_renamed(&of, None);
                     }
                 }
-                // `AliasLoop` returned above, before the table was touched.
-                RenameOutcome::NoSuchCommand | RenameOutcome::AliasLoop => {}
+                // `AliasLoop` and `TargetExists` both returned above, before
+                // the table was touched.
+                RenameOutcome::NoSuchCommand
+                | RenameOutcome::AliasLoop
+                | RenameOutcome::TargetExists => {}
             }
         }
         outcome
@@ -1811,8 +1916,14 @@ impl Interp {
     ) -> Result<(), Vec<u8>> {
         self.invalidate_command_environment();
         let mut namespaces = self.namespaces.borrow_mut();
-        let Some((ns, simple)) = namespaces.register_at(name, Command::Alias { target, prefix })
-        else {
+        let Some((ns, simple)) = namespaces.register_at(
+            name,
+            Command::Alias {
+                target,
+                prefix,
+                identity: Rc::new(()),
+            },
+        ) else {
             return Ok(()); // no tail to bind — nothing was registered
         };
         if namespaces.alias_chain_loops(ns, &simple) {
@@ -1833,7 +1944,14 @@ impl Interp {
         prefix: Vec<Vec<u8>>,
     ) -> bool {
         self.with_child(child, |c| {
-            c.ns_register(name, Command::ParentAlias { target, prefix });
+            c.ns_register(
+                name,
+                Command::ParentAlias {
+                    target,
+                    prefix,
+                    identity: Rc::new(()),
+                },
+            );
         })
         .is_some()
     }
@@ -1846,9 +1964,38 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)
         {
-            Some(Command::Alias { target, prefix }) => Some((target, prefix)),
+            Some(Command::Alias { target, prefix, .. }) => Some((target, prefix)),
             _ => None,
         }
+    }
+
+    /// The interp-path (from `self`) to the target interpreter of the alias
+    /// `alias` in the interpreter addressed by `path` — `interp target path
+    /// alias`. `None` when `path` doesn't resolve, or names no alias there.
+    ///
+    /// Every alias this runtime supports targets either its own interpreter
+    /// (`Command::Alias`, a same-interp `interp alias`) or its immediate
+    /// parent (`Command::ParentAlias`, the child-side half of a cross-interp
+    /// alias) — so the target's path from `self` is either `path` itself or
+    /// `path` with its last element dropped. C's general `Tcl_GetInterpPath`
+    /// walk (`tclInterp.c`) collapses to exactly that for every alias shape
+    /// this runtime can construct.
+    pub(crate) fn alias_target_path(
+        &mut self,
+        path: &[Vec<u8>],
+        alias: &[u8],
+    ) -> Option<Vec<Vec<u8>>> {
+        let path_owned = path.to_vec();
+        self.with_child_path(path, move |c| {
+            match c.namespaces.borrow().resolve(c.current_ns.get(), alias) {
+                Some(Command::Alias { .. }) => Some(path_owned),
+                Some(Command::ParentAlias { .. }) => {
+                    Some(path_owned[..path_owned.len().saturating_sub(1)].to_vec())
+                }
+                _ => None,
+            }
+        })
+        .flatten()
     }
 
     /// Delete the command bound to `name` (the alias-clear form); returns whether
@@ -2080,6 +2227,64 @@ impl Interp {
         self.current_ns.get()
     }
 
+    /// Set the current namespace context directly, with no frame push and no
+    /// restore-on-return of its own — the caller saves/restores
+    /// [`Self::current_ns`] around whatever it runs. Used by `interp
+    /// invokehidden`'s `-global`/`-namespace` evaluation-context switch
+    /// (issue #1412 item 5), which invokes one command rather than evaluating
+    /// a script body, so it needs no `namespace eval`-style frame.
+    pub(crate) fn set_current_ns(&self, ns: NsId) {
+        self.current_ns.set(ns);
+    }
+
+    /// Enter a **compiled activation** — the eval-loop activation a generated
+    /// function or ABI dispatch stands in for.
+    ///
+    /// The eval loop's outermost-eval rule (`eval_script_mode`, depth 0) is what
+    /// publishes an uncaught error's trace and drains the background-error
+    /// queue. Compiled code that dispatches a command without entering that loop
+    /// therefore runs at depth 0, and any command that evaluates a body — `catch`
+    /// above all — sees the rule fire *inside* its body, resetting the exception
+    /// state before it can read `error_code()`. Holding an activation for the
+    /// span of compiled work restores the invariant that interpreted Tcl always
+    /// has: the enclosing activation is depth ≥ 1, so only the true outermost
+    /// completion publishes.
+    ///
+    /// Returns `false` — with the interpreter's error set, and **no** activation
+    /// entered, so the caller must not leave one — when the activation would
+    /// exceed the native nesting bound. Pair every `true` with exactly one
+    /// [`codegen_activation_leave`](Self::codegen_activation_leave).
+    pub(crate) fn codegen_activation_enter(&mut self) -> bool {
+        if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
+            self.error(b"too many nested evaluations (infinite loop?)");
+            return false;
+        }
+        self.eval_depth.set(self.eval_depth.get() + 1);
+        true
+    }
+
+    /// Leave a compiled activation entered by
+    /// [`codegen_activation_enter`](Self::codegen_activation_enter), applying the
+    /// outermost-eval rule with `code` as the activation's completion.
+    ///
+    /// This is the same two-step tail `eval_script_mode` runs after decrementing
+    /// the depth — publish an uncaught error's trace to
+    /// `::errorInfo`/`::errorCode`, then drain the background-error queue — so
+    /// the policy lives in one place and a compiled statement at the true top
+    /// level leaves exactly the error state its interpreted twin would.
+    pub(crate) fn codegen_activation_leave(&mut self, code: Code) {
+        self.eval_depth.set(self.eval_depth.get().saturating_sub(1));
+        if self.eval_depth.get() != 0 {
+            return;
+        }
+        if code == Code::Error {
+            self.publish_error();
+        }
+        if !self.bg_queue.borrow().is_empty() {
+            self.process_bg_errors();
+        }
+    }
+
     /// Enter a generated procedure body using the ordinary Tcl variable frame.
     pub(crate) fn codegen_frame_push(&mut self) {
         self.frames.borrow_mut().push(self.current_ns.get());
@@ -2103,6 +2308,64 @@ impl Interp {
             .borrow()
             .compiled_slot_name(slot)
             .map(<[u8]>::to_vec)
+    }
+
+    /// Whether any variable trace can observe accesses to `name` — the runtime
+    /// half of a guarded `TraceBarrier`.
+    ///
+    /// The name is resolved to the same `(home, simple name)` identity trace
+    /// *firing* uses, so this follows `upvar`/`global`/`variable` links to the
+    /// target's traces and reports an array as traced when any of its elements
+    /// is. It is deliberately conservative in that direction: a `true` may be
+    /// broader than the exact access, but a `false` is a promise that nothing
+    /// can observe the cell.
+    pub(crate) fn var_is_traced(&self, name: &[u8]) -> bool {
+        if self.traces.borrow().traces.is_empty() {
+            return false;
+        }
+        let (base, _) = crate::frame::split_array_ref(name);
+        let home = self.trace_identity(&base);
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .any(|t| crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level))
+    }
+
+    /// [`var_is_traced`](Self::var_is_traced) for a compiled slot, answered from
+    /// the cell's own cached bit when it is current for this interpreter's
+    /// variable-trace epoch.
+    pub(crate) fn codegen_slot_is_traced(&self, slot: usize) -> bool {
+        let epoch = self.var_trace_epoch.get();
+        if let Some(cached) = self.frames.borrow().compiled_slot_trace_flag(slot, epoch) {
+            return cached;
+        }
+        let Some(name) = self.codegen_slot_name(slot) else {
+            return false;
+        };
+        let traced = self.var_is_traced(&name);
+        self.frames
+            .borrow()
+            .set_compiled_slot_trace_flag(slot, epoch, traced);
+        traced
+    }
+
+    /// The value a generated local slot addresses, by the **O(1) cell path**.
+    ///
+    /// Taken only when nothing can observe the read differently from a plain
+    /// cell load: the cell holds a scalar (not a link, which crosses tables and
+    /// is the coordinator's walk), and the interpreter has no variable traces at
+    /// all. `None` means "no fast path" — an unbound slot, an undefined or
+    /// linked cell, or a traced interpreter — and the caller takes the name path,
+    /// which owns the link walk, the trace firing, and the error text.
+    pub(crate) fn codegen_slot_scalar(&self, slot: usize) -> Option<*mut TclObj> {
+        if !self.traces.borrow().traces.is_empty() {
+            return None;
+        }
+        match self.frames.borrow().compiled_slot_var(slot)? {
+            crate::frame::Var::Scalar(value) => Some(*value),
+            _ => None,
+        }
     }
 
     /// Begin an ensemble-rewrite (a forward / ensemble / constructor replacing
@@ -2838,12 +3101,16 @@ impl Interp {
         )
     }
 
-    /// The `(home namespace, simple base name)` a variable trace on `base`
-    /// should be keyed by — see
-    /// [`crate::vars::home_namespace_and_base`]. Registration uses this so a
-    /// trace matches every spelling that resolves to the same variable.
-    pub(crate) fn trace_var_key(&self, base: &[u8]) -> (Option<NsId>, Vec<u8>) {
-        crate::vars::home_namespace_and_base(
+    /// The `(home namespace, home frame level, simple name)` identity a variable
+    /// trace on `base` belongs to.
+    ///
+    /// Registration and firing both key on this, so every spelling that
+    /// resolves to the one cell shares one trace list — including an `upvar`
+    /// alias, whose level can only be read off the *resolved* place (issue
+    /// #1633's `upvar` row). C gets this for free: there the alias and its
+    /// target are the same `Var`, and the trace list hangs off that `Var`.
+    pub(crate) fn trace_identity(&self, base: &[u8]) -> crate::vars::TraceHome {
+        crate::vars::trace_home(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
             self.current_ns.get(),
@@ -2851,16 +3118,73 @@ impl Interp {
         )
     }
 
-    pub(crate) fn local_trace_level(&self, base: &[u8]) -> Option<usize> {
-        if tcl_syntax::naming::is_qualified(base) {
-            return None;
+    /// Whether this release recovers an array element from the resolved `Var`
+    /// when the access spelling names none.
+    ///
+    /// Tcl 9.0 added it in two places at once: `TclCallVarTraces` fills `part2`
+    /// from the element's hash key (`tclTrace.c` 9.0.4:2560-2565) and
+    /// `UnsetVarStruct` does the same before calling the traces
+    /// (`tclVar.c`:2634-2640). 8.4/8.5/8.6 have neither block. The visible
+    /// consequences, both pinned in `tests/trace_semantics.rs`:
+    ///
+    /// - `upvar #0 a(k) e; set e 5` fires the array's traces *and* the
+    ///   element's with `name2 = k` at 9.0; at 8.6 only the element's own, with
+    ///   an empty `name2`.
+    /// - `unset a(k)` reports `name1 = a(k)` at 9.0 (the recovered `part2`
+    ///   stops `TclCallVarTraces` re-splitting the name) and `name1 = a` at
+    ///   8.6.
+    ///
+    /// This is a release axis and belongs in `tcl-dialect` beside
+    /// `namespace_var_global_fallback`; it is derived here while that crate is
+    /// outside this lane.
+    fn traces_recover_the_linked_element(&self) -> bool {
+        self.runtime_version() >= tcl_dialect::TclVersion::V9_0
+    }
+
+    /// The unset-trace callbacks a proc frame's locals contribute as the frame
+    /// is torn down — C's `TclDeleteVars`, which runs `UnsetVarStruct` (and,
+    /// for an array local, `DeleteArray`) over every variable in the frame.
+    ///
+    /// Read while the frame is still on the stack: after the pop its variables
+    /// are gone, and an array local's elements with them. Each variable's own
+    /// callbacks fire newest-first and contiguously; *which* variable comes
+    /// first is C's local-slot / hash walk and is not a pinned property, so the
+    /// frame's own (sorted) name order stands in for it (issue #1575 row 1).
+    fn frame_teardown_unset_traces(&self, level: usize) -> Vec<VarTeardownCallback> {
+        if self
+            .traces
+            .borrow()
+            .traces
+            .iter()
+            .all(|t| t.frame_level != Some(level))
+        {
+            return Vec::new();
         }
-        let frames = self.frames.borrow();
-        let level = frames.current_level();
-        if level == 0 || !frames.in_proc() || frames.current_is_link(base) {
-            return None;
+        let names: Vec<Vec<u8>> = match self.frames.borrow().table(level) {
+            Some(table) => table.names().into_iter().map(<[u8]>::to_vec).collect(),
+            None => return Vec::new(),
+        };
+        let mut victims = Vec::new();
+        for name in names {
+            let home = crate::vars::TraceHome {
+                ns: None,
+                level: Some(level),
+                base: name.clone(),
+                link_elem: None,
+            };
+            victims.extend(self.cell_unset_traces(&home, None, &name, b""));
+            let elements = self
+                .frames
+                .borrow()
+                .table(level)
+                .and_then(|t| t.array_names(&name))
+                .map(|keys| keys.into_iter().map(<[u8]>::to_vec).collect::<Vec<_>>())
+                .unwrap_or_default();
+            for elem in elements {
+                victims.extend(self.cell_unset_traces(&home, Some(&elem), &name, &elem));
+            }
         }
-        Some(level)
+        victims
     }
 
     /// Drop every variable trace tied to call-frame `level` (the frame is being
@@ -2903,22 +3227,27 @@ impl Interp {
             display.extend_from_slice(k);
             display.push(b')');
         }
-        let mut m = b"can't read \"".to_vec();
-        m.extend_from_slice(&display);
-        m.extend_from_slice(b"\": ");
-        m.extend_from_slice(&msg);
-        Some(self.set_error(&m))
+        Some(self.var_trace_error(&display, b"read", &msg))
     }
 
-    /// Read a variable's current value for `lappend`, firing its read trace but
-    /// **swallowing** any error the trace raises (yielding `None`, as if the
-    /// variable were absent). This is C's `Tcl_ObjGetVar2` *without*
-    /// `TCL_LEAVE_ERR_MSG`: `lappend` fires the read trace (its side effects run
-    /// — append-7.2/7.3) yet a trace that errors on a missing element must not
-    /// fail the append, which instead creates the element (bug 3057639,
-    /// append-9.0). `set`/`append`-read, by contrast, propagate the error via
+    /// Read a variable's current value for a **read-modify-write** command
+    /// (`lappend`, `incr`), firing its read trace but **swallowing** any error
+    /// the trace raises — the value simply reads as absent.
+    ///
+    /// This is C's `TclPtrGetVarIdx` seen from a caller that treats a `NULL`
+    /// return as "no current value" rather than as a failure:
+    /// `Tcl_LappendObjCmd` creates the element instead (bug 3057639,
+    /// append-7.2/7.3/9.0) and `TclPtrIncrObjVar` substitutes 0. Both are
+    /// oracle-pinned in `tests/trace_semantics.rs`: with an erroring read trace
+    /// on `x`, tclsh 8.6.16 and 9.0.4 both leave `incr x` succeeding with 1.
+    ///
+    /// `set`/`append`-read, by contrast, propagate the error via
     /// [`fire_read_trace`](Self::fire_read_trace).
-    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+    pub(crate) fn read_for_update(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+    ) -> Option<*mut TclObj> {
         if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(base, elem, b"read") {
             // The read trace errored: discard it and treat the value as absent.
             self.traces.borrow_mut().pending_err.take();
@@ -2928,6 +3257,11 @@ impl Interp {
             Some(k) => self.var_get_elem(base, k),
             None => self.var_get(base),
         }
+    }
+
+    /// `lappend`'s name for [`read_for_update`](Self::read_for_update).
+    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+        self.read_for_update(base, elem)
     }
 
     /// `unset name` — returns whether it existed.
@@ -2940,41 +3274,46 @@ impl Interp {
         // C resolves the `Var`, fires its traces, and only then frees it.
         let (base, elem) = crate::frame::split_array_ref(name);
         let traced = !self.traces.borrow().traces.is_empty();
-        let key = traced.then(|| (self.trace_var_key(&base), self.local_trace_level(&base)));
+        let key = traced.then(|| self.trace_identity(&base));
+        // Unsetting a whole array destroys each element cell too, and C's
+        // `DeleteArray` fires each element's own traces — with `arrayPtr` NULL,
+        // so only that element's list runs — after the array's own firing
+        // (tclVar.c). The elements have to be read while the array is still
+        // there (issue #1575 row 3).
+        let elements = if traced && elem.is_none() {
+            self.array_names(&base).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let existed = crate::vars::unset(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
         );
-        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, key) {
-            self.fire_var_trace_resolved(
-                access_ns,
-                access_frame_level,
-                &resolved_base,
-                elem.as_deref(),
-                b"unset",
-            );
+        if let (true, Some(home)) = (existed, key) {
+            let access = self.trace_access(name, &base, elem.as_deref(), &home, true);
+            self.fire_var_trace_resolved(&home, &access, b"unset");
+            // Then, for a whole-array unset, each element cell in turn.
+            let per_element: Vec<VarTeardownCallback> = elements
+                .iter()
+                .flat_map(|e| self.cell_unset_traces(&home, Some(e), &access.reported, e))
+                .collect();
+            self.fire_unset_callbacks(per_element);
             // The variable (and its traces) go away — drop every trace on it
             // (C frees the Var's trace list on unset). Element unset drops only
-            // that element's traces (whole-variable traces survive).
+            // that element's traces (whole-variable traces survive) — and an
+            // alias for an element (`upvar #0 a(k) e; unset e`) is an element
+            // unset, so the element comes from the access shape, not the
+            // spelling.
             let mut t = self.traces.borrow_mut();
-            match elem {
+            match access.match_elem.as_deref() {
                 Some(e) => t.traces.retain(|v| {
-                    !(crate::cmd_trace::same_variable(
-                        v,
-                        &resolved_base,
-                        access_ns,
-                        access_frame_level,
-                    ) && v.elem.as_deref() == Some(e.as_slice()))
+                    !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
+                        && v.elem.as_deref() == Some(e))
                 }),
                 None => t.traces.retain(|v| {
-                    !crate::cmd_trace::same_variable(
-                        v,
-                        &resolved_base,
-                        access_ns,
-                        access_frame_level,
-                    )
+                    !crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
                 }),
             }
             drop(t);
@@ -2986,8 +3325,8 @@ impl Interp {
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
         // Resolved before the removal — see [`Self::var_unset`].
-        let trace_key = (!self.traces.borrow().traces.is_empty())
-            .then(|| (self.trace_var_key(name), self.local_trace_level(name)));
+        let trace_key =
+            (!self.traces.borrow().traces.is_empty()).then(|| self.trace_identity(name));
         let existed = crate::vars::unset_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -2995,18 +3334,16 @@ impl Interp {
             name,
             key,
         );
-        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, trace_key)
-        {
-            self.fire_var_trace_resolved(
-                access_ns,
-                access_frame_level,
-                &resolved_base,
-                Some(key),
-                b"unset",
-            );
+        if let (true, Some(home)) = (existed, trace_key) {
+            let mut spelling = name.to_vec();
+            spelling.push(b'(');
+            spelling.extend_from_slice(key);
+            spelling.push(b')');
+            let access = self.trace_access(&spelling, name, Some(key), &home, true);
+            self.fire_var_trace_resolved(&home, &access, b"unset");
             // Drop this element's traces (whole-array traces survive).
             self.traces.borrow_mut().traces.retain(|v| {
-                !(crate::cmd_trace::same_variable(v, &resolved_base, access_ns, access_frame_level)
+                !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
                     && v.elem.as_deref() == Some(key))
             });
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
@@ -3024,26 +3361,92 @@ impl Interp {
     /// `unset`/`array` errors are ignored (C does too). Returns whether a
     /// read/write callback errored.
     fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
-        // Resolve the access to the same `(home, simple name)` key registration
-        // used, so a trace matches every spelling of the variable it is on
-        // (`::v` vs `v`, and the 8.x namespace-scope fallback) — issue #1328.
-        let access_frame_level = self.local_trace_level(base);
-        let (access_ns, base) = self.trace_var_key(base);
-        self.fire_var_trace_resolved(access_ns, access_frame_level, &base, elem, op)
+        // Resolve the access to the same identity registration used, so a trace
+        // matches every spelling of the variable it is on (`::v` vs `v`, an
+        // `upvar` alias, and the 8.x namespace-scope fallback) — issues #1328,
+        // #1633.
+        let home = self.trace_identity(base);
+        let access = self.trace_access(base, base, elem, &home, false);
+        self.fire_var_trace_resolved(&home, &access, op)
     }
 
-    /// [`Self::fire_var_trace`] with the `(home, simple name)` key already
-    /// resolved — for `unset`, which must resolve *before* it removes the
-    /// variable (resolution can depend on the cell existing).
-    fn fire_var_trace_resolved(
-        &mut self,
-        access_ns: Option<NsId>,
-        access_frame_level: Option<usize>,
+    /// How one access presents itself to the trace machinery: which cell's
+    /// element the traces match, what the callback is told, and whether the
+    /// containing array's whole-array traces take part.
+    ///
+    /// `spelling` is the access as written (`a(k)`), `base`/`elem` its split
+    /// halves, and `home` the resolved cell. Three shapes:
+    ///
+    /// - an explicit element (`set a(k) 2`) matches and reports that element,
+    ///   and reports `name1 = a` — C's `TclCallVarTraces` splits `part1` at the
+    ///   `(` when the caller left `part2` NULL. The `unset` path is where 9.0
+    ///   differs: it recovers `part2` from the `Var` *before* the call, so the
+    ///   split never runs and `name1` stays the whole `a(k)`.
+    /// - a link into an element (`upvar #0 a(k) e`) matches that element. At
+    ///   9.0 it reports it too, and the array's traces fire; at 8.4-8.6
+    ///   `part2` stays NULL, so `name2` is empty and only the element's own
+    ///   traces run. See [`traces_recover_the_linked_element`](
+    ///   Self::traces_recover_the_linked_element).
+    /// - anything else is a plain scalar/whole-array access.
+    fn trace_access(
+        &self,
+        spelling: &[u8],
         base: &[u8],
         elem: Option<&[u8]>,
+        home: &crate::vars::TraceHome,
+        unset: bool,
+    ) -> TraceAccess {
+        let recover = self.traces_recover_the_linked_element();
+        match (elem, home.link_elem.as_deref()) {
+            (Some(e), _) => TraceAccess {
+                reported: if unset && recover { spelling } else { base }.to_vec(),
+                match_elem: Some(e.to_vec()),
+                report_elem: Some(e.to_vec()),
+                spelling_elem: Some(e.to_vec()),
+                whole_array: true,
+            },
+            (None, Some(k)) => TraceAccess {
+                reported: base.to_vec(),
+                match_elem: Some(k.to_vec()),
+                report_elem: recover.then(|| k.to_vec()),
+                spelling_elem: None,
+                whole_array: recover,
+            },
+            (None, None) => TraceAccess {
+                reported: base.to_vec(),
+                match_elem: None,
+                report_elem: None,
+                spelling_elem: None,
+                whole_array: true,
+            },
+        }
+    }
+
+    /// [`Self::fire_var_trace`] with the identity already resolved — for
+    /// `unset`, which must resolve *before* it removes the variable (resolution
+    /// can depend on the cell existing).
+    fn fire_var_trace_resolved(
+        &mut self,
+        home: &crate::vars::TraceHome,
+        access: &TraceAccess,
         op: &[u8],
     ) -> bool {
+        let (access_ns, access_frame_level, base) = (home.ns, home.level, home.base.as_slice());
+        let elem = access.match_elem.as_deref();
+        let reported = access.reported.as_slice();
+        // The cell this access reaches, and the array cell containing it — C's
+        // `varPtr` and `arrayPtr`, each with its own `VAR_TRACE_ACTIVE`.
+        let cell = crate::cmd_trace::VarTraceScope::cell(base, elem, access_ns, access_frame_level);
         let traces = self.traces.borrow();
+        // "If there are already similar trace functions active for the
+        // variable, don't call them again" — C's early return on
+        // `TclIsVarTraceActive(varPtr)` (tclTrace.c 9.0.4:2513). Per *cell*: a
+        // callback writing a different element of the same array is a different
+        // `Var` and fires (issue #1574).
+        if traces.active_var_scopes.contains(&cell) {
+            return false;
+        }
+        let array_active = elem.is_some() && traces.active_var_scopes.contains(&cell.array());
         // C fires the containing array's traces before the element's own
         // (`TclCallVarTraces`, tclTrace.c 9.0.4: the `arrayPtr` loop at :2581
         // precedes the `varPtr` loop at :2623), and walks each list head→tail
@@ -3057,60 +3460,172 @@ impl Interp {
                 .filter(move |t| t.elem.is_none() == whole_array)
                 .filter(|t| {
                     crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
-                        && !traces.active_var_scopes.contains(&t.scope())
                 })
         };
-        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = selected(true)
-            .chain(selected(false))
-            .map(|t| (t.scope(), t.command.clone(), t.old_style))
-            .collect();
+        let array_group = (access.whole_array && !array_active)
+            .then(|| selected(true))
+            .into_iter()
+            .flatten();
+        // The walk order is fixed here, but *what runs* is re-read at each step:
+        // C follows `active.nextTracePtr`, which `Tcl_UntraceVar2` rewrites when
+        // a callback removes a trace mid-walk, so a trace removed during the
+        // firing does not fire in that same pass. Snapshotting the callbacks
+        // themselves would run one that is already gone (issue #1633). Ids are
+        // enough to re-find each registration, and are never reused.
+        let order: Vec<u64> = array_group.chain(selected(false)).map(|t| t.id).collect();
         drop(traces);
-        if cmds.is_empty() {
+        if order.is_empty() {
             return false;
         }
-        let propagate = op == b"read" || op == b"write";
+        // C aborts the chain on the first callback error for every op *except*
+        // unset — "ignore errors in unset traces" (tclTrace.c 9.0.4:2600). An
+        // `array` trace's error therefore fails the `array` subcommand.
+        let propagate = op != b"unset";
         // Preserve the result object across the callbacks.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
+        // The cell is marked active for the whole firing, as C marks `varPtr`
+        // once on entry and clears it on the way out — not per callback.
+        self.traces
+            .borrow_mut()
+            .active_var_scopes
+            .push(cell.clone());
+
         let mut errored = false;
         let op_name = String::from_utf8_lossy(op).into_owned();
-        for (scope, cmd, old_style) in cmds {
+        for id in order {
+            // Still registered? A previous callback in this same firing may have
+            // removed it (C's `nextTracePtr` rewrite).
+            let Some((cmd, old_style)) = self
+                .traces
+                .borrow()
+                .traces
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| (t.command.clone(), t.old_style))
+            else {
+                continue;
+            };
             // Append `base element op` as properly-quoted trailing words. A
             // trace installed by the deprecated `trace variable` form is
             // called with the single `rwua` letter (C's `TCL_TRACE_OLD_STYLE`).
             let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
             let args = crate::list::new_list_obj(&[
-                new_string(base),
-                new_string(elem.unwrap_or(b"")),
+                new_string(reported),
+                new_string(access.report_elem.as_deref().unwrap_or(b"")),
                 new_string(op_word.as_bytes()),
             ]);
             let mut line = cmd;
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.traces
-                .borrow_mut()
-                .active_var_scopes
-                .push(scope.clone());
             let code = self.eval_str(&line);
-            let popped = self.traces.borrow_mut().active_var_scopes.pop();
-            debug_assert_eq!(popped, Some(scope));
             if propagate && code == Code::Error {
                 // Capture the callback's error message; stop firing (C aborts
                 // the trace chain on the first error).
                 let msg = self.result_bytes();
                 self.traces.borrow_mut().pending_err = Some(msg);
+                // C's `TclCallVarTraces` error tail (tclTrace.c 9.0.4:2662-2696)
+                // keeps the callback's own errorInfo chain and appends a
+                // `(<type> trace on "name")` frame to it; only the *result* is
+                // replaced afterwards, by `TclVarErrMsg`. The element named
+                // here is the one from the access **spelling** — C snapshots
+                // `part2` before recovering one from a linked element — so
+                // `set a(k) 2` reports `(write trace on "a(k)")` while
+                // `set e 5` through `upvar #0 a(k) e` reports
+                // `(write trace on "e")`.
+                let mut frame = op.to_vec();
+                frame.extend_from_slice(b" trace on \"");
+                frame.extend_from_slice(reported);
+                if let Some(k) = access.spelling_elem.as_deref() {
+                    frame.push(b'(');
+                    frame.extend_from_slice(k);
+                    frame.push(b')');
+                }
+                frame.push(b'"');
+                self.append_frame_noline(&frame);
                 errored = true;
                 break;
             }
         }
+        let popped = self.traces.borrow_mut().active_var_scopes.pop();
+        debug_assert_eq!(popped, Some(cell));
         // Restore the saved result (release the trace's, adopt our held +1).
         unsafe {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
         errored
+    }
+
+    /// C's `TclVarErrMsg` tail after a variable trace aborted an access: the
+    /// *result* becomes `can't <verb> "<name>": <reason>` and `-errorcode`
+    /// becomes `TCL <READ|WRITE> VARNAME` (`tclVar.c` 9.0.4:1472 / :2073),
+    /// while `errorInfo` keeps the chain `TclCallVarTraces` already built — the
+    /// callback's own trace plus its `(<type> trace on "…")` frame.
+    ///
+    /// This is why it is not `set_error`: that starts a *fresh* error and would
+    /// throw the callback's trace away, leaving `errorInfo` as the bare
+    /// `can't set "x": …` line (issue #1633's errorInfo row).
+    pub(crate) fn var_trace_error(&mut self, name: &[u8], op: &[u8], reason: &[u8]) -> Code {
+        // C's `TclCallVarTraces` verb table (tclTrace.c 9.0.4:2668-2681). The
+        // `-errorcode` is *not* set there but by the access that failed, and
+        // only `TclPtrGetVarIdx`/`TclPtrSetVarIdx` do so — `TclCheckArrayTraces`
+        // has no such tail, so an `array` trace error keeps whatever
+        // `-errorcode` the callback left (tclsh: `NONE` for a bare `error`).
+        let (verb, word): (&[u8], Option<&[u8]>) = match op {
+            b"read" => (b"read", Some(b"READ")),
+            b"array" => (b"trace array", None),
+            _ => (b"set", Some(b"WRITE")),
+        };
+        let mut msg = b"can't ".to_vec();
+        msg.extend_from_slice(verb);
+        msg.extend_from_slice(b" \"");
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": ");
+        msg.extend_from_slice(reason);
+        self.set_result_bytes(&msg);
+        if let Some(word) = word {
+            let mut code = b"TCL ".to_vec();
+            code.extend_from_slice(word);
+            code.extend_from_slice(b" VARNAME");
+            let mut exc = self.exc.borrow_mut();
+            exc.code = code;
+            exc.code_explicit = false;
+        }
+        Code::Error
+    }
+
+    /// Fire `name`'s `array` traces — C's `TclCheckArrayTraces`, which every
+    /// `array` subcommand reaches through `LocateArray` (tclVar.c:330-350).
+    /// `Some(Code::Error)` when a callback errored and the subcommand must
+    /// fail with `can't trace array "name": <msg>` (`LocateArray` passes
+    /// `leaveErrMsg` 1), else `None`.
+    ///
+    /// C gates on `TclIsVarArray(varPtr) || TclIsVarUndefined(varPtr)`, so an
+    /// `array` trace fires for an array or for a variable that does not exist
+    /// yet, and never for a scalar — nor for an array *element*, which is not
+    /// an array however it was spelled or aliased. Ordinary element reads and
+    /// writes do not fire it at all: it is the `array` command's own hook.
+    pub(crate) fn fire_array_trace(&mut self, name: &[u8]) -> Option<Code> {
+        if self.traces.borrow().traces.is_empty() {
+            return None;
+        }
+        let (base, elem) = crate::frame::split_array_ref(name);
+        if elem.is_some() || (!self.var_is_array(&base) && self.var_exists(&base)) {
+            return None;
+        }
+        if !self.fire_var_trace(&base, None, b"array") {
+            return None;
+        }
+        let msg = self
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        Some(self.var_trace_error(&base, b"array", &msg))
     }
 
     /// Fire `var`'s `op` traces; on a read/write callback error return the
@@ -3418,6 +3933,17 @@ impl Interp {
             .ensure_namespace(self.current_ns.get(), name)
     }
 
+    /// Resolve (creating if needed) a namespace by name, anchored at the
+    /// **global** namespace regardless of the current one — C's
+    /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
+    /// TCL_CREATE_NS_IF_UNKNOWN)`. Used by `interp invokehidden -namespace`
+    /// (issue #1412 item 5): `-namespace bar` names `::bar` even when called
+    /// from inside another namespace (tclsh 9.0.4-pinned).
+    pub(crate) fn ensure_global_namespace(&mut self, name: &[u8]) -> NsId {
+        self.invalidate_command_environment();
+        self.namespaces.borrow_mut().ensure_namespace(GLOBAL, name)
+    }
+
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
@@ -3639,6 +4165,37 @@ impl Interp {
         Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
     }
 
+    /// The unset-trace callbacks a **cell** contributes when it is destroyed,
+    /// newest-first — C walks the `Var`'s prepended trace list head to tail.
+    /// Non-destructive: the caller's own sweep drops the traces.
+    fn cell_unset_traces(
+        &self,
+        home: &crate::vars::TraceHome,
+        elem: Option<&[u8]>,
+        report_name: &[u8],
+        report_elem: &[u8],
+    ) -> Vec<VarTeardownCallback> {
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .rev()
+            .filter(|t| {
+                crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level)
+                    && t.elem.as_deref() == elem
+                    && t.ops.iter().any(|o| o == b"unset")
+            })
+            .map(|t| {
+                (
+                    report_name.to_vec(),
+                    report_elem.to_vec(),
+                    t.command.clone(),
+                    t.old_style,
+                )
+            })
+            .collect()
+    }
+
     /// Fire collected command `delete`-trace callbacks as `command oldName {}
     /// delete` after the namespace has been torn down (errors ignored — a delete
     /// trace's result is discarded, matching C).
@@ -3700,7 +4257,7 @@ impl Interp {
                     fqn.extend_from_slice(e);
                     fqn.push(b')');
                 }
-                victims.push((fqn, t.command.clone(), t.old_style));
+                victims.push((fqn, Vec::new(), t.command.clone(), t.old_style));
             }
             !hit
         });
@@ -3762,7 +4319,7 @@ impl Interp {
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
-        for (name, cmd, old_style) in victims {
+        for (name, elem, cmd, old_style) in victims {
             // A trace registered the deprecated way is called with the `rwua`
             // letter, not the operation name — the teardown path must honour
             // that exactly as the explicit-unset path does (`TraceVarProc`,
@@ -3770,7 +4327,7 @@ impl Interp {
             let op = tcl_cmd_core::trace::callback_op_word("unset", old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(&name),
-                new_string(b""),
+                new_string(&elem),
                 new_string(op.as_bytes()),
             ]);
             let mut line = cmd;
@@ -4520,11 +5077,12 @@ impl Interp {
         // Same `(home, simple name)` key registration and firing use — a
         // literal `::errorInfo` here would miss every trace now that traces
         // are keyed by the resolved variable rather than the spelling.
-        let (access_ns, base) = self.trace_var_key(b"::errorInfo");
-        let access_frame_level = self.local_trace_level(b"::errorInfo");
-        self.traces.borrow().traces.iter().any(|t| {
-            crate::cmd_trace::matches(t, &base, None, b"write", access_ns, access_frame_level)
-        })
+        let home = self.trace_identity(b"::errorInfo");
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .any(|t| crate::cmd_trace::matches(t, &home.base, None, b"write", home.ns, home.level))
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
@@ -4875,19 +5433,6 @@ impl Interp {
     /// `catch` still reports the last error).
     pub(crate) fn mark_error_stack_reset(&self) {
         self.reset_error_stack.set(true);
-    }
-
-    /// Publish an error's trace **if** it has unwound past the outermost
-    /// evaluation, leaving `::errorInfo`/`::errorCode` set for an uncaught one.
-    ///
-    /// [`eval_script_mode`](Self::eval_script_mode) applies this at the end of
-    /// the eval loop. Compiled code that dispatches a command directly, without
-    /// entering that loop, has no other place to do it, so it calls this and the
-    /// depth policy stays in one place rather than being restated per caller.
-    pub(crate) fn publish_error_if_uncaught(&mut self) {
-        if self.eval_depth.get() == 0 {
-            self.publish_error();
-        }
     }
 
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
@@ -5772,7 +6317,7 @@ impl Interp {
     fn invoke(&mut self, cmd: Command, argv: &[*mut TclObj]) -> Code {
         match cmd {
             Command::Builtin(f) => f(self, argv),
-            Command::Alias { target, prefix } => self.dispatch_alias(&target, &prefix, argv),
+            Command::Alias { target, prefix, .. } => self.dispatch_alias(&target, &prefix, argv),
             Command::Imported {
                 source, ensemble, ..
             } => {
@@ -5794,7 +6339,7 @@ impl Interp {
             Command::Proc(def) => self.call_proc(&def, argv),
             Command::ChildInterp(name) => self.dispatch_child(&name, argv),
             Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
-            Command::ParentAlias { target, prefix } => {
+            Command::ParentAlias { target, prefix, .. } => {
                 self.dispatch_parent_alias(&target, &prefix, argv)
             }
         }
@@ -5851,11 +6396,8 @@ impl Interp {
     /// `rand()` of the new sequence.
     #[cfg(have_tommath)]
     pub(crate) fn srand(&self, n: i64) -> f64 {
-        let mut seed = n & 0x7FFF_FFFF;
-        if seed == 0 || seed == 0x7FFF_FFFF {
-            seed ^= 123_459_876;
-        }
-        self.rand_seed.set(Some(seed));
+        self.rand_seed
+            .set(Some(tcl_syntax::expr::rand::seed_from_wide(n)));
         self.rand_next()
     }
 
@@ -5864,28 +6406,20 @@ impl Interp {
     /// first use if `srand` hasn't run.
     #[cfg(have_tommath)]
     pub(crate) fn rand_next(&self) -> f64 {
-        // Constants from `ExprRandFunc`: IA=16807, IM=2^31-1, IQ=127773, IR=2836.
-        const RAND_IA: i64 = 16807;
-        const RAND_IM: i64 = 2_147_483_647;
-        const RAND_IQ: i64 = 127_773;
-        const RAND_IR: i64 = 2836;
+        // The generator itself — step, seed nudge and C's reciprocal-multiply
+        // scaling — is the shared owner's (`tcl_syntax::expr::rand`), so this
+        // engine and the VM cannot drift on a seeded stream (#1432). What
+        // stays here is the seed *storage* and the nondeterministic
+        // first-seed policy.
         let mut seed = self.rand_seed.get().unwrap_or_else(|| {
             // Nondeterministic first seed, kept in [1, 2^31-2]. The wall clock
             // comes from the host (so the browser/WASI hosts seed it too).
             let t = self.host().clock().now_millis() as i64;
-            let mut s = t & 0x7FFF_FFFF;
-            if s == 0 || s == 0x7FFF_FFFF {
-                s ^= 123_459_876;
-            }
-            s
+            tcl_syntax::expr::rand::seed_from_wide(t)
         });
-        let tmp = seed / RAND_IQ;
-        seed = RAND_IA * (seed - tmp * RAND_IQ) - RAND_IR * tmp;
-        if seed < 0 {
-            seed += RAND_IM;
-        }
+        let draw = tcl_syntax::expr::rand::next_draw(&mut seed);
         self.rand_seed.set(Some(seed));
-        seed as f64 * (1.0 / RAND_IM as f64)
+        draw
     }
 
     /// The `info cmdtype` classification of `name`, or `None` if no such command.
@@ -6129,9 +6663,21 @@ impl Interp {
                 }
             }
             other => {
-                let mut m = b"interp subcommand \"".to_vec();
+                // Same `bad option` shape as the `interp` ensemble's own
+                // fallthrough (`cmd_alias.rs::interp_cmd`) — the child
+                // command object (`NRChildCmd`, tclInterp.c) advertises a
+                // *shorter* list than `interp` does (no `children`,
+                // `create`, `delete`, or `exists`: those are only ever
+                // spelled `interp <op> path`, never `$child <op>`), but the
+                // shape is the same tclsh `bad option` error, not a
+                // runtime-specific message (issue #1412 item 7).
+                let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(other);
-                m.extend_from_slice(b"\" is not supported in this runtime");
+                m.extend_from_slice(
+                    b"\": must be alias, aliases, bgerror, debug, eval, expose, \
+                      hide, hidden, issafe, invokehidden, limit, marktrusted, \
+                      or recursionlimit",
+                );
                 self.error(&m)
             }
         }
@@ -6165,7 +6711,7 @@ impl Interp {
         // `env(TCL_INTERP_DEBUG_FRAME)` (C's `Tcl_CreateChild`).
         if self
             .var_get_elem(b"env", b"TCL_INTERP_DEBUG_FRAME")
-            .map(|o| parse_truth(&obj_bytes(o)))
+            .map(|o| crate::typed_value::boolean(o).unwrap_or(false))
             .unwrap_or(false)
         {
             child.0.debug_frame.set(true);
@@ -6600,6 +7146,7 @@ impl Interp {
             Command::ParentAlias {
                 target: b"clock".to_vec(),
                 prefix: Vec::new(),
+                identity: Rc::new(()),
             },
         );
         self.is_safe.set(true);
@@ -6644,7 +7191,7 @@ impl Interp {
             }
             _ => {
                 check_debug_opt(opts[0])?;
-                if parse_truth(&obj_bytes(opts[1])) {
+                if crate::typed_value::boolean(opts[1]).map_err(|e| e.message)? {
                     self.invalidate_interpreter_policy();
                     self.debug_frame.set(true);
                 }
@@ -7161,11 +7708,20 @@ impl Interp {
         // Capture `[info level 0]` (the invocation words) before the frame is
         // popped — the TIP 348 `CALL` entry if this body unwinds with an error.
         let call_words = self.level_words(proc_level);
+        // The locals' unset traces are collected while the frame — and its
+        // arrays' elements — still exist, and fire once it is gone, as C's
+        // `TclDeleteVars` runs over a frame that is on its way out.
+        let teardown = if self.traces.borrow().traces.is_empty() {
+            Vec::new()
+        } else {
+            self.frame_teardown_unset_traces(proc_level)
+        };
         self.frames.borrow_mut().pop();
         if !self.traces.borrow().traces.is_empty() {
             self.clear_frame_var_traces(proc_level);
         }
         self.current_ns.set(saved_ns);
+        self.fire_unset_callbacks(teardown);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
@@ -8755,6 +9311,7 @@ mod tests {
             let alias = |target: &[u8]| Command::Alias {
                 target: target.to_vec(),
                 prefix: Vec::new(),
+                identity: Rc::new(()),
             };
             {
                 let mut namespaces = i.namespaces.borrow_mut();

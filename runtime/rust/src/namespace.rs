@@ -60,6 +60,13 @@ pub enum RenameOutcome {
     /// `old` is an alias and moving it onto `new` would close an alias loop
     /// (C's `TclPreventAliasLoop`); the table is left untouched.
     AliasLoop,
+    /// `new` already names a bound command (C's `TclRenameCommand` checks the
+    /// destination's hash table *before* moving `old` out of its own — so
+    /// this also catches a same-slot "self-rename" like `rename foo foo`,
+    /// which tclsh 9.0.4 refuses too, since the source is still occupying
+    /// that slot at check time); both `old` and the occupant at `new` are
+    /// left untouched (issue #1412 item 1).
+    TargetExists,
 }
 
 /// One namespace: its simple name, its command table, child namespaces, the
@@ -280,7 +287,17 @@ impl Namespaces {
 
     /// `rename old new`: move the command bound to `old` to `new` (both resolved
     /// relative to `current`, absolute when `::`-led); `new == ""` deletes it.
-    /// A self-rename is a no-op (remove-then-reinsert under the same key).
+    /// Occupancy protection is the caller's job (see
+    /// [`Self::destination_occupant_fqn`]) — a script-visible "already
+    /// exists" refusal needs release-gate context (a TclOO root this release
+    /// hides is not really taken) that this table-only layer does not have,
+    /// so this unconditionally overwrites whatever is at the destination,
+    /// same as [`Self::insert_bound`].
+    ///
+    /// A command moved across namespaces is re-homed: a `Command::Proc`'s
+    /// `ns`/`fqn` are updated to the destination so `namespace current`
+    /// inside its body reports the new namespace, mirroring C's
+    /// `cmdPtr->nsPtr` reassignment.
     ///
     /// Built-in protection lives in the `rename` builtin, not here — this is the
     /// pure table operation.
@@ -300,8 +317,50 @@ impl Namespaces {
             self.arena[old_ns].commands.insert(old_simple, cmd);
             return RenameOutcome::NoSuchCommand;
         };
+        let cmd = Self::rehome_proc(cmd, ns, &self.command_fqn(ns, &simple));
         self.insert_bound(ns, simple, cmd);
         RenameOutcome::Renamed
+    }
+
+    /// The fully-qualified name of whatever is currently bound at the
+    /// destination `rename old new` would write to, or `None` when it is
+    /// free — read-only (beyond creating intermediate namespaces, same as
+    /// C's `TCL_CREATE_NS_IF_UNKNOWN`, which `rename` re-resolves
+    /// idempotently) so the `rename` builtin can decide occupancy (folding
+    /// in release-gate context this layer does not have — see
+    /// [`crate::interp::Interp::is_gate_hidden_object_root`]) *before* firing
+    /// a rename trace or moving anything. `old`'s own binding still counts as
+    /// occupying its slot here (it is not removed until the real `rename`
+    /// call), so a same-slot self-rename (`rename foo foo`) reads as
+    /// occupied too, matching tclsh 9.0.4.
+    pub(crate) fn destination_occupant_fqn(
+        &mut self,
+        current: NsId,
+        new: &[u8],
+    ) -> Option<Vec<u8>> {
+        if new.is_empty() {
+            return None;
+        }
+        let (ns, simple) = self.destination_of(current, new)?;
+        self.arena[ns]
+            .commands
+            .contains_key(&simple)
+            .then(|| self.command_fqn(ns, &simple))
+    }
+
+    /// Re-home a `Command::Proc` moved by `rename` to its new binding site.
+    /// Every other `Command` variant carries no namespace of its own and
+    /// passes through unchanged.
+    fn rehome_proc(command: Command, ns: NsId, fqn: &[u8]) -> Command {
+        match command {
+            Command::Proc(def) if def.ns != ns => {
+                let mut def = (*def).clone();
+                def.ns = ns;
+                def.fqn = fqn.to_vec();
+                Command::Proc(std::rc::Rc::new(def))
+            }
+            other => other,
+        }
     }
 
     /// The `(namespace, simple name)` a written destination name binds — the

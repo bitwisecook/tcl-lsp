@@ -160,6 +160,21 @@ pub enum WasmOp {
     I64ShrS = 0x87,
     I32WrapI64 = 0xA7,
     I64ExtendI32S = 0xAC,
+    I64ExtendI32U = 0xAD,
+    F64Load = 0x2B,
+    F64Store = 0x39,
+    F64Eq = 0x61,
+    F64Ne = 0x62,
+    F64Lt = 0x63,
+    F64Gt = 0x64,
+    F64Le = 0x65,
+    F64Ge = 0x66,
+    F64Neg = 0x9A,
+    F64Add = 0xA0,
+    F64Sub = 0xA1,
+    F64Mul = 0xA2,
+    F64Div = 0xA3,
+    F64ConvertI64S = 0xB9,
 }
 
 impl WasmOp {
@@ -232,6 +247,21 @@ impl WasmOp {
             Self::I64ShrS => "i64.shr_s",
             Self::I32WrapI64 => "i32.wrap_i64",
             Self::I64ExtendI32S => "i64.extend_i32_s",
+            Self::I64ExtendI32U => "i64.extend_i32_u",
+            Self::F64Load => "f64.load",
+            Self::F64Store => "f64.store",
+            Self::F64Eq => "f64.eq",
+            Self::F64Ne => "f64.ne",
+            Self::F64Lt => "f64.lt",
+            Self::F64Gt => "f64.gt",
+            Self::F64Le => "f64.le",
+            Self::F64Ge => "f64.ge",
+            Self::F64Neg => "f64.neg",
+            Self::F64Add => "f64.add",
+            Self::F64Sub => "f64.sub",
+            Self::F64Mul => "f64.mul",
+            Self::F64Div => "f64.div",
+            Self::F64ConvertI64S => "f64.convert_i64_s",
         }
     }
 
@@ -791,12 +821,24 @@ fn format_wat_instr(instr: &WasmInstruction, indent: usize) -> String {
         // A memarg is an alignment exponent followed by a byte offset. The
         // emitter always uses the operand's natural alignment, so only the
         // offset carries information worth reading.
-        WasmOp::I32Load | WasmOp::I64Load | WasmOp::I32Store | WasmOp::I64Store => {
-            match memarg_offset(&instr.operands) {
-                Some(offset) => format!("{prefix}{name} offset={offset}"),
-                None => format!("{prefix}{name}"),
+        WasmOp::F64Const => {
+            if instr.operands.len() == 8 {
+                let mut bytes = [0u8; 8];
+                bytes.copy_from_slice(&instr.operands);
+                format!("{prefix}{name} {}", f64::from_le_bytes(bytes))
+            } else {
+                format!("{prefix}{name}")
             }
         }
+        WasmOp::I32Load
+        | WasmOp::I64Load
+        | WasmOp::F64Load
+        | WasmOp::I32Store
+        | WasmOp::I64Store
+        | WasmOp::F64Store => match memarg_offset(&instr.operands) {
+            Some(offset) => format!("{prefix}{name} offset={offset}"),
+            None => format!("{prefix}{name}"),
+        },
         WasmOp::Block | WasmOp::Loop | WasmOp::If => {
             // Only the void block type is emitted by this backend.
             if instr.operands.first() == Some(&BLOCK_VOID) || instr.operands.is_empty() {

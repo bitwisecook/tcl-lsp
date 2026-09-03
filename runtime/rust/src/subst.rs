@@ -18,8 +18,10 @@
 
 //! Tcl substitution engine (`subst`, and the eval loop's word expander) — T1.2.
 //!
-//! Implements `subst_flagged` on the shared [`crate::parse::scan_parts`]
-//! component model so parse and subst share one scanner.
+//! The scan half is not implemented here: [`scan`] is a flag adapter over
+//! [`tcl_lexer::word_parts::decompose`], the one owner of Tcl word-component
+//! decomposition, shared with this crate's word parser and with `tcl-vm`.
+//! This module owns only the *resolve* half.
 //!
 //! Substitution is two halves:
 //! 1. **Scan** the input into components ([`scan`]) — pure, done here.
@@ -36,7 +38,7 @@
 
 use tcl_core_types::RecursionLimit;
 
-use crate::parse::{self, WordBody, WordPart};
+use crate::parse::{WordBody, WordPart};
 use tcl_lexer::{EscapeSyntax, LexerConfig};
 
 /// Cap on `$name(index)` nesting depth [`resolve_parts`] will recurse into
@@ -80,7 +82,19 @@ impl Default for SubstFlags {
 /// release, so `subst` must read the template the way that release's parser
 /// would.
 pub fn scan(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> {
-    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes, config)
+    tcl_lexer::word_parts::decompose(
+        src,
+        tcl_lexer::word_parts::SubstFlags {
+            vars: flags.vars,
+            cmds: flags.cmds,
+            backslashes: flags.backslashes,
+            // Source `subst` reads every `$name` spelling C does, and an
+            // unclosed `[` keeps C's parse error.
+            bare_var_refs: true,
+            ..tcl_lexer::word_parts::SubstFlags::default()
+        },
+        config,
+    )
 }
 
 /// Resolve a scanned [`WordBody`] to bytes. Literals are copied and backslashes
@@ -283,14 +297,14 @@ mod tests {
     /// self-referential index resolution via the normal `scan` ->
     /// `resolve_with` pipeline — well under `MAX_RESOLVE_PARTS_DEPTH` (64).
     /// The safety net must not alter this at all: `$arr(k)` resolves to
-    /// "val" first, so the outer becomes `$arr(val)` -> "nested-val". (The
-    /// trailing `)` is a pre-existing, unrelated property of `scan_parts`'s
-    /// `)`-terminator search — see `parse::tests::
-    /// moderately_nested_array_index_still_scans_fully` — not something this
-    /// fix changes.)
+    /// "val" first, so the outer becomes `$arr(val)` -> "nested-val", with no
+    /// trailing text: `scan_parts`'s `)`-terminator search skips the nested
+    /// `$name(…)`'s own parens (see `parse::tests::
+    /// moderately_nested_array_index_still_scans_fully`), which is the C Tcl
+    /// reading — `subst {$arr($arr(k))}` yields `nested-val` under `tclsh9.0`.
     #[test]
     fn moderately_nested_array_index_resolves_correctly() {
-        assert_eq!(subst(b"$arr($arr(k))"), b"nested-val)");
+        assert_eq!(subst(b"$arr($arr(k))"), b"nested-val");
     }
 
     /// Regression coverage for issue #996: `resolve_parts` recurses once per

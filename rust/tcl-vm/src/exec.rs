@@ -931,7 +931,12 @@ fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
             f.stack.push(v);
             Ok(())
         }
-        Err(e) => Err(err(e.message)),
+        // Through `completion_from_tcl_error`, not `err`: C stamps an
+        // `-errorcode` on the arithmetic failures (`ARITH DIVZERO`,
+        // `ARITH DOMAIN`), and a bare `err` would drop it, leaving the
+        // compiled `expr {…}` path reporting `NONE` where the dynamic
+        // `expr $e` path reports the real code (#1428).
+        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
 
@@ -943,7 +948,7 @@ fn cmp(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
             f.stack.push(Value::bool(t));
             Ok(())
         }
-        Err(e) => Err(err(e.message)),
+        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
 
@@ -960,14 +965,27 @@ fn cmp(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 fn land_lor(f: &mut Frame, is_and: bool) -> Result<(), Completion<Value>> {
     let b = pop(f);
     let a = pop(f);
-    let a_true = a.as_bool().map_err(|e| err(e.message))?;
-    let b_true = b.as_bool().map_err(|e| err(e.message))?;
+    let a_true = a.as_bool().map_err(boolean_operand_error)?;
+    let b_true = b.as_bool().map_err(boolean_operand_error)?;
     f.stack.push(Value::bool(if is_and {
         a_true && b_true
     } else {
         a_true || b_true
     }));
     Ok(())
+}
+
+/// A boolean-coercion failure with the `-errorcode` C stamps: `TCL VALUE
+/// DOUBLE NAN` for a NaN in a boolean context, `TCL VALUE NUMBER` for a value
+/// that is neither a number nor a boolean word. Both were `NONE` before
+/// #1581.
+fn boolean_operand_error(e: crate::TclError) -> Completion<Value> {
+    let code = if e.message == tcl_syntax::expr::errors::NAN_MESSAGE {
+        tcl_syntax::expr::errors::NAN_CODE
+    } else {
+        tcl_syntax::expr::errors::BOOLEAN_OPERAND_CODE
+    };
+    crate::command::err_with_code(e.message, code)
 }
 
 fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
@@ -977,7 +995,9 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
             f.stack.push(r);
             Ok(())
         }
-        Err(e) => Err(err(e.message)),
+        // Keeps C's `-errorcode` (`ARITH DOMAIN <description>` for an
+        // operand-type error); a bare `err` dropped it (#1581).
+        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
 
@@ -3291,7 +3311,7 @@ impl Vm {
                         }
                     }
                     Ok(false) => {}
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => return Tick::Return(boolean_operand_error(e)),
                 }
             }
             Op::JUMP_FALSE1 | Op::JUMP_FALSE4 => {
@@ -3303,7 +3323,7 @@ impl Vm {
                         }
                     }
                     Ok(true) => {}
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => return Tick::Return(boolean_operand_error(e)),
                 }
             }
             Op::JUMP_TABLE => {

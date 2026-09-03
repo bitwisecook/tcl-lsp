@@ -43,11 +43,6 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(0),
         completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::InterpState,
-            writes: true,
-            ..SideEffect::DEFAULT
-        }],
         hover: Some(HoverSnippet {
             summary: "Skip to the next iteration of the innermost enclosing loop.",
             synopsis: &["continue"],
@@ -57,6 +52,13 @@ pub fn spec() -> CommandSpec {
             return_value: "None in normal use — control transfers to the next iteration of the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Continue),
+        native_lowering: Some(NativeLowering::Completion(CompletionCode::Continue)),
+        // The command's whole effect is its completion code, which the exact
+        // completion descriptor above already carries: it changes no
+        // interpreter state a dispatch proof could depend on, so its world
+        // footprint is closed and empty.
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

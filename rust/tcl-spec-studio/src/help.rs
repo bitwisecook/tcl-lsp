@@ -399,6 +399,14 @@ for user packages.",
 operation. Anything outside that dialect leaves it unset.",
     ),
     (
+        "native_lowering",
+        "Compiler internals: which native code shape the executable-IR lowering \
+gives this command — a structural hook, a cell read-modify-write, an \
+intrinsic, a fixed completion, a scope link, or a definition. It is stamped \
+beside the lowering hook or intrinsic it mirrors; unset means the generic \
+argv invocation through runtime dispatch.",
+    ),
+    (
         "analyser_hook",
         "Compiler internals: routes the command to a hand-written analyser \
 family (`proc`, `foreach`, `package require`, …) for behaviour the \

@@ -32,6 +32,28 @@
 //! that diffs this runner's stdout against `tclsh`/`tclvm` (see
 //! `rust/tcl-fuzz`) — a raw stdout comparison would otherwise see a spurious
 //! divergence on any script whose last command leaves a non-empty result.
+//!
+//! # The command surface is the engine's, not this file's (issue #1589)
+//!
+//! The interpreter is built with [`Interp::new`], which runs
+//! `builtins::install` and therefore registers **every** command module the
+//! engine has — `if`/`while`/`for`/`foreach`/`switch` from `cmd_control`,
+//! `catch`/`error`/`try` from `cmd_error`, and the rest. A differential sheet
+//! written in ordinary Tcl runs through here unmodified; nothing has to be
+//! rewritten `if`-free, which is the gap #1589 reported.
+//!
+//! Do not add a hand-rolled registration list to this example. A private
+//! subset here silently narrows every campaign that uses this harness while
+//! looking perfectly healthy, and `run_script` is the documented way to
+//! exercise this engine (the fuzzer's taxonomy names it). The contract is
+//! pinned by `tests/run_script_builtin_surface.rs`.
+//!
+//! One conditional gap remains, and it is a *build* property rather than a
+//! harness one: `expr` and the `::tcl::mathfunc`/`::tcl::mathop` ensembles are
+//! `have_tommath`-gated, so a build whose `build.rs` could not find the
+//! libtommath source (it warns, it does not fail) has no numeric tower. Build
+//! with `TCL_TOMMATH_DIR` set — `make runtime-rust-test` does — or expect
+//! every expression to fail.
 
 use std::io::Read;
 

@@ -283,7 +283,13 @@ fn audit_executable_shape(
                 | ExecutableInstruction::BuildArgv { .. } => {}
                 ExecutableInstruction::Invoke(_) => invocations += 1,
                 ExecutableInstruction::ExecuteLowered(_)
-                | ExecutableInstruction::ExecuteOpaqueRegion(_) => {
+                | ExecutableInstruction::ExecuteOpaqueRegion(_)
+                | ExecutableInstruction::EvaluateExpr { .. }
+                | ExecutableInstruction::MatchPattern { .. }
+                | ExecutableInstruction::IterateLists { .. }
+                | ExecutableInstruction::JoinCompletion { .. }
+                | ExecutableInstruction::WriteCompletionCell { .. }
+                | ExecutableInstruction::CompleteStructuredRegion(_) => {
                     declines.push(EbpfExecutableShapeDecline::NonInvocationInstruction {
                         block: block.id.index(),
                         instruction,
@@ -647,9 +653,17 @@ mod tests {
                 | tcl_compiler::executable_ir::ExecutableInstruction::ExpandWord { .. }
                 | tcl_compiler::executable_ir::ExecutableInstruction::BuildArgv { .. }
                 | tcl_compiler::executable_ir::ExecutableInstruction::ExecuteLowered(_)
-                | tcl_compiler::executable_ir::ExecutableInstruction::ExecuteOpaqueRegion(_) => {
-                    None
+                | tcl_compiler::executable_ir::ExecutableInstruction::ExecuteOpaqueRegion(_)
+                | tcl_compiler::executable_ir::ExecutableInstruction::EvaluateExpr { .. }
+                | tcl_compiler::executable_ir::ExecutableInstruction::MatchPattern { .. }
+                | tcl_compiler::executable_ir::ExecutableInstruction::IterateLists { .. }
+                | tcl_compiler::executable_ir::ExecutableInstruction::JoinCompletion { .. }
+                | tcl_compiler::executable_ir::ExecutableInstruction::WriteCompletionCell {
+                    ..
                 }
+                | tcl_compiler::executable_ir::ExecutableInstruction::CompleteStructuredRegion(
+                    _,
+                ) => None,
             })
             .expect("test source should resolve its BPF operation")
     }

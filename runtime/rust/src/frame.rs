@@ -127,36 +127,154 @@ pub enum VarError {
 // VarTable — the per-frame / per-namespace name→cell store + cell mechanics.
 // ---------------------------------------------------------------------------
 
+/// One addressable cell of a [`VarTable`]: the name it is bound to and the
+/// variable currently in it, if any.
+///
+/// `var` is `None` for a *reserved but undefined* cell — a compiled slot bound
+/// before its first assignment, or a local that has been `unset`. Reserving
+/// rather than removing is what makes a slot index stable: the next write of
+/// that name refills this same cell, so an indexed and a named access can never
+/// end up looking at two different variables.
+struct Cell {
+    name: Vec<u8>,
+    var: Option<Var>,
+    /// Flagged `const` (TIP 677): a write or unset errors with `variable is a
+    /// constant`. On the cell rather than in a side set so a compiled slot's
+    /// write check is the same O(1) index as the write itself.
+    constant: bool,
+    /// **The per-cell trace bit**: whether a variable trace can observe this
+    /// cell, together with the variable-trace epoch that answer was computed
+    /// for.
+    ///
+    /// The answer itself is derived — resolving the cell's name the way trace
+    /// firing does, so an `upvar` link reports its *target*'s traces and an
+    /// array reports its elements' — and this caches it. Every add, remove,
+    /// frame teardown, and unset that touches the trace set bumps the epoch
+    /// through the interpreter's one `VariableTrace` invalidation chokepoint,
+    /// so a stale entry is always *recomputed* rather than trusted. A bit
+    /// maintained by hand at each of those sites could drift, and a wrong
+    /// "untraced" is a silently missed trace.
+    ///
+    /// Epoch `0` is the never-computed sentinel; the interpreter's epoch starts
+    /// at `1`.
+    traced: core::cell::Cell<(u64, bool)>,
+}
+
 /// A variable table: simple-name → [`Var`] cell, with the refcount discipline
 /// for the objects its scalars/arrays own. **Direct** ops only — no link
 /// following (that crosses tables and is the [`crate::vars`] coordinator's job).
 /// Used by both a call [`Frame`] and a namespace (`namespace.rs`).
+///
+/// Cells live in a slot-indexed array with an ordered name → slot side table.
+/// Named access costs the same one ordered lookup it always did; a compiled
+/// local that has resolved its slot once addresses the cell directly, which is
+/// what makes `tcl_codegen_slot_get`/`slot_set` O(1) while `info vars`,
+/// `upvar`, `trace`, and `unset` still reach that very cell by name.
 #[derive(Default)]
 pub struct VarTable {
-    vars: BTreeMap<Vec<u8>, Var>,
-    /// Scalars flagged `const` (TIP 677): a write or unset of one errors with
-    /// `variable is a constant`. Names are simple (table-local); a name stays
-    /// here for the table's lifetime since a constant cannot be unset.
-    consts: std::collections::BTreeSet<Vec<u8>>,
+    /// The cells, addressed by a stable slot index. A cell is never moved or
+    /// dropped while the table lives, so a slot index stays valid.
+    cells: Vec<Cell>,
+    /// Simple name → slot. Ordered, so `info vars` / `array names` iterate
+    /// deterministically (the reason this was a `BTreeMap` to begin with).
+    slots: BTreeMap<Vec<u8>, usize>,
     /// Per-array default values (TIP 508 `array default set`): array name → the
     /// value returned for a read of a missing element. Each owns a **+1**.
     array_defaults: BTreeMap<Vec<u8>, *mut TclObj>,
 }
 
 impl VarTable {
+    /// The slot `name` occupies, reserving an empty one if it has none yet.
+    ///
+    /// This is the compiled-local binding operation: after it, the slot and the
+    /// name are two ways of addressing one cell, for the table's lifetime.
+    pub(crate) fn slot_for(&mut self, name: &[u8]) -> usize {
+        if let Some(slot) = self.slots.get(name) {
+            return *slot;
+        }
+        let slot = self.cells.len();
+        self.cells.push(Cell {
+            name: name.to_vec(),
+            var: None,
+            constant: false,
+            traced: core::cell::Cell::new((0, false)),
+        });
+        self.slots.insert(name.to_vec(), slot);
+        slot
+    }
+
+    /// The variable in `slot`, or `None` when the slot is out of range or its
+    /// cell is currently undefined.
+    pub(crate) fn cell_at(&self, slot: usize) -> Option<&Var> {
+        self.cells.get(slot)?.var.as_ref()
+    }
+
+    /// The name `slot` is bound to (an out-of-range slot has none).
+    pub(crate) fn slot_name(&self, slot: usize) -> Option<&[u8]> {
+        self.cells.get(slot).map(|cell| cell.name.as_slice())
+    }
+
+    /// `slot`'s cached trace answer, if it was computed for `epoch`.
+    pub(crate) fn cached_trace_flag(&self, slot: usize, epoch: u64) -> Option<bool> {
+        let (cached_epoch, traced) = self.cells.get(slot)?.traced.get();
+        (cached_epoch == epoch).then_some(traced)
+    }
+
+    /// Record `slot`'s trace answer for `epoch`.
+    pub(crate) fn set_cached_trace_flag(&self, slot: usize, epoch: u64, traced: bool) {
+        if let Some(cell) = self.cells.get(slot) {
+            cell.traced.set((epoch, traced));
+        }
+    }
+
+    /// The cell bound to `name`, if the table has ever reserved one.
+    fn get(&self, name: &[u8]) -> Option<&Var> {
+        self.cells[*self.slots.get(name)?].var.as_ref()
+    }
+
+    fn get_mut(&mut self, name: &[u8]) -> Option<&mut Var> {
+        let slot = *self.slots.get(name)?;
+        self.cells[slot].var.as_mut()
+    }
+
+    /// Store `var` under `name`, returning the variable it displaced.
+    fn put(&mut self, name: &[u8], var: Var) -> Option<Var> {
+        let slot = self.slot_for(name);
+        self.cells[slot].var.replace(var)
+    }
+
+    /// Empty `name`'s cell, returning what it held. The cell and its slot stay
+    /// reserved so a compiled slot keeps addressing the same variable.
+    fn take(&mut self, name: &[u8]) -> Option<Var> {
+        let slot = *self.slots.get(name)?;
+        self.cells[slot].var.take()
+    }
+
+    /// Every defined variable, in name order.
+    fn iter(&self) -> impl Iterator<Item = (&[u8], &Var)> {
+        self.slots
+            .iter()
+            .filter_map(|(name, slot)| Some((name.as_slice(), self.cells[*slot].var.as_ref()?)))
+    }
     /// The cell bound to `name`, if any (for link inspection / introspection).
     pub(crate) fn cell(&self, name: &[u8]) -> Option<&Var> {
-        self.vars.get(name)
+        self.get(name)
     }
 
     /// Whether `name` is a `const` scalar here.
     pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
-        self.consts.contains(name)
+        self.slots
+            .get(name)
+            .is_some_and(|slot| self.cells[*slot].constant)
     }
 
-    /// Names of the `const` scalars in this table (`info consts`).
+    /// Names of the `const` scalars in this table (`info consts`), sorted.
     pub(crate) fn const_names(&self) -> Vec<&[u8]> {
-        self.consts.iter().map(|k| k.as_slice()).collect()
+        self.slots
+            .iter()
+            .filter(|(_, slot)| self.cells[**slot].constant)
+            .map(|(name, _)| name.as_slice())
+            .collect()
     }
 
     /// Set array `name`'s default value (`array default set`), releasing any
@@ -198,15 +316,16 @@ impl VarTable {
     /// Flag the scalar `name` `const` (the `const` command, after its value is
     /// stored). A no-op if already flagged.
     pub(crate) fn mark_constant(&mut self, name: &[u8]) {
-        self.consts.insert(name.to_vec());
+        let slot = self.slot_for(name);
+        self.cells[slot].constant = true;
     }
 
     /// `set name value` into this table directly. The cell takes a **+1**.
     pub(crate) fn store_scalar(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
-        if self.consts.contains(name) {
+        if self.is_constant(name) {
             return Err(VarError::IsConstant);
         }
-        match self.vars.get_mut(name) {
+        match self.get_mut(name) {
             Some(Var::Array(_)) => Err(VarError::IsArray),
             Some(Var::Scalar(slot)) => {
                 // SAFETY: retain the new value, release the prior occupant
@@ -225,14 +344,14 @@ impl VarTable {
             Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
                 // SAFETY: fresh cell takes a +1 (the link owned nothing).
                 unsafe { obj::incr_ref_count(obj) };
-                self.vars.insert(name.to_vec(), Var::Scalar(obj));
+                self.put(name, Var::Scalar(obj));
                 Ok(())
             }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
             None => {
                 // SAFETY: fresh cell takes a +1.
                 unsafe { obj::incr_ref_count(obj) };
-                self.vars.insert(name.to_vec(), Var::Scalar(obj));
+                self.put(name, Var::Scalar(obj));
                 Ok(())
             }
         }
@@ -240,7 +359,7 @@ impl VarTable {
 
     /// `set name` — the scalar's value (borrowed; the table keeps its +1).
     pub(crate) fn load_scalar(&self, name: &[u8]) -> Option<*mut TclObj> {
-        match self.vars.get(name) {
+        match self.get(name) {
             Some(Var::Scalar(p)) => Some(*p),
             _ => None,
         }
@@ -253,7 +372,7 @@ impl VarTable {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
-        match self.vars.get_mut(name) {
+        match self.get_mut(name) {
             Some(Var::Scalar(_)) => Err(VarError::IsScalar),
             Some(Var::Array(map)) => {
                 // SAFETY: retain the new element value; release any prior one.
@@ -269,7 +388,7 @@ impl VarTable {
                 let mut map = BTreeMap::new();
                 unsafe { obj::incr_ref_count(obj) };
                 map.insert(key.to_vec(), obj);
-                self.vars.insert(name.to_vec(), Var::Array(map));
+                self.put(name, Var::Array(map));
                 Ok(())
             }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
@@ -277,7 +396,7 @@ impl VarTable {
                 let mut map = BTreeMap::new();
                 unsafe { obj::incr_ref_count(obj) };
                 map.insert(key.to_vec(), obj);
-                self.vars.insert(name.to_vec(), Var::Array(map));
+                self.put(name, Var::Array(map));
                 Ok(())
             }
         }
@@ -285,7 +404,7 @@ impl VarTable {
 
     /// `set name(key)` — borrowed.
     pub(crate) fn load_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
-        match self.vars.get(name) {
+        match self.get(name) {
             Some(Var::Array(map)) => map.get(key).copied(),
             _ => None,
         }
@@ -296,7 +415,7 @@ impl VarTable {
     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
         // A removed array drops its TIP 508 default too.
         self.unset_array_default(name);
-        match self.vars.remove(name) {
+        match self.take(name) {
             Some(v) => {
                 v.release();
                 true
@@ -310,17 +429,17 @@ impl VarTable {
     /// scalar. (`IsScalar` reuses the closest existing variant; the caller maps
     /// it to the `array default set` message.)
     pub(crate) fn ensure_array(&mut self, name: &[u8]) -> Result<(), VarError> {
-        match self.vars.get(name) {
+        match self.get(name) {
             Some(Var::Array(_)) => Ok(()),
             Some(Var::Scalar(_)) => Err(VarError::IsScalar),
             // The declared-but-undefined marker defines as an array here.
             Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
-                self.vars.insert(name.to_vec(), Var::Array(BTreeMap::new()));
+                self.put(name, Var::Array(BTreeMap::new()));
                 Ok(())
             }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
             None => {
-                self.vars.insert(name.to_vec(), Var::Array(BTreeMap::new()));
+                self.put(name, Var::Array(BTreeMap::new()));
                 Ok(())
             }
         }
@@ -328,7 +447,7 @@ impl VarTable {
 
     /// Remove one array element `name(key)`; returns whether it existed.
     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
-        if let Some(Var::Array(map)) = self.vars.get_mut(name) {
+        if let Some(Var::Array(map)) = self.get_mut(name) {
             if let Some(old) = map.remove(key) {
                 // SAFETY: the array element owned a +1; releasing balances it.
                 unsafe { obj::decr_ref_count(old) };
@@ -340,7 +459,7 @@ impl VarTable {
 
     /// Install `link` under `name`, releasing any cell it replaces.
     pub(crate) fn insert_link(&mut self, name: &[u8], link: Link) {
-        if let Some(old) = self.vars.insert(name.to_vec(), Var::Link(link)) {
+        if let Some(old) = self.put(name, Var::Link(link)) {
             old.release();
         }
     }
@@ -348,36 +467,35 @@ impl VarTable {
     /// Whether `name` is an array variable here (the `set a` array-vs-scalar
     /// diagnostic; `array exists`).
     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
-        matches!(self.vars.get(name), Some(Var::Array(_)))
+        matches!(self.get(name), Some(Var::Array(_)))
     }
 
     /// Whether `name` is a defined scalar or array here (not a link) — the
     /// terminal check behind `info exists`.
     pub(crate) fn is_set(&self, name: &[u8]) -> bool {
-        matches!(self.vars.get(name), Some(Var::Scalar(_) | Var::Array(_)))
+        matches!(self.get(name), Some(Var::Scalar(_) | Var::Array(_)))
     }
 
     /// Names of all variables in this table, sorted (`info vars`/`locals`/
     /// `globals`).
     pub(crate) fn names(&self) -> Vec<&[u8]> {
-        self.vars.keys().map(|k| k.as_slice()).collect()
+        self.iter().map(|(name, _)| name).collect()
     }
 
     /// Names of the table's *direct* variables (scalars/arrays), excluding
     /// links (`global`/`upvar`/`variable` / auto-linked instance vars) — for
     /// `info locals`, which lists only true locals.
     pub(crate) fn non_link_names(&self) -> Vec<&[u8]> {
-        self.vars
-            .iter()
+        self.iter()
             .filter(|(_, v)| !matches!(v, Var::Link(_)))
-            .map(|(k, _)| k.as_slice())
+            .map(|(name, _)| name)
             .collect()
     }
 
     /// Element names of array `name`, sorted (`array names`); `None` if not an
     /// array.
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<&[u8]>> {
-        match self.vars.get(name) {
+        match self.get(name) {
             Some(Var::Array(map)) => Some(map.keys().map(|k| k.as_slice()).collect()),
             _ => None,
         }
@@ -388,8 +506,10 @@ impl Drop for VarTable {
     /// Release every object every cell owns, so a dropped frame/namespace never
     /// leaks.
     fn drop(&mut self) {
-        for (_, var) in std::mem::take(&mut self.vars) {
-            var.release();
+        for cell in std::mem::take(&mut self.cells) {
+            if let Some(var) = cell.var {
+                var.release();
+            }
         }
         for (_, obj) in std::mem::take(&mut self.array_defaults) {
             // SAFETY: balances the +2 taken in `set_array_default`.
@@ -410,10 +530,12 @@ impl Drop for VarTable {
 /// the `CallFrame.nsPtr` analogue).
 struct Frame {
     table: VarTable,
-    /// Compile-time slot index to Tcl variable name. Indexed and named access
-    /// both route through `table`, so dynamic Tcl code observes the same cell
-    /// as generated `frame_local_*_at` calls.
-    compiled_slots: Vec<Vec<u8>>,
+    /// Compile-time slot index → the [`VarTable`] cell slot it is bound to.
+    /// Indexed and named access address the *same* cell, so dynamic Tcl code
+    /// (`info vars`, `upvar`, `trace`, `unset`) observes exactly what generated
+    /// `tcl_codegen_slot_*` calls do — and an indexed access costs one array
+    /// index rather than a name clone plus an ordered lookup.
+    compiled_slots: Vec<Option<usize>>,
     /// The logical call level (`info level`, `upvar`/`uplevel` arithmetic) — the
     /// invoking var-frame's level + 1, **not** the stack index. They diverge
     /// when a proc is invoked while `uplevel` has redirected the active frame:
@@ -494,16 +616,6 @@ impl FrameStack {
     pub(crate) fn is_proc_at(&self, level: usize) -> bool {
         self.index_of_level(level)
             .is_some_and(|i| self.frames[i].is_proc)
-    }
-
-    /// Whether `name` is bound to a link (`global`/`upvar`/`variable`) in the
-    /// active frame — used to decide if a variable trace on an unqualified name
-    /// is frame-local (it is not when the name links to an outer variable, which
-    /// outlives this frame).
-    pub(crate) fn current_is_link(&self, name: &[u8]) -> bool {
-        self.index_of_level(self.active_level)
-            .and_then(|i| self.frames[i].table.cell(name))
-            .is_some_and(|c| matches!(c, Var::Link(_)))
     }
 
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
@@ -628,26 +740,55 @@ impl FrameStack {
             .map_or(crate::namespace::GLOBAL, |i| self.frames[i].ns)
     }
 
-    /// Associate a generated-code slot with its Tcl-visible variable name.
+    /// Bind a generated-code slot to `name`'s cell in the active frame,
+    /// reserving that cell if the name has none yet.
     pub(crate) fn bind_compiled_slot(&mut self, slot: usize, name: &[u8]) {
         let Some(i) = self.index_of_level(self.active_level) else {
             return;
         };
+        let cell = self.frames[i].table.slot_for(name);
         let slots = &mut self.frames[i].compiled_slots;
         if slots.len() <= slot {
-            slots.resize_with(slot + 1, Vec::new);
+            slots.resize(slot + 1, None);
         }
-        slots[slot] = name.to_vec();
+        slots[slot] = Some(cell);
+    }
+
+    /// The active frame's table cell a generated-code slot is bound to.
+    fn compiled_cell(&self, slot: usize) -> Option<(usize, usize)> {
+        let i = self.index_of_level(self.active_level)?;
+        let cell = (*self.frames[i].compiled_slots.get(slot)?)?;
+        Some((i, cell))
     }
 
     /// Tcl-visible name associated with a generated-code slot.
     pub(crate) fn compiled_slot_name(&self, slot: usize) -> Option<&[u8]> {
-        let i = self.index_of_level(self.active_level)?;
-        self.frames[i]
-            .compiled_slots
-            .get(slot)
-            .filter(|name| !name.is_empty())
-            .map(Vec::as_slice)
+        let (frame, cell) = self.compiled_cell(slot)?;
+        self.frames[frame].table.slot_name(cell)
+    }
+
+    /// The cached trace answer for the cell a generated-code slot addresses.
+    pub(crate) fn compiled_slot_trace_flag(&self, slot: usize, epoch: u64) -> Option<bool> {
+        let (frame, cell) = self.compiled_cell(slot)?;
+        self.frames[frame].table.cached_trace_flag(cell, epoch)
+    }
+
+    /// Record the trace answer for the cell a generated-code slot addresses.
+    pub(crate) fn set_compiled_slot_trace_flag(&self, slot: usize, epoch: u64, traced: bool) {
+        if let Some((frame, cell)) = self.compiled_cell(slot) {
+            self.frames[frame]
+                .table
+                .set_cached_trace_flag(cell, epoch, traced);
+        }
+    }
+
+    /// The variable a generated-code slot addresses — the O(1) read behind
+    /// `tcl_codegen_slot_get`. `None` when the slot is unbound or its cell is
+    /// currently undefined; a [`Var::Link`] is returned as-is so the caller can
+    /// decline the fast path and take the coordinator's link walk.
+    pub(crate) fn compiled_slot_var(&self, slot: usize) -> Option<&Var> {
+        let (frame, cell) = self.compiled_cell(slot)?;
+        self.frames[frame].table.cell_at(cell)
     }
 
     /// Local variable names of the active frame, sorted (`info locals`).

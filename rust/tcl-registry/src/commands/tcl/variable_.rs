@@ -185,6 +185,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The empty string.",
         }),
         lowering_hook: Some(LoweringHookId::Variable),
+        native_lowering: Some(NativeLowering::Scope(ScopeKind::NamespaceVariable)),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Variable),
         // A value-bearing `variable name value` can run variable traces;

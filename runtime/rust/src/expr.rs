@@ -33,9 +33,128 @@
 
 use core::cmp::Ordering;
 
+use std::rc::Rc;
+
 use crate::bignum::{self, ArithError};
-use crate::obj::{self, TclObj};
+use crate::obj::{self, TclObj, TclObjType};
+use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
+use tcl_syntax::expr::mathfunc::MathFuncError;
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
+
+// ---------------------------------------------------------------------------
+// `TCL_EXPR_TYPE` — the parsed-expression internal rep.
+// ---------------------------------------------------------------------------
+
+/// The expression cache's backing: the parsed AST, plus the emulated release
+/// its registry validation was performed against.
+///
+/// The AST is behind an [`Rc`] so a reader takes an owning handle before
+/// evaluating. Evaluation runs `[cmd]` substitutions, and one of those can
+/// shimmer the very object the AST is cached on (a numeric read of an unshared
+/// condition object, say); the strong reference makes that harmless instead of
+/// a use-after-free.
+struct CachedExpr {
+    node: Rc<ExprNode>,
+    version: tcl_dialect::TclVersion,
+}
+
+/// The `expr` type descriptor — a condition or operand's parsed, validated AST.
+///
+/// There is deliberately **no** `update_string_proc`: this rep is only ever
+/// attached to an object that already carries its spelling, and nothing mutates
+/// the AST, so the string rep stays the authority and is never regenerated from
+/// the tree. [`obj::change_type`] keeps that spelling across the shimmer, and
+/// any later string mutation frees this rep exactly like any other — which is
+/// precisely the invalidation the cache needs.
+pub static TCL_EXPR_TYPE: TclObjType = TclObjType {
+    name: c"expr".as_ptr(),
+    free_int_rep_proc: Some(expr_free),
+    dup_int_rep_proc: Some(expr_dup),
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+extern "C" fn expr_free(obj: *mut TclObj) {
+    let p = obj::internal_rep(obj) as usize as *mut CachedExpr;
+    if p.is_null() {
+        return;
+    }
+    // SAFETY: `obj` has the expr type, so its rep is the box `cache_expr` made.
+    unsafe { drop(Box::from_raw(p)) };
+}
+
+extern "C" fn expr_dup(src: *mut TclObj, dup: *mut TclObj) {
+    // SAFETY: `src` has the expr type; the copy shares the immutable AST.
+    unsafe {
+        let src_ref = &*(obj::internal_rep(src) as usize as *const CachedExpr);
+        let boxed = Box::new(CachedExpr {
+            node: Rc::clone(&src_ref.node),
+            version: src_ref.version,
+        });
+        obj::change_type(dup, &TCL_EXPR_TYPE, Box::into_raw(boxed) as usize as u64);
+    }
+}
+
+/// The AST cached on `obj`, if it was validated for `version`.
+///
+/// A release change (an embedder pinning another emulated Tcl) invalidates the
+/// entry: the *parse* runs over the union grammar and is release-neutral, but
+/// the registry validation that admitted it is not, so a cached tree is only
+/// reusable under the release it was admitted for.
+pub(crate) fn cached_expr(
+    obj: *mut TclObj,
+    version: tcl_dialect::TclVersion,
+) -> Option<Rc<ExprNode>> {
+    if !core::ptr::eq(obj::obj_type_ptr(obj), &TCL_EXPR_TYPE) {
+        return None;
+    }
+    // SAFETY: the type check above proves the rep is a live `CachedExpr` box.
+    let cached = unsafe { &*(obj::internal_rep(obj) as usize as *const CachedExpr) };
+    (cached.version == version).then(|| Rc::clone(&cached.node))
+}
+
+/// Cache a parsed and validated AST on `obj` so the next evaluation of the same
+/// condition object reuses it instead of re-lexing its text.
+///
+/// Only a **plain string** that already carries its spelling is shimmered. That
+/// is the shape every literal condition word has, and refusing the rest keeps
+/// the cache from destroying a list/dict/numeric rep another holder still wants
+/// — the same "may we cache" reasoning as the numeric write-back, one rung up.
+pub(crate) fn cache_expr(obj: *mut TclObj, version: tcl_dialect::TclVersion, node: &Rc<ExprNode>) {
+    if !obj::obj_type_ptr(obj).is_null() || !obj::has_string_rep(obj) {
+        return;
+    }
+    let boxed = Box::new(CachedExpr {
+        node: Rc::clone(node),
+        version,
+    });
+    obj::change_type(obj, &TCL_EXPR_TYPE, Box::into_raw(boxed) as usize as u64);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Test hook: how many expression *parses* have run since the last reset.
+    /// The cache's whole job is to keep this from growing per evaluation.
+    static EXPR_PARSE_COUNT: core::cell::Cell<u64> = const { core::cell::Cell::new(0) };
+}
+
+/// Test hook: record that the parser ran.
+#[cfg(test)]
+pub(crate) fn note_expr_parse() {
+    EXPR_PARSE_COUNT.with(|c| c.set(c.get() + 1));
+}
+
+/// Test hook: reset the parse counter and read it back.
+#[cfg(test)]
+pub(crate) fn reset_expr_parse_count() {
+    EXPR_PARSE_COUNT.with(|c| c.set(0));
+}
+
+/// Test hook: expression parses since [`reset_expr_parse_count`].
+#[cfg(test)]
+pub(crate) fn expr_parse_count() -> u64 {
+    EXPR_PARSE_COUNT.with(core::cell::Cell::get)
+}
 
 /// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
 /// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
@@ -85,6 +204,17 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
         ArithError::DivideByZero => {
             ExprError::with_code(b"divide by zero", b"ARITH DIVZERO {divide by zero}")
         }
+        // `0 ** negative` is a *domain* error in C, not a division by zero
+        // (tclsh 8.6/9.0: `-errorcode ARITH DOMAIN`).
+        ArithError::ZeroToNegativePower => ExprError::with_code(
+            b"exponentiation of zero by negative power",
+            b"ARITH DOMAIN {exponentiation of zero by negative power}",
+        ),
+        // C's `TclExprFloatError` for a produced NaN (`tclExecute.c`).
+        ArithError::NanResult => ExprError::with_code(
+            b"domain error: argument not in valid range",
+            b"ARITH DOMAIN {domain error: argument not in valid range}",
+        ),
         ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
         ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
         ArithError::TooLargeToRepresent => ExprError::msg(b"integer value too large to represent"),
@@ -92,23 +222,42 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
     }
 }
 
-/// `cannot use {floating-point value|non-numeric string} "VALUE" as
-/// SIDEoperand of "OP"` — C's `IllegalExprOperandType` (`tclExecute.c`). `side`
-/// is `""` for a unary op, `"left "`/`"right "` for a binary one.
-fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
-    let mut m = b"cannot use ".to_vec();
-    m.extend_from_slice(if float {
-        b"floating-point value \""
-    } else {
-        b"non-numeric string \""
-    });
-    m.extend_from_slice(value);
-    m.extend_from_slice(b"\" as ");
-    m.extend_from_slice(side);
-    m.extend_from_slice(b"operand of \"");
-    m.extend_from_slice(op);
-    m.push(b'"');
-    ExprError::from_bytes(m)
+/// C's `IllegalExprOperandType` (`tclExecute.c`), through the shared owner
+/// [`tcl_syntax::expr::errors`]: the *wording* is a release axis (9.0 names
+/// the value and the side, 8.4-8.6 name neither and have no list branch),
+/// while the `-errorcode ARITH DOMAIN <description>` is invariant. Both were
+/// hard-coded to 9.0's form with no `-errorcode` at all before #1581.
+fn operand_type_err(desc: OperandDesc, value: &[u8], side: OperandSide, op: &[u8]) -> ExprError {
+    let release = tcl_syntax::expr::errors::ambient_release();
+    let message = tcl_syntax::expr::errors::illegal_operand_message(
+        desc,
+        &String::from_utf8_lossy(value),
+        side,
+        &String::from_utf8_lossy(op),
+        release,
+    );
+    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release);
+    ExprError::from_parts(message.into_bytes(), code.into_bytes())
+}
+
+/// How C describes `o` when an operator cannot use it: a NaN is a
+/// "non-numeric floating-point value", a well-formed multi-element list is
+/// 9.0's list branch, a double handed to an integer-only operator is a
+/// "floating-point value", and anything else is a "non-numeric string".
+fn operand_desc(o: *mut TclObj, float_operand: bool) -> OperandDesc {
+    if float_operand {
+        return OperandDesc::FloatingPointValue;
+    }
+    // `compare(o, o)` is `Unordered` exactly for a NaN (numeric but unusable).
+    if matches!(bignum::compare(o, o), Some(NumericCompare::Unordered)) {
+        return OperandDesc::NonNumericFloatingPointValue;
+    }
+    let bytes = obj::bytes_of(o);
+    let text = String::from_utf8_lossy(&bytes);
+    if tcl_syntax::list::max_list_length(&text) > 1 && tcl_syntax::list::split_list(&text).is_ok() {
+        return OperandDesc::List;
+    }
+    OperandDesc::NonNumericString
 }
 
 /// Map a binary operator to its source symbol (for operand-type errors).
@@ -144,12 +293,17 @@ fn binop_err(e: ArithError, op: BinOp, lp: *mut TclObj, rp: *mut TclObj) -> Expr
     } else {
         !bignum::is_numeric(lp)
     };
-    let (val, side): (Vec<u8>, &[u8]) = if left_bad {
-        (obj::bytes_of(lp), b"left ")
+    let (bad, side) = if left_bad {
+        (lp, OperandSide::Left)
     } else {
-        (obj::bytes_of(rp), b"right ")
+        (rp, OperandSide::Right)
     };
-    operand_type_err(float, &val, side, binop_sym(op))
+    operand_type_err(
+        operand_desc(bad, float),
+        &obj::bytes_of(bad),
+        side,
+        binop_sym(op),
+    )
 }
 
 /// An owned object reference (`rc +1`) that releases on drop — the discipline
@@ -228,22 +382,46 @@ pub trait ExprCtx {
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
 pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_int_width, IntWidth, NumValue};
     let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
         .collect();
     let nums =
         nums.ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
-    match dispatch_with_backend(&name.to_ascii_lowercase(), &nums) {
-        Some(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
-        None => {
+    // The standalone evaluator has no interp to ask for a release, so it uses
+    // the runtime's own target release (Tcl 9.0) for `int()`'s width; the
+    // interp path resolves it from `Interp::runtime_version` in
+    // `cmd_mathfunc`.
+    match try_dispatch_with_backend_int_width(
+        &name.to_ascii_lowercase(),
+        &nums,
+        IntWidth::Unbounded,
+    ) {
+        Ok(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
+        Err(MathFuncError::UnknownFunction) => {
             let mut m = b"unknown math function \"".to_vec();
             m.extend_from_slice(name.as_bytes());
             m.push(b'"');
             Err(ExprError::from_bytes(m))
         }
+        Err(e) => Err(math_func_err(e)),
     }
+}
+
+/// A shared math-function refusal as this engine's error: C's verbatim
+/// message and `-errorcode` (#1581). `Abstain` cannot occur here — the
+/// runtime's backend has an arbitrary-precision rung and its release is
+/// resolved — so it falls back to the generic domain error.
+pub(crate) fn math_func_err(e: MathFuncError) -> ExprError {
+    let message = e.message();
+    if message.is_empty() {
+        return ExprError::with_code(
+            tcl_syntax::expr::errors::DOMAIN_MESSAGE.as_bytes(),
+            tcl_syntax::expr::errors::DOMAIN_CODE.as_bytes(),
+        );
+    }
+    ExprError::with_code(message.as_bytes(), e.error_code().as_bytes())
 }
 
 /// The tower [`ExprOps`] over an [`ExprCtx`].
@@ -299,12 +477,18 @@ impl ExprOps for TowerOps<'_> {
         // left/right qualifier (`as operand of "OP"`).
         let uerr = |e: ArithError, sym: &[u8]| -> ExprError {
             match e {
-                ArithError::NonInteger => {
-                    operand_type_err(true, &obj::bytes_of(value.ptr()), b"", sym)
-                }
-                ArithError::NonNumeric => {
-                    operand_type_err(false, &obj::bytes_of(value.ptr()), b"", sym)
-                }
+                ArithError::NonInteger => operand_type_err(
+                    operand_desc(value.ptr(), true),
+                    &obj::bytes_of(value.ptr()),
+                    OperandSide::Unary,
+                    sym,
+                ),
+                ArithError::NonNumeric => operand_type_err(
+                    operand_desc(value.ptr(), false),
+                    &obj::bytes_of(value.ptr()),
+                    OperandSide::Unary,
+                    sym,
+                ),
                 other => arith_err(other),
             }
         };
@@ -318,9 +502,9 @@ impl ExprOps for TowerOps<'_> {
                     Some(NumericCompare::Ordered(_))
                 ) {
                     return Err(operand_type_err(
-                        false,
+                        operand_desc(value.ptr(), false),
                         &obj::bytes_of(value.ptr()),
-                        b"",
+                        OperandSide::Unary,
                         b"+",
                     ));
                 }
@@ -337,9 +521,9 @@ impl ExprOps for TowerOps<'_> {
                 // A `!` operand that is neither boolean nor numeric is an
                 // operand-type error (not the generic "expected boolean").
                 Err(_) => Err(operand_type_err(
-                    false,
+                    operand_desc(value.ptr(), false),
                     &obj::bytes_of(value.ptr()),
-                    b"",
+                    OperandSide::Unary,
                     b"!",
                 )),
             },
@@ -405,16 +589,24 @@ pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let zero = Owned::fresh(obj::new_wide_int_obj(0));
     match bignum::compare(o, zero.ptr()) {
         Some(NumericCompare::Ordered(ord)) => Ok(!ord.is_eq()),
-        Some(NumericCompare::Unordered) => {
-            Err(ExprError::msg(b"floating point value is Not a Number"))
-        }
+        // A NaN is numeric but not a boolean; C stamps its own code here
+        // (tclsh: `-errorcode TCL VALUE DOUBLE NAN`) — #1581.
+        Some(NumericCompare::Unordered) => Err(ExprError::with_code(
+            tcl_syntax::expr::errors::NAN_MESSAGE.as_bytes(),
+            tcl_syntax::expr::errors::NAN_CODE.as_bytes(),
+        )),
         None => {
             // The `got <here>` tail matches C: a multi-token well-formed list
             // reads as `a list`, anything else is quoted (truncated to 50 bytes),
             // so `expr {"a b" ? 1 : 0}` reports `… but got a list`, not `"a b"`.
             let mut m = b"expected boolean value but got ".to_vec();
             m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
-            Err(ExprError::from_bytes(m))
+            Err(ExprError::from_parts(
+                m,
+                tcl_syntax::expr::errors::BOOLEAN_OPERAND_CODE
+                    .as_bytes()
+                    .to_vec(),
+            ))
         }
     }
 }

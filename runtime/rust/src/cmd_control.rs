@@ -692,7 +692,17 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
             for (k, var) in vars.iter().enumerate() {
                 let val = vals.get(it * vars.len() + k).cloned().unwrap_or_default();
                 let o = new_string(&val);
-                if let Err(e) = interp.var_set(var, o) {
+                // `arr(a)` writes the array *element*, not a literal scalar
+                // named `arr(a)` (issue #1577) — the same `split_array_ref` +
+                // `var_set`/`var_set_elem` routing `set` uses (shared by
+                // `foreach` and `lmap`, this loop's two callers), so this
+                // doesn't hand-roll a second name parser.
+                let (base, elem) = crate::frame::split_array_ref(var);
+                let stored = match &elem {
+                    Some(key) => interp.var_set_elem(&base, key, o),
+                    None => interp.var_set(&base, o),
+                };
+                if let Err(e) = stored {
                     drop_fresh(o);
                     return crate::builtins::var_error(interp, var, e);
                 }

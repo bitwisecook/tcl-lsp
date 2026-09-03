@@ -61,6 +61,9 @@ pub fn spec() -> CommandSpec {
             (2, ArgPresentation::InlineScript),
         ],
         lowering_hook: Some(crate::hooks::LoweringHookId::For),
+        native_lowering: Some(NativeLowering::Structured(
+            crate::hooks::LoweringHookId::For,
+        )),
         return_type: Some(TclType::String),
         arg_types: &[(
             1,

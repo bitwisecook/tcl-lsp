@@ -45,14 +45,41 @@ limits:
   and generic invocation. A sequence may contain more than one statement;
 - already-lowered assignments, increments, expressions, and returns retain a
   registry-owned `LoweringHookId`, their exact `Statement`, `NodeId`, and source
-  provenance as `ExecuteLowered` operations. Their precise completion and
-  effects have not yet been projected, so common analyses treat them
-  conservatively;
-- `Block`, `UpFrame`, `If`, `For`, `While`, `Foreach`, `Catch`, `Try`, and
-  `Switch` currently become typed `ExecuteOpaqueRegion` operations. This
+  provenance as `ExecuteLowered` operations. Each now also carries a
+  `LoweredFootprint`: the cells it writes, the cells it reads, whether its reads
+  are unbounded, whether an operand can run nested commands, and its completion
+  set — `{Ok}` for a constant assignment to a statically named cell,
+  `{Ok, Error}` otherwise. World SSA projects that footprint into
+  `VariableStore`-scoped intents rather than an all-world barrier; an operand
+  containing a command substitution still takes the conservative barrier,
+  because no cell footprint bounds what a substituted command does. A cell
+  write additionally *uses* the variable-trace domain: whether a trace exists,
+  and therefore whether a callback runs at that site, remains the
+  contents/absence lattice's question, exactly as it already is for a variable
+  read. The footprint is recomputed by validation, so no consumer can be handed
+  one the IR does not itself prove;
+- `If`, `For`, `While`, `Foreach`/`Lmap`, `Catch`, `Try`, and `Switch` are
+  projected into real executable blocks: condition and operand evaluations with
+  their own completions, `Branch` decisions, loop headers with explicit back
+  edges, `foreach` list cursors that declare their per-iteration loop-variable
+  cell writes, `catch`/`try` handler edges keyed by completion class and
+  `-errorcode` prefix, and a `switch` decision tree over the registry-parsed
+  pattern/body arms (a dynamic or `-regexp` pattern stays one opaque comparison,
+  but the bodies it selects between are real blocks). Each region ends at a
+  `CompleteStructuredRegion` instruction that produces the region's completion
+  where its interior edges join and is the region's stable identity for plans,
+  provenance, and Explorer serialisation. "Any non-OK completion code unwinds"
+  is therefore a graph fact: `Break` and `Continue` arms exist on a completion
+  switch only inside a loop body, and every other code reaches the switch's
+  default, which either joins a `catch`/`try` handler or leaves the function
+  carrying its own triple;
+- `Block` and `UpFrame` — inlined `eval`/`uplevel` bodies — remain typed
+  `ExecuteOpaqueRegion` operations, as do `dict for`/`dict map` and Tcl 9's
+  `array for`, whose cursors are not the Tcl-list cursor the loop projection
+  models. Each such region is still an all-world use/clobber barrier. So is a
+  structured statement the lowering could not project at all: the opaque region
   preserves the enclosing sequence and any structural descriptor that survived
-  lowering, but it does not claim an exact CFG for the body. Each such region is
-  an all-world use/clobber barrier;
+  lowering, without claiming an exact CFG for the body;
 - the sidecar complements the existing scalar SSA and optional memory SSA. It
   does not yet replace every legacy CFG, SSA, SCCP, GVN, lattice, optimiser, or
   LSP consumer; and
@@ -363,10 +390,17 @@ an unknown top; Tcl permits custom integer completion codes.
 The completed common graph must make `catch`, `try`, `finally`, loop control,
 procedure return, trace callbacks, and fallback invocation real executable CFG
 edges. Analysis-only exception reachability is not sufficient for executable
-optimisation. At present, a plain retained `return` terminates the compatibility
-sequence, while the structured constructs listed above remain typed opaque
-regions with conservative completion. Their internal handler, loop, and
-callback edges are not yet executable-IR edges.
+optimisation. Loop control, `catch`, `try`, `finally`, and procedure return are
+now executable edges: a completion produced anywhere inside a loop body is
+dispatched to that loop's break or continue target, a completion produced
+inside a `catch`/`try` body joins its handler through a completion-φ, a `try`'s
+`finally` runs on the normal, handled, and unhandled edges alike, and a plain
+retained `return` still terminates the compatibility sequence but now carries
+the completion set `{Return}` — or `{Error, Return}` when its operand can fail.
+Trace callbacks and fallback invocation are not yet executable edges: a cell
+write records a *use* of the variable-trace domain, and whether a callback runs
+there is decided by the contents/absence lattice, not by an edge in this
+graph.
 
 Trace flow distinguishes:
 

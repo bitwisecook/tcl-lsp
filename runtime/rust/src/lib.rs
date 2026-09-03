@@ -108,6 +108,7 @@ pub mod cmd_zlib;
 // The codegen-import ABI: the lowercase `tcl_*` host functions the WASM emitter
 // imports (`rust/tcl-compiler` codegen), distinct from `capi`'s `Tcl_*` surface.
 pub mod codegen_abi;
+pub mod codegen_native;
 pub mod counters;
 pub mod dict;
 // The Tcl 9 stdlib embedded in the binary, seeded into the WASM VFS so the
@@ -138,6 +139,9 @@ pub mod state_traits;
 // the Tcl regex engine's C symbols, so C Tcl code/extensions link against it.
 pub mod regex_capi;
 pub mod subst;
+/// The one owner of "read this object as an integer / double / boolean", with
+/// C Tcl's write-back, boolean-word table, and error text.
+mod typed_value;
 /// `ValueOps` impl binding `tcl-cmd-core`'s portable command logic to `*mut
 /// TclObj` (the value seam).
 pub mod value_ops;

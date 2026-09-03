@@ -94,6 +94,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The variable's new value: an integer, stored as a decimal string.",
         }),
         lowering_hook: Some(LoweringHookId::Incr),
+        native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::Increment)),
         inline_codegen_hook: Some(InlineCodegenHookId::Incr),
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,

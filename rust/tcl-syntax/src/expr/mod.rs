@@ -24,10 +24,12 @@
 //! type) and live with each consumer.
 
 pub mod ast;
+pub mod errors;
 pub mod eval;
 pub mod mathfunc;
 pub mod operators;
 pub mod parser;
+pub mod rand;
 pub mod substitution;
 pub mod syntax_error;
 

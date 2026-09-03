@@ -53,6 +53,17 @@ use crate::obj::TclObj;
 
 /// One registered variable trace.
 pub struct VarTrace {
+    /// This registration's identity, unique for the life of the interpreter.
+    ///
+    /// C identifies a trace by its `VarTrace *`, and the firing loop follows
+    /// `active.nextTracePtr`, which `Tcl_UntraceVar2` rewrites when it frees a
+    /// trace mid-walk — so a callback that removes a *later* trace stops it
+    /// firing in the same pass. A snapshot of the callbacks taken up front
+    /// cannot express that; a snapshot of ids can, because the id says which
+    /// registration to look for again. Ids are never reused, so a trace removed
+    /// and re-added during one firing is a different trace, exactly as it is a
+    /// different allocation in C.
+    pub id: u64,
     /// The variable name as registered (for `trace info` matching).
     pub name: Vec<u8>,
     /// The array base / scalar name (for firing).
@@ -126,21 +137,45 @@ pub struct StepActive {
     pub command: Vec<u8>,
 }
 
-/// The resolved variable-cell identity used for the callback re-entrancy rule.
-/// An array's element traces share their base cell, as Tcl does.
+/// One variable **cell**, as the callback re-entrancy rule counts them: C sets
+/// `VAR_TRACE_ACTIVE` on the `Var` an access reached, and an array element is a
+/// `Var` of its own (`TclCallVarTraces`, tclVar.c).
+///
+/// So `elem` is part of the identity: a whole-array write trace whose callback
+/// writes a *different* element fires again, because the second element is a
+/// different cell (issue #1574). Only a write to the *same* cell — or, for the
+/// whole-array traces specifically, one reached while the array's own cell is
+/// active — is suppressed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VarTraceScope {
     base: Vec<u8>,
+    elem: Option<Vec<u8>>,
     frame_level: Option<usize>,
     ns: Option<NsId>,
 }
 
-impl VarTrace {
-    pub(crate) fn scope(&self) -> VarTraceScope {
-        VarTraceScope {
-            base: self.base.clone(),
-            frame_level: self.frame_level,
-            ns: self.ns,
+impl VarTraceScope {
+    /// The cell an access to `(base, elem)` at this home reaches.
+    pub(crate) fn cell(
+        base: &[u8],
+        elem: Option<&[u8]>,
+        ns: Option<NsId>,
+        frame_level: Option<usize>,
+    ) -> Self {
+        Self {
+            base: base.to_vec(),
+            elem: elem.map(<[u8]>::to_vec),
+            frame_level,
+            ns,
+        }
+    }
+
+    /// The containing array's own cell — C's `arrayPtr`, whose `VAR_TRACE_ACTIVE`
+    /// gates the whole-array traces separately from the element's.
+    pub(crate) fn array(&self) -> Self {
+        Self {
+            elem: None,
+            ..self.clone()
         }
     }
 }
@@ -153,6 +188,8 @@ pub struct TraceTable {
     pub cmd_traces: Vec<CmdTrace>,
     /// Live interp-wide step traces (see [`StepActive`]).
     pub step_active: Vec<StepActive>,
+    /// The id the next variable-trace registration takes (see [`VarTrace::id`]).
+    pub next_var_trace_id: u64,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
@@ -489,6 +526,26 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
     )
 }
 
+/// The resolved `(home namespace, home frame level, simple base, element)` a
+/// `trace info|remove variable name` question is about.
+///
+/// C looks the variable up and walks *that* `Var`'s trace list, so every
+/// spelling of the one cell — `v` and `::v`, an `upvar` alias and its target —
+/// sees the same traces. Matching the registration spelling textually instead
+/// makes `trace info variable alias` report nothing for a trace the very next
+/// `set alias` fires.
+fn var_trace_query(
+    interp: &Interp,
+    name: &[u8],
+) -> (Option<NsId>, Option<usize>, Vec<u8>, Option<Vec<u8>>) {
+    let (base, elem) = split_array_ref(name);
+    let home = interp.trace_identity(&base);
+    // An alias for an array *element* (`upvar #0 a(k) e`) shows no parentheses,
+    // so the element it names comes from the resolution: in C the alias and
+    // `a(k)` are the same `Var` and therefore carry the same trace list.
+    (home.ns, home.level, home.base, elem.or(home.link_elem))
+}
+
 /// Install or remove one variable trace, shared by `trace add|remove variable`
 /// and the deprecated `trace variable`/`trace vdelete` forms — which C
 /// implements by rewriting them into the modern ones. `old_style` records the
@@ -503,12 +560,25 @@ fn var_trace_apply(
     old_style: bool,
 ) -> Code {
     if is_add {
-        let (base, elem) = split_array_ref(&name);
+        let (base, spelled_elem) = split_array_ref(&name);
+        // An alias for an array *element* (`upvar #0 a(k) e`) is a trace on that
+        // element: C hangs it off the element's `Var`, which the alias and the
+        // spelling `a(k)` share, so `trace add variable e …` and
+        // `trace add variable a(k) …` install one and the same trace and each
+        // spelling's `trace info` reports it. The element is invisible in the
+        // spelling, so it comes from the resolution.
+        let linked_elem = interp.trace_identity(&base).link_elem;
+        let elem = spelled_elem.or_else(|| linked_elem.clone());
         // Tracing an array element vivifies the array as an (undefined) array, so
         // a later read of a missing element reports "no such element in array"
         // rather than "no such variable", and whole-array semantics apply
         // (trace-1.4/1.8/5.x). Tracing an element of an existing *scalar* errors.
-        let vivify = if elem.is_some() {
+        // An alias already names a live element cell, so there is nothing to
+        // create — and vivifying `e` as a scalar or an array would both be
+        // wrong.
+        let vivify = if linked_elem.is_some() {
+            Ok(())
+        } else if elem.is_some() {
             interp.ensure_array(&base)
         } else {
             interp.ensure_trace_variable(&base)
@@ -516,29 +586,37 @@ fn var_trace_apply(
         if let Err(e) = vivify {
             return trace_var_error(interp, &name, e);
         }
-        let frame_level = interp.local_trace_level(&base);
         // Key the trace by the variable it *resolves to*, not by the spelling
         // used to register it, so `trace add variable ::v write …` fires for a
         // later `set v X` in the same namespace — and, under the 8.x
         // namespace-scope fallback, for a write from inside `namespace eval`
         // that reaches that same global (issue #1328).  C hangs the trace off
-        // the `Var` struct, so every spelling resolving to it fires.
+        // the `Var` struct, so every spelling resolving to it fires — including
+        // an `upvar` alias, whose home frame is only visible on the resolved
+        // place (issue #1633's `upvar` row).
         //
-        // `name` keeps the original spelling: `trace info` / `trace remove`
-        // match textually in C too.
-        let (ns, base) = interp.trace_var_key(&base);
-        interp.traces.borrow_mut().traces.push(VarTrace {
+        // `name` keeps the original spelling for diagnostics only; the
+        // `trace info` / `trace remove` match is the same resolved identity,
+        // because C looks the variable up and walks *that* `Var`'s list.
+        let home = interp.trace_identity(&base);
+        let mut table = interp.traces.borrow_mut();
+        let id = table.next_var_trace_id;
+        table.next_var_trace_id += 1;
+        table.traces.push(VarTrace {
+            id,
             name,
-            base,
+            base: home.base,
             elem,
             ops,
             command,
-            frame_level,
-            ns,
+            frame_level: home.level,
+            ns: home.ns,
             old_style,
         });
+        drop(table);
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
     } else {
+        let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
         let pos = interp
             .traces
             .borrow()
@@ -549,7 +627,12 @@ fn var_trace_apply(
             // is oldest-first, hence `rposition`. `old_style` is deliberately
             // absent from the match, as C masks `TCL_TRACE_OLD_STYLE` out
             // here. Issue #1440.
-            .rposition(|t| t.name == name && t.ops == ops && t.command == command);
+            .rposition(|t| {
+                same_variable(t, &q_base, q_ns, q_level)
+                    && t.elem == q_elem
+                    && t.ops == ops
+                    && t.command == command
+            });
         if let Some(i) = pos {
             interp.traces.borrow_mut().traces.remove(i);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
@@ -566,9 +649,10 @@ fn trace_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"trace info variable name");
     }
     let name = obj_bytes(argv[3]);
+    let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().traces.iter().rev() {
-        if t.name != name {
+        if !same_variable(t, &q_base, q_ns, q_level) || t.elem != q_elem {
             continue;
         }
         let op_objs: Vec<*mut TclObj> = t.ops.iter().map(|o| new_string(o)).collect();
@@ -617,9 +701,10 @@ fn legacy_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"trace vinfo name");
     }
     let name = obj_bytes(argv[2]);
+    let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().traces.iter().rev() {
-        if t.name != name {
+        if !same_variable(t, &q_base, q_ns, q_level) || t.elem != q_elem {
             continue;
         }
         let letters = new_string(core_trace::legacy_ops_letters(&t.ops).as_bytes());

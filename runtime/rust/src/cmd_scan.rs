@@ -93,8 +93,17 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for (v, &var) in outcome.values.iter().zip(vars.iter()) {
         let Some(value) = v else { break };
         let name = obj_bytes(var);
+        // `arr(a)` writes the array *element*, not a literal scalar named
+        // `arr(a)` (issue #1577) — the same `split_array_ref` +
+        // `var_set`/`var_set_elem` routing `set` uses, so this doesn't
+        // hand-roll a second name parser.
+        let (base, elem) = crate::frame::split_array_ref(&name);
         let o = scanned_obj(value);
-        if let Err(e) = interp.var_set(&name, o) {
+        let stored = match &elem {
+            Some(k) => interp.var_set_elem(&base, k, o),
+            None => interp.var_set(&base, o),
+        };
+        if let Err(e) = stored {
             drop_fresh(o);
             // Surface the real variable error (`: variable is array`, …) the way
             // the VM and the other writers do (scan-8.12..8.16).

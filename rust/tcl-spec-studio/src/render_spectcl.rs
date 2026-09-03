@@ -301,6 +301,18 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // The native-lowering descriptor is the compiler's own account of how it
+    // may compile a command to native code — a representation lattice and the
+    // framing it is allowed to elide, meaningful only to `tcl-compiler`'s
+    // native tier. It is a compiler-internal fact rather than a description of
+    // the command's *language* surface, so a pack has nothing to say about it
+    // and authoring one could only weaken a proof the compiler makes for
+    // itself.
+    Gap {
+        key: "native_lowering",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
 ];
 
 /// The [`Gap`] for `key`, if the renderer cannot carry it.

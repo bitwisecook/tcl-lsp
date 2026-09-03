@@ -81,9 +81,22 @@ impl MixedRegionPlan {
                         operation: region.semantic_operation(),
                     }),
                 ),
+                ExecutableInstruction::CompleteStructuredRegion(region) => (
+                    region.node.clone(),
+                    RegionPlan::Structured(StructuredRegionPlan {
+                        completion: region.completion,
+                        operation: region.semantic_operation(),
+                        kind: region.kind,
+                    }),
+                ),
                 ExecutableInstruction::EvaluateWord { .. }
                 | ExecutableInstruction::ExpandWord { .. }
-                | ExecutableInstruction::BuildArgv { .. } => continue,
+                | ExecutableInstruction::BuildArgv { .. }
+                | ExecutableInstruction::EvaluateExpr { .. }
+                | ExecutableInstruction::MatchPattern { .. }
+                | ExecutableInstruction::IterateLists { .. }
+                | ExecutableInstruction::JoinCompletion { .. }
+                | ExecutableInstruction::WriteCompletionCell { .. } => continue,
             };
             match regions.entry(node) {
                 Entry::Vacant(entry) => {
@@ -186,9 +199,15 @@ impl MixedRegionPlan {
                 ExecutableInstruction::Invoke(invoke) => &invoke.node,
                 ExecutableInstruction::ExecuteLowered(operation) => &operation.node,
                 ExecutableInstruction::ExecuteOpaqueRegion(region) => &region.node,
+                ExecutableInstruction::CompleteStructuredRegion(region) => &region.node,
                 ExecutableInstruction::EvaluateWord { .. }
                 | ExecutableInstruction::ExpandWord { .. }
-                | ExecutableInstruction::BuildArgv { .. } => continue,
+                | ExecutableInstruction::BuildArgv { .. }
+                | ExecutableInstruction::EvaluateExpr { .. }
+                | ExecutableInstruction::MatchPattern { .. }
+                | ExecutableInstruction::IterateLists { .. }
+                | ExecutableInstruction::JoinCompletion { .. }
+                | ExecutableInstruction::WriteCompletionCell { .. } => continue,
             };
             if expected.insert(node.clone(), instruction).is_some() {
                 return Err(MixedPlanValidationError::DuplicateExecutableNode(
@@ -224,6 +243,8 @@ pub enum RegionPlan {
     Lowered(LoweredRegionPlan),
     /// A conservative compatibility boundary whose interior is not projected.
     Opaque(OpaqueRegionPlan),
+    /// A structured control region projected into executable edges.
+    Structured(StructuredRegionPlan),
 }
 
 impl RegionPlan {
@@ -234,6 +255,7 @@ impl RegionPlan {
             Self::Invocation(plan) => plan.completion,
             Self::Lowered(plan) => plan.completion,
             Self::Opaque(plan) => plan.completion,
+            Self::Structured(plan) => plan.completion,
         }
     }
 
@@ -250,6 +272,7 @@ impl RegionPlan {
             },
             Self::Lowered(_) => RegionSelectionKind::Lowered,
             Self::Opaque(_) => RegionSelectionKind::Opaque,
+            Self::Structured(_) => RegionSelectionKind::Structured,
         }
     }
 
@@ -260,6 +283,7 @@ impl RegionPlan {
             Self::Invocation(plan) => plan.operation,
             Self::Lowered(plan) => Some(plan.operation),
             Self::Opaque(plan) => plan.operation,
+            Self::Structured(plan) => Some(plan.operation),
         }
     }
 }
@@ -277,6 +301,8 @@ pub enum RegionSelectionKind {
     Lowered,
     /// A conservative opaque compatibility boundary remains in place.
     Opaque,
+    /// Structured control projected into executable edges.
+    Structured,
 }
 
 impl RegionSelectionKind {
@@ -289,6 +315,7 @@ impl RegionSelectionKind {
             Self::GuardedDirect => "guarded-direct",
             Self::Lowered => "lowered",
             Self::Opaque => "opaque",
+            Self::Structured => "structured",
         }
     }
 }
@@ -554,6 +581,34 @@ impl LoweredRegionPlan {
     }
 }
 
+/// Exact plan for one structured control region with executable edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructuredRegionPlan {
+    completion: CompletionId,
+    operation: SemanticOperationId,
+    kind: crate::executable_ir::StructuredRegionKind,
+}
+
+impl StructuredRegionPlan {
+    /// Completion produced by the region as a whole.
+    #[must_use]
+    pub const fn completion(&self) -> CompletionId {
+        self.completion
+    }
+
+    /// Registry-owned structural identity of the region.
+    #[must_use]
+    pub const fn operation(&self) -> SemanticOperationId {
+        self.operation
+    }
+
+    /// The executable shape the region was projected into.
+    #[must_use]
+    pub const fn kind(&self) -> crate::executable_ir::StructuredRegionKind {
+        self.kind
+    }
+}
+
 /// Exact plan for one opaque common-IR compatibility boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpaqueRegionPlan {
@@ -741,6 +796,24 @@ fn validate_region(
                     node: node.clone(),
                     expected,
                     actual: plan.operation,
+                });
+            }
+            Ok(())
+        }
+        (RegionPlan::Structured(plan), ExecutableInstruction::CompleteStructuredRegion(region)) => {
+            if plan.completion != region.completion {
+                return Err(completion_mismatch(
+                    node,
+                    region.completion,
+                    plan.completion,
+                ));
+            }
+            let expected = region.semantic_operation();
+            if plan.operation != expected || plan.kind != region.kind {
+                return Err(MixedPlanValidationError::OperationMismatch {
+                    node: node.clone(),
+                    expected: Some(expected),
+                    actual: Some(plan.operation),
                 });
             }
             Ok(())
@@ -1088,7 +1161,7 @@ mod tests {
     }
 
     #[test]
-    fn builds_multiple_invocation_lowered_and_opaque_regions() {
+    fn builds_multiple_invocation_lowered_and_structured_regions() {
         let function = executable(
             "puts one\nset value 2\nif {$enabled} {puts enabled}\nputs two",
             80,
@@ -1096,17 +1169,21 @@ mod tests {
         let plan = MixedRegionPlan::build(&function).expect("mixed plan");
         let regions: Vec<_> = plan.regions().collect();
 
-        assert_eq!(regions.len(), 4);
+        // The `if` is a structured region whose body statement is a region of
+        // its own, nested under the region's node.
+        assert_eq!(regions.len(), 5);
         assert_eq!(regions[0].0.path(), &[0]);
         assert!(matches!(regions[0].1, RegionPlan::Invocation(_)));
         assert_eq!(regions[1].0.path(), &[1]);
         assert!(matches!(regions[1].1, RegionPlan::Lowered(_)));
         assert_eq!(regions[2].0.path(), &[2]);
-        assert!(matches!(regions[2].1, RegionPlan::Opaque(_)));
-        assert_eq!(regions[3].0.path(), &[3]);
+        assert!(matches!(regions[2].1, RegionPlan::Structured(_)));
+        assert_eq!(regions[3].0.path(), &[2, 0, 0]);
         assert!(matches!(regions[3].1, RegionPlan::Invocation(_)));
+        assert_eq!(regions[4].0.path(), &[3]);
+        assert!(matches!(regions[4].1, RegionPlan::Invocation(_)));
 
-        for (_, region) in [regions[0], regions[3]] {
+        for (_, region) in [regions[0], regions[4]] {
             let RegionPlan::Invocation(invocation) = region else {
                 unreachable!();
             };

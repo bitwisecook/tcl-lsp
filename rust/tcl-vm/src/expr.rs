@@ -32,6 +32,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 use tcl_runtime_api::Code;
+use tcl_syntax::expr::errors;
 use tcl_syntax::expr::{BinOp, ExprOps, NumericCompare, UnaryOp};
 use tcl_syntax::number::{self, Number};
 use tcl_syntax::number_tower;
@@ -219,7 +220,7 @@ fn big_pow(x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
         Some(r) => Ok(big_value(&r)),
         // `int_pow` declines exactly two cases: a zero base with a negative
         // exponent (the domain error) and an exponent past the C limit.
-        None if x.is_zero() => Err(TclError::new("exponentiation of zero by negative power")),
+        None if x.is_zero() => Err(zero_to_negative_power()),
         None => Err(TclError::new("exponent too large")),
     }
 }
@@ -280,7 +281,7 @@ pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
 /// Like [`to_num`] but reports the C Tcl 9 operand-specific message
 /// (`cannot use non-numeric string "x" as left operand of "+"`). `side` is
 /// `"left"` / `"right"`.
-fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
+fn to_num_operand(v: &Value, side: errors::OperandSide, op: BinOp) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
     }
@@ -295,27 +296,50 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Some(b) = value_as_bigint(v) {
         return Ok(Num::Huge(b));
     }
-    // A non-number that *is* a multi-element list gets C's distinct wording,
-    // which `IllegalExprOperandType` applies to binary operators exactly as to
-    // unary ones — `ord` is `"left "`/`"right "` there.
+    Err(operand_type_err(v, side, op.as_str()))
+}
+
+/// C's `IllegalExprOperandType`, through the shared owner
+/// ([`tcl_syntax::expr::errors`]): the *wording* is a release axis (9.0 names
+/// the value and the side and has a list branch; 8.4-8.6 name neither and
+/// have no list branch) while the `-errorcode ARITH DOMAIN <description>` is
+/// invariant. The VM emitted the 9.0 form at every `--tcl-version` and no
+/// `-errorcode` at all before #1581.
+///
+/// The release comes from the same ambient the numeric grammar already
+/// follows ([`errors::ambient_release`]), because these errors are raised
+/// from `arith`/`unary`, which bytecode opcodes call with no interpreter in
+/// hand.
+fn operand_type_err(v: &Value, side: errors::OperandSide, op: &str) -> TclError {
     let s = v.to_str();
-    if is_list_operand(&s) {
-        return Err(TclError::new(format!(
-            "cannot use a list as {side} operand of \"{}\"",
-            op.as_str()
-        )));
-    }
-    // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
-    // an arithmetic operand — C words that differently from a non-number string.
-    let kind = if matches!(number::parse_whole(s.trim()), Some(Number::Nan { .. })) {
-        "floating-point value"
+    let desc = if is_list_operand(&s) {
+        errors::OperandDesc::List
     } else {
-        "string"
+        match number::parse_whole(s.trim()) {
+            Some(Number::Double(_)) => errors::OperandDesc::FloatingPointValue,
+            Some(Number::Nan { .. }) => errors::OperandDesc::NonNumericFloatingPointValue,
+            _ => errors::OperandDesc::NonNumericString,
+        }
     };
-    Err(TclError::new(format!(
-        "cannot use non-numeric {kind} \"{s}\" as {side} operand of \"{}\"",
-        op.as_str()
-    )))
+    let release = errors::ambient_release();
+    TclError::with_error_code(
+        errors::illegal_operand_message(desc, &s, side, op, release),
+        errors::illegal_operand_error_code(desc, release),
+    )
+}
+
+/// The boolean-context error C raises for a value that is neither a number
+/// nor a Tcl boolean word (`expected boolean value but got "x"`,
+/// `-errorcode TCL VALUE NUMBER`) or for a NaN there
+/// (`floating point value is Not a Number`, `TCL VALUE DOUBLE NAN`). Both
+/// were `NONE` on the VM before #1581.
+fn boolean_context_err(message: String) -> TclError {
+    let code = if message == errors::NAN_MESSAGE {
+        errors::NAN_CODE
+    } else {
+        errors::BOOLEAN_OPERAND_CODE
+    };
+    TclError::with_error_code(message, code)
 }
 
 /// C `IllegalExprOperandType`'s list branch (`tclExecute.c:9089-9107`): a value
@@ -328,26 +352,27 @@ fn is_list_operand(s: &str) -> bool {
 }
 
 fn divzero() -> TclError {
-    TclError::new("divide by zero")
+    TclError::with_error_code("divide by zero", "ARITH DIVZERO {divide by zero}")
+}
+
+/// `0 ** negative` on either the integer or the float tier — C's
+/// `EXPON_OF_ZERO` (`tclExecute.c`) is a **domain** error, `-errorcode ARITH
+/// DOMAIN`, not a division by zero (tclsh 8.6.16/9.0.4 verified).
+fn zero_to_negative_power() -> TclError {
+    TclError::with_error_code(
+        "exponentiation of zero by negative power",
+        "ARITH DOMAIN {exponentiation of zero by negative power}",
+    )
 }
 
 /// The C `IllegalExprOperandType` message for a *unary* operator whose operand
 /// cannot be used: `cannot use <desc> "<v>" as operand of "<op>"`. `<desc>` is
 /// `floating-point value` (a double handed to `~`), `non-numeric floating-point
 /// value` (NaN), `a list` (a multi-element list — phrased without quotes), or
-/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here;
-/// the VM does not yet set arith error codes — same as `divide by zero`.)
+/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here
+/// yet — tracked by #1581.)
 fn unary_operand_err(v: &Value, op: &str) -> TclError {
-    let s = v.to_str();
-    if is_list_operand(&s) {
-        return TclError::new(format!("cannot use a list as operand of \"{op}\""));
-    }
-    let desc = match number::parse_whole(s.trim()) {
-        Some(Number::Double(_)) => "floating-point value",
-        Some(Number::Nan { .. }) => "non-numeric floating-point value",
-        _ => "non-numeric string",
-    };
-    TclError::new(format!("cannot use {desc} \"{s}\" as operand of \"{op}\""))
+    operand_type_err(v, errors::OperandSide::Unary, op)
 }
 
 /// Floored integer division (Tcl `/`: rounds toward negative infinity) — the
@@ -460,7 +485,7 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
             // C raises the domain error before computing (`tclExecute.c`
             // EXPONENT_OF_ZERO): `0.0 ** -1` is an error, never Inf.
             if x == 0.0 && y < 0.0 {
-                return Err(TclError::new("exponentiation of zero by negative power"));
+                return Err(zero_to_negative_power());
             }
             x.powf(y)
         }
@@ -500,8 +525,8 @@ fn float_operand_err(v: &Value, side: &str, op: BinOp) -> TclError {
 
 /// Apply an arithmetic / bitwise / shift binary operator to two values.
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
-    let x = to_num_operand(a, "left", op)?;
-    let y = to_num_operand(b, "right", op)?;
+    let x = to_num_operand(a, errors::OperandSide::Left, op)?;
+    let y = to_num_operand(b, errors::OperandSide::Right, op)?;
     // Fast integer path: both operands fit `i128` (promotes to bignum on overflow).
     if let (Some(xi), Some(yi)) = (num_i128(&x), num_i128(&y)) {
         return int_arith(op, xi, yi);
@@ -785,6 +810,20 @@ fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
     }
 }
 
+/// A math-function command's error completion as an expr error, **keeping the
+/// `-errorcode` it published**. The dynamic `expr $e` path used to rebuild the
+/// error from the message alone, so the same call reported `ARITH DOMAIN` when
+/// compiled as `expr {…}` and `NONE` when evaluated from a variable.
+fn call_error(c: &tcl_runtime_api::Completion<Value>) -> TclError {
+    let message = c.result.to_str().to_string();
+    let code = crate::command::resolved_error_code(c).to_str().to_string();
+    if code == "NONE" {
+        TclError::new(message)
+    } else {
+        TclError::with_error_code(message, code)
+    }
+}
+
 /// An [`ExprOps`] adapter that evaluates an expression AST against the VM
 /// (resolving `$var` / `[cmd]` / math functions through it), reusing the shared
 /// `tcl-syntax` expr walker.
@@ -849,7 +888,7 @@ impl ExprOps for ExprEval<'_> {
                 let c = self.vm.invoke_fixed_math_builtin(spec, &args);
                 return match c.code {
                     Code::Ok => Ok(c.result),
-                    Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+                    Code::Error => Err(call_error(&c)),
                     code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
                 };
             }
@@ -883,7 +922,7 @@ impl ExprOps for ExprEval<'_> {
         let c = self.vm.invoke_command(&name, &args);
         match c.code {
             Code::Ok => Ok(c.result),
-            Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+            Code::Error => Err(call_error(&c)),
             code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
         }
     }
@@ -911,7 +950,7 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn to_bool(&mut self, v: &Value) -> Result<bool, TclError> {
-        v.as_bool()
+        v.as_bool().map_err(|e| boolean_context_err(e.message))
     }
 
     fn bool_value(&mut self, b: bool) -> Value {

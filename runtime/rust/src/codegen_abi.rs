@@ -154,6 +154,12 @@ pub const TCL_INVOKE_ABI_NULL_WORD: i32 = -5;
 /// its output storage before taking the exact generic slow path.
 pub const TCL_INTRINSIC_ABI_DECLINED: i32 = 1;
 
+/// A `tcl_value_get_*` read succeeded and wrote its `out` storage.
+pub const TCL_VALUE_GET_OK: i32 = 0;
+/// A `tcl_value_get_*` read failed: the current interpreter carries the Tcl
+/// error (C's message and `-errorcode`) and `out` is untouched.
+pub const TCL_VALUE_GET_ERROR: i32 = 1;
+
 #[cfg(target_arch = "wasm32")]
 const _: () = {
     assert!(core::mem::size_of::<TclCompletionAbi>() == WASM32_COMPLETION_SIZE as usize);
@@ -408,7 +414,7 @@ static CURRENT_INTERP: core::sync::atomic::AtomicPtr<Interp> =
     core::sync::atomic::AtomicPtr::new(ptr::null_mut());
 
 /// Borrow the current interp pointer (null when unset).
-fn current_interp() -> *mut Interp {
+pub(crate) fn current_interp() -> *mut Interp {
     #[cfg(not(target_arch = "wasm32"))]
     {
         CURRENT_INTERP.with(Cell::get)
@@ -500,6 +506,138 @@ pub extern "C" fn tcl_value_new_wide_int(value: i64) -> *mut TclObj {
     object
 }
 
+/// `tcl_value_new_double(value) -> obj` — materialise a native `f64` at a Tcl
+/// value boundary with one generated-code-owned (`+1`) reference.
+///
+/// The double half of [`tcl_value_new_wide_int`]: the object begins with the
+/// `TCL_DOUBLE_TYPE` internal rep and no string rep, so a value that never
+/// crosses a string boundary never pays for one.
+#[no_mangle]
+pub extern "C" fn tcl_value_new_double(value: f64) -> *mut TclObj {
+    let object = obj::new_double_obj(value);
+    // SAFETY: a freshly constructed live object (or null on allocation
+    // failure, which `incr_ref_count` accepts defensively).
+    unsafe { obj::incr_ref_count(object) };
+    object
+}
+
+/// `tcl_value_new_bool(value) -> obj` — materialise a native boolean as the
+/// Tcl integer `0`/`1`, with one generated-code-owned (`+1`) reference.
+///
+/// Tcl booleans *are* integer objects (C's `Tcl_NewBooleanObj`), so this is
+/// [`tcl_value_new_wide_int`] with C's normalisation of any non-zero input to
+/// `1` — the spelling `expr` and `string is boolean` both produce.
+#[no_mangle]
+pub extern "C" fn tcl_value_new_bool(value: i32) -> *mut TclObj {
+    let object = obj::new_boolean_obj(value);
+    // SAFETY: a freshly constructed live object.
+    unsafe { obj::incr_ref_count(object) };
+    object
+}
+
+/// Report a failed typed read on the current interpreter, exactly as the
+/// corresponding `Tcl_Get*FromObj` does: C's message as the interpreter result,
+/// C's `-errorcode`. Returns the ABI's error status.
+///
+/// # Safety
+/// `interp` must be the live current interpreter.
+unsafe fn typed_read_error(interp: *mut Interp, error: &crate::typed_value::TypedError) -> i32 {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { (*interp).error_with_code(&error.message, error.code) };
+    TCL_VALUE_GET_ERROR
+}
+
+/// `tcl_value_get_wide_int(value, out) -> status` — read a boxed Tcl value as a
+/// native `i64` (`Tcl_GetWideIntFromObj`).
+///
+/// [`TCL_VALUE_GET_OK`] means `*out` was written. [`TCL_VALUE_GET_ERROR`] means
+/// the current interpreter carries a Tcl error — C's exact message and
+/// `-errorcode` (`expected integer but got …` / `TCL VALUE NUMBER`, a
+/// double-typed object's `TCL VALUE INTEGER`, or `integer value too large to
+/// represent` / `ARITH IOVERFLOW`) — and `*out` is untouched, so generated code
+/// treats it as an aborting error for the enclosing command.
+///
+/// A successful read **caches the parsed rep onto `value`**, so reading the same
+/// object in a loop parses its spelling once. The string rep is kept: `"0x10"`
+/// reads as 16 and still prints `0x10`.
+///
+/// `value` is borrowed; the caller keeps its reference.
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference, and `out` must
+/// be writable, properly aligned `i64` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_wide_int(value: *mut TclObj, out: *mut i64) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match crate::typed_value::wide_int(value) {
+        Ok(parsed) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(parsed) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
+/// `tcl_value_get_double(value, out) -> status` — read a boxed Tcl value as a
+/// native `f64` (`Tcl_GetDoubleFromObj`), with the same status contract and the
+/// same write-back as [`tcl_value_get_wide_int`]. An integer or bignum widens;
+/// `NaN` is a value here, not an error (only the boolean context refuses it).
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference, and `out` must
+/// be writable, properly aligned `f64` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match crate::typed_value::double(value) {
+        Ok(parsed) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(parsed) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
+/// `tcl_value_get_bool(value, out) -> status` — read a boxed Tcl value in
+/// **boolean context** (`Tcl_GetBooleanFromObj`), writing `0`/`1`.
+///
+/// This is the acceptor behind `if`, `while`, and `expr`'s `?:`/`&&`/`||`/`!`:
+/// a boolean word by unique case-insensitive prefix (`tru`, `ye`, `of`; the
+/// ambiguous `o` is refused), else any number compared against zero. The words
+/// come from [`tcl_syntax::boolean`], the shared owner every boolean acceptor in
+/// this tree uses, so compiled code cannot drift from interpreted code. `NaN` is
+/// C's `floating point value is Not a Number` domain error.
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference, and `out` must
+/// be writable, properly aligned `i32` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_bool(value: *mut TclObj, out: *mut i32) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match crate::typed_value::boolean(value) {
+        Ok(parsed) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(i32::from(parsed)) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
 /// Release one generated operand-stack value.
 ///
 /// # Safety
@@ -508,6 +646,101 @@ pub extern "C" fn tcl_value_new_wide_int(value: i64) -> *mut TclObj {
 pub unsafe extern "C" fn tcl_value_release(value: *mut TclObj) {
     // SAFETY: generated code transfers its owned stack reference here.
     unsafe { obj::decr_ref_count(value) };
+}
+
+/// One eval-loop activation held for the span of an ABI dispatch.
+///
+/// [`tcl_invoke_argv`] and [`tcl_intrinsic_invoke_argv`] *are* the compiled
+/// statement as far as the interpreter can see, and today's generated code does
+/// not yet bracket its statements with
+/// [`tcl_codegen_activation_enter`]/[`tcl_codegen_activation_leave`], so they
+/// hold the activation themselves. Without it a dispatched `catch` runs its
+/// body at depth 0, the eval loop's outermost rule publishes and resets the
+/// exception state inside the body, and `catch {…} r opts` reports
+/// `-errorcode NONE` where interpreted Tcl reports the raised code.
+///
+/// Leaving on `Drop` also applies the outermost rule for a genuinely top-level
+/// compiled statement — the "publish an uncaught error even though no eval loop
+/// ran" behaviour these entry points already had, now expressed once as the
+/// activation's tail instead of a separate publish call.
+struct AbiActivation {
+    interp: *mut Interp,
+    code: crate::interp::Code,
+}
+
+impl AbiActivation {
+    /// Enter an activation on the live current interpreter, or `None` when the
+    /// native nesting bound refuses it (the interpreter then carries the
+    /// catchable "too many nested evaluations" error and holds no activation).
+    ///
+    /// # Safety
+    /// `interp` must be the live current interpreter for the whole guard's life.
+    unsafe fn enter(interp: *mut Interp) -> Option<Self> {
+        // SAFETY: forwarded per this function's contract.
+        unsafe { (*interp).codegen_activation_enter() }.then_some(AbiActivation {
+            interp,
+            code: crate::interp::Code::Ok,
+        })
+    }
+
+    /// Record the completion this activation ends with, before it is left.
+    fn complete(&mut self, code: tcl_runtime_api::Code) {
+        self.code = crate::interp::Code::from_int(i32::try_from(code.as_int()).unwrap_or(1));
+    }
+}
+
+impl Drop for AbiActivation {
+    fn drop(&mut self) {
+        // SAFETY: the interpreter was live when the activation was entered and
+        // stays live for the ABI call that holds this guard.
+        unsafe { (*self.interp).codegen_activation_leave(self.code) };
+    }
+}
+
+/// `tcl_codegen_activation_enter() -> i32` — make the compiled work that
+/// follows count as one eval-loop activation.
+///
+/// The runtime's outermost-eval rule (`interp.rs`'s eval loop, at depth 0) is
+/// what publishes an uncaught error's trace to `::errorInfo`/`::errorCode` and
+/// drains the background-error queue. Generated code that dispatches commands
+/// without entering that loop runs at depth 0, so a dispatched `catch` would
+/// see the rule fire *inside* its own body — resetting the exception state
+/// before `catch` reads `-errorcode`/`-errorinfo`. An activation restores what
+/// interpreted Tcl always has: an enclosing activation at depth ≥ 1.
+///
+/// Returns `0` when the activation was entered; the caller then owes exactly
+/// one [`tcl_codegen_activation_leave`] with the activation's completion code.
+/// Returns non-zero when there is no current interpreter, or when the
+/// activation would exceed the runtime's native nesting bound (in which case
+/// the interpreter carries the same catchable "too many nested evaluations"
+/// error the eval loop raises); **no** activation is held, and the caller must
+/// not leave one.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 1;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    i32::from(!unsafe { (*interp).codegen_activation_enter() })
+}
+
+/// `tcl_codegen_activation_leave(code)` — leave the activation entered by the
+/// matching [`tcl_codegen_activation_enter`].
+///
+/// `code` is the activation's Tcl completion code (`0` ok, `1` error, `2`
+/// return, `3` break, `4` continue, or any `return -code N` integer). Leaving
+/// the outermost activation applies exactly the eval loop's tail: an error
+/// publishes its accumulated trace to `::errorInfo`/`::errorCode`, and any
+/// queued background errors are drained with the current handler.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_activation_leave(code: i32) {
+    let interp = current_interp();
+    if interp.is_null() {
+        return;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    unsafe { (*interp).codegen_activation_leave(crate::interp::Code::from_int(code)) };
 }
 
 /// Push a name-addressable Tcl frame for a generated procedure.
@@ -596,7 +829,15 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
     }
     // SAFETY: the bootstrap installed a live current interpreter.
     let interp = unsafe { &mut *interp };
-    let Some(name) = interp.codegen_slot_name(usize::try_from(slot).unwrap_or(0)) else {
+    let slot = usize::try_from(slot).unwrap_or(0);
+    // The indexed path: one array index to the frame's cell, taken whenever
+    // nothing can observe the read differently (an untraced plain scalar).
+    if let Some(value) = interp.codegen_slot_scalar(slot) {
+        // SAFETY: the cell owns the existing reference; the stack claims another.
+        unsafe { obj::incr_ref_count(value) };
+        return value;
+    }
+    let Some(name) = interp.codegen_slot_name(slot) else {
         return ptr::null_mut();
     };
     if interp.fire_read_trace(&name, None).is_some() {
@@ -610,6 +851,265 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
     // SAFETY: the frame owns the existing reference; the stack claims another.
     unsafe { obj::incr_ref_count(value) };
     value
+}
+
+/// `tcl_codegen_var_traced(name_ptr, name_len) -> i32` — whether any variable
+/// trace can observe accesses to `name`.
+///
+/// This is the runtime half of a guarded `TraceBarrier`: generated code that has
+/// proved everything *except* the absence of a trace asks this once and takes
+/// its native path when the answer is `0`. The name resolves to the same
+/// identity trace firing uses, so an `upvar`/`global`/`variable` link reports
+/// its **target**'s traces and an array reports its elements'. The answer is
+/// conservative in one direction only: `1` may be broader than the exact
+/// access, `0` is a promise that nothing can observe the cell.
+///
+/// Returns `1` when traced, `0` when not (including a name that does not
+/// resolve, and when there is no current interpreter).
+///
+/// # Safety
+/// The name range must be readable shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_var_traced(name_ptr: *const u8, name_len: i32) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 0;
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    i32::from(unsafe { (*interp).var_is_traced(name) })
+}
+
+/// `tcl_codegen_slot_traced(slot) -> i32` — [`tcl_codegen_var_traced`] for the
+/// variable a compiled slot addresses.
+///
+/// Answered from the cell's own trace bit, which is validated against the
+/// interpreter's variable-trace epoch — so a repeated guard costs one array
+/// index, and a trace added or removed anywhere (including a proc frame's
+/// teardown dropping its locals' traces) forces the answer to be recomputed
+/// rather than trusted.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_slot_traced(slot: i32) -> i32 {
+    let interp = current_interp();
+    let Ok(slot) = usize::try_from(slot) else {
+        return 0;
+    };
+    if interp.is_null() {
+        return 0;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    i32::from(unsafe { (*interp).codegen_slot_is_traced(slot) })
+}
+
+/// Resolve a compiled slot's Tcl-visible name, or `None` when it is unbound.
+fn slot_name(interp: &Interp, slot: i32) -> Option<Vec<u8>> {
+    interp.codegen_slot_name(usize::try_from(slot).ok()?)
+}
+
+/// Run one of the runtime's own read-modify-write commands over a compiled
+/// slot's variable.
+///
+/// The slot contributes the **addressing** — an O(1) index to the name its cell
+/// is bound to — and the command contributes the **semantics**. There is no
+/// second implementation of `incr`/`append`/`lappend` here: the runtime's
+/// command runs over a prebuilt argv, so the numeric tower's bignum promotion,
+/// the copy-on-write in-place growth, `const`, write traces, and every error
+/// message are exactly what interpreted Tcl produces.
+///
+/// Returns the Tcl completion code.
+///
+/// **Ownership.** The borrow guard's `+1` is released after the call, so a
+/// word's fate is decided by the reference it arrived with: the two words
+/// this function creates are `rc 0`, so that release is what frees them,
+/// while a caller-owned `value` (`rc >= 1`) survives it. A caller handing in
+/// a *fresh* `rc 0` value must therefore not release it again — that second
+/// release is a double free (`tcl_codegen_slot_incr_i64` pins its operand
+/// for exactly this reason). This is the same rule
+/// [`crate::codegen_native::run_named_cell_command`] states for the named
+/// spelling of the same call.
+///
+/// # Safety
+/// `interp` must be the live current interpreter and `value` a live object.
+unsafe fn slot_modify(
+    interp: *mut Interp,
+    slot: i32,
+    head: &[u8],
+    value: Option<*mut TclObj>,
+    command: fn(&mut Interp, &[*mut TclObj]) -> crate::interp::Code,
+) -> crate::interp::Code {
+    // SAFETY: the caller passes the live current interpreter.
+    let interp = unsafe { &mut *interp };
+    let Some(name) = slot_name(interp, slot) else {
+        let mut message = head.to_vec();
+        message.extend_from_slice(b" on an unbound compiled slot");
+        return interp.set_error(&message);
+    };
+    let head_obj = new_string_bytes(head);
+    let name_obj = new_string_bytes(&name);
+    let mut argv = vec![head_obj, name_obj];
+    argv.extend(value);
+    // The command borrows its argv; pin every word for the call exactly as the
+    // dispatcher does. The borrow's `+1` is the only reference `head_obj` and
+    // `name_obj` have, so releasing it also frees them; a `drop_fresh` here
+    // would be a second release of each.
+    // SAFETY: every word is live for the whole call.
+    let borrowed = unsafe { BorrowedArgv::retain(&argv) };
+    let code = command(interp, &argv);
+    drop(borrowed);
+    code
+}
+
+/// `tcl_codegen_slot_incr_i64(slot, delta, out) -> status` — Tcl `incr` on the
+/// variable a compiled slot addresses, writing the new value through `out`.
+///
+/// Full `incr` semantics: the sum promotes to a bignum on overflow (Tcl
+/// integers never wrap), an existing bignum cell increments correctly, a
+/// non-integer cell raises C's `expected integer but got …`, and `const` and
+/// write traces apply. [`TCL_VALUE_GET_OK`] means `*out` was written;
+/// [`TCL_VALUE_GET_ERROR`] means the interpreter carries the Tcl error and
+/// `*out` is untouched — including the case where the new value is a bignum
+/// past the wide range, which is `integer value too large to represent` just as
+/// reading it as an `i64` anywhere else would be.
+///
+/// # Safety
+/// `out` must be null or writable, properly aligned `i64` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *mut i64) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let delta_obj = obj::new_wide_int_obj(delta);
+    // Give the fresh operand a reference of its own before handing it over:
+    // `slot_modify` borrows its words and releases that borrow after the
+    // call, which would take a bare `rc 0` operand back to zero and free it
+    // here — leaving the release below a double free.
+    // SAFETY: `delta_obj` is a fresh live object.
+    unsafe { obj::incr_ref_count(delta_obj) };
+    // SAFETY: `interp` is live; `delta_obj` is a fresh live object.
+    let code = unsafe {
+        slot_modify(
+            interp,
+            slot,
+            b"incr",
+            Some(delta_obj),
+            // The trace-safe `incr` — see `cmd_var::installed_incr`.
+            crate::cmd_var::installed_incr(),
+        )
+    };
+    // SAFETY: releases exactly the reference taken above.
+    unsafe { obj::decr_ref_count(delta_obj) };
+    if code != crate::interp::Code::Ok {
+        return TCL_VALUE_GET_ERROR;
+    }
+    if out.is_null() {
+        return TCL_VALUE_GET_OK;
+    }
+    // SAFETY: `interp` is live; the result is `incr`'s new value.
+    let result = unsafe { (*interp).result_obj() };
+    match crate::typed_value::wide_int(result) {
+        Ok(value) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(value) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
+/// `tcl_codegen_slot_append(slot, value) -> code` — Tcl `append` onto the
+/// variable a compiled slot addresses.
+///
+/// Copy-on-write is the runtime's own: an unshared plain string grows in place
+/// (amortised O(1)), anything else copies. `value` is borrowed. Returns the Tcl
+/// completion code (`0` ok, `1` error with the interpreter's message set).
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || value.is_null() {
+        return 1;
+    }
+    // SAFETY: `interp` is live and `value` is caller-owned for the call.
+    let code = unsafe {
+        slot_modify(
+            interp,
+            slot,
+            b"append",
+            Some(value),
+            crate::cmd_string::append,
+        )
+    };
+    i32::try_from(code.as_int()).unwrap_or(1)
+}
+
+/// `tcl_codegen_slot_lappend(slot, value) -> code` — Tcl `lappend` onto the
+/// variable a compiled slot addresses, with the runtime's copy-on-write list
+/// growth (an uniquely owned backing vector is extended in place).
+///
+/// `value` is borrowed. Returns the Tcl completion code.
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_lappend(slot: i32, value: *mut TclObj) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || value.is_null() {
+        return 1;
+    }
+    // SAFETY: `interp` is live and `value` is caller-owned for the call.
+    let code = unsafe {
+        slot_modify(
+            interp,
+            slot,
+            b"lappend",
+            Some(value),
+            crate::cmd_list::lappend,
+        )
+    };
+    i32::try_from(code.as_int()).unwrap_or(1)
+}
+
+/// `tcl_codegen_slot_get(slot) -> obj` — the ABI v2 spelling of
+/// [`tcl_codegen_local_get`]. Both names address the same indexed cell; the
+/// `local_*` spellings stay for already-emitted modules.
+///
+/// # Safety
+/// As [`tcl_codegen_local_get`].
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_get(slot: i32) -> *mut TclObj {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { tcl_codegen_local_get(slot) }
+}
+
+/// `tcl_codegen_slot_set(slot, value) -> status` — the ABI v2 spelling of
+/// [`tcl_codegen_local_set`].
+///
+/// # Safety
+/// As [`tcl_codegen_local_set`].
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_set(slot: i32, value: *mut TclObj) -> i32 {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { tcl_codegen_local_set(slot, value) }
+}
+
+/// `tcl_codegen_slot_bind(slot, name_ptr, name_len, value) -> status` — the ABI
+/// v2 spelling of [`tcl_codegen_local_bind`].
+///
+/// # Safety
+/// As [`tcl_codegen_local_bind`].
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_bind(
+    slot: i32,
+    name_ptr: *const u8,
+    name_len: i32,
+    value: *mut TclObj,
+) -> i32 {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { tcl_codegen_local_bind(slot, name_ptr, name_len, value) }
 }
 
 /// Store a top-level or namespace variable by name.
@@ -1270,17 +1770,34 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     };
     // SAFETY: every word was validated non-null and is caller-owned.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // An intrinsic reached from generated code is an activation for the same
+    // reason a dispatched command is (see [`AbiActivation`]): the implementation
+    // may evaluate a body, and this call is the only enclosing activation there
+    // is.
+    // SAFETY: the current interpreter is live for this ABI call.
+    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
+        // SAFETY: current interp and `out` are live per the function contract.
+        unsafe {
+            write_completion(
+                out,
+                completion_abi(crate::state_traits::capture_completion(
+                    &mut *interp,
+                    crate::interp::Code::Error,
+                )),
+            );
+        }
+        return TCL_INVOKE_ABI_OK;
+    };
     // SAFETY: `interp` is live; direct execution only borrows `args`.
     let Some(code) = (unsafe { (*interp).execute_intrinsic(intrinsic, args) }) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
     // SAFETY: `interp` is live and `out` is caller-provided writable storage.
-    unsafe {
-        write_completion(
-            out,
-            completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-        )
-    };
+    let completion = unsafe { crate::state_traits::capture_completion(&mut *interp, code) };
+    activation.complete(completion.code);
+    drop(activation);
+    // SAFETY: `out` is caller-provided writable storage.
+    unsafe { write_completion(out, completion_abi(completion)) };
     TCL_INVOKE_ABI_OK
 }
 
@@ -1384,17 +1901,29 @@ pub unsafe extern "C" fn tcl_invoke_argv(
     // SAFETY: null words were rejected; the caller guarantees every word is
     // live and holds an owned reference for this call.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // Dispatching directly skips the eval loop, so this call *is* the enclosing
+    // activation: it must count as one while the dispatched command runs (a
+    // `catch` body would otherwise trip the outermost-eval rule and lose its
+    // `-errorcode`), and it applies that rule itself on the way out — which is
+    // what publishes an uncaught error's trace to `::errorInfo`/`::errorCode`.
+    // SAFETY: the current interpreter is live for this ABI call.
+    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
+        // SAFETY: current interp and `out` are live per the function contract.
+        unsafe {
+            write_completion(
+                out,
+                completion_abi(crate::state_traits::capture_completion(
+                    &mut *interp,
+                    crate::interp::Code::Error,
+                )),
+            );
+        }
+        return TCL_INVOKE_ABI_OK;
+    };
     // SAFETY: the current interpreter is live for this ABI call.
     let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
-    // Dispatching directly skips the eval loop, which is what publishes an
-    // uncaught error's trace to `::errorInfo`/`::errorCode`. Without this a
-    // compiled script would leave those globals unset where the source-eval
-    // path creates them, so identical Tcl would expose different error state
-    // depending on which tier compiled it.
-    if completion.code == tcl_runtime_api::Code::Error {
-        // SAFETY: the current interpreter is live for this ABI call.
-        unsafe { (*interp).publish_error_if_uncaught() };
-    }
+    activation.complete(completion.code);
+    drop(activation);
     // SAFETY: `out` is live and properly aligned per this function's contract.
     unsafe { write_completion(out, completion_abi(completion)) };
     TCL_INVOKE_ABI_OK
@@ -1824,6 +2353,284 @@ mod tests {
         });
     }
 
+    /// The read-modify-write slot ABI is the runtime's own `incr` / `append` /
+    /// `lappend` addressed by index: full Tcl semantics, including the bignum
+    /// promotion `incr` gets from the numeric tower, and a by-name view of the
+    /// very same cell.
+    #[cfg(have_tommath)]
+    #[test]
+    fn slot_read_modify_write_runs_the_real_commands_on_the_same_cell() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_slot_bind(0, b"n".as_ptr(), 1, owned_str(b"1")),
+                0
+            );
+            let mut value: i64 = 0;
+            assert_eq!(
+                tcl_codegen_slot_incr_i64(0, 41, &mut value),
+                TCL_VALUE_GET_OK
+            );
+            assert_eq!(value, 42);
+            // The named view sees the indexed write, and vice versa.
+            assert_eq!(tcl_eval_code(box_str(b"set n")), 0);
+            assert_eq!((*interp).result_bytes(), b"42");
+            assert_eq!(tcl_eval_code(box_str(b"incr n")), 0);
+            let indexed = tcl_codegen_slot_get(0);
+            assert_eq!(obj_bytes(indexed), b"43");
+            tcl_value_release(indexed);
+
+            // `incr` promotes past the wide range instead of wrapping, and the
+            // i64 read of that new value reports C's overflow error.
+            assert_eq!(tcl_eval_code(box_str(b"set n 9223372036854775807")), 0);
+            assert_eq!(
+                tcl_codegen_slot_incr_i64(0, 1, &mut value),
+                TCL_VALUE_GET_ERROR
+            );
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"integer value too large to represent"
+            );
+            assert_eq!(tcl_eval_code(box_str(b"set n")), 0);
+            assert_eq!((*interp).result_bytes(), b"9223372036854775808");
+
+            // `incr` on a non-integer cell keeps C's message.
+            assert_eq!(tcl_eval_code(box_str(b"set n abc")), 0);
+            assert_eq!(
+                tcl_codegen_slot_incr_i64(0, 1, &mut value),
+                TCL_VALUE_GET_ERROR
+            );
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"abc\""
+            );
+
+            // `append` / `lappend` through the slot, seen by name.
+            assert_eq!(
+                tcl_codegen_slot_bind(1, b"s".as_ptr(), 1, owned_str(b"a")),
+                0
+            );
+            let piece = owned_str(b"bc");
+            assert_eq!(tcl_codegen_slot_append(1, piece), 0);
+            tcl_value_release(piece);
+            assert_eq!(tcl_eval_code(box_str(b"set s")), 0);
+            assert_eq!((*interp).result_bytes(), b"abc");
+
+            assert_eq!(
+                tcl_codegen_slot_bind(2, b"l".as_ptr(), 1, owned_str(b"x")),
+                0
+            );
+            let item = owned_str(b"y z");
+            assert_eq!(tcl_codegen_slot_lappend(2, item), 0);
+            tcl_value_release(item);
+            assert_eq!(tcl_eval_code(box_str(b"llength $l")), 0);
+            assert_eq!((*interp).result_bytes(), b"2");
+            assert_eq!(tcl_eval_code(box_str(b"lindex $l 1")), 0);
+            assert_eq!((*interp).result_bytes(), b"y z");
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// An indexed slot keeps addressing one cell across `unset` and re-creation,
+    /// and a variable trace, an `upvar` link, and `info locals` all reach that
+    /// same cell — the indexed path must never become a second variable.
+    #[cfg(have_tommath)]
+    #[test]
+    fn an_indexed_slot_survives_unset_and_stays_the_named_cell() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_slot_bind(0, b"v".as_ptr(), 1, owned_str(b"first")),
+                0
+            );
+            assert_eq!(tcl_eval_code(box_str(b"unset v")), 0);
+            assert!(
+                tcl_codegen_slot_get(0).is_null(),
+                "an unset cell reads as a missing variable"
+            );
+            assert_eq!(tcl_eval_code(box_str(b"set v second")), 0);
+            let value = tcl_codegen_slot_get(0);
+            assert_eq!(
+                obj_bytes(value),
+                b"second",
+                "the re-created variable refills the same cell"
+            );
+            tcl_value_release(value);
+
+            // A read trace observes the indexed read: the fast path declines
+            // whenever anything can see the difference.
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"set ::hits 0; trace add variable v read {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            let traced = tcl_codegen_slot_get(0);
+            assert!(!traced.is_null());
+            tcl_value_release(traced);
+            assert_eq!(tcl_eval_code(box_str(b"set ::hits")), 0);
+            assert_eq!((*interp).result_bytes(), b"1");
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Ask the trace barrier about a name. Only the `have_tommath` tests
+    /// below reach it.
+    #[cfg(have_tommath)]
+    unsafe fn var_traced(name: &[u8]) -> i32 {
+        // SAFETY: `name` is a valid readable slice.
+        unsafe { tcl_codegen_var_traced(name.as_ptr(), name.len() as i32) }
+    }
+
+    /// The per-cell trace bit answers for a name and for a slot, follows an
+    /// `upvar` link to its target's traces, covers an array's elements, and —
+    /// the case a hand-maintained bit would get wrong — goes back to `0` when a
+    /// proc frame's teardown drops its locals' traces.
+    #[cfg(have_tommath)]
+    #[test]
+    fn the_trace_barrier_tracks_adds_removes_links_and_frame_teardown() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            assert_eq!(tcl_eval_code(box_str(b"set g 1; set ::hits 0")), 0);
+            assert_eq!(var_traced(b"g"), 0, "an untraced global");
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace add variable g write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(var_traced(b"g"), 1);
+            assert_eq!(var_traced(b"other"), 0, "the bit is per cell, not global");
+
+            // An array reports traced when any element is: the guard is
+            // conservative in the safe direction.
+            assert_eq!(tcl_eval_code(box_str(b"set arr(k) 1")), 0);
+            assert_eq!(var_traced(b"arr"), 0);
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace add variable arr(k) write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(var_traced(b"arr"), 1);
+            assert_eq!(var_traced(b"arr(k)"), 1);
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace remove variable g write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(var_traced(b"g"), 0, "removing the last trace clears it");
+
+            // A trace added inside a proc frame is visible through the local
+            // name and through an `upvar` alias to it, and both answers go back
+            // to untraced when the frame is popped.
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"proc probe {} {\n\
+                        set loc 1\n\
+                        upvar 0 loc alias\n\
+                        set ::before [tcltrace loc],[tcltrace alias]\n\
+                        trace add variable loc write {apply {{a b op} {incr ::hits}}}\n\
+                        set ::during [tcltrace loc],[tcltrace alias]\n\
+                      }"
+                )),
+                0
+            );
+            // A tiny Tcl-visible probe over the same ABI entry point.
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"proc tcltrace {n} { uplevel 1 [list ::tcl::probe_traced $n] }"
+                )),
+                0
+            );
+            (*interp).register_builtin(b"::tcl::probe_traced", |interp, argv| {
+                let name = obj_bytes(argv[1]);
+                let traced = interp.var_is_traced(&name);
+                interp.set_result_bytes(if traced { b"1" } else { b"0" });
+                crate::interp::Code::Ok
+            });
+
+            assert_eq!(tcl_eval_code(box_str(b"probe")), 0);
+            assert_eq!(tcl_eval_code(box_str(b"set ::before")), 0);
+            assert_eq!((*interp).result_bytes(), b"0,0");
+            assert_eq!(tcl_eval_code(box_str(b"set ::during")), 0);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"1,1",
+                "an upvar alias reports its target's traces"
+            );
+            // The frame is gone, so its local's trace is too.
+            assert_eq!(var_traced(b"loc"), 0);
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The slot spelling answers from the cell's own bit, and that bit is
+    /// re-derived — never trusted — after the trace set changes.
+    #[cfg(have_tommath)]
+    #[test]
+    fn the_slot_trace_bit_is_revalidated_when_the_trace_set_changes() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_slot_bind(0, b"v".as_ptr(), 1, owned_str(b"1")),
+                0
+            );
+            assert_eq!(tcl_codegen_slot_traced(0), 0);
+            // Asked twice: the second answer comes from the cached bit.
+            assert_eq!(tcl_codegen_slot_traced(0), 0);
+
+            assert_eq!(tcl_eval_code(box_str(b"set ::hits 0")), 0);
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace add variable v write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(
+                tcl_codegen_slot_traced(0),
+                1,
+                "the epoch moved, so the cached 0 was recomputed"
+            );
+            assert_eq!(tcl_codegen_slot_traced(0), 1);
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace remove variable v write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(tcl_codegen_slot_traced(0), 0);
+            assert_eq!(tcl_codegen_slot_traced(9), 0, "an unbound slot is untraced");
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
     /// The prebuilt argv boundary reaches the normal builtin dispatcher and
     /// leaves each caller-owned argv reference untouched.
     #[test]
@@ -1975,6 +2782,303 @@ mod tests {
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Read one typed scalar through the C ABI, returning the status and the
+    /// value written (untouched storage on a refusal).
+    unsafe fn get_wide(value: *mut TclObj) -> (i32, i64) {
+        let mut out: i64 = i64::MIN;
+        // SAFETY: `value` is live and `out` is local aligned storage.
+        let status = unsafe { tcl_value_get_wide_int(value, &mut out) };
+        (status, out)
+    }
+
+    unsafe fn get_double(value: *mut TclObj) -> (i32, f64) {
+        let mut out: f64 = f64::NAN;
+        // SAFETY: `value` is live and `out` is local aligned storage.
+        let status = unsafe { tcl_value_get_double(value, &mut out) };
+        (status, out)
+    }
+
+    unsafe fn get_bool(value: *mut TclObj) -> (i32, i32) {
+        let mut out: i32 = -1;
+        // SAFETY: `value` is live and `out` is local aligned storage.
+        let status = unsafe { tcl_value_get_bool(value, &mut out) };
+        (status, out)
+    }
+
+    /// A successful typed read caches the parsed rep onto the object — C's
+    /// `TclParseNumber` write-back — and keeps the spelling, so a hot loop
+    /// parses once and `puts` still prints what the script wrote.
+    #[test]
+    fn typed_value_reads_cache_the_parsed_rep_and_keep_the_spelling() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            let decimal = owned_word(b"12");
+            assert!((*decimal).type_ptr.is_null(), "starts as a plain string");
+            assert_eq!(get_wide(decimal), (TCL_VALUE_GET_OK, 12));
+            assert!(
+                std::ptr::eq((*decimal).type_ptr, &obj::TCL_INT_TYPE),
+                "the parsed integer rep is cached back onto the object"
+            );
+            assert_eq!(obj_bytes(decimal), b"12", "the spelling survives");
+
+            // A radix spelling keeps its own text, exactly as in C Tcl.
+            let hex = owned_word(b"0x10");
+            assert_eq!(get_wide(hex), (TCL_VALUE_GET_OK, 16));
+            assert!(std::ptr::eq((*hex).type_ptr, &obj::TCL_INT_TYPE));
+            assert_eq!(obj_bytes(hex), b"0x10");
+
+            let scientific = owned_word(b"1e3");
+            assert_eq!(get_double(scientific), (TCL_VALUE_GET_OK, 1000.0));
+            assert!(std::ptr::eq((*scientific).type_ptr, &obj::TCL_DOUBLE_TYPE));
+            assert_eq!(obj_bytes(scientific), b"1e3");
+
+            // Now that it carries a double rep, the integer read reports C's
+            // double-branch wording and code (`tclObj.c`).
+            assert_eq!(get_wide(scientific).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"1e3\""
+            );
+            assert_eq!((*interp).error_code(), b"TCL VALUE INTEGER");
+
+            release_words(&[decimal, hex, scientific]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Beyond-wide integers and non-numbers report C's exact message and
+    /// `-errorcode` through the interpreter, leaving the out storage untouched.
+    #[test]
+    fn typed_value_reads_report_overflow_and_non_numbers_like_c() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            // `tclsh9.0`: `string repeat a [expr {2**200}]` →
+            // "integer value too large to represent" / ARITH IOVERFLOW.
+            let huge = owned_word(b"99999999999999999999999");
+            let (status, untouched) = get_wide(huge);
+            assert_eq!(status, TCL_VALUE_GET_ERROR);
+            assert_eq!(untouched, i64::MIN, "the out storage is left alone");
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"integer value too large to represent"
+            );
+            assert_eq!((*interp).error_code(), b"ARITH IOVERFLOW");
+            // The same value still widens to a double.
+            assert_eq!(get_double(huge), (TCL_VALUE_GET_OK, 1e23));
+
+            let word = owned_word(b"abc");
+            assert_eq!(get_wide(word).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"abc\""
+            );
+            assert_eq!((*interp).error_code(), b"TCL VALUE NUMBER");
+            assert_eq!(get_double(word).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected floating-point number but got \"abc\""
+            );
+            assert!(
+                (*word).type_ptr.is_null(),
+                "a refused read caches nothing onto the object"
+            );
+
+            // C renders a well-formed multi-token value as `a list`.
+            let listy = owned_word(b"a b");
+            assert_eq!(get_bool(listy).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected boolean value but got a list"
+            );
+
+            release_words(&[huge, word, listy]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The boolean read is the boolean-*context* acceptor over
+    /// `tcl_syntax::boolean`'s one word table: unique prefixes resolve, the
+    /// ambiguous `o` does not, and any number compares against zero.
+    #[test]
+    fn typed_value_boolean_read_uses_the_shared_word_table() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            for (spelling, expected) in [
+                (&b"tru"[..], 1),
+                (b"t", 1),
+                (b"ye", 1),
+                (b"YES", 1),
+                (b"of", 0),
+                (b"n", 0),
+                (b"2", 1),
+                (b"-1", 1),
+                (b"0.0", 0),
+                (b"0x0", 0),
+            ] {
+                let value = owned_word(spelling);
+                assert_eq!(
+                    get_bool(value),
+                    (TCL_VALUE_GET_OK, expected),
+                    "{:?}",
+                    String::from_utf8_lossy(spelling)
+                );
+                release_words(&[value]);
+            }
+
+            // `on`/`off` share the prefix `o`, so tclsh rejects it.
+            let ambiguous = owned_word(b"o");
+            assert_eq!(get_bool(ambiguous).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected boolean value but got \"o\""
+            );
+
+            // `tclsh9.0`: `expr {NaN ? 1 : 0}` is a domain error, not truthy.
+            let nan = owned_word(b"NaN");
+            assert_eq!(get_bool(nan).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"floating point value is Not a Number"
+            );
+            assert_eq!(
+                get_double(nan).0,
+                TCL_VALUE_GET_OK,
+                "a double read accepts NaN"
+            );
+
+            release_words(&[ambiguous, nan]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The native constructors produce owned, typed objects whose string rep is
+    /// materialised only on demand.
+    #[test]
+    fn native_double_and_boolean_values_are_owned_and_typed() {
+        leak_free(|| unsafe {
+            let double = tcl_value_new_double(1.5);
+            assert_eq!((*double).ref_count, 1, "generated code owns the result");
+            assert!(std::ptr::eq((*double).type_ptr, &obj::TCL_DOUBLE_TYPE));
+            assert!((*double).bytes.is_null(), "doubles begin without text");
+            assert_eq!(obj_bytes(double), b"1.5");
+            assert!(
+                std::ptr::eq((*double).type_ptr, &obj::TCL_DOUBLE_TYPE),
+                "materialising the text keeps the double internal rep"
+            );
+            tcl_obj_release(double);
+
+            // C's `Tcl_NewBooleanObj` normalises any non-zero input to 1.
+            let truthy = tcl_value_new_bool(7);
+            assert_eq!((*truthy).ref_count, 1);
+            assert_eq!(obj_bytes(truthy), b"1");
+            tcl_obj_release(truthy);
+
+            let falsy = tcl_value_new_bool(0);
+            assert_eq!(obj_bytes(falsy), b"0");
+            tcl_obj_release(falsy);
+        });
+    }
+
+    /// A `catch` dispatched from generated code must read its **own** error
+    /// state. Before compiled activations existed, `tcl_invoke_argv` dispatched
+    /// at `eval_depth == 0`, so `catch`'s `eval_control_body` returned to depth
+    /// 0 and the eval loop's outermost rule published-and-reset the exception
+    /// before `catch` read `error_code()` — `-errorcode` came back `NONE`.
+    ///
+    /// Oracle (`tclsh9.0`): `catch {error m NEGATIVE {MYERR NEG}} r opts` sets
+    /// `-errorcode` to `MYERR NEG` and `-errorinfo` to `NEGATIVE`.
+    #[test]
+    fn invoke_argv_catch_reads_the_raised_errorcode_at_compiled_top_level() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"catch"),
+                owned_word(b"error m NEGATIVE {MYERR NEG}"),
+                owned_word(b"r"),
+                owned_word(b"opts"),
+            ];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"1", "catch reports an error");
+
+            assert_eq!(tcl_eval_code(box_str(b"dict get $opts -errorcode")), 0);
+            assert_eq!((*interp).result_bytes(), b"MYERR NEG");
+            assert_eq!(tcl_eval_code(box_str(b"dict get $opts -errorinfo")), 0);
+            assert_eq!((*interp).result_bytes(), b"NEGATIVE");
+            assert_eq!(tcl_eval_code(box_str(b"set r")), 0);
+            assert_eq!((*interp).result_bytes(), b"m");
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// An explicit compiled activation is an eval-loop activation: an uncaught
+    /// error inside it is *not* published while it is held (the enclosing
+    /// activation, not the dispatch, is the outermost one), and the matching
+    /// leave publishes `::errorInfo`/`::errorCode` exactly as the eval loop's
+    /// tail does.
+    #[test]
+    fn compiled_activation_defers_error_publication_to_its_own_leave() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            assert_eq!(tcl_codegen_activation_enter(), 0);
+            let words = [owned_word(b"error"), owned_word(b"boom")];
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 1);
+
+            // Still inside the activation, so the globals are untouched — the
+            // eval loop would not have published at depth 1 either. Read them
+            // straight out of the interpreter: an intervening `eval` would
+            // reset the very error episode under test.
+            assert!(
+                (*interp).var_get(b"::errorInfo").is_none(),
+                "a held activation is not the outermost one"
+            );
+
+            tcl_codegen_activation_leave(1);
+            let published = (*interp)
+                .var_get(b"::errorInfo")
+                .expect("leaving the outermost activation publishes the trace");
+            assert!(obj_bytes(published).starts_with(b"boom"));
+            assert_eq!(
+                obj_bytes((*interp).var_get(b"::errorCode").expect("::errorCode")),
+                b"NONE"
+            );
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Without a current interpreter the activation entry declines rather than
+    /// silently pretending to hold one, and the paired leave is a no-op.
+    #[test]
+    fn compiled_activation_declines_without_a_current_interpreter() {
+        leak_free(|| {
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            assert_ne!(tcl_codegen_activation_enter(), 0);
+            tcl_codegen_activation_leave(0);
         });
     }
 

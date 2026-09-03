@@ -1393,6 +1393,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert("bpf_op".into(), lost.expr("bpf_op", spec.bpf_op.is_some()));
     d.insert(
+        "native_lowering".into(),
+        lost.expr("native_lowering", spec.native_lowering.is_some()),
+    );
+    d.insert(
         "clause_shape_check".into(),
         lost.expr("clause_shape_check", spec.clause_shape_check.is_some()),
     );

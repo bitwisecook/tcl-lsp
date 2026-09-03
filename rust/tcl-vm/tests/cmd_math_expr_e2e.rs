@@ -1124,20 +1124,39 @@ fn mathfunc_wide_truncates_out_of_range_literal() {
 
 #[test]
 fn mathfunc_int_wide_are_the_64bit_window() {
-    // int() and wide() are the same mod-2^64 window in 8.6+: an integer of
-    // any magnitude folds two's-complement; a double truncates toward zero
-    // first, then wraps the same way (variable args defeat const folding).
-    // tclsh 8.6/9.0:
-    cmd_eq("set x 18446744073709551617; expr {int($x)}", "1");
+    // `wide()` is the mod-2^64 window in every release: an integer of any
+    // magnitude folds two's-complement; a double truncates toward zero first,
+    // then wraps the same way (variable args defeat const folding).
+    //
+    // `int()` is **not** the same function at 9.0 — TIP 237's unbounded
+    // `ExprIntFunc` (issue #1382). This suite runs the VM at its default 9.0
+    // release, so `int()` here is `entier()`; the 8.6 window is pinned
+    // separately (`tcl-vm/tests/numeric_tower_e2e.rs`
+    // `int_follows_the_vms_release`, which drives both releases).
+    // Measured, tclsh9.0.4 / tclsh8.6.16:
+    //   int(18446744073709551617) -> 18446744073709551617 / 1
+    //   int(1.5e19)               -> 15000000000000000000 / -3446744073709551616
+    //   wide(...)                 -> the 8.6 column in both releases
+    cmd_eq(
+        "set x 18446744073709551617; expr {int($x)}",
+        "18446744073709551617",
+    );
     cmd_eq("set x 18446744073709551617; expr {wide($x)}", "1");
-    cmd_eq("set x -18446744073709551617; expr {int($x)}", "-1");
-    cmd_eq("set x 1e300; expr {int($x)}", "0"); // 10^300 divides by 2^64
-    cmd_eq("set x 1e300; expr {wide($x)}", "0");
-    cmd_eq("set x -1e300; expr {int($x)}", "0");
-    cmd_eq("set x 1.5e19; expr {int($x)}", "-3446744073709551616");
-    cmd_eq("set x 2.5e19; expr {int($x)}", "6553255926290448384");
+    cmd_eq(
+        "set x -18446744073709551617; expr {int($x)}",
+        "-18446744073709551617",
+    );
+    cmd_eq("set x 1e300; expr {wide($x)}", "0"); // 10^300 divides by 2^64
+    cmd_eq("set x 1.5e19; expr {int($x)}", "15000000000000000000");
+    cmd_eq("set x 1.5e19; expr {wide($x)}", "-3446744073709551616");
+    cmd_eq("set x 2.5e19; expr {int($x)}", "25000000000000000000");
+    cmd_eq("set x 2.5e19; expr {wide($x)}", "6553255926290448384");
     cmd_eq(
         "set x 9223372036854775808.0; expr {int($x)}",
+        "9223372036854775808",
+    );
+    cmd_eq(
+        "set x 9223372036854775808.0; expr {wide($x)}",
         "-9223372036854775808",
     );
     // Inf cannot wrap; NaN is not a number at all.  tclsh 8.6/9.0:

@@ -113,6 +113,14 @@ impl super::super::number_tower::BigIntOps for NoBig {
     fn to_f64(&self) -> f64 {
         match *self {}
     }
+    /// A backend with no arbitrary-precision rung cannot represent a double
+    /// outside the wide range, so it declines rather than panicking in the
+    /// default implementation's `from_i64`. Callers (the const-folder) read
+    /// the `None` as "abstain", which is exactly right: the value is a real
+    /// bignum they have no way to carry.
+    fn from_f64_trunc(_: f64) -> Option<Self> {
+        None
+    }
 }
 
 impl<B> NumValue<B> {
@@ -140,21 +148,238 @@ impl<B> NumValue<B> {
     }
 }
 
+/// Whether `int()` keeps arbitrary precision or narrows to the signed 64-bit
+/// window — the one **release-dependent** math-function semantic.
+///
+/// Tcl 9.0 binds `int` and `entier` to the same unbounded `ExprIntFunc`
+/// (`tclBasic.c`), while 8.4-8.6 keep `int`'s windowing: `tclsh8.6.16` says
+/// `int(1e20)` is `7766279631452241920` where `tclsh9.0.4` says
+/// `100000000000000000000`, and likewise `int(2**64+1)` is `1` versus
+/// `18446744073709551617`. `wide()` windows in every release, `entier()` is
+/// unbounded in every release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntWidth {
+    /// `int()` narrows to the 64-bit window (Tcl 8.4-8.6).
+    Windowed,
+    /// `int()` keeps arbitrary precision, exactly like `entier()` (Tcl 9.0+).
+    Unbounded,
+    /// The caller has not resolved a release. `int()` then answers only where
+    /// the two releases agree (an operand that fits a wide) and abstains
+    /// otherwise, so a const-folder can never bake in the wrong release's
+    /// answer.
+    Unresolved,
+}
+
+impl IntWidth {
+    /// The `int()` width the given core release uses.
+    #[must_use]
+    pub fn for_tcl_version(version: tcl_dialect::TclVersion) -> Self {
+        if version >= tcl_dialect::TclVersion::V9_0 {
+            Self::Unbounded
+        } else {
+            Self::Windowed
+        }
+    }
+}
+
+/// Why a math-function dispatch could not produce a value — C's error surface
+/// for `expr`'s function calls, carried so both engines report the same
+/// message *and* `-errorcode` instead of collapsing every refusal into one
+/// generic domain error (issue #1581).
+///
+/// The message/code pairs are tclsh 8.6.16 and 9.0.4 output, read with
+/// `catch {expr {...}} m o; list $m [dict get $o -errorcode]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MathFuncError {
+    /// `name` is not a built-in `expr` function in any release.
+    UnknownFunction,
+    /// The call has the wrong number of arguments for the function.
+    WrongArgCount,
+    /// An infinity reached an integer conversion (`entier`/`int`/`wide`/
+    /// `round`/`isqrt`): `integer value too large to represent`,
+    /// `-errorcode ARITH IOVERFLOW {integer value too large to represent}`.
+    IntegerOverflow,
+    /// A NaN reached a function that needs a real number:
+    /// `floating point value is Not a Number`,
+    /// `-errorcode TCL VALUE DOUBLE NAN`.
+    NotANumber,
+    /// A genuine domain error (`sqrt(-1)`, `fmod(x, 0)`, `log(-1)`):
+    /// `domain error: argument not in valid range`, `-errorcode ARITH DOMAIN
+    /// {domain error: argument not in valid range}`.
+    Domain,
+    /// `isqrt` of a negative operand — C keeps its own message
+    /// (`square root of negative argument`) with the ordinary domain
+    /// `-errorcode`.
+    NegativeSqrt,
+    /// **Not a Tcl error.** There is no answer *this caller* can carry: its
+    /// backend has no arbitrary-precision rung ([`Num`], the const-folder's
+    /// shape) or it did not resolve a release and `int()`'s width is
+    /// release-dependent. A const-folder must abstain — leave the call to run
+    /// at run time — never turn this into an error.
+    Abstain,
+}
+
+impl MathFuncError {
+    /// C's verbatim message, or `""` for the two refusals that have none of
+    /// their own ([`Self::UnknownFunction`] / [`Self::WrongArgCount`] are
+    /// worded by the caller, which knows the invoked spelling, and
+    /// [`Self::Abstain`] is not an error at all).
+    #[must_use]
+    pub fn message(self) -> &'static str {
+        match self {
+            MathFuncError::IntegerOverflow => super::errors::IOVERFLOW_MESSAGE,
+            MathFuncError::NotANumber => super::errors::NAN_MESSAGE,
+            MathFuncError::Domain => super::errors::DOMAIN_MESSAGE,
+            MathFuncError::NegativeSqrt => "square root of negative argument",
+            _ => "",
+        }
+    }
+
+    /// C's verbatim `-errorcode`, or `""` when the caller supplies it.
+    /// `isqrt`'s negative-operand error reuses the ordinary domain code
+    /// (tclsh verified), even though its message differs.
+    #[must_use]
+    pub fn error_code(self) -> &'static str {
+        match self {
+            MathFuncError::IntegerOverflow => super::errors::IOVERFLOW_CODE,
+            MathFuncError::NotANumber => super::errors::NAN_CODE,
+            MathFuncError::Domain | MathFuncError::NegativeSqrt => super::errors::DOMAIN_CODE,
+            _ => "",
+        }
+    }
+}
+
+/// Whether `name` is one of the classification predicates that *inspect* a
+/// NaN or infinity rather than computing with it — the functions for which a
+/// NaN operand is the point, not an error (`isnan(NaN)` is `1`).
+fn inspects_non_finite(name: &str) -> bool {
+    matches!(
+        name,
+        "isnan" | "isinf" | "isfinite" | "isnormal" | "issubnormal" | "isunordered" | "signbit"
+    )
+}
+
+/// The integer conversions: an infinity is `ARITH IOVERFLOW` here, while
+/// `abs(Inf)` / `double(Inf)` / `floor(Inf)` all answer `Inf` (tclsh
+/// verified).
+fn converts_to_integer(name: &str) -> bool {
+    matches!(name, "entier" | "int" | "wide" | "round" | "isqrt")
+}
+
+/// Dispatch with an **error channel**: the same table as
+/// [`dispatch_with_backend_int_width`], but each refusal keeps the class C
+/// reports it as, so a runtime can stamp the right message and `-errorcode`
+/// (#1581) and a const-folder can tell "this would raise" from "I cannot
+/// represent the answer" ([`MathFuncError::Abstain`]).
+///
+/// A const-folder must abstain on **every** `Err`, never fold one into a
+/// value: the erroring call may sit in a branch that never runs.
+///
+/// # Errors
+/// See [`MathFuncError`] for the classes and their C message/`-errorcode`.
+pub fn try_dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    int_width: IntWidth,
+) -> Result<NumValue<B>, MathFuncError> {
+    let Some(spec) = spec(name) else {
+        return Err(MathFuncError::UnknownFunction);
+    };
+    let n = args.len();
+    if n < usize::from(spec.arity.min) || spec.arity.max.is_some_and(|m| n > usize::from(m)) {
+        return Err(MathFuncError::WrongArgCount);
+    }
+    if !inspects_non_finite(name) {
+        // C converts each operand before computing, and the two non-finite
+        // refusals it raises there outrank any later domain error.
+        for arg in args {
+            if let NumValue::Float(f) = arg {
+                if f.is_nan() {
+                    return Err(MathFuncError::NotANumber);
+                }
+                if f.is_infinite() && converts_to_integer(name) {
+                    return Err(MathFuncError::IntegerOverflow);
+                }
+            }
+        }
+    }
+    if name == "isqrt" && is_negative(&args[0]) {
+        return Err(MathFuncError::NegativeSqrt);
+    }
+    dispatch_with_backend_int_width(name, args, int_width).ok_or_else(|| {
+        // A finite operand the backend cannot represent exactly (no bignum
+        // rung), or `int()` with an unresolved release, is an abstention —
+        // everything else that declines is a real domain error.
+        if abstains(name, args, int_width) {
+            MathFuncError::Abstain
+        } else {
+            MathFuncError::Domain
+        }
+    })
+}
+
+/// Whether `v` is negative (`isqrt`'s own refusal, which C words specially).
+fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> bool {
+    match v {
+        NumValue::Int(i) => *i < 0,
+        NumValue::Big(b) => b.is_negative(),
+        NumValue::Float(f) => *f < 0.0,
+    }
+}
+
+/// Whether a `None` from the value table means "no answer this caller can
+/// carry" rather than "C would raise a domain error": an exact conversion
+/// whose result needs a bignum rung the backend lacks, or `int()` under an
+/// unresolved release.
+fn abstains<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    int_width: IntWidth,
+) -> bool {
+    if !converts_to_integer(name) {
+        return false;
+    }
+    let beyond_wide = match &args[0] {
+        NumValue::Float(f) => f.is_finite() && finite_trunc_to_i64(*f).is_none(),
+        NumValue::Big(b) => b.to_i64().is_none(),
+        NumValue::Int(_) => false,
+    };
+    beyond_wide
+        && (B::from_f64_trunc(1.0e300).is_none()
+            || (name == "int" && int_width == IntWidth::Unresolved))
+}
+
 /// Dispatch a math function by (lowercased) `name` over already-evaluated
 /// numeric `args`. Returns `None` for an unknown function, a wrong argument
 /// count, or a domain error (matching the const-folder "give up" / runtime
-/// "fall through" contract). `rand`/`srand` are the caller's responsibility.
+/// "fall through" contract). `rand`/`srand` are the caller's responsibility
+/// ([`super::rand`] owns their generator).
+///
+/// Release-agnostic: `int()` abstains where 8.6 and 9.0 disagree
+/// ([`IntWidth::Unresolved`]).
 #[must_use]
 pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     dispatch_with_backend(name, args)
 }
 
 /// Dispatch through the same math-function table while preserving the
-/// caller's arbitrary-precision integer backend.
+/// caller's arbitrary-precision integer backend, release-agnostic
+/// ([`IntWidth::Unresolved`]).
 #[must_use]
 pub fn dispatch_with_backend<B: super::super::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
+) -> Option<NumValue<B>> {
+    dispatch_with_backend_int_width(name, args, IntWidth::Unresolved)
+}
+
+/// Dispatch with the caller's backend **and** its resolved release, so
+/// `int()` answers with that release's width.
+#[must_use]
+pub fn dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    int_width: IntWidth,
 ) -> Option<NumValue<B>> {
     match name {
         "min" | "max" => min_max(name, args),
@@ -168,7 +393,7 @@ pub fn dispatch_with_backend<B: super::super::number_tower::BigIntOps>(
         }
         "abs" | "int" | "entier" | "wide" | "double" | "bool" | "round" | "ceil" | "floor"
         | "isqrt" | "isinf" | "isnan" | "isfinite" | "isnormal" | "issubnormal" | "signbit" => {
-            type_conv(name, args)
+            type_conv(name, args, int_width)
         }
         "isunordered" => is_unordered(args),
         "ldexp" => ldexp_fn(args),
@@ -580,7 +805,32 @@ fn finite_trunc_to_i64(f: f64) -> Option<i64> {
     Some(truncated as i64)
 }
 
-fn finite_round_to_i64(f: f64) -> Option<i64> {
+/// The exact integer value of a finite double, truncated toward zero: an
+/// `Int` when it fits a wide, otherwise the backend's arbitrary-precision
+/// rung (C's `Tcl_InitBignumFromDouble`). `None` for a non-finite operand, or
+/// for a backend with no bignum rung — [`Num`], the const-folder's shape,
+/// which then abstains rather than folding a lossy answer.
+fn trunc_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
+    if let Some(i) = finite_trunc_to_i64(f) {
+        return Some(NumValue::Int(i));
+    }
+    B::from_f64_trunc(f).map(NumValue::Big)
+}
+
+/// C's `wide()` window: the low 64 bits of an integer, two's-complement
+/// folded (`wide(2**64 + 1)` is `1`). A value already on the wide rung is its
+/// own window.
+fn wide_window<B: super::super::number_tower::BigIntOps>(v: NumValue<B>) -> NumValue<B> {
+    match v {
+        NumValue::Big(b) => NumValue::Int(b.to_i64_wrapping()),
+        other => other,
+    }
+}
+
+/// `round()`'s exact conversion: half away from zero (C's
+/// `floor(d + 0.5)` / `ceil(d - 0.5)`), then the same exact truncation —
+/// tclsh's `round(1e300)` is the full 301-digit integer in every release.
+fn round_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
     if !f.is_finite() {
         return None;
     }
@@ -589,7 +839,7 @@ fn finite_round_to_i64(f: f64) -> Option<i64> {
     } else {
         (f - 0.5).ceil()
     };
-    finite_trunc_to_i64(rounded)
+    trunc_exact(rounded)
 }
 
 /// The exact integer square root of a non-negative `i`, `isqrt`'s core.
@@ -812,9 +1062,20 @@ fn fma_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Opt
     }
 }
 
+/// `entier()`'s conversion — the exact, unbounded integer value of any
+/// numeric operand (TIP 237). `int()`/`wide()` are this plus a window.
+fn entier_of<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> Option<NumValue<B>> {
+    match v {
+        NumValue::Int(i) => Some(NumValue::Int(*i)),
+        NumValue::Big(b) => Some(NumValue::Big(b.clone())),
+        NumValue::Float(f) => trunc_exact(*f),
+    }
+}
+
 fn type_conv<B: super::super::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
+    int_width: IntWidth,
 ) -> Option<NumValue<B>> {
     if vals.len() != 1 {
         return None;
@@ -857,22 +1118,33 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
             NumValue::Big(b) => Some(NumValue::Big(b.abs())),
             NumValue::Float(f) => Some(NumValue::Float(f.abs())),
         },
-        "entier" => match v {
-            NumValue::Int(i) => Some(NumValue::Int(*i)),
-            NumValue::Big(b) => Some(NumValue::Big(b.clone())),
-            NumValue::Float(f) => finite_trunc_to_i64(*f).map(NumValue::Int),
-        },
-        "int" | "wide" => match v {
-            NumValue::Int(i) => Some(NumValue::Int(*i)),
-            NumValue::Big(b) => Some(NumValue::Int(b.to_i64_wrapping())),
-            NumValue::Float(f) => finite_trunc_to_i64(*f).map(NumValue::Int),
+        // TIP 237: `entier()` is unbounded in every release — a double outside
+        // the wide range becomes the exact integer, not a domain error
+        // (tclsh: `entier(1e300)` is all 301 digits).
+        "entier" => entier_of(v),
+        // `wide()` truncates then takes the low 64 bits, in every release.
+        "wide" => entier_of(v).map(wide_window),
+        // `int()` is the one release-split conversion: 9.0 binds it to the
+        // unbounded `ExprIntFunc`, 8.4-8.6 keep the 64-bit window.
+        "int" => match int_width {
+            IntWidth::Unbounded => entier_of(v),
+            IntWidth::Windowed => entier_of(v).map(wide_window),
+            // Answer only where the releases agree; never fold a guess.
+            IntWidth::Unresolved => match v {
+                NumValue::Int(i) => Some(NumValue::Int(*i)),
+                NumValue::Big(b) => b.to_i64().map(NumValue::Int),
+                NumValue::Float(f) => finite_trunc_to_i64(*f).map(NumValue::Int),
+            },
         },
         "double" => Some(NumValue::Float(v.as_f64())),
         "bool" => Some(NumValue::Int(i64::from(v.is_truthy()))),
+        // `round()` is unbounded in every release too (tclsh 8.6/9.0:
+        // `round(1e300)` is the full exact integer, `round(2**200)` is the
+        // integer itself).
         "round" => match v {
             NumValue::Int(i) => Some(NumValue::Int(*i)),
             NumValue::Big(b) => Some(NumValue::Big(b.clone())),
-            NumValue::Float(f) => finite_round_to_i64(*f).map(NumValue::Int),
+            NumValue::Float(f) => round_exact(*f),
         },
         "ceil" => Some(NumValue::Float(v.as_f64().ceil())),
         "floor" => Some(NumValue::Float(v.as_f64().floor())),
@@ -884,9 +1156,15 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
         "isqrt" => match v {
             NumValue::Int(i) if *i >= 0 => Some(NumValue::Int(exact_isqrt(*i))),
             NumValue::Big(b) => super::super::number_tower::int_sqrt(b).map(NumValue::Big),
-            NumValue::Float(f) if *f >= 0.0 => {
-                finite_trunc_to_i64(*f).map(exact_isqrt).map(NumValue::Int)
-            }
+            // A float operand truncates first, exactly like an integer one,
+            // so a beyond-wide magnitude keeps its exact root rather than
+            // becoming a domain error (tclsh: `isqrt(1e300)` is a 151-digit
+            // integer).
+            NumValue::Float(f) if *f >= 0.0 => match trunc_exact::<B>(*f)? {
+                NumValue::Int(i) => Some(NumValue::Int(exact_isqrt(i))),
+                NumValue::Big(b) => super::super::number_tower::int_sqrt(&b).map(NumValue::Big),
+                NumValue::Float(_) => None,
+            },
             _ => None,
         },
         _ => None,
@@ -953,6 +1231,12 @@ mod tests {
             dispatch("int", &[Num::Float(I64_MIN_F64)]),
             Some(Num::Int(i64::MIN))
         );
+        // `Num` is `NumValue<NoBig>` — the backend-less shape a const-folder
+        // uses. A double outside the wide range has no representation there,
+        // so the conversion *abstains* (the folder leaves the call to run at
+        // run time) rather than folding a lossy or wrong value. An adopter
+        // with a real bignum rung gets the exact answer instead — see
+        // `bignum_backed_conversions_are_exact`.
         assert_eq!(dispatch("int", &[Num::Float(1.0e20)]), None);
         assert_eq!(dispatch("entier", &[Num::Float(1.0e20)]), None);
         assert_eq!(dispatch("wide", &[Num::Float(1.0e20)]), None);
@@ -1315,5 +1599,160 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    /// #1382 — with a real arbitrary-precision backend, `entier`/`round`
+    /// convert a double of any magnitude exactly (TIP 237), and
+    /// `wide` truncates then takes the low 64 bits. Every expectation is
+    /// tclsh 9.0.4 / 8.6.16 output (the two releases agree on all of these).
+    #[cfg(feature = "num-bigint")]
+    #[test]
+    fn bignum_backed_conversions_are_exact() {
+        use num_bigint::BigInt;
+        type N = NumValue<BigInt>;
+        let big = |s: &str| BigInt::parse_bytes(s.as_bytes(), 10).expect("decimal");
+
+        // tclsh: `entier(1e300)` is a 301-digit integer, `1e300`'s exact
+        // double value — not `10^300`.
+        let want_1e300 = big(
+            "1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160",
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("entier", &[N::Float(1.0e300)]),
+            Some(N::Big(want_1e300.clone()))
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("round", &[N::Float(1.0e300)]),
+            Some(N::Big(want_1e300.clone()))
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("round", &[N::Float(-1.0e300)]),
+            Some(N::Big(-want_1e300))
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("entier", &[N::Float(1.0e20)]),
+            Some(N::Big(big("100000000000000000000")))
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("round", &[N::Float(1.0e20)]),
+            Some(N::Big(big("100000000000000000000")))
+        );
+        // `wide(1e20)`: truncate, then the low 64 bits — both releases.
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("wide", &[N::Float(1.0e20)]),
+            Some(N::Int(7_766_279_631_452_241_920))
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("wide", &[N::Float(-1.0e20)]),
+            Some(N::Int(-7_766_279_631_452_241_920))
+        );
+        // A value that still fits a wide stays on the wide rung.
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("entier", &[N::Float(1.9)]),
+            Some(N::Int(1))
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("entier", &[N::Float(-1.9)]),
+            Some(N::Int(-1))
+        );
+        // Non-finite operands stay refusals (the caller's IOVERFLOW / NaN
+        // errors).
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("entier", &[N::Float(f64::INFINITY)]),
+            None
+        );
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("round", &[N::Float(f64::NAN)]),
+            None
+        );
+        // tclsh: `isqrt(1e300)` is a 151-digit integer, not the root of a
+        // saturated wide.
+        assert_eq!(
+            dispatch_with_backend::<BigInt>("isqrt", &[N::Float(1.0e300)]),
+            Some(N::Big(big(
+                "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240"
+            )))
+        );
+    }
+
+    /// #1382 — `int()` is the one release-split conversion. Measured:
+    /// tclsh8.6.16 `int(1e20)` is `7766279631452241920` and `int(2**64+1)` is
+    /// `1`; tclsh9.0.4 gives `100000000000000000000` and
+    /// `18446744073709551617`.
+    #[cfg(feature = "num-bigint")]
+    #[test]
+    fn int_follows_the_release_width() {
+        use num_bigint::BigInt;
+        type N = NumValue<BigInt>;
+        let big = |s: &str| BigInt::parse_bytes(s.as_bytes(), 10).expect("decimal");
+        let call = |w| dispatch_with_backend_int_width::<BigInt>("int", &[N::Float(1.0e20)], w);
+
+        assert_eq!(
+            call(IntWidth::Unbounded),
+            Some(N::Big(big("100000000000000000000")))
+        );
+        assert_eq!(
+            call(IntWidth::Windowed),
+            Some(N::Int(7_766_279_631_452_241_920))
+        );
+        // Unresolved never guesses: it abstains exactly where the two
+        // releases disagree, so a const-folder cannot bake in the wrong one.
+        assert_eq!(call(IntWidth::Unresolved), None);
+
+        let two_64_1 = N::Big(big("18446744073709551617"));
+        assert_eq!(
+            dispatch_with_backend_int_width::<BigInt>(
+                "int",
+                std::slice::from_ref(&two_64_1),
+                IntWidth::Unbounded
+            ),
+            Some(two_64_1.clone())
+        );
+        assert_eq!(
+            dispatch_with_backend_int_width::<BigInt>(
+                "int",
+                std::slice::from_ref(&two_64_1),
+                IntWidth::Windowed
+            ),
+            Some(N::Int(1))
+        );
+        assert_eq!(
+            dispatch_with_backend_int_width::<BigInt>(
+                "int",
+                std::slice::from_ref(&two_64_1),
+                IntWidth::Unresolved
+            ),
+            None
+        );
+
+        // `entier` and `wide` are release-invariant, so every width agrees.
+        for w in [
+            IntWidth::Unbounded,
+            IntWidth::Windowed,
+            IntWidth::Unresolved,
+        ] {
+            assert_eq!(
+                dispatch_with_backend_int_width::<BigInt>("entier", &[N::Float(1.0e20)], w),
+                Some(N::Big(big("100000000000000000000"))),
+                "entier at {w:?}"
+            );
+            assert_eq!(
+                dispatch_with_backend_int_width::<BigInt>("wide", &[N::Float(1.0e20)], w),
+                Some(N::Int(7_766_279_631_452_241_920)),
+                "wide at {w:?}"
+            );
+        }
+        assert_eq!(
+            IntWidth::for_tcl_version(tcl_dialect::TclVersion::V8_6),
+            IntWidth::Windowed
+        );
+        assert_eq!(
+            IntWidth::for_tcl_version(tcl_dialect::TclVersion::V9_0),
+            IntWidth::Unbounded
+        );
+        assert_eq!(
+            IntWidth::for_tcl_version(tcl_dialect::TclVersion::V9_1),
+            IntWidth::Unbounded
+        );
     }
 }

@@ -30,6 +30,9 @@ pub enum CodegenAbiValueType {
     I32,
     /// A WASM i64 scalar, used for guard tokens and stable identity values.
     I64,
+    /// A WASM f64 scalar — the native representation of a Tcl double at a
+    /// typed-value boundary.
+    F64,
 }
 
 /// One compiler/runtime import descriptor.
@@ -50,11 +53,17 @@ const I64: &[CodegenAbiValueType] = &[CodegenAbiValueType::I64];
 const I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 2];
 const I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 3];
 const I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 4];
+const I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 5];
 const I32_I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 6];
 const I32_I32_I32_I32_I64_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I32,
     CodegenAbiValueType::I32,
     CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I64,
+    CodegenAbiValueType::I32,
+];
+const I32_I64_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I32,
     CodegenAbiValueType::I64,
     CodegenAbiValueType::I32,
@@ -65,6 +74,7 @@ const I64_I32_I32_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I32,
     CodegenAbiValueType::I32,
 ];
+const F64: &[CodegenAbiValueType] = &[CodegenAbiValueType::F64];
 const NONE: &[CodegenAbiValueType] = &[];
 
 const fn tcl_import(
@@ -159,6 +169,95 @@ pub enum CodegenAbiImportId {
     VarGetElement,
     /// Join evaluated word parts into one owned Tcl value.
     WordConcat,
+    /// Materialise a native `f64` as an owned Tcl double.
+    ValueNewDouble,
+    /// Materialise a native boolean as an owned Tcl boolean (an integer `0`/`1`).
+    ValueNewBool,
+    /// Read a Tcl value as a native `i64`, writing it through an out pointer.
+    ///
+    /// Parameters are the borrowed value handle and an `i64` out pointer; the
+    /// i32 result is `0` on success, `1` when the runtime set a Tcl error on
+    /// the interpreter and left the out storage untouched. A successful read
+    /// caches the parsed internal rep onto the value.
+    ValueGetWideInt,
+    /// Read a Tcl value as a native `f64` — [`Self::ValueGetWideInt`]'s
+    /// contract over an `f64` out pointer.
+    ValueGetDouble,
+    /// Read a Tcl value in boolean context — [`Self::ValueGetWideInt`]'s
+    /// contract over an `i32` (`0`/`1`) out pointer.
+    ValueGetBool,
+    /// Bind an indexed compiled slot to a named frame cell and store a value.
+    ///
+    /// The ABI v2 spelling of [`Self::LocalBind`]; both address the same cell.
+    SlotBind,
+    /// Assign the variable an indexed compiled slot addresses.
+    SlotSet,
+    /// Read the variable an indexed compiled slot addresses.
+    SlotGet,
+    /// `incr` the variable an indexed compiled slot addresses by a native i64,
+    /// writing the new value through an `i64` out pointer.
+    ///
+    /// The i32 result is `0` on success, `1` when the runtime set a Tcl error
+    /// on the interpreter (a non-integer cell, a `const`, a write-trace error,
+    /// or a new value past the wide range).
+    SlotIncrI64,
+    /// `append` a value onto the variable an indexed compiled slot addresses;
+    /// the i32 result is the Tcl completion code.
+    SlotAppend,
+    /// `lappend` a value onto the variable an indexed compiled slot addresses;
+    /// the i32 result is the Tcl completion code.
+    SlotLappend,
+    /// Whether any variable trace can observe accesses to a named variable —
+    /// the runtime half of a guarded `TraceBarrier`.
+    ///
+    /// Parameters are the name pointer and length; the i32 result is `1` when
+    /// traced and `0` when not. `0` is a promise that nothing observes the
+    /// cell, so generated code may take its native path.
+    VarTraced,
+    /// [`Self::VarTraced`] for the variable an indexed compiled slot addresses.
+    SlotTraced,
+    /// Enter a compiled activation, so compiled code counts as an eval-loop
+    /// activation for the outermost-eval error-publication rule.
+    ///
+    /// Takes no parameters and returns an i32 status: zero on success (the
+    /// caller owes exactly one [`Self::ActivationLeave`]), non-zero when the
+    /// activation was refused and **no** activation is held.
+    ActivationEnter,
+    /// Leave a compiled activation, passing the activation's Tcl completion
+    /// code so the outermost one publishes an uncaught error's trace.
+    ActivationLeave,
+    /// Store an owned value into the array element `name(key)`; the element
+    /// half of [`Self::VarSet`]. Parameters are the name pointer and length,
+    /// the key pointer and length, and the adopted value; the i32 result is
+    /// the Tcl completion code.
+    VarSetElement,
+    /// Tcl `incr` on a named variable by a borrowed boxed delta, returning
+    /// the cell's new value with one owned reference, or null with the
+    /// interpreter carrying the Tcl error.
+    VarIncr,
+    /// Tcl `append` (`list` = 0) or `lappend` (`list` = 1) of `argc`
+    /// borrowed values (an argv pointer) onto a named variable; the i32
+    /// result is the Tcl completion code.
+    VarUpdate,
+    /// Read a boxed value as a native `i64` when it has that representation,
+    /// writing it through an `i64` out pointer. The i32 result is `1` when
+    /// the value was written and `0` when it is not a wide integer — and
+    /// then **no** interpreter error is set, unlike [`Self::ValueGetWideInt`].
+    ValueTryWideInt,
+    /// [`Self::ValueTryWideInt`] over an `f64` out pointer.
+    ValueTryDouble,
+    /// Evaluate a borrowed boxed expression object with the runtime's
+    /// expression evaluator, writing the completion triple to the
+    /// caller-owned completion storage. The i32 result is ABI status.
+    ExprEval,
+    /// Apply the `expr` operator spelled by a name pointer and length to
+    /// `argc` borrowed operands (an argv pointer) through the runtime's
+    /// `::tcl::mathop` implementation, writing the completion triple.
+    MathOp,
+    /// Call `::tcl::mathfunc::<name>` (name pointer and length) through
+    /// ordinary command dispatch over `argc` borrowed arguments (an argv
+    /// pointer), writing the completion triple.
+    MathFunc,
 }
 
 impl CodegenAbiImportId {
@@ -215,6 +314,31 @@ impl CodegenAbiImportId {
                 parameters: I32_I32,
                 results: I32,
             },
+            Self::ValueNewDouble => tcl_import("tcl_value_new_double", F64, I32),
+            Self::ValueNewBool => tcl_import("tcl_value_new_bool", I32, I32),
+            Self::ValueGetWideInt => tcl_import("tcl_value_get_wide_int", I32_I32, I32),
+            Self::ValueGetDouble => tcl_import("tcl_value_get_double", I32_I32, I32),
+            Self::ValueGetBool => tcl_import("tcl_value_get_bool", I32_I32, I32),
+            Self::SlotBind => tcl_import("tcl_codegen_slot_bind", I32_I32_I32_I32, I32),
+            Self::SlotSet => tcl_import("tcl_codegen_slot_set", I32_I32, I32),
+            Self::SlotGet => tcl_import("tcl_codegen_slot_get", I32, I32),
+            Self::SlotIncrI64 => tcl_import("tcl_codegen_slot_incr_i64", I32_I64_I32, I32),
+            Self::SlotAppend => tcl_import("tcl_codegen_slot_append", I32_I32, I32),
+            Self::SlotLappend => tcl_import("tcl_codegen_slot_lappend", I32_I32, I32),
+            Self::VarTraced => tcl_import("tcl_codegen_var_traced", I32_I32, I32),
+            Self::SlotTraced => tcl_import("tcl_codegen_slot_traced", I32, I32),
+            Self::ActivationEnter => tcl_import("tcl_codegen_activation_enter", NONE, I32),
+            Self::ActivationLeave => tcl_import("tcl_codegen_activation_leave", I32, NONE),
+            Self::VarSetElement => {
+                tcl_import("tcl_codegen_var_set_element", I32_I32_I32_I32_I32, I32)
+            }
+            Self::VarIncr => tcl_import("tcl_codegen_var_incr", I32_I32_I32, I32),
+            Self::VarUpdate => tcl_import("tcl_codegen_var_update", I32_I32_I32_I32_I32, I32),
+            Self::ValueTryWideInt => tcl_import("tcl_codegen_value_try_wide_int", I32_I32, I32),
+            Self::ValueTryDouble => tcl_import("tcl_codegen_value_try_double", I32_I32, I32),
+            Self::ExprEval => tcl_import("tcl_codegen_expr_eval", I32_I32, I32),
+            Self::MathOp => tcl_import("tcl_codegen_mathop", I32_I32_I32_I32_I32, I32),
+            Self::MathFunc => tcl_import("tcl_codegen_mathfunc", I32_I32_I32_I32_I32, I32),
         }
     }
 }
@@ -393,6 +517,169 @@ mod tests {
             assert_eq!(descriptor.name, name, "{id:?}");
             assert_eq!(descriptor.parameters, parameters, "{id:?}");
             assert_eq!(descriptor.results, results, "{id:?}");
+        }
+    }
+
+    #[test]
+    fn typed_value_imports_carry_native_scalars_and_an_out_pointer_status() {
+        use CodegenAbiValueType::{F64, I32};
+
+        let new_double = CodegenAbiImportId::ValueNewDouble.descriptor();
+        assert_eq!(new_double.name, "tcl_value_new_double");
+        assert_eq!(new_double.parameters, &[F64][..]);
+        assert_eq!(new_double.results, &[I32][..]);
+
+        let new_bool = CodegenAbiImportId::ValueNewBool.descriptor();
+        assert_eq!(new_bool.name, "tcl_value_new_bool");
+        assert_eq!(new_bool.parameters, &[I32][..]);
+        assert_eq!(new_bool.results, &[I32][..]);
+
+        // Every getter is (value handle, out pointer) -> status, so generated
+        // code has one shape to lower for all three.
+        for (id, name) in [
+            (
+                CodegenAbiImportId::ValueGetWideInt,
+                "tcl_value_get_wide_int",
+            ),
+            (CodegenAbiImportId::ValueGetDouble, "tcl_value_get_double"),
+            (CodegenAbiImportId::ValueGetBool, "tcl_value_get_bool"),
+        ] {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl", "{id:?}");
+            assert_eq!(descriptor.name, name, "{id:?}");
+            assert_eq!(descriptor.parameters, &[I32, I32][..], "{id:?}");
+            assert_eq!(descriptor.results, &[I32][..], "{id:?}");
+        }
+    }
+
+    #[test]
+    fn indexed_slot_imports_address_a_cell_and_keep_the_legacy_local_spellings() {
+        use CodegenAbiValueType::{I32, I64};
+
+        let expected = [
+            (
+                CodegenAbiImportId::SlotBind,
+                "tcl_codegen_slot_bind",
+                &[I32, I32, I32, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotSet,
+                "tcl_codegen_slot_set",
+                &[I32, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotGet,
+                "tcl_codegen_slot_get",
+                &[I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotIncrI64,
+                "tcl_codegen_slot_incr_i64",
+                &[I32, I64, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotAppend,
+                "tcl_codegen_slot_append",
+                &[I32, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotLappend,
+                "tcl_codegen_slot_lappend",
+                &[I32, I32][..],
+            ),
+        ];
+        for (id, name, parameters) in expected {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl", "{id:?}");
+            assert_eq!(descriptor.name, name, "{id:?}");
+            assert_eq!(descriptor.parameters, parameters, "{id:?}");
+            assert_eq!(descriptor.results, &[I32][..], "{id:?}");
+        }
+
+        // The `local_*` spellings an already-emitted module imports keep their
+        // exact shape; the two families address the same indexed cell.
+        for (slot_id, local_id) in [
+            (CodegenAbiImportId::SlotBind, CodegenAbiImportId::LocalBind),
+            (CodegenAbiImportId::SlotSet, CodegenAbiImportId::LocalSet),
+            (CodegenAbiImportId::SlotGet, CodegenAbiImportId::LocalGet),
+        ] {
+            assert_eq!(
+                slot_id.descriptor().parameters,
+                local_id.descriptor().parameters,
+                "{slot_id:?} / {local_id:?}"
+            );
+            assert_eq!(
+                slot_id.descriptor().results,
+                local_id.descriptor().results,
+                "{slot_id:?} / {local_id:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn trace_barrier_imports_answer_a_boolean_for_a_name_or_a_slot() {
+        use CodegenAbiValueType::I32;
+
+        let by_name = CodegenAbiImportId::VarTraced.descriptor();
+        assert_eq!(by_name.module, "tcl");
+        assert_eq!(by_name.name, "tcl_codegen_var_traced");
+        assert_eq!(by_name.parameters, &[I32, I32][..]);
+        assert_eq!(by_name.results, &[I32][..]);
+
+        let by_slot = CodegenAbiImportId::SlotTraced.descriptor();
+        assert_eq!(by_slot.module, "tcl");
+        assert_eq!(by_slot.name, "tcl_codegen_slot_traced");
+        assert_eq!(by_slot.parameters, &[I32][..]);
+        assert_eq!(by_slot.results, &[I32][..]);
+    }
+
+    #[test]
+    fn compiled_activation_imports_bracket_generated_code_with_a_status_and_a_code() {
+        let enter = CodegenAbiImportId::ActivationEnter.descriptor();
+        assert_eq!(enter.module, "tcl");
+        assert_eq!(enter.name, "tcl_codegen_activation_enter");
+        assert!(enter.parameters.is_empty());
+        assert_eq!(enter.results, I32);
+
+        let leave = CodegenAbiImportId::ActivationLeave.descriptor();
+        assert_eq!(leave.module, "tcl");
+        assert_eq!(leave.name, "tcl_codegen_activation_leave");
+        assert_eq!(leave.parameters, I32);
+        assert!(leave.results.is_empty());
+    }
+
+    #[test]
+    fn native_tier_imports_carry_names_argv_and_completion_storage() {
+        use CodegenAbiValueType::I32;
+        let expected = [
+            (
+                CodegenAbiImportId::VarSetElement,
+                "tcl_codegen_var_set_element",
+                5,
+            ),
+            (CodegenAbiImportId::VarIncr, "tcl_codegen_var_incr", 3),
+            (CodegenAbiImportId::VarUpdate, "tcl_codegen_var_update", 5),
+            (
+                CodegenAbiImportId::ValueTryWideInt,
+                "tcl_codegen_value_try_wide_int",
+                2,
+            ),
+            (
+                CodegenAbiImportId::ValueTryDouble,
+                "tcl_codegen_value_try_double",
+                2,
+            ),
+            (CodegenAbiImportId::ExprEval, "tcl_codegen_expr_eval", 2),
+            (CodegenAbiImportId::MathOp, "tcl_codegen_mathop", 5),
+            (CodegenAbiImportId::MathFunc, "tcl_codegen_mathfunc", 5),
+        ];
+        for (id, name, parameters) in expected {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl", "{id:?}");
+            assert_eq!(descriptor.name, name, "{id:?}");
+            assert_eq!(descriptor.parameters.len(), parameters, "{id:?}");
+            assert!(descriptor.parameters.iter().all(|value| *value == I32));
+            assert_eq!(descriptor.results, &[I32][..], "{id:?}");
         }
     }
 

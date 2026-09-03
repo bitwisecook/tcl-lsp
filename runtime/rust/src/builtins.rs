@@ -28,7 +28,11 @@
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
 use crate::frame::{split_array_ref, VarError};
-use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
+use crate::interp::{obj_bytes, Code, Interp};
+// The transient `1` of a tower `incr` is the only fresh object left to drop
+// by hand; every other path now stores through `store_var_result`.
+#[cfg(have_tommath)]
+use crate::interp::drop_fresh;
 use crate::obj::{self, TclObj};
 
 /// Register the starter builtins on a fresh interp.
@@ -90,7 +94,8 @@ pub fn install(interp: &mut Interp) {
 
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     // A write-trace error: wrap the trace's own message (stashed in pending_err)
-    // as `can't set "name": <msg>` (C's TclObjVarErrMsg).
+    // as `can't set "name": <msg>` (C's TclObjVarErrMsg), *keeping* the
+    // errorInfo chain the trace machinery already built.
     if e == VarError::TraceError {
         let reason = interp
             .traces
@@ -98,11 +103,7 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
             .pending_err
             .take()
             .unwrap_or_default();
-        let mut msg = b"can't set \"".to_vec();
-        msg.extend_from_slice(name);
-        msg.extend_from_slice(b"\": ");
-        msg.extend_from_slice(&reason);
-        return interp.set_error(&msg);
+        return interp.var_trace_error(name, b"write", &reason);
     }
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
@@ -240,7 +241,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// bignum cell increments correctly. Object-preserving (reads the cell's value
 /// object, not its string).
 #[cfg(have_tommath)]
-fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"incr varName ?increment?");
     }
@@ -252,10 +253,13 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Current cell value (borrowed; `None` for an unset variable → the shared
     // seam treats it as 0). The increment is `argv[2]` (borrowed) or a fresh 1.
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
-    };
+    //
+    // The read goes through the read-trace chokepoint: C's `TclPtrIncrObjVar`
+    // fetches with `TclPtrGetVarIdx`, so `incr x` on a read-traced `x` fires
+    // `read` and then `write` (issue #1633). A read trace that *errors* leaves
+    // the fetch NULL, which C counts as 0 — so the error is swallowed here too,
+    // exactly as `lappend` does.
+    let cur = interp.read_for_update(&base, elem.as_deref());
     let one = obj::new_wide_int_obj(1);
     let amount = if argv.len() == 3 { argv[2] } else { one };
 
@@ -271,26 +275,21 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return interp.set_error(e.message().as_bytes()),
     };
 
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, sum),
-        None => interp.var_set(&base, sum),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(sum);
-            Code::Ok
-        }
-        Err(e) => {
-            drop_fresh(sum);
-            var_error(interp, &name, e)
-        }
+    // The protected store (#1633 row 1): a write trace that rewrites or unsets
+    // the cell drops the store's reference to this fresh sum, so a bare
+    // `set_result` would read freed memory. `cmd_var::incr_cmd` overrides this
+    // command in the table, but the body must be safe on its own — a direct
+    // caller (the codegen ABI was one) must not be able to reach a use-after-free.
+    match interp.store_var_result(&base, elem.as_deref(), sum) {
+        Ok(()) => Code::Ok,
+        Err(e) => var_error(interp, &name, e),
     }
 }
 
 /// `incr` fallback for a build without the bignum tower (`have_tommath` off):
 /// `i64` only, failing loudly on overflow rather than wrapping.
 #[cfg(not(have_tommath))]
-fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"incr varName ?increment?");
     }
@@ -321,28 +320,29 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         None => return interp.set_error(b"integer overflow (bignum promotion needs the tower)"),
     };
     let obj = obj::new_wide_int_obj(sum); // rc 0
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, obj),
-        None => interp.var_set(&base, obj),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(obj);
-            Code::Ok
-        }
-        Err(e) => {
-            drop_fresh(obj);
-            var_error(interp, &name, e)
-        }
+                                          // The protected store, as the tower build's `cmd_var::incr_cmd` uses: a
+                                          // write trace that rewrites or unsets the cell drops the store's reference
+                                          // to this fresh sum, and a bare `set_result` would then read freed memory
+                                          // (#1633 row 1). It also publishes the cell's post-trace value, which is
+                                          // what C returns.
+    match interp.store_var_result(&base, elem.as_deref(), obj) {
+        Ok(()) => Code::Ok,
+        Err(e) => var_error(interp, &name, e),
     }
 }
 
+/// The tower-less `incr`'s current-value read, through the **same**
+/// read-trace chokepoint the tower build uses.
+///
+/// C's `TclPtrIncrObjVar` fetches with `TclPtrGetVarIdx`, so `incr x` on a
+/// read-traced `x` fires `read` and then `write`, and a read trace that
+/// errors leaves the fetch NULL — which C counts as 0 (#1633, pinned in
+/// `tests/trace_semantics.rs`). Reaching for `var_get`/`var_get_elem`
+/// directly, as this did, skipped the read entirely: `incr` and an array
+/// element fired only their `write`.
 #[cfg(not(have_tommath))]
-fn read_cell(interp: &Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
-    let obj = match elem {
-        Some(k) => interp.var_get_elem(base, k),
-        None => interp.var_get(base),
-    }?;
+fn read_cell(interp: &mut Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
+    let obj = interp.read_for_update(base, elem.as_deref())?;
     Some(obj_bytes(obj))
 }
 
@@ -816,7 +816,12 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Ok(src) = core::str::from_utf8(&text) else {
         return interp.set_error(b"expr operand is not valid UTF-8");
     };
-    let node = match parse_runtime_expr(interp, src) {
+    // The one-word form — `expr {$a < $b}`, the shape every compiled or hot
+    // expression takes — is exactly the text of `argv[1]`, so its parse caches
+    // on that object. A multi-word `expr` concatenates into fresh text that
+    // belongs to no object, and re-parses.
+    let cached_on = (argv.len() == 2).then(|| argv[1]);
+    let node = match parse_runtime_expr_cached(interp, cached_on, src) {
         Ok(node) => node,
         Err(e) => {
             return match e.code {
@@ -897,7 +902,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         Some((_, line)) => interp.push_cond_line_base(line),
         None => None,
     };
-    let node = match parse_runtime_expr(interp, s) {
+    let node = match parse_runtime_expr_cached(interp, Some(cond), s) {
         Ok(node) => node,
         Err(e) => {
             if let Some(old) = saved {
@@ -944,6 +949,8 @@ fn parse_runtime_expr(
     interp: &Interp,
     source: &str,
 ) -> Result<tcl_syntax::expr::ExprNode, crate::expr::ExprError> {
+    #[cfg(test)]
+    crate::expr::note_expr_parse();
     let node = tcl_syntax::expr::parse_expr(source, None);
     tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(interp.runtime_version())
         .validate(&node)
@@ -953,6 +960,36 @@ fn parse_runtime_expr(
                 error.error_code().as_bytes().to_vec(),
             )
         })?;
+    Ok(node)
+}
+
+/// [`parse_runtime_expr`] with the parsed, validated AST cached on the object
+/// the expression text came from (`TCL_EXPR_TYPE`, [`crate::expr::cache_expr`]).
+///
+/// Without this the condition of every `if`/`while`/`for` iteration is re-lexed,
+/// re-parsed, and re-validated from its text — the runtime finding recorded as
+/// §2.6.2 of the native-lowering plan. `cached_on` is `None` where the text
+/// belongs to no single object (a multi-word `expr`), which simply re-parses.
+///
+/// Only a *successful* parse is cached: an invalid expression must raise its
+/// error on every evaluation, and caching a failure would need the message to be
+/// replayed rather than recomputed.
+#[cfg(have_tommath)]
+fn parse_runtime_expr_cached(
+    interp: &Interp,
+    cached_on: Option<*mut TclObj>,
+    source: &str,
+) -> Result<std::rc::Rc<tcl_syntax::expr::ExprNode>, crate::expr::ExprError> {
+    let version = interp.runtime_version();
+    if let Some(obj) = cached_on {
+        if let Some(node) = crate::expr::cached_expr(obj, version) {
+            return Ok(node);
+        }
+    }
+    let node = std::rc::Rc::new(parse_runtime_expr(interp, source)?);
+    if let Some(obj) = cached_on {
+        crate::expr::cache_expr(obj, version, &node);
+    }
     Ok(node)
 }
 
@@ -986,6 +1023,98 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    /// A loop's condition is parsed **once**, not once per iteration: the
+    /// parsed AST caches on the condition object as `TCL_EXPR_TYPE`. This is
+    /// the runtime finding recorded as §2.6.2 of the native-lowering plan —
+    /// `parse_runtime_expr` used to re-lex, re-parse and re-validate the
+    /// condition text on every evaluation.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_loop_condition_parses_once_for_the_whole_loop() {
+        leak_free(|i| {
+            crate::expr::reset_expr_parse_count();
+            assert_eq!(ok(i, b"set n 0; while {$n < 20} { incr n }; set n"), b"20");
+            assert_eq!(
+                crate::expr::expr_parse_count(),
+                1,
+                "twenty-one condition evaluations, one parse"
+            );
+        });
+    }
+
+    /// The cached rep sits on the condition object, keeps its spelling, and is
+    /// reused on the next evaluation of that same object.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_condition_object_caches_its_ast_and_keeps_its_spelling() {
+        leak_free(|i| {
+            let cond = crate::obj::new_string_bytes(b"1 < 2");
+            // SAFETY: the test owns this reference until it releases it below.
+            unsafe { crate::obj::incr_ref_count(cond) };
+
+            crate::expr::reset_expr_parse_count();
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(crate::expr::expr_parse_count(), 1);
+            assert!(
+                core::ptr::eq(crate::obj::obj_type_ptr(cond), &crate::expr::TCL_EXPR_TYPE),
+                "the parse caches on the condition object"
+            );
+            assert_eq!(
+                crate::interp::obj_bytes(cond),
+                b"1 < 2",
+                "the spelling survives the shimmer"
+            );
+
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(
+                crate::expr::expr_parse_count(),
+                1,
+                "the second evaluation reuses the cached AST"
+            );
+
+            // A shimmer to any other rep drops the cache, exactly like any
+            // internal rep, and the next evaluation re-parses.
+            assert_eq!(crate::list::list_length(cond), Ok(3));
+            assert!(!core::ptr::eq(
+                crate::obj::obj_type_ptr(cond),
+                &crate::expr::TCL_EXPR_TYPE
+            ));
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(crate::expr::expr_parse_count(), 2);
+
+            // SAFETY: balances the reference taken above.
+            unsafe { crate::obj::decr_ref_count(cond) };
+        });
+    }
+
+    /// The cache records the release its registry validation ran under, so an
+    /// embedder pinning another emulated Tcl re-validates rather than reusing an
+    /// admission that release never granted.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_cached_expression_is_revalidated_when_the_release_changes() {
+        leak_free(|i| {
+            let cond = crate::obj::new_string_bytes(b"1 < 2");
+            // SAFETY: the test owns this reference until it releases it below.
+            unsafe { crate::obj::incr_ref_count(cond) };
+
+            crate::expr::reset_expr_parse_count();
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(crate::expr::expr_parse_count(), 1);
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(
+                crate::expr::expr_parse_count(),
+                2,
+                "a release change stales the cached admission"
+            );
+
+            // SAFETY: balances the reference taken above.
+            unsafe { crate::obj::decr_ref_count(cond) };
+        });
     }
 
     #[test]
