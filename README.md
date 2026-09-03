@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/in
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
 | [Sublime Text](editors/sublime-text/) | Full package (.sublime-package) | Package Control or manual install | Works standalone (syntax + snippets) without LSP; enhanced with LSP package |
-| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, IntelliJ IDEA 2024.1+ |
+| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA 2024.1+ |
 
 All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 (build it with `make rust-server`, or `cargo build -p tcl-lsp-server`).
@@ -93,7 +93,8 @@ All editors connect to the native Rust binary `tcl-lsp-server` over stdio
   Lite XL, micro, CudaText, JupyterLab, Doom Emacs, and Spacemacs.
 
 **File types recognised:** the Tcl family — `.tcl`, `.tk`, `.itcl`, `.tm`,
-`.test`, `.exp`, `.expect`, `.apl`, `.tclspec` — the F5 surfaces — `.irul`,
+`.test`, `.exp`, `.expect`, `.apl`, `.tclspec`, `.sslictcl` — the F5 surfaces
+— `.irul`,
 `.irule`, `.irules`, `.iapp`, `.iappimpl`, `.impl`, `.tmsh`, `.scf` — and the
 EDA vendors' constraint and script suffixes — `.sdc`, `.upf`, `.xdc`, `.qsf`,
 `.qpf`, `.qip`, `.do`, `.globals`. Every editor's registration list is
@@ -866,6 +867,7 @@ Every feature has a KCS note: what it does, how to use it, and its settings.
 | Package Scaffolding | [`package-scaffolding`](docs/kcs/features/kcs-feature-package-scaffolding.md) |
 | tcl pkg | [`tcl-pkg`](docs/kcs/features/kcs-feature-tcl-pkg.md) |
 | tcl venv | [`tcl-venv`](docs/kcs/features/kcs-feature-tcl-venv.md) |
+| tcl docker | [`tcl-docker`](docs/kcs/features/kcs-feature-tcl-docker.md) |
 
 **Compiler, VM, and tooling**
 
@@ -918,6 +920,7 @@ single source of truth — its `display_name` is the second column.
 | `expect` | Expect |
 | `bpf` | BPF-Tcl, the eBPF packet-matching dialect |
 | `spectcl` | SpecTcl command packs (`.tclspec`) |
+| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`) |
 | `f5-irules` | F5 iRules (embedded Tcl 8.4.6) — see [README-f5.md](README-f5.md) |
 | `f5-iapps` | F5 iApps — iApp templates and implementation scripts |
 | `f5-bigip` | F5 BIG-IP `bigip.conf` / `.scf` objects |
@@ -932,6 +935,36 @@ single source of truth — its `display_name` is the second column.
 Pick one per file with a `# tcl-dialect:` comment, per project in
 configuration, or let detection choose — see
 [Automatic dialect detection](#automatic-dialect-detection) below.
+
+### Authoring a `.sslictcl` TLS declaration
+
+A `.sslictcl` document states the certificates, chains, endpoints, trust
+programs, protocol and cipher catalogues, and assurance policy of a
+deployment. It is written in Tcl *syntax* and **never evaluated** — the
+loader walks the syntax tree and constructs no interpreter — and the editor
+treats it accordingly:
+
+- **completion** offers the declaration words at the top level, and inside a
+  block exactly that block's members (`hsts { … }` offers `enabled`,
+  `max-age`, `include-subdomains`, `preload` and nothing else, because
+  nothing else can be written there);
+- **hover** and **signature help** come from the vocabulary's own
+  documentation, and **semantic tokens** paint every declaration word as a
+  keyword at any nesting depth — while a `check`'s `predicate { … }` script,
+  which the loader retains verbatim, is left alone;
+- the **outline** lists the declarations (`endpoint /Common/www`, `policy
+  corporate`) with nested blocks beneath them, and every block folds;
+- **diagnostics** are the loader's own `SSLIC1001`–`SSLIC1012` errors and
+  `SSLIC1101`–`SSLIC1103` notices, ranged over the exact word at fault, and
+  they honour the same per-code `tclLsp.diagnostics.<CODE>` switches
+  everything else does. An unrecognised word in an open block is a preserved
+  extension (`SSLIC1101`), not an unknown command — the loader owns that
+  verdict, so no unknown-command hint doubles up on it.
+
+A step-by-step walkthrough is in
+[docs/kcs/kcs-howto-author-a-sslictcl-declaration.md](docs/kcs/kcs-howto-author-a-sslictcl-declaration.md);
+the vocabulary, the open/closed block rule, and the value domains are in
+[docs/design/sslictcl-vocabulary.md](docs/design/sslictcl-vocabulary.md).
 
 ### Every package in the registry
 
@@ -952,6 +985,12 @@ to add another.
 
 Third-party and in-house commands that are not in the registry can be declared
 with [stub annotations](docs/kcs/kcs-howto-annotate-commands-with-stubs.md).
+
+A SpecTcl pack can go further and declare a shell of its own, with an
+`environment NAME { … ambient PACKAGE VERSION }` block: a library that
+comes with one shell and not another is then floored — and excused from
+`package require` — in exactly the shell that has it. See
+[how to scope an ambient package](docs/kcs/kcs-howto-scope-an-ambient-package-to-one-dialect.md).
 
 ### Dialect profiles
 
@@ -1031,14 +1070,20 @@ The dialect is selected automatically using the following priority chain
    `.irul`/`.irule`/`.irules` → `f5-irules`,
    `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.tmsh` → `f5-tmsh`,
    `.scf` → `f5-bigip`, `.exp`/`.expect` → `expect`,
-   `.tclspec` → `spectcl`, `.globals` → `cadence-eda-tcl`,
+   `.tclspec` → `spectcl`, `.sslictcl` → `sslictcl`,
+   `.globals` → `cadence-eda-tcl`,
    `.qsf`/`.qpf`/`.qip` → `intel-quartus-eda-tcl`, `.do` → `mentor-eda-tcl`,
    `.sdc`/`.upf` → `synopsys-eda-tcl`, `.xdc` → `xilinx-eda-tcl`.
    A SpecTcl pack can route further extensions to a dialect with a
    `file_extension` row, so a private library's own suffix opens in the
-   dialect it is written for.
-3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the
-   first 5 lines of a file pins the dialect for that file:
+   dialect it is written for.  VS Code and the JetBrains IDEs also register
+   those extensions with the editor itself as the pack loads, so the file
+   opens as Tcl in the first place — see
+   [A file extension my SpecTcl pack claims opens as plain text](docs/kcs/kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md).
+3. **Comment directive** -- a `# tcl-dialect: <name>` comment in the
+   first 5 lines of a file pins the dialect for that file. The name is any
+   environment name or alias (`tcl8.4`, `f5-irules`, `tk`, `wish`, a name a
+   loaded SpecTcl pack declares); an unknown name is ignored:
 
    ```tcl
    # tcl-dialect: tcl8.4
@@ -1074,6 +1119,7 @@ different Tcl versions without manual switching.
 | `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands for automating interactive programs |
 | `bpf` | BPF-Tcl: the eBPF packet-matching dialect |
 | `spectcl` | SpecTcl command packs (`.tclspec`): the declarations that teach the registry a private library |
+| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`): the certificates, endpoints, trust programs, and assurance policy of a deployment, read and never evaluated |
 
 **Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
 when the corresponding `package require` appears in the file.  No manual
@@ -1392,6 +1438,15 @@ tclvm -c 'puts [expr {6 * 7}]'
 # Show bytecode disassembly without executing
 tcl dis script.tcl
 ```
+
+#### C extension shim
+
+A command written against the C Tcl API can run on the bytecode VM through
+the `tcl-cshim` crate: compile the extension against `rust/tcl-cshim/include/tclshim.h`
+instead of `tcl.h` and load its `<Pkg>_Init` from Rust. Shimmed extensions are
+trusted native code loaded only by host configuration — a spec pack cannot
+reference one. See
+[docs/design/c-extension-shim.md](docs/design/c-extension-shim.md).
 
 ### eBPF (BPF-Tcl)
 
@@ -1971,6 +2026,11 @@ make build-editor-vsix     # build the VS Code .vsix
 before pushing, how to add a diagnostic or a formatter option, the repository
 layout, and the code-style rules — see **[AGENTS.md](AGENTS.md)** and
 **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+Tcl VM conformance work uses the shared C Tcl oracle harness. See
+**[How to run the C tcltest suite through the bytecode VM](docs/kcs/kcs-howto-run-tcltest-bundles.md)**;
+for example, a narrow Tcl 9 comparison is `cargo xtask tcltest-sweep --backend
+both --tcl-root ~/src/tcl9.0.4 --stem parse --match 'parse-18.*'`.
 
 ## Acknowledgements
 

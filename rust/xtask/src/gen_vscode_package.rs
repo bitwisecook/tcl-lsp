@@ -56,6 +56,7 @@ const SECTIONS: &[(&str, &str)] = &[
     ("irules_security", "Diagnostics — iRules"),
     ("irules_variable", "Diagnostics — iRules"),
     ("bigip", "Diagnostics — BIG-IP Configuration"),
+    ("sslictcl", "Diagnostics — SslicTcl"),
     ("tclpkg", "Diagnostics — Package Manager"),
 ];
 

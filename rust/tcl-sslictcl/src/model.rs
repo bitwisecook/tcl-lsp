@@ -10,7 +10,10 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::dataset::{ProgramAnchor, TrustProgramSnapshot};
+use crate::estimate::{EstimateSeverity, Grade};
 use crate::testssl::TestSslImport;
+use crate::trust::{ClientFamily, SourceProvenance, TrustPurpose};
 
 /// A TLS wire protocol version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -130,14 +133,304 @@ pub struct Endpoint {
     /// Enabled signature schemes.
     #[serde(default)]
     pub signature_schemes: Vec<String>,
-    /// Certificate declaration identifiers, leaf first.
+    /// Certificate declaration identifiers, leaf first. Filled from
+    /// [`Self::chain`] by the loader's resolution pass when a chain is named.
     #[serde(default)]
     pub certificate_chain: Vec<String>,
+    /// Name of the `chain` declaration this endpoint uses, when it names one.
+    /// Mutually exclusive with a literal `certificate-chain` list.
+    #[serde(default)]
+    pub chain: Option<String>,
+    /// Name of the `policy` declaration evaluated against this endpoint.
+    #[serde(default)]
+    pub policy: Option<String>,
     /// Configured or observed HSTS policy.
     pub hsts: Option<HstsPolicy>,
     /// Source-specific fields retained without teaching this crate the source.
     #[serde(default)]
     pub extensions: BTreeMap<String, Vec<TlsValue>>,
+}
+
+/// Catalogue judgement carried by a `protocol` or `cipher` fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TlsStatus {
+    /// Preferred for new deployments.
+    Recommended,
+    /// Permitted, but not preferred.
+    Acceptable,
+    /// Retained only for compatibility.
+    Deprecated,
+    /// Must not be offered.
+    Prohibited,
+}
+
+impl TlsStatus {
+    /// The stable `SslicTcl` spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Recommended => "recommended",
+            Self::Acceptable => "acceptable",
+            Self::Deprecated => "deprecated",
+            Self::Prohibited => "prohibited",
+        }
+    }
+}
+
+impl fmt::Display for TlsStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for TlsStatus {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "recommended" => Ok(Self::Recommended),
+            "acceptable" => Ok(Self::Acceptable),
+            "deprecated" => Ok(Self::Deprecated),
+            "prohibited" => Ok(Self::Prohibited),
+            _ => Err(format!("unknown status `{value}`")),
+        }
+    }
+}
+
+/// A declared catalogue fact about one protocol version.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ProtocolFact {
+    /// Catalogue judgement.
+    #[serde(default)]
+    pub status: Option<TlsStatus>,
+    /// Protocol component score, 0-100, overriding the built-in heuristic.
+    #[serde(default)]
+    pub score: Option<u8>,
+    /// Free-form citation for the judgement.
+    #[serde(default)]
+    pub reference: Option<String>,
+}
+
+/// A declared catalogue fact about one cipher suite.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct CipherFact {
+    /// IANA registry name.
+    #[serde(default)]
+    pub iana_name: Option<String>,
+    /// `OpenSSL` name.
+    #[serde(default)]
+    pub openssl_name: Option<String>,
+    /// Key-exchange primitive.
+    #[serde(default)]
+    pub key_exchange: Option<String>,
+    /// Authentication primitive.
+    #[serde(default)]
+    pub authentication: Option<String>,
+    /// Bulk-encryption primitive.
+    #[serde(default)]
+    pub encryption: Option<String>,
+    /// Effective symmetric strength, overriding the built-in heuristic.
+    #[serde(default)]
+    pub bits: Option<u16>,
+    /// Whether the suite provides forward secrecy, overriding the name
+    /// heuristic.
+    #[serde(default)]
+    pub forward_secrecy: Option<bool>,
+    /// Whether the suite is an AEAD construction.
+    #[serde(default)]
+    pub aead: Option<bool>,
+    /// Catalogue judgement.
+    #[serde(default)]
+    pub status: Option<TlsStatus>,
+    /// Protocol versions the suite may be negotiated on.
+    #[serde(default)]
+    pub protocols: Vec<ProtocolVersion>,
+}
+
+/// The declared protocol and cipher catalogue an estimate may consult before
+/// falling back to its built-in heuristics.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct TlsFacts {
+    /// Facts keyed by protocol version.
+    #[serde(default)]
+    pub protocols: BTreeMap<ProtocolVersion, ProtocolFact>,
+    /// Facts keyed by cipher name, exactly as declared.
+    #[serde(default)]
+    pub ciphers: BTreeMap<String, CipherFact>,
+}
+
+impl TlsFacts {
+    /// Whether the catalogue declares nothing at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.protocols.is_empty() && self.ciphers.is_empty()
+    }
+}
+
+/// A named, ordered certificate chain, leaf first.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ChainDeclaration {
+    /// Stable document-local identifier.
+    pub name: String,
+    /// Certificate declaration names, leaf first.
+    #[serde(default)]
+    pub certificates: Vec<String>,
+}
+
+/// One root-program snapshot declared inline in a document.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustProgramDeclaration {
+    /// Stable document-local identifier.
+    pub name: String,
+    /// Root program represented by the declaration.
+    pub client: ClientFamily,
+    /// Product/root-store version or upstream revision.
+    #[serde(default)]
+    pub version: String,
+    /// ISO-8601 retrieval/generation timestamp.
+    #[serde(default)]
+    pub generated_at: String,
+    /// Stable source label.
+    #[serde(default)]
+    pub source_name: String,
+    /// Source URL; informational only, never fetched while analysing.
+    #[serde(default)]
+    pub source_url: String,
+    /// Upstream version, commit, or snapshot identifier.
+    #[serde(default)]
+    pub source_revision: String,
+    /// SPDX licence expression or a precise data-use label.
+    #[serde(default)]
+    pub source_license: String,
+    /// Anchors keyed by lowercase SHA-256 DER fingerprint.
+    #[serde(default)]
+    pub anchors: BTreeMap<String, TrustAnchorDeclaration>,
+    /// Unrecognised declaration members, preserved for forwards compatibility.
+    #[serde(default)]
+    pub extensions: BTreeMap<String, Vec<TlsValue>>,
+}
+
+impl TrustProgramDeclaration {
+    /// Project the declaration onto the normalised snapshot schema the
+    /// deterministic trust-store compiler consumes.
+    #[must_use]
+    pub fn to_snapshot(&self) -> TrustProgramSnapshot {
+        TrustProgramSnapshot {
+            schema: 1,
+            client: self.client,
+            version: self.version.clone(),
+            generated_at: self.generated_at.clone(),
+            source: SourceProvenance {
+                name: self.source_name.clone(),
+                url: self.source_url.clone(),
+                revision: self.source_revision.clone(),
+                license: self.source_license.clone(),
+            },
+            anchors: self
+                .anchors
+                .values()
+                .map(TrustAnchorDeclaration::to_program_anchor)
+                .collect(),
+        }
+    }
+}
+
+/// One declared root anchor inside a `trust-program`.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct TrustAnchorDeclaration {
+    /// SHA-256 of the certificate DER, lowercase hexadecimal.
+    pub fingerprint_sha256: String,
+    /// Display subject.
+    #[serde(default)]
+    pub subject: String,
+    /// Complete certificate DER as base64, when the source publishes it.
+    #[serde(default)]
+    pub der_base64: Option<String>,
+    /// Trust purposes asserted by this root program.
+    #[serde(default)]
+    pub purposes: Vec<TrustPurpose>,
+    /// Included (`true`) or explicitly distrusted (`false`).
+    #[serde(default)]
+    pub trusted: bool,
+    /// Optional policy distrust time as Unix seconds.
+    #[serde(default)]
+    pub distrust_after: Option<i64>,
+}
+
+impl TrustAnchorDeclaration {
+    /// Project onto the normalised anchor record.
+    #[must_use]
+    pub fn to_program_anchor(&self) -> ProgramAnchor {
+        ProgramAnchor {
+            fingerprint_sha256: self.fingerprint_sha256.clone(),
+            subject: self.subject.clone(),
+            der_base64: self.der_base64.clone(),
+            purposes: self.purposes.clone(),
+            trusted: self.trusted,
+            distrust_after: self.distrust_after,
+        }
+    }
+}
+
+/// The minimum acceptable estimate grade for a policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GradeRule {
+    /// Lowest grade that satisfies the policy.
+    pub minimum: Grade,
+}
+
+/// One declarative policy check. Every populated member is a conjunct: the
+/// check fails when any of them is unsatisfied.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct PolicyCheck {
+    /// Document-local check identifier.
+    pub id: String,
+    /// Severity of a finding this check produces.
+    #[serde(default)]
+    pub severity: Option<EstimateSeverity>,
+    /// Message of a finding this check produces.
+    #[serde(default)]
+    pub message: Option<String>,
+    /// Protocol versions that must all be enabled.
+    #[serde(default)]
+    pub require_protocols: Vec<ProtocolVersion>,
+    /// Protocol versions that must not be enabled.
+    #[serde(default)]
+    pub forbid_protocols: Vec<ProtocolVersion>,
+    /// Tcl-style glob patterns no enabled cipher may match.
+    #[serde(default)]
+    pub forbid_ciphers: Vec<String>,
+    /// Whether every enabled cipher must provide forward secrecy.
+    #[serde(default)]
+    pub require_forward_secrecy: Option<bool>,
+    /// Minimum leaf public-key size in bits. Held at the full `INT` width so a
+    /// value above `u32::MAX` still fails every real certificate instead of
+    /// being silently dropped.
+    #[serde(default)]
+    pub min_key_bits: Option<u64>,
+    /// Whether HSTS must be enabled.
+    #[serde(default)]
+    pub require_hsts: Option<bool>,
+    /// Minimum HSTS `max-age` in seconds.
+    #[serde(default)]
+    pub min_hsts_max_age: Option<u64>,
+    /// Retained verbatim and never evaluated in vocabulary 1.
+    #[serde(default)]
+    pub predicate: Option<String>,
+}
+
+/// A named set of declarative checks plus an optional grade floor.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Policy {
+    /// Stable document-local identifier.
+    pub name: String,
+    /// Checks keyed by check identifier.
+    #[serde(default)]
+    pub checks: BTreeMap<String, PolicyCheck>,
+    /// Optional minimum estimate grade.
+    #[serde(default)]
+    pub grade: Option<GradeRule>,
 }
 
 /// One fully declarative `SslicTcl` document.
@@ -151,10 +444,22 @@ pub struct SslicModel {
     /// Named endpoints.
     #[serde(default)]
     pub endpoints: BTreeMap<String, Endpoint>,
+    /// Named certificate chains, leaf first.
+    #[serde(default)]
+    pub chains: BTreeMap<String, ChainDeclaration>,
     /// Imported testssl.sh documents, including normalized findings and the
     /// complete source JSON for forward-compatible reprocessing.
     #[serde(default)]
     pub testssl_imports: BTreeMap<String, TestSslImport>,
+    /// Declared root-program snapshots.
+    #[serde(default)]
+    pub trust_programs: BTreeMap<String, TrustProgramDeclaration>,
+    /// Declared protocol and cipher catalogue facts.
+    #[serde(default)]
+    pub facts: TlsFacts,
+    /// Named declarative policies.
+    #[serde(default)]
+    pub policies: BTreeMap<String, Policy>,
     /// Unknown top-level declarations retained losslessly.
     #[serde(default)]
     pub extensions: BTreeMap<String, Vec<TlsValue>>,
@@ -166,7 +471,11 @@ impl Default for SslicModel {
             vocabulary: 1,
             certificates: BTreeMap::new(),
             endpoints: BTreeMap::new(),
+            chains: BTreeMap::new(),
             testssl_imports: BTreeMap::new(),
+            trust_programs: BTreeMap::new(),
+            facts: TlsFacts::default(),
+            policies: BTreeMap::new(),
             extensions: BTreeMap::new(),
         }
     }

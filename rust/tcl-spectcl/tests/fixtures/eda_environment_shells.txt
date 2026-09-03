@@ -1,0 +1,690 @@
+[
+    EnvironmentDefinition {
+        id: EnvironmentId(
+            "cadence-eda-tcl",
+        ),
+        aliases: [],
+        display_name: "Cadence EDA Tcl",
+        editor_identity: Some(
+            EditorLanguageIdentityId(
+                "tcl-cadence",
+            ),
+        ),
+        core: Some(
+            CoreProfileSelector {
+                family: Tcl,
+                default_release: Release {
+                    family: Tcl,
+                    ordinal: 0,
+                },
+                build: Canonical,
+            },
+        ),
+        targets: VersionSet {
+            axis: VersionAxisId(
+                Core(
+                    Tcl,
+                ),
+            ),
+            ranges: [
+                Span {
+                    min: Version {
+                        text: "8.4a0",
+                    },
+                    max: Some(
+                        Version {
+                            text: "8.5a0",
+                        },
+                    ),
+                },
+            ],
+        },
+        expected_packages: [
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "cadence-genus",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "cadence-common",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "cadence-innovus",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "cadence-xcelium",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+        ],
+        policy_defaults: EnvironmentPolicy {
+            closed_world: Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(
+                Release {
+                    family: Tcl,
+                    ordinal: 0,
+                },
+            ),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: [
+                FileExtensionClaim {
+                    extension: "globals",
+                    display_name: "Innovus/Genus Globals",
+                },
+            ],
+            filenames: [],
+            content_signatures: [],
+            shebang_words: [],
+            directive_names: [],
+        },
+        help_terms: [
+            "cadence",
+            "genus",
+            "innovus",
+            "tempus",
+            "xcelium",
+            "encounter",
+        ],
+        provenance: BundledPack,
+    },
+    EnvironmentDefinition {
+        id: EnvironmentId(
+            "intel-quartus-eda-tcl",
+        ),
+        aliases: [],
+        display_name: "Intel Quartus EDA Tcl",
+        editor_identity: Some(
+            EditorLanguageIdentityId(
+                "tcl-quartus",
+            ),
+        ),
+        core: Some(
+            CoreProfileSelector {
+                family: Tcl,
+                default_release: Release {
+                    family: Tcl,
+                    ordinal: 1,
+                },
+                build: Canonical,
+            },
+        ),
+        targets: VersionSet {
+            axis: VersionAxisId(
+                Core(
+                    Tcl,
+                ),
+            ),
+            ranges: [
+                Span {
+                    min: Version {
+                        text: "8.5a0",
+                    },
+                    max: Some(
+                        Version {
+                            text: "8.6a0",
+                        },
+                    ),
+                },
+            ],
+        },
+        expected_packages: [
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-project",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-flow",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-sta",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-sdc-ext",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-report",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-device",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "quartus-misc",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+        ],
+        policy_defaults: EnvironmentPolicy {
+            closed_world: Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(
+                Release {
+                    family: Tcl,
+                    ordinal: 1,
+                },
+            ),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: [
+                FileExtensionClaim {
+                    extension: "qsf",
+                    display_name: "Quartus Settings File",
+                },
+                FileExtensionClaim {
+                    extension: "qpf",
+                    display_name: "Quartus Project File",
+                },
+                FileExtensionClaim {
+                    extension: "qip",
+                    display_name: "Quartus IP File",
+                },
+            ],
+            filenames: [],
+            content_signatures: [],
+            shebang_words: [],
+            directive_names: [],
+        },
+        help_terms: [
+            "quartus",
+            "intel",
+            "altera",
+            "fpga",
+            "quartus_sh",
+        ],
+        provenance: BundledPack,
+    },
+    EnvironmentDefinition {
+        id: EnvironmentId(
+            "mentor-eda-tcl",
+        ),
+        aliases: [],
+        display_name: "Mentor EDA Tcl",
+        editor_identity: Some(
+            EditorLanguageIdentityId(
+                "tcl-mentor",
+            ),
+        ),
+        core: Some(
+            CoreProfileSelector {
+                family: Tcl,
+                default_release: Release {
+                    family: Tcl,
+                    ordinal: 2,
+                },
+                build: Canonical,
+            },
+        ),
+        targets: VersionSet {
+            axis: VersionAxisId(
+                Core(
+                    Tcl,
+                ),
+            ),
+            ranges: [
+                Span {
+                    min: Version {
+                        text: "8.6a0",
+                    },
+                    max: Some(
+                        Version {
+                            text: "8.7a0",
+                        },
+                    ),
+                },
+            ],
+        },
+        expected_packages: [
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "questa",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "questa-formal",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "calibre",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+        ],
+        policy_defaults: EnvironmentPolicy {
+            closed_world: Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(
+                Release {
+                    family: Tcl,
+                    ordinal: 2,
+                },
+            ),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: [
+                FileExtensionClaim {
+                    extension: "do",
+                    display_name: "ModelSim/Questa Do Script",
+                },
+            ],
+            filenames: [],
+            content_signatures: [],
+            shebang_words: [],
+            directive_names: [],
+        },
+        help_terms: [
+            "mentor",
+            "siemens",
+            "modelsim",
+            "questa",
+            "calibre",
+            "vsim",
+        ],
+        provenance: BundledPack,
+    },
+    EnvironmentDefinition {
+        id: EnvironmentId(
+            "microchip-libero-eda-tcl",
+        ),
+        aliases: [],
+        display_name: "Microchip Libero EDA Tcl",
+        editor_identity: Some(
+            EditorLanguageIdentityId(
+                "tcl-microchip",
+            ),
+        ),
+        core: Some(
+            CoreProfileSelector {
+                family: Tcl,
+                default_release: Release {
+                    family: Tcl,
+                    ordinal: 1,
+                },
+                build: Canonical,
+            },
+        ),
+        targets: VersionSet {
+            axis: VersionAxisId(
+                Core(
+                    Tcl,
+                ),
+            ),
+            ranges: [
+                Span {
+                    min: Version {
+                        text: "8.5a0",
+                    },
+                    max: Some(
+                        Version {
+                            text: "8.6a0",
+                        },
+                    ),
+                },
+            ],
+        },
+        expected_packages: [
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "libero",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+        ],
+        policy_defaults: EnvironmentPolicy {
+            closed_world: Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(
+                Release {
+                    family: Tcl,
+                    ordinal: 1,
+                },
+            ),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: [],
+            filenames: [],
+            content_signatures: [],
+            shebang_words: [],
+            directive_names: [],
+        },
+        help_terms: [
+            "microchip",
+            "microsemi",
+            "actel",
+            "libero",
+            "smartfusion",
+            "igloo",
+            "proasic",
+        ],
+        provenance: BundledPack,
+    },
+    EnvironmentDefinition {
+        id: EnvironmentId(
+            "synopsys-eda-tcl",
+        ),
+        aliases: [],
+        display_name: "Synopsys EDA Tcl",
+        editor_identity: Some(
+            EditorLanguageIdentityId(
+                "tcl-synopsys",
+            ),
+        ),
+        core: Some(
+            CoreProfileSelector {
+                family: Tcl,
+                default_release: Release {
+                    family: Tcl,
+                    ordinal: 2,
+                },
+                build: Canonical,
+            },
+        ),
+        targets: VersionSet {
+            axis: VersionAxisId(
+                Core(
+                    Tcl,
+                ),
+            ),
+            ranges: [
+                Span {
+                    min: Version {
+                        text: "8.6a0",
+                    },
+                    max: Some(
+                        Version {
+                            text: "8.7a0",
+                        },
+                    ),
+                },
+            ],
+        },
+        expected_packages: [
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "synopsys-dc",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "synopsys-pt",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "synopsys-icc2",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "synopsys-fm",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "synopsys",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+        ],
+        policy_defaults: EnvironmentPolicy {
+            closed_world: Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(
+                Release {
+                    family: Tcl,
+                    ordinal: 2,
+                },
+            ),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: [
+                FileExtensionClaim {
+                    extension: "sdc",
+                    display_name: "Synopsys Design Constraints",
+                },
+                FileExtensionClaim {
+                    extension: "upf",
+                    display_name: "Unified Power Format",
+                },
+            ],
+            filenames: [],
+            content_signatures: [],
+            shebang_words: [],
+            directive_names: [],
+        },
+        help_terms: [
+            "synopsys",
+            "dc_shell",
+            "design_compiler",
+            "primetime",
+            "icc2",
+            "formality",
+        ],
+        provenance: BundledPack,
+    },
+    EnvironmentDefinition {
+        id: EnvironmentId(
+            "xilinx-eda-tcl",
+        ),
+        aliases: [],
+        display_name: "Xilinx EDA Tcl",
+        editor_identity: Some(
+            EditorLanguageIdentityId(
+                "tcl-xilinx",
+            ),
+        ),
+        core: Some(
+            CoreProfileSelector {
+                family: Tcl,
+                default_release: Release {
+                    family: Tcl,
+                    ordinal: 1,
+                },
+                build: Canonical,
+            },
+        ),
+        targets: VersionSet {
+            axis: VersionAxisId(
+                Core(
+                    Tcl,
+                ),
+            ),
+            ranges: [
+                Span {
+                    min: Version {
+                        text: "8.5a0",
+                    },
+                    max: Some(
+                        Version {
+                            text: "8.6a0",
+                        },
+                    ),
+                },
+            ],
+        },
+        expected_packages: [
+            PackagePlacement {
+                package: "sdc",
+                version: Keyed(
+                    SdcVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "upf",
+                version: Keyed(
+                    UpfVersion,
+                ),
+                ambient: true,
+            },
+            PackagePlacement {
+                package: "vivado",
+                version: Keyed(
+                    ToolVersion,
+                ),
+                ambient: true,
+            },
+        ],
+        policy_defaults: EnvironmentPolicy {
+            closed_world: Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(
+                Release {
+                    family: Tcl,
+                    ordinal: 1,
+                },
+            ),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: [
+                FileExtensionClaim {
+                    extension: "xdc",
+                    display_name: "Xilinx Design Constraints",
+                },
+            ],
+            filenames: [],
+            content_signatures: [],
+            shebang_words: [],
+            directive_names: [],
+        },
+        help_terms: [
+            "xilinx",
+            "vivado",
+            "vitis",
+            "amd",
+            "fpga",
+            "ise",
+        ],
+        provenance: BundledPack,
+    },
+]

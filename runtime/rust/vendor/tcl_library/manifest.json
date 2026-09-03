@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "tcl_patchlevel": "9.0.4",
+  "source_url": "https://github.com/tcltk/tcl/tree/core-9-0-4",
+  "source_revision": "c655b4770b1d6d32a8cbffd6cef59db6029fe19e",
+  "files": [
+    { "path": "cookiejar/pkgIndex.tcl", "source": "library/cookiejar/pkgIndex.tcl", "sha256": "7d6f5e0236fad3b60cf5b7b10fa5629effcebead382083a7d9543c9526095d1f", "embedded": true },
+    { "path": "dde/pkgIndex.tcl", "source": "library/dde/pkgIndex.tcl", "sha256": "f140827f677c522b3dce28b61609142da79c565e43ce176141c36766bc95265e", "embedded": true },
+    { "path": "http/pkgIndex.tcl", "source": "library/http/pkgIndex.tcl", "sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742", "embedded": true },
+    { "path": "init.tcl", "source": "library/init.tcl", "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a", "embedded": true },
+    { "path": "license.terms", "source": "license.terms", "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16", "embedded": false },
+    { "path": "msgcat/pkgIndex.tcl", "source": "library/msgcat/pkgIndex.tcl", "sha256": "6b7f3bf260c40ecf823f6fb7246ef3b833597e97bfd0e6963aa117ae196cd602", "embedded": true },
+    { "path": "opt/pkgIndex.tcl", "source": "library/opt/pkgIndex.tcl", "sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846", "embedded": true },
+    { "path": "package.tcl", "source": "library/package.tcl", "sha256": "473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e", "embedded": true },
+    { "path": "parray.tcl", "source": "library/parray.tcl", "sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a", "embedded": true },
+    { "path": "platform/pkgIndex.tcl", "source": "library/platform/pkgIndex.tcl", "sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad", "embedded": true },
+    { "path": "registry/pkgIndex.tcl", "source": "library/registry/pkgIndex.tcl", "sha256": "f485327543f043f62c1ad12416d3c959b98aa2b77320503cb2db0e16e773fb78", "embedded": true },
+    { "path": "tclIndex", "source": "library/tclIndex", "sha256": "a44757ba1e8499c88f71ee63979980f9db851793643ee21879e9b53873461b1c", "embedded": true },
+    { "path": "tcltest/pkgIndex.tcl", "source": "library/tcltest/pkgIndex.tcl", "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199", "embedded": true },
+    { "path": "tcltest/tcltest.tcl", "source": "library/tcltest/tcltest.tcl", "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67", "embedded": true },
+    { "path": "tm.tcl", "source": "library/tm.tcl", "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786", "embedded": true }
+  ]
+}

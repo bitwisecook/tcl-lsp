@@ -305,6 +305,7 @@ export interface EffectiveConfig {
   folder_uri: string | null;
   dialect: string;
   extra_commands: string[];
+  signature_help_disabled_commands: string[];
   non_ascii_mode: string | null;
   library_paths: string[];
   spec_packs: string[];

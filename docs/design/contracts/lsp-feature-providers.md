@@ -48,6 +48,18 @@ and the MCP tool surface without three copies of the behaviour.
    signature help stay precedence-consistent and code actions rank the same
    way the server command does.
 
+### Runtime feature toggles
+
+Every feature handler is registered unconditionally and checks its enable
+flag in the body, returning nothing when disabled, so
+`didChangeConfiguration` toggles it without a restart. The only features that
+cannot follow the pattern are those whose capability advertisement is fixed
+at `initialize`; there are currently no user-configurable restart-required
+toggles. Diagnostics are deliberately not a toggle: the server always
+advertises the push model and never `diagnosticProvider` (see
+[lsp-diagnostics-publication.md](lsp-diagnostics-publication.md)); a setting
+must not try to switch the delivery model after initialisation.
+
 ## File-path anchors
 
 Providers (`rust/tcl-lsp-core/src/`):

@@ -13,9 +13,8 @@ The *contract* the tree implements is
 [`../contracts/runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md)
 (variables).
 
-Source of truth for the C semantics we're mirroring is Tcl 9.0.3 in
-`tmp/tcl9.0.3/.git` — read with `git -C tmp/tcl9.0.3 show HEAD:generic/<file>`.
-All C-file citations in this doc use that source.
+Source of truth for the C semantics we're mirroring is Tcl 9.0.4. All C-file
+citations in this doc use that release's source.
 
 ## 1. Goal & non-goals
 
@@ -218,10 +217,11 @@ Four fields of C's `Namespace` have no counterpart, deliberately:
   namespace is removed from its parent's `children` map and its arena slot is
   emptied, so there is no dying-but-reachable state to describe.
 
-`BTreeMap` (not `HashMap`) throughout, for the same reason `frame.rs` uses it:
-deterministic iteration order, so `info commands` / `info vars` /
-`namespace children` listings are stable run to run — which an oracle-diffed
-port needs — with no external dependency.
+`BTreeMap` (not `HashMap`) throughout gives deterministic storage and makes
+`info commands` / `info vars` stable run to run. `namespace children` is the
+exception where C's `Tcl_HashTable` bucket order is public behavior: the
+adapter supplies child ids in creation order and `tcl-cmd-core::namespace`
+reconstructs the Tcl string-hash enumeration, including resize reversals.
 
 ### `Command`
 
@@ -613,8 +613,9 @@ pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]);
 
 There are no visitor helpers: `command_names`, `var_names`, `proc_names`,
 `const_names`, `children`, and `descendant_ids` each return an owned or
-borrowed listing directly, which is what `info commands` / `info vars` /
-`namespace children` need and what `BTreeMap` makes cheap and ordered.
+borrowed listing directly. `children` returns creation order for the shared
+command core's Tcl-hash ordering step; the remaining table listings retain the
+cheap deterministic `BTreeMap` order.
 
 ## 8. Settled design points
 

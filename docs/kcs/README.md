@@ -33,9 +33,7 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 1. Pick a category and copy the matching template from
    [`templates/`](templates/README.md).
-2. Follow the style guide in [`STYLE.md`](STYLE.md). The short-form rules
-   are also listed in [`AGENTS.md`](../../AGENTS.md) under "Knowledge base
-   and documentation".
+2. Follow the style guide in [`STYLE.md`](STYLE.md).
 3. Link the new note from the appropriate section below.
 4. Add a cross-link to [`docs/GLOSSARY.md`](../GLOSSARY.md) for any
    complex term you use.
@@ -48,6 +46,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-sticky-scroll-shows-nothing.md](kcs-issue-sticky-scroll-shows-nothing.md)
   — sticky scroll pins nothing for Tcl files while the extension is
   enabled, even though breadcrumbs and the outline look fine.
+- [kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md](kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md)
+  — a file whose extension a SpecTcl pack claims opens as plain text with
+  no language server, and what each editor needs before it will treat the
+  extension as Tcl.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target
@@ -147,6 +149,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-why-w112-w118-have-no-quick-fix.md](kcs-qa-why-w112-w118-have-no-quick-fix.md)
   — why the trailing-whitespace and line-ending hints stay quick-fix-free:
   the document formatter is the safe, already-existing fix.
+- [kcs-qa-what-is-the-c-extension-shim.md](kcs-qa-what-is-the-c-extension-shim.md)
+  — what the C extension shim is, when to use it instead of a Tcl hook
+  body or a native hook, and why a spec pack can never load one.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback
@@ -184,6 +189,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — write sample files and cursor marker comments for screenshots.
 - [kcs-howto-manage-tcl-packages.md](kcs-howto-manage-tcl-packages.md)
   — add, install, and lock Tcl package dependencies with tclpkg.
+- [kcs-howto-containerise-a-tcl-project.md](kcs-howto-containerise-a-tcl-project.md)
+  — generate a Dockerfile that installs Tcl plus the native `tcl` CLI from a
+  checksum-verified release asset, and why musl base images cannot carry it.
 - [kcs-howto-run-tcltest-bundles.md](kcs-howto-run-tcltest-bundles.md)
   — run the Tcl 9 tcltest files through the bytecode VM, compare against
   reference `tclsh`, and read the parity scoreboard.
@@ -217,6 +225,14 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
   three discovery tiers, validation, and how the running server picks
   a saved pack up.
+- [kcs-howto-author-a-sslictcl-declaration.md](kcs-howto-author-a-sslictcl-declaration.md)
+  — write a `.sslictcl` TLS declaration with the editor's help: how the
+  document is recognised, what completion offers at each level, and how to
+  read the loader's `SSLIC` diagnostics.
+- [kcs-howto-scope-an-ambient-package-to-one-dialect.md](kcs-howto-scope-an-ambient-package-to-one-dialect.md)
+  — say a library is ambient under one of a pack's environments and not
+  another, with an `environment { ambient … }` row and a shared version
+  variable.
 - [kcs-howto-derive-version-ranges-from-releases.md](kcs-howto-derive-version-ranges-from-releases.md)
   — derive `introduced_version` / `retired_version` facts from several
   package releases with `tcl spec import`, read the evidence header it

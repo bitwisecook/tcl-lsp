@@ -262,6 +262,20 @@ export function buildClientOptions(
                     }
                   }
                 }
+                // `null` means the command exclusion list was not configured
+                // in VS Code. Drop it so a lower-priority config.ini layer can
+                // supply the list; an explicit `[]` remains meaningful and
+                // clears that lower layer for this scope.
+                const signatureHelp = settings.signatureHelp;
+                if (signatureHelp && typeof signatureHelp === "object") {
+                  const signature = signatureHelp as Record<string, unknown>;
+                  if (
+                    signature.disabledCommands === null ||
+                    signature.disabledCommands === undefined
+                  ) {
+                    delete signature.disabledCommands;
+                  }
+                }
                 // `diagnostics.genericVariablePatterns` defaults to `[]`, but the
                 // server distinguishes "absent → built-in IRULE4002 patterns"
                 // from "explicit empty list → disable the check". Drop the empty

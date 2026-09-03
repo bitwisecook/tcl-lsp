@@ -734,6 +734,10 @@ suite("Configuration Settings", () => {
     assert.strictEqual(value.length, 0);
   });
 
+  test("signatureHelp.disabledCommands defaults to null (inherit config files)", () => {
+    assert.strictEqual(cfg().get<string[] | null>("signatureHelp.disabledCommands"), null);
+  });
+
   // ── Behavioral mutation tests ──────────────────────────────────────
   // Each test verifies that changing a setting actually affects LSP
   // behavior, not just that the config round-trips.
@@ -1019,6 +1023,52 @@ suite("Configuration Settings", () => {
     } finally {
       await config.update("signatureHelp", undefined, undefined);
       await waitForFeatureToggle(docUri, "signatureHelp", true);
+    }
+  });
+
+  test("signatureHelp.disabledCommands selectively suppresses built-ins", async () => {
+    const probe = await vscode.workspace.openTextDocument({
+      language: "tcl",
+      content: "set \nformat \nproc custom {value} {}\ncustom \n",
+    });
+    await vscode.window.showTextDocument(probe);
+    const signatureCount = async (line: number, character: number) => {
+      const result = (await getClient().sendRequest("textDocument/signatureHelp", {
+        textDocument: { uri: probe.uri.toString() },
+        position: { line, character },
+      })) as vscode.SignatureHelp | null;
+      return result?.signatures.length ?? 0;
+    };
+    const config = vscode.workspace.getConfiguration("tclLsp.signatureHelp", probe.uri);
+    try {
+      await pollUntil(
+        () => signatureCount(0, 4),
+        (count) => count > 0,
+        {
+          timeout: 10_000,
+          label: "set signature before command exclusion",
+        },
+      );
+
+      await config.update("disabledCommands", ["::::set", "incr"], undefined);
+      await waitForEffectiveConfig(
+        probe.uri,
+        (effective) =>
+          effective.signature_help_disabled_commands.includes("::set") &&
+          effective.signature_help_disabled_commands.includes("::incr"),
+        { label: "signature-help command exclusions" },
+      );
+
+      assert.strictEqual(await signatureCount(0, 4), 0, "set should be suppressed");
+      assert.ok(await signatureCount(1, 7), "format should retain signature help");
+      assert.ok(await signatureCount(3, 7), "user proc calls should retain signature help");
+    } finally {
+      await config.update("disabledCommands", undefined, undefined);
+      await waitForEffectiveConfig(
+        probe.uri,
+        (effective) => effective.signature_help_disabled_commands.length === 0,
+        { label: "signature-help command exclusions restored" },
+      );
     }
   });
 

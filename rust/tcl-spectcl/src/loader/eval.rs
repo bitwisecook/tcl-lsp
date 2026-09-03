@@ -105,7 +105,7 @@ use tcl_dialect::model::SpecSurface;
 /// The evaluation loader's own version, part of the snapshot cache key: a
 /// change to how evaluation captures or replays invalidates every cached
 /// evaluated snapshot exactly once, independent of the vocabulary version.
-pub const LOADER_EVAL_VERSION: u32 = 1;
+pub const LOADER_EVAL_VERSION: u32 = 2;
 
 /// How to evaluate a pack: the provenance tier gating registrations (E-R2)
 /// and the sandbox budget.
@@ -194,8 +194,6 @@ const ROW_WORDS: &[&str] = &[
     "ambient_package",
     "provides",
     "co_provides",
-    "environment",
-    "dialect",
     // command scope
     "dialects",
     "available",
@@ -395,11 +393,34 @@ struct StagedCommand {
     body: Option<Vec<Node>>,
 }
 
+/// One `environment` / `dialect` declaration captured at pack scope, with
+/// its body evaluated as a script.
+///
+/// A pack is a Tcl program, so these blocks are programs too: a version
+/// shared by several environments is an ordinary variable substituted into
+/// each `ambient` row, and a repetitive ladder is a `foreach` (issue
+/// #1643). Only the rows the body registered are kept — the block's own
+/// reader (`environment_block` / `dialect_block`) is still the single
+/// owner of what a row means.
+#[derive(Debug)]
+struct StagedBlock {
+    /// `environment` or `dialect`.
+    word: &'static str,
+    /// The declaration's own words — the block word, the name, and any
+    /// flag — with the body word left out.
+    head: Vec<Word>,
+    line: u32,
+    /// `None` when no `{ … }` body word was found, which the block reader
+    /// reports as the brace-on-the-next-line mistake.
+    body: Option<Vec<Node>>,
+}
+
 /// One captured top-level statement.
 #[derive(Debug)]
 enum PackNode {
     Row(Stmt),
     Command(StagedCommand),
+    Block(StagedBlock),
 }
 
 /// What scope the evaluation is currently capturing into.
@@ -407,6 +428,11 @@ enum PackNode {
 enum ScopeKind {
     Command,
     Subcommand,
+    /// An `environment` or `dialect` body. Its rows are whatever the block
+    /// reader accepts, so nothing is dispatched specially inside it — an
+    /// unknown word is captured like any other row and the block reader
+    /// decides, which is what makes those rows semantic-class by scope.
+    Block,
 }
 
 /// One body block as the file spells it, for line-exact evaluation.
@@ -550,6 +576,22 @@ impl Skeleton {
         let body_stmts = block(body);
         index.record_rows(&body_stmts);
         for stmt in &body_stmts {
+            // `environment` / `dialect` bodies are evaluated like a
+            // `command` body, so they need the same verbatim record: the
+            // physical lines their rows report, and the rows themselves for
+            // the ones that substitute nothing.
+            if let word @ ("environment" | "dialect") = stmt.word_text(0) {
+                let word = if word == "environment" {
+                    "environment"
+                } else {
+                    "dialect"
+                };
+                if let Some(block_body) = stmt.words.iter().skip(2).find(|word| word.braced) {
+                    index.record_rows(&block(block_body));
+                    index.record(word, stmt.word_text(1), stmt, block_body);
+                }
+                continue;
+            }
             if stmt.word_text(0) != "command" {
                 continue;
             }
@@ -660,17 +702,30 @@ impl State {
         }
     }
 
-    /// A captured invocation as a [`Stmt`]: the file's verbatim statement
-    /// when the invocation corresponds to one, the evaluated values
-    /// otherwise. Inside an included fragment the verbatim index (which
-    /// describes the root file) is not consulted, so a line-number
-    /// coincidence cannot substitute the wrong statement.
-    fn captured(&mut self, word: &str, args: &[String], line: u32) -> Stmt {
+    /// The file's own statement for a captured invocation, when the file
+    /// has one of the same shape at that line. Inside an included fragment
+    /// the verbatim index (which describes the root file) is not consulted,
+    /// so a line-number coincidence cannot substitute the wrong statement.
+    ///
+    /// The source statement stands in only when it **substitutes nothing**.
+    /// A row built from a variable or a command substitution has values the
+    /// source text does not spell, and replaying `ambient Tk $tkver`
+    /// verbatim would hand the reader the dollar sign instead of the
+    /// version (issue #1643).
+    fn source_stmt(&mut self, word: &str, args: &[String], line: u32) -> Option<Stmt> {
         if self.in_include {
-            return capture_stmt(word, args, line);
+            return None;
         }
         self.verbatim
             .row(word, args.len(), line)
+            .filter(substitution_free)
+    }
+
+    /// A captured invocation as a [`Stmt`]: the file's verbatim statement
+    /// when the invocation corresponds to one, the evaluated values
+    /// otherwise.
+    fn captured(&mut self, word: &str, args: &[String], line: u32) -> Stmt {
+        self.source_stmt(word, args, line)
             .unwrap_or_else(|| capture_stmt(word, args, line))
     }
 }
@@ -1031,6 +1086,135 @@ fn stage_subcommand(
     Ok(())
 }
 
+/// The `environment` / `dialect` handler: at pack scope the declaration's
+/// body is **evaluated**, in a fresh block scope, exactly as a `command`
+/// body is. Anywhere else it is a plain row, which replays to the ordinary
+/// unknown-property notice.
+fn block_handler(word: &'static str, state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
+    let state = Rc::clone(state);
+    Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
+        let line = state.borrow().absolute_line(ctx.line());
+        if !state.borrow().scopes.is_empty() {
+            let mut st = state.borrow_mut();
+            let stmt = st.captured(word, args, line);
+            st.push_node(Node::Row(stmt));
+            return Ok(None);
+        }
+        let name = args.first().cloned().unwrap_or_default();
+        let source = state.borrow_mut().source_stmt(word, args, line);
+        let (head, body_at) = block_head(word, args, line, source.as_ref());
+        let Some(body_at) = body_at else {
+            state
+                .borrow_mut()
+                .pack_nodes
+                .push(PackNode::Block(StagedBlock {
+                    word,
+                    head,
+                    line,
+                    body: None,
+                }));
+            return Ok(None);
+        };
+        let body = {
+            let mut st = state.borrow_mut();
+            match st.verbatim.take(word, &name, line) {
+                Some(verbatim) => BodyText {
+                    text: verbatim.text,
+                    base: verbatim.body_line,
+                    verbatim: true,
+                },
+                None => BodyText {
+                    text: args[body_at].clone(),
+                    base: line,
+                    verbatim: false,
+                },
+            }
+        };
+        stage_block(interpreted(ctx, fast_path), &state, word, head, line, &body)?;
+        Ok(None)
+    })
+}
+
+/// Split an `environment` / `dialect` declaration into its head words and
+/// the argument index of its body.
+///
+/// Evaluation hands over values, not words, so neither the body nor a
+/// braced name survives in them: `{emit}` and `emit` are the same string,
+/// and so are `{custom}` and `custom`. The file's own statement decides
+/// both whenever it has one at this line, which is what keeps a braced name
+/// rejected on this path as well. Failing that the layout decides —
+/// `NAME ?-extend? BODY`, the body always last — never whitespace in the
+/// value, which would lose a one-word body such as `{emit}`.
+fn block_head(
+    word: &'static str,
+    args: &[String],
+    line: u32,
+    source: Option<&Stmt>,
+) -> (Vec<Word>, Option<usize>) {
+    if let Some(stmt) = source {
+        let body_at = stmt
+            .words
+            .iter()
+            .enumerate()
+            .skip(2)
+            .find(|(_, source_word)| source_word.braced)
+            .map(|(index, _)| index);
+        let head = stmt
+            .words
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| Some(*index) != body_at)
+            .map(|(_, source_word)| source_word.clone())
+            .collect();
+        return (head, body_at.map(|index| index - 1));
+    }
+    let body_at = (args.len() > 1).then(|| args.len() - 1);
+    let head = std::iter::once(synth_word(word, line))
+        .chain(
+            args.iter()
+                .enumerate()
+                .filter(|(index, _)| Some(*index) != body_at)
+                .map(|(_, arg)| synth_word(arg, line)),
+        )
+        .collect();
+    (head, body_at)
+}
+
+/// Evaluate one `environment` / `dialect` body in a fresh block scope and
+/// stage the declaration. Shared by the host command and the static driver,
+/// so the two evaluation paths cannot drift.
+fn stage_block(
+    drive: Drive<'_, '_>,
+    state: &Rc<RefCell<State>>,
+    word: &'static str,
+    head: Vec<Word>,
+    line: u32,
+    body: &BodyText,
+) -> Result<(), String> {
+    {
+        let mut st = state.borrow_mut();
+        st.scopes.push((ScopeKind::Block, Vec::new()));
+        st.base_lines.push(body.base);
+    }
+    let outcome = run_body(drive, state, body);
+    let nodes = {
+        let mut st = state.borrow_mut();
+        st.base_lines.pop();
+        st.scopes.pop().map(|(_, nodes)| nodes).unwrap_or_default()
+    };
+    outcome?;
+    state
+        .borrow_mut()
+        .pack_nodes
+        .push(PackNode::Block(StagedBlock {
+            word,
+            head,
+            line,
+            body: Some(nodes),
+        }));
+    Ok(())
+}
+
 /// The `include` handler (2.0, Q6): valid only as a literal pack-scope
 /// row; the resolved fragment evaluates in place with provenance
 /// inherited, under the determinism contract's content-hash cycle key.
@@ -1206,7 +1390,12 @@ fn is_general_tcl(word: &str) -> bool {
 /// evaluation could only capture it verbatim. Substitution in any unbraced
 /// word, a general-Tcl or denied head word, and `available?` all force the
 /// interpreter path.
-fn static_stmt(stmt: &Stmt) -> bool {
+///
+/// The one owner of "this word substitutes": the fast path asks it to skip
+/// the interpreter, and `tcl spec upgrade --restyle` asks it (over every
+/// statement, nested bodies included) before it may write a snapshot back
+/// over its source (E-R12) — a computed word is a program either way.
+pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
     let head = stmt.word_text(0);
     if head.is_empty()
         || head == "available?"
@@ -1215,6 +1404,21 @@ fn static_stmt(stmt: &Stmt) -> bool {
     {
         return false;
     }
+    substitution_free(stmt)
+}
+
+/// Whether every word of `stmt` means, as written, exactly what evaluating
+/// it would yield: a braced word is its own value, and an unbraced one is
+/// only when it carries no substitution.
+///
+/// Two readers share it. The static fast path uses it to decide a statement
+/// can be captured without an interpreter at all, and [`State::captured`]
+/// uses it to decide the file's own bytes may stand in for the evaluated
+/// invocation. Both are the same question — "would replaying the source
+/// text reproduce the values?" — and answering it in one place is what
+/// stops the fast path and the interpreter path from disagreeing about a
+/// row that substitutes.
+fn substitution_free(stmt: &Stmt) -> bool {
     stmt.words.iter().all(|word| {
         word.braced
             || !(word.text.contains('$') || word.text.contains('[') || word.text.contains('\\'))
@@ -1282,6 +1486,48 @@ fn drive_static(
             "include" if at_pack => {
                 let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
                 stage_include(drive.reborrow(), state, &words, stmt.line)?;
+            }
+            head @ ("environment" | "dialect") if at_pack => {
+                let word = if head == "environment" {
+                    "environment"
+                } else {
+                    "dialect"
+                };
+                // The body is the first braced word past the name, which is
+                // index 2 for a declaration and 3 for `-extend`.
+                let body_at = stmt
+                    .words
+                    .iter()
+                    .enumerate()
+                    .skip(2)
+                    .find(|(_, word)| word.braced)
+                    .map(|(index, _)| index);
+                let head_words: Vec<Word> = stmt
+                    .words
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| Some(*index) != body_at)
+                    .map(|(_, word)| word.clone())
+                    .collect();
+                let Some(body_at) = body_at else {
+                    state
+                        .borrow_mut()
+                        .pack_nodes
+                        .push(PackNode::Block(StagedBlock {
+                            word,
+                            head: head_words,
+                            line: stmt.line,
+                            body: None,
+                        }));
+                    continue;
+                };
+                let body = &stmt.words[body_at];
+                let block = BodyText {
+                    text: body.text.clone(),
+                    base: body.line,
+                    verbatim: true,
+                };
+                stage_block(drive.reborrow(), state, word, head_words, stmt.line, &block)?;
             }
             _ => state.borrow_mut().push_node(Node::Row(stmt.clone())),
         }
@@ -1397,6 +1643,11 @@ pub fn evaluate_pack_in(
     vocabulary.push(("subcommand", subcommand_handler(&state, fast_path)));
     vocabulary.push(("available?", available_handler(&state)));
     vocabulary.push(("include", include_handler(&state, fast_path)));
+    vocabulary.push((
+        "environment",
+        block_handler("environment", &state, fast_path),
+    ));
+    vocabulary.push(("dialect", block_handler("dialect", &state, fast_path)));
     let unknown = unknown_handler(&state);
 
     let outcome = pack_eval::run_pack_program(source, &vocabulary, &unknown, &options.config);
@@ -1586,7 +1837,10 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
                 ));
             }
             "environment" => {
-                if let Some(reserved) = environment_block::reserved_name(reg.arg(1)) {
+                if let Some(reserved) = environment_block::reserved_name_for(
+                    reg.arg(1),
+                    super::PackEnvironmentTier::of(tier),
+                ) {
                     let verb = if reg.has_flag("-extend") {
                         // §6.4: altering a canonical environment — detection
                         // rows and placements included — needs a trusted
@@ -1680,9 +1934,13 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     // commands are staged separately and built in pass 2.
     let mut tables = PackTables::default();
     for node in &state.pack_nodes {
-        if let PackNode::Row(stmt) = node {
-            let is_command = apply_pack_stmt(&mut pack, &mut tables, stmt, &mut log);
-            debug_assert!(!is_command, "a raw `command` row cannot reach pack scope");
+        match node {
+            PackNode::Row(stmt) => {
+                let is_command = apply_pack_stmt(&mut pack, &mut tables, stmt, &mut log);
+                debug_assert!(!is_command, "a raw `command` row cannot reach pack scope");
+            }
+            PackNode::Block(staged) => apply_block(&mut pack, staged, &mut log),
+            PackNode::Command(_) => {}
         }
     }
 
@@ -1734,6 +1992,40 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     pack
 }
 
+/// Replay one evaluated `environment` / `dialect` declaration through its
+/// own block reader.
+///
+/// The reader owns every validation and notice; all this does is hand it
+/// the header and the rows the body registered, so a block written with a
+/// variable or a loop is read by exactly the code a longhand one is.
+fn apply_block(pack: &mut Pack, staged: &StagedBlock, log: &mut Log) {
+    let head = Stmt {
+        words: staged.head.clone(),
+        line: staged.line,
+    };
+    let rows = staged.body.as_deref().map(row_stmts);
+    if staged.word == "environment" {
+        super::read_environment_rows(pack, &head, rows.as_deref(), log);
+    } else {
+        super::read_dialect_rows(pack, &head, rows.as_deref(), log);
+    }
+}
+
+/// A block body's staged nodes as row statements.
+///
+/// Every node is a row: `subcommand` only opens a scope inside a `command`
+/// body, so nothing nested can reach here, and a `command` written inside
+/// a block is captured as an ordinary row for the block reader to reject.
+fn row_stmts(nodes: &[Node]) -> Vec<Stmt> {
+    nodes
+        .iter()
+        .map(|node| match node {
+            Node::Row(stmt) => stmt.clone(),
+            Node::Sub(sub) => capture_stmt("subcommand", std::slice::from_ref(&sub.name), sub.line),
+        })
+        .collect()
+}
+
 /// The staged top-level nodes as canonical registrations.
 fn record_nodes(nodes: &[PackNode]) -> Vec<Registration> {
     nodes
@@ -1755,6 +2047,15 @@ fn record_nodes(nodes: &[PackNode]) -> Vec<Registration> {
                     Some(body) => Registration::block(head, record_body(body), staged.line),
                 }
             }
+            PackNode::Block(staged) => match &staged.body {
+                // Same rule as `command`: a declaration that never opened a
+                // block exports as the row it was, so the reload reports the
+                // identical missing-block notice.
+                None => Registration::row_words(staged.head.clone(), staged.line),
+                Some(body) => {
+                    Registration::block(staged.head.clone(), record_body(body), staged.line)
+                }
+            },
         })
         .collect()
 }

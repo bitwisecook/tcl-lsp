@@ -32,10 +32,10 @@
 //!    Tcl.
 //! 3. **Exercise the hooks through the sandboxed host** — `tcl-spec-hooks`
 //!    with `HostConfig::default()`, so the shipped budgets and the shipped
-//!    quarantine policy are what run. No quarantine and no crash record may
-//!    occur for a shipped pack.
-//! 4. **Report** commands loaded, notices, hooks invoked, quarantines, and
-//!    wall-clock load + analysis time, per pack.
+//!    quarantine policy are what run. No script error, quarantine, or crash
+//!    record may occur for a shipped pack.
+//! 4. **Report** commands loaded, notices, successful/attempted hook calls,
+//!    host errors, quarantines, and wall-clock load + analysis time, per pack.
 //!
 //! ## Why the packs are loaded one file at a time
 //!
@@ -125,6 +125,7 @@ use tcl_registry::pack_hooks;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_hooks::{CrashRecord, HookHost};
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+use tcl_spectcl::golden::ShippedPackFile;
 use tcl_spectcl::hooks;
 use tcl_spectcl::pack::PackSet;
 
@@ -150,97 +151,9 @@ fn relative(path: &Path, root: &Path) -> String {
         .replace('\\', "/")
 }
 
-// The inventory: every `.tclspec` the repo ships
-
-/// One pack file under test, with the tier it ships at and the dialect its
-/// commands belong to.
-struct PackUnderTest {
-    path: PathBuf,
-    tier: Tier,
-    origin: Origin,
-    dialect: &'static str,
-}
-
-/// The dialect a pack's commands are written for.
-///
-/// The five vendor packs each own a shell; `sdc_base` rides along with every
-/// one of them (the shared SDC constraint library), so it is exercised under
-/// Vivado. `irules-http-header` is an iRules port. Everything else — the core
-/// Tcl ports and the external drafts — is plain Tcl, which is also the profile
-/// `tcl-spec-studio/tests/spectcl_ports.rs` compares those ports under.
-fn dialect_for(stem: &str) -> &'static str {
-    match stem {
-        // `sdc_base` shares Vivado's profile: the shared SDC constraint
-        // library is installed under every vendor shell, and one of them has
-        // to be picked to exercise it.
-        "eda_xilinx" | "sdc_base" => "xilinx-eda-tcl",
-        // `upf` is the same cross-vendor shape as `sdc_base`; it is exercised
-        // under the profile `.upf` files detect as, which is also Synopsys's.
-        "upf" | "eda_synopsys" => "synopsys-eda-tcl",
-        "eda_microchip" => "microchip-libero-eda-tcl",
-        "eda_cadence" => "cadence-eda-tcl",
-        "eda_quartus" => "intel-quartus-eda-tcl",
-        "eda_mentor" => "mentor-eda-tcl",
-        "irules-http-header" => "f5-irules",
-        _ => "tcl9.1",
-    }
-}
-
-fn tclspec_files_in(dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut files: Vec<PathBuf> = entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.extension()
-                .and_then(|ext| ext.to_str())
-                .is_some_and(|ext| ext == tcl_spectcl::PACK_EXTENSION)
-        })
-        .collect();
-    files.sort();
-    files
-}
-
-/// Every `.tclspec` the repository ships: the bundled EDA loadables under
-/// `specs/`, the eleven ports, and the five external drafts.
-///
-/// Discovered by scanning, never listed, so a pack added tomorrow is covered
-/// by this harness the day it lands — and, if it loads with a notice, fails
-/// until the notice is either fixed or blessed into the baseline.
-fn inventory(root: &Path) -> Vec<PackUnderTest> {
-    let mut packs: Vec<PackUnderTest> = Vec::new();
-    let sources = [
-        (root.join("specs"), Tier::Bundled, Origin::Bundled),
-        (
-            root.join("docs/design/spec-dsl-examples"),
-            Tier::Workspace,
-            Origin::DotDir,
-        ),
-        (
-            root.join("docs/design/spec-dsl-examples/external"),
-            Tier::Workspace,
-            Origin::DotDir,
-        ),
-    ];
-    for (dir, tier, origin) in sources {
-        for path in tclspec_files_in(&dir) {
-            let stem = path
-                .file_stem()
-                .and_then(|stem| stem.to_str())
-                .unwrap_or_default()
-                .to_owned();
-            packs.push(PackUnderTest {
-                dialect: dialect_for(&stem),
-                path,
-                tier,
-                origin,
-            });
-        }
-    }
-    packs
-}
+// The inventory: every `.tclspec` the repo ships. Paths and their discovery
+// tier/origin/dialect metadata come from `tcl_spectcl::golden`, the same owner
+// used by the loader, golden, upgrade, and real-Tcl lanes.
 
 // The corpus
 
@@ -486,8 +399,8 @@ fn synthesise(spec: &CommandSpec) -> Vec<String> {
 /// making any single script large enough to hide a failure.
 const SYNTHESISED_CALLS_PER_SCRIPT: usize = 25;
 
-// The engine wrapper: counts invocations, and injects the one panic no Tcl
-// body can be trusted to produce
+// The engine wrapper: counts attempted and successful invocations, and
+// injects the one panic no Tcl body can be trusted to produce
 
 /// A body carrying this marker panics at the engine boundary.
 ///
@@ -499,7 +412,8 @@ const PANIC_MARKER: &str = "HARNESS-PANIC-INJECT";
 
 #[derive(Default)]
 struct EngineStats {
-    invocations: Cell<u64>,
+    attempts: Cell<u64>,
+    successes: Cell<u64>,
 }
 
 /// `tcl-vm`, wrapped so the harness can report how many hook bodies actually
@@ -535,9 +449,13 @@ impl Engine for CountingEngine {
     }
 
     fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
-        self.stats.invocations.set(self.stats.invocations.get() + 1);
+        self.stats.attempts.set(self.stats.attempts.get() + 1);
         assert!(!handle.0, "hook body requested an engine panic");
-        self.inner.invoke(&handle.1, arguments)
+        let result = self.inner.invoke(&handle.1, arguments);
+        if result.is_ok() {
+            self.stats.successes.set(self.stats.successes.get() + 1);
+        }
+        result
     }
 
     fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError> {
@@ -572,7 +490,9 @@ struct PackReport {
     notices: Vec<String>,
     hook_bodies: usize,
     hook_slots: usize,
-    hooks_invoked: u64,
+    hook_attempts: u64,
+    hook_successes: u64,
+    hook_errors: Vec<String>,
     quarantined: usize,
     crashes: Vec<CrashRecord>,
     corpus_files: usize,
@@ -588,7 +508,7 @@ struct PackReport {
 impl PackReport {
     fn row(&self) -> String {
         format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {} | {} | {} | {} | {} | {:.1} | {:.1} |",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} | {} | {} | {} | {:.1} | {:.1} |",
             self.file,
             self.pack,
             self.dialect,
@@ -599,7 +519,9 @@ impl PackReport {
             self.notices.len(),
             self.hook_slots,
             self.hook_bodies,
-            self.hooks_invoked,
+            self.hook_successes,
+            self.hook_attempts,
+            self.hook_errors.len(),
             self.quarantined,
             self.crashes.len(),
             self.corpus_files,
@@ -610,9 +532,30 @@ impl PackReport {
     }
 }
 
+/// A pack declaring executable hook bodies must exercise at least one through
+/// the live registry consumers. Binding every slot is necessary but not
+/// sufficient: a consumer-dispatch regression could otherwise turn this
+/// corpus into a successful no-op.
+fn require_live_hook_execution(report: &PackReport, failures: &mut Vec<String>) {
+    if report.hook_bodies > 0 && report.hook_successes == 0 {
+        failures.push(format!(
+            "{}: all {} declared hook bodies produced {} bound slots, but corpus and \
+             synthesised calls made {} attempt(s) with no successful invocation — shipped \
+             hook execution must not be vacuous",
+            report.file, report.hook_bodies, report.hook_slots, report.hook_attempts
+        ));
+    }
+    for error in &report.hook_errors {
+        failures.push(format!(
+            "{}: live hook returned a script error and abstained: {error}",
+            report.file
+        ));
+    }
+}
+
 const HEADER: &str = "\
-| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | invoked | quar | crash | corpus | synth | load ms | analyse ms |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
+| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | succeeded/attempted | errors | quar | crash | corpus | synth | load ms | analyse ms |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
 
 fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     let mut out = String::new();
@@ -646,7 +589,8 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     }
 
     let commands: usize = reports.iter().map(|r| r.declared).sum();
-    let invoked: u64 = reports.iter().map(|r| r.hooks_invoked).sum();
+    let attempts: u64 = reports.iter().map(|r| r.hook_attempts).sum();
+    let successes: u64 = reports.iter().map(|r| r.hook_successes).sum();
     let bodies: usize = reports.iter().map(|r| r.hook_bodies).sum();
     let load: f64 = reports.iter().map(|r| r.load.as_secs_f64()).sum();
     let analysis: f64 = reports.iter().map(|r| r.analysis.as_secs_f64()).sum();
@@ -655,7 +599,8 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     let _ = write!(
         out,
         "\n{} packs, {commands} commands declared, {bodies} hook bodies, \
-         {invoked} hook invocations, {diagnostics} diagnostics, \
+         {successes}/{attempts} successful/attempted hook invocations, \
+         {diagnostics} diagnostics, \
          {optimisations} optimisations.\n\
          load {:.1} ms, analysis {:.1} ms, total {:.1} ms.\n\
          corpus: samples/ (in-repo); tmp/ {}.\n",
@@ -670,7 +615,7 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
 
 // The harness proper
 
-fn load_one(pack: &PackUnderTest) -> (PackSet, Duration) {
+fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
     let file = PackFile {
         tier: pack.tier,
         path: pack.path.clone(),
@@ -856,7 +801,7 @@ fn analyse_all(
     (diagnostics, optimisations, started.elapsed())
 }
 
-fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackReport {
+fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackReport {
     let (mut set, load) = load_one(pack);
     let profile = tcl_spectcl::environment::profile_for_dialect(pack.dialect);
     let notices = notice_lines(&set, root);
@@ -896,6 +841,7 @@ fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackRep
         .filter(|slot| host.is_quarantined(**slot))
         .count();
     let crashes = host.crash_records();
+    let hook_errors = host.error_log();
 
     pack_hooks::clear_host();
     pack_hooks::clear_cache();
@@ -911,7 +857,9 @@ fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackRep
         notices,
         hook_bodies,
         hook_slots,
-        hooks_invoked: stats.invocations.get(),
+        hook_attempts: stats.attempts.get(),
+        hook_successes: stats.successes.get(),
+        hook_errors,
         quarantined,
         crashes,
         corpus_files: selected.len(),
@@ -1092,7 +1040,7 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
         || {
             let root = repo_root();
             let (corpus_files, tmp) = corpus(&root);
-            let packs = inventory(&root);
+            let packs = tcl_spectcl::golden::shipped_pack_inventory(&root);
             assert!(
                 packs.len() >= 24,
                 "the repository ships 24 .tclspec files (8 bundled + 11 ports + 5 external); \
@@ -1158,6 +1106,7 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
                         report.file, report.hook_bodies, report.hook_slots
                     ));
                 }
+                require_live_hook_execution(report, &mut failures);
                 if !report.unresolved.is_empty() {
                     failures.push(format!(
                         "{}: installed but unresolvable in the registry: {}",
@@ -1186,7 +1135,8 @@ struct Containment {
     folds: Vec<(String, usize, Duration)>,
     crashes: Vec<CrashRecord>,
     quarantined: Vec<String>,
-    invocations: u64,
+    attempts: u64,
+    successes: u64,
 }
 
 /// Load the hostile fixture, host it, and drive each hook once through the
@@ -1255,7 +1205,8 @@ fn drive_hostile_pack() -> Containment {
             .filter(|(_, slot)| host.is_quarantined(**slot))
             .map(|(command, _)| command.clone())
             .collect(),
-        invocations: stats.invocations.get(),
+        attempts: stats.attempts.get(),
+        successes: stats.successes.get(),
     };
     pack_hooks::clear_host();
     pack_hooks::clear_cache();
@@ -1273,7 +1224,11 @@ fn render_containment(outcome: &Containment) -> String {
             elapsed.as_secs_f64() * 1000.0
         );
     }
-    let _ = writeln!(report, "\nhook invocations: {}", outcome.invocations);
+    let _ = writeln!(
+        report,
+        "\nhook invocations: {}/{} successful/attempted",
+        outcome.successes, outcome.attempts
+    );
     let _ = writeln!(report, "quarantined: {}", outcome.quarantined.join(", "));
     for crash in &outcome.crashes {
         let _ = writeln!(report, "crash: {:?} — {}", crash.kind, crash.headline());
@@ -1300,7 +1255,8 @@ fn a_hostile_pack_degrades_to_abstention_and_never_hangs() {
         folds,
         crashes,
         quarantined,
-        invocations,
+        attempts,
+        successes,
     } = &outcome;
     let report = render_containment(&outcome);
     println!("{report}");
@@ -1313,8 +1269,12 @@ fn a_hostile_pack_degrades_to_abstention_and_never_hangs() {
         );
     }
     assert!(
-        *invocations >= 3,
+        *attempts >= 3,
         "{report}\nall three hostile bodies must actually have been invoked"
+    );
+    assert_eq!(
+        *successes, 0,
+        "{report}\ncontained hostile bodies must not count as successful invocations"
     );
     assert_eq!(
         crashes.len(),

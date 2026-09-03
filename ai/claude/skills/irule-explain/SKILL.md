@@ -6,26 +6,21 @@ allowed-tools: mcp__tcl-lsp__irule_with_context, Read
 
 # iRule Explain
 
-Explain what an iRule does using LSP analysis for accurate context.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md`
-2. Read the iRule file the user wants explained
-3. Run the analysis tool to get structural context: call `mcp__tcl-lsp__irule_with_context` with the file's contents as `config_text`
-4. If the analysis tool fails (e.g. syntax errors in the file), fall back to manual source reading and note that LSP analysis was unavailable
-5. Using the domain knowledge, source code, and analysis output, explain:
-   - **Overall purpose**: What the iRule does at a high level
-   - **Event handlers**: What each event handler does and when it fires
-   - **Data flow**: How data flows between events (e.g. variables set in CLIENT_ACCEPTED used in HTTP_REQUEST)
-   - **Security concerns**: Any issues identified by the analyser
-6. If the user asked a specific question, focus on that while still providing the full context
+1. Read `../_prompts/irules_system.md`, then the iRule.
+2. Call `mcp__tcl-lsp__irule_with_context` with the contents as
+   `config_text`. If it fails (e.g. syntax errors), explain from the source
+   alone and say LSP analysis was unavailable.
+3. Explain: overall purpose; each event handler and when it fires; data flow
+   between events (a variable set in CLIENT_ACCEPTED used in HTTP_REQUEST);
+   security concerns the analyser raised. Focus on any specific question
+   asked while keeping the full context.
 
-## Output format
+## Output
 
-- Use clear headings for each event handler
-- Wrap any code references in ```tcl fences
-- Highlight security issues prominently
-- Note the event firing order and multiplicity (init / once_per_connection / per_request)
+A heading per event handler, code in ```tcl fences, security issues
+prominent, and the event firing order with multiplicity (init /
+once_per_connection / per_request).
 
 $ARGUMENTS

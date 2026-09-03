@@ -35,6 +35,7 @@
     "onLanguage:tcl-mentor",
     "onLanguage:tcl-microchip",
     "onLanguage:tclspec",
+    "onLanguage:sslictcl",
     "onLanguage:tcl-synopsys",
     "onLanguage:tcl84",
     "onLanguage:tcl85",
@@ -46,7 +47,7 @@
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk",
-    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC]}"
+    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC],[sS][sS][lL][iI][cC][tT][cC][lL]}"
   ],
   "main": "./out/extension.js",
   "browser": "./out/extension.browser.js",
@@ -209,6 +210,16 @@
         ],
         "extensions": [
           ".tclspec"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "sslictcl",
+        "aliases": [
+          "SslicTcl"
+        ],
+        "extensions": [
+          ".sslictcl"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -385,6 +396,11 @@
       },
       {
         "language": "tclspec",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "sslictcl",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       }
@@ -3278,6 +3294,9 @@
       },
       "[tclspec]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[sslictcl]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
       }
     },
     "configuration": [
@@ -3315,6 +3334,7 @@
               "mentor-eda-tcl",
               "microchip-libero-eda-tcl",
               "spectcl",
+              "sslictcl",
               "synopsys-eda-tcl",
               "tcl8.4",
               "tcl8.5",
@@ -3335,6 +3355,7 @@
               "Mentor EDA Tcl dialect",
               "Microchip Libero EDA Tcl dialect",
               "SpecTcl dialect",
+              "SslicTcl dialect",
               "Synopsys EDA Tcl dialect",
               "Tcl 8.4 dialect",
               "Tcl 8.5 dialect",
@@ -3365,6 +3386,33 @@
             },
             "markdownDescription": "Extra SpecTcl spec packs (`.tclspec` files, or directories of them) to load for this workspace. Relative paths resolve against each workspace folder. Packs under a `.tcl-lsp/` directory, or beside a `tclpkg.tcl` manifest, are found without configuring anything; this setting is for packs that live somewhere else. See docs/design/spec-packs.md.",
             "order": 8
+          },
+          "tclLsp.iruleslx": {
+            "scope": "resource",
+            "type": "object",
+            "default": {},
+            "properties": {
+              "plugins": {
+                "type": "object",
+                "markdownDescription": "iRulesLX plugin name (the `PLUGIN` word of `ILX::init PLUGIN EXTENSION`) to the workspace directory holding its `extensions/`. Only needed when the plugin's name differs from that directory's name — when they match, navigation works with no configuration. Relative paths resolve against the workspace folder.",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "rules": {
+                "type": "object",
+                "markdownDescription": "Extra directories to search for iRules that call a plugin, on top of its workspace's own `rules/`. Use this when your repository keeps its iRules outside the workspace it builds. Searched recursively; an entry for a plugin with no `plugins` entry is ignored.",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false,
+            "markdownDescription": "iRulesLX plugin associations, so `ILX::call` / `ILX::notify` can navigate to the `ILXServer.addMethod` that implements a method. Also settable per project in `.tcl-lsp.ini` as `[iruleslx.plugins]` / `[iruleslx.rules]`. See docs/design/iruleslx-remote-methods.md.",
+            "order": 9
           },
           "tclLsp.bigipVersion": {
             "scope": "resource",
@@ -3530,6 +3578,20 @@
             "description": "Override signature help (parameter hints). When null, inherits from editor.parameterHints.enabled.",
             "order": 11
           },
+          "tclLsp.signatureHelp.disabledCommands": {
+            "scope": "language-overridable",
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "default": null,
+            "markdownDescription": "Built-in Tcl command names whose automatic signature help is suppressed. For example, add `set` and `incr` to keep signatures for commands such as `format` and for user-defined procs while silencing those two built-ins. Names are case-sensitive and resolved with Tcl's qualified-name rules, so `set` and `::set` select the same registry command.",
+            "order": 12
+          },
           "tclLsp.features.workspaceSymbols": {
             "scope": "language-overridable",
             "type": [
@@ -3538,7 +3600,7 @@
             ],
             "default": null,
             "description": "Override workspace symbols (Cmd+T). When null, enabled.",
-            "order": 12
+            "order": 13
           },
           "tclLsp.features.inlayTypeHints": {
             "scope": "language-overridable",
@@ -3548,7 +3610,7 @@
             ],
             "default": null,
             "description": "Show inferred-type inlay hints on variables (and format-string specifiers). Off by default; set true to enable.",
-            "order": 13
+            "order": 14
           },
           "tclLsp.features.inlayParameterHints": {
             "scope": "language-overridable",
@@ -3558,7 +3620,7 @@
             ],
             "default": null,
             "description": "Show parameter-name inlay hints at proc/method call sites (e.g. NAME:, PROC_SCRIPT:). Verbose; off by default, set true to enable.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.features.callHierarchy": {
             "scope": "language-overridable",
@@ -3568,7 +3630,7 @@
             ],
             "default": null,
             "description": "Override call hierarchy (incoming/outgoing calls for procs). When null, enabled.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.features.documentLinks": {
             "scope": "language-overridable",
@@ -3578,7 +3640,7 @@
             ],
             "default": null,
             "description": "Override document links (clickable source paths and package requires). When null, enabled.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.features.selectionRange": {
             "scope": "language-overridable",
@@ -3588,7 +3650,7 @@
             ],
             "default": null,
             "description": "Override selection range (smart expand/shrink). When null, enabled.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.features.documentHighlight": {
             "scope": "language-overridable",
@@ -3598,7 +3660,7 @@
             ],
             "default": null,
             "description": "Override document highlight. When null, inherits from editor.occurrencesHighlight.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.features.codeLens": {
             "scope": "language-overridable",
@@ -3608,7 +3670,7 @@
             ],
             "default": null,
             "description": "Override code lens (inline reference counts, test runners). When null, inherits from editor.codeLens.",
-            "order": 19
+            "order": 20
           },
           "tclLsp.features.workspaceFileOps": {
             "scope": "language-overridable",
@@ -3618,14 +3680,14 @@
             ],
             "default": null,
             "description": "Override workspace file operations (auto-rewrite source paths on rename). When null, enabled.",
-            "order": 20
+            "order": 21
           },
           "tclLsp.features.willSaveWaitUntil": {
             "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "description": "Format the document on save via textDocument/willSaveWaitUntil. Off by default; enable for format-on-save without relying on the editor's own editor.formatOnSave. Uses the resolved tclLsp.formatting.lineLength for the document's folder.",
-            "order": 21
+            "order": 22
           },
           "tclLsp.features.implementation": {
             "scope": "language-overridable",
@@ -3635,7 +3697,7 @@
             ],
             "default": null,
             "description": "Override Go to Implementation (TclOO method overrides). When null, enabled.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.features.typeDefinition": {
             "scope": "language-overridable",
@@ -3645,7 +3707,7 @@
             ],
             "default": null,
             "description": "Override Go to Type Definition. When null, enabled.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.features.declaration": {
             "scope": "language-overridable",
@@ -3655,7 +3717,7 @@
             ],
             "default": null,
             "description": "Override Go to Declaration. When null, enabled.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.features.linkedEditingRange": {
             "scope": "language-overridable",
@@ -3665,7 +3727,7 @@
             ],
             "default": null,
             "description": "Override linked editing range. When null, inherits from editor.linkedEditing.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.features.crossFileResolution": {
             "scope": "resource",
@@ -3675,7 +3737,7 @@
             ],
             "default": null,
             "description": "Resolve diagnostics across the whole workspace: suppress \"unknown command\" (W120/W123) for a proc defined in another file, and report wrong-argument-count errors (E002/E003) for cross-file calls. Off by default (scans every workspace file); set true to enable. An expr math function the workspace injects into ::tcl::mathfunc resolves without this setting, since that namespace is one table per interpreter. Independent of XC Migration diagnostics below.",
-            "order": 27
+            "order": 28
           }
         }
       },
@@ -8393,8 +8455,434 @@
         }
       },
       {
-        "title": "Optimiser",
+        "title": "Diagnostics — SslicTcl",
         "order": 19,
+        "properties": {
+          "tclLsp.diagnostics.SSLIC1001": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1001:** SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter.",
+            "order": 0
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1001": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1001:** SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.SSLIC1002": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1002:** SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative.",
+            "order": 1
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1002": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1002:** SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.SSLIC1003": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1003:** SslicTcl document is missing its `sslictcl VERSION` header.",
+            "order": 2
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1003": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1003:** SslicTcl document is missing its `sslictcl VERSION` header.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.SSLIC1004": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1004:** SslicTcl document declares its `sslictcl` header more than once.",
+            "order": 3
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1004": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1004:** SslicTcl document declares its `sslictcl` header more than once.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.SSLIC1005": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1005:** SslicTcl declaration has the wrong number of words.",
+            "order": 4
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1005": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1005:** SslicTcl declaration has the wrong number of words.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.SSLIC1006": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1006:** SslicTcl declaration body must be a braced literal.",
+            "order": 5
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1006": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1006:** SslicTcl declaration body must be a braced literal.",
+            "order": 5
+          },
+          "tclLsp.diagnostics.SSLIC1007": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1007:** SslicTcl closed block contains an unknown member.",
+            "order": 6
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1007": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1007:** SslicTcl closed block contains an unknown member.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.SSLIC1008": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1008:** SslicTcl declaration duplicates an earlier declaration of the same kind and name.",
+            "order": 7
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1008": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1008:** SslicTcl declaration duplicates an earlier declaration of the same kind and name.",
+            "order": 7
+          },
+          "tclLsp.diagnostics.SSLIC1009": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1009:** SslicTcl value is outside its declared domain.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1009": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1009:** SslicTcl value is outside its declared domain.",
+            "order": 8
+          },
+          "tclLsp.diagnostics.SSLIC1010": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1010:** SslicTcl declaration is missing a required member.",
+            "order": 9
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1010": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1010:** SslicTcl declaration is missing a required member.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.SSLIC1011": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1011:** SslicTcl declaration references a name that is not declared.",
+            "order": 10
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1011": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1011:** SslicTcl declaration references a name that is not declared.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.SSLIC1012": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1012:** SslicTcl declaration combines mutually exclusive members.",
+            "order": 11
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1012": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1012:** SslicTcl declaration combines mutually exclusive members.",
+            "order": 11
+          },
+          "tclLsp.diagnostics.SSLIC1101": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1101:** SslicTcl unknown declaration preserved as an extension.",
+            "order": 12
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1101": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1101:** SslicTcl unknown declaration preserved as an extension.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.SSLIC1102": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1102:** SslicTcl document vocabulary is newer than this build supports; unknown declarations are preserved.",
+            "order": 13
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1102": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1102:** SslicTcl document vocabulary is newer than this build supports; unknown declarations are preserved.",
+            "order": 13
+          },
+          "tclLsp.diagnostics.SSLIC1103": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**SSLIC1103:** SslicTcl `predicate` body is retained but never evaluated in vocabulary 1.",
+            "order": 14
+          },
+          "tclLsp.diagnosticSeverity.SSLIC1103": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **SSLIC1103:** SslicTcl `predicate` body is retained but never evaluated in vocabulary 1.",
+            "order": 14
+          }
+        }
+      },
+      {
+        "title": "Optimiser",
+        "order": 20,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "scope": "resource",
@@ -8820,6 +9308,7 @@
                       "mentor-eda-tcl",
                       "microchip-libero-eda-tcl",
                       "spectcl",
+                      "sslictcl",
                       "synopsys-eda-tcl",
                       "tcl8.4",
                       "tcl8.5",

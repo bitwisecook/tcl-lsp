@@ -471,7 +471,7 @@ fn file_time(interp: &mut Interp, argv: &[*mut TclObj], access: bool) -> Code {
             return interp.set_error(b"expected integer but got invalid time");
         };
         return match fs.set_times(
-            &as_str(&path),
+            as_str(&path),
             access.then_some(secs),
             (!access).then_some(secs),
         ) {
@@ -482,7 +482,7 @@ fn file_time(interp: &mut Interp, argv: &[*mut TclObj], access: bool) -> Code {
             Err(e) => host_fs_error(interp, b"could not set file time for", &path, &e.reason()),
         };
     }
-    match fs.metadata(&as_str(&path)) {
+    match fs.metadata(as_str(&path)) {
         Ok(m) => {
             let value = if access { m.atime_secs } else { m.mtime_secs };
             interp.set_result_bytes(value.to_string().as_bytes());
@@ -501,13 +501,13 @@ fn file_attributes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(fs) = host.filesystem() else {
         return interp.set_error(b"filesystem not available");
     };
-    let meta = match fs.symlink_metadata(&as_str(&path)) {
+    let meta = match fs.symlink_metadata(as_str(&path)) {
         Ok(m) => m,
         Err(e) => return host_fs_error(interp, b"could not read", &path, &e.reason()),
     };
     if argv.len() == 3 {
         let tail = tcl_cmd_core::path::tail(&path);
-        let entries = vec![
+        let entries = [
             (b"-group".as_slice(), meta.gid.to_string().into_bytes()),
             (b"-owner".as_slice(), meta.uid.to_string().into_bytes()),
             (
@@ -600,9 +600,7 @@ fn file_copy(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(fs) = host.filesystem() else {
         return interp.set_error(b"filesystem not available");
     };
-    let target_is_dir = fs
-        .symlink_metadata(&as_str(&target))
-        .is_ok_and(|m| m.is_dir);
+    let target_is_dir = fs.symlink_metadata(as_str(&target)).is_ok_and(|m| m.is_dir);
     let sources = &argv[i..argv.len() - 1];
     if sources.len() > 1 && !target_is_dir {
         return interp.set_error(b"target must be a directory");
@@ -614,10 +612,8 @@ fn file_copy(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         } else {
             target.clone()
         };
-        let recursive = fs
-            .symlink_metadata(&as_str(&source))
-            .is_ok_and(|m| m.is_dir);
-        if let Err(e) = fs.copy(&as_str(&source), &as_str(&destination), recursive, force) {
+        let recursive = fs.symlink_metadata(as_str(&source)).is_ok_and(|m| m.is_dir);
+        if let Err(e) = fs.copy(as_str(&source), as_str(&destination), recursive, force) {
             return host_fs_error(interp, b"error copying", &source, &e.reason());
         }
     }
@@ -662,7 +658,7 @@ fn file_link(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(fs) = host.filesystem() else {
         return interp.set_error(b"filesystem not available");
     };
-    match fs.link(&as_str(&link), &as_str(&target), hard) {
+    match fs.link(as_str(&link), as_str(&target), hard) {
         Ok(()) => str_result(interp, &target),
         Err(e) => host_fs_error(interp, b"couldn't create link", &link, &e.reason()),
     }
@@ -680,7 +676,7 @@ fn file_readlink_at(interp: &mut Interp, path: &[u8]) -> Code {
     let Some(fs) = host.filesystem() else {
         return interp.set_error(b"filesystem not available");
     };
-    match fs.readlink(&as_str(path)) {
+    match fs.readlink(as_str(path)) {
         Ok(target) => str_result(interp, target.as_bytes()),
         Err(e) => host_fs_error(interp, b"couldn't read link", path, &e.reason()),
     }
@@ -715,9 +711,7 @@ fn file_rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(fs) = host.filesystem() else {
         return interp.set_error(b"filesystem not available");
     };
-    let target_is_dir = fs
-        .symlink_metadata(&as_str(&target))
-        .is_ok_and(|m| m.is_dir);
+    let target_is_dir = fs.symlink_metadata(as_str(&target)).is_ok_and(|m| m.is_dir);
     let sources = &argv[i..argv.len() - 1];
     if sources.len() > 1 && !target_is_dir {
         return interp.set_error(b"target must be a directory");
@@ -729,7 +723,7 @@ fn file_rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         } else {
             target.clone()
         };
-        if let Err(e) = fs.rename(&as_str(&source), &as_str(&destination), force) {
+        if let Err(e) = fs.rename(as_str(&source), as_str(&destination), force) {
             return host_fs_error(interp, b"error renaming", &source, &e.reason());
         }
     }
@@ -751,9 +745,9 @@ fn file_stat(interp: &mut Interp, argv: &[*mut TclObj], no_follow: bool) -> Code
         return interp.set_error(b"filesystem not available");
     };
     let meta = match if no_follow {
-        fs.symlink_metadata(&as_str(&path))
+        fs.symlink_metadata(as_str(&path))
     } else {
-        fs.metadata(&as_str(&path))
+        fs.metadata(as_str(&path))
     } {
         Ok(m) => m,
         Err(e) => return host_fs_error(interp, b"could not read", &path, &e.reason()),
@@ -1432,10 +1426,7 @@ mod tests {
                 .parse::<i64>()
                 .is_ok()
         );
-        assert_eq!(
-            ok(&mut i, format!("file attributes {src_s}").as_bytes()).contains(&b'-'),
-            true
-        );
+        assert!(ok(&mut i, format!("file attributes {src_s}").as_bytes()).contains(&b'-'));
         assert_eq!(
             ok(&mut i, format!("file copy {src_s} {copy_s}").as_bytes()),
             b""

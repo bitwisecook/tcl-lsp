@@ -41,9 +41,10 @@ Add to your `init.el`:
 
 ;; Plain `tcl-mode` for the rest of the family. These need no derived mode:
 ;; the server's own detection routes them — a `.tclspec` by its `speclib`
-;; wrapper, an EDA script by its vendor commands, a `bigip.conf` by name — so
-;; sending languageId "tcl" costs nothing but the mode line.
-(add-to-list 'auto-mode-alist '("\\.\\(tclspec\\|test\\)\\'" . tcl-mode))
+;; wrapper, a `.sslictcl` by its `sslictcl` header, an EDA script by its vendor
+;; commands, a `bigip.conf` by name — so sending languageId "tcl" costs nothing
+;; but the mode line.
+(add-to-list 'auto-mode-alist '("\\.\\(tclspec\\|sslictcl\\|test\\)\\'" . tcl-mode))
 (add-to-list 'auto-mode-alist
              '("\\.\\(sdc\\|upf\\|xdc\\|qsf\\|qpf\\|qip\\|do\\|globals\\)\\'" . tcl-mode))
 (add-to-list 'auto-mode-alist '("\\(\\.scf\\|/bigip\\(_[a-z]+\\)?\\.conf\\)\\'" . tcl-mode))
@@ -95,7 +96,7 @@ derived modes in the eglot setup above, which send the correct `languageId` —
 do **not** also map `.apl` to plain `tcl-mode`, or it would analyse as tcl8.6.
 
 Everything else the catalogue owns rides plain `tcl-mode`: `.tclspec`,
-`.test`, the EDA suffixes and the BIG-IP config files have no ambiguity the
+`.sslictcl`, `.test`, the EDA suffixes and the BIG-IP config files have no ambiguity the
 `languageId` needs to resolve, because the server detects them from their own
 content or filename. The authoritative list is the dialect catalogue —
 `cargo xtask gen-editor-extensions --check` gates the editors that can be

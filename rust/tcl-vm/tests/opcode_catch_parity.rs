@@ -109,7 +109,10 @@ fn inline_catch_error_path_binds_result_and_opts() {
         "::p",
     );
     assert_eq!(code, Code::Ok, "catch must absorb the error: {result}");
-    assert_eq!(result, "1 {invalid command name \"nosuchcmd\"} 1 NONE");
+    assert_eq!(
+        result,
+        "1 {invalid command name \"nosuchcmd\"} 1 {TCL LOOKUP COMMAND nosuchcmd}"
+    );
 }
 
 /// The ok path still binds code 0 and the body's result.

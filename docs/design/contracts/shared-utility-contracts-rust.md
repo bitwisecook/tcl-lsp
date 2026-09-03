@@ -32,17 +32,18 @@ entry point, or gate moves without this contract being updated.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
-| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `origin`; `origin_bytes` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
-| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs` | invariant | none |
-| glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_case_match` | invariant | none |
+| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `worded_parse_error` | invariant | none |
+| glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
 | numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
 | backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
+| array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
-| option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message` | option surface per release/dialect | `xtask-option-registry-drift` |
+| option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
@@ -51,9 +52,64 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
+| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
+| interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
+| SslicTcl declaration model | `rust/tcl-sslictcl/src/model.rs` | `SslicModel`; `TlsFacts`; `Policy` | vocabulary version (`dsl::SUPPORTED_VOCABULARY`); no Tcl release axis — the document is never evaluated | none |
+| SslicTcl document loading | `rust/tcl-sslictcl/src/dsl.rs`; `rust/tcl-sslictcl/src/vocabulary.rs` | `load_with_diagnostics`; `DslDiagnostic`; `DECLARATIONS` | vocabulary version; open/closed block rule per declaration | none |
+| SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
+| SslicTcl embedded source data | `rust/tcl-sslictcl/src/trust.rs` | `embedded_dataset` | pinned upstream revisions, recorded with hashes and licences in `data/provenance.json` | `xtask-sslictcl-data` |
+| SslicTcl declaration surface | `rust/tcl-registry/src/commands/sslictcl/mod.rs`; `rust/tcl-registry/src/definer.rs` | `sslictcl_command_specs`; `SSLICTCL_GRAMMARS` | the `sslictcl` authoring surface (`SpecSurface::SSLICTCL`); Tcl 9.0 core underneath | none |
+| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
 <!-- end-owner-resolution-manifest -->
+
+### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
+
+- The `tcl-dialect/data/reference-toolchains.tsv` manifest is the
+  language-neutral owner for the five pinned C Tcl patchlevels and their
+  upstream Tcl/Tk source tags. `tcl-dialect` generates `TclVersion`'s release
+  facts from it at build time; `tcl-test-support` reuses those APIs for oracle
+  provenance, while the POSIX shell adapter under `scripts/dev` supplies the
+  same rows to ensure-test-deps, the source-fetch skill, and remote-session
+  bootstrap.
+- Default/PATH oracle resolution requires the exact pinned patchlevel and
+  records the interpreter's reported value as provenance. An explicitly
+  paired source-tree interpreter may name another patchlevel on the same
+  release line, but its binary and `generic/tcl.h` must agree exactly.
+- The check-tcl-reference-toolchains Make target runs the hermetic
+  stale-interpreter regression (including `/bin/sh` adapter execution) and the
+  Rust all-axis release-fact test.
+
+### `tcl-platform` — predefined platform surface
+
+- `bootstrap::entries` is the one schema for the predefined
+  `tcl_platform` array in both interpreters. Constants live in the schema;
+  machine, user, operating-system version, engine identity, and backend facts
+  enter through `bootstrap::Values`. `bootstrap::snapshot` captures those
+  values together with the selected host's environment and Tcl library path,
+  so neither engine may read the process host behind an embedder's selected
+  `Host`.
+- `bootstrap::HOST_ARRAYS` and `bootstrap::HOST_PATH_GLOBALS` define the whole
+  stale surface an engine clears before installing a replacement snapshot.
+  `Interp::with_host` avoids a native-host bootstrap entirely; both engines'
+  `set_host` paths replace this surface, and normal children inherit their
+  parent's host before their first bootstrap.
+- `bootstrap::safe_scrub_keys` is derived from those same entries. It follows
+  Tcl 9's `Tcl_MakeSafe` distinction: identity-bearing `os`, `osVersion`,
+  `machine`, and `user` are removed; portable facts, including `threaded`,
+  remain. The project-specific runtime/WASM/WASI/eBPF facts are also removed.
+- `bootstrap::SHARED_LIBRARY_EXTENSION` is the one suffix exposed by both
+  engines' `info sharedlibextension` implementations. It belongs beside the
+  canonical Unix `tcl_platform(platform)` fact rather than in either engine's
+  command adapter; real `init.tcl` package-index discovery reads it while
+  rejecting Windows-only packages.
+
+  Consumers: `tcl-vm::Vm::rebootstrap_host_globals` and
+  `tcl_runtime::Interp::rebootstrap_host_globals` install the snapshot;
+  each engine's `make_safe` consumes the derived scrub iterator. A fresh
+  tree-walk `Interp`, its normal children, and bytecode-VM children all install
+  the surface before any `init.tcl` work.
 
 ### `tcl-syntax` — the parse grammars and value seam
 
@@ -268,7 +324,9 @@ entry point, or gate moves without this contract being updated.
   namespace declare/find/parent/import/forget) and `command.rs`
   (rename re-homing, `proc` namespace derivation) are built on them.
   The generic cores cover `current` / `exists` / `parent` / `children`
-  / `which_command` and, since #1442, `which_variable` (the
+  (including byte-valued twins and Tcl string-hash enumeration order), the
+  positional `which_request`, import-source validation, `which_command` and,
+  since #1442, `which_variable` (the
   `Tcl_FindNamespaceVar` probe — namespace variable tables only, never
   a call frame; its *alternate* global-rooted candidate is the one
   release axis, dropped by 9.0's `flags |= TCL_NAMESPACE_ONLY`) and
@@ -283,7 +341,15 @@ entry point, or gate moves without this contract being updated.
   (`create` carries `-command` and no `-namespace`; `configure`
   carries `-namespace`, read-only, and no `-command`), the
   exact-then-unique-prefix subcommand scan, and the dispatch miss
-  messages. The scan is `prefix::scan`'s rule with one documented
+  messages, plus the non-empty implementation-prefix invariant for `-map`.
+  `EnsembleToken` is the shared stable command-token lifecycle: its live
+  configuration and name survive imports, reconfiguration, and rename, while
+  true deletion irreversibly retires that token. `InvocationLayout` and
+  `invocation_layout` own the parameter/subcommand/argument positions and must
+  be recomputed from the live token after an `-unknown` callback. The exact
+  `UNKNOWN_DELETED` message and error code live beside that lifecycle rather
+  than in either runtime.
+  The scan is `prefix::scan`'s rule with one documented
   divergence: C's ensemble path is a `strncmp` over the word's length,
   so an **empty** subcommand prefixes every entry and resolves against
   a one-entry table, where `Tcl_GetIndexFromObj` forces the error
@@ -399,6 +465,44 @@ entry point, or gate moves without this contract being updated.
 - The crate for cross-runtime plain types (diagnostic codes today).
   Anything two crates must *name* identically without depending on
   each other's machinery lands here.
+
+### `tcl-sslictcl` — the TLS declaration vocabulary
+
+- `load_with_diagnostics` is the one reader of a `.sslictcl` document.
+  It walks the canonical syntax tree and constructs no interpreter, so the
+  document is never evaluated — not even a `check`'s `predicate`, which it
+  retains verbatim. `DECLARATIONS` is the machine-readable statement of the
+  vocabulary the loader implements; `docs/design/sslictcl-vocabulary.md` is
+  its prose, and a unit test holds the two together.
+- `evaluate_policy` owns **finding identity**: a policy finding is
+  `(check id, endpoint)`, which is why the `grade` id is reserved and why
+  declaring `check grade { … }` is `SSLIC1009`. Every consumer that
+  deduplicates, suppresses, or compares findings across runs keys on that
+  pair rather than on a message.
+- `embedded_dataset` is the single reader of the embedded trust-store and TLS
+  source bundle. Nothing else fetches it, and nothing reaches upstream at
+  build, report, or editing time — see
+  [`sslictcl-source-data.md`](sslictcl-source-data.md).
+- The loader reuses the shared owners rather than re-deriving them: the
+  command/word segmentation owner (`tcl_compiler::segmenter` over the
+  canonical CST) reads the document, and `tcl_syntax::list` splits every
+  braced `LIST` value, so a `forbid-ciphers {[A-Z]*RC4}` glob means exactly
+  what a Tcl list means. There is no SslicTcl exception in the "Known
+  deliberate exceptions" section because there is no divergence to record.
+- The editor projection is a separate owner because two binaries consume it:
+  `tcl-lsp-server` publishes the loader's diagnostics and `tcl-cli`'s
+  `diag` / `lint` verbs report the same set, and the rule that the loader
+  **supersedes** the analyser's unknown-command verdict in a never-evaluated
+  document must be stated once for both. Its second half is the *outline*:
+  a declaration document has no procs, classes or namespaces for the
+  analyser's scope walk, so its blocks are its structure.
+- Which **vocabulary** a position admits is a different question with a
+  different owner, and deliberately not stated here: it is the
+  definition-body grammar in force, which `tcl_lsp_core::oo_body`'s
+  `definition_grammar_at` answers for every definition body of every class
+  system, rooted in `CommandRegistry::document_grammar` for a dialect whose
+  file is itself a declaration body. Completion and the token walk read it,
+  and this owner must not grow a second answer to it.
 
 ## Decision rules / contracts
 

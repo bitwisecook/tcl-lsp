@@ -3391,14 +3391,32 @@ fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
     );
     assert_eq!(scope.sub_subcommand, Some("exists"));
 
-    // The other second-level ensembles in the registry declare nothing, so
+    // The other second-level operations in the registry declare nothing, so
     // they still inherit — the default must stay "inherit", or every one of
-    // them silently loses its parent's options.
+    // them silently loses its parent's options. Tcl 9.0's `properties` is the
+    // deliberate exception: its own three-option table must not be mistaken
+    // for the absent/inherit state.
     let info = registry.get("info").expect("`info` is a core command");
     let object = info
         .resolve_subcommand("object")
         .expect("`info object` is a subcommand");
-    for op in object.sub_subcommands {
+    let properties = object
+        .resolve_sub_subcommand("properties")
+        .expect("`info object properties`");
+    assert_eq!(
+        properties
+            .options
+            .expect("`properties` declares its own table")
+            .iter()
+            .map(|option| option.name)
+            .collect::<Vec<_>>(),
+        ["-all", "-readable", "-writable"]
+    );
+    for op in object
+        .sub_subcommands
+        .iter()
+        .filter(|op| op.name != "properties")
+    {
         assert!(
             op.options.is_none(),
             "`info object {}` declares nothing about options",

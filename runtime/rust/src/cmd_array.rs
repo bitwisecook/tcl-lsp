@@ -327,6 +327,20 @@ mod tests {
     }
 
     #[test]
+    fn array_get_preserves_parentheses_in_the_array_base() {
+        leak_free(|i| {
+            for name in [b"z(b".as_slice(), b"z)b", b"z(b)c"] {
+                let mut script = b"array set {".to_vec();
+                script.extend_from_slice(name);
+                script.extend_from_slice(b"} {a 1 b 2}; array get {");
+                script.extend_from_slice(name);
+                script.push(b'}');
+                assert_eq!(run(i, &script), b"a 1 b 2", "base {name:?}");
+            }
+        });
+    }
+
+    #[test]
     fn array_unset() {
         leak_free(|i| {
             run(i, b"array set a {x 1 y 2 z 3}");

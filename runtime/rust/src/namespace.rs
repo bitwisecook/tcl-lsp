@@ -34,8 +34,9 @@
 //! on this one resolver (they install redirect/alias `Command`s); the binding
 //! lattice (only `pristine-builtin` inlines) is the AOT side.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
 
 use crate::frame::VarTable;
@@ -68,6 +69,8 @@ struct Namespace {
     name: Vec<u8>,
     parent: Option<NsId>,
     children: BTreeMap<Vec<u8>, NsId>,
+    /// The child's `TCL_STRING_KEYS` table, including retained resize history.
+    child_order: TclStringHashOrder,
     commands: BTreeMap<Vec<u8>, Command>,
     /// `namespace path` — namespaces searched for unqualified commands (step b).
     path: Vec<NsId>,
@@ -90,6 +93,7 @@ impl Namespace {
             name,
             parent,
             children: BTreeMap::new(),
+            child_order: TclStringHashOrder::default(),
             commands: BTreeMap::new(),
             path: Vec::new(),
             exports: Vec::new(),
@@ -102,6 +106,17 @@ impl Namespace {
 /// The namespace tree + the command resolver.
 pub struct Namespaces {
     arena: Vec<Namespace>,
+    /// Namespace-token identities permanently invalidated by deletion. Arena
+    /// slots are stable and never reused, so a namespace recreated with the
+    /// same name receives a distinct live identity while retained activations
+    /// keep naming their deleted token.
+    dead: BTreeSet<NsId>,
+    /// Namespace nodes detached during command-delete callbacks. They are not
+    /// visible to `namespace exists`, but command definition/resolution still
+    /// reaches their command tables until the deletion sweep finishes, just as
+    /// C keeps a dying Namespace alive through its activation/token refs.
+    dying_children: BTreeMap<(NsId, Vec<u8>), NsId>,
+    dying: BTreeSet<NsId>,
     /// M11: Tcl 8.x resolves an unqualified variable at **namespace scope**
     /// to the global variable when the namespace has none but the global
     /// namespace does (reads and writes both); 9.0 removed the fallback
@@ -118,12 +133,42 @@ impl Default for Namespaces {
 }
 
 impl Namespaces {
+    fn mark_command_deleted(command: &Command) {
+        if let Command::Ensemble(token) = command {
+            token.mark_deleted();
+        }
+    }
+
+    fn command_fqn(&self, ns: NsId, simple: &[u8]) -> Vec<u8> {
+        let mut fqn = self.qualified_name(ns);
+        if fqn != b"::" {
+            fqn.extend_from_slice(b"::");
+        }
+        fqn.extend_from_slice(simple);
+        fqn
+    }
+
+    /// Install one real command binding. Replacement deletes the displaced
+    /// command token; the installed ensemble token acquires this binding's FQN.
+    fn insert_bound(&mut self, ns: NsId, simple: Vec<u8>, command: Command) {
+        if let Some(displaced) = self.arena[ns].commands.remove(&simple) {
+            Self::mark_command_deleted(&displaced);
+        }
+        if let Command::Ensemble(token) = &command {
+            token.rename(self.command_fqn(ns, &simple));
+        }
+        self.arena[ns].commands.insert(simple, command);
+    }
+
     /// A fresh tree with just the global namespace `::`.
     #[must_use]
     pub fn new() -> Namespaces {
         Namespaces {
             ns_var_global_fallback: false,
             arena: vec![Namespace::new(Vec::new(), None)],
+            dead: BTreeSet::new(),
+            dying_children: BTreeMap::new(),
+            dying: BTreeSet::new(),
         }
     }
 
@@ -145,7 +190,7 @@ impl Namespaces {
             ns = self.ensure_child(ns, part);
         }
         let simple = (*simple).to_vec();
-        self.arena[ns].commands.insert(simple.clone(), command);
+        self.insert_bound(ns, simple.clone(), command);
         Some((ns, simple))
     }
 
@@ -182,7 +227,7 @@ impl Namespaces {
     pub fn rebind_resolved(&mut self, current: NsId, name: &[u8], command: Command) -> bool {
         match self.home_of(current, name) {
             Some((ns, simple)) => {
-                self.arena[ns].commands.insert(simple, command);
+                self.insert_bound(ns, simple, command);
                 true
             }
             None => false,
@@ -215,9 +260,22 @@ impl Namespaces {
     /// `delete` retires the same binding `resolve` would have hit.
     pub fn delete(&mut self, current: NsId, name: &[u8]) -> bool {
         match self.home_of(current, name) {
-            Some((ns, simple)) => self.arena[ns].commands.remove(&simple).is_some(),
+            Some((ns, simple)) => self.arena[ns]
+                .commands
+                .remove(&simple)
+                .is_some_and(|command| {
+                    Self::mark_command_deleted(&command);
+                    true
+                }),
             None => false,
         }
+    }
+
+    /// Remove a command binding without deleting its token. Used only for
+    /// visibility moves such as `interp hide`; the token remains alive.
+    pub fn take(&mut self, current: NsId, name: &[u8]) -> Option<Command> {
+        let (ns, simple) = self.home_of(current, name)?;
+        self.arena[ns].commands.remove(&simple)
     }
 
     /// `rename old new`: move the command bound to `old` to `new` (both resolved
@@ -233,6 +291,7 @@ impl Namespaces {
         // SAFETY of unwrap: `home_of` reported the binding exists.
         let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
         if new.is_empty() {
+            Self::mark_command_deleted(&cmd);
             return RenameOutcome::Deleted;
         }
         let Some((ns, simple)) = self.destination_of(current, new) else {
@@ -241,7 +300,7 @@ impl Namespaces {
             self.arena[old_ns].commands.insert(old_simple, cmd);
             return RenameOutcome::NoSuchCommand;
         };
-        self.arena[ns].commands.insert(simple, cmd);
+        self.insert_bound(ns, simple, cmd);
         RenameOutcome::Renamed
     }
 
@@ -345,20 +404,47 @@ impl Namespaces {
     }
 
     /// Rewrite every [`Command::Imported`] redirect whose source is `old_fqn`
-    /// to point at `new_fqn`. In C Tcl an imported command holds the source's
-    /// command *token*, so `rename`ing the source keeps every import working
-    /// and `namespace origin` reports the source's **new** name (tclsh
-    /// 8.6.16 / 9.0.4-pinned); this by-name store follows the rename
-    /// explicitly instead. Deletion is *not* retargeted — a deleted source
-    /// leaves the import dangling (`invalid command name`), also pinned.
-    /// Rename is cold-path, so the full-tree scan is fine.
+    /// to point at `new_fqn`. Even an ensemble import keeps this by-name shadow
+    /// alongside its retained token: if a later replacement retires the token,
+    /// dispatch and `namespace origin` fall back through the source's *latest*
+    /// binding. Rename is cold-path, so the full-tree scan is fine.
     pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
         for ns in &mut self.arena {
             for cmd in ns.commands.values_mut() {
-                if let Command::Imported { source } = cmd {
+                if let Command::Imported { source, .. } = cmd {
                     if source.as_slice() == old_fqn {
                         *source = new_fqn.to_vec();
                     }
+                }
+            }
+        }
+    }
+
+    /// Attach imports of `source_fqn` (and imports retaining `old`, when this is
+    /// an ensemble-to-ensemble replacement) to `new`. This changes alias
+    /// metadata only; the displaced token itself remains retired and immutable.
+    pub(crate) fn retarget_imports_to_ensemble(
+        &mut self,
+        source_fqn: &[u8],
+        old: Option<&std::rc::Rc<crate::ensemble::EnsembleToken>>,
+        new: &std::rc::Rc<crate::ensemble::EnsembleToken>,
+    ) {
+        for ns in &mut self.arena {
+            for command in ns.commands.values_mut() {
+                let Command::Imported {
+                    source, ensemble, ..
+                } = command
+                else {
+                    continue;
+                };
+                let retains_old = old.is_some_and(|old| {
+                    ensemble
+                        .as_ref()
+                        .is_some_and(|token| std::rc::Rc::ptr_eq(token, old))
+                });
+                if source.as_slice() == source_fqn || retains_old {
+                    *source = source_fqn.to_vec();
+                    *ensemble = Some(std::rc::Rc::clone(new));
                 }
             }
         }
@@ -419,6 +505,30 @@ impl Namespaces {
                 .split_last()
                 .map_or(&[][..], |(_tail, ns_parts)| ns_parts)
         };
+        // Command definition may target an *exact* detached namespace token
+        // during its delete callback (`proc ::N::q ...`). Namespace creation
+        // is different: a longer missing path below an original dying
+        // descendant (`namespace eval ::N::C::X ...`) must build an entirely
+        // fresh visible `N::C::X` tree. Resolve the whole qualifier first and
+        // retain a dying token only when every qualifier segment already names
+        // that exact token; otherwise creation below uses visible edges only.
+        let mut existing = ns;
+        let mut complete = true;
+        for part in ns_parts {
+            let next = self.arena[existing]
+                .children
+                .get(*part)
+                .copied()
+                .or_else(|| self.dying_children.get(&(existing, part.to_vec())).copied());
+            let Some(next) = next else {
+                complete = false;
+                break;
+            };
+            existing = next;
+        }
+        if complete {
+            return existing;
+        }
         for part in ns_parts {
             ns = self.ensure_child(ns, part);
         }
@@ -428,6 +538,15 @@ impl Namespaces {
     /// Find (creating if needed) the namespace named `qualified`, rooted at
     /// `current` (absolute if it leads with `::`). For `namespace eval`.
     pub fn ensure_namespace(&mut self, current: NsId, qualified: &[u8]) -> NsId {
+        // A live child remains a public namespace while an already-dying
+        // parent token is being torn down. Resolve through the retained dying
+        // edge before creating; a path whose *final* token is dying instead
+        // falls through and builds a fresh visible tree.
+        if let Some(existing) = self.find_namespace(current, qualified) {
+            if self.namespace_is_live(existing) {
+                return existing;
+            }
+        }
         let absolute = qualified.starts_with(b"::");
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
@@ -436,15 +555,30 @@ impl Namespaces {
         ns
     }
 
-    /// Resolve `qualified` to an existing namespace, or `None`.
+    /// Resolve `qualified` to a live namespace, or `None`. A retained dying
+    /// edge may be traversed to reach a child whose own token is still live,
+    /// but a dying/dead final token is never returned as a public namespace.
     #[must_use]
     pub fn find_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
         let absolute = qualified.starts_with(b"::");
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
-            ns = *self.arena[ns].children.get(part)?;
+            ns = self.arena[ns]
+                .children
+                .get(part)
+                .copied()
+                .or_else(|| self.dying_children.get(&(ns, part.to_vec())).copied())?;
         }
-        Some(ns)
+        self.namespace_is_live(ns).then_some(ns)
+    }
+
+    /// Whether `ns` still denotes a public namespace token. A dying arena node
+    /// remains command-addressable during delete callbacks, but namespace
+    /// introspection must reject even an empty relative name resolved from its
+    /// retained current-namespace handle.
+    #[must_use]
+    pub(crate) fn namespace_is_live(&self, ns: NsId) -> bool {
+        !self.dead.contains(&ns) && !self.dying.contains(&ns)
     }
 
     // -- per-namespace variable tables (the variable resolver's storage) ------
@@ -521,13 +655,6 @@ impl Namespaces {
     /// Namespace `ns`'s variable table (mutable).
     pub(crate) fn var_table_mut(&mut self, ns: NsId) -> &mut VarTable {
         &mut self.arena[ns].vars
-    }
-
-    /// The simple (unqualified) name of `ns` — its last component (`::a::b` →
-    /// `b`); empty for the global namespace. C's `Namespace.name`.
-    #[must_use]
-    pub(crate) fn simple_name(&self, ns: NsId) -> Vec<u8> {
-        self.arena[ns].name.clone()
     }
 
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).
@@ -610,7 +737,7 @@ impl Namespaces {
     /// Bind `command` under simple `name` directly in namespace `ns` (no
     /// qualified parsing — `import` inserting a redirect into the importing ns).
     pub fn bind(&mut self, ns: NsId, name: &[u8], command: Command) {
-        self.arena[ns].commands.insert(name.to_vec(), command);
+        self.insert_bound(ns, name.to_vec(), command);
     }
 
     /// `ns`'s `namespace path` (the resolver's step-b list).
@@ -628,7 +755,20 @@ impl Namespaces {
     /// `ns`'s direct child namespaces (`namespace children`).
     #[must_use]
     pub fn children(&self, ns: NsId) -> Vec<NsId> {
-        self.arena[ns].children.values().copied().collect()
+        let mut children: Vec<NsId> = self.arena[ns].children.values().copied().collect();
+        children.sort_unstable();
+        children
+    }
+
+    /// `ns`'s live children in Tcl string-hash enumeration order.
+    #[must_use]
+    pub fn children_hash_order(&self, ns: NsId) -> Vec<NsId> {
+        self.arena[ns]
+            .child_order
+            .keys()
+            .into_iter()
+            .filter_map(|name| self.arena[ns].children.get(name).copied())
+            .collect()
     }
 
     /// `ns`'s `namespace unknown` handler, if one is set (an empty/`None` handler
@@ -647,38 +787,113 @@ impl Namespaces {
         };
     }
 
-    /// Remove every ensemble command whose configured namespace is in `victims`,
-    /// returning each removed command's fully-qualified name. An ensemble command
-    /// is tied to its namespace, so deleting the namespace deletes the command —
-    /// even when the command itself lives elsewhere (e.g. `::ns` in the global
-    /// table for an ensemble created inside `ns`). Mirrors C's ensemble
-    /// namespace-deletion hook.
-    pub(crate) fn remove_ensembles_for(
-        &mut self,
+    /// Find every ensemble command whose configured namespace is in `victims`,
+    /// returning each command's fully-qualified name and stable token.
+    /// An ensemble command is tied to its namespace, so deleting the namespace
+    /// deletes the command — even when the command itself lives elsewhere (e.g.
+    /// `::ns` in the global table for an ensemble created inside `ns`). Mirrors
+    /// C's ensemble namespace-deletion hook.
+    pub(crate) fn ensembles_for(
+        &self,
         victims: &std::collections::HashSet<NsId>,
-    ) -> Vec<Vec<u8>> {
-        // Collect first (immutable borrow), then unbind (mutable).
-        let mut hits: Vec<(NsId, Vec<u8>)> = Vec::new();
+    ) -> Vec<(Vec<u8>, std::rc::Rc<crate::ensemble::EnsembleToken>)> {
+        let mut hits = Vec::new();
         for (id, node) in self.arena.iter().enumerate() {
             for (name, cmd) in &node.commands {
-                if let Command::Ensemble(cfg) = cmd {
-                    if victims.contains(&cfg.ns) {
-                        hits.push((id, name.clone()));
+                if let Command::Ensemble(token) = cmd {
+                    if victims.contains(&token.config().ns) {
+                        hits.push((self.command_fqn(id, name), std::rc::Rc::clone(token)));
                     }
                 }
             }
         }
-        let mut fqns = Vec::with_capacity(hits.len());
-        for (id, name) in hits {
-            self.arena[id].commands.remove(&name);
-            let mut fqn = self.qualified_name(id);
-            if fqn != b"::" {
-                fqn.extend_from_slice(b"::");
+        hits
+    }
+
+    /// Remove one ensemble command by stable token identity wherever a delete
+    /// callback may have renamed it, returning that binding's live FQN. A
+    /// replacement at the old name carries a different token and survives.
+    pub(crate) fn remove_ensemble_identity(
+        &mut self,
+        identity: &std::rc::Rc<crate::ensemble::EnsembleToken>,
+    ) -> Option<Vec<u8>> {
+        let mut found = None;
+        for (ns, node) in self.arena.iter().enumerate() {
+            if let Some(name) = node.commands.iter().find_map(|(name, command)| {
+                matches!(
+                    command,
+                    Command::Ensemble(current)
+                        if std::rc::Rc::ptr_eq(current, identity)
+                )
+                .then(|| name.clone())
+            }) {
+                found = Some((ns, name));
+                break;
             }
-            fqn.extend_from_slice(&name);
-            fqns.push(fqn);
         }
-        fqns
+        let (ns, name) = found?;
+        self.arena[ns].commands.remove(&name);
+        Some(self.command_fqn(ns, &name))
+    }
+
+    /// Imported aliases whose immediate source name is in `origins` or whose
+    /// retained ensemble identity is in `tokens`. Each result includes the
+    /// import binding's stable identity so callers can fire delete traces while
+    /// it is still visible, then remove only that original command after any
+    /// reentrant replacement performed by the callback.
+    pub(crate) fn imports_for_origins(
+        &self,
+        origins: &std::collections::HashSet<Vec<u8>>,
+        tokens: &[std::rc::Rc<crate::ensemble::EnsembleToken>],
+    ) -> Vec<(Vec<u8>, std::rc::Rc<crate::interp::ImportToken>)> {
+        let mut hits = Vec::new();
+        for (id, node) in self.arena.iter().enumerate() {
+            for (name, command) in &node.commands {
+                let Command::Imported {
+                    source,
+                    ensemble,
+                    identity,
+                } = command
+                else {
+                    continue;
+                };
+                let retains_token = ensemble.as_ref().is_some_and(|imported| {
+                    tokens
+                        .iter()
+                        .any(|victim| std::rc::Rc::ptr_eq(imported, victim))
+                });
+                if origins.contains(source) || retains_token {
+                    hits.push((self.command_fqn(id, name), std::rc::Rc::clone(identity)));
+                }
+            }
+        }
+        hits
+    }
+
+    /// Remove the imported command identified by `identity` wherever a
+    /// delete-trace callback may have renamed it, returning that binding's live
+    /// FQN. A replacement has a fresh identity and therefore survives.
+    pub(crate) fn remove_import_identity(
+        &mut self,
+        identity: &std::rc::Rc<crate::interp::ImportToken>,
+    ) -> Option<Vec<u8>> {
+        let mut found = None;
+        for (ns, node) in self.arena.iter().enumerate() {
+            if let Some(name) = node.commands.iter().find_map(|(name, command)| {
+                matches!(
+                    command,
+                    Command::Imported { identity: current, .. }
+                        if std::rc::Rc::ptr_eq(current, identity)
+                )
+                .then(|| name.clone())
+            }) {
+                found = Some((ns, name));
+                break;
+            }
+        }
+        let (ns, name) = found?;
+        self.arena[ns].commands.remove(&name);
+        Some(self.command_fqn(ns, &name))
     }
 
     /// `namespace delete name` — delete the namespace `qualified` resolves to
@@ -694,11 +909,57 @@ impl Namespaces {
         true
     }
 
+    /// Mark and detach one exact namespace token before its ordinary command
+    /// callbacks. Descendants remain live and are reached through the retained
+    /// parent edge until recursive teardown reaches each token in turn.
+    pub(crate) fn begin_namespace_teardown(&mut self, ns: NsId) {
+        self.dying.insert(ns);
+        if ns != GLOBAL {
+            self.dead.insert(ns);
+        }
+        if let Some(parent) = self.arena[ns].parent {
+            let name = self.arena[ns].name.clone();
+            self.arena[parent].children.remove(&name);
+            self.arena[parent].child_order.remove(&name);
+            self.dying_children.insert((parent, name), ns);
+        }
+    }
+
+    /// Drop the temporary lookup edges after the final post-callback sweep.
+    pub(crate) fn finish_namespace_teardown(&mut self, victims: &[NsId]) {
+        let victim_set: BTreeSet<NsId> = victims.iter().copied().collect();
+        self.dying.retain(|id| !victim_set.contains(id));
+        self.dying_children.retain(|_, id| !victim_set.contains(id));
+    }
+
+    /// If `qualified` names a detached dying namespace, return its retained
+    /// arena identity. Public lookup may traverse the same retained edge to a
+    /// still-live child, but checks the final token's liveness; this helper
+    /// specifically requires the final token itself to be dying.
+    pub(crate) fn dying_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
+        let absolute = qualified.starts_with(b"::");
+        let mut ns = if absolute { GLOBAL } else { current };
+        for part in split_qualifier(qualified) {
+            ns = self.arena[ns]
+                .children
+                .get(part)
+                .copied()
+                .or_else(|| self.dying_children.get(&(ns, part.to_vec())).copied())?;
+        }
+        self.dying.contains(&ns).then_some(ns)
+    }
+
     /// Delete the namespace `ns` (and its subtree), unlinking it from its parent.
     /// Deleting the global namespace clears its contents but keeps the node
     /// (it has no parent to unlink from) — matching `namespace delete ::`.
     pub fn delete_namespace_by_id(&mut self, ns: NsId) {
         let victims = self.descendant_ids(ns);
+        // The global namespace is a permanent interpreter root: deleting it
+        // clears its contents but does not invalidate its token. Every other
+        // arena identity remains tombstoned after the temporary dying lookup
+        // edges are dropped, including when the same spelling is recreated.
+        self.dead
+            .extend(victims.iter().copied().filter(|id| *id != GLOBAL));
         self.delete_subtree(ns);
         // Unlink from the parent so the name no longer resolves by lookup, but
         // keep the node's own `name`/`parent` intact: a call frame still active
@@ -708,6 +969,7 @@ impl Namespaces {
         if let Some(parent) = self.arena[ns].parent {
             let name = self.arena[ns].name.clone();
             self.arena[parent].children.remove(&name);
+            self.arena[parent].child_order.remove(&name);
         }
         // Drop the deleted namespaces from every other namespace's `namespace
         // path` — a dangling id would otherwise resolve to the global `::`
@@ -734,6 +996,56 @@ impl Namespaces {
         out
     }
 
+    /// Fully-qualified command bindings in an explicit set of retained arena
+    /// nodes, including tokens already detached from their former parent during
+    /// teardown.
+    #[must_use]
+    pub(crate) fn command_fqns_in_ids(&self, ids: &[NsId]) -> Vec<Vec<u8>> {
+        let mut fqns = Vec::new();
+        for &id in ids {
+            fqns.extend(
+                self.arena[id]
+                    .commands
+                    .keys()
+                    .map(|name| self.command_fqn(id, name)),
+            );
+        }
+        fqns
+    }
+
+    /// Clear callback-created state from explicit dying arena nodes. The
+    /// caller has already fired command traces and removed dependent imports.
+    pub(crate) fn clear_namespace_ids(&mut self, ids: &[NsId]) {
+        for &id in ids.iter().rev() {
+            let n = &mut self.arena[id];
+            n.children.clear();
+            n.child_order.clear();
+            for command in n.commands.values() {
+                Self::mark_command_deleted(command);
+            }
+            n.commands.clear();
+            n.path.clear();
+            n.exports.clear();
+            n.vars = VarTable::default();
+            n.unknown = None;
+        }
+    }
+
+    /// Clear one dying namespace's own command/variable table while retaining
+    /// its child links and metadata for the recursive delete callbacks still to
+    /// run. The final fixed-point sweep clears the retained metadata and links.
+    pub(crate) fn clear_namespace_token(&mut self, ns: NsId) {
+        let n = &mut self.arena[ns];
+        for command in n.commands.values() {
+            Self::mark_command_deleted(command);
+        }
+        n.commands.clear();
+        n.vars = VarTable::default();
+        for node in &mut self.arena {
+            node.path.retain(|entry| *entry != ns);
+        }
+    }
+
     /// Recursively clear a namespace and its descendants: dropping the `VarTable`
     /// releases the variables' object references (`TclFreeVar`); commands and
     /// child links are dropped.
@@ -743,9 +1055,15 @@ impl Namespaces {
         }
         let n = &mut self.arena[ns];
         n.children.clear();
+        n.child_order.clear();
+        for command in n.commands.values() {
+            Self::mark_command_deleted(command);
+        }
         n.commands.clear();
-        n.path.clear();
-        n.exports.clear();
+        // Keep namespace metadata alive through delete callbacks. The node is
+        // detached, so introspection cannot see it, but command-token operations
+        // such as importing a newly-created command still consult its export
+        // patterns/path until the final dying-namespace sweep clears them.
         n.vars = VarTable::default(); // drop → release variable refcounts
     }
 
@@ -757,10 +1075,43 @@ impl Namespaces {
             .commands
             .iter()
             .filter_map(|(k, c)| match c {
-                Command::Imported { source } => Some((k.clone(), source.clone())),
+                Command::Imported {
+                    source, ensemble, ..
+                } => Some((
+                    k.clone(),
+                    ensemble
+                        .as_ref()
+                        .filter(|token| !token.is_deleted())
+                        .map_or_else(|| source.clone(), |token| token.name()),
+                )),
                 _ => None,
             })
             .collect()
+    }
+
+    /// Whether the immediate-source chain beginning at `source_fqn` reaches
+    /// `needle_fqn`. `namespace import -force` consults this before replacing
+    /// the destination binding: installing that edge would otherwise close an
+    /// ImportRef cycle. Normal construction keeps the graph acyclic; the
+    /// visited set makes the invariant check finite for malformed legacy state.
+    pub(crate) fn import_chain_contains(&self, source_fqn: &[u8], needle_fqn: &[u8]) -> bool {
+        let mut current = source_fqn.to_vec();
+        let mut visited = BTreeSet::new();
+        while visited.insert(current.clone()) {
+            if current == needle_fqn {
+                return true;
+            }
+            let Some(Command::Imported {
+                source, ensemble, ..
+            }) = self.resolve(GLOBAL, &current)
+            else {
+                return false;
+            };
+            current = ensemble
+                .filter(|token| !token.is_deleted())
+                .map_or(source, |token| token.name());
+        }
+        false
     }
 
     /// Remove the simple-named command `name` directly from `ns` (no resolution
@@ -810,7 +1161,11 @@ impl Namespaces {
         let find_under = |base: NsId| -> Option<NsId> {
             let mut ns = base;
             for part in ns_parts {
-                ns = *self.arena[ns].children.get(*part)?;
+                ns = self.arena[ns]
+                    .children
+                    .get(*part)
+                    .copied()
+                    .or_else(|| self.dying_children.get(&(ns, part.to_vec())).copied())?;
             }
             if self.arena[ns].commands.contains_key(simple) {
                 Some(ns)
@@ -844,6 +1199,7 @@ impl Namespaces {
         let id = self.arena.len();
         self.arena.push(Namespace::new(name.to_vec(), Some(parent)));
         self.arena[parent].children.insert(name.to_vec(), id);
+        self.arena[parent].child_order.insert(name);
         id
     }
 }

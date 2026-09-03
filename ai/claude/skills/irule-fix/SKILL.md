@@ -6,32 +6,17 @@ allowed-tools: mcp__tcl-lsp__analyze, Read, Edit
 
 # iRule Fix
 
-Fix diagnostics in an iRule iteratively using LSP analysis.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md`
-2. Read the iRule file to fix
-3. Run diagnostics to find current issues: pass the file contents you read as `source` to `mcp__tcl-lsp__analyze`
-4. If the tool fails (e.g. file not found), report the error clearly and suggest fixes
-5. If no errors or warnings, report the file is clean
-6. Otherwise, fix the issues in the file using the Edit tool:
-   - Follow the security rules and best practices from the domain knowledge
-   - Preserve the iRule's behaviour -- only fix what the diagnostics flag
-   - Fix all issues in a single pass if possible
-7. After editing, re-run diagnostics to verify: Read the file again and pass its contents as `source` to `mcp__tcl-lsp__analyze`
-8. If issues remain, fix them and re-run (up to 5 iterations)
-9. If issues persist after 5 iterations, report what was fixed and what remains unresolved
-10. Report the final state: what was fixed, what remains (if any)
-
-## Diagnostic codes reference
-
-See `docs/generated/diagnostic_codes.md` for the full auto-generated table of all diagnostic codes.
-
-## Important
-
-- Only fix issues flagged by the analyser -- do not refactor unrelated code
-- Preserve the original behaviour and intent
-- If an issue cannot be auto-fixed (e.g. requires architectural change), explain why
+1. Read `../_prompts/irules_system.md`, then the iRule.
+2. Call `mcp__tcl-lsp__analyze` with the contents as `source`. On a tool
+   error report it; if there are no errors or warnings, report the file is
+   clean.
+3. Fix only what the diagnostics flag, in one pass where possible, following
+   the security rules and preserving behaviour and intent. Codes:
+   `docs/generated/diagnostic_codes.md`.
+4. Re-read and re-analyse; repeat up to 5 iterations.
+5. Report what was fixed and what remains, with a reason for anything that
+   cannot be auto-fixed (e.g. needs an architectural change).
 
 $ARGUMENTS

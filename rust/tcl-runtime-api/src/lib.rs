@@ -160,7 +160,10 @@ pub trait VarStore {
 
     // Array-element access. The `name` is the array *base* and `key` the element,
     // already split from `base(key)` — runtimes differ on whether the by-name
-    // accessors parse `a(k)`, so element ops are explicit. Mirror the scalar ops.
+    // accessors parse `a(k)`, so element ops are explicit. Implementations must
+    // preserve this pair through storage resolution: recomposing `base(key)` and
+    // parsing it again is ambiguous when the base itself contains `(`. Mirror
+    // the scalar ops.
 
     /// Read array element `name(key)` in `frame`, following links.
     fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Self::Value>;
@@ -248,12 +251,29 @@ pub trait Namespaces {
     // `fullName`. These back `namespace exists`/`parent`/`children`.
 
     /// Resolve namespace `name` (qualified or unqualified) from context `cxt` to
-    /// its handle (`Tcl_FindNamespace`), or `None` if no such namespace exists.
+    /// its table handle, or `None` if no such namespace table exists. During
+    /// namespace teardown Tcl can retain that table for command enumeration
+    /// after the public namespace token is dead; consumers requiring a public
+    /// token must also consult [`Namespaces::namespace_is_live`].
     fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId>;
+    /// Whether a namespace table handle still denotes a public namespace token.
+    /// Runtimes without a distinct teardown interval use the default.
+    fn namespace_is_live(&self, ns: NsId) -> bool {
+        let _ = ns;
+        true
+    }
     /// The handle of `ns`'s parent (`parentPtr`), or `None` for the global root.
     fn parent(&self, ns: NsId) -> Option<NsId>;
-    /// The handles of `ns`'s direct child namespaces (`childTable`).
+    /// The handles of `ns`'s direct child namespaces (`childTable`) in creation
+    /// order.
     fn children(&self, ns: NsId) -> Vec<NsId>;
+    /// The same live children in the observable `Tcl_FirstHashEntry` order of
+    /// Tcl's retained string-key hash table. Adapters that model only a tree may
+    /// use the creation-order default; `TclVM` adapters override this with the
+    /// shared hash-table owner so resize and deletion history is preserved.
+    fn children_hash_order(&self, ns: NsId) -> Vec<NsId> {
+        self.children(ns)
+    }
 
     // -- command enumeration (a namespace's `cmdTable`; backs `info commands`/
     // `info procs`). Direct members only — one level, not descendants — returned

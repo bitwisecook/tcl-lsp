@@ -119,8 +119,11 @@ BUNDLED_TARGETS="$(make -s print-server-targets-all)"`.
 ### Build for release
 
 The real release artefacts are built by CI: the tag-triggered
-`build-server-matrix` job compiles all seven binaries on native runners
-(macOS, Ubuntu, and Windows), and `build-vsix` downloads them, then runs
+`build-server-matrix` job compiles the Darwin and Windows binaries on native
+runners, the x86_64/aarch64 GNU/Linux binaries in architecture-matched UBI 8
+containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. The
+`linux-release-portability` fan-in enforces those Linux ABI floors before
+`build-vsix` downloads the binaries and runs
 both `make package-vsix BUNDLED_TARGETS="$(make -s
 print-server-targets-all)"` (the universal package) and `make
 package-vsix-targets` (the six targeted packages). See
@@ -137,9 +140,9 @@ publish-vsix-targets` remain laptop fallbacks for when that job fails.
    `VSCE_TARGETS` too (also in the `Makefile`) so it gets its own
    targeted package; otherwise it is covered only by the universal
    fallback package, like riscv64 Linux today.
-3. Add the triple to the matching runner in the `build-server-matrix`
-   matrix in [`ci.yml`](../../.github/workflows/ci.yml), and add any new
-   cross-linker to `.cargo/config.toml`.
+3. Add the triple to the matching runner or ABI-floor container in the
+   `build-server-matrix` matrix in [`ci.yml`](../../.github/workflows/ci.yml),
+   and add any new cross-linker to `.cargo/config.toml`.
 4. Add the triple to `scripts/test-cross-server.sh` so it is
    smoke-tested.
 

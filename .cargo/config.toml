@@ -16,13 +16,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Cross-compilation linkers for the native `tcl-lsp-server`.
+# Cross-compilation linkers for native Linux binaries.
 #
-# Every workspace crate is pure Rust (no C dependencies), so only the linker
-# varies per target. These two Linux cross targets need a cross GCC; install
-# them with `make ensure-server-cross-deps` (apt: gcc-aarch64-linux-gnu,
-# gcc-riscv64-linux-gnu). macOS Darwin targets use the system `cc`, and the
-# Windows MSVC targets build on a Windows runner — neither needs an entry here.
+# Local x86_64 hosts use these for foreign Linux targets. Release CI builds
+# aarch64 natively in UBI 8 (and overrides this linker with `gcc`) so both
+# x86_64 and aarch64 retain a GLIBC_2.28 ABI floor. RISC-V remains a cross
+# build, using Ubuntu 22.04's glibc 2.35 sysroot. Some workspace dependencies
+# compile C, so both the Rust linker and the target C compiler must come from
+# the selected builder rather than the newest general-purpose CI image.
 
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"

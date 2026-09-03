@@ -65,6 +65,20 @@ use crate::rename::TextEdit;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
+/// Canonicalise document line endings before they reach the formatter parser.
+///
+/// Tcl reads a script channel with automatic newline translation, so both
+/// CRLF and a lone CR are parser-facing LF line endings. This boundary is for
+/// documents only: run-time string values keep raw CR / CRLF semantics.
+fn normalise_document_line_endings(source: &str) -> std::borrow::Cow<'_, str> {
+    let lone_cr_normalised = tcl_lexer::normalise_lone_cr(source);
+    if lone_cr_normalised.contains("\r\n") {
+        std::borrow::Cow::Owned(lone_cr_normalised.replace("\r\n", "\n"))
+    } else {
+        lone_cr_normalised
+    }
+}
+
 /// Compute formatting edits for the entire document.
 ///
 /// Runs the token-aware [`engine::format_tcl`] with default
@@ -135,13 +149,10 @@ pub fn range_formatting(
     config: &FormatterConfig,
     registry: &CommandRegistry,
 ) -> Vec<TextEdit> {
-    // `range` is in the client's coordinates, so the slice must be cut on the
-    // client's EOL model.  Normalising every lone `\r` to `\n` makes a plain
-    // `split('\n')` agree with it line-for-line (a CRLF still breaks at its
-    // `\n`, leaving the `\r` at the end of the line the engine trims), and the
-    // rewrite is byte-length preserving so offsets into `normalised` index the
-    // raw `source` unchanged.
-    let normalised = tcl_lexer::normalise_lone_cr(source);
+    // Tcl's source-channel boundary maps every document line ending to LF.
+    // The normalised text is only an internal formatter input; raw spans and
+    // client coordinates still use the LSP line index below.
+    let normalised = normalise_document_line_endings(source);
     let lines: Vec<&str> = normalised.split('\n').collect();
     if lines.is_empty() {
         return Vec::new();
@@ -180,7 +191,7 @@ pub fn range_formatting(
     // `rename` above the selection still governs what the selected commands
     // are (issue #1275).
     let identities = tcl_compiler::realm::document_realm_bindings_with_config(
-        source,
+        &normalised,
         config.lexer_config(),
         registry,
     );
@@ -204,7 +215,7 @@ pub fn range_formatting(
     // The comparison uses the *raw* bytes of the same span so an already
     // formatted CRLF / old-Mac slice compares equal instead of producing a
     // spurious edit that rewrites its own terminators.
-    let raw_slice = raw_span(source, &normalised, start_line, end_line, line_count);
+    let raw_slice = raw_span(source, start_line, end_line, line_count);
     let original_with_nl = if raw_slice.ends_with('\n') || raw_slice.ends_with('\r') {
         raw_slice.to_owned()
     } else {
@@ -251,18 +262,8 @@ pub fn range_formatting(
 
 /// The raw bytes of the document span the formatted slice replaces.
 ///
-/// `normalised` is `source` with every lone `\r` rewritten to `\n`, so it has
-/// the same length and the same byte offsets — the span is located on the
-/// normalised text (whose `\n`s match the client's line model) and then cut
-/// out of `source`.
-fn raw_span<'a>(
-    source: &'a str,
-    normalised: &str,
-    start_line: u32,
-    end_line: u32,
-    line_count: u32,
-) -> &'a str {
-    let index = LineIndex::new(normalised);
+fn raw_span(source: &str, start_line: u32, end_line: u32, line_count: u32) -> &str {
+    let index = LineIndex::new_lsp(source);
     let start = index.line_start(start_line) as usize;
     let end = if end_line + 1 < line_count {
         index.line_start(end_line + 1) as usize
@@ -415,6 +416,27 @@ mod tests {
         assert!(edits[0].new_text.contains("set x 1"), "{edits:?}");
         // Trailing whitespace stripped.
         assert!(!edits[0].new_text.contains("   "), "{edits:?}");
+    }
+
+    #[test]
+    fn range_formatting_uses_tcl_source_newline_translation_for_crlf() {
+        // The formatter parses the selected CRLF document through Tcl's
+        // source-channel boundary, but its edit still covers exactly the
+        // first client line and preserves the document's CRLF convention.
+        let src = "set x 1   \r\nset y 2\r\n";
+        let edits = range_fmt(
+            src,
+            LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 0,
+                end_character: 100,
+            },
+        );
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(edits[0].new_text, "set x 1\r\n");
+        assert_eq!(edits[0].range.end_line, 1);
+        assert_eq!(edits[0].range.end_character, 0);
     }
 
     #[test]

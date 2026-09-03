@@ -32,7 +32,7 @@
 
 use tcl_runtime_api::Code;
 
-use tcl_dialect::BracedVarStyle;
+use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
 
 use crate::error::TclError;
 use crate::interp::Vm;
@@ -326,7 +326,8 @@ enum VarFlow {
 
 /// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
 fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
-    let Some(vr) = parse_var_ref_parts(s, at, vm.braced_var_style())? else {
+    let Some(vr) = parse_var_ref_parts(s, at, vm.braced_var_style(), vm.array_index_syntax())?
+    else {
         return Ok(VarFlow::Literal);
     };
     let Some(raw_index) = vr.index else {
@@ -395,7 +396,9 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 }
             }
             b'$' if i + 1 < n => {
-                if let Some(vr) = parse_var_ref_parts(idx, i, vm.braced_var_style())? {
+                if let Some(vr) =
+                    parse_var_ref_parts(idx, i, vm.braced_var_style(), vm.array_index_syntax())?
+                {
                     let v = match vr.index {
                         None => read_var(vm, vr.base)?,
                         // A nested array index recurses; control flow from it
@@ -462,6 +465,7 @@ fn parse_var_ref_parts(
     s: &str,
     at: usize,
     braced_var: BracedVarStyle,
+    array_index: ArrayIndexSyntax,
 ) -> Result<Option<VarRef<'_>>, TclError> {
     let b = s.as_bytes();
     let n = b.len();
@@ -484,16 +488,18 @@ fn parse_var_ref_parts(
         return Ok(None);
     }
     // Optional array index `(...)`.
-    if j < n
-        && b[j] == b'('
-        && let Some(rel) = s[j..].find(')')
-    {
-        let close = j + rel;
-        return Ok(Some(VarRef {
-            base: &s[start..j],
-            index: Some(&s[j + 1..close]),
-            next: close + 1,
-        }));
+    if j < n && b[j] == b'(' {
+        let scan = tcl_lexer::scan_array_index(b, j, array_index, braced_var);
+        if scan.invalid.is_some() {
+            return Err(TclError::new(tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX));
+        }
+        if let tcl_lexer::ArrayIndexEnd::Closed(close) = scan.end {
+            return Ok(Some(VarRef {
+                base: &s[start..j],
+                index: Some(&s[j + 1..close - 1]),
+                next: close,
+            }));
+        }
     }
     Ok(Some(VarRef {
         base: &s[start..j],
@@ -622,7 +628,10 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BracedVarStyle, command_end, parse_var_ref_parts, subst_command, whole_braced};
+    use super::{
+        ArrayIndexSyntax, BracedVarStyle, command_end, parse_var_ref_parts, subst_command,
+        whole_braced,
+    };
     use crate::interp::Vm;
 
     /// `subst_command` with only backslash substitution enabled.
@@ -641,14 +650,12 @@ mod tests {
     }
 
     #[test]
-    fn subst_backslash_newline_collapses_crlf_like_lf() {
-        // `\<LF>`, `\<CR>`, and `\<CRLF>` each collapse — together with the
-        // spaces/tabs after the newline — to a single space, matching what C
-        // Tcl produces for a continuation (`TclParseBackslash`, with CRLF
-        // normalised the way its channel layer would).
+    fn subst_backslash_continuation_accepts_only_raw_lf() {
+        // TclParseBackslash recognises raw LF. A channel may translate CRLF
+        // before this parser seam, but raw CR and CRLF remain data.
         assert_eq!(subst_backslashes("a\\\n   b"), "a b");
-        assert_eq!(subst_backslashes("a\\\r\n\t b"), "a b");
-        assert_eq!(subst_backslashes("a\\\rb"), "a b");
+        assert_eq!(subst_backslashes("a\\\r\n\t b"), "a\r\n\t b");
+        assert_eq!(subst_backslashes("a\\\rb"), "a\rb");
         // FP guard: `\\` is an escaped backslash, so the newline after it is
         // real content, not a continuation.
         assert_eq!(subst_backslashes("x\\\\\r\ny"), "x\\\r\ny");
@@ -661,17 +668,50 @@ mod tests {
             ("$::a:::b", "::a:::b", 8),
             ("$foo:::", "foo:::", 7),
         ] {
-            let parsed = parse_var_ref_parts(source, 0, BracedVarStyle::Tcl9Nesting)
-                .expect("parses")
-                .expect("variable reference");
+            let parsed = parse_var_ref_parts(
+                source,
+                0,
+                BracedVarStyle::Tcl9Nesting,
+                ArrayIndexSyntax::Tcl9,
+            )
+            .expect("parses")
+            .expect("variable reference");
             assert_eq!(parsed.base, base);
             assert_eq!(parsed.next, next);
         }
-        let parsed = parse_var_ref_parts("$a:::b(k)", 0, BracedVarStyle::Tcl9Nesting)
-            .expect("parses")
-            .expect("array reference");
+        let parsed = parse_var_ref_parts(
+            "$a:::b(k)",
+            0,
+            BracedVarStyle::Tcl9Nesting,
+            ArrayIndexSyntax::Tcl9,
+        )
+        .expect("parses")
+        .expect("array reference");
         assert_eq!(parsed.base, "a:::b");
         assert_eq!(parsed.index, Some("k"));
+    }
+
+    #[test]
+    fn array_index_source_mask_follows_the_release() {
+        let legacy = parse_var_ref_parts(
+            "$a({key})",
+            0,
+            BracedVarStyle::FirstClose,
+            ArrayIndexSyntax::Tcl8,
+        )
+        .expect("Tcl 8 accepts raw braces")
+        .expect("array reference");
+        assert_eq!(legacy.index, Some("{key}"));
+        let modern = parse_var_ref_parts(
+            "$a({key})",
+            0,
+            BracedVarStyle::Tcl9Nesting,
+            ArrayIndexSyntax::Tcl9,
+        );
+        let Err(modern) = modern else {
+            panic!("Tcl 9 rejects raw braces");
+        };
+        assert_eq!(modern.message, tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX);
     }
 
     #[test]

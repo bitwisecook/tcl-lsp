@@ -62,5 +62,8 @@ bitflags = "2"
 # `dim`). Already a workspace precedent in `tcl-bigip-query`.
 libm = "0.2"
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+
 [lints]
 workspace = true

@@ -55,10 +55,16 @@ speclib <pack-name> <dsl-version> {
 }
 ```
 
-A pack is **one Tcl script, read from the CST and never executed.** Every
-declaration is `word word…` with braced words for blocks and prose — the
-loader walks the parse tree. The only Tcl that is ever *evaluated* is a
-hook body, and only at query time, in the sandbox described below.
+A pack is **one Tcl program, evaluated in a sandbox** (design E): the
+declarations below are the registration commands it calls, and a
+straight-line pack — which is what nearly every pack is — registers
+exactly the statements it is written as. Every declaration is
+`word word…` with braced words for blocks and prose, and the blocks that
+have a body (`command`, `subcommand`, `environment`, `dialect`) run that
+body as a script, so a variable, a `foreach`, or an `if` works inside
+them. What each row *means* is still decided by that row's own reader,
+never by the program. Hook bodies are the one Tcl evaluated later, at
+query time, in the sandbox described below.
 
 `speclib`'s version is the **DSL vocabulary version**, not the library's:
 it gates hard breaks (a word whose *meaning* changed), never additions.
@@ -85,7 +91,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
-| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
+| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (with `help_terms` and `version_ceiling` rows since the EDA shells moved into their packs) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -404,6 +410,16 @@ the author: the require in this file, then the pack in this workspace,
 then the profile compiled into the server. Repeat the row across a
 pack's files and the highest version wins, so merge order cannot lower a
 floor.
+
+The row is **unscoped**: it floors its package for every document the
+pack is active in. To say a package is ambient under one of a pack's
+environments and not another, write the placement inside that
+environment — `environment NAME { ambient PACKAGE VERSION }` (2.0) —
+and share a version between environments with an ordinary Tcl variable.
+`ambient_package NAME VERSION -dialects {…}` is not vocabulary; the row
+is dropped whole rather than applied everywhere, because dropping only
+the flag would leave the wider claim standing. See
+[`spec-packs.md`](../spec-packs.md), "Scoping an ambient package".
 
 ### Block statements
 

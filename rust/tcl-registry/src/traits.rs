@@ -1167,6 +1167,24 @@ declare_traits! {
     /// keeps the abstaining behaviour a pack author never has to think
     /// about.
     DefersBody => DEFERS_BODY, ControlFlow, "stores its script argument instead of running it; unset means the body is treated as executed";
+    /// The word is legal **only** inside a definition body that names it as a
+    /// member — it is never a command an author may write at an open command
+    /// position.
+    ///
+    /// The declaration vocabulary of an authoring dialect is exactly this
+    /// shape: `hostname` means something inside an `SslicTcl` `endpoint { … }`
+    /// and nothing anywhere else, including inside a body of that same
+    /// document that carries no grammar (a retained `predicate`). Without the
+    /// flag a consumer enumerating the registry offers it everywhere, because
+    /// the spec has to exist for the word to hover, complete, and arity-check
+    /// where it *is* legal.
+    ///
+    /// Deliberately not inferred from "is a member of some loaded grammar":
+    /// `variable`, `filter`, and `export` are `TclOO` members *and* perfectly
+    /// ordinary commands, and a consumer guessing from membership would stop
+    /// offering them. Which words are member-only is a fact about the word,
+    /// so the word states it.
+    DefinitionBodyMemberOnly => DEFINITION_BODY_MEMBER_ONLY, Objects, "legal only inside a definition body that declares it as a member";
 }
 
 /// Declare the required end-to-end example for every behavioural trait.
@@ -1243,6 +1261,7 @@ declare_trait_examples! {
     IrulesTopLevelOnly => flow!("when HTTP_REQUEST { puts request }\nproc invalid {} { when CLIENT_ACCEPTED { puts nested } }"; (0, "when"); (0, "when HTTP_REQUEST", "is valid at iRules top level"), (1, "when CLIENT_ACCEPTED", "is nested and therefore diagnosed"));
     SetsEventPriority => flow!("when HTTP_REQUEST priority 700 {\n    log local0. late-handler\n}"; (0, "when"); (0, "when HTTP_REQUEST priority 700", "sets this handler's inherited priority"), (1, "late-handler", "runs after lower-priority handlers"));
     IsOoMetaclass => flow!("oo::class create Factory { superclass oo::class }\nFactory create Product\nProduct create instance"; (0, "oo::class"); (0, "oo::class create Factory", "creates a class object"), (1, "Factory create Product", "uses its class-valued instances as a metaclass factory"), (2, "Product create instance", "constructs an instance of the manufactured class"));
+    DefinitionBodyMemberOnly => flow!("endpoint www {\n    hostname www.example.test\n    hsts {\n        enabled true\n    }\n}"; (1, "hostname"); (0, "endpoint www", "opens a definition body"), (1, "hostname", "is legal only as a member of that body"), (3, "enabled true", "a nested block declares its own members"));
     ObjectCommandSurface => flow!("oo::class create Widget { method render {} {return ok} }\nset w [Widget new]\nputs [$w render]"; (1, "Widget"); (0, "method render", "defines the object-command surface"), (1, "Widget new", "creates an object command"), (2, "$w render", "dispatches through that surface"));
     ConfiguresByProperty => flow!("oo::class create Widget {\n    variable text\n    constructor {value} { set text $value }\n    method configure {option value} { set text $value }\n    method cget {option} { return $text }\n}\nWidget create .w old\n.w configure -text new\nputs [.w cget -text]"; (7, ".w"); (7, ".w configure -text new", "writes the declared property"), (8, "cget -text", "reads the updated property"));
     AbstractClassFactory => flow!("oo::class create AbstractWidget { superclass oo::class }\nAbstractWidget create ConcreteWidget\nConcreteWidget create instance"; (1, "AbstractWidget"); (0, "AbstractWidget", "is the class-manufacturing surface"), (1, "AbstractWidget create ConcreteWidget", "is a concrete class it manufactures"), (2, "instance", "is created by the concrete class, not the abstract factory"));

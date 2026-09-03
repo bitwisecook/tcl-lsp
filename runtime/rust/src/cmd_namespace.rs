@@ -33,7 +33,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::ensemble::{EnsembleConfig, EnsembleMap};
-use crate::interp::{obj_bytes, Code, Command, Interp};
+use crate::interp::{error_code_list, obj_bytes, Code, Command, Interp};
 use crate::list;
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
@@ -208,8 +208,8 @@ fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"namespace exists name");
     }
-    let name = String::from_utf8_lossy(&obj_bytes(argv[2])).into_owned();
-    let v = tcl_cmd_core::namespace::exists(interp, &name);
+    let name = obj_bytes(argv[2]);
+    let v = tcl_cmd_core::namespace::exists_bytes(interp, &name);
     interp.set_result(v);
     Code::Ok
 }
@@ -220,15 +220,13 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args(b"namespace parent ?name?");
     }
-    let name = argv
-        .get(2)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    match tcl_cmd_core::namespace::parent(interp, name.as_deref()) {
+    let name = argv.get(2).map(|&arg| obj_bytes(arg));
+    match tcl_cmd_core::namespace::parent_bytes(interp, name.as_deref()) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(error) => ns_not_found(interp, error.name()),
     }
 }
 
@@ -238,18 +236,14 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 4 {
         return interp.wrong_args(b"namespace children ?name? ?pattern?");
     }
-    let name = argv
-        .get(2)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    let pattern = argv
-        .get(3)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    match tcl_cmd_core::namespace::children(interp, name.as_deref(), pattern.as_deref()) {
+    let name = argv.get(2).map(|&arg| obj_bytes(arg));
+    let pattern = argv.get(3).map(|&arg| obj_bytes(arg));
+    match tcl_cmd_core::namespace::children_bytes(interp, name.as_deref(), pattern.as_deref()) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(error) => ns_not_found(interp, error.name()),
     }
 }
 
@@ -277,38 +271,21 @@ fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// Only `-command` resolution is implemented (variables aren't ns-scoped yet);
 /// `-variable` always yields the empty string.
 fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut want_variable = false;
-    let mut name: Option<Vec<u8>> = None;
-    // The flags accept unambiguous prefix abbreviations (`-var`, `-com`), as
-    // Tcl's option table does; a non-flag argument (or one after another flag)
-    // is the name. Only one name is allowed.
-    for &a in &argv[2..] {
-        let b = obj_bytes(a);
-        let is_flag = b.first() == Some(&b'-') && name.is_none();
-        if is_flag && b.len() > 1 && b"-command".starts_with(b.as_slice()) {
-            // -command (default behaviour)
-        } else if is_flag && b.len() > 1 && b"-variable".starts_with(b.as_slice()) {
-            want_variable = true;
-        } else {
-            if name.is_some() {
-                return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
-            }
-            name = Some(b);
-        }
-    }
-    let Some(name) = name else {
+    let args: Vec<Vec<u8>> = argv[2..].iter().map(|&arg| obj_bytes(arg)).collect();
+    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&args) else {
         return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
     };
-    if want_variable {
+    let name = &args[name_index];
+    if kind == tcl_cmd_core::namespace::WhichKind::Variable {
         // `-variable` through the shared `Tcl_FindNamespaceVar` core — the
         // 8.x global-fallback candidate is a release axis, so the profile
         // goes with it.
         let profile = interp.dialect_profile();
-        let fqn = tcl_cmd_core::namespace::variable_fqn_bytes(interp, &name, profile);
+        let fqn = tcl_cmd_core::namespace::variable_fqn_bytes(interp, name, profile);
         interp.set_result_bytes(&fqn.unwrap_or_default());
     } else {
         // `-command` via the shared `Namespaces` resolution core.
-        let fqn = tcl_cmd_core::namespace::which_command_bytes(interp, &name);
+        let fqn = tcl_cmd_core::namespace::which_command_bytes(interp, name);
         interp.set_result_bytes(&fqn.unwrap_or_default());
     }
     Code::Ok
@@ -390,47 +367,41 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Ok;
     }
     for pat in &patterns {
-        // An empty pattern is rejected outright (C's `Tcl_Import`).
-        if pat.is_empty() {
-            return interp.set_error(b"empty import pattern");
-        }
-        // Split into the source-namespace qualifier and the simple glob tail.
-        // C distinguishes the two ways a pattern can fail to name another
-        // namespace: no qualifier at all (`pattern == simplePattern`) reports
-        // a *missing* source namespace, a qualifier that resolves back to the
-        // importing namespace reports the self-import.
-        let q = match tcl_cmd_core::namespace::qualifier(pat) {
-            tcl_cmd_core::namespace::Qualifier::Absolute(q)
-            | tcl_cmd_core::namespace::Qualifier::Relative(q) => q,
-            tcl_cmd_core::namespace::Qualifier::Unqualified => {
-                let mut m = b"no namespace specified in import pattern \"".to_vec();
-                m.extend_from_slice(pat);
-                m.push(b'"');
-                return interp.set_error(&m);
+        let destination = tcl_runtime_api::Namespaces::current(interp);
+        let validated = match tcl_cmd_core::namespace::import_pattern(interp, destination, pat) {
+            Ok(validated) => validated,
+            Err(problem @ tcl_cmd_core::namespace::ImportPatternError::Unknown(_)) => {
+                // A namespace being deleted is absent from the public tree but
+                // its command table remains token-addressable during delete
+                // callbacks. Tcl_Import can therefore import a callback-created
+                // command from that dying table even though `namespace exists`
+                // is false. Keep the shared qualifier/tail parser and only
+                // substitute this lifecycle-specific namespace lookup.
+                let qualifier = match tcl_cmd_core::namespace::qualifier(pat) {
+                    tcl_cmd_core::namespace::Qualifier::Absolute(prefix)
+                    | tcl_cmd_core::namespace::Qualifier::Relative(prefix) => prefix,
+                    tcl_cmd_core::namespace::Qualifier::Unqualified => {
+                        return interp.set_error(&problem.message());
+                    }
+                };
+                let Some(source) = interp.namespaces().dying_namespace(dest, qualifier) else {
+                    return interp.set_error(&problem.message());
+                };
+                tcl_cmd_core::namespace::ImportPattern {
+                    source: tcl_runtime_api::NsId(source as u32),
+                    tail: tcl_cmd_core::namespace::tail(pat).to_vec(),
+                }
             }
+            Err(problem) => return interp.set_error(&problem.message()),
         };
-        let tail_pat = tcl_cmd_core::namespace::tail(pat);
-        let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
-            let mut m = b"unknown namespace in import pattern \"".to_vec();
-            m.extend_from_slice(pat);
-            m.push(b'"');
-            return interp.set_error(&m);
-        };
-        // Importing from one's own namespace is meaningless (C's `Tcl_Import`):
-        // the message names the source namespace by its simple name.
-        if src_ns == dest {
-            let mut m = b"import pattern \"".to_vec();
-            m.extend_from_slice(pat);
-            m.extend_from_slice(b"\" tries to import from namespace \"");
-            m.extend_from_slice(&interp.namespaces().simple_name(src_ns));
-            m.extend_from_slice(b"\" into itself");
-            return interp.set_error(&m);
-        }
+        let src_ns = validated.source.0 as usize;
+        let tail_pat = validated.tail;
         // Collect the matching, exported source commands first (borrow ends).
         let src_fqn = interp.namespaces().qualified_name(src_ns);
         let mut to_import: Vec<Vec<u8>> = Vec::new();
         for name in interp.visible_command_names_in(src_ns) {
-            if glob_match_bytes(tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name) {
+            if glob_match_bytes(&tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name)
+            {
                 to_import.push(name);
             }
         }
@@ -440,17 +411,21 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 source.extend_from_slice(b"::");
             }
             source.extend_from_slice(&simple);
-            // Re-importing the *same* command from the *same* source is a silent
-            // no-op (C's `TclGetOriginalCommand` reimport check, tclNamesp.c) —
-            // common when a file and its sourced helper both `namespace import
-            // ::tcltest::*`. Only a clobber of a different command is a conflict.
+            let Some((source, ensemble)) = interp.import_metadata_at(&source) else {
+                continue;
+            };
+            // Without `-force`, re-importing the *same* command from the *same*
+            // source is a silent no-op (C's `TclGetOriginalCommand` reimport
+            // check, tclNamesp.c) — common when a file and its sourced helper
+            // both import `::tcltest::*`. `-force` deliberately replaces even
+            // that same-origin import with a fresh command token.
             let existing_import = interp
                 .namespaces()
                 .imported_in(dest)
                 .into_iter()
                 .find(|(k, _)| k == &simple)
                 .map(|(_, s)| s);
-            if existing_import.as_deref() == Some(source.as_slice()) {
+            if !force && existing_import.as_deref() == Some(source.as_slice()) {
                 continue;
             }
             // Reject clobbering an existing (different) command unless -force.
@@ -458,11 +433,37 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let mut m = b"can't import command \"".to_vec();
                 m.extend_from_slice(&simple);
                 m.extend_from_slice(b"\": already exists");
-                return interp.set_error(&m);
+                return interp.error_with_code(&m, b"TCL IMPORT OVERWRITE");
             }
-            interp
-                .namespaces_mut()
-                .bind(dest, &simple, Command::Imported { source });
+            let mut destination_fqn = interp.namespaces().qualified_name(dest);
+            if destination_fqn != b"::" {
+                destination_fqn.extend_from_slice(b"::");
+            }
+            destination_fqn.extend_from_slice(&simple);
+            // Follow immediate import origins before mutating the destination.
+            // If the source chain already reaches the command being replaced,
+            // this new edge would close Tcl's ImportRef graph into a cycle.
+            if interp
+                .namespaces()
+                .import_chain_contains(&source, &destination_fqn)
+            {
+                let mut message = b"import pattern \"".to_vec();
+                message.extend_from_slice(pat);
+                message.extend_from_slice(b"\" would create a loop containing command \"");
+                message.extend_from_slice(&destination_fqn);
+                message.push(b'"');
+                let error_code = error_code_list(&[b"TCL", b"IMPORT", b"LOOP"]);
+                return interp.error_with_code(&message, &error_code);
+            }
+            interp.bind_command_replacement(
+                dest,
+                &simple,
+                Command::Imported {
+                    source,
+                    ensemble,
+                    identity: std::rc::Rc::new(crate::interp::ImportToken),
+                },
+            );
         }
     }
     interp.set_result_bytes(b"");
@@ -562,10 +563,8 @@ fn ns_not_found(interp: &mut Interp, name: &[u8]) -> Code {
         m.extend_from_slice(&cur);
         m.push(b'"');
     }
-    let code = tcl_syntax::list::join_list(
-        ["TCL", "LOOKUP", "NAMESPACE", &String::from_utf8_lossy(name)].iter(),
-    );
-    interp.error_with_code(&m, code.as_bytes())
+    let code = error_code_list(&[b"TCL", b"LOOKUP", b"NAMESPACE", name]);
+    interp.error_with_code(&m, &code)
 }
 
 /// Does the dest namespace hold a command of this name?
@@ -580,10 +579,7 @@ fn dest_has_own(interp: &Interp, dest: NsId, simple: &[u8]) -> bool {
 /// pattern or text can only match byte-identically, handled by the equality
 /// fallback).
 fn glob_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
-    match (core::str::from_utf8(pattern), core::str::from_utf8(text)) {
-        (Ok(p), Ok(t)) => tcl_syntax::glob::string_match(p, t),
-        _ => pattern == text,
-    }
+    tcl_syntax::glob::string_match_bytes(pattern, text)
 }
 
 /// Set the interp result to a Tcl list of the given byte strings.
@@ -684,7 +680,8 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"invalid command name \"".to_vec();
             m.extend_from_slice(&name);
             m.push(b'"');
-            interp.set_error(&m)
+            let error_code = error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &name]);
+            interp.error_with_code(&m, &error_code)
         }
     }
 }
@@ -883,19 +880,22 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Follow a `namespace import` alias to the ensemble that owns the config:
     // reads and writes both act on the origin, so both spellings observe one
     // configuration and the alias stays an alias.
-    let Some((mut cfg, owner_fqn)) = interp.ensemble_config_at(&cmd) else {
+    let Some(token) = interp.ensemble_config_at(&cmd) else {
         // Distinguish a missing command from a non-ensemble one (C's wording).
         if interp.command_exists(&cmd) {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(&cmd);
             m.extend_from_slice(b"\" is not an ensemble command");
-            return interp.set_error(&m);
+            let error_code = error_code_list(&[b"TCL", b"LOOKUP", b"ENSEMBLE", &cmd]);
+            return interp.error_with_code(&m, &error_code);
         }
         let mut m = b"unknown command \"".to_vec();
         m.extend_from_slice(&cmd);
         m.push(b'"');
-        return interp.set_error(&m);
+        let error_code = error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &cmd]);
+        return interp.error_with_code(&m, &error_code);
     };
+    let mut cfg = token.config();
     let rest = &argv[4..];
     // Read all options as a dict.
     if rest.is_empty() {
@@ -935,13 +935,14 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(message) => return interp.set_error(&message),
         };
         let Some(shared) = resolved.shared() else {
-            return interp.set_error(b"option -namespace is read-only");
+            return interp
+                .error_with_code(b"option -namespace is read-only", b"TCL ENSEMBLE READ_ONLY");
         };
         if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1]), &map_ns) {
             return interp.set_error(&e);
         }
     }
-    interp.set_ensemble_config_at(&owner_fqn, cfg);
+    token.configure(cfg);
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -1013,7 +1014,10 @@ fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// Parse a `-map` dict (`sub {target prefix} …`) into (subcommand, prefix-words).
 fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
-    let kvs = crate::parse::split_list(bytes).map_err(|e| e.message().to_vec())?;
+    let kvs = crate::parse::split_list(bytes).map_err(|error| {
+        tcl_cmd_core::dict::worded_parse_error(&String::from_utf8_lossy(error.message()))
+            .into_bytes()
+    })?;
     if kvs.len() % 2 != 0 {
         return Err(b"missing value to go with key".to_vec());
     }
@@ -1035,6 +1039,8 @@ fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
             None => map.push((pair[0].clone(), prefix)),
         }
     }
+    tcl_cmd_core::ensemble::validate_map_targets(&map)
+        .map_err(|error| error.into_message().into_bytes())?;
     Ok(map)
 }
 
@@ -1125,6 +1131,25 @@ mod tests {
             assert_eq!(i.result_bytes(), b"::a");
             assert_eq!(i.eval_str(b"namespace children ::a"), Code::Ok);
             assert_eq!(i.result_bytes(), b"::a::b");
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval ::a {
+                          catch {namespace parent {not here}} pm po
+                          catch {namespace children {also not here}} cm co
+                          list $pm [dict get $po -errorcode] \
+                               $cm [dict get $co -errorcode]
+                      }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{namespace \"not here\" not found in \"::a\"} \
+                  {TCL LOOKUP NAMESPACE {not here}} \
+                  {namespace \"also not here\" not found in \"::a\"} \
+                  {TCL LOOKUP NAMESPACE {also not here}}"
+            );
         });
     }
 
@@ -1186,6 +1211,97 @@ mod tests {
             assert_eq!(i.result_bytes(), b"::n::gv");
             assert_eq!(i.eval_str(b"namespace which -variable ::n::nope"), Code::Ok);
             assert_eq!(i.result_bytes(), b"");
+        });
+    }
+
+    /// Tcl 9.0.4 oracle vectors from issue #1584. These exercise the runtime
+    /// adapter through the same shared namespace grammar as the bytecode VM.
+    #[test]
+    fn namespace_issue_1584_oracle_vectors() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval declared {variable only
+                      list [namespace which -variable only] [info vars] [info exists only]}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::declared::only only 0");
+
+            for script in [
+                &b"namespace which -zork puts"[..],
+                b"namespace which -command puts extra",
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(
+                    i.result_bytes(),
+                    b"wrong # args: should be \"namespace which ?-command? ?-variable? name\""
+                );
+            }
+
+            assert_eq!(
+                i.eval_str(b"namespace eval self {namespace import ::self::*}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"import pattern \"::self::*\" tries to import from namespace \"self\" into itself"
+            );
+            assert_eq!(
+                i.eval_str(b"namespace eval dest {namespace import ::nosuch::*}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown namespace in import pattern \"::nosuch::*\""
+            );
+
+            for script in [&b"namespace origin"[..], b"namespace origin set extra"] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(
+                    i.result_bytes(),
+                    b"wrong # args: should be \"namespace origin name\""
+                );
+            }
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval order {}
+                      foreach n {one two three four five six seven eight nine ten} {
+                          namespace eval ::order::$n {}
+                      }
+                      namespace children ::order"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"::order::six ::order::four ::order::three ::order::eight \
+                  ::order::seven ::order::nine ::order::five ::order::two \
+                  ::order::one ::order::ten"
+            );
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval p {}
+                      foreach n {a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11} {
+                          namespace eval ::p::$n {}
+                      }
+                      foreach i {1 2 4 5 6 7 8 9 10 11} {namespace delete ::p::a$i}
+                      namespace children ::p"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::p::a0 ::p::a3");
+        });
+
+        // The active command survives long enough to return even though the
+        // global namespace and command table have been torn down.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace delete ::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            assert_eq!(i.eval_str(b"puts hi"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"puts\"");
         });
     }
 
@@ -1518,6 +1634,1055 @@ mod tests {
                 b"unknown or ambiguous subcommand \"set\": must be go"
             );
             i.eval_str(b"unset v");
+        });
+    }
+
+    /// Tcl 9.0.4 oracle vectors from issue #1583: dict validation, callback
+    /// prefix redispatch/reparse, and the user-facing default target name.
+    #[test]
+    fn ensemble_issue_1583_oracle_vectors() {
+        leak_free(|i| {
+            for (script, message) in [
+                (
+                    &b"namespace ensemble create -map {go}"[..],
+                    &b"missing value to go with key"[..],
+                ),
+                (
+                    b"namespace ensemble create -map {go {}}",
+                    b"ensemble subcommand implementations must be non-empty lists",
+                ),
+                (
+                    b"set badmap \"go \\{\"; namespace ensemble create -map $badmap",
+                    b"unmatched open brace in dict",
+                ),
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(i.result_bytes(), message);
+            }
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc uh {ens args} {return [list list REPLACED $ens]}
+                      namespace eval se5 {
+                          namespace ensemble create -command ::se5 -subcommands {} -unknown ::uh
+                      }
+                      ::se5 nope 1 2"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"REPLACED ::se5 1 2");
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc define {ens args} {
+                          namespace eval se6 {
+                              proc nope args {return DEFINED}; namespace export nope
+                          }
+                          return {}
+                      }
+                      namespace eval se6 {
+                          namespace ensemble create -command ::se6 -unknown ::define
+                      }
+                      ::se6 nope"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"DEFINED");
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc target args {return TARGET}
+                      proc repair {ens args} {
+                          namespace ensemble configure $ens -map {nope ::target}; return {}
+                      }
+                      namespace eval se7 {
+                          namespace ensemble create -command ::se7 -unknown ::repair
+                      }
+                      ::se7 nope"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"TARGET");
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval k1 {namespace ensemble create -subcommands ghost}
+                      ::k1 ghost"
+                ),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"invalid command name \"ghost\"");
+        });
+    }
+
+    #[test]
+    fn ensemble_unknown_retains_the_live_command_token() {
+        // Same-name create is replacement, not mutation: the callback's old
+        // active token is dead even though a new ensemble occupies `::E`.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc new args {return NEW}
+                      proc rebuild {ens args} {
+                          namespace eval ::N {
+                              namespace ensemble create -command ::E -map {x ::new}
+                          }
+                          return {}
+                      }
+                      namespace eval ::N {
+                          namespace ensemble create -command ::E -unknown ::rebuild
+                      }
+                      set c [catch {::E nope} m o]
+                      list $c $m [dict get $o -errorcode] [::E x]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {unknown subcommand handler deleted its ensemble} {TCL ENSEMBLE UNKNOWN_DELETED} NEW"
+            );
+        });
+
+        // Replacement fires and drops the old command's delete trace.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc deleted args {lappend ::seen $args}
+                      namespace ensemble create -command ::E
+                      trace add command ::E delete deleted
+                      set replacement [namespace ensemble create -command ::E]
+                      list $seen $replacement"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{{::E {} delete}} ::E");
+        });
+
+        // The delete trace may move the captured old token. Replacement must
+        // retire that identity at its new location, then install the fresh
+        // ensemble at the original binding.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc move_old {old new op} {rename $old ::OLD}
+                      namespace eval N {namespace ensemble create -command ::E}
+                      trace add command ::E delete move_old
+                      namespace eval N {namespace ensemble create -command ::E}
+                      list [info commands ::E] [info commands ::OLD] \
+                           [namespace ensemble exists ::E] \
+                           [namespace ensemble exists ::OLD]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::E {} 1 0");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc target args {return TARGET}
+                      namespace eval ER {
+                          proc repair {ens args} {
+                              namespace ensemble configure $ens -map {nope ::target}
+                              rename $ens ::ER2
+                              return {}
+                          }
+                          namespace ensemble create -command ::ER -unknown ::ER::repair
+                      }
+                      list [::ER nope] [namespace ensemble configure ::ER2 -map] [::ER2 nope]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"TARGET {nope ::target} TARGET");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc target args {return TARGET}
+                      proc repair {ens args} {
+                          set ::seen $ens
+                          namespace ensemble configure $ens -map {nope ::target}
+                          return {}
+                      }
+                      namespace eval S {
+                          namespace export E
+                          namespace ensemble create -command E -unknown ::repair
+                      }
+                      namespace eval I {namespace import ::S::E}
+                      list [::I::E nope] $seen [namespace origin ::I::E]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"TARGET ::S::E ::S::E");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc target args {return TARGET}
+                      proc replace {ens args} {
+                          rename $ens {}
+                          namespace ensemble create -command $ens -map {nope ::target}
+                          return \\{
+                      }
+                      namespace eval D {
+                          namespace ensemble create -command E -unknown ::replace
+                      }
+                      set c [catch {::D::E nope} m o]
+                      list $c $m [dict get $o -errorcode] [::D::E nope]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {unknown subcommand handler deleted its ensemble} {TCL ENSEMBLE UNKNOWN_DELETED} TARGET"
+            );
+        });
+
+        leak_free(|i| {
+            let code = i.eval_str(
+                b"proc target args {return TARGET}
+                      set seen {}
+                      proc hide_repair {ens args} {
+                          namespace ensemble configure $ens -map {nope ::target} -unknown ::hidden_repair
+                          interp hide {} $ens heldE
+                          return {}
+                      }
+                      proc hidden_repair {ens args} {
+                          set ::seen $ens
+                          return [list ::target]
+                      }
+                      namespace ensemble create -command ::EH -unknown ::hide_repair
+                      set first [::EH nope]
+                      set seen {}
+                      set second [interp invokehidden {} heldE other]
+                      list $first $second $seen [info commands ::EH] [interp hidden {}]",
+            );
+            assert_eq!(
+                code,
+                Code::Ok,
+                "{}",
+                String::from_utf8_lossy(&i.result_bytes())
+            );
+            assert_eq!(i.result_bytes(), b"TARGET TARGET ::heldE {} heldE");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc zap {ens args} {namespace delete ::ND; return {}}
+                      namespace eval ND {
+                          namespace ensemble create -command ::NDE -unknown ::zap
+                      }
+                      set c [catch {::NDE nope} m o]
+                      list $c $m [dict get $o -errorcode] [info commands ::NDE]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {unknown subcommand handler deleted its ensemble} {TCL ENSEMBLE UNKNOWN_DELETED} {}"
+            );
+        });
+    }
+
+    /// Exact Tcl 9.0.4 command-token oracles: an ensemble import follows its
+    /// source token through hide/expose, not a replacement installed at the
+    /// vacated name; recreating an occupied ensemble retargets the import to a
+    /// new token; true deletion removes the import permanently.
+    #[test]
+    fn imported_ensemble_retains_source_token_identity() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc tgt_old args {return OLD}
+                      proc tgt_new args {return NEW}
+                      namespace eval S {
+                          namespace export E
+                          namespace ensemble create -command ::S::E -map {x ::tgt_old}
+                      }
+                      namespace eval I {namespace import ::S::E}
+                      namespace eval S {
+                          namespace ensemble create -command ::S::E -map {x ::tgt_new}
+                      }
+                      list [::I::E x] [namespace origin ::I::E] \
+                           [namespace ensemble configure ::I::E -map]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"NEW ::S::E {x ::tgt_new}");
+
+            assert_eq!(
+                i.eval_str(
+                    b"rename ::S::E {}
+                      set before [list [info commands ::I::E] \
+                                           [namespace eval I {namespace import}]]
+                      namespace eval S {
+                          namespace ensemble create -command ::S::E -map {x ::tgt_new}
+                      }
+                      list {*}$before [info commands ::I::E] \
+                           [namespace eval I {namespace import}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{} {} {} {}");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc tgt_old args {return OLD}
+                      namespace eval Source {
+                          namespace ensemble create -command ::E -map {x ::tgt_old}
+                      }
+                      namespace export E
+                      namespace eval I {namespace import ::E}
+                      interp hide {} E held
+                      proc E args {return REPLACEMENT}
+                      list [::I::E x] [namespace origin ::I::E] \
+                           [namespace ensemble configure ::I::E -map] \
+                           [namespace ensemble exists ::I::E]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"OLD ::held {x ::tgt_old} 1");
+
+            assert_eq!(
+                i.eval_str(
+                    b"interp expose {} held E2
+                      list [::I::E x] [namespace origin ::I::E] \
+                           [namespace ensemble configure ::I::E -map] [::E2 x]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"OLD ::E2 {x ::tgt_old} OLD");
+        });
+
+        // Replacing an occupied source binding with a non-ensemble keeps the
+        // import attached to the source command token. The retained ensemble
+        // token is now dead, so dispatch and origin fall back to the by-name
+        // source, including after that replacement is renamed.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc tgt_old args {return OLD}
+                      namespace eval S {
+                          namespace export E
+                          namespace ensemble create -command E -map {x ::tgt_old}
+                      }
+                      namespace eval I {namespace import ::S::E}
+                      proc ::S::E args {return PROC}
+                      set first [list [::I::E x] [namespace origin ::I::E] \
+                                          [namespace ensemble exists ::I::E] \
+                                          [info commands ::I::E]]
+                      rename ::S::E ::S::E2
+                      list {*}$first [::I::E x] [namespace origin ::I::E]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"PROC ::S::E 0 ::I::E PROC ::S::E2");
+        });
+
+        // The by-name source shadow moves even while the retained token is
+        // live. Replacing the renamed ensemble with a proc retires the token;
+        // fallback and origin therefore use the renamed source, and keep
+        // following it across a subsequent proc rename.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export E
+                          namespace ensemble create -command E
+                      }
+                      namespace eval I {namespace import ::S::E}
+                      rename ::S::E ::S::Moved
+                      proc ::S::Moved args {return PROC}
+                      set first [list [::I::E] [namespace origin ::I::E] \
+                                          [namespace ensemble exists ::I::E]]
+                      rename ::S::Moved ::S::Final
+                      list {*}$first [::I::E] [namespace origin ::I::E]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"PROC ::S::Moved 0 PROC ::S::Final");
+        });
+    }
+
+    /// True command deletion removes every import of the source command,
+    /// including transitive and hidden ordinary-proc aliases. Recreating the
+    /// source binding does not resurrect any of them. Namespace teardown uses
+    /// the same generic origin-deletion seam.
+    #[test]
+    fn true_source_deletion_purges_generic_import_origins() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export p
+                          proc p {} {return OLD}
+                      }
+                      namespace eval I {
+                          namespace import ::S::p
+                          namespace export p
+                      }
+                      namespace eval J {namespace import ::I::p}
+                      namespace import ::S::p
+                      interp hide {} p heldImport
+                      set before [list [namespace origin ::I::p] \
+                                           [namespace origin ::J::p] [interp hidden {}]]
+                      rename ::S::p {}
+                      namespace eval S {proc p {} {return NEW}}
+                      list {*}$before [info commands ::I::p] \
+                           [info commands ::J::p] [interp hidden {}] \
+                           [namespace eval I {namespace import}] \
+                           [namespace eval J {namespace import}] \
+                           [info commands ::p]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"::S::p ::S::p heldImport {} {} {} {} {} {}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export p
+                          proc p {} {return OLD}
+                      }
+                      namespace eval I {namespace import ::S::p}
+                      namespace delete ::S
+                      namespace eval S {
+                          namespace export p
+                          proc p {} {return NEW}
+                      }
+                      list [info commands ::I::p] \
+                           [namespace eval I {namespace import}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{} {}");
+        });
+    }
+
+    /// Each import retains its immediate source command. Replacing the
+    /// intermediate import changes what downstream aliases invoke and report as
+    /// their origin; true deletion of that intermediate command removes them.
+    #[test]
+    fn transitive_import_retains_intermediate_binding_lifecycle() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export p
+                          proc p {} {return S}
+                      }
+                      namespace eval A {
+                          namespace import ::S::p
+                          namespace export p
+                      }
+                      namespace eval B {namespace import ::A::p}
+                      proc ::A::p {} {return A}
+                      set before [list [::B::p] [namespace origin ::B::p]]
+                      rename ::A::p {}
+                      list {*}$before [info commands ::B::p] \
+                           [namespace eval B {namespace import}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"A ::A::p {} {}");
+        });
+
+        // Independent true-delete path: A is still an imported command when it
+        // is deleted. B is therefore deleted with A, while the original source
+        // command in S remains live.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export p
+                          proc p {} {return S}
+                      }
+                      namespace eval A {
+                          namespace import ::S::p
+                          namespace export p
+                      }
+                      namespace eval B {namespace import ::A::p}
+                      rename ::A::p {}
+                      list [::S::p] [info commands ::B::p] \
+                           [namespace eval B {namespace import}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"S {} {}");
+        });
+    }
+
+    #[test]
+    fn namespace_import_rejects_a_cycle_before_mutating_the_graph() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          proc p {} {return S}
+                          namespace export p
+                      }
+                      namespace eval A {
+                          namespace import ::S::p
+                          namespace export p
+                      }
+                      namespace eval B {
+                          namespace import ::A::p
+                          namespace export p
+                      }
+                      set no_force_code [catch {
+                          namespace eval S {namespace import ::B::p}
+                      } no_force_message no_force_options]
+                      set no_force [list $no_force_code $no_force_message \
+                          [dict get $no_force_options -errorcode] \
+                          [namespace origin ::S::p] \
+                          [namespace origin ::A::p] \
+                          [namespace origin ::B::p]]
+                      set force_code [catch {
+                          namespace eval S {namespace import -force ::B::p}
+                      } force_message force_options]
+                      list {*}$no_force $force_code $force_message \
+                           [dict get $force_options -errorcode] \
+                           [namespace origin ::S::p] \
+                           [namespace origin ::A::p] \
+                           [namespace origin ::B::p]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {can't import command \"p\": already exists} \
+                  {TCL IMPORT OVERWRITE} ::S::p ::S::p ::S::p \
+                  1 {import pattern \"::B::p\" would create a loop containing command \"::S::p\"} \
+                  {TCL IMPORT LOOP} ::S::p ::S::p ::S::p"
+            );
+        });
+    }
+
+    /// `namespace import -force` is command replacement, so it uses the same
+    /// lifecycle as `proc` redefinition: the displaced token's delete trace
+    /// runs while the old command remains visible, and none of its command or
+    /// execution trace sidecars transfer to the fresh imported token.
+    #[test]
+    fn forced_import_replacement_runs_command_lifecycle() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc deleted {old new op} {
+                          lappend ::seen [list delete $old [info commands $old]]
+                      }
+                      proc entered {cmd op} {
+                          lappend ::seen [list enter $cmd $op]
+                      }
+                      namespace eval S {
+                          proc p {} {return SRC}
+                          namespace export p
+                      }
+                      namespace eval D {proc p {} {return OLD}}
+                      trace add command ::D::p delete deleted
+                      trace add execution ::D::p enter entered
+                      namespace eval D {namespace import -force ::S::p}
+                      set traces [list [trace info command ::D::p] \
+                                           [trace info execution ::D::p]]
+                      set result [::D::p]
+                      list $seen $traces $result [namespace origin ::D::p]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{{delete ::D::p ::D::p}} {{} {}} SRC ::S::p"
+            );
+        });
+    }
+
+    /// Imported-command delete traces run before unbinding, and a command
+    /// recreated by the trace callback has a new identity that survives the old
+    /// import's deletion. Downstream imports then resolve through that live
+    /// intermediate replacement.
+    #[test]
+    fn imported_delete_trace_observes_and_can_replace_the_binding() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export p
+                          proc p {} {return S}
+                      }
+                      namespace eval I {
+                          namespace import ::S::p
+                          namespace export p
+                      }
+                      namespace eval B {namespace import ::I::p}
+                      set seen {}
+                      proc cb {old new op} {
+                          lappend ::seen [info commands $old]
+                          proc $old {} {return REBORN}
+                      }
+                      trace add command ::I::p delete cb
+                      rename ::S::p {}
+                      list $seen [::I::p] [::B::p] [namespace origin ::B::p]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::I::p REBORN REBORN ::I::p");
+        });
+
+        // Re-importing the same origin from the delete callback creates a fresh
+        // imported-command identity. The outer deletion retires only the old
+        // import even though both identities carry identical source metadata.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          namespace export p
+                          proc p {} {return S}
+                      }
+                      namespace eval A {namespace import ::S::p}
+                      proc reimport {old new op} {
+                          namespace eval ::A {namespace import -force ::S::p}
+                      }
+                      trace add command ::A::p delete reimport
+                      rename ::A::p {}
+                      list [info commands ::A::p] [::A::p] \
+                           [namespace origin ::A::p]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::A::p S ::S::p");
+        });
+
+        // A trace may move the dying import itself. Identity cleanup follows
+        // it and silently drops the moved sidecar, so a later unrelated
+        // command at that name cannot fire the old trace.
+        leak_free(|i| {
+            let code = i.eval_str(
+                b"namespace eval S {
+                          namespace export p
+                          proc p {} {return S}
+                      }
+                      namespace eval I {namespace import ::S::p}
+                      set seen {}
+                      proc move_import {old new op} {
+                          lappend ::seen [list $old $new $op [info commands $old]]
+                          rename $old ::I::q
+                      }
+                      trace add command ::I::p delete move_import
+                      rename ::S::p {}
+                      set first $seen
+                      proc ::I::q {} {return unrelated}
+                      rename ::I::q {}
+                      list $first $seen [info commands ::I::p] \
+                           [info commands ::I::q]",
+            );
+            assert_eq!(
+                code,
+                Code::Ok,
+                "{}",
+                String::from_utf8_lossy(&i.result_bytes())
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{{::I::p {} delete ::I::p}} {{::I::p {} delete ::I::p}} {} {}"
+            );
+        });
+    }
+
+    /// Tcl 9.0.4 deletes a hidden real ensemble when its configured namespace
+    /// dies, including its hidden-table binding and every import that retains
+    /// the token. The active unknown callback therefore observes a dead token.
+    #[test]
+    fn namespace_delete_retires_hidden_ensemble_token() {
+        // Namespace deletion fires a visible namespace-owned ensemble's delete
+        // trace before marking/detaching the namespace. Tcl's ensemble list is
+        // retired first, so the callback still sees both the owning namespace
+        // and the captured command token; teardown removes both afterwards.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc observe {old new op} {
+                          lappend ::seen [list [namespace exists ::N] $old \
+                              [info commands $old] \
+                              [namespace ensemble exists $old]]
+                      }
+                      namespace eval N {namespace ensemble create -command ::E}
+                      trace add command ::E delete observe
+                      namespace delete ::N
+                      list $seen [namespace exists ::N] [info commands ::E]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{{1 ::E ::E 1}} 0 {}");
+        });
+
+        // Exposing a hidden victim from its delete callback only moves the old
+        // identity; teardown follows it and removes both the command and its
+        // moved trace sidecar.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc expose_dying {old new op} {
+                          lappend ::seen [list $old [info commands $old]]
+                          interp expose {} held E2
+                      }
+                      namespace eval N {namespace ensemble create -command ::E}
+                      trace add command ::E delete expose_dying
+                      interp hide {} E held
+                      namespace delete ::N
+                      list $seen [interp hidden {}] [info commands ::E2]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{{::held {}}} {} {}");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc zap {ens args} {
+                          interp hide {} NDE held
+                          namespace delete ::ND
+                          return {}
+                      }
+                      namespace eval ND {
+                          namespace ensemble create -command ::NDE -unknown ::zap
+                      }
+                      namespace export NDE
+                      namespace eval I {namespace import ::NDE}
+                      set c [catch {::NDE nope} m o]
+                      list $c $m [dict get $o -errorcode] [interp hidden {}] \
+                           [info commands ::NDE] [info commands ::I::NDE] \
+                           [namespace eval I {namespace import}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {unknown subcommand handler deleted its ensemble} \
+                  {TCL ENSEMBLE UNKNOWN_DELETED} {} {} {} {}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc tgt args {return OK}
+                      namespace eval HS {
+                          namespace export E
+                          namespace ensemble create -command E -map {x ::tgt}
+                      }
+                      namespace import ::HS::E
+                      interp hide {} E heldImport
+                      namespace delete ::HS
+                      set c [catch {interp invokehidden {} heldImport x} m]
+                      list [interp hidden {}] $c $m"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{} 1 {invalid hidden command name \"heldImport\"}"
+            );
+        });
+
+        // Hidden real ensembles and hidden imported commands both carry their
+        // command trace sidecars to the hidden live name. Namespace-driven
+        // retirement fires each once and drops it before an unrelated command
+        // later occupies the old visible name.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc cb {old new op} {lappend ::seen [list $old $new $op]}
+                      namespace eval N {namespace ensemble create -command ::E}
+                      trace add command ::E delete cb
+                      interp hide {} E held
+                      namespace delete ::N
+                      proc ::E {} {}
+                      list $seen [trace info command ::E] [interp hidden {}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{{::held {} delete}} {} {}");
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc cb {old new op} {lappend ::seen [list $old $new $op]}
+                      namespace eval S {
+                          namespace export p
+                          proc p {} {return P}
+                      }
+                      namespace import ::S::p
+                      trace add command ::p delete cb
+                      interp hide {} p heldImport
+                      namespace delete ::S
+                      proc ::p {} {}
+                      list $seen [trace info command ::p] [interp hidden {}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{{::heldImport {} delete}} {} {}");
+        });
+    }
+
+    /// A nonempty unknown result is spliced using the post-callback parameter
+    /// count. Tcl 9.0.4 treats `missing` as the newly-added second parameter and
+    /// removes `newsub` as the live subcommand word.
+    #[test]
+    fn ensemble_unknown_prefix_uses_live_parameter_layout() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc target args {return $args}
+                      proc mutate {ens args} {
+                          namespace ensemble configure $ens -parameters {p q}
+                          return ::target
+                      }
+                      namespace eval M {
+                          namespace ensemble create -command ::M \
+                              -parameters p -unknown ::mutate
+                      }
+                      ::M P missing newsub tail"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"P missing tail");
+        });
+    }
+
+    /// Exact Tcl 9.0.4 result-code and list-parser diagnostics for an ensemble
+    /// `-unknown` callback.
+    #[test]
+    fn ensemble_unknown_normalizes_bad_results() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc u {mode ens args} {return -code $mode RESULT}
+                      namespace ensemble create -command ::E -unknown {::u break}
+                      set out {}
+                      foreach mode {break continue return 7} {
+                          namespace ensemble configure ::E -unknown [list ::u $mode]
+                          set c [catch {::E nope} m o]
+                          lappend out $c $m [dict get $o -errorcode]
+                      }
+                      set out"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {unknown subcommand handler returned bad code: break} \
+                  {TCL ENSEMBLE UNKNOWN_RESULT} \
+                  1 {unknown subcommand handler returned bad code: continue} \
+                  {TCL ENSEMBLE UNKNOWN_RESULT} \
+                  1 {unknown subcommand handler returned bad code: return} \
+                  {TCL ENSEMBLE UNKNOWN_RESULT} \
+                  1 {unknown subcommand handler returned bad code: 7} \
+                  {TCL ENSEMBLE UNKNOWN_RESULT}"
+            );
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace ensemble configure ::E -unknown {::u break}
+                      catch {::E nope} m o
+                      list $m [dict get $o -errorcode] \
+                           [join [lrange [split [dict get $o -errorinfo] \\n] 0 1] \\n]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{unknown subcommand handler returned bad code: break} \
+                  {TCL ENSEMBLE UNKNOWN_RESULT} \
+                  {unknown subcommand handler returned bad code: break\n    result of ensemble unknown subcommand handler: ::u break ::E nope}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc malformed {ens args} {return \\{}
+                      namespace ensemble create -command ::E -unknown ::malformed
+                      catch {::E nope} m o
+                      list $m [dict get $o -errorcode] \
+                           [join [lrange [split [dict get $o -errorinfo] \\n] 0 1] \\n]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{unmatched open brace in list} {TCL VALUE LIST BRACE} \
+                  {unmatched open brace in list\n    while parsing result of ensemble unknown subcommand handler}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc malformed {ens args} {return \"{a}junk\"}
+                      namespace ensemble create -command ::E -unknown ::malformed
+                      catch {::E nope} m o
+                      list $m [dict get $o -errorcode] \
+                           [dict get $o -errorinfo]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{list element in braces followed by \"junk\" instead of space} \
+                  {TCL VALUE LIST JUNK} \
+                  {list element in braces followed by \"junk\" instead of space\n    while parsing result of ensemble unknown subcommand handler\n    invoked from within\n\"::E nope\"}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc baderr args {
+                          return -code error -errorcode {CUSTOM CODE} BOOM
+                      }
+                      namespace ensemble create -command ::E -unknown ::baderr
+                      catch {::E nope} m o
+                      list $m [dict get $o -errorcode] [dict get $o -errorinfo]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"BOOM {CUSTOM CODE} {BOOM\n    while executing\n\"::baderr ::E nope\"\n    (ensemble unknown subcommand handler)\n    invoked from within\n\"::E nope\"}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc delete_unknown {ens args} {rename $ens {}; return {}}
+                      namespace ensemble create -command ::E -unknown ::delete_unknown
+                      catch {::E nope} m o
+                      list $m [dict get $o -errorcode] [dict get $o -errorinfo]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{unknown subcommand handler deleted its ensemble} \
+                  {TCL ENSEMBLE UNKNOWN_DELETED} \
+                  {unknown subcommand handler deleted its ensemble\n    (ensemble unknown subcommand handler)\n    invoked from within\n\"::E nope\"}"
+            );
+        });
+    }
+
+    #[test]
+    fn ensemble_default_miss_preserves_custom_unknown_options() {
+        leak_free(|i| {
+            let code = i.eval_str(
+                b"proc ::unknown {cmd args} {
+                          return -code error -errorcode {CUSTOM CODE} \
+                              -errorinfo CUSTOMINFO \
+                              -errorstack {INNER foo CALL bar} \
+                              \"invalid command name \\\"$cmd\\\"\"
+                      }
+                      namespace eval N {
+                          namespace ensemble create -command ::E -subcommands x
+                      }
+                      set c [catch {::E x} m o]
+                      list $c $m [dict get $o -errorcode] \
+                           [dict get $o -errorinfo] [dict get $o -errorstack]",
+            );
+            assert_eq!(
+                code,
+                Code::Ok,
+                "{}",
+                String::from_utf8_lossy(&i.result_bytes())
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {invalid command name \"x\"} {CUSTOM CODE} \
+                  {CUSTOMINFO\n    invoked from within\n\"::E x\"} \
+                  {INNER foo CALL bar}"
+            );
+        });
+    }
+
+    /// Exact Tcl 9.0.4 lookup/read-only error taxonomy for ensemble configure
+    /// and namespace origin.
+    #[test]
+    fn ensemble_configure_and_origin_error_codes() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc plain {} {}
+                      namespace ensemble create -command ::E
+                      set out {}
+                      foreach script {
+                          {namespace ensemble configure ::missing}
+                          {namespace ensemble configure ::plain}
+                          {namespace ensemble configure ::E -namespace ::N}
+                          {namespace origin ::missing}
+                      } {
+                          catch $script m o
+                          lappend out $m [dict get $o -errorcode]
+                      }
+                      set out"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{unknown command \"::missing\"} {TCL LOOKUP COMMAND ::missing} \
+                  {\"::plain\" is not an ensemble command} {TCL LOOKUP ENSEMBLE ::plain} \
+                  {option -namespace is read-only} {TCL ENSEMBLE READ_ONLY} \
+                  {invalid command name \"::missing\"} {TCL LOOKUP COMMAND ::missing}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set out {}
+                      foreach script {
+                          {namespace origin {not here}}
+                          {namespace ensemble configure {not here}}
+                      } {
+                          catch $script m o
+                          lappend out $m [dict get $o -errorcode] \
+                              [llength [dict get $o -errorcode]]
+                      }
+                      namespace ensemble create -command ::Q \
+                          -subcommands {{not here}}
+                      catch {::Q {also not here}} m o
+                      lappend out $m [dict get $o -errorcode] \
+                          [llength [dict get $o -errorcode]]
+                      set out"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{invalid command name \"not here\"} \
+                  {TCL LOOKUP COMMAND {not here}} 4 \
+                  {unknown command \"not here\"} \
+                  {TCL LOOKUP COMMAND {not here}} 4 \
+                  {unknown or ambiguous subcommand \"also not here\": must be not here} \
+                  {TCL LOOKUP SUBCOMMAND {also not here}} 4"
+            );
         });
     }
 
@@ -2251,6 +3416,78 @@ mod tests {
                 tcl_cmd_core::namespace::origin(i, &String::from_utf8_lossy(raw)),
                 None
             );
+        });
+    }
+
+    /// #1613: an embedder can supply a plain string whose bytes are not UTF-8.
+    /// Drive the real `namespace` adapter with such objects rather than using a
+    /// script-created byte array (whose string shimmer is valid UTF-8), so any
+    /// lossy `&str` hop makes these two distinct namespace names disappear or
+    /// collide.
+    #[test]
+    fn byte_valued_namespace_navigation_uses_the_embedder_bytes_verbatim() {
+        fn invoke(interp: &mut Interp, words: &[&[u8]]) -> Code {
+            let argv: Vec<*mut crate::obj::TclObj> = words
+                .iter()
+                .map(|word| crate::obj::new_string_bytes(word))
+                .collect();
+            let code = super::namespace_cmd(interp, &argv);
+            for object in argv {
+                super::drop_fresh(object);
+            }
+            code
+        }
+
+        leak_free(|interp| {
+            let parent = b"::raw\xff";
+            let sibling = b"::raw\xfe";
+            let child = b"::raw\xff::child\xfd";
+            {
+                let mut namespaces = interp.namespaces_mut();
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, parent);
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, sibling);
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, child);
+            }
+
+            assert_eq!(invoke(interp, &[b"namespace", b"exists", parent]), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"1");
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"exists", sibling]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"1");
+
+            assert_eq!(invoke(interp, &[b"namespace", b"parent", child]), Code::Ok);
+            assert_eq!(interp.result_bytes(), parent);
+
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), child);
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent, child]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), child);
+
+            // Established invalid-byte glob policy: identity is defined, while
+            // wildcard interpretation is reserved for valid UTF-8 strings.
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent, b"*"]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"");
+
+            let missing = b"::missing\xff";
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"parent", missing]),
+                Code::Error
+            );
+            let mut message = b"namespace \"".to_vec();
+            message.extend_from_slice(missing);
+            message.extend_from_slice(b"\" not found");
+            assert_eq!(interp.result_bytes(), message);
         });
     }
 

@@ -16,144 +16,273 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Integration: the real Tcl 9 `tcltest.tcl` library loads end-to-end.
-//!
-//! Sources the genuine
-//! `tmp/tcl9.0.4/library/tcltest/tcltest.tcl`, exercising namespaces, namespace
-//! variables (scalar + array), `package`, variable traces, `file`/`pwd`/`cd`,
-//! `regexp`, `subst`, dynamic proc bodies, and `upvar` to namespace variables.
-//! The test is skipped when the Tcl source tree isn't present.
+//! Integration: startup uses a selected Tcl library and discovers `tcltest`
+//! through ordinary package machinery.
 
 use std::cell::RefCell;
+use std::fs;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::Duration;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::lowering::{
+    first_fatal_parse_error_with_config, lower_to_ir_for_bytecode_with_dialect,
+};
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_test_support::locate_source_tree;
+use tcl_vm::{CompileError, CompileService, Value, Vm};
 
-struct Svc(CommandRegistry);
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
+struct CompilerSvc {
+    registry: &'static CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    profile: &'static DialectProfile,
+}
 
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.0);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+impl CompilerSvc {
+    fn tcl_9_0() -> Self {
+        let profile = DialectProfile::find("tcl9.0").expect("Tcl 9.0 profile exists");
+        Self {
+            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            profile,
+        }
     }
 }
 
-#[derive(Clone)]
-struct Cap(Rc<RefCell<Vec<u8>>>);
-impl Write for Cap {
-    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(b);
-        Ok(b.len())
+impl CompileService for CompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(message) = first_fatal_parse_error_with_config(src, self.config) {
+            return Err(CompileError(message));
+        }
+        let ir = lower_to_ir_for_bytecode_with_dialect(
+            src,
+            self.registry,
+            self.config,
+            Some(self.profile),
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        assert_eq!(profile.name, self.profile.name, "test VM changed profile");
+        self.compile(src)
+    }
+}
+
+fn configure_vm(mut vm: Vm, library: &Path) -> Vm {
+    vm.set_runtime_version(TclVersion::V9_0);
+    vm.set_compiler(Box::new(CompilerSvc::tcl_9_0()));
+    vm.set_var(
+        "::tcl_library",
+        Value::string(library.to_string_lossy().into_owned()),
+    )
+    .expect("test library path is settable");
+    vm
+}
+
+fn vm_for_library(library: &Path) -> Vm {
+    configure_vm(Vm::new(), library)
+}
+
+#[derive(Clone)]
+struct Capture(Rc<RefCell<Vec<u8>>>);
+
+impl Write for Capture {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
 }
 
-#[test]
-fn tcltest_library_loads() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tmp/tcl9.0.4/library/tcltest/tcltest.tcl"
-    );
-    if !std::path::Path::new(path).exists() {
-        eprintln!("skipping: {path} not present");
-        return;
-    }
+struct FixtureDir(PathBuf);
 
-    // Run on a worker thread with a watchdog so a regression can't hang CI.
-    let handle = std::thread::spawn(move || {
-        let registry = CommandRegistry::build_default();
-        let src = format!("source {path}\nputs LOADED-OK\n");
-        let ir = lower_to_ir(&src, &registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        let asm = codegen_module(&cfg, &ir, &registry);
-        let buf = Rc::new(RefCell::new(Vec::new()));
-        let mut vm = Vm::with_output(Box::new(Cap(Rc::clone(&buf))));
-        vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
-        let c = vm.run_module(&asm);
-        let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
-        (c.code.is_ok(), c.result.to_str().to_string(), out)
-    });
-
-    // Poll for completion up to a generous bound.
-    for _ in 0..200 {
-        if handle.is_finished() {
-            let (ok, result, out) = handle.join().expect("worker panicked");
-            assert!(ok, "tcltest.tcl failed to load: {result}");
-            assert!(
-                out.contains("LOADED-OK"),
-                "tcltest.tcl did not reach end of load; output: {out:?}"
-            );
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
+impl FixtureDir {
+    fn new() -> Self {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let suffix = NEXT.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "tcl-vm-init-library-{}-{suffix}",
+            std::process::id()
+        ));
+        fs::create_dir(&path).expect("create isolated startup fixture");
+        Self(path)
     }
-    panic!("tcltest.tcl load did not finish within 20s (possible infinite loop)");
 }
 
-/// Real `::tcltest::test` cases run end-to-end: passing tests pass, a wrong
-/// expected result is reported as a failure, and `cleanupTests` prints the
-/// summary. Exercises namespaces, the option getters (read-trace cascade with
-/// per-variable trace suppression), `uplevel`, `{*}` expansion, channels, and
-/// the variable-index array access that `tcltest::test` relies on.
+impl Drop for FixtureDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// This intentionally uses a library which process startup cannot know about.
+/// It catches an implementation that merely reports success, sources a fixed
+/// built-in script, or bypasses `package unknown` / `package ifneeded`.
 #[test]
-fn tcltest_runs_test_cases() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tmp/tcl9.0.4/library/tcltest/tcltest.tcl"
+fn init_library_sources_the_selected_init_and_require_discovers_its_package() {
+    let library = FixtureDir::new();
+    fs::write(
+        library.0.join("init.tcl"),
+        "set ::startup_marker [file tail [info script]]\n\
+         namespace eval ::fixture {\n\
+             proc discover {name args} {\n\
+                 if {$name eq {fixture_package}} {\n\
+                     package ifneeded fixture_package 1.0 {\n\
+                         set ::package_marker loaded\n\
+                         package provide fixture_package 1.0\n\
+                     }\n\
+                 }\n\
+             }\n\
+         }\n\
+         package unknown ::fixture::discover\n",
+    )
+    .expect("write init.tcl");
+
+    let mut vm = vm_for_library(&library.0);
+    let init = vm.init_library();
+    assert!(
+        init.code.is_ok(),
+        "selected init.tcl failed: {}",
+        init.result.to_str()
     );
-    if !std::path::Path::new(path).exists() {
-        eprintln!("skipping: {path} not present");
+    assert_eq!(
+        &*vm.get_var("::startup_marker")
+            .expect("init.tcl marker")
+            .to_str(),
+        "init.tcl"
+    );
+
+    let required = vm
+        .eval_source("package require -exact fixture_package 1.0")
+        .expect("compile fixture package require");
+    assert!(
+        required.code.is_ok(),
+        "fixture package was not discovered: {}",
+        required.result.to_str()
+    );
+    assert_eq!(&*required.result.to_str(), "1.0");
+    assert_eq!(
+        &*vm.get_var("::package_marker")
+            .expect("ifneeded loader marker")
+            .to_str(),
+        "loaded"
+    );
+}
+
+/// The selected upstream Tcl 9.0.4 library is the production proof: init must
+/// install its package-unknown callback, and `tcltest` must be found by normal
+/// `package require`, never by a direct source in the driver.
+#[test]
+fn real_tcl_9_0_4_init_discovers_tcltest_via_package_require() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let Some(source_tree) = locate_source_tree(&repo_root, TclVersion::V9_0, None)
+        .expect("Tcl 9 source tree discovery")
+    else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
         return;
-    }
+    };
+    assert_eq!(source_tree.patchlevel, "9.0.4", "real-library oracle pin");
 
-    let handle = std::thread::spawn(move || {
-        let registry = CommandRegistry::build_default();
-        let src = format!(
-            "source {path}\n\
-             namespace import ::tcltest::*\n\
-             test pass-1.1 {{arith}} {{ expr {{1+1}} }} 2\n\
-             test pass-1.2 {{strlen}} {{ string length hello }} 5\n\
-             test fail-1.1 {{wrong}} {{ expr {{2+2}} }} 5\n\
-             cleanupTests\n\
-             puts ALLDONE\n"
-        );
-        let ir = lower_to_ir(&src, &registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        let asm = codegen_module(&cfg, &ir, &registry);
-        let buf = Rc::new(RefCell::new(Vec::new()));
-        let mut vm = Vm::with_output(Box::new(Cap(Rc::clone(&buf))));
-        vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
-        let c = vm.run_module(&asm);
-        let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
-        (c.code.is_ok(), c.result.to_str().to_string(), out)
-    });
+    let mut vm = vm_for_library(&source_tree.library_dir());
+    let init = vm.init_library();
+    assert!(
+        init.code.is_ok(),
+        "real Tcl 9.0.4 init.tcl failed: {}",
+        init.result.to_str()
+    );
+    let required = vm
+        .eval_source("package require -exact tcltest 2.5.11")
+        .expect("compile tcltest package require");
+    assert!(
+        required.code.is_ok(),
+        "tcltest package discovery failed: {}",
+        required.result.to_str()
+    );
+    assert_eq!(&*required.result.to_str(), "2.5.11");
+    assert!(
+        vm.get_var("::tcltest::numTests(Total)").is_some(),
+        "package require did not load the tcltest namespace"
+    );
+}
 
-    for _ in 0..300 {
-        if handle.is_finished() {
-            let (ok, result, out) = handle.join().expect("worker panicked");
-            assert!(ok, "test run errored: {result}\noutput: {out}");
-            assert!(out.contains("ALLDONE"), "run did not finish; output: {out}");
-            assert!(
-                out.contains("fail-1.1") && out.contains("FAILED"),
-                "expected fail-1.1 to be reported as a failure; output: {out}"
+/// A real upstream stem reaches `cleanupTests` through the same init/require
+/// path as the sweep driver and emits the summary that xtask parses.
+#[test]
+fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let Some(source_tree) = locate_source_tree(&repo_root, TclVersion::V9_0, None)
+        .expect("Tcl 9 source tree discovery")
+    else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert_eq!(source_tree.patchlevel, "9.0.4", "real-library oracle pin");
+
+    let (sender, receiver) = mpsc::sync_channel(1);
+    let worker = std::thread::Builder::new()
+        .name("tcltest-set-stem".to_owned())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(move || {
+            let bytes = Rc::new(RefCell::new(Vec::new()));
+            let vm = Vm::with_output(Box::new(Capture(Rc::clone(&bytes))));
+            let mut vm = configure_vm(vm, &source_tree.library_dir());
+            let init = vm.init_library();
+            if !init.code.is_ok() {
+                sender
+                    .send((false, init.result.to_str().to_string(), String::new()))
+                    .expect("report init failure");
+                return;
+            }
+            let testfile = source_tree.tests_dir().join("set.test");
+            let script = format!(
+                "package require tcltest\n\
+                 namespace import -force ::tcltest::*\n\
+                 ::tcltest::configure -match set-1.1\n\
+                 source {}\n",
+                tcl_syntax::list::list_element(&testfile.to_string_lossy())
             );
-            // The summary line records two passes and one failure.
-            assert!(
-                out.contains("Total\t3\tPassed\t2\tSkipped\t0\tFailed\t1"),
-                "unexpected summary line; output: {out}"
-            );
-            return;
+            let run = vm
+                .eval_source(&script)
+                .expect("compile focused upstream stem");
+            let output = String::from_utf8_lossy(&bytes.borrow()).into_owned();
+            sender
+                .send((run.code.is_ok(), run.result.to_str().to_string(), output))
+                .expect("report focused upstream stem");
+        })
+        .expect("spawn focused upstream stem");
+
+    let result = match receiver.recv_timeout(Duration::from_secs(30)) {
+        Ok(result) => result,
+        Err(RecvTimeoutError::Disconnected) => {
+            worker.join().expect("focused upstream worker panicked");
+            unreachable!("worker exited without reporting")
         }
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-    panic!("tcltest test run did not finish within 30s (possible infinite loop)");
+        Err(RecvTimeoutError::Timeout) => {
+            panic!("focused upstream set.test did not finish within 30 seconds")
+        }
+    };
+    worker.join().expect("focused upstream worker panicked");
+    let (ok, error, output) = result;
+    assert!(ok, "focused upstream set.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t64\tPassed\t1\tSkipped\t63\tFailed\t0"),
+        "missing parseable focused Tcltest summary: {output:?}"
+    );
 }

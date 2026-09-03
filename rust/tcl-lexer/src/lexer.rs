@@ -49,8 +49,9 @@
 //!   state (`in_comment` / `at_command_start`). A `[` increments
 //!   `level` only when not inside braces, quotes, or a comment; a `]`
 //!   closes the command only when the outer bracket is the innermost
-//!   nesting and it is not commented out. Backslash escapes consume
-//!   two characters (CRLF counted as one line advance); `${…}`
+//!   nesting and it is not commented out. Backslash escapes use the shared
+//!   raw-parser width after the document source-channel seam (CRLF is one
+//!   logical newline); `${…}`
 //!   sub-scans exist to stop a `)` or `}` inside a braced variable
 //!   name from fooling the counter. Unterminated `[` tokenizes
 //!   best-effort.
@@ -118,23 +119,12 @@
 //! [`SourcePosition`]: crate::SourcePosition
 //! [`SourcePosition::offset`]: crate::SourcePosition#structfield.offset
 
-use tcl_core_types::RecursionLimit;
-use tcl_dialect::BracedVarStyle;
+use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
 use thiserror::Error;
 
 use crate::source_map::SourceMap;
 use crate::span::Span;
 use crate::tokens::{Token, TokenType};
-
-/// Cap on `$name(…)` array-index nesting depth that
-/// [`Lexer::scan_array_index_body`]/[`Lexer::skip_var_in_index`] will
-/// recurse into. The two are mutually recursive with no natural bound —
-/// `$a($b($c(...)))` recurses one native-stack frame group per `(` — so
-/// pathologically deep input (e.g. generated/minified Tcl) could otherwise
-/// abort the process with an uncatchable stack overflow. 64 is far past any
-/// array-index nesting real Tcl code uses; see
-/// `docs/design/compiler/recursive-descent-depth-limits.md`.
-const MAX_ARRAY_INDEX_DEPTH: RecursionLimit = RecursionLimit(64);
 
 /// Configuration for the Tcl lexer.
 ///
@@ -177,6 +167,9 @@ pub struct LexerConfig {
     pub strict_quoting: bool,
     /// How a `${…}` variable name is delimited — see [`BracedVarStyle`].
     pub braced_var: BracedVarStyle,
+    /// Which literal source bytes an array-index read accepts — see
+    /// [`ArrayIndexSyntax`].
+    pub array_index: ArrayIndexSyntax,
     /// Byte offset to add to every `SourcePosition.offset`
     /// produced by the lexer. Used when sub-lexing a body
     /// extracted from a parent token.
@@ -232,6 +225,7 @@ impl Default for LexerConfig {
             brace_line_continuation: tcl_dialect::BraceLineContinuation::Terminates,
             strict_quoting: false,
             braced_var: BracedVarStyle::Tcl9Nesting,
+            array_index: ArrayIndexSyntax::Tcl9,
             base_offset: 0,
             base_line: 0,
             base_col: 0,
@@ -255,6 +249,7 @@ impl LexerConfig {
             irules_brace_separator: grammar.irules_brace_separator,
             brace_line_continuation: grammar.brace_line_continuation,
             braced_var: grammar.braced_var,
+            array_index: grammar.array_index,
             escapes: grammar.escapes,
             ..Self::default()
         }
@@ -686,6 +681,37 @@ impl<'src> Lexer<'src> {
         self.make_token(TokenType::Eol, start_offset)
     }
 
+    /// The document-source form of one backslash escape.
+    ///
+    /// The shared decoder intentionally models raw Tcl string values, where a
+    /// backslash before CR quotes that CR and leaves a following LF alone. A
+    /// lexer consumes document text instead: Tcl's source channel translates
+    /// CR, LF, and CRLF to one logical LF before parsing, so a written CRLF
+    /// must be treated exactly like a written LF here.
+    fn source_backslash_escape_end(&self) -> usize {
+        let at = self.pos as usize;
+        let bytes = self.source().as_bytes();
+        if bytes.get(at + 1) == Some(&b'\r') {
+            return if bytes.get(at + 2) == Some(&b'\n') {
+                at + 3
+            } else {
+                at + 2
+            };
+        }
+        crate::substitution::backslash_escape_end_in(self.source(), at, self.config.escapes)
+    }
+
+    /// Whether the source at `self.pos` starts a Tcl document continuation.
+    fn source_is_line_continuation(&self) -> bool {
+        if self.current_byte() != Some(b'\\') {
+            return false;
+        }
+        matches!(
+            self.source().as_bytes().get(self.pos as usize + 1),
+            Some(b'\n' | b'\r')
+        )
+    }
+
     fn parse_comment(&mut self) -> Token {
         let start_offset = self.pos;
         self.pos += 1; // consume the leading '#'
@@ -696,19 +722,8 @@ impl<'src> Lexer<'src> {
                     // Consume backslash + next char as a pair.
                     // `\<newline>` continues the comment to the
                     // next line (matching C Tcl behaviour).
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {}
-                    }
+                    let end = self.source_backslash_escape_end();
+                    self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
@@ -728,22 +743,22 @@ impl<'src> Lexer<'src> {
                 break;
             }
             if ch == '\\' {
+                if self.source_is_line_continuation() {
+                    // `\<newline>` line continuation (bare-word
+                    // context). At word start → emit the
+                    // continuation as a SEP. Mid-word → stop;
+                    // the iterator re-enters at the backslash.
+                    if self.pos == start_offset {
+                        return self.parse_backslash_newline_sep();
+                    }
+                    break;
+                }
                 match self
                     .source()
                     .as_bytes()
                     .get((self.pos + 1) as usize)
                     .copied()
                 {
-                    Some(b'\n' | b'\r') => {
-                        // `\<newline>` line continuation (bare-word
-                        // context). At word start → emit the
-                        // continuation as a SEP. Mid-word → stop;
-                        // the iterator re-enters at the backslash.
-                        if self.pos == start_offset {
-                            return self.parse_backslash_newline_sep();
-                        }
-                        break;
-                    }
                     Some(_) => {
                         // `\<other>`: consume the pair as literal
                         // content (both the backslash and the
@@ -771,14 +786,8 @@ impl<'src> Lexer<'src> {
     /// `{` or `"` as brace/quote delimiters (a fresh word boundary).
     fn parse_backslash_newline_sep(&mut self) -> Token {
         let start = self.pos;
-        self.pos += 1; // skip backslash
-        let was_cr = self.current_byte() == Some(b'\r');
-        if self.current_byte().is_some() {
-            self.pos += 1; // skip the newline char
-        }
-        if was_cr && self.current_byte() == Some(b'\n') {
-            self.pos += 1; // CRLF
-        }
+        self.pos =
+            u32::try_from(self.source_backslash_escape_end()).expect("source offset fits u32");
         self.make_token(TokenType::Sep, start)
     }
 
@@ -854,7 +863,7 @@ impl<'src> Lexer<'src> {
         self.pos = u32::try_from(name_end).expect("source offset fits u32");
         // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body(0)?;
+            self.scan_array_index_body()?;
             return Ok(Token::with_content_offset(
                 TokenType::Var,
                 Span::new(dollar_pos, self.pos),
@@ -890,122 +899,28 @@ impl<'src> Lexer<'src> {
     /// Advances `self.pos` past the closing `)` (or to EOF
     /// for unterminated input).
     ///
-    /// `depth` is the nesting level of this call (0 at the top, via
-    /// [`Self::parse_var`]); past [`MAX_ARRAY_INDEX_DEPTH`] a nested `$…(`
-    /// is no longer recursed into — its `(` is scanned as an ordinary
-    /// character instead — so pathologically deep `$a($b($c(...)))` input
-    /// degrades gracefully rather than overflowing the native stack.
-    fn scan_array_index_body(&mut self, depth: u32) -> Result<(), LexError> {
+    /// The structural scan is delegated to [`crate::scan_array_index`], the
+    /// iterative owner shared with expression lexing and both runtimes.
+    fn scan_array_index_body(&mut self) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
-        self.pos += 1; // skip '('
-        let past_cap = MAX_ARRAY_INDEX_DEPTH.exceeded(depth);
-        loop {
-            let Some(ch) = self.current_char() else {
+        let scan = crate::scan_array_index(
+            self.source().as_bytes(),
+            self.pos as usize,
+            self.config.array_index,
+            self.config.braced_var,
+        );
+        if let Some(invalid) = scan.invalid {
+            self.pos = u32::try_from(invalid).expect("source offset fits u32");
+            self.warn_or_error(crate::INVALID_CHARACTER_IN_ARRAY_INDEX)?;
+        }
+        match scan.end {
+            crate::ArrayIndexEnd::Closed(end) => {
+                self.pos = u32::try_from(end).expect("source offset fits u32");
+            }
+            crate::ArrayIndexEnd::Unterminated => {
+                self.pos = u32::try_from(self.source().len()).expect("source length fits u32");
                 self.warn_or_error("missing )")?;
-                return Ok(());
-            };
-            match ch {
-                ')' => {
-                    self.pos += 1;
-                    return Ok(());
-                }
-                '\\' => {
-                    // Escape: consume the backslash and the byte it protects, so
-                    // `\)` stays in the index.
-                    self.pos += 1;
-                    if let Some(next) = self.current_char() {
-                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
-                    }
-                }
-                '[' => self.skip_command_in_index(),
-                '$' if !past_cap => self.skip_var_in_index(depth + 1)?,
-                _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                }
             }
-        }
-    }
-
-    /// Skip a `[…]` command substitution inside an array index so a `)` inside
-    /// it is not the index terminator. Tracks brace nesting (`blevel`) and
-    /// double-quote state (`in_quotes`) — mirroring [`Self::parse_command`] — so
-    /// a `]` inside a braced or quoted word (e.g. `$a([puts {]}])`) does not
-    /// close the substitution early. Stops after the matching `]` (or at EOF).
-    fn skip_command_in_index(&mut self) {
-        debug_assert_eq!(self.current_byte(), Some(b'['));
-        self.pos += 1;
-        let mut depth: u32 = 1;
-        let mut blevel: u32 = 0;
-        let mut in_quotes = false;
-        while depth > 0 {
-            let Some(ch) = self.current_char() else {
-                return;
-            };
-            match ch {
-                '\\' => {
-                    self.pos += 1;
-                    if let Some(next) = self.current_char() {
-                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
-                    }
-                }
-                '"' if blevel == 0 => {
-                    in_quotes = !in_quotes;
-                    self.pos += 1;
-                }
-                '{' if !in_quotes => {
-                    blevel += 1;
-                    self.pos += 1;
-                }
-                '}' if !in_quotes => {
-                    blevel = blevel.saturating_sub(1);
-                    self.pos += 1;
-                }
-                '[' if blevel == 0 && !in_quotes => {
-                    depth += 1;
-                    self.pos += 1;
-                }
-                ']' if blevel == 0 && !in_quotes => {
-                    depth -= 1;
-                    self.pos += 1;
-                }
-                _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                }
-            }
-        }
-    }
-
-    /// Skip a `$` variable reference inside an array index (`${…}` or `$name`
-    /// with an optional nested `(…)` index) so its inner `)` are not mistaken
-    /// for the outer index terminator.
-    ///
-    /// `depth` is passed straight through to a nested
-    /// [`Self::scan_array_index_body`] call — see its doc comment.
-    fn skip_var_in_index(&mut self, depth: u32) -> Result<(), LexError> {
-        debug_assert_eq!(self.current_byte(), Some(b'$'));
-        self.pos += 1; // skip '$'
-        if self.current_byte() == Some(b'{') {
-            self.pos += 1;
-            self.skip_braced_var_name_body();
-            if self.current_byte() == Some(b'}') {
-                self.pos += 1;
-            }
-            return Ok(());
-        }
-        // Bare name: an ASCII alphanumeric / `_` run (`TclIsBareword`), with
-        // `::` namespace separators.
-        while let Some(ch) = self.current_char() {
-            if ch.is_ascii_alphanumeric() || ch == '_' {
-                self.pos += 1;
-            } else if ch == ':' && self.peek_byte(1) == Some(b':') {
-                self.pos += 2;
-            } else {
-                break;
-            }
-        }
-        // A nested `$name(index)` — recurse so its `)` closes the inner index.
-        if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body(depth)?;
         }
         Ok(())
     }
@@ -1088,19 +1003,8 @@ impl<'src> Lexer<'src> {
                     // text). `\<newline>` inside a quote is NOT a
                     // word break — it's just another pair of
                     // literal bytes.
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {} // trailing backslash at EOF
-                    }
+                    let end = self.source_backslash_escape_end();
+                    self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
@@ -1127,11 +1031,7 @@ impl<'src> Lexer<'src> {
             self.in_quote = false;
             // Check for extra characters after close-quote.
             if let Some(after) = self.current_byte() {
-                let is_bs_nl = after == b'\\'
-                    && matches!(
-                        self.source().as_bytes().get(self.pos as usize + 1),
-                        Some(b'\n' | b'\r')
-                    );
+                let is_bs_nl = self.source_is_line_continuation();
                 if self.config.irules_brace_separator {
                     // F5 R2 (measurements §1): a word that started with
                     // `"` splits exactly as a braced one — `"a"b` →
@@ -1229,8 +1129,8 @@ impl<'src> Lexer<'src> {
     /// character in `parse_esc`, not a braced-string opener.
     ///
     /// The scanner counts balanced `{` / `}` pairs (`level` starts
-    /// at 1 after skipping the opening `{`). Backslash sequences
-    /// consume two characters as a pair (CRLF counted as one), but
+    /// at 1 after skipping the opening `{`). Backslash sequences use the
+    /// shared raw-parser escape width, but
     /// the backslash and the following character are preserved
     /// literally in the token text — braces are "verbatim" in Tcl,
     /// so `\}` inside a brace body does NOT count as a close brace
@@ -1259,23 +1159,9 @@ impl<'src> Lexer<'src> {
         while let Some(ch) = self.current_char() {
             match ch {
                 '\\' => {
-                    // Consume the backslash and the next character
-                    // as a pair (CRLF counted as one character).
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {
-                            // Trailing backslash at EOF — leave as is.
-                        }
-                    }
+                    // Consume the source-channel escape span.
+                    let end = self.source_backslash_escape_end();
+                    self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 '{' => {
                     level += 1;
@@ -1319,11 +1205,7 @@ impl<'src> Lexer<'src> {
                 && !is_separator_byte(after)
             {
                 // Backslash-newline after close-brace is fine
-                let is_bs_nl = after == b'\\'
-                    && matches!(
-                        self.source().as_bytes().get(self.pos as usize + 1),
-                        Some(b'\n' | b'\r')
-                    );
+                let is_bs_nl = self.source_is_line_continuation();
                 if !is_bs_nl {
                     if self.config.irules_brace_separator {
                         // F5 R2 (measurements §1): the word started with
@@ -1421,8 +1303,8 @@ impl<'src> Lexer<'src> {
 
     /// Advance one character/escape while inside a command-position comment
     /// nested in `[...]`. Returns `true` only when an unescaped newline ends
-    /// the comment. Escape width comes from the canonical decoder, including
-    /// CRLF continuations and their swallowed indentation.
+    /// the comment. Escape width follows the document source-channel seam, so
+    /// CRLF is one continuation newline.
     fn advance_command_comment(&mut self, ch: char) -> bool {
         match ch {
             '\n' => {
@@ -1430,11 +1312,7 @@ impl<'src> Lexer<'src> {
                 true
             }
             '\\' => {
-                let end = crate::substitution::backslash_escape_end_in(
-                    self.source(),
-                    self.pos as usize,
-                    self.config.escapes,
-                );
+                let end = self.source_backslash_escape_end();
                 self.pos = u32::try_from(end).expect("source offset fits u32");
                 false
             }
@@ -1559,26 +1437,9 @@ impl<'src> Lexer<'src> {
                     self.pos += 1;
                 }
                 '\\' => {
-                    let continuation =
-                        crate::substitution::is_line_continuation(self.source(), self.pos as usize);
-                    // Consume the backslash and the next character
-                    // as a pair (CRLF counted as one): skip the
-                    // backslash, then skip the escaped char.
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {
-                            // Trailing backslash at EOF — leave as is.
-                        }
-                    }
+                    let continuation = self.source_is_line_continuation();
+                    self.pos = u32::try_from(self.source_backslash_escape_end())
+                        .expect("source offset fits u32");
                     // A continuation substitutes to whitespace and keeps
                     // command position; every other escape is word content.
                     if !continuation {
@@ -2358,6 +2219,49 @@ mod tests {
         assert_eq!(rows[0], (TokenType::Var, "arr(idx".into()));
     }
 
+    /// Issue #1732 — Tcl 9 rejects a literal brace in an array-index source,
+    /// while the 8.x grammar retains it as ordinary index text. The recovery
+    /// token is intentionally identical on both paths; only the modern path
+    /// carries the fatal compiler-facing warning.
+    #[test]
+    fn array_index_literal_brace_follows_the_release_rule() {
+        let source = "$arr({key})";
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let (tokens, warnings) =
+                Lexer::with_source_map(SourceMap::new(source), LexerConfig::for_dialect(dialect))
+                    .tokenise_all_with_warnings()
+                    .expect("lexes recoverably");
+            let variable = tokens
+                .iter()
+                .find(|token| token.kind == TokenType::Var)
+                .expect("variable token");
+            assert_eq!(SourceMap::new(source).token_text(*variable), "arr({key})");
+            assert_eq!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.message == crate::INVALID_CHARACTER_IN_ARRAY_INDEX),
+                dialect.starts_with("tcl9"),
+                "{dialect}: {warnings:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn array_index_substitution_and_escape_shield_tcl9_source_bytes() {
+        for source in ["$arr(\\{key\\})", "$arr(${key})", "$arr([format \\{])"] {
+            let (_tokens, warnings) =
+                Lexer::with_source_map(SourceMap::new(source), LexerConfig::for_dialect("tcl9.0"))
+                    .tokenise_all_with_warnings()
+                    .expect("lexes");
+            assert!(
+                warnings
+                    .iter()
+                    .all(|warning| warning.message != crate::INVALID_CHARACTER_IN_ARRAY_INDEX),
+                "{source}: {warnings:?}"
+            );
+        }
+    }
+
     #[test]
     fn bare_dollar_is_an_str_token() {
         // A bare `$` is emitted as an STR token whose text is the
@@ -2660,6 +2564,15 @@ mod tests {
                 TokenType::Cmd,
                 "\n# hidden \\\n] still comment\nset y 2".into()
             )
+        );
+    }
+
+    #[test]
+    fn cmd_comment_crlf_continuation_hides_closing_bracket() {
+        let (rows, _) = cmd_token_rows("[\r\n# hidden \\\r\n] visible]");
+        assert_eq!(
+            rows[0],
+            (TokenType::Cmd, "\r\n# hidden \\\r\n] visible]".into())
         );
     }
 

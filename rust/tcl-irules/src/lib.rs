@@ -57,6 +57,12 @@ pub use executable::{
 mod when_block;
 pub use when_block::{WhenBlock, when_block_candidates, when_block_is_empty, when_blocks};
 
+pub mod ilx;
+pub use ilx::{
+    IlxExtension, IlxMethodCall, IlxMethodRegistration, extension_entry_file,
+    extension_registrations, ilx_method_calls,
+};
+
 mod specs {
     use super::Deserialize;
 

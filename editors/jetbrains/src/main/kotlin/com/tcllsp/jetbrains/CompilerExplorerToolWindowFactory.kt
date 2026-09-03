@@ -52,6 +52,7 @@ private const val SERVER_WAIT_TIMEOUT_MS = 10_000L
 class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        if (!isJcefSupported()) return
         val panel = CompilerExplorerPanel(project)
         val content = ContentFactory.getInstance().createContent(panel.browser.component, "", false)
         // Disposing the content tears down the panel: it unregisters from the
@@ -61,7 +62,7 @@ class CompilerExplorerToolWindowFactory : ToolWindowFactory, DumbAware {
         toolWindow.contentManager.addContent(content)
     }
 
-    override fun shouldBeAvailable(project: Project): Boolean = true
+    override fun shouldBeAvailable(project: Project): Boolean = isJcefSupported()
 }
 
 internal class CompilerExplorerPanel(private val project: Project) : Disposable {

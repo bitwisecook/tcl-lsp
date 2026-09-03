@@ -1,0 +1,1525 @@
+{
+  "schema_version": 1,
+  "rows": [
+    {
+      "owner": "::tcl::dict::filter",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "::tcl::dict::for",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "::tcl::dict::map",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "::tcl::dict::update",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "::tcl::dict::with",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "after idle",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "anchor",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "arg_role_resolver",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "array for",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "bibtex::parse",
+      "location": "option -commentcommand value"
+    },
+    {
+      "owner": "bibtex::parse",
+      "location": "option -preamblecommand value"
+    },
+    {
+      "owner": "bibtex::parse",
+      "location": "option -progresscommand value"
+    },
+    {
+      "owner": "bibtex::parse",
+      "location": "option -stringcommand value"
+    },
+    {
+      "owner": "binary scan",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "bind",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "body_scope",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "call",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "canvas",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "canvas bind",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "canvas bind",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "canvas instance bind",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "canvas instance bind",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "case",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "case_list",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "catch",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "certificate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "chain",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "check",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "checkbutton",
+      "location": "option -command value"
+    },
+    {
+      "owner": "cipher",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "clause_grammar",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "clause_shape_check",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "command",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "command_prefix_resolver",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "console eval",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "consoleinterp eval",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "consoleinterp record",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "const_fold",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "const_fold_versioned",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "constraints",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "context_gate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "control::do",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "coroinject",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "crc::buypass",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::cms",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::crc-ccitt",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::crc-sdlc",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::crc-usb",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::crc-x25",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::crc16",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::genibus",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::gsm",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::kermit",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::maxim",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::mcrf4xx",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::modbus",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::umts",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::unknown2",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::unknown3",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::unknown4",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "crc::xmodem",
+      "location": "option -implementation value"
+    },
+    {
+      "owner": "defer::autowith",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "defer::with",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "definition_body",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "descriptor",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "dict filter",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "dict for",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "dict map",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "dict update",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "dict with",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "endpoint",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "entry",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "entry",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "eval",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "event_requires",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "fileutil::foreachLine",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "fileutil::traverse",
+      "location": "option -errorcmd value"
+    },
+    {
+      "owner": "fileutil::traverse",
+      "location": "option -filter value"
+    },
+    {
+      "owner": "fileutil::traverse",
+      "location": "option -prefilter value"
+    },
+    {
+      "owner": "fileutil::traverse instance foreach",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "for",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "for",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "for",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "foreach",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "foreachLine",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "generator all",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator concatMap",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator concatMap",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator define",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "generator dropWhile",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator dropWhile",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator filter",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator filter",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator foldl",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator foldl1",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator foldli",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator foldr",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator foldri",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator iterate",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator iterate",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator map",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator or",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator reduce",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator scanl",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator scanl",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator splitWhen",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator splitWhen",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "generator takeWhile",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "generator takeWhile",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "glob",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "grade",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "hook",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "hook bind",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "hover",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "hsts",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "http::geturl",
+      "location": "option -queryprogress value"
+    },
+    {
+      "owner": "if",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "interp alias",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "interp bgerror",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "interp eval",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "itcl::body",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "itcl::class",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "itcl::configbody",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "lambda",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "lambda@",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "lassign",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "lfilter",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "listbox",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "listbox",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "literal_argument_validator",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "lmap",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "log::lvCmd",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "log::lvCmdForall",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::boundaryValueSecondOrder",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::boundaryValueSecondOrder",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "math::calculus::eulerStep",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "math::calculus::heunStep",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "math::calculus::integral2D",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "math::calculus::integral2D_accurate",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "math::calculus::integral3D",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "math::calculus::integral3D_accurate",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "math::calculus::newtonRaphson",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::newtonRaphson",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "math::calculus::qk15",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "math::calculus::qk15_detailed",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "math::calculus::regula_falsi",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::root_bisection",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::root_brent",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::root_chandrupatla",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::root_secant",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::calculus::rungeKuttaStep",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "math::optimize::maximum",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "math::optimize::minimum",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "math::probopt::adaLipoMax",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::probopt::diffev",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::probopt::lipoMax",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::probopt::pso",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "math::probopt::sce",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "menu",
+      "location": "option -postcommand value"
+    },
+    {
+      "owner": "menu add",
+      "location": "option -command value"
+    },
+    {
+      "owner": "menu entryconfigure",
+      "location": "option -command value"
+    },
+    {
+      "owner": "menu insert",
+      "location": "option -command value"
+    },
+    {
+      "owner": "menu instance add",
+      "location": "option -command value"
+    },
+    {
+      "owner": "menu instance entryconfigure",
+      "location": "option -command value"
+    },
+    {
+      "owner": "menu instance insert",
+      "location": "option -command value"
+    },
+    {
+      "owner": "my variable",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "namespace code",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "namespace delete",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "namespace eval",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "namespace inscope",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "namespace unknown",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "namespace which",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "object_class",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "object_class",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::abstract",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::abstract create",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "oo::abstract createWithNamespace",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "oo::abstract new",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "oo::class",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::class create",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "oo::class createWithNamespace",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "oo::class new",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "oo::configurable",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::configurable create",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "oo::configurable createWithNamespace",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "oo::configurable new",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "oo::define",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::objdefine",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::singleton",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "oo::singleton create",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "oo::singleton createWithNamespace",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "oo::singleton new",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "package unknown",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "peer",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "policy",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "protocol",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "puts",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "radiobutton",
+      "location": "option -command value"
+    },
+    {
+      "owner": "read",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "regexp",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "regsub",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "report::defstyle",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "return",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "scan",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "script_timing_resolver",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "selection",
+      "location": "option -command value"
+    },
+    {
+      "owner": "selection handle",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "selection own",
+      "location": "option -command value"
+    },
+    {
+      "owner": "send",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "send",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "serverside",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "set",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "snit::compile",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "snit::macro",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "snit::type",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "snit::typemethod",
+      "location": "arg[3]"
+    },
+    {
+      "owner": "snit::widget",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "snit::widgetadaptor",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "speclib",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "spinbox",
+      "location": "option -command value"
+    },
+    {
+      "owner": "spinbox",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "spinbox",
+      "location": "option -validatecommand value"
+    },
+    {
+      "owner": "spinbox",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "state_transitions",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "stooop::class",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "string match",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "stringprep::register",
+      "location": "option -prohibitedCommand value"
+    },
+    {
+      "owner": "struct::list filter",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "struct::list fold",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "struct::list foreachperm",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "struct::list map",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "struct::list mapfor",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "struct::tree instance walk",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "struct::tree instance walk",
+      "location": "option -command value"
+    },
+    {
+      "owner": "subcommand",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "switch",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tailcall",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "taint_sink_gate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "tcl::OptProc",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "tcl::chan::halfpipe",
+      "location": "option -close-command value"
+    },
+    {
+      "owner": "tcl::chan::halfpipe",
+      "location": "option -empty-command value"
+    },
+    {
+      "owner": "tcltest::configure",
+      "location": "option -load value"
+    },
+    {
+      "owner": "tcltest::customMatch",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "tcltest::loadScript",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "tcltest::test",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tcltest::test",
+      "location": "option -body value"
+    },
+    {
+      "owner": "tcltest::test",
+      "location": "option -cleanup value"
+    },
+    {
+      "owner": "tcltest::test",
+      "location": "option -setup value"
+    },
+    {
+      "owner": "testssl-import",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "text",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "text",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "text instance dump",
+      "location": "option -command value"
+    },
+    {
+      "owner": "text instance sync",
+      "location": "option -command value"
+    },
+    {
+      "owner": "text instance tag",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "text instance tag",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "text tag",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "text tag",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "time",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "timer at",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "timer idle",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "timer in",
+      "location": "arg[2]"
+    },
+    {
+      "owner": "timerate",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "tk::button",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::canvas",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "tk::canvas",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "tk::canvas bind",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tk::canvas bind",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "tk::canvas instance bind",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tk::canvas instance bind",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "tk::checkbutton",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::entry",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "tk::entry",
+      "location": "option -validatecommand value"
+    },
+    {
+      "owner": "tk::entry",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "tk::listbox",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "tk::listbox",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "tk::radiobutton",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::scale",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::scrollbar",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::spinbox",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::spinbox",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "tk::spinbox",
+      "location": "option -validatecommand value"
+    },
+    {
+      "owner": "tk::spinbox",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "tk::text",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "tk::text",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "tk::text dump",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::text instance dump",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::text instance sync",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::text instance tag",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tk::text instance tag",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "tk::text sync",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk::text tag",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tk::text tag",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "tk_chooseDirectory",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk_getOpenFile",
+      "location": "option -command value"
+    },
+    {
+      "owner": "tk_getSaveFile",
+      "location": "option -command value"
+    },
+    {
+      "owner": "trace add",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "trace add",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "trace remove",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "trace remove",
+      "location": "dynamic-command-prefix"
+    },
+    {
+      "owner": "trace remove",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "trace variable",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "trace variable",
+      "location": "dynamic-command-prefix"
+    },
+    {
+      "owner": "trace variable",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "trace vdelete",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "trace vdelete",
+      "location": "dynamic-command-prefix"
+    },
+    {
+      "owner": "trace vdelete",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "trust-program",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "try",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "ttk::button",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::button instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::button instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::checkbutton",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::checkbutton instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::checkbutton instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::combobox",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "ttk::combobox",
+      "location": "option -postcommand value"
+    },
+    {
+      "owner": "ttk::combobox",
+      "location": "option -validatecommand value"
+    },
+    {
+      "owner": "ttk::combobox",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "ttk::combobox instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::combobox instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::entry",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "ttk::entry",
+      "location": "option -validatecommand value"
+    },
+    {
+      "owner": "ttk::entry",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "ttk::entry instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::entry instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::frame instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::frame instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::label instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::label instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::labelframe instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::labelframe instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::menubutton instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::menubutton instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::notebook instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::notebook instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::panedwindow instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::panedwindow instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::progressbar instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::progressbar instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::radiobutton",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::radiobutton instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::radiobutton instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::scale",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::scale instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::scale instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::scrollbar",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::scrollbar instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::scrollbar instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::separator instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::separator instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::sizegrip instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::sizegrip instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::spinbox",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::spinbox",
+      "location": "option -invalidcommand value"
+    },
+    {
+      "owner": "ttk::spinbox",
+      "location": "option -validatecommand value"
+    },
+    {
+      "owner": "ttk::spinbox",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "ttk::spinbox instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::spinbox instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::toggleswitch",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::toggleswitch instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::toggleswitch instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::treeview",
+      "location": "option -xscrollcommand value"
+    },
+    {
+      "owner": "ttk::treeview",
+      "location": "option -yscrollcommand value"
+    },
+    {
+      "owner": "ttk::treeview heading",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::treeview instance heading",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::treeview instance instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::treeview instance sort",
+      "location": "option -command value"
+    },
+    {
+      "owner": "ttk::treeview instance tag",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "ttk::treeview instance tag",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "ttk::treeview instate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "ttk::treeview tag",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "ttk::treeview tag",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "unset",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "uplevel",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "uri::register",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "values",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "while",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "wm protocol",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "world_effects",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "yieldto",
+      "location": "arg[0]"
+    }
+  ]
+}

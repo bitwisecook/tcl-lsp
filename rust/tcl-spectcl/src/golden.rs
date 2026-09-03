@@ -62,44 +62,153 @@
 //! them, which is stable text.
 
 use std::fmt::Write as _;
+use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::discovery::{Origin, Tier};
 use crate::loader::Pack;
 
-/// The directories, relative to the repository root, that hold every
-/// `.tclspec` the repository ships: the bundled packs and the design's
-/// worked examples.
-///
-/// One inventory, shared by the golden gate, its regeneration verb
-/// (`cargo xtask pack-goldens`) and the fast-path gate, so no two of them can
-/// disagree about what "every shipped pack" means.
-pub const PACK_DIRS: &[&str] = &[
-    "specs",
-    "docs/design/spec-dsl-examples",
-    "docs/design/spec-dsl-examples/external",
-];
+/// The language-neutral owner for the repository-relative directories that
+/// hold every shipped `.tclspec`. CI's changed-path classifier reads this
+/// same manifest, so adding a pack directory cannot silently omit the real
+/// `SpecTcl` execution lane.
+pub const PACK_DIRS_MANIFEST: &str = include_str!("../data/shipped-pack-dirs.txt");
 
-/// Every `.tclspec` under [`PACK_DIRS`], sorted per directory.
+/// Every shipped-pack directory in manifest order.
+pub fn shipped_pack_dirs() -> impl Iterator<Item = &'static str> {
+    PACK_DIRS_MANIFEST
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+}
+
+/// One repository-shipped pack file and the production-shaped metadata the
+/// execution corpus uses to discover and resolve it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShippedPackFile {
+    /// Absolute path under the supplied repository root.
+    pub path: PathBuf,
+    /// Discovery precedence used when this file is loaded.
+    pub tier: Tier,
+    /// Discovery rule reported in load notices.
+    pub origin: Origin,
+    /// Registry profile under which its commands are executable.
+    pub dialect: &'static str,
+}
+
+/// Tier and origin are properties of the manifest directory, owned here with
+/// the directory scan. A new manifest directory must choose its semantics
+/// explicitly instead of inheriting a test-local default.
+fn shipped_pack_location(directory: &str) -> io::Result<(Tier, Origin)> {
+    match directory {
+        "specs" => Ok((Tier::Bundled, Origin::Bundled)),
+        "docs/design/spec-dsl-examples" | "docs/design/spec-dsl-examples/external" => {
+            Ok((Tier::Workspace, Origin::DotDir))
+        }
+        other => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "shipped-pack directory `{other}` has no tier/origin metadata; add it to \
+                 tcl_spectcl::golden::shipped_pack_location"
+            ),
+        )),
+    }
+}
+
+/// The dialect under which a shipped pack's commands are executable. This is
+/// part of the inventory because both registry comparison and live corpus
+/// execution must resolve the same vendor surface.
+fn shipped_pack_dialect(path: &Path) -> &'static str {
+    match path.file_stem().and_then(|stem| stem.to_str()) {
+        Some("eda_xilinx" | "sdc_base") => "xilinx-eda-tcl",
+        Some("upf" | "eda_synopsys") => "synopsys-eda-tcl",
+        Some("eda_microchip") => "microchip-libero-eda-tcl",
+        Some("eda_cadence") => "cadence-eda-tcl",
+        Some("eda_quartus") => "intel-quartus-eda-tcl",
+        Some("eda_mentor") => "mentor-eda-tcl",
+        Some("irules-http-header") => "f5-irules",
+        _ => "tcl9.1",
+    }
+}
+
+fn inventory_io_error(action: &str, path: &Path, error: &io::Error) -> io::Error {
+    io::Error::new(
+        error.kind(),
+        format!("{action} `{}`: {error}", path.display()),
+    )
+}
+
+/// Fallible inventory construction. No manifest directory or entry may
+/// disappear silently: callers either receive the complete inventory or one
+/// contextual error naming the directory whose scan failed.
+fn try_shipped_pack_inventory(repo_root: &Path) -> io::Result<Vec<ShippedPackFile>> {
+    let mut files = Vec::new();
+    for directory in shipped_pack_dirs() {
+        let (tier, origin) = shipped_pack_location(directory)?;
+        let directory_path = repo_root.join(directory);
+        let entries = std::fs::read_dir(&directory_path).map_err(|error| {
+            inventory_io_error(
+                "failed to read shipped-pack directory",
+                &directory_path,
+                &error,
+            )
+        })?;
+        let mut here = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                inventory_io_error(
+                    "failed to read an entry in shipped-pack directory",
+                    &directory_path,
+                    &error,
+                )
+            })?;
+            let path = entry.path();
+            if path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext == crate::PACK_EXTENSION)
+            {
+                here.push(path);
+            }
+        }
+        here.sort();
+        files.extend(here.into_iter().map(|path| ShippedPackFile {
+            dialect: shipped_pack_dialect(&path),
+            path,
+            tier,
+            origin,
+        }));
+    }
+    Ok(files)
+}
+
+/// Every `.tclspec` under [`PACK_DIRS_MANIFEST`], sorted per directory, with
+/// its tier, origin, and executable dialect from this single owner.
+///
+/// # Panics
+///
+/// Panics with the repository root and failing directory when any manifest
+/// directory cannot be opened or any directory entry cannot be read. A
+/// partial inventory would make the execution gates vacuous, so there is no
+/// best-effort form of this API.
+#[must_use]
+pub fn shipped_pack_inventory(repo_root: &Path) -> Vec<ShippedPackFile> {
+    try_shipped_pack_inventory(repo_root).unwrap_or_else(|error| {
+        panic!(
+            "failed to build shipped-pack inventory under `{}`: {error}",
+            repo_root.display()
+        )
+    })
+}
+
+/// The path-only projection retained for golden generation and the real-Tcl
+/// syntax oracle. All discovery still flows through [`shipped_pack_inventory`].
 #[must_use]
 pub fn shipped_packs(repo_root: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    for dir in PACK_DIRS {
-        let Ok(entries) = std::fs::read_dir(repo_root.join(dir)) else {
-            continue;
-        };
-        let mut here: Vec<PathBuf> = entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext == crate::PACK_EXTENSION)
-            })
-            .collect();
-        here.sort();
-        files.extend(here);
-    }
-    files
+    shipped_pack_inventory(repo_root)
+        .into_iter()
+        .map(|pack| pack.path)
+        .collect()
 }
 
 /// Where a pack's checked-in golden lives, given the repository root.
@@ -244,6 +353,74 @@ mod tests {
     #[test]
     fn a_multi_line_notice_stays_one_golden_line() {
         assert_eq!(one_line("a\nb\tc"), "a\\nb\\tc");
+    }
+
+    #[test]
+    fn shipped_inventory_owns_location_and_dialect_metadata() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("workspace root")
+            .to_path_buf();
+        let inventory = shipped_pack_inventory(&root);
+        assert!(inventory.len() >= 24, "{inventory:#?}");
+
+        for pack in &inventory {
+            let relative = pack.path.strip_prefix(&root).expect("repository path");
+            if relative.starts_with("specs") {
+                assert_eq!((pack.tier, pack.origin), (Tier::Bundled, Origin::Bundled));
+            } else {
+                assert_eq!((pack.tier, pack.origin), (Tier::Workspace, Origin::DotDir));
+            }
+        }
+
+        let dialect = |stem: &str| {
+            inventory
+                .iter()
+                .find(|pack| pack.path.file_stem().is_some_and(|value| value == stem))
+                .map(|pack| pack.dialect)
+        };
+        assert_eq!(dialect("upf"), Some("synopsys-eda-tcl"));
+        assert_eq!(dialect("eda_xilinx"), Some("xilinx-eda-tcl"));
+        assert_eq!(dialect("irules-http-header"), Some("f5-irules"));
+        assert_eq!(dialect("geturl"), Some("tcl9.1"));
+    }
+
+    #[test]
+    fn shipped_inventory_fails_closed_when_a_manifest_directory_is_missing() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after Unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "tcl-spectcl-missing-inventory-root-{}-{unique}",
+            std::process::id()
+        ));
+        assert!(
+            !root.exists(),
+            "test root unexpectedly exists: {}",
+            root.display()
+        );
+
+        let failure = std::panic::catch_unwind(|| shipped_pack_inventory(&root))
+            .expect_err("a missing manifest directory must fail closed");
+        let message = failure
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| failure.downcast_ref::<&str>().copied())
+            .unwrap_or("non-string panic");
+        assert!(
+            message.contains("failed to build shipped-pack inventory"),
+            "{message}"
+        );
+        assert!(
+            message.contains(&root.join("specs").display().to_string()),
+            "{message}"
+        );
+        assert!(
+            message.contains("failed to read shipped-pack directory"),
+            "{message}"
+        );
     }
 
     #[test]

@@ -88,7 +88,9 @@ const CATEGORY_DEFS: &[(&str, &str)] = &[
 fn section_to_category(section: &str) -> &'static str {
     match section {
         "error" => "error",
-        "security" | "irules_security" => "security",
+        // `sslictcl` is explicit rather than falling through to the `style`
+        // default: they are TLS-assurance findings.
+        "security" | "irules_security" | "sslictcl" => "security",
         "shimmer" => "performance",
         "taint" => "taint",
         "irules" | "bigip" => "irules",

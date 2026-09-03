@@ -5,6 +5,7 @@
 //! Embedded trust-anchor membership data and deterministic trust decisions.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::str::FromStr;
 use std::sync::LazyLock;
 
 use base64::Engine as _;
@@ -30,6 +31,41 @@ pub enum ClientFamily {
     OpenJdk,
 }
 
+impl ClientFamily {
+    /// The `SslicTcl` `CLIENT` spelling.
+    ///
+    /// This is not the serde spelling: the embedded dataset serialises
+    /// `OpenJdk` as kebab-case `open-jdk`, while the vocabulary writes
+    /// `openjdk`. [`FromStr`] accepts both.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Mozilla => "mozilla",
+            Self::Chrome => "chrome",
+            Self::Apple => "apple",
+            Self::Microsoft => "microsoft",
+            Self::Android => "android",
+            Self::OpenJdk => "openjdk",
+        }
+    }
+}
+
+impl FromStr for ClientFamily {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "mozilla" => Ok(Self::Mozilla),
+            "chrome" => Ok(Self::Chrome),
+            "apple" => Ok(Self::Apple),
+            "microsoft" => Ok(Self::Microsoft),
+            "android" => Ok(Self::Android),
+            "openjdk" | "open-jdk" => Ok(Self::OpenJdk),
+            _ => Err(format!("unknown root program `{value}`")),
+        }
+    }
+}
+
 /// Intended trust purpose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -44,6 +80,35 @@ pub enum TrustPurpose {
     CodeSigning,
     /// Any purpose allowed by the source root program.
     Any,
+}
+
+impl TrustPurpose {
+    /// The `SslicTcl` spelling, identical to the serde spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ServerAuth => "server-auth",
+            Self::ClientAuth => "client-auth",
+            Self::EmailProtection => "email-protection",
+            Self::CodeSigning => "code-signing",
+            Self::Any => "any",
+        }
+    }
+}
+
+impl FromStr for TrustPurpose {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "server-auth" => Ok(Self::ServerAuth),
+            "client-auth" => Ok(Self::ClientAuth),
+            "email-protection" => Ok(Self::EmailProtection),
+            "code-signing" => Ok(Self::CodeSigning),
+            "any" => Ok(Self::Any),
+            _ => Err(format!("unknown trust purpose `{value}`")),
+        }
+    }
 }
 
 /// Membership of one anchor in one client program.

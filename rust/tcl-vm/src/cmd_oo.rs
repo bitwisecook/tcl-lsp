@@ -48,6 +48,11 @@ use std::rc::Rc;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
 use tcl_bytecode::FunctionAsm;
+use tcl_registry::commands::tcl::{
+    InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyKind, TclOoPropertyOption,
+    info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
+    resolve_tcloo_property_option,
+};
 use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{Command, Param, ProcDef, parse_params};
@@ -427,14 +432,6 @@ fn cmd_private(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// One resolved property kind.
-#[derive(Clone, Copy)]
-enum PropKind {
-    Readable,
-    Writable,
-    ReadWrite,
-}
-
 /// Parse and apply a `property` argument sequence to `target`.
 fn define_properties(
     vm: &mut Vm,
@@ -449,7 +446,7 @@ fn define_properties(
             return e;
         }
         i += 1;
-        let mut kind = PropKind::ReadWrite;
+        let mut kind = TclOoPropertyKind::ReadWrite;
         let mut getter: Option<Value> = None;
         let mut setter: Option<Value> = None;
         // Options bind to the preceding name; a bare word (property names cannot
@@ -457,21 +454,26 @@ fn define_properties(
         while i < args.len() && args[i].to_str().starts_with('-') {
             let opt = args[i].to_str().to_string();
             i += 1;
-            match match_prop_option(&opt) {
-                Some("-kind") => {
+            match resolve_tcloo_property_option(opt.as_bytes()) {
+                Ok(TclOoPropertyOption::Kind) => {
                     let Some(v) = args.get(i) else {
                         return err_code(
                             "missing kind value to go with -kind option",
                             &["TCL", "WRONGARGS"],
                         );
                     };
-                    kind = match parse_prop_kind(&v.to_str()) {
+                    kind = match resolve_tcloo_property_kind(v.to_str().as_bytes()) {
                         Ok(k) => k,
-                        Err(e) => return e,
+                        Err(message) => {
+                            return err_code(
+                                String::from_utf8_lossy(&message).into_owned(),
+                                &["TCL", "LOOKUP", "INDEX", "kind", &v.to_str()],
+                            );
+                        }
                     };
                     i += 1;
                 }
-                Some("-get") => {
+                Ok(TclOoPropertyOption::Get) => {
                     let Some(v) = args.get(i) else {
                         return err_code(
                             "missing body to go with -get option",
@@ -481,7 +483,7 @@ fn define_properties(
                     getter = Some(v.clone());
                     i += 1;
                 }
-                Some("-set") => {
+                Ok(TclOoPropertyOption::Set) => {
                     let Some(v) = args.get(i) else {
                         return err_code(
                             "missing body to go with -set option",
@@ -491,9 +493,9 @@ fn define_properties(
                     setter = Some(v.clone());
                     i += 1;
                 }
-                _ => {
+                Err(message) => {
                     return err_code(
-                        format!("bad option \"{opt}\": must be -get, -kind, or -set"),
+                        String::from_utf8_lossy(&message).into_owned(),
                         &["TCL", "LOOKUP", "INDEX", "option", &opt],
                     );
                 }
@@ -530,47 +532,6 @@ fn validate_prop_name(name: &str) -> Result<(), Completion<Value>> {
     Ok(())
 }
 
-/// Prefix-match a `property` option against `-get`/`-kind`/`-set` (Tcl option
-/// abbreviation). Returns the canonical option, or `None` if unmatched.
-fn match_prop_option(opt: &str) -> Option<&'static str> {
-    let candidates = ["-get", "-kind", "-set"];
-    let mut hit = None;
-    for c in candidates {
-        if c.starts_with(opt) {
-            if hit.is_some() {
-                return None; // ambiguous
-            }
-            hit = Some(c);
-        }
-    }
-    hit
-}
-
-/// Prefix-match a `-kind` value against `readable`/`readwrite`/`writable`.
-fn parse_prop_kind(v: &str) -> Result<PropKind, Completion<Value>> {
-    let candidates = [
-        ("readable", PropKind::Readable),
-        ("readwrite", PropKind::ReadWrite),
-        ("writable", PropKind::Writable),
-    ];
-    let mut hit = None;
-    for (name, kind) in candidates {
-        if name.starts_with(v) && !v.is_empty() {
-            if hit.is_some() {
-                hit = None;
-                break;
-            }
-            hit = Some(kind);
-        }
-    }
-    hit.ok_or_else(|| {
-        err_code(
-            format!("bad kind \"{v}\": must be readable, readwrite, or writable"),
-            &["TCL", "LOOKUP", "INDEX", "kind", v],
-        )
-    })
-}
-
 /// Install property `name` on `target` (fully replacing any prior definition of
 /// the same name): recompute its slot membership from `kind`, and (re)install or
 /// clear its custom `<ReadProp-name>` / `<WriteProp-name>` accessor methods.
@@ -579,15 +540,15 @@ fn apply_property(
     is_class: bool,
     target: &str,
     name: &str,
-    kind: PropKind,
+    kind: TclOoPropertyKind,
     getter: Option<Value>,
     setter: Option<Value>,
 ) -> Result<(), Completion<Value>> {
     let dashed = format!("-{name}");
     let (readable, writable) = match kind {
-        PropKind::Readable => (true, false),
-        PropKind::Writable => (false, true),
-        PropKind::ReadWrite => (true, true),
+        TclOoPropertyKind::Readable => (true, false),
+        TclOoPropertyKind::Writable => (false, true),
+        TclOoPropertyKind::ReadWrite => (true, true),
     };
     let read_method = format!("<ReadProp-{name}>");
     let write_method = format!("<WriteProp-{name}>");
@@ -2192,9 +2153,14 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"info object subcommand object ?arg ...?\"");
     };
     let sub = sub.to_str();
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Object, vm.runtime_version());
+    let sub = match subcommands.resolve(sub.as_bytes()) {
+        Ok(sub) => sub,
+        Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+    };
     // `isa` is the odd one out: `info object isa category object ?arg?` — the
     // object comes *after* the category.
-    if sub.as_ref() == "isa" {
+    if sub == "isa" {
         return info_object_isa(vm, rest);
     }
     let Some(obj_arg) = rest.first() else {
@@ -2207,7 +2173,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     let extra = &rest[1..];
-    match sub.as_ref() {
+    match sub {
         "class" => {
             if let Some(cls) = extra.first() {
                 let c = vm.qualify_name(&cls.to_str());
@@ -2264,9 +2230,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
         "properties" => info_object_properties(vm, &obj, extra),
-        _ => err(format!(
-            "unknown or ambiguous subcommand \"{sub}\": must be class, creationid, isa, methods, mixins, namespace, properties, variables or vars"
-        )),
+        _ => err(format!("unsupported info object subcommand \"{sub}\"")),
     }
 }
 
@@ -2276,8 +2240,10 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// the object; `-all` unions in the object's full precedence (its mixins, then
 /// its class MRO). Sorted and duplicate-free.
 fn info_object_properties(vm: &mut Vm, obj: &str, extra: &[Value]) -> Completion<Value> {
-    let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
-    let writable = extra.iter().any(|v| v.to_str().as_ref() == "-writable");
+    let (all, writable) = match info_properties_options(extra) {
+        Ok(flags) => flags,
+        Err(error) => return error,
+    };
     let mut names: BTreeSet<String> = BTreeSet::new();
     if all {
         for step in vm.oo.object_precedence(obj) {
@@ -2335,6 +2301,11 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"info class subcommand class ?arg ...?\"");
     };
     let sub = sub.to_str();
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Class, vm.runtime_version());
+    let sub = match subcommands.resolve(sub.as_bytes()) {
+        Ok(sub) => sub,
+        Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+    };
     let Some(cls_arg) = rest.first() else {
         return err(format!(
             "wrong # args: should be \"info class {sub} class ?arg ...?\""
@@ -2348,7 +2319,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err(format!("\"{}\" is not a class", display(&cls)));
     }
     let extra = &rest[1..];
-    match sub.as_ref() {
+    match sub {
         "superclasses" => ok(Value::list(
             vm.oo.classes[&cls]
                 .supers
@@ -2416,9 +2387,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .collect(),
         )),
         "properties" => info_class_properties(vm, &cls, extra),
-        _ => err(format!(
-            "unknown or ambiguous subcommand \"{sub}\": must be constructor, destructor, instances, methods, mixins, properties, subclasses, superclasses or variables"
-        )),
+        _ => err(format!("unsupported info class subcommand \"{sub}\"")),
     }
 }
 
@@ -2428,8 +2397,10 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// class; `-all` unions in every class up the MRO (mixins + superclasses). The
 /// result is sorted and duplicate-free.
 fn info_class_properties(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<Value> {
-    let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
-    let writable = extra.iter().any(|v| v.to_str().as_ref() == "-writable");
+    let (all, writable) = match info_properties_options(extra) {
+        Ok(flags) => flags,
+        Err(error) => return error,
+    };
     let mut names: BTreeSet<String> = BTreeSet::new();
     if all {
         for step in vm.oo.class_linear_of(cls) {
@@ -2441,6 +2412,25 @@ fn info_class_properties(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<
         names.extend(slot_ref_class(c, writable).iter().cloned());
     }
     ok(Value::list(names.into_iter().map(Value::string).collect()))
+}
+
+fn info_properties_options(extra: &[Value]) -> Result<(bool, bool), Completion<Value>> {
+    let (mut all, mut writable) = (false, false);
+    for value in extra {
+        let word = value.to_str();
+        match resolve_info_oo_properties_option(word.as_bytes()) {
+            Ok(InfoOoPropertiesOption::All) => all = true,
+            Ok(InfoOoPropertiesOption::Readable) => writable = false,
+            Ok(InfoOoPropertiesOption::Writable) => writable = true,
+            Err(message) => {
+                return Err(err_code(
+                    String::from_utf8_lossy(&message).into_owned(),
+                    &["TCL", "LOOKUP", "INDEX", "option", &word],
+                ));
+            }
+        }
+    }
+    Ok((all, writable))
 }
 
 fn slot_ref_class(c: &Class, writable: bool) -> &BTreeSet<String> {

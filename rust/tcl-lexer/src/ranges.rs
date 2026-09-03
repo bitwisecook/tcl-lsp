@@ -51,10 +51,10 @@
 //! [`Span`]: crate::Span
 //! [`SourceMap`]: crate::SourceMap
 
-use tcl_dialect::BracedVarStyle;
+use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
 
 use crate::source_map::SourceMap;
-use crate::substitution::{backslash_escape_end, is_line_continuation};
+use crate::substitution::backslash_escape_end;
 use crate::tokens::{ByteCol, SourcePosition, Token};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
@@ -74,6 +74,129 @@ const fn closer_for(opener: u8) -> Option<u8> {
 /// Both `subst` engines report the unterminated form with this exact text, so
 /// the spelling has one owner rather than a copy per engine (issue #1457).
 pub const MISSING_CLOSE_BRACE_FOR_VAR: &str = "missing close-brace for variable name";
+
+/// C Tcl's parse error when a raw byte forbidden by the active array-index
+/// grammar appears in a `$name(index)` read.
+pub const INVALID_CHARACTER_IN_ARRAY_INDEX: &str = "invalid character in array index";
+
+/// How a source-level `$name(index)` scan ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArrayIndexEnd {
+    /// A closing `)` was found; the offset is one byte past it.
+    Closed(usize),
+    /// No closing `)` was found.
+    Unterminated,
+}
+
+/// Result of [`scan_array_index`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArrayIndexScan {
+    /// Where the structural scan ended.
+    pub end: ArrayIndexEnd,
+    /// The first raw source byte rejected by the release grammar, if any.
+    pub invalid: Option<usize>,
+}
+
+/// Scan the `$name(index)` beginning at `open_parenthesis`.
+///
+/// This is the single structural owner used by the main lexer, expression
+/// lexer, and runtimes. The index ends at the first token-level `)`, not the
+/// first byte with that value: escapes, complete `[…]` command substitutions,
+/// `${…}` references, and nested `$name(…)` references are skipped as units.
+/// Only raw bytes left at index token level are passed to
+/// [`ArrayIndexSyntax::rejects_literal`].
+///
+/// The nested-variable scan is iterative. A depth counter records which `)`
+/// closes a nested array reference, avoiding the native-stack recursion and
+/// consumer-specific depth caps the previous three scanners carried.
+#[must_use]
+pub fn scan_array_index(
+    source: &[u8],
+    open_parenthesis: usize,
+    syntax: ArrayIndexSyntax,
+    braced_var: BracedVarStyle,
+) -> ArrayIndexScan {
+    if source.get(open_parenthesis) != Some(&b'(') {
+        return ArrayIndexScan {
+            end: ArrayIndexEnd::Unterminated,
+            invalid: None,
+        };
+    }
+    let mut position = open_parenthesis + 1;
+    let mut nested_indices: u32 = 0;
+    let mut first_invalid = None;
+    while position < source.len() {
+        match source[position] {
+            b')' if nested_indices == 0 => {
+                return ArrayIndexScan {
+                    end: ArrayIndexEnd::Closed(position + 1),
+                    invalid: first_invalid,
+                };
+            }
+            b')' => {
+                nested_indices -= 1;
+                position += 1;
+            }
+            b'\\' => position = (position + 2).min(source.len()),
+            b'[' => {
+                let Some(end) = command_substitution_end_bytes(source, position) else {
+                    return ArrayIndexScan {
+                        end: ArrayIndexEnd::Unterminated,
+                        invalid: first_invalid,
+                    };
+                };
+                position = end;
+            }
+            b'$' => {
+                let after_dollar = position + 1;
+                if source.get(after_dollar) == Some(&b'{') {
+                    match braced_var_name_end(source, after_dollar + 1, braced_var) {
+                        BracedVarEnd::Closed(close) => position = close + 1,
+                        BracedVarEnd::Unterminated => {
+                            return ArrayIndexScan {
+                                end: ArrayIndexEnd::Unterminated,
+                                invalid: first_invalid,
+                            };
+                        }
+                    }
+                    continue;
+                }
+                position = scan_bare_var_name(source, after_dollar);
+                if position > after_dollar && source.get(position) == Some(&b'(') {
+                    nested_indices += 1;
+                    position += 1;
+                }
+            }
+            byte => {
+                if first_invalid.is_none() && syntax.rejects_literal(byte) {
+                    first_invalid = Some(position);
+                }
+                position += 1;
+            }
+        }
+    }
+    ArrayIndexScan {
+        end: ArrayIndexEnd::Unterminated,
+        invalid: first_invalid,
+    }
+}
+
+fn scan_bare_var_name(source: &[u8], mut position: usize) -> usize {
+    while position < source.len() {
+        let byte = source[position];
+        if byte.is_ascii_alphanumeric() || byte == b'_' {
+            position += 1;
+        } else if byte == b':' && source.get(position + 1) == Some(&b':') {
+            position += 2;
+            while source.get(position) == Some(&b':') {
+                position += 1;
+            }
+        } else {
+            break;
+        }
+    }
+    position
+}
 
 /// Where a `${…}` variable name ends — the result of [`braced_var_name_end`].
 ///
@@ -525,7 +648,10 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
 /// lets the `#` arm below test that flag alone.
 #[must_use]
 pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
+    command_substitution_end_bytes(source.as_bytes(), open_bracket)
+}
+
+fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) -> Option<usize> {
     if bytes.get(open_bracket) != Some(&b'[') {
         return None;
     }
@@ -547,8 +673,8 @@ pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usi
             // the `#` that opens a comment, so it keeps command position just
             // as a literal space does. Any other escape is content and ends
             // command position.
-            let continuation = is_line_continuation(source, pos);
-            pos = backslash_escape_end(source, pos);
+            let continuation = bytes.get(pos + 1) == Some(&b'\n');
+            pos = (pos + 2).min(bytes.len());
             at_command_start &= continuation;
             continue;
         }
@@ -601,6 +727,32 @@ pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usi
 mod tests {
     use super::*;
     use crate::{Lexer, SourceMap, Span, TokenType};
+
+    #[test]
+    fn array_index_source_mask_follows_the_release() {
+        let scan = |source: &str, syntax| {
+            scan_array_index(source.as_bytes(), 2, syntax, BracedVarStyle::Tcl9Nesting)
+        };
+
+        // Tcl 9's `TYPE_BAD_ARRAY_INDEX` rejects all of these literal bytes,
+        // while Tcl 8's `Tcl_ParseVarName` passed only `TYPE_CLOSE_PAREN`.
+        for source in ["$a({k})", "$a(\"k\")", "$a((k)", "$a(}k)"] {
+            let modern = scan(source, ArrayIndexSyntax::Tcl9);
+            assert!(modern.invalid.is_some(), "Tcl 9 must reject {source}");
+            assert_eq!(modern.end, ArrayIndexEnd::Closed(source.len()));
+            assert_eq!(scan(source, ArrayIndexSyntax::Tcl8).invalid, None);
+        }
+
+        // The source mask applies only before substitution. An escaped byte or
+        // the value produced by a variable/command substitution is legal.
+        for source in ["$a(\\{k\\})", "$a(${key})", "$a([format \\{])"] {
+            assert_eq!(
+                scan(source, ArrayIndexSyntax::Tcl9).invalid,
+                None,
+                "{source}"
+            );
+        }
+    }
 
     /// The `${…}` close rule (issue #1457). `Tcl_ParseVarName` delimits the
     /// brace form differently in the 8.x family (`tclParse.c(8.6.16):1398` —

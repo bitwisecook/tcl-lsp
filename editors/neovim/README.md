@@ -41,6 +41,7 @@ and drop it somewhere on PATH.
 vim.filetype.add({
   extension = {
     tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', tclspec = 'tcl',
+    sslictcl = 'tcl',
     irul = 'tcl', irule = 'tcl', irules = 'tcl',
     iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl', tmsh = 'tcl',
     apl = 'tcl-apl', exp = 'tcl', expect = 'tcl',

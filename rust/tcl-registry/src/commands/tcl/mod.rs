@@ -78,6 +78,10 @@ mod http;
 mod if_;
 mod incr_;
 mod info_;
+pub use info_::{
+    InfoOoEnsembleKind, InfoOoPropertiesOption, InfoOoSubcommands, info_oo_subcommands,
+    resolve_info_oo_properties_option,
+};
 mod interp;
 mod join_;
 mod lappend_;
@@ -115,6 +119,10 @@ mod oo_classvariable;
 mod oo_configurable;
 mod oo_copy;
 mod oo_define;
+pub use oo_define::{
+    TclOoPropertyKind, TclOoPropertyOption, resolve_tcloo_property_kind,
+    resolve_tcloo_property_option,
+};
 mod oo_helpers;
 mod oo_link;
 mod oo_my;

@@ -15,7 +15,9 @@ authors.workspace = true
 
 [dependencies]
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 base64 = "0.23"
@@ -24,6 +26,13 @@ x509-parser = { version = "0.18", features = ["verify"] }
 rsa = "0.10.0-rc.18"
 p256 = "0.14"
 p384 = "0.14"
+
+[dev-dependencies]
+# The registry pack states the same vocabulary a second time, for the editor
+# surfaces. `tests/registry_pack_drift.rs` walks `vocabulary::DECLARATIONS` and
+# holds the two statements to each other; nothing in the library reaches for
+# the registry.
+tcl-registry = { path = "../tcl-registry" }
 
 # Entropy backends the transitive crypto crates need when the workspace's
 # browser-facing WASM packages are checked. Keyed on the browser target alone:

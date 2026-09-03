@@ -47,8 +47,10 @@ pub fn backslash_subst(text: &str) -> Cow<'_, str> {
 /// Byte-exact with the release's `TclParseBackslash`. Recognises:
 ///
 /// - Simple mappings: `\a \b \f \n \r \t \v \\ \{ \} \[ \] \$ \" \<space> \;`
-/// - Line continuation: `\<LF>`, `\<CR>`, or `\<CRLF>` followed by any
-///   run of space/tab, collapsed to a single ASCII space.
+/// - Line continuation: `\<LF>` followed by any run of space/tab, collapsed
+///   to a single ASCII space. A source channel may translate CRLF to LF before
+///   parsing, but a raw `\<CR>` or `\<CRLF>` handed to the parser is not a
+///   continuation.
 /// - Hex escapes: `\xNN` — two hex digits from 8.6 (TIP 388), unbounded
 ///   before that, keeping the low byte either way
 /// - Unicode escapes: `\uNNNN` (1–4 hex digits)
@@ -114,7 +116,10 @@ fn decode_escape(text: &str, i: usize, escapes: EscapeSyntax) -> (usize, char) {
         b'r' => (i + 2, '\u{0D}'),
         b't' => (i + 2, '\u{09}'),
         b'v' => (i + 2, '\u{0B}'),
-        b'\n' | b'\r' => (continuation_end(b, i, next), ' '),
+        b'\n' => (
+            backslash_continuation_end(b, i).expect("caller matched a continuation"),
+            ' ',
+        ),
         b'x' => {
             let (end, value) = hex_run(b, i + 2, escapes.hex_escape_digits(), false);
             // No hex digit at all means the escape is a literal `x`.
@@ -173,24 +178,26 @@ fn scalar(value: u32, escapes: EscapeSyntax) -> char {
 /// while every other escape is content. Release-invariant: no release moves the
 /// newline out of the byte straight after the backslash.
 pub(crate) fn is_line_continuation(text: &str, i: usize) -> bool {
-    matches!(text.as_bytes().get(i + 1), Some(b'\n' | b'\r'))
+    backslash_continuation_end(text.as_bytes(), i).is_some()
 }
 
-/// End of a `\<newline>` line continuation starting at `b[i] == b'\\'`, whose
-/// newline byte is `nl`.
+/// End of a raw `\<LF>` line continuation starting at `bytes[i] == b'\\'`.
 ///
-/// The newline (a `\r` pairs with a following `\n` as one CRLF) and the run of
-/// spaces and tabs after it all belong to the escape — the whole span collapses
-/// to a single space. Release-invariant.
-fn continuation_end(b: &[u8], i: usize, nl: u8) -> usize {
+/// The LF and the run of spaces and tabs after it all belong to the escape —
+/// the whole span collapses to a single space. C's `TclParseBackslash` has no
+/// CR arm: channel-level CRLF translation happens before this raw parser seam,
+/// while `\<CR>` and raw `\<CRLF>` remain ordinary escaped data. This rule is
+/// release-invariant and is shared with brace-word continuation collapse.
+#[must_use]
+pub fn backslash_continuation_end(bytes: &[u8], i: usize) -> Option<usize> {
+    if bytes.get(i) != Some(&b'\\') || bytes.get(i + 1) != Some(&b'\n') {
+        return None;
+    }
     let mut j = i + 2;
-    if nl == b'\r' && b.get(j) == Some(&b'\n') {
+    while matches!(bytes.get(j), Some(b' ' | b'\t')) {
         j += 1;
     }
-    while matches!(b.get(j), Some(b' ' | b'\t')) {
-        j += 1;
-    }
-    j
+    Some(j)
 }
 
 /// Scan the hex digits of an escape from `start`: where they end, and their
@@ -294,19 +301,19 @@ mod tests {
     }
 
     #[test]
-    fn crlf_continuation() {
-        assert_eq!(subst("hello\\\r\nworld"), "hello world");
+    fn raw_crlf_is_not_a_continuation() {
+        assert_eq!(subst("hello\\\r\nworld"), "hello\r\nworld");
     }
 
     #[test]
-    fn cr_continuation() {
-        assert_eq!(subst("hello\\\rworld"), "hello world");
+    fn raw_cr_is_not_a_continuation() {
+        assert_eq!(subst("hello\\\rworld"), "hello\rworld");
     }
 
     #[test]
     fn continuation_strips_leading_whitespace() {
-        assert_eq!(subst("hello\\\r\n   world"), "hello world");
         assert_eq!(subst("hello\\\n\t \tworld"), "hello world");
+        assert_eq!(subst("hello\\\r\n   world"), "hello\r\n   world");
     }
 
     #[test]
@@ -488,15 +495,16 @@ pub fn backslash_escape_end(text: &str, i: usize) -> usize {
 /// escape at a time.  Widths match [`backslash_subst_in`] exactly — they are
 /// literally the same scan — covering `\xNN` (two hex
 /// digits from 8.6, unbounded before), `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8
-/// hex, 8.6 onward), `\NNN` (1–3 octal), the `\<newline>` line continuation
-/// (LF, CR, or CRLF plus the run of spaces/tabs it absorbs, per
-/// `TclParseBackslash`'s backslash-newline rule), else the backslash plus one
-/// full character.
+/// hex, 8.6 onward), `\NNN` (1–3 octal), the raw `\<LF>` line continuation
+/// plus the run of spaces/tabs it absorbs. A channel may translate CRLF before
+/// parsing; raw escaped CR and raw escaped CRLF are ordinary two-byte escapes
+/// at this parser seam. Every other escape consumes the backslash plus one full
+/// character.
 ///
 /// It lives beside the evaluator because it *is* the same rule.  Separate
 /// hand-rolled copies had drifted — one consumed unbounded hex digits, one
 /// never recognised `\U`, one assumed every escape was two bytes, one missed
-/// the CRLF continuation — so `\x41` was tokenised as an escape `\x` plus a
+/// the continuation indentation — so `\x41` was tokenised as an escape `\x` plus a
 /// string `41`.  The digits (and the continuation's whitespace) belong to the
 /// escape.
 ///
@@ -638,7 +646,11 @@ mod release_vector_tests {
         },
         Vector {
             src: "\\\r\n\t x",
-            want: [(Tcl84, " x", 5), (Tcl86, " x", 5), (Tcl90, " x", 5)],
+            want: [
+                (Tcl84, "\r\n\t x", 2),
+                (Tcl86, "\r\n\t x", 2),
+                (Tcl90, "\r\n\t x", 2),
+            ],
         },
     ];
 
@@ -728,7 +740,7 @@ mod release_vector_tests {
 
 #[cfg(test)]
 mod escape_end_tests {
-    use super::backslash_escape_end;
+    use super::{backslash_continuation_end, backslash_escape_end};
 
     #[test]
     fn widths_match_the_evaluator() {
@@ -762,16 +774,24 @@ mod escape_end_tests {
 
     #[test]
     fn continuation_spans_newline_and_following_whitespace() {
-        // `\<LF>` / `\<CR>` / `\<CRLF>` absorb the following spaces/tabs — the
-        // extent covers exactly what `backslash_subst` collapses to one space
-        // (`TclParseBackslash`'s backslash-newline rule).
+        // Only a raw `\<LF>` absorbs following spaces/tabs. C's
+        // `TclParseBackslash` has no CR arm; a source channel may translate
+        // CRLF before parsing, but the raw parser keeps it.
         assert_eq!(backslash_escape_end("\\\n   x", 0), 5);
-        assert_eq!(backslash_escape_end("\\\r\n\t x", 0), 5);
+        assert_eq!(backslash_escape_end("\\\r\n\t x", 0), 2);
         assert_eq!(backslash_escape_end("\\\rx", 0), 2);
         assert_eq!(backslash_escape_end("\\\n", 0), 2);
         // FP guard: an escaped backslash is a 2-byte escape — a newline after
         // it is content, not part of a continuation.
         assert_eq!(backslash_escape_end("\\\\\n  x", 0), 2);
+    }
+
+    #[test]
+    fn continuation_owner_accepts_only_raw_lf() {
+        assert_eq!(backslash_continuation_end(b"\\\n\t  x", 0), Some(5));
+        assert_eq!(backslash_continuation_end(b"\\\r\n\t  x", 0), None);
+        assert_eq!(backslash_continuation_end(b"\\\r\t  x", 0), None);
+        assert_eq!(backslash_continuation_end(b"x\\\n", 0), None);
     }
 }
 

@@ -6,27 +6,20 @@ allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__call_graph, Read
 
 # Tcl Explain
 
-Explain what a Tcl script does using LSP analysis for accurate context.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/tcl_system.md` for Tcl idioms and best practices
-2. Read the Tcl file the user wants explained
-3. Get structural context: call `mcp__tcl-lsp__analyze` (diagnostics, document symbols, detected events) and `mcp__tcl-lsp__call_graph` (proc caller→callee graph, roots, leaf procs), passing the file contents you just read as `source` to each
-4. If the analysis tool fails (e.g. syntax errors in the file), fall back to manual source reading and note that LSP analysis was unavailable
-5. Using the domain knowledge, source code, and analysis output, explain:
-   - **Overall purpose**: What the script does at a high level
-   - **Procedures**: What each proc does, its parameters, and return values
-   - **Data flow**: How data moves between procedures and through control structures
-   - **Issues**: Any problems identified by the analyser (warnings, errors, style)
-6. If the user asked a specific question, focus the explanation on that area
+1. Read `../_prompts/tcl_system.md`, then the file.
+2. Call `mcp__tcl-lsp__analyze` (diagnostics, symbols, events) and
+   `mcp__tcl-lsp__call_graph` (caller→callee graph, roots, leaves) with the
+   contents as `source`. If analysis fails (e.g. syntax errors), explain from
+   the source alone and say LSP analysis was unavailable.
+3. Explain, focusing on any specific question the user asked.
 
-## Output format
+## Output
 
-Structure the explanation with clear headings:
-- **Summary** -- one-paragraph overview of what the script does
-- **Procedures** -- per-proc breakdown (skip if the script has no procs)
-- **Data flow** -- how variables and data move through the script
-- **Issues** -- any diagnostics from the analyser (omit section if clean)
+- **Summary** — one paragraph on what the script does
+- **Procedures** — per proc: purpose, parameters, return value (omit if none)
+- **Data flow** — how data moves between procs and through control structures
+- **Issues** — analyser findings (omit if clean)
 
 $ARGUMENTS

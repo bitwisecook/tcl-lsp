@@ -1782,8 +1782,8 @@ loop can run untrusted generated programs by construction; a runaway
   §1.1 exists to prevent.
 - **`spec_import`** emits canonical 2.0 (15.1); its
   hand-to-`spectcl_check` contract is unchanged.
-- **Authoring guidance** (AGENTS.md §specs, and the spec-authoring
-  material in `docs/design/spec-packs.md`) gains the E rules of thumb:
+- **Authoring guidance** (`docs/design/spec-packs.md` § *Authoring rules
+  for SpecTcl 2.0*, linked from AGENTS.md) gains the E rules of thumb:
   emit canonical form unless repetition is the problem being solved;
   when templating, keep the data table adjacent to the loop; run
   `expand` and read it before shipping; never branch on `available?`

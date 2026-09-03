@@ -127,9 +127,17 @@ impl OoFrame {
 /// is *visible* in this context wins:
 ///
 /// * `external` (a `$obj m` / `CLASS m` dispatch) sees exported
-///   implementations only.
+///   implementations only — and "exported" is the *effective* state of the
+///   branch that reaches the provider ([`dispatch_branch_spines`] +
+///   [`spine_export_state`]), not the provider's own declaration, because a
+///   class can `export` / `unexport` a name it inherits without redeclaring
+///   it.  Each `mixin` branch decides for itself: C enters it with a fresh
+///   copy of the dispatch flags, so no branch's state travels to another.
 /// * an internal (`my m`) dispatch also reaches unexported ones, and
-///   `private` ones only in the receiver's own class.
+///   `private` ones only in the receiver's own class.  Export state is not
+///   consulted at all: `my` ignores it (tclsh 8.6.16 / 9.0.4 —
+///   `oo::define Child { unexport tick }` leaves `my tick` reaching
+///   `Base`'s body).
 ///
 /// `None` is a definitive "no implementation is callable here" — mirroring
 /// C's `unknown method` — not "look somewhere else".
@@ -148,6 +156,19 @@ pub(crate) fn method_dispatch_provider<'a>(
 ) -> Option<(&'a str, &'a MethodDef)> {
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy.mro_map.get(class_q)?;
+    // Read once for the whole walk: the flag is a property of the *receiver*,
+    // and every spine provider answers to it.
+    let branches: Vec<(Vec<String>, Option<bool>)> = if external {
+        dispatch_branch_spines(analysis, class_q)
+            .into_iter()
+            .map(|spine| {
+                let state = spine_export_state(analysis, &spine, method, bucket);
+                (spine, state)
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     for provider_q in mro {
         let Some(cd) = analysis.all_classes.get(provider_q) else {
             continue;
@@ -166,12 +187,167 @@ pub(crate) fn method_dispatch_provider<'a>(
         };
         let Some(md) = md else { continue };
         let visible = if external {
-            md.visibility == "public"
+            match branch_export_state(&branches, provider_q) {
+                // `private` is the one state an `export` cannot lift: it is
+                // not a flag on a table entry but a separate, class-local
+                // slot (tclsh 9.0.4 — a subclass's `export priv` still
+                // leaves `[Child new] priv` an `unknown method`).
+                Some(exported) => exported && md.visibility != "private",
+                None => md.visibility == "public",
+            }
         } else {
             md.visibility != "private" || provider_q == class_q
         };
         if visible {
             return Some((provider_q.as_str(), md));
+        }
+    }
+    None
+}
+
+/// The export flag the branch that reaches `provider_q` decides, or `None`
+/// when no branch mentions the member at all (nothing decided — the caller's
+/// per-entry reading stands).
+///
+/// The **first** branch containing the provider wins, and `branches` is in the
+/// order the call chain walks them, so a provider that several branches reach
+/// answers to the one that got there first — the same rule the linearisation
+/// itself applies to the implementation.
+fn branch_export_state(branches: &[(Vec<String>, Option<bool>)], provider_q: &str) -> Option<bool> {
+    branches
+        .iter()
+        .find(|(spine, _)| spine.iter().any(|c| c == provider_q))
+        .and_then(|(_, state)| *state)
+}
+
+/// The mixin-free spines `TclOO`'s call-chain builder walks for a receiver of
+/// class `class_q`, in the order it walks them: every reachable `mixin`
+/// branch, then the receiver's own `superclass` spine.
+///
+/// C enters each mixin with a **fresh copy** of the dispatch flags, so a
+/// branch decides visibility only for the providers *it* reaches; the flags
+/// never travel between branches.  That is one rule, and it applies at every
+/// depth — a mixin that inherits the member from its own superclass and
+/// changes that name's visibility governs its branch exactly as the receiver
+/// governs the spine.  Oracle, byte-identical on tclsh 8.6.16 and 9.0.4:
+///
+/// ```tcl
+/// oo::class create A      { method m {} { return A-m } }
+/// oo::class create MBase  { method m {} { return MBase-m } }
+/// oo::class create MChild { superclass MBase } ; oo::define MChild { unexport m }
+/// oo::class create D { superclass A ; mixin MChild }
+/// [D new] m           ;# -> A-m       (the mixin branch is empty; the spine answers)
+///
+/// oo::class create MPub { superclass MBase }
+/// oo::class create D2 { superclass A ; mixin MPub }
+/// [D2 new] m          ;# -> MBase-m   (a live mixin branch outranks the spine)
+///
+/// oo::class create NBase  { method n {} { return NBase-n } ; unexport n }
+/// oo::class create NChild { superclass NBase ; export n }
+/// oo::class create A2 { method n {} { return A2-n } }
+/// oo::class create D3 { superclass A2 ; mixin NChild }
+/// [D3 new] n          ;# -> NBase-n   (the branch's own export revives its base)
+/// ```
+///
+/// Branch roots are collected transitively — a mixin declared on a superclass,
+/// or on another mixin, is walked the same way (`[D4 new] m` is `A-m` for
+/// `D4 superclass S`, `S mixin MChild`) — and ordered by where each root falls
+/// in `mro_map`, which is the order the chain builder reaches them.
+fn dispatch_branch_spines(analysis: &AnalysisResult, class_q: &str) -> Vec<Vec<String>> {
+    let hierarchy = analysis.class_hierarchy();
+    let spine_of = |q: &str| hierarchy.spine_map.get(q).cloned().unwrap_or_default();
+    let mut roots: Vec<String> = Vec::new();
+    let mut queue: std::collections::VecDeque<String> =
+        std::collections::VecDeque::from([class_q.to_owned()]);
+    let mut seen: std::collections::HashSet<String> =
+        std::collections::HashSet::from([class_q.to_owned()]);
+    while let Some(root) = queue.pop_front() {
+        for spine_q in spine_of(&root) {
+            for mixin in hierarchy.mixin_map.get(&spine_q).into_iter().flatten() {
+                if seen.insert(mixin.clone()) {
+                    roots.push(mixin.clone());
+                    queue.push_back(mixin.clone());
+                }
+            }
+        }
+    }
+    // `mro_map` is the order the chain builder reaches these classes; a root it
+    // does not list at all sorts last but keeps its discovery order.
+    let mro = hierarchy.mro_map.get(class_q);
+    roots.sort_by_key(|root| {
+        mro.and_then(|mro| mro.iter().position(|c| c == root))
+            .unwrap_or(usize::MAX)
+    });
+    roots
+        .into_iter()
+        .map(|root| spine_of(&root))
+        .chain(std::iter::once(spine_of(class_q)))
+        .collect()
+}
+
+/// The export flag an **external** dispatch (`$obj m`, `CLASS m`, or a
+/// The export flag an **external** dispatch (`$obj m`, `CLASS m`, or a
+/// captured `[self]` object command) reads for `method` on a receiver of
+/// class `class_q` — `None` when nothing on the superclass spine mentions the
+/// name, so there is no state to read.
+///
+/// `spine` is one mixin-free linearisation from
+/// [`dispatch_branch_spines`] — the receiver's own, or a `mixin` branch's —
+/// because C enters each mixin with a fresh copy of the dispatch flags and so
+/// lets a branch's `unexport` empty only that branch.
+///
+/// `TclOO` takes this flag from the *most specific* spine class that mentions
+/// the member and the **implementation** from the first class that declares a
+/// body; the two are genuinely independent, because `export` / `unexport`
+/// accept a name their class does not define and create a body-less table
+/// entry whose only content is the flag.  `info class methods` does not list
+/// such an entry, which is why this cannot be read off the member tables
+/// alone.  Oracle, byte-identical on tclsh 8.6.16 and 9.0.4:
+///
+/// ```tcl
+/// oo::class create Base   { method tick {} { return base } }
+/// oo::class create Child  { superclass Base }
+/// oo::define Child { unexport tick }
+/// [Child new] tick    ;# -> unknown method "tick"  (Base's public body, suppressed here)
+/// oo::class create Base3  { method tock {} { return b3 } ; unexport tock }
+/// oo::class create Child3 { superclass Base3 ; export tock }
+/// [Child3 new] tock   ;# -> b3   (Base3's unexported body, revived here)
+/// [Base3 new] tock    ;# -> unknown method "tock"
+/// ```
+///
+/// A declaration on the deciding class outranks that class's own stub sets: a
+/// later `method g {…}` re-applies the name's default visibility over an
+/// earlier `unexport g` (tclsh 8.6.16 / 9.0.4 — `oo::define G { unexport g ;
+/// method g {} {…} }` leaves `[G new] g` callable), and the analyser has
+/// already folded that source order into `MethodDef::visibility`.
+///
+/// Multiple `superclass`es are walked in declaration order and the first
+/// mention wins, matching the order the chain builder appends them in.  C
+/// keeps each branch's flags independent, so a *later* branch disagreeing
+/// with the first is approximated rather than modelled — the same
+/// single-linearisation approximation `mro_map` already makes.
+fn spine_export_state(
+    analysis: &AnalysisResult,
+    spine: &[String],
+    method: &str,
+    bucket: MethodBucket,
+) -> Option<bool> {
+    for spine_q in spine {
+        let Some(cd) = analysis.all_classes.get(spine_q) else {
+            continue;
+        };
+        let (table, exports, unexports) = match bucket {
+            MethodBucket::Instance => (&cd.methods, &cd.exports, &cd.unexports),
+            MethodBucket::Class => (&cd.class_methods, &cd.class_exports, &cd.class_unexports),
+        };
+        if let Some(md) = table.get(method) {
+            return Some(md.visibility == "public");
+        }
+        if exports.contains(method) {
+            return Some(true);
+        }
+        if unexports.contains(method) {
+            return Some(false);
         }
     }
     None

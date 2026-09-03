@@ -977,6 +977,17 @@ variable's later `$axis method …` calls resolve against the right \
 class.",
     ),
     (
+        "remote_method",
+        "Declares that the command takes part in a *cross-language* RPC \
+family: it either opens a handle onto a remote extension (`ILX::init \
+PLUGIN EXTENSION`) or invokes a method that extension implements in \
+another language (`ILX::call HANDLE ?-timeout ms? ?--? METHOD …`). Says \
+which word carries the handle, where the method name sits — at a fixed \
+index, or after the command's own leading options — and whether the call \
+waits for a reply. With it, go-to-definition on the method word crosses \
+into the Node.js `ILXServer.addMethod` registration that implements it.",
+    ),
+    (
         "creates_instance_at",
         "The argument position that names an object command of this spec's \
 own class — the `Foo` in `oo::class create Foo`. After the call, `Foo` is \

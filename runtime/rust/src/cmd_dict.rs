@@ -1055,15 +1055,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// parse failure at all (`wrong # args`, a missing key) passes through
 /// untouched.
 fn dict_worded(msg: &str) -> String {
-    if let Some(rest) = msg.strip_prefix("list element in ") {
-        format!("dict element in {rest}")
-    } else if msg == "unmatched open brace in list" {
-        "unmatched open brace in dict".to_owned()
-    } else if msg == "unmatched open quote in list" {
-        "unmatched open quote in dict".to_owned()
-    } else {
-        msg.to_owned()
-    }
+    tcl_cmd_core::dict::worded_parse_error(msg)
 }
 
 /// The C `-errorcode` for a dict string-parse failure, keyed off the message the

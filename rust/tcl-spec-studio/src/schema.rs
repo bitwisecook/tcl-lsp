@@ -1274,6 +1274,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Which argument becomes an object handle, and which says its class.",
     ),
     f(
+        "remote_method",
+        "Remote method",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(&remote_method::ILX_CALL_METHOD)",
+        },
+        "Cross-language RPC role: which word is the handle, which is the method name.",
+    ),
+    f(
         "creates_instance_at",
         "Creates instance at",
         SUBS,

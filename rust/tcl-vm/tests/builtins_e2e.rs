@@ -22,6 +22,7 @@
 //! `tcl-vm`, asserting observable behaviour.
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::rc::Rc;
 
@@ -51,6 +52,90 @@ impl Write for Capture {
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+
+struct SyntheticHost {
+    clock: SyntheticClock,
+    stdio: SyntheticStdIo,
+    env: SyntheticEnv,
+}
+
+impl SyntheticHost {
+    fn new(entries: &[(&str, &str)]) -> Self {
+        Self {
+            clock: SyntheticClock,
+            stdio: SyntheticStdIo,
+            env: SyntheticEnv(
+                entries
+                    .iter()
+                    .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+                    .collect(),
+            ),
+        }
+    }
+}
+
+struct SyntheticClock;
+
+impl tcl_platform::Clock for SyntheticClock {
+    fn now_secs(&self) -> i64 {
+        0
+    }
+
+    fn now_millis(&self) -> i128 {
+        0
+    }
+}
+
+struct SyntheticStdIo;
+
+impl tcl_platform::StdIo for SyntheticStdIo {
+    fn write_stdout(&self, _bytes: &[u8]) {}
+
+    fn write_stderr(&self, _bytes: &[u8]) {}
+}
+
+struct SyntheticEnv(BTreeMap<String, String>);
+
+impl tcl_platform::Env for SyntheticEnv {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.get(key).cloned()
+    }
+
+    fn set(&self, _key: &str, _value: &str) {}
+
+    fn vars(&self) -> Vec<(String, String)> {
+        self.0
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
+    }
+
+    fn cwd(&self) -> Result<String, tcl_platform::HostError> {
+        Ok("/synthetic".to_string())
+    }
+
+    fn chdir(&self, _path: &str) -> Result<(), tcl_platform::HostError> {
+        Ok(())
+    }
+}
+
+impl tcl_platform::Host for SyntheticHost {
+    fn capabilities(&self) -> tcl_platform::Capabilities {
+        tcl_platform::Capabilities::empty()
+    }
+
+    fn clock(&self) -> &dyn tcl_platform::Clock {
+        &self.clock
+    }
+
+    fn stdio(&self) -> &dyn tcl_platform::StdIo {
+        &self.stdio
+    }
+
+    fn env(&self) -> &dyn tcl_platform::Env {
+        &self.env
     }
 }
 
@@ -698,6 +783,79 @@ fn bootstrap_globals_present() {
 }
 
 #[test]
+fn host_rebind_replaces_bytecode_vm_bootstrap_globals() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_host(Rc::new(SyntheticHost::new(&[
+        ("USER", "first-user"),
+        ("TCL_LIBRARY", "/first/lib"),
+        ("TCL_WASM_SPEC", "first-wasm"),
+        ("FIRST_ONLY", "stale"),
+    ])));
+    let initial = vm
+        .eval_source(
+            "list $::tcl_platform(user) $::tcl_platform(wasm) \
+             $::tcl_library $::env(FIRST_ONLY)",
+        )
+        .expect("compile initial bootstrap query");
+    assert!(initial.code.is_ok());
+    assert_eq!(
+        initial.result.to_str().as_ref(),
+        "first-user first-wasm /first/lib stale"
+    );
+    let mutated = vm
+        .eval_source(
+            "set ::env(EMBEDDER_STALE) old; \
+             set ::auto_path /old/auto; \
+             set ::tclDefaultLibrary /old/default; \
+             set ::tcl_pkgPath /old/pkg",
+        )
+        .expect("compile stale-global setup");
+    assert!(mutated.code.is_ok());
+
+    vm.set_host(Rc::new(SyntheticHost::new(&[
+        ("USER", "second-user"),
+        ("TCL_LIBRARY", "/second/lib"),
+        ("TCL_WASM_SPEC", "second-wasm"),
+        ("SECOND_ONLY", "fresh"),
+    ])));
+    let rebound = vm
+        .eval_source(
+            "list $::tcl_platform(user) $::tcl_platform(wasm) \
+             $::tcl_library $::env(SECOND_ONLY) \
+             [info exists ::env(FIRST_ONLY)] \
+             [info exists ::env(EMBEDDER_STALE)] \
+             [info exists ::tclDefaultLibrary] \
+             [info exists ::tcl_pkgPath] [llength $::auto_path]",
+        )
+        .expect("compile rebound bootstrap query");
+    assert!(rebound.code.is_ok(), "{}", rebound.result.to_str());
+    assert_eq!(
+        rebound.result.to_str().as_ref(),
+        "second-user second-wasm /second/lib fresh 0 0 0 0 0"
+    );
+}
+
+#[test]
+fn bootstrap_platform_schema_comes_from_the_shared_owner() {
+    let mut keys = tcl_platform::bootstrap::entries()
+        .iter()
+        .map(|entry| entry.name())
+        .collect::<Vec<_>>();
+    keys.sort_unstable();
+    out_eq(
+        "puts [lsort [array names ::tcl_platform]]\n",
+        &format!("{}\n", keys.join(" ")),
+    );
+    out_eq(
+        "puts [list [info exists ::tcl_platform(machine)] \
+         [info exists ::tcl_platform(user)] \
+         [expr {$::tcl_platform(osVersion) eq {}}]]\n",
+        "1 1 1\n",
+    );
+}
+
+#[test]
 fn cmd_subst_substitutes_proc_param() {
     // A bare `$param` arg to a *generic* command inside a command substitution
     // must load the variable, not push the literal `$param`.
@@ -1105,6 +1263,104 @@ fn package_stubs() {
     out_eq(
         "package provide Foo 1.2\nputs [package require Foo]\n",
         "1.2\n",
+    );
+}
+
+/// An already-provided incompatible version is terminal. Discovery must not
+/// run a loader or the unknown callback in an attempt to replace it.
+#[test]
+fn package_require_rejects_a_provided_conflict_before_discovery() {
+    out_eq(
+        "set events {}\n\
+         package provide P 2.0\n\
+         package ifneeded P 1.0 {lappend ::events loader; package provide P 1.0}\n\
+         proc discover {name args} {lappend ::events unknown}\n\
+         package unknown discover\n\
+         catch {package require -exact P 1.0} message options\n\
+         puts [list $message [dict get $options -errorcode] $events]\n",
+        "{version conflict for package \"P\": have 2.0, need exactly 1.0} {TCL PACKAGE VERSIONCONFLICT} {}\n",
+    );
+}
+
+/// A known satisfying ifneeded entry is the normal fast path. Inverting these
+/// two stages makes the deliberately-failing unknown callback win instead.
+#[test]
+fn package_require_uses_a_registered_loader_before_unknown() {
+    out_eq(
+        "set events {}\n\
+         package ifneeded P 1.0 {lappend ::events loader; package provide P 1.0}\n\
+         proc discover {name args} {lappend ::events unknown; error UNKNOWN-RAN}\n\
+         package unknown discover\n\
+         puts [list [package require P] $events]\n",
+        "1.0 loader\n",
+    );
+}
+
+/// Both package scripts run at level #0 even when the require originates in a
+/// namespaced proc. The unqualified callback also resolves in the global
+/// namespace, guarding the frame transition as well as variable visibility.
+#[test]
+fn package_unknown_and_loader_scripts_run_in_global_scope() {
+    out_eq(
+        "set events {}\n\
+         proc discover {name args} {\n\
+             lappend ::events unknown-global\n\
+             set ::unknownScope [list [namespace current] [info level] [info exists localOnly]]\n\
+             package ifneeded $name 1.0 {\n\
+                 set ::loaderScope [list [namespace current] [info level] [info exists localOnly]]\n\
+                 package provide P 1.0\n\
+             }\n\
+         }\n\
+         namespace eval N {\n\
+             proc discover {name args} {lappend ::events unknown-namespaced}\n\
+             proc run {} {set localOnly yes; package require P}\n\
+         }\n\
+         package unknown discover\n\
+         puts [list [N::run] $events $unknownScope $loaderScope]\n",
+        "1.0 unknown-global {:: 1 0} {:: 0 0}\n",
+    );
+}
+
+/// Tcl defaults to preferring a stable release over a newer prerelease. The
+/// explicit stable request is a no-op and reports the resulting state.
+#[test]
+fn package_prefer_defaults_to_stable_selection() {
+    out_eq(
+        "set initial [package prefer]\n\
+         set requested [package prefer stable]\n\
+         package ifneeded P 1.2 {package provide P 1.2}\n\
+         package ifneeded P 1.3b1 {package provide P 1.3b1}\n\
+         puts [list $initial $requested [package require P]]\n",
+        "stable stable 1.2\n",
+    );
+}
+
+/// `latest` is a one-way interpreter latch: a later stable request succeeds
+/// but does not lower the policy, and the prerelease is then selected.
+#[test]
+fn package_prefer_latest_is_stateful_and_sticky() {
+    out_eq(
+        "set raised [package prefer latest]\n\
+         set lowered [package prefer stable]\n\
+         package ifneeded P 1.2 {package provide P 1.2}\n\
+         package ifneeded P 1.3b1 {package provide P 1.3b1}\n\
+         puts [list $raised $lowered [package prefer] [package require P]]\n",
+        "latest latest latest 1.3b1\n",
+    );
+}
+
+/// The selected ifneeded version is the contract the loader must fulfil.
+/// Numerically-equivalent spellings are accepted, while a genuinely different
+/// provide receives Tcl's dedicated WRONGPROVIDE result.
+#[test]
+fn package_loader_must_provide_its_selected_version() {
+    out_eq(
+        "package ifneeded Equivalent 1.0 {package provide Equivalent 1.0.0}\n\
+         set equivalent [package require Equivalent]\n\
+         package ifneeded Wrong 1.0 {package provide Wrong 2.0}\n\
+         catch {package require Wrong} message options\n\
+         puts [list $equivalent $message [dict get $options -errorcode]]\n",
+        "1.0.0 {attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead} {TCL PACKAGE WRONGPROVIDE}\n",
     );
 }
 

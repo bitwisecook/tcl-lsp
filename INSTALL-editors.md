@@ -10,6 +10,12 @@ arm64, plus Linux riscv64) and run the one matching your machine. The
 Sublime Text package and the Zed extension download the matching binary
 on first use.
 
+The Linux native binaries target glibc: x86_64 and arm64 require 2.28 or
+newer, while RISC-V requires 2.35 or newer. This covers the maintained GNU
+distribution families in the release matrix; Alpine does not run these native
+binaries. The separately published WASI server is independent of the host libc
+and is documented below for editors that can launch a WebAssembly runtime.
+
 On an architecture none of those seven covers, the same server is also
 published as a WebAssembly module — see
 [No prebuilt binary for your platform?](#no-prebuilt-binary-for-your-platform)
@@ -439,7 +445,7 @@ if executable(expand('~/bin/tcl-lsp-server'))
     augroup END
 endif
 
-au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec set filetype=tcl
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec,*.sslictcl set filetype=tcl
 ```
 
 **coc.nvim** (`neoclide/coc.nvim`) in `coc-settings.json`
@@ -463,7 +469,7 @@ au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.
 `.impl` files won't trigger the server):
 
 ```vim
-au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec set filetype=tcl
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec,*.sslictcl set filetype=tcl
 ```
 
 ### Kate
@@ -520,7 +526,7 @@ hook global WinSetOption filetype=tcl %{ lsp-enable-window }
       "name": "tcl-lsp",
       "executable": "C:\\Users\\you\\tcl-lsp-server.exe",
       "args": "",
-      "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp", ".apl", ".test", ".irules", ".expect", ".tmsh", ".tclspec"],
+      "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp", ".apl", ".test", ".irules", ".expect", ".tmsh", ".tclspec", ".sslictcl"],
       "initOptions": { "tclLsp": { "dialect": "tcl8.6" } }
     }
   }
@@ -554,7 +560,7 @@ local lsp = require "plugins.lsp"
 lsp.add_server {
   name = "tcl-lsp",
   language = "tcl",
-  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$", "%.exp$", "%.apl$", "%.test$", "%.irules$", "%.expect$", "%.tmsh$", "%.tclspec$" },
+  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$", "%.exp$", "%.apl$", "%.test$", "%.irules$", "%.expect$", "%.tmsh$", "%.tclspec$", "%.sslictcl$" },
   command = { "/home/you/bin/tcl-lsp-server" },
   settings = { tclLsp = { dialect = "tcl8.6" } },
 }

@@ -64,6 +64,12 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        // METHOD names a Node.js function the extension registered with
+        // `ILXServer.addMethod` — the descriptor is what lets go-to-definition
+        // cross into the JavaScript (issue #1707).  `AfterOptions(1)` reads the
+        // method word past `-timeout ms` / `--` using the `options` table
+        // above, so the timeout's value word is never taken for the method.
+        remote_method: Some(&crate::remote_method::ILX_CALL_METHOD),
         ..CommandSpec::DEFAULT
     }
 }

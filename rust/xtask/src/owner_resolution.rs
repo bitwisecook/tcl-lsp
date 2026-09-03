@@ -360,12 +360,18 @@ fn xtask_dispatches(main: &str, command: &str) -> bool {
         "gen-ai-diagnostics" => "GenAiDiagnostics",
         "gen-editor-extensions" => "GenEditorExtensions",
         "owner-resolution" => "OwnerResolution",
+        "sslictcl-data" => "SslictclData",
         _ => return false,
     };
     let prefix = format!("Command::{variant}");
     main.lines().any(|line| {
         let trimmed = line.trim_start();
-        trimmed.starts_with(&prefix) && trimmed.contains("=>")
+        if !trimmed.starts_with(&prefix) {
+            return false;
+        }
+        // A single-line arm carries its `=>`; an arm whose struct pattern
+        // binds fields opens a brace and puts the `=>` several lines later.
+        trimmed.contains("=>") || trimmed.ends_with('{')
     })
 }
 
@@ -383,6 +389,20 @@ fn owner_crate(path: &str) -> Option<&str> {
 }
 
 fn make_gate_command(makefile: &str, target: &str) -> Option<String> {
+    direct_gate_command(makefile, target).or_else(|| {
+        // A gate may be an alias: a `.PHONY` target whose whole body is one
+        // prerequisite that carries the recipe (`xtask-sslictcl-data:
+        // check-source-data`). The manifest should be free to name the gate a
+        // reader would run, so follow the prerequisites one level rather than
+        // forcing the contract to name the inner target.
+        gate_prerequisites(makefile, target)
+            .into_iter()
+            .find_map(|prerequisite| direct_gate_command(makefile, &prerequisite))
+    })
+}
+
+/// The `cargo xtask <verb>` this target's own recipe runs, if any.
+fn direct_gate_command(makefile: &str, target: &str) -> Option<String> {
     let target_prefix = format!("{target}:");
     let mut in_recipe = false;
     for line in makefile.lines() {
@@ -406,6 +426,21 @@ fn make_gate_command(makefile: &str, target: &str) -> Option<String> {
     None
 }
 
+/// The prerequisites named on `target`'s rule line, ignoring a trailing
+/// `## help` comment. Empty when the target has no rule (or only `.PHONY`
+/// declarations mention it, which never carry a `:` in that position).
+fn gate_prerequisites(makefile: &str, target: &str) -> Vec<String> {
+    let target_prefix = format!("{target}:");
+    for line in makefile.lines() {
+        if line.starts_with(&target_prefix) {
+            let rest = &line[target_prefix.len()..];
+            let rest = rest.split_once("##").map_or(rest, |(head, _)| head);
+            return rest.split_whitespace().map(str::to_owned).collect();
+        }
+    }
+    Vec::new()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,6 +462,27 @@ mod tests {
                 drift_gate: Some("xtask-example".to_owned()),
             }]
         );
+    }
+
+    #[test]
+    fn a_multi_line_dispatch_arm_still_counts() {
+        let main = "        Command::SslictclData {\n            operation,\n        } => sslictcl_data::run(&operation),\n";
+        assert!(xtask_dispatches(main, "sslictcl-data"));
+        assert!(!xtask_dispatches(main, "owner-resolution"));
+    }
+
+    #[test]
+    fn a_gate_alias_resolves_through_its_prerequisite() {
+        let makefile = "xtask-alias: real-gate ## help text\n\nreal-gate:\n\tcd $(ROOT) && cargo xtask sslictcl-data check\n";
+        assert_eq!(
+            make_gate_command(makefile, "xtask-alias").as_deref(),
+            Some("sslictcl-data"),
+        );
+        assert_eq!(
+            make_gate_command(makefile, "real-gate").as_deref(),
+            Some("sslictcl-data"),
+        );
+        assert_eq!(make_gate_command(makefile, "no-such-target"), None);
     }
 
     #[test]

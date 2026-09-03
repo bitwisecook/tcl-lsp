@@ -1,69 +1,35 @@
 ---
 name: fetch-tcl-source
 description: >
-  Download and extract Tcl source trees (8.4, 8.5, 8.6, 9.0, 9.1) to tmp/ for
-  test suites and bytecode reference. Idempotent — skips versions already present.
+  Download and extract Tcl and Tk source trees (8.4, 8.5, 8.6, 9.0, 9.1) to
+  tmp/ for test suites and bytecode reference. Idempotent — skips versions
+  already present.
 allowed-tools: Bash, Read
 ---
 
 # Fetch Tcl Source
 
-Downloads Tcl release source tarballs from GitHub's codeload CDN
-(`https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags/<tag>`) and
-extracts them to `tmp/` so test suites, bytecode snippets, and reference
-data are available without bundling Tcl source in the repository. Tarballs
-are preferred over `git clone` because they are CDN-cached, smaller on
-disk (no `.git` metadata), and easier on the upstream Tcl project.
-
-## Usage
+Fetches release tarballs from GitHub's codeload CDN (cached, no `.git`
+metadata, kinder to upstream than `tcl.tk`) and extracts them under `tmp/`
+(gitignored). Four attempts with exponential backoff, git-clone fallback.
 
 ```bash
-bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh <version|all|status>
+bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh <cmd>
 ```
 
-## Commands
-
-| Command | What it does |
+| Command | Fetches |
 |---|---|
-| `84` or `8.4` | Fetch Tcl 8.4.20 source |
-| `85` or `8.5` | Fetch Tcl 8.5.19 source |
-| `86` or `8.6` | Fetch Tcl 8.6.16 source |
-| `90` or `9.0` | Fetch Tcl 9.0.4 source |
-| `91` or `9.1` | Fetch Tcl 9.1b0 source |
-| `all` | Fetch all five versions |
-| `status` | Show which versions are present in `tmp/` |
+| `84` `85` `86` `90` `91` (or `8.4` …) | one Tcl tree: 8.4.20, 8.5.19, 8.6.16, 9.0.4, 9.1b0 |
+| `tk84` … `tk91` | the matching Tk tree |
+| `all` / `tkall` | every Tcl / every Tk tree |
+| `status` | what is present |
 
-## What it provides
-
-After fetching, the following directories are available:
-
-| Directory | Key contents |
-|---|---|
-| `tmp/tcl8.4.20/tests/` | Tcl 8.4 test suite (for reference capture) |
-| `tmp/tcl8.5.19/tests/` | Tcl 8.5 test suite |
-| `tmp/tcl8.6.16/tests/` | Tcl 8.6 test suite |
-| `tmp/tcl9.0.4/tests/` | Tcl 9.0 test suite (primary reference) |
-| `tmp/tcl9.1b0/tests/` | Tcl 9.1 test suite (beta — newest features) |
-
-Each source tree also contains `generic/`, `library/`, `doc/`, and build files.
-
-Tcl 9.1 is a beta (`9.1b0`); bump `[9.1]` in both `LATEST_VERSIONS` and
-`GITHUB_TAGS` (`fetch_tcl_source.sh`) when a newer 9.1 tag ships.
-
-## When to use
-
-- At the start of a cloud session that needs Tcl test files
-- Before running `scripts/capture/test_results.sh`
-- Before running `scripts/capture/bytecode.sh`
-- When investigating Tcl test suite behaviour across versions
-
-## Notes
-
-- `tmp/` is gitignored — downloads are local only
-- Idempotent: re-running skips existing directories
-- Downloads from `codeload.github.com` with retry logic (4 attempts,
-  exponential backoff)
-- Version numbers are hardcoded; update `fetch_tcl_source.sh` when new
-  patch releases come out
+Each tree is complete (`tests/`, `generic/`, `library/`, `doc/`, build files);
+`tmp/tcl9.0.4/tests/` is the primary reference, `tmp/tcl9.1b0/` the beta.
+Patchlevels and tags come from `rust/tcl-dialect/data/reference-toolchains.tsv`,
+which the host installer and `tcl-dialect`'s release facts share — update that
+manifest for a new patch release. Remote agent sessions run this from the
+SessionStart hook; use it by hand before `scripts/capture/test_results.sh`,
+`scripts/capture/bytecode.sh`, or a cross-version test-suite investigation.
 
 $ARGUMENTS

@@ -6,30 +6,16 @@ allowed-tools: mcp__tcl-lsp__analyze, Read, Edit
 
 # Tcl Fix
 
-Fix diagnostics in a Tcl file iteratively using LSP analysis.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/tcl_system.md`
-2. Read the Tcl file to fix
-3. Run diagnostics to find current issues: pass the file contents you read as `source` to `mcp__tcl-lsp__analyze`
-4. If the tool fails (e.g. file not found), report the error clearly and suggest fixes
-5. If no errors or warnings, report the file is clean
-6. Otherwise, fix the issues using the Edit tool:
-   - Follow the safety and best practices from the domain knowledge
-   - Preserve the script's behaviour -- only fix what the diagnostics flag
-7. After editing, re-run diagnostics to verify: Read the file again and pass its contents as `source` to `mcp__tcl-lsp__analyze`
-8. If issues remain, fix them and re-run (up to 5 iterations)
-9. If issues persist after 5 iterations, report what was fixed and what remains unresolved
-10. Report the final state
-
-## Diagnostic codes reference
-
-See `docs/generated/diagnostic_codes.md` for the full auto-generated table of all diagnostic codes.
-
-## Important
-
-- Only fix issues flagged by the analyser -- do not refactor unrelated code
-- Preserve the original behaviour and intent
+1. Read `../_prompts/tcl_system.md`, then the file.
+2. Call `mcp__tcl-lsp__analyze` with the contents as `source`. On a tool
+   error report it; if there are no errors or warnings, report the file is
+   clean.
+3. Fix only what the diagnostics flag, preserving behaviour and intent,
+   using Edit. Codes: `docs/generated/diagnostic_codes.md`.
+4. Re-read and re-analyse; repeat up to 5 iterations.
+5. Report what was fixed and what remains, with a reason for anything that
+   cannot be auto-fixed (e.g. needs an architectural change).
 
 $ARGUMENTS

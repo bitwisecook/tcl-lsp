@@ -31,6 +31,7 @@ use crate::abbrev::{Keyword, KeywordTable, PrefixMatching};
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
+use crate::definer::DefinitionBodyGrammar;
 use crate::events::{
     DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
 };
@@ -458,6 +459,20 @@ pub struct CommandRegistry {
     /// to packs (issue #1631) — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
+    /// The member grammar of a **document** in this registry's dialect, when
+    /// its command surface declares one.
+    ///
+    /// An authoring dialect whose file is itself a declaration body — a
+    /// `.sslictcl` document, a `.tclspec` pack — has a fixed set of words that
+    /// are legal at the root and nothing else. That is the same fact a
+    /// [`DefinitionBodyGrammar`] states about a *nested* body, so it is stated
+    /// the same way, and the generic consumers (completion, the token walker,
+    /// folding) answer the root question with the machinery they already use
+    /// for every level below it.
+    ///
+    /// `None` for an ordinary Tcl dialect, where the root is an open command
+    /// position and the whole registry is the answer.
+    document_grammar: Option<&'static DefinitionBodyGrammar>,
 }
 
 /// The set of command names registered by *every* dialect, built once and
@@ -781,6 +796,10 @@ shared_group!(
     spectcl_specs,
     crate::commands::spectcl::spectcl_command_specs
 );
+shared_group!(
+    sslictcl_specs,
+    crate::commands::sslictcl::sslictcl_command_specs
+);
 
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
@@ -791,6 +810,7 @@ impl CommandRegistry {
             loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
+            document_grammar: None,
         };
         for spec in tcl_specs() {
             registry.insert_static(spec);
@@ -841,7 +861,18 @@ impl CommandRegistry {
             // is an ordinary Tcl script, so the base Tcl surface stays loaded
             // underneath (hook bodies are real Tcl); this layer adds the
             // declaration vocabulary on top of it.
-            SurfaceLayer::Package("spectcl") => spectcl_specs(),
+            SurfaceLayer::Package("spectcl") => {
+                self.document_grammar = Some(&crate::definer::SPECTCL_DOCUMENT_GRAMMAR);
+                spectcl_specs()
+            }
+            // SslicTcl: the `.sslictcl` DSL's own declaration words. A
+            // document is an ordinary Tcl script that is read and never
+            // evaluated, so the base Tcl surface stays loaded underneath —
+            // the grammar is what says a word is not an SslicTcl declaration.
+            SurfaceLayer::Package("sslictcl") => {
+                self.document_grammar = Some(&crate::definer::SSLICTCL_DOCUMENT_GRAMMAR);
+                sslictcl_specs()
+            }
             // A core release brings no pack of its own — it records which
             // language the registry is. The EDA shells are such a release
             // plus `required_package`-gated command libraries, which ship as
@@ -852,6 +883,16 @@ impl CommandRegistry {
             self.insert_static(spec);
         }
         self.loaded_layers.push(layer);
+    }
+
+    /// The member grammar of a document in this registry's dialect, when its
+    /// command surface declares one — see the field's own documentation.
+    ///
+    /// A consumer asking "what may appear at the root of this file?" reads
+    /// this; `None` means the root is an ordinary open command position.
+    #[must_use]
+    pub const fn document_grammar(&self) -> Option<&'static DefinitionBodyGrammar> {
+        self.document_grammar
     }
 
     /// Load iRules dialect commands (convenience wrapper).
@@ -2304,6 +2345,49 @@ impl CommandRegistry {
         name: &str,
     ) -> Option<&'static crate::handle_binding::HandleBindingSpec> {
         self.get(name).and_then(|spec| spec.binds_handle)
+    }
+
+    /// What role `name` plays in a **cross-language RPC family**, when it plays
+    /// one — [`CommandSpec::remote_method`], resolved through [`Self::get`] so
+    /// `::ILX::call` answers exactly as the bare spelling does (issue #1707).
+    ///
+    /// This is also the dialect gate for the whole relation: the ILX commands
+    /// are `SpecSurface::IRULES` specs, so a registry built for stock Tcl holds
+    /// no command of the name and this answers `None` — an ordinary Tcl
+    /// document whose own `proc ILX::call` shadows nothing gets no
+    /// remote-method navigation.
+    ///
+    /// [`CommandSpec::remote_method`]: crate::spec::CommandSpec::remote_method
+    #[must_use]
+    pub fn remote_method(
+        &self,
+        name: &str,
+    ) -> Option<&'static crate::remote_method::RemoteMethodRole> {
+        self.get(name).and_then(|spec| spec.remote_method)
+    }
+
+    /// Every command in this registry that takes part in a cross-language RPC
+    /// family, by name.
+    ///
+    /// The membership test a consumer needs *before* it walks a document: if
+    /// this is empty (every non-iRules registry), there is no relation to look
+    /// for and the walk is skipped entirely; if it is not, a document that
+    /// mentions none of the names cannot contain a site — a rename or an
+    /// `interp alias` still has to spell the target once to create the binding.
+    /// Enumerating them here is what keeps that gate out of the consumers,
+    /// which would otherwise have to name `ILX::call` to ask the question.
+    #[must_use]
+    pub fn remote_method_commands(&self) -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = self
+            .by_name
+            .values()
+            .filter_map(|specs| specs.last())
+            .filter(|spec| spec.remote_method.is_some())
+            .map(|spec| spec.name)
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
     }
 
     /// Every member-body command that binds an object handle, as
@@ -4875,6 +4959,10 @@ impl std::fmt::Debug for CommandRegistry {
             .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
+            .field(
+                "document_grammar",
+                &self.document_grammar.map(|g| g.members.len()),
+            )
             .finish()
     }
 }
@@ -4886,6 +4974,41 @@ mod tests {
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
+
+    // -- cross-language RPC roles (issue #1707) ---------------------------
+
+    /// The remote-method relation is registry data on the iRules surface, so
+    /// it exists there and nowhere else. A consumer asking the registry —
+    /// rather than naming `ILX::call` — is what makes the dialect gate
+    /// automatic.
+    #[test]
+    fn remote_method_commands_are_an_irules_only_surface() {
+        let plain = CommandRegistry::build_default();
+        assert!(
+            plain.remote_method_commands().is_empty(),
+            "stock Tcl has no cross-language RPC commands"
+        );
+        assert!(plain.remote_method("ILX::call").is_none());
+
+        let mut irules = CommandRegistry::build_default();
+        irules.load_irules();
+        assert_eq!(
+            irules.remote_method_commands(),
+            vec!["ILX::call", "ILX::init", "ILX::notify"]
+        );
+        // The explicitly-global spelling is the same command.
+        assert!(irules.remote_method("::ILX::call").is_some());
+        assert!(
+            irules
+                .remote_method("ILX::init")
+                .is_some_and(|role| role.opens_handle().is_some())
+        );
+        assert!(
+            irules
+                .remote_method("ILX::notify")
+                .is_some_and(|role| role.calls_method().is_some())
+        );
+    }
 
     // -- ambient packages (issue #1627) -----------------------------------
 
