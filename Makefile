@@ -1309,14 +1309,13 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		cargo clippy --target wasm32-wasip1 --all-targets -- -D warnings; \
 	fi
 
-# Supply-chain audit for the Rust workspace: RustSec advisories, license
-# policy, banned/duplicate crates, and source allowlist — all four checks
-# configured in the repo-root deny.toml.  CI runs the equivalent via
-# EmbarkStudios/cargo-deny-action (ci.yml + rust-gate.yml); this is the local
-# mirror.  deny.toml and the workspace manifest both live at $(ROOT), so the
-# audit runs from there with `--all-features check` (matching deny.toml's
-# header).  Installs cargo-deny on demand if it isn't already on PATH.
-rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans/sources via deny.toml)
+# Supply-chain audit for every tracked Cargo lockfile: RustSec advisories,
+# license policy, banned/duplicate crates, and source allowlist — all four
+# checks configured in the repo-root deny.toml.  The root workspace excludes
+# several independently locked WASM, WASI, runtime, editor, and extension
+# crates, so auditing only Cargo.toml would leave their resolved graphs unseen.
+# CI runs this same helper after installing the pinned cargo-deny binary.
+rust-deny: ## Audit every locked Rust workspace with cargo-deny (advisories/licenses/bans/sources via deny.toml)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
 		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
@@ -1325,8 +1324,8 @@ rust-deny: ## Audit the Rust workspace with cargo-deny (advisories/licenses/bans
 		echo "==> cargo-deny not found — installing (cargo install cargo-deny)"; \
 		cargo install cargo-deny --locked; \
 	fi; \
-	echo "==> Auditing Rust workspace with cargo-deny (deny.toml)"; \
-	cd $(ROOT) && cargo deny --all-features check
+	echo "==> Auditing every locked Rust workspace with cargo-deny (deny.toml)"; \
+	cd $(ROOT) && bash scripts/dev/cargo-deny-all.sh
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Rust, full TS).

@@ -1292,10 +1292,9 @@ jobs:
 
   # Supply-chain audit (advisories / licenses / bans / sources) via the
   # committed deny.toml.  Its own job so a denial is attributable independently
-  # of the cargo test surface, and so it runs concurrently with it.  Action
-  # defaults already match the `make rust-deny` invocation: `command: check`,
-  # `arguments: --all-features`, `manifest-path: ./Cargo.toml` — deny.toml and
-  # the workspace manifest both live at the repo root.
+  # of the cargo test surface, and so it runs concurrently with it.  Audit every
+  # tracked lockfile: the root workspace excludes independently resolved WASM,
+  # WASI, runtime, editor, and extension Cargo roots.
   #
   # Deliberately exempt from the channel job's already_green / changed-path
   # skips: a new advisory can be published against an unchanged dependency
@@ -1308,8 +1307,13 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: cargo deny check
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: cargo deny check (all locked workspaces)
+        run: bash scripts/dev/cargo-deny-all.sh
 
   # Python gate: ruff (format + lint) and two type checkers (ty, pyright) over
   # every tracked .py file.  Runs concurrently with the cargo jobs.

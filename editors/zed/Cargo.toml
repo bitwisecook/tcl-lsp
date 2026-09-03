@@ -40,6 +40,7 @@ name = "tcl-lsp-zed"
 # target ``zed``); cargo's package version never reaches end users.
 version = "0.0.0-dev"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 [lib]
 crate-type = ["cdylib"]
