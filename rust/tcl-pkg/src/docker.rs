@@ -34,6 +34,19 @@ pub const SUPPORTED_TCL_VERSIONS: [&str; 4] = ["8.4", "8.5", "8.6", "9.0"];
 pub const DEFAULT_TCL_VERSION: &str = "8.6";
 pub const DEFAULT_BASE_IMAGE: &str = "debian:bookworm-slim";
 
+const DEFAULT_BASE_IMAGE_COMMENT: [&str; 2] = [
+    "# Published tcl-lsp Linux binaries require glibc, so Debian is the safe default.",
+    "# If Alpine/musl is required, build tcl-lsp from source inside the image.",
+];
+const MUSL_BASE_IMAGE_COMMENT: [&str; 2] = [
+    "# Published tcl-lsp Linux binaries cannot run here because Alpine uses musl.",
+    "# Build tcl-lsp from source inside the image if its tools are required.",
+];
+const ALTERNATE_GLIBC_BASE_IMAGE_COMMENT: [&str; 2] = [
+    "# Published tcl-lsp Linux binaries require a glibc-compatible base image.",
+    "# Debian bookworm-slim is the default; Alpine/musl requires a source build.",
+];
+
 /// The GitHub repository the release assets are published from.
 pub const RELEASE_REPO: &str = "bitwisecook/tcl-lsp";
 
@@ -160,7 +173,8 @@ pub fn tcl_install_recipe(image: &str, tcl_version: &str) -> Result<String, TclP
 /// Alpine is rejected. Every published Linux `tcl` asset is glibc-linked — the
 /// release matrix has no musl leg — and `gcompat` does not close the gap
 /// (`fcntl64` and `__res_init` are not among the symbols it re-exports, so the
-/// binary dies in the dynamic loader). A Tcl-only Alpine image is still fine:
+/// binary dies in the dynamic loader). An Alpine image that needs the CLI must
+/// build tcl-lsp from source for musl. A Tcl-only Alpine image is still fine:
 /// drop the CLI verbs (`--no-packages`, no `--venv`) and nothing is fetched.
 pub fn cli_prereq_recipe(image: &str) -> Result<String, TclPkgError> {
     let family = detect_image_family(image);
@@ -170,9 +184,10 @@ pub fn cli_prereq_recipe(image: &str) -> Result<String, TclPkgError> {
     if family == "alpine" {
         return Err(docker_error(
             "the native tcl CLI has no musl release asset, so it cannot run on \
-             alpine (its glibc shim is missing fcntl64 and __res_init). Use a \
-             glibc base image (debian, ubuntu, fedora, rockylinux, …), or build \
-             a Tcl-only alpine image with --no-packages and no --venv.",
+             alpine (its glibc shim is missing fcntl64 and __res_init). Use the \
+             default Debian image, or if Alpine is required, build tcl-lsp from \
+             source for musl inside the image. A Tcl-only Alpine image can still \
+             use --no-packages and no --venv.",
         ));
     }
     Err(docker_error(format!(
@@ -344,6 +359,12 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
     let family = detect_image_family(&spec.base_image);
     let needs_cli = spec.install_packages || spec.create_venv;
 
+    let base_comment = match (spec.base_image.as_str(), family.as_str()) {
+        (DEFAULT_BASE_IMAGE, _) => DEFAULT_BASE_IMAGE_COMMENT,
+        (_, "alpine") => MUSL_BASE_IMAGE_COMMENT,
+        _ => ALTERNATE_GLIBC_BASE_IMAGE_COMMENT,
+    };
+    lines.extend(base_comment.map(str::to_string));
     lines.push(format!("FROM {}", spec.base_image));
     lines.push(String::new());
 
@@ -604,8 +625,8 @@ mod tests {
         let err = cli_prereq_recipe("alpine:3.19").unwrap_err().to_string();
         assert!(err.contains("musl"), "unhelpful alpine error: {err}");
         assert!(
-            err.contains("--no-packages"),
-            "no escape hatch named: {err}"
+            err.contains("build tcl-lsp from source"),
+            "no source-build alternative named: {err}"
         );
 
         // Asking for the CLI on alpine fails ...
@@ -621,6 +642,11 @@ mod tests {
             ..with_cli
         };
         let out = generate_dockerfile(&tcl_only).unwrap();
+        assert!(out.starts_with(
+            "# Published tcl-lsp Linux binaries cannot run here because Alpine uses musl.\n\
+             # Build tcl-lsp from source inside the image if its tools are required.\n\
+             FROM alpine:3.19\n"
+        ));
         assert!(out.contains("RUN apk add --no-cache tcl"));
         assert!(!out.contains("ARG TCL_LSP_VERSION"));
     }
@@ -645,7 +671,11 @@ mod tests {
             ..Default::default()
         };
         let out = generate_dockerfile(&spec).unwrap();
-        assert!(out.starts_with("FROM debian:bookworm-slim\n"));
+        assert!(out.starts_with(
+            "# Published tcl-lsp Linux binaries require glibc, so Debian is the safe default.\n\
+             # If Alpine/musl is required, build tcl-lsp from source inside the image.\n\
+             FROM debian:bookworm-slim\n"
+        ));
         assert!(out.contains("# Install Tcl 8.6"));
         assert!(out.contains("WORKDIR /app"));
         assert!(out.contains("COPY . ."));

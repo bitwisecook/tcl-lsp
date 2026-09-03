@@ -1017,7 +1017,9 @@ pub enum VenvCommand {
 pub enum DockerCommand {
     /// Generate a Dockerfile for a Tcl project.
     Create {
-        /// Base Docker image (e.g. debian:bookworm-slim, alpine:3.19).
+        /// Base Docker image. Defaults to Debian because release binaries
+        /// require glibc.
+        #[arg(default_value = tcl_pkg::docker::DEFAULT_BASE_IMAGE)]
         image: String,
         /// Tcl version to install.
         #[arg(long = "tcl-version", default_value = "8.6", value_parser = ["8.4", "8.5", "8.6", "9.0"])]

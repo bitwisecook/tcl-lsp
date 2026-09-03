@@ -114,18 +114,13 @@ fn docker_create_writes_dockerfile() {
     let dir = temp_dir("docker-create");
     let (_stdout, _stderr, code) = run_in(
         &dir,
-        &[
-            "docker",
-            "create",
-            "debian:bookworm-slim",
-            "--tcl-version",
-            "8.6",
-            "--no-packages",
-        ],
+        &["docker", "create", "--tcl-version", "8.6", "--no-packages"],
     );
     assert_eq!(code, 0);
     let content = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
-    assert!(content.starts_with("FROM debian:bookworm-slim\n"));
+    assert!(content.contains("require glibc, so Debian is the safe default"));
+    assert!(content.contains("Alpine/musl is required, build tcl-lsp from source"));
+    assert!(content.contains("FROM debian:bookworm-slim\n"));
     assert!(content.contains("# Install Tcl 8.6"));
     assert!(content.contains("WORKDIR /app"));
     assert!(content.trim_end().ends_with("CMD [\"tclsh\"]"));
@@ -168,6 +163,7 @@ fn docker_create_rejects_the_cli_on_musl() {
     let (_stdout, stderr, code) = run_in(&dir, &["docker", "create", "alpine:3.19"]);
     assert_eq!(code, 1);
     assert!(stderr.contains("musl"), "{stderr}");
+    assert!(stderr.contains("build tcl-lsp from source"), "{stderr}");
     assert!(!dir.join("Dockerfile").exists());
 
     // Without the CLI verbs an alpine image is still generated.
