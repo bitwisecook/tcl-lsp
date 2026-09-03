@@ -29,7 +29,7 @@ editor) need the `tcl-lsp-server-<target-triple>` binary from
 |--------|----------|---------|
 | [VS Code](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` (manual) or an auto-selected platform package | `code --install-extension`, or VS Code Marketplace |
 | [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style), or Open VSX |
-| [Sublime Text](#sublime-text) | `TclLsp.sublime-package` | Package Control: install **TclLsp**, or copy into `Installed Packages/` |
+| [Sublime Text](#sublime-text) | `LSP-Tcl.sublime-package` | Package Control: install **LSP** and **LSP-Tcl**, or copy the helper into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<triple>` | Lua config |
 | [Emacs](#emacs) | `tcl-lsp-server-<triple>` | eglot / lsp-mode |
@@ -292,16 +292,15 @@ of sideloading a `.vsix`.
 
 Requires Sublime Text 4 (build 4107+).
 
-Install via **Package Control** (Command Palette → **Package Control:
-Install Package** → search **TclLsp**), which serves the
-`TclLsp.sublime-package` asset attached to each stable release of
-`bitwisecook/tcl-lsp`.
+Install the **LSP** and **LSP-Tcl** packages through Package Control. LSP-Tcl
+is registered in the SublimeLSP helper repository and resolves the
+`LSP-Tcl.sublime-package` asset attached to each stable tcl-lsp release.
 
-For the manual sideload path, download `TclLsp.sublime-package` from
+For the manual sideload path, download `LSP-Tcl.sublime-package` from
 [Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest) and
 drop it, name unchanged, into your Installed Packages directory
-(pre-release tags ship it as `TclLsp-prerelease.sublime-package`, which
-must be renamed to `TclLsp.sublime-package` before it is copied):
+(pre-release tags ship it as `LSP-Tcl-prerelease.sublime-package`, which
+must be renamed to `LSP-Tcl.sublime-package` before it is copied):
 
 ```sh
 # macOS:   ~/Library/Application Support/Sublime Text/Installed Packages/
@@ -309,15 +308,15 @@ must be renamed to `TclLsp.sublime-package` before it is copied):
 # Windows: %APPDATA%\Sublime Text\Installed Packages\
 ```
 
-Syntaxes, snippets and symbol indexing work on their own. For language
-server features, install the **LSP** package from Package Control too:
-the first Tcl file you open then downloads the `tcl-lsp-server` build for
-your platform into LSP's package storage, verified against the release's
-`SHA256SUMS`. To use a server you manage yourself, set `server_path`
-under **Preferences > Package Settings > TclLsp > LSP Settings**.
+Sublime Text's built-in `TCL` package provides syntax highlighting and
+snippets. LSP-Tcl adds language-server features; the first Tcl file you open
+downloads the `tcl-lsp-server` build for your platform into LSP's package
+storage, verified against the digest pinned in the helper. To use a server you
+manage yourself, set `server_path` under **Preferences > Package Settings >
+LSP > Servers > LSP-Tcl**.
 
-The package ships no key bindings — bind its commands yourself
-(see [editors/sublime-text/README.md](editors/sublime-text/README.md)).
+The package ships no key bindings, custom commands, syntax, completions, or
+snippets. Use the base LSP commands and Sublime's built-in Tcl resources.
 
 ## JetBrains
 

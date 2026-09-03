@@ -9,18 +9,15 @@ sublime-text
 
 ## Question
 
-How do I add keyboard shortcuts for the TclLsp package's commands (Format
-Document, Minify, Select Dialect, Restart Language Server, and the rest)
-in Sublime Text?
+How do I add a keyboard shortcut for an LSP command such as Format Document in
+Sublime Text?
 
 ## Before you start
 
-- Install the **TclLsp** package (see the package
+- Install **LSP** and **LSP-Tcl** (see the helper
   [README](../../editors/sublime-text/README.md)).
-- The package ships **no** key bindings and no example keymap, so nothing
-  it adds can clash with shortcuts you already use — every binding is
-  yours to choose. This is what Package Control asks of a package, and it
-  keeps a fresh install from quietly taking chords you rely on.
+- LSP-Tcl ships no commands or key bindings. Use the base LSP package's
+  commands and choose any personal bindings in your user keymap.
 
 ## Answer
 
@@ -28,45 +25,26 @@ Open **Preferences > Key Bindings**. Sublime opens two panes: the default
 bindings on the left (read-only) and your own user keymap on the right.
 Add entries to the right-hand pane.
 
-Each entry binds one command. The commands are the same ones listed under
-**Tcl:** in the Command Palette:
-
-| Command | Binding role |
-|---|---|
-| `lsp_format_document` | Format the current document |
-| `tcl_fix_all_safe_issues` | Apply all safe quick fixes |
-| `tcl_optimise_document` | Apply all optimisation suggestions |
-| `tcl_minify_document` | Minify the current document |
-| `tcl_unminify_error` | Translate a minified error message back to original names |
-| `tcl_select_dialect` | Choose the active Tcl dialect |
-| `tcl_restart_server` | Restart the Tcl language server |
-| `tcl_recommended_setup` | Re-offer the package's recommended settings |
-
-A user keymap entry looks like this (Windows/Linux shown; on macOS use
-`super` in place of `ctrl`):
+A user keymap entry for the base LSP format command looks like this
+(Windows/Linux shown; on macOS use `super` in place of `ctrl`):
 
 ```json
 [
-	{"keys": ["ctrl+alt+f"], "command": "lsp_format_document"},
-	{"keys": ["ctrl+alt+q"], "command": "tcl_fix_all_safe_issues"},
-	{"keys": ["ctrl+alt+d"], "command": "tcl_select_dialect"}
+	{"keys": ["ctrl+alt+f"], "command": "lsp_format_document"}
 ]
 ```
 
 Pick chords that don't collide with bindings you already use — the
 left-hand pane is the full list of what Sublime Text already claims.
 
-The format, fix, optimise, and minify commands act on the current
-document, so they are most useful while a Tcl or iRules file has focus.
-To keep a chord free everywhere else, add a scope `context` to the
-binding:
+To keep the chord free outside Tcl files, add a scope `context`:
 
 ```json
 {
 	"keys": ["ctrl+alt+f"],
 	"command": "lsp_format_document",
 	"context": [
-		{"key": "selector", "operand": "source.tcl, source.irule"}
+		{"key": "selector", "operand": "source.tcl"}
 	]
 }
 ```

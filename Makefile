@@ -1603,14 +1603,10 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 REGISTRY_SRCS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/xtask/src -name '*.rs')
 _CATALOG_DEPS := $(REGISTRY_SRCS)
 
-# One xtask run emits all three catalogs — see the AI-prompt rules above for why
-# this is spelled as a primary output plus dependants rather than `&:`.
-editors/zed/src/generated/tcl_commands.json: $(_CATALOG_DEPS)
+# The VS Code iRules event catalog is generated from the Rust registry.
+editors/vscode/src/generated/iruleEvents.json: $(_CATALOG_DEPS)
 	@echo "==> Generating editor catalogs (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs
-
-editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json: editors/zed/src/generated/tcl_commands.json
-	@touch $@
 
 editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 	@echo "==> Generating Zed tree-sitter highlight queries (cargo xtask)"
@@ -1620,14 +1616,14 @@ editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 # the ownership explicit so a `make generate` after a dialect, lexical grammar,
 # or command-registry change always refreshes every affected editor surface.
 _EDITOR_DIALECT_DEPS := $(shell find $(ROOT)rust/tcl-dialect/src $(ROOT)rust/xtask/src -name '*.rs')
-_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/README.md editors/sublime-text/sublime-package.json
+_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/sublime-package.json
 $(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
 
 _TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/tcl-dialect/src $(ROOT)rust/tcl-syntax/src $(ROOT)rust/xtask/src -name '*.rs')
-_TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json editors/sublime-text/Tcl.sublime-syntax
+_TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json
 $(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
 
-generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
+generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
 	@echo "==> Generating the bundled-pack environment seed (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-bundled-environments
 	@echo "==> Generating editor dialect projections (cargo xtask)"
@@ -2011,19 +2007,15 @@ publish-jetbrains: build-editor-jetbrains ## Publish JetBrains plugin to JetBrai
 # server would be right for one platform and wrong for the other five.
 # `plugin.py` instead downloads the `tcl-lsp-server-<triple>` asset for the
 # host from the release named in `server_version.json`, verified against the
-# digest pinned in that same file, into LSP's package storage.
-#
-# The SpecTcl loadables (`docs/design/spec-packs.md`) still ship *in* the
-# package: they are plain data, identical on every platform, and the plugin
-# stages them beside the downloaded binary (TCL_LSP_SPEC_PACK_DIR).  Without
-# them the shipped EDA syntaxes (Cadence/Xilinx/Quartus/Mentor/Synopsys)
-# would highlight commands the server reports as unknown.
+# digest pinned in that same file, into LSP's package storage. The standalone
+# server already embeds its default SpecTcl data, so the helper ships neither
+# native binaries nor spec packs.
 
 ST_DIR      := $(ROOT)editors/sublime-text
 # Package Control resolves the release asset by exact name, and a manual
 # install must land in `Installed Packages/` under the package name, so the
 # artefact is named for the package rather than the version.
-ST_PACKAGE  := $(BUILD_DIR)/TclLsp.sublime-package
+ST_PACKAGE  := $(BUILD_DIR)/LSP-Tcl.sublime-package
 
 build-editor-sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
 
@@ -2031,16 +2023,13 @@ build-editor-sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-pack
 $(ST_PACKAGE):
 	@echo "==> Building Sublime Text package"
 	@rm -rf $(BUILD_DIR)/sublime-stage
-	@mkdir -p $(BUILD_DIR)/sublime-stage
-	cp -r $(ST_DIR)/. $(BUILD_DIR)/sublime-stage/
-	find $(BUILD_DIR)/sublime-stage -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage -name '.DS_Store' -delete 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage -name '*.pyc' -delete 2>/dev/null || true
-	@# The README's relative links only resolve inside the monorepo; Package
-	@# Control renders the copy on GitHub instead (see SUBMITTING.md).
-	rm -f $(BUILD_DIR)/sublime-stage/README.md $(BUILD_DIR)/sublime-stage/SUBMITTING.md
-	@mkdir -p $(BUILD_DIR)/sublime-stage/specs
-	cp $(SPEC_PACK_SRC)/*.tclspec $(BUILD_DIR)/sublime-stage/specs/
+	@mkdir -p $(BUILD_DIR)/sublime-stage/messages
+	cp $(ST_DIR)/plugin.py $(ST_DIR)/.python-version \
+	   $(ST_DIR)/LSP-Tcl.sublime-settings $(ST_DIR)/Main.sublime-menu \
+	   $(ST_DIR)/Default.sublime-commands \
+	   $(ST_DIR)/messages.json $(ST_DIR)/sublime-package.json \
+	   $(BUILD_DIR)/sublime-stage/
+	cp $(ST_DIR)/messages/install.txt $(BUILD_DIR)/sublime-stage/messages/
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
 	@# The release the plugin downloads its server from, plus the SHA-256 of
 	@# each server binary that release will carry.  Pinning the digests here
@@ -2084,30 +2073,27 @@ $(ST_PACKAGE):
 	@echo "==> Packaging .sublime-package"
 	@rm -f $(ST_PACKAGE)
 	cd $(BUILD_DIR)/sublime-stage && zip -qr $(ST_PACKAGE) . -x '__pycache__/*'
-	@# Packaging gate: the resources Sublime Text and Package Control need,
-	@# the spec packs the EDA dialects need, and no stray native binary.
+	@# Packaging gate: only the minimal SublimeLSP helper resources. Sublime's
+	@# built-in TCL package owns syntax highlighting and snippets.
 	@set -eu; \
 	entries="$$(unzip -Z1 $(ST_PACKAGE))"; \
 	missing=""; \
 	for want in plugin.py .python-version LSP-Tcl.sublime-settings \
-	            Tcl.sublime-syntax iRule.sublime-syntax \
-	            Default.sublime-commands messages.json LICENSE.txt \
+	            Main.sublime-menu Default.sublime-commands \
+	            messages.json messages/install.txt \
+	            sublime-package.json LICENSE.txt \
 	            server_version.json; do \
 		echo "$$entries" | grep -qx "$$want" || missing="$$missing $$want"; \
-	done; \
-	for pack in $(notdir $(SPEC_PACK_FILES)); do \
-		echo "$$entries" | grep -qx "specs/$$pack" \
-			|| missing="$$missing specs/$$pack"; \
 	done; \
 	if [ -n "$$missing" ]; then \
 		echo "Sublime package missing expected resources:$$missing"; \
 		exit 1; \
 	fi; \
-	if echo "$$entries" | grep -q "^server/"; then \
-		echo "Sublime package bundles a native server; it must download one instead"; \
+	if echo "$$entries" | grep -Eq '(^server/|^specs/|\.sublime-keymap$$|\.sublime-syntax$$|\.sublime-snippet$$|\.sublime-completions$$|Context\.sublime-menu$$)'; then \
+		echo "Sublime package contains a forbidden bundled or editor-owned resource"; \
 		exit 1; \
 	fi; \
-	echo "==> Sublime package carries every resource and spec pack, and no native binary"
+	echo "==> Sublime package is a minimal LSP helper with no key bindings, syntax, snippets, specs, or native binary"
 	@echo ""
 	@echo "Built: $(ST_PACKAGE)  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
@@ -2161,15 +2147,16 @@ verify-standalone-eda: ## Prove a bare release binary with no specs/ beside it s
 ZED_DIR     := $(ROOT)editors/zed
 ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).zip
 ZED_SRCS    := $(shell find $(ZED_DIR)/src -name '*.rs' 2>/dev/null)
+ZED_LANGS   := $(shell find $(ZED_DIR)/languages -type f 2>/dev/null)
 
 build-editor-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
-$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS)
+$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_DIR)/LICENSE $(ZED_SRCS) $(ZED_LANGS)
 	@# A Zed extension is a single cross-platform WASM module, so it cannot
 	@# embed a per-platform native binary. Instead the extension downloads the
-	@# matching `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` release asset for
+	@# matching `tcl-lsp-server-<triple>` release asset for
 	@# the user's platform at runtime (issue #826). We only stamp the release
-	@# version here so the extension pins its downloads to the right tag.
+	@# checked-in extension.toml version pins downloads to the right tag.
 	@echo "==> Building Zed extension WASM (native servers are downloaded at runtime)"
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 	if ! rustup target list --installed 2>/dev/null | grep -q wasm32-wasip2; then \
@@ -2177,18 +2164,24 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS)
 		rustup target add wasm32-wasip2; \
 	fi
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
-	cd $(ZED_DIR) && TCL_LSP_BUNDLED_VERSION="$(SEMVER_VERSION)" cargo build --target wasm32-wasip2 --release
+	cd $(ZED_DIR) && CARGO_TARGET_DIR="$(ZED_DIR)/target" \
+		cargo build --target wasm32-wasip2 --release
 	@echo "==> Staging Zed extension archive"
 	@rm -rf $(BUILD_DIR)/zed-stage
 	@mkdir -p $(BUILD_DIR)/zed-stage
-	cp $(ZED_DIR)/extension.toml $(BUILD_DIR)/zed-stage/
-	node -e "const f='$(BUILD_DIR)/zed-stage/extension.toml';const fs=require('fs');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/^version = .*/m,'version = \"$(SEMVER_VERSION)\"'))"
+	cp $(ZED_DIR)/extension.toml $(ZED_DIR)/LICENSE $(BUILD_DIR)/zed-stage/
 	cp $(ZED_DIR)/target/wasm32-wasip2/release/tcl_lsp_zed.wasm $(BUILD_DIR)/zed-stage/extension.wasm
 	cp -r $(ZED_DIR)/languages $(BUILD_DIR)/zed-stage/
-	cp -r $(ZED_DIR)/snippets $(BUILD_DIR)/zed-stage/
 	@echo "==> Packaging Zed extension archive"
 	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR)/zed-stage && zip -qr $(abspath $(ZED_ARCHIVE)) .
+	@set -eu; \
+	entries="$$(unzip -Z1 $(ZED_ARCHIVE))"; \
+	echo "$$entries" | grep -qx LICENSE || { echo "Zed archive is missing its GPLv3 license"; exit 1; }; \
+	if echo "$$entries" | grep -Eq '(^|/)tcl-lsp-server(\.exe)?$$'; then \
+		echo "Zed archive must not bundle the native language server"; \
+		exit 1; \
+	fi
 	@echo ""
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
@@ -2279,7 +2272,7 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "     marketplace-openvsx, and marketplace-jetbrains deployments when prompted"
 	@echo "  4. make publish-zed                # local; Zed only"
 	@echo "     # Sublime needs no publish step: Package Control reads the"
-	@echo "     # TclLsp.sublime-package asset straight off the GitHub Release"
+	@echo "     # LSP-Tcl.sublime-package asset straight off the GitHub Release"
 	@echo ""
 	@echo "  Marketplaces:"
 	@echo "    VS Code    -> CI job publish-vsix-marketplace      (secrets.VSCE_PAT, marketplace-vscode)"

@@ -2167,15 +2167,19 @@ jobs:
         run: |
           python3 -c "
           import zipfile, json
-          zf = zipfile.ZipFile('build/TclLsp.sublime-package')
+          zf = zipfile.ZipFile('build/LSP-Tcl.sublime-package')
           names = zf.namelist()
           assert not any(n.startswith('server/') for n in names), 'bundles a server'
-          assert 'Tcl.sublime-syntax' in names, 'missing Tcl syntax'
-          assert 'iRule.sublime-syntax' in names, 'missing iRule syntax'
+          assert not any(n.startswith('specs/') for n in names), 'bundles spec packs'
+          assert not any(n.endswith('.sublime-keymap') for n in names), 'bundles key bindings'
+          assert not any(n.endswith('.sublime-syntax') for n in names), 'bundles a syntax'
+          assert not any(n.endswith('.sublime-snippet') for n in names), 'bundles snippets'
+          assert not any(n.endswith('.sublime-completions') for n in names), 'bundles completions'
+          assert 'Context.sublime-menu' not in names, 'bundles a context menu'
+          assert 'Default.sublime-commands' in names, 'missing settings palette entry'
           assert 'plugin.py' in names, 'missing plugin'
           assert 'LSP-Tcl.sublime-settings' in names, 'missing LSP settings'
           assert '.python-version' in names, 'missing plugin_host selector'
-          assert any(n.startswith('specs/') for n in names), 'missing spec packs'
           manifest = json.loads(zf.read('server_version.json'))
           version = manifest['version']
           tag = '${{ github.ref_name }}'
@@ -2196,23 +2200,23 @@ jobs:
       # skips only *drafts*, then takes the newest release carrying an asset
       # that matches the channel entry's exact name.  So the odd-minor
       # pre-release line is kept off the channel by NAME: only a stable tag
-      # publishes `TclLsp.sublime-package`.  Pre-release testers still get a
+      # publishes `LSP-Tcl.sublime-package`. Pre-release testers still get a
       # package, under a name the channel never resolves (rename it to
-      # `TclLsp.sublime-package` to install it by hand).
+      # `LSP-Tcl.sublime-package` to install it by hand).
       - name: Name the package for its release channel
         run: |
           set -euo pipefail
           tag="${GITHUB_REF#refs/tags/}"
           if [ "$(bash scripts/release/prerelease.sh "$tag")" = "true" ]; then
-            mv build/TclLsp.sublime-package build/TclLsp-prerelease.sublime-package
-            echo "pre-release tag $tag -> TclLsp-prerelease.sublime-package (off the Package Control channel)"
+            mv build/LSP-Tcl.sublime-package build/LSP-Tcl-prerelease.sublime-package
+            echo "pre-release tag $tag -> LSP-Tcl-prerelease.sublime-package (off the Package Control channel)"
           else
-            echo "stable tag $tag -> TclLsp.sublime-package (what Package Control resolves)"
+            echo "stable tag $tag -> LSP-Tcl.sublime-package (what Package Control resolves)"
           fi
 
       - uses: ./.github/actions/sign-and-upload
         with:
-          artefact-glob: "build/TclLsp*.sublime-package"
+          artefact-glob: "build/LSP-Tcl*.sublime-package"
           artefact-name: sublime-package
 
   # Build: Zed extension
@@ -2233,8 +2237,8 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      # `make build-editor-zed` bundles the native tcl-lsp-server + tcl-mcp
-      # binaries and builds the Zed WASM extension — Rust only, no Python.
+      # `make build-editor-zed` builds the Zed WASM helper. The native language
+      # server is downloaded for the user's platform on first use.
       - name: Set up Rust
         # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
         # so we get cargo registry / target caching for free — meaningful
@@ -2257,8 +2261,9 @@ jobs:
           names = zf.namelist()
           assert 'extension.toml' in names, 'missing extension.toml'
           assert 'extension.wasm' in names, 'missing extension.wasm'
+          assert 'LICENSE' in names, 'missing Zed extension license'
           assert any('languages/tcl/config.toml' in n for n in names), 'missing Tcl language config'
-          assert any('snippets/tcl.json' in n for n in names), 'missing snippets'
+          assert not any(n.startswith('snippets/') for n in names), 'bundles snippets'
           print(f'OK: {len(names)} entries')
           "
 

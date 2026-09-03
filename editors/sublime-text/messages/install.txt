@@ -1,68 +1,18 @@
-TclLsp — Tcl Language Support
-=============================
+# LSP-Tcl
 
-Thanks for installing!  This package provides Tcl, iRules, iApps, EDA Tcl
-and Expect language support for Sublime Text 4, powered by tcl-lsp.
+LSP-Tcl uses Sublime Text's built-in Tcl syntax and snippets. It adds the
+tcl-lsp language server for diagnostics, completion, hover, navigation,
+formatting, semantic highlighting, code actions, and more.
 
-Quick start
------------
+Install the base LSP package if it is not already installed:
 
-1.  Install the LSP package from Package Control to enable diagnostics,
-    completions, hover, go-to-definition, formatting, code actions,
-    semantic tokens, rename, signature help, and inlay hints:
+    Command Palette > Package Control: Install Package > LSP
 
-        Command Palette > Package Control: Install Package > LSP
+The matching tcl-lsp-server binary is downloaded and checksum-verified on
+first use. Configure it under:
 
-    Syntax highlighting, snippets, symbol indexing and editor defaults
-    work without it.
+    Preferences > Package Settings > LSP > Servers > LSP-Tcl
 
-2.  Open any .tcl, .tk, .itcl, .tm, .irul, .irule, .iapp, .iappimpl,
-    .impl, or .exp file.
+This package deliberately ships no key bindings.
 
-3.  The first time a Tcl file is opened with LSP installed, the matching
-    tcl-lsp-server build for your platform is downloaded from the
-    project's GitHub releases into LSP's package storage, and accepted
-    only if it matches the SHA-256 pinned inside this package when it was
-    built.  To use a server you manage yourself instead, set
-    "server_path" in:
-
-        Preferences > Package Settings > TclLsp > LSP Settings
-
-Recommended setup
------------------
-
-Sublime Text ships its own TCL package, so each Tcl syntax would appear
-twice in the language menu, and LSP's semantic highlighting is off by
-default.  Run
-
-    Command Palette > Tcl: Recommended Setup
-
-to be asked before either preference is changed.  Nothing is changed
-without your say-so.
-
-Key bindings
-------------
-
-This package ships no key bindings.  Bind any of its commands yourself in
-Preferences > Key Bindings, e.g.
-
-    { "keys": ["ctrl+alt+f"], "command": "lsp_format_document" }
-
-The command names are listed in the README.
-
-Dialects
---------
-
-Tcl 8.4 / 8.5 / 8.6 / 9.0 / 9.1, F5 iRules, F5 iApps, F5 tmsh/BIG-IP,
-Synopsys / Cadence / Xilinx / Intel Quartus / Mentor / Microchip EDA Tcl,
-SpecTcl, BPF and Expect.  Pick one with "Tcl: Select Dialect".
-
-Documentation
--------------
-
-  https://github.com/bitwisecook/tcl-lsp
-
-Issues and feedback
--------------------
-
-  https://github.com/bitwisecook/tcl-lsp/issues
+https://github.com/bitwisecook/tcl-lsp

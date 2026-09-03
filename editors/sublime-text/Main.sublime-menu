@@ -1,45 +1,30 @@
 [
     {
-        "caption": "Preferences",
-        "mnemonic": "n",
         "id": "preferences",
         "children": [
             {
-                "caption": "Package Settings",
-                "mnemonic": "P",
                 "id": "package-settings",
                 "children": [
                     {
-                        "caption": "TclLsp",
+                        "id": "lsp-settings",
                         "children": [
                             {
-                                "caption": "LSP Settings",
-                                "command": "edit_settings",
-                                "args": {
-                                    "base_file": "${packages}/TclLsp/LSP-Tcl.sublime-settings",
-                                    "default": "// Tcl LSP Settings\n// See the default settings for available options.\n{\n\t$0\n}\n"
-                                }
-                            },
-                            {
-                                "caption": "Editor Settings",
-                                "command": "edit_settings",
-                                "args": {
-                                    "base_file": "${packages}/TclLsp/Tcl.sublime-settings",
-                                    "default": "// Tcl Editor Settings\n{\n\t$0\n}\n"
-                                }
-                            },
-                            { "caption": "-" },
-                            {
-                                "caption": "Select Dialect",
-                                "command": "tcl_select_dialect"
-                            },
-                            {
-                                "caption": "Restart Language Server",
-                                "command": "tcl_restart_server"
-                            },
-                            {
-                                "caption": "Recommended Setup",
-                                "command": "tcl_recommended_setup"
+                                "id": "lsp-servers",
+                                "children": [
+                                    {
+                                        "caption": "LSP-Tcl",
+                                        "children": [
+                                            {
+                                                "caption": "Settings",
+                                                "command": "edit_settings",
+                                                "args": {
+                                                    "base_file": "${packages}/LSP-Tcl/LSP-Tcl.sublime-settings",
+                                                    "default": "// Settings here override LSP-Tcl/LSP-Tcl.sublime-settings\n\n{\n\t$0\n}\n"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ]
                             }
                         ]
                     }

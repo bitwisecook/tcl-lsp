@@ -35,13 +35,11 @@
 //!   `src/languageIds.ts` `EXTENSION_LANGUAGE_IDS` (marked blocks).
 //! - `JetBrains` `plugin.xml`: the `Tcl` and `iRule` fileType
 //!   `extensions="…"` attributes.
-//! - Sublime `Tcl.sublime-syntax` `file_extensions` and Zed
+//! - Sublime's minimal `LSP-Tcl` helper suffix bridge and Zed's
 //!   `languages/tcl/config.toml` `path_suffixes` (single-syntax editors get
 //!   the full union).
-//! - The **per-dialect** editor surfaces, which used to be hand-maintained
-//!   and had drifted (issue #1625): Sublime's `iRule` / `Expect` / `iApp` /
-//!   `BIG-IP` syntaxes and Zed's secondary `languages/*/config.toml`, each
-//!   carrying exactly the extensions its one dialect owns.
+//! - Zed's **per-dialect** secondary `languages/*/config.toml` surfaces,
+//!   each carrying exactly the extensions its one dialect owns.
 //!
 //! Run `cargo xtask gen-editor-extensions`; `--check` makes the committed
 //! projections a drift gate.
@@ -63,7 +61,7 @@ const VSCODE_LANGUAGE_IDS: &str = "editors/vscode/src/languageIds.ts";
 const JETBRAINS_PLUGIN: &str = "editors/jetbrains/src/main/resources/META-INF/plugin.xml";
 const JETBRAINS_FILETYPE: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt";
-const SUBLIME_SYNTAX: &str = "editors/sublime-text/Tcl.sublime-syntax";
+const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
 const ZED_CONFIG: &str = "editors/zed/languages/tcl/config.toml";
 const HELIX_README: &str = "editors/helix/README.md";
 const INSTALL_EDITORS: &str = "INSTALL-editors.md";
@@ -71,39 +69,8 @@ const INSTALL_EDITORS: &str = "INSTALL-editors.md";
 /// The per-dialect editor surfaces: one file, one canonical dialect whose
 /// extensions it registers.
 ///
-/// Every one of these was hand-maintained, and three of the five had drifted
-/// from the catalog by the time issue #1625 audited them — Sublime's `iRule`
-/// syntax was missing `irules` and its `Expect` syntax `expect`, so those
-/// files opened under the umbrella `Tcl` syntax with the wrong scope, and
-/// Zed's secondary configs were correct only by luck, gated by nothing.
-///
-/// Sublime's eight EDA / Tcl-version syntaxes are deliberately absent: they
-/// declare no `file_extensions` at all today, and giving them one would make
-/// a *new* ambiguous claim against the umbrella `Tcl.sublime-syntax` (which
-/// lists the whole union) rather than fix a drifted one. That is a design
-/// decision about Sublime's syntax-selection order, not catalog drift, so it
-/// stays out of the generator until it is taken.
+/// These were once hand-maintained and are now generated from the catalog.
 const DIALECT_SURFACES: &[(&str, &str, Surface)] = &[
-    (
-        "editors/sublime-text/iRule.sublime-syntax",
-        "f5-irules",
-        Surface::SublimeSyntax,
-    ),
-    (
-        "editors/sublime-text/Expect.sublime-syntax",
-        "expect",
-        Surface::SublimeSyntax,
-    ),
-    (
-        "editors/sublime-text/iApp.sublime-syntax",
-        "f5-iapps",
-        Surface::SublimeSyntax,
-    ),
-    (
-        "editors/sublime-text/BIG-IP.sublime-syntax",
-        "f5-bigip",
-        Surface::SublimeSyntax,
-    ),
     (
         "editors/zed/languages/irules/config.toml",
         "f5-irules",
@@ -129,8 +96,6 @@ const DIALECT_SURFACES: &[(&str, &str, Surface)] = &[
 /// How a per-dialect surface spells its extension list.
 #[derive(Clone, Copy)]
 enum Surface {
-    /// A `file_extensions:` YAML block terminated by a blank line.
-    SublimeSyntax,
     /// A `path_suffixes = […]` TOML array.
     ZedConfig,
 }
@@ -652,40 +617,6 @@ fn render_jetbrains_kotlin(original: &str, langs: &[Language]) -> Result<String>
     )
 }
 
-/// Rewrite a Sublime syntax's `file_extensions:` block — a YAML list of
-/// `  - ext` items, ending at the first line that is not one (a blank line in
-/// the umbrella `Tcl` syntax, end-of-file in the per-dialect ones, which
-/// carry nothing after their list).
-fn set_sublime_extensions(original: &str, extensions: &[String]) -> Result<String> {
-    let start = original
-        .find("file_extensions:\n")
-        .context("missing file_extensions block")?;
-    let list_start = start + "file_extensions:\n".len();
-    let mut list_end = list_start;
-    while list_end < original.len() {
-        let line_end = original[list_end..]
-            .find('\n')
-            .map_or(original.len(), |n| list_end + n + 1);
-        if !original[list_end..line_end].starts_with("  - ") {
-            break;
-        }
-        list_end = line_end;
-    }
-    if list_end == list_start {
-        bail!("file_extensions block lists nothing");
-    }
-    let mut rows = String::new();
-    for ext in extensions {
-        let _ = writeln!(rows, "  - {ext}");
-    }
-    Ok(format!(
-        "{}{}{}",
-        &original[..list_start],
-        rows,
-        &original[list_end..]
-    ))
-}
-
 /// Rewrite a Zed `config.toml`'s `path_suffixes = […]` array.
 fn set_zed_suffixes(original: &str, extensions: &[String]) -> Result<String> {
     let start = original
@@ -704,8 +635,17 @@ fn set_zed_suffixes(original: &str, extensions: &[String]) -> Result<String> {
     ))
 }
 
-fn render_sublime(original: &str, langs: &[Language]) -> Result<String> {
-    set_sublime_extensions(original, &all_extensions(langs))
+fn render_sublime_plugin(original: &str, langs: &[Language]) -> Result<String> {
+    let mut rows = String::new();
+    for extension in all_extensions(langs) {
+        let _ = writeln!(rows, "    \"{extension}\",");
+    }
+    replace_marked_block(
+        original,
+        "# @generated:file-extensions:begin",
+        "# @generated:file-extensions:end",
+        &rows,
+    )
 }
 
 fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
@@ -850,7 +790,6 @@ fn render_dialect_surface(
         bail!("dialect {dialect} owns no extensions to register");
     }
     match surface {
-        Surface::SublimeSyntax => set_sublime_extensions(original, &lang.extensions),
         Surface::ZedConfig => set_zed_suffixes(original, &lang.extensions),
     }
 }
@@ -929,29 +868,6 @@ fn verify_every_per_dialect_surface_is_generated(root: &std::path::Path) -> Resu
         }
     }
 
-    // Sublime: every syntax that declares a `file_extensions:` block.
-    let sublime = root.join("editors/sublime-text");
-    for entry in fs::read_dir(&sublime).with_context(|| format!("reading {}", sublime.display()))? {
-        let name = entry?.file_name().to_string_lossy().into_owned();
-        if !name.ends_with(".sublime-syntax") {
-            continue;
-        }
-        let rel = format!("editors/sublime-text/{name}");
-        if rel == SUBLIME_SYNTAX || name == "APL.sublime-syntax" {
-            continue;
-        }
-        // The EDA / Tcl-version syntaxes claim nothing; see the note on
-        // DIALECT_SURFACES for why that stays a decision, not drift.
-        if !fs::read_to_string(root.join(&rel))?.contains("\nfile_extensions:\n") {
-            continue;
-        }
-        if !generated.contains(&rel.as_str()) {
-            bail!(
-                "{rel} declares file_extensions but is not in DIALECT_SURFACES — \
-                 add it (with its dialect) or record the exemption there"
-            );
-        }
-    }
     Ok(())
 }
 
@@ -971,7 +887,7 @@ fn render_targets() -> Vec<(&'static str, Render)> {
         (VSCODE_RUNTIME, Box::new(render_vscode_runtime)),
         (JETBRAINS_PLUGIN, Box::new(render_jetbrains)),
         (JETBRAINS_FILETYPE, Box::new(render_jetbrains_kotlin)),
-        (SUBLIME_SYNTAX, Box::new(render_sublime)),
+        (SUBLIME_PLUGIN, Box::new(render_sublime_plugin)),
         (ZED_CONFIG, Box::new(render_zed)),
         (HELIX_README, Box::new(render_helix_readme)),
         (INSTALL_EDITORS, Box::new(render_install_editors)),
@@ -1116,22 +1032,17 @@ mod tests {
                 .expect("a language for every surface's dialect");
             let last = lang.extensions.last().expect("extensions");
 
-            // Drop the dialect's last extension the way `iRule.sublime-syntax`
-            // was missing `irules` and `Expect.sublime-syntax` was missing
-            // `expect` — registered by the catalog, absent from the surface.
+            // Drop the dialect's last extension — registered by the catalog,
+            // absent from the surface.
             // A surface whose dialect owns exactly one extension has nothing
             // to drop without emptying the list (which the renders reject on
             // its own account), so its single entry is corrupted instead.
             let broken = if lang.extensions.len() > 1 {
                 match surface {
-                    Surface::SublimeSyntax => original.replace(&format!("  - {last}\n"), ""),
                     Surface::ZedConfig => original.replace(&format!(", \"{last}\"]"), "]"),
                 }
             } else {
                 match surface {
-                    Surface::SublimeSyntax => {
-                        original.replace(&format!("  - {last}\n"), "  - zzbogus\n")
-                    }
                     Surface::ZedConfig => {
                         original.replace(&format!("[\"{last}\"]"), "[\"zzbogus\"]")
                     }
@@ -1180,7 +1091,7 @@ mod tests {
             VSCODE_RUNTIME,
             JETBRAINS_PLUGIN,
             JETBRAINS_FILETYPE,
-            SUBLIME_SYNTAX,
+            SUBLIME_PLUGIN,
             ZED_CONFIG,
             HELIX_README,
             INSTALL_EDITORS,

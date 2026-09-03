@@ -417,40 +417,6 @@ fn splice_json_match(
     ))
 }
 
-/// Replace the YAML single-quoted scalar value of the `match:` key
-/// immediately *preceding* `anchor` (Sublime syntax writes `- match: '...'`
-/// then `  scope: ...` on the next line, the opposite order from the JSON
-/// grammars' `"name"` then `"match"`) within `block` with `new_value`
-/// (single-quoted YAML needs no backslash escaping — only a literal `'`
-/// would need doubling, which no Tcl command name contains), then splice
-/// `block` back into `text` at `block_offset`.
-fn splice_yaml_match(
-    text: &str,
-    block: &str,
-    block_offset: usize,
-    anchor: &str,
-    new_value: &str,
-) -> Result<String> {
-    let anchor_pos = block
-        .find(anchor)
-        .with_context(|| format!("anchor {anchor:?} not found in keyword block"))?;
-    let key_pat = "match: '";
-    let key_off = block[..anchor_pos]
-        .rfind(key_pat)
-        .with_context(|| format!("no \"match:\" key before anchor {anchor:?}"))?;
-    let val_start = key_off + key_pat.len();
-    let end = val_start
-        + block[val_start..anchor_pos]
-            .find('\'')
-            .with_context(|| format!("unterminated YAML scalar before anchor {anchor:?}"))?;
-    let new_block = format!("{}{new_value}{}", &block[..val_start], &block[end..]);
-    Ok(format!(
-        "{}{new_block}{}",
-        &text[..block_offset],
-        &text[block_offset + block.len()..]
-    ))
-}
-
 /// Patch the two (byte-for-byte identical in this section) `.tmLanguage.json`
 /// grammars: VS Code's and the `JetBrains` copy. The `keyword` repository
 /// entry is immediately followed by `operator`, which bounds the block.
@@ -510,82 +476,14 @@ fn render_tmlanguage_json(original: &str, b: &Buckets) -> Result<String> {
     Ok(text)
 }
 
-/// Patch the Sublime Text `.sublime-syntax` grammar. The `keyword:` context
-/// is immediately followed by `operator:`, which bounds the block.
-fn render_sublime_syntax(original: &str, b: &Buckets) -> Result<String> {
-    let mut text = original.to_owned();
-    for (anchor, words) in [
-        ("scope: keyword.control.tcl", &b.control),
-        ("scope: keyword.other.tcl", &b.other),
-        ("scope: support.function.tcl", &b.builtin),
-    ] {
-        let (block, offset) = bounded_block(&text, "  keyword:\n", "  operator:\n")?;
-        let (block, offset) = (block.to_owned(), offset);
-        text = splice_yaml_match(&text, &block, offset, anchor, &boundary_regex(words))?;
-    }
-    let lexical = lexical_regexes();
-    for (start, end, anchor, regex) in [
-        (
-            "  variable:\n",
-            "  string-quoted:\n",
-            "scope: variable.other.tcl",
-            lexical.variable.as_str(),
-        ),
-        (
-            "  number:\n",
-            "  escape:\n",
-            "scope: constant.numeric.hex.tcl",
-            lexical.hex.as_str(),
-        ),
-        (
-            "  number:\n",
-            "  escape:\n",
-            "scope: constant.numeric.octal.tcl",
-            lexical.octal.as_str(),
-        ),
-        (
-            "  number:\n",
-            "  escape:\n",
-            "scope: constant.numeric.binary.tcl",
-            lexical.binary.as_str(),
-        ),
-        (
-            "  number:\n",
-            "  escape:\n",
-            "scope: constant.numeric.tcl",
-            lexical.decimal.as_str(),
-        ),
-        (
-            "  escape:\n",
-            "\n",
-            "scope: constant.character.escape.tcl",
-            lexical.escape.as_str(),
-        ),
-    ] {
-        let (block, offset) = if start == "  escape:\n" {
-            // `escape` is the last grammar context; unlike every other target
-            // there is no following context heading to use as a bound.
-            let offset = text
-                .find(start)
-                .with_context(|| format!("{start:?} not found"))?;
-            (&text[offset..], offset)
-        } else {
-            bounded_block(&text, start, end)?
-        };
-        text = splice_yaml_match(&text, block, offset, anchor, regex)?;
-    }
-    Ok(text)
-}
-
 const VSCODE_GRAMMAR: &str = "editors/vscode/syntaxes/tcl.tmLanguage.json";
 const JETBRAINS_GRAMMAR: &str = "editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json";
-const SUBLIME_GRAMMAR: &str = "editors/sublime-text/Tcl.sublime-syntax";
 
 /// A per-target grammar renderer: original file content + the classified
 /// buckets in, patched content out.
 type RenderFn = fn(&str, &Buckets) -> Result<String>;
 
-/// Write (or, with `check`, verify) the three grammar files and print a
+/// Write (or, with `check`, verify) the two `TextMate` grammar files and print a
 /// coverage report to stderr.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
@@ -603,7 +501,6 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let targets: &[(&str, RenderFn)] = &[
         (VSCODE_GRAMMAR, render_tmlanguage_json),
         (JETBRAINS_GRAMMAR, render_tmlanguage_json),
-        (SUBLIME_GRAMMAR, render_sublime_syntax),
     ];
 
     let mut drift = Vec::new();
@@ -743,7 +640,6 @@ mod tests {
         for (rel, render) in [
             (VSCODE_GRAMMAR, render_tmlanguage_json as RenderFn),
             (JETBRAINS_GRAMMAR, render_tmlanguage_json),
-            (SUBLIME_GRAMMAR, render_sublime_syntax),
         ] {
             let path = root.join(rel);
             let original = fs::read_to_string(&path)
@@ -797,14 +693,13 @@ mod tests {
     }
 
     #[test]
-    fn lexical_splices_are_shared_by_all_three_grammar_formats() {
+    fn lexical_splices_are_shared_by_both_textmate_grammars() {
         let root = repo_root();
         let b = classify(&CommandRegistry::build_default());
         let lexical = lexical_regexes();
         for (rel, render) in [
             (VSCODE_GRAMMAR, render_tmlanguage_json as RenderFn),
             (JETBRAINS_GRAMMAR, render_tmlanguage_json),
-            (SUBLIME_GRAMMAR, render_sublime_syntax),
         ] {
             let original = fs::read_to_string(root.join(rel)).unwrap();
             let rendered = render(&original, &b).unwrap();

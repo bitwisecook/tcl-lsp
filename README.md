@@ -189,9 +189,9 @@ Add a `[language-server.tcl-lsp]` block naming the `tcl-lsp-server` binary to
 
 ### Sublime Text
 
-Install **TclLsp** from Package Control, or drop `TclLsp.sublime-package`
-into `Installed Packages/`. Install the **LSP** package too for
-language-server features — the matching native server is then downloaded
+Install **LSP** and **LSP-Tcl** from Package Control, or drop
+`LSP-Tcl.sublime-package` into `Installed Packages/`. Sublime's built-in TCL
+package supplies syntax and snippets; the matching native server is downloaded
 on first use.
 
 ### JetBrains
@@ -2071,7 +2071,11 @@ This project used AI very heavily.
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](LICENSE)
-(AGPL-3.0-or-later).
+(AGPL-3.0-or-later), except for the Zed extension code under `editors/zed`,
+which is separately licensed under the
+[GNU General Public License v3.0 or later](editors/zed/LICENSE) to satisfy
+Zed's extension-distribution requirements. The server downloaded by that
+extension remains AGPL-3.0-or-later.
 
 You are free to use this tool as-is. If you modify the code or incorporate
 portions of it into another project, the AGPL requires that the complete
