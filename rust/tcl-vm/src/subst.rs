@@ -59,14 +59,24 @@ use crate::value::Value;
 /// `config` is the VM's own grammar ([`Vm::lexer_config`]): the substituted
 /// text is a script, so where a `]` stops is a release/dialect question
 /// (`docs/design/dialect-profile-model.md` §2.5), not the default grammar's.
-fn command_end(b: &[u8], start: usize, config: tcl_lexer::LexerConfig) -> Option<usize> {
+///
+/// The error is the owner's, not a flat `missing close-bracket`. A substituted
+/// `[…]` is a *script*, so C recurses into it at the bracket and reports what
+/// it meets inside: `subst {[set y ${a{b]}` is `missing close-brace for
+/// variable name` on tclsh 8.6.16 and 9.0.4 alike. This adapter used to
+/// discard the owner's message with `.ok()` and every caller substituted the
+/// outer one, which is the error the owner's own contract warns against.
+fn command_end(
+    b: &[u8],
+    start: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Result<usize, &'static str> {
     tcl_lexer::word_parts::command_subst_close(
         b,
         start,
         tcl_lexer::word_parts::SubstFlags::default(),
         config,
     )
-    .ok()
     .map(|end| end - 1)
 }
 
@@ -171,8 +181,7 @@ pub fn subst_command(
             b'[' if commands => {
                 // An unclosed `[` is a parse error reported before the bracket
                 // body would run (subst-5.5/5.6/5.7).
-                let end = command_end(b, i, vm.lexer_config())
-                    .ok_or_else(|| TclError::new("missing close-bracket"))?;
+                let end = command_end(b, i, vm.lexer_config()).map_err(TclError::new)?;
                 let c = vm.eval_source(&s[i + 1..end])?;
                 match c.code {
                     // `return` / a custom code substitutes its result and resumes.
@@ -279,10 +288,13 @@ pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
                 i = end;
             }
             b'[' if st.commands => {
-                let Some(end) = command_end(b, i, vm.lexer_config()) else {
-                    st.out = out;
-                    st.cursor = i;
-                    return SubstStep::Error("missing close-bracket".to_owned());
+                let end = match command_end(b, i, vm.lexer_config()) {
+                    Ok(end) => end,
+                    Err(msg) => {
+                        st.out = out;
+                        st.cursor = i;
+                        return SubstStep::Error(msg.to_owned());
+                    }
                 };
                 let inner = template[i + 1..end].to_owned();
                 st.out = out;
@@ -382,8 +394,7 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 i = end;
             }
             b'[' => {
-                let end = command_end(b, i, vm.lexer_config())
-                    .ok_or_else(|| TclError::new("missing close-bracket"))?;
+                let end = command_end(b, i, vm.lexer_config()).map_err(TclError::new)?;
                 let c = vm.eval_source(&idx[i + 1..end])?;
                 match c.code {
                     Code::Ok => {
@@ -502,7 +513,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
     // Fast path: the whole word is one command substitution.
     if b.first() == Some(&b'[')
-        && let Some(end) = command_end(b, 0, vm.lexer_config())
+        && let Ok(end) = command_end(b, 0, vm.lexer_config())
         && end == n - 1
     {
         return eval_subst(vm, &word[1..end]);
@@ -619,7 +630,7 @@ mod tests {
     /// bracket search itself (brace/quote/comment awareness), which no
     /// modelled grammar varies.
     fn command_end_default(b: &[u8], start: usize) -> Option<usize> {
-        command_end(b, start, tcl_lexer::LexerConfig::default()) // dialect-drift-ok: grammar-invariant rule under test
+        command_end(b, start, tcl_lexer::LexerConfig::default()).ok() // dialect-drift-ok: grammar-invariant rule under test
     }
 
     fn var_config(

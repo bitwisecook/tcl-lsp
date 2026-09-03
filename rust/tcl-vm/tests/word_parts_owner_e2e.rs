@@ -125,6 +125,33 @@ fn unterminated_references_report_c_tcls_messages() {
         run("subst {${a{b}"),
         (false, "missing close-brace for variable name".to_owned())
     );
+    // A substituted `[…]` is a script: C recurses into it at the bracket, so
+    // an error met *inside* surfaces instead of the outer close-bracket one.
+    //
+    // The template is built as a *value* rather than written as a braced
+    // literal, because `subst {[set y ${a{b]}` is not a complete script — its
+    // braces do not balance, and both shells sit waiting for more input rather
+    // than reporting anything. Measured on tclsh 8.6.16 and 9.0.4, which agree:
+    //
+    // ```text
+    // % set t "\[set y \$\{a\{b\]"
+    // % subst $t        => missing close-brace for variable name
+    // ```
+    assert_eq!(
+        run("set t \"\\[set y \\$\\{a\\{b\\]\"\nsubst $t"),
+        (false, "missing close-brace for variable name".to_owned())
+    );
+    // The same rule on the array-index scan, which has its own bracket search.
+    //
+    // ```text
+    // % set x(1) v
+    // % set t "\$x(\[set y \$\{a\{b\])"
+    // % subst $t        => missing close-brace for variable name
+    // ```
+    assert_eq!(
+        run("set x(1) v\nset t \"\\$x(\\[set y \\$\\{a\\{b\\])\"\nsubst $t"),
+        (false, "missing close-brace for variable name".to_owned())
+    );
 }
 
 /// A well-formed template is unchanged by the adoption: nested brackets,
