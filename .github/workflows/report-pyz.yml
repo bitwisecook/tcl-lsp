@@ -68,6 +68,11 @@ jobs:
         shell: bash
         run: echo "TCL_LSP_VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
 
+      - name: Remove unused runner Homebrew tap
+        if: runner.os == 'macOS'
+        shell: bash
+        run: scripts/dev/prepare-homebrew-ci.sh
+
       # The runner image ships a pinned stable (currently 1.96.1) and
       # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
       # the newest release — so cargo refuses the workspace's `rust-version`.

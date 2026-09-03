@@ -228,7 +228,7 @@ jobs:
                   lsp_wasm_changed=true ;;
               esac
               case "$f" in
-                rust/tcl-explorer-wasm/* | rust/tcl-vm-wasm/* | rust/tcl-spec-studio-wasm/* | rust/tcl-lsp-server-wasm/* | rust/bigip-query-wasm/* | rust/bigip-report-gen/wasm/* | scripts/dev/ensure-test-deps.sh | scripts/dev/wasm-cc-env.sh | scripts/dev/test-wasm-cc-env.sh | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
+                rust/tcl-explorer-wasm/* | rust/tcl-vm-wasm/* | rust/tcl-spec-studio-wasm/* | rust/tcl-lsp-server-wasm/* | rust/bigip-query-wasm/* | rust/bigip-report-gen/wasm/* | scripts/dev/ensure-test-deps.sh | scripts/dev/wasm-cc-env.sh | scripts/dev/test-wasm-cc-env.sh | scripts/dev/prepare-homebrew-ci.sh | scripts/dev/test-prepare-homebrew-ci.sh | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   wasm_cc_changed=true ;;
               esac
               case "$f" in
@@ -353,6 +353,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
+
+      # The hosted image can retain the unused, untrusted aws/tap. The Rust
+      # setup action installs bash through Homebrew, which inspects configured
+      # taps and emits an annotation before doing any Rust work (issue #1684).
+      - name: Remove unused runner Homebrew tap
+        run: scripts/dev/prepare-homebrew-ci.sh
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
@@ -1550,6 +1556,13 @@ jobs:
         with:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      # Both Darwin legs share the hosted image's Homebrew state. Remove only
+      # the unused aws/tap before Rust setup invokes `brew install bash`; never
+      # trust the tap or weaken Homebrew's trust policy (issue #1684).
+      - name: Remove unused runner Homebrew tap
+        if: runner.os == 'macOS'
+        run: scripts/dev/prepare-homebrew-ci.sh
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
