@@ -18,12 +18,18 @@
 
 //! Differential harness: owner-based `WordExpr` vs the fragment-walk oracle.
 //!
-//! `CommandTokens::from_segmented` builds every word's `WordExpr` from
+//! `CommandTokens::from_segmented` — the builder every production lowering
+//! calls — builds every word's `WordExpr` from
 //! `tcl_lexer::word_parts::decompose_spanned` (issue #1785). Before that it
 //! mapped the lexer's fragment tokens one-for-one, and that walk is frozen
 //! here as the **independent oracle** so the two can be compared forever:
 //! over a crafted edge-case table under both release axes, over `samples/`,
 //! and over `tmp/tcllib-2.0` when it is present.
+//!
+//! Every comparison runs the *shipping* builder and, beside it, the owner
+//! invoked directly: they must agree word-for-word, so this harness cannot
+//! go green on a production path that quietly stopped going through the
+//! owner (the gap a reviewer caught when `from_word` shipped dead).
 //!
 //! The comparison is exact up to the oracle's enumerated artefacts —
 //! [`canonical`] documents each one — so a new divergence is a real
@@ -56,14 +62,18 @@ fn segments(src: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     segment_commands_with_offset_and_config(src, 0, config)
 }
 
-/// The **production** builder under test: the shipping `from_segmented`.
-#[allow(dead_code)]
-fn production(seg: &SegmentedCommand) -> Vec<WordExpr> {
-    CommandTokens::from_segmented(seg).word_exprs
+/// The **production** builder under test: the shipping `from_segmented`,
+/// which is what every lowering, the WASM leaf-invoke planner and the native
+/// lowerer actually call.
+fn production(src: &str, config: LexerConfig, seg: &SegmentedCommand) -> Vec<WordExpr> {
+    let sm = SourceMap::new(src);
+    CommandTokens::from_segmented(&sm, config, seg).word_exprs
 }
 
-/// Pre-switch stand-in for [`production`]: the owner-based builder invoked
-/// directly, with the segmenter's word boundaries.
+/// The owner-based builder invoked directly, with the segmenter's word
+/// boundaries — the shape [`production`] is asserted to reproduce, so a
+/// production path that stopped going through the owner fails here rather
+/// than passing on the strength of this function alone.
 fn owner_based(src: &str, config: LexerConfig, seg: &SegmentedCommand) -> Vec<WordExpr> {
     let sm = SourceMap::new(src);
     let expand = seg.expand_word.as_deref();
@@ -245,7 +255,16 @@ fn canonical_template(parts: Vec<WordPart>, site: SourceSite, source: &str) -> W
 fn check(src: &str, config: LexerConfig, ctx: &str) -> Result<usize, String> {
     let mut words = 0usize;
     for (ci, seg) in segments(src, config).iter().enumerate() {
-        let got = owner_based(src, config, seg);
+        // The shipping path is what is asserted; the direct owner call is
+        // held beside it so a divergence names which side moved.
+        let got = production(src, config, seg);
+        let owner = owner_based(src, config, seg);
+        if got != owner {
+            return Err(format!(
+                "[{ctx}] cmd {ci}: production does not go through the owner:\n  \
+                 production: {got:#?}\n  owner:      {owner:#?}"
+            ));
+        }
         let want = oracle(seg);
         if got.len() != want.len() {
             return Err(format!(
@@ -446,7 +465,7 @@ fn parse_errors_carry_c_tcls_message() {
     ];
     for (src, message) in cases {
         let segs = segments(src, nine());
-        let words = owner_based(src, nine(), &segs[0]);
+        let words = production(src, nine(), &segs[0]);
         assert!(
             matches!(
                 &words[1],
@@ -460,7 +479,7 @@ fn parse_errors_carry_c_tcls_message() {
         );
     }
     // Tcl 9 rejects a raw brace in an array index; Tcl 8 passes it through.
-    let words = owner_based(
+    let words = production(
         "puts $arr({k})",
         nine(),
         &segments("puts $arr({k})", nine())[0],
@@ -485,7 +504,7 @@ fn parse_errors_carry_c_tcls_message() {
     // guard `variable_spelling` applies. (On tclsh 9.0.4 the brace form does
     // resolve, its close rule being nesting-aware, but the bare form there is
     // the parse error asserted above, so this arm is 8.x-only anyway.)
-    let words = owner_based(
+    let words = production(
         "puts $arr({k})",
         eight(),
         &segments("puts $arr({k})", eight())[0],

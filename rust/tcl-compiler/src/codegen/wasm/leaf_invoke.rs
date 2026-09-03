@@ -561,7 +561,11 @@ fn nested_words(
     if segment.is_partial {
         return Err(WasmLeafInvokeDecline::UnmodelledCommandSubstitution);
     }
-    let tokens = CommandTokens::from_segmented(segment);
+    // The nested script is a sub-lex: its own text, segmented at the document
+    // offset it sits at, so the word model reads `inner` and still reports
+    // document spans (`SourceMap::with_base` is that sub-lexing contract).
+    let sm = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
+    let tokens = CommandTokens::from_segmented(&sm, config, segment);
     if tokens.word_exprs.is_empty() {
         return Err(WasmLeafInvokeDecline::MissingCommandHead);
     }
@@ -576,7 +580,9 @@ mod tests {
     /// The structured words of the first command in `source`.
     fn words(source: &str) -> Vec<WordExpr> {
         let segments = segment_commands(source);
-        CommandTokens::from_segmented(&segments[0]).word_exprs
+        let sm = tcl_lexer::SourceMap::new(source);
+        CommandTokens::from_segmented(&sm, tcl_lexer::LexerConfig::default(), &segments[0])
+            .word_exprs
     }
 
     fn plan(source: &str) -> Result<WasmLeafInvokePlan, WasmLeafInvokeDecline> {

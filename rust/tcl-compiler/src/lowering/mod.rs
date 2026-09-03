@@ -853,6 +853,46 @@ pub struct Lowerer<'r> {
     /// script is lowered, which the guard reads as "nothing to compare
     /// against" and leaves every body text alone.
     source: String,
+    /// The buffer each word model is read from — see [`WordSpace`].
+    word_space: WordSpace,
+}
+
+/// The text a [`crate::ir::WordExpr`] is decomposed from, and the offset its
+/// first byte sits at in the span space the segmentation used.
+///
+/// Deliberately *not* [`Lowerer::source`]: a word is read from the very text
+/// that was segmented into it, which is not always a slice of the enclosing
+/// buffer.  A `{body}x` word's body is clamped to the part that does map
+/// (issue #1325); an `eval $const` / `eval [list …]` body is a literal
+/// materialised at lowering time and lives in a span space of its own; and
+/// the `TclOO` method extraction runs as a post-pass, after the document's
+/// span space has been restored to the (empty) enclosing one.  Reading the
+/// segmented text itself makes the word model right in all three, and the
+/// base keeps every span it reports in the space the statements' spans are
+/// in.
+struct WordSpace {
+    text: String,
+    base: u32,
+    /// `text`'s line index, held so the per-command [`tcl_lexer::SourceMap`]
+    /// is a refcount bump (`LineIndex` is `Arc`-backed) rather than a rescan.
+    lines: tcl_lexer::LineIndex,
+}
+
+impl WordSpace {
+    fn new(text: &str, base: u32) -> Self {
+        Self {
+            text: text.to_owned(),
+            base,
+            lines: tcl_lexer::LineIndex::new(text),
+        }
+    }
+
+    /// A [`tcl_lexer::SourceMap`] over this text, carrying its base so a word
+    /// built from it reports spans in the enclosing span space.
+    fn map(&self) -> tcl_lexer::SourceMap<'_> {
+        tcl_lexer::SourceMap::with_line_index(&self.text, self.lines.clone())
+            .with_base(self.base, 0, 0)
+    }
 }
 
 /// Maximum nesting depth for the recursive `lower_script` / `lower_body`
@@ -913,6 +953,7 @@ impl<'r> Lowerer<'r> {
             body_cache: None,
             nest_depth: 0,
             source: String::new(),
+            word_space: WordSpace::new("", 0),
         }
     }
 
@@ -1009,10 +1050,21 @@ impl<'r> Lowerer<'r> {
         result
     }
 
+    /// Run `body` with the words of the commands it lowers read from `text`,
+    /// segmented at `base` — see [`WordSpace`]. Restores the enclosing space
+    /// after, so a nested body does not outlive its own descent.
+    fn in_word_space<T>(&mut self, text: &str, base: u32, body: impl FnOnce(&mut Self) -> T) -> T {
+        let enclosing = std::mem::replace(&mut self.word_space, WordSpace::new(text, base));
+        let result = body(self);
+        self.word_space = enclosing;
+        result
+    }
+
     fn lower_script_inner(&mut self, source: &str, namespace: &str) -> Script {
         let commands = segment_commands_with_offset_and_config(source, 0, self.config);
         self.const_map_stack.push(HashMap::new());
-        let stmts = self.lower_segmented(&commands, namespace);
+        let stmts =
+            self.in_word_space(source, 0, |this| this.lower_segmented(&commands, namespace));
         self.const_map_stack.pop();
         Script::from_statements(stmts)
     }
@@ -1124,7 +1176,9 @@ impl<'r> Lowerer<'r> {
         let commands = segment_commands_with_offset_and_config(text, base_offset, self.config);
         let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
         self.const_map_stack.push(inherited);
-        let stmts = self.lower_segmented(&commands, namespace);
+        let stmts = self.in_word_space(text, base_offset, |this| {
+            this.lower_segmented(&commands, namespace)
+        });
         self.const_map_stack.pop();
         Script::from_statements(stmts)
     }
@@ -1247,9 +1301,11 @@ impl<'r> Lowerer<'r> {
         scope.get(inner).cloned()
     }
 
-    /// Build a `CommandTokens` snapshot from a segmented command.
-    fn cmd_tokens(seg: &SegmentedCommand) -> CommandTokens {
-        CommandTokens::from_segmented(seg)
+    /// Build a `CommandTokens` snapshot from a segmented command, decomposing
+    /// each word under the document's own grammar (`self.config`) from the
+    /// text that was segmented into it (see [`WordSpace`]).
+    fn cmd_tokens(&self, seg: &SegmentedCommand) -> CommandTokens {
+        CommandTokens::from_segmented(&self.word_space.map(), self.config, seg)
     }
 
     /// Extract arg token kinds for the lowering hooks.
@@ -1358,6 +1414,7 @@ impl<'r> Lowerer<'r> {
     /// `{*}` expansion on a structured command lowers to a barrier so
     /// downstream analyses can't reason about the expanded form.
     fn structured_expand_barrier(
+        &self,
         cmd_name: &str,
         args: &[String],
         seg: &SegmentedCommand,
@@ -1368,7 +1425,7 @@ impl<'r> Lowerer<'r> {
             command: cmd_name.into(),
             canonical_command: None,
             args: args.to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
@@ -1425,7 +1482,7 @@ impl<'r> Lowerer<'r> {
                 .as_ref()
                 .is_some_and(|ew| ew.iter().any(|&e| e))
         {
-            return Some(Self::structured_expand_barrier(cmd_name, args, seg));
+            return Some(self.structured_expand_barrier(cmd_name, args, seg));
         }
         let inline_body_error_context = resolved.semantics.operation.inline_body_error_context();
         match hook {
@@ -1764,7 +1821,7 @@ impl<'r> Lowerer<'r> {
             args,
             single_token_word: &seg.single_token_word,
             expand_word: seg.expand_word.as_deref(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
             arg_kinds: &Self::arg_kinds(seg),
             dialect: self.dialect,
         };
@@ -1827,7 +1884,7 @@ impl<'r> Lowerer<'r> {
                 command: "proc".into(),
                 canonical_command: None,
                 args: args_borrow.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
             };
         }
         // Phase 2: dynamic proc name resolution.
@@ -1862,7 +1919,7 @@ impl<'r> Lowerer<'r> {
                 command: "proc".into(),
                 canonical_command: None,
                 args: seg.args().to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
             };
         };
         let qualified = qualify_proc_name(namespace, proc_name);
@@ -1917,7 +1974,7 @@ impl<'r> Lowerer<'r> {
             reads: vec![],
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
             foreach_groups: None,
         }
     }
@@ -2012,7 +2069,7 @@ impl<'r> Lowerer<'r> {
                 command: "proc".into(),
                 canonical_command: None,
                 args: args_borrow.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
             }));
         };
 
@@ -2086,7 +2143,7 @@ impl<'r> Lowerer<'r> {
                 command: "proc".into(),
                 canonical_command: None,
                 args: seg.args().to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
             }));
         }
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
@@ -2161,7 +2218,7 @@ impl<'r> Lowerer<'r> {
             reads: vec![],
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
             foreach_groups: None,
         }
     }
@@ -2238,7 +2295,7 @@ impl<'r> Lowerer<'r> {
             frame_shift: level.shift,
             absolute: level.absolute,
             body,
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
         })
     }
 
@@ -2370,7 +2427,7 @@ impl<'r> Lowerer<'r> {
             span: seg.span,
             body,
             namespace: namespace.to_string(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
             error_context,
         })
     }
@@ -2550,7 +2607,7 @@ impl<'r> Lowerer<'r> {
             command: seg.name().into(),
             canonical_command: None,
             args: args.to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
@@ -2598,7 +2655,7 @@ impl<'r> Lowerer<'r> {
                     list_arg: args[2].clone(),
                     // `array for {k v} {arr} …` — a braced array-name word
                     // is a literal name, not a substitution (issue #1260).
-                    list_braced: Self::cmd_tokens(seg).arg_is_braced_literal(2),
+                    list_braced: self.cmd_tokens(seg).arg_is_braced_literal(2),
                 }],
                 body,
                 body_span: body_tok.span,
@@ -2606,7 +2663,7 @@ impl<'r> Lowerer<'r> {
                 raw_args: args.to_vec(),
                 is_dict_iteration: false,
                 is_array_iteration: true,
-                raw_tokens: Some(Self::cmd_tokens(seg)),
+                raw_tokens: Some(self.cmd_tokens(seg)),
             };
         }
 
@@ -2640,7 +2697,7 @@ impl<'r> Lowerer<'r> {
             command: "namespace".into(),
             canonical_command: None,
             args: seg.args().to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
@@ -2782,7 +2839,7 @@ impl<'r> Lowerer<'r> {
                 command: cmd_name.into(),
                 canonical_command: canonical.clone(),
                 args: args.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
             };
         }
 
@@ -2847,7 +2904,7 @@ impl<'r> Lowerer<'r> {
                 reads: var_reads,
                 reads_own_defs: reads_before_write,
                 safe_on_uninit: self.safe_on_uninit(&role_cmd, &role_args),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
                 foreach_groups: None,
             };
         }
@@ -2861,7 +2918,7 @@ impl<'r> Lowerer<'r> {
             reads: vec![],
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
             foreach_groups: None,
         }
     }

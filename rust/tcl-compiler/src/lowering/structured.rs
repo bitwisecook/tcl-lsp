@@ -194,7 +194,7 @@ impl Lowerer<'_> {
         let arg_single = seg.arg_single_token();
 
         if args.is_empty() {
-            return Self::barrier(seg, "malformed if");
+            return self.barrier(seg, "malformed if");
         }
 
         let mut clauses = Vec::new();
@@ -216,24 +216,24 @@ impl Lowerer<'_> {
                 // (`if 1 {a} elseif`) is "no expression after elseif". Defer to the
                 // runtime `if`, which reports it faithfully (if-2.3).
                 if i >= args.len() {
-                    return Self::barrier(seg, "if missing elseif expression");
+                    return self.barrier(seg, "if missing elseif expression");
                 }
                 continue;
             }
             if args[i] == "else" {
                 if i + 1 >= args.len() {
-                    return Self::barrier(seg, "malformed if else clause");
+                    return self.barrier(seg, "malformed if else clause");
                 }
                 // Exactly one body may follow `else`; trailing words
                 // (`if 0 {a} else {b} junk`) are "extra words after else" — defer to
                 // the runtime `if` (if-3.5).
                 if i + 2 < args.len() {
-                    return Self::barrier(seg, "if extra words after else");
+                    return self.barrier(seg, "if extra words after else");
                 }
                 // Only a substitution-free literal body inlines (see the
                 // clause-body note below).
                 if !super::seg_word_is_static_literal(seg, i + 2) {
-                    return Self::barrier(seg, "if with non-literal body");
+                    return self.barrier(seg, "if with non-literal body");
                 }
                 let body_tok = arg_tokens.get(i + 1);
                 let dead = later_clauses_dead;
@@ -254,7 +254,7 @@ impl Lowerer<'_> {
                 i += 1;
             }
             if i >= args.len() {
-                return Self::barrier(seg, "malformed if clause");
+                return self.barrier(seg, "malformed if clause");
             }
 
             let body_idx = i;
@@ -265,7 +265,7 @@ impl Lowerer<'_> {
             // construct to that command rather than mis-parsing the unsubstituted
             // word as a literal script at compile time.
             if !super::seg_word_is_static_literal(seg, body_idx + 1) {
-                return Self::barrier(seg, "if with non-literal body");
+                return self.barrier(seg, "if with non-literal body");
             }
             let body_tok = arg_tokens.get(body_idx);
             let cond_tok = arg_tokens.get(cond_idx);
@@ -300,12 +300,12 @@ impl Lowerer<'_> {
             // as another implicit clause. Bail to the runtime `if`, which
             // reports the error faithfully.
             if i < args.len() && args[i] != "elseif" && args[i] != "else" {
-                return Self::barrier(seg, "if with extra words");
+                return self.barrier(seg, "if with extra words");
             }
         }
 
         if clauses.is_empty() {
-            return Self::barrier(seg, "malformed if");
+            return self.barrier(seg, "malformed if");
         }
 
         Statement::If {
@@ -328,7 +328,7 @@ impl Lowerer<'_> {
         // runtime builtin, which raises `wrong # args` (for-old-1.7). Lowering a
         // ≥4 form would silently drop the extras and run arg[0] as the body.
         if args.len() != 4 || arg_tokens.len() < 4 {
-            return Self::barrier(seg, "malformed for");
+            return self.barrier(seg, "malformed for");
         }
         // `init`, `next`, and `body` are all lowered via `lower_body_from_tok`,
         // which rebases the segmenter-reconstructed word text at the token's
@@ -341,14 +341,14 @@ impl Lowerer<'_> {
             || !super::seg_word_is_static_literal(seg, 3)
             || !super::seg_word_is_static_literal(seg, 4)
         {
-            return Self::barrier(seg, "for with dynamic arguments");
+            return self.barrier(seg, "for with dynamic arguments");
         }
         // A body/next that redefines break/continue must run through the runtime
         // builtin, which dispatches them (so the redefinition is honoured) rather
         // than firing the compiled JUMP fast-path unconditionally and looping
         // forever (proc-7.3).
         if redefines_loop_control(&args[2]) || redefines_loop_control(&args[3]) {
-            return Self::barrier(seg, "for redefines break/continue");
+            return self.barrier(seg, "for redefines break/continue");
         }
 
         let init = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
@@ -374,7 +374,7 @@ impl Lowerer<'_> {
             body,
             body_span: arg_tokens[3].span,
             raw_args: args.to_vec(),
-            raw_tokens: Some(Self::cmd_tokens(seg)),
+            raw_tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
@@ -389,7 +389,7 @@ impl Lowerer<'_> {
         // `while` takes exactly two arguments; a wrong count barriers to the
         // runtime builtin, which raises `wrong # args` (while-old-4.3).
         if args.len() != 2 || arg_tokens.len() < 2 {
-            return Self::barrier(seg, "malformed while");
+            return self.barrier(seg, "malformed while");
         }
         // The body is lowered via `lower_body_from_tok`, which rebases the
         // segmenter-reconstructed word text at the token's span — safe only
@@ -398,12 +398,12 @@ impl Lowerer<'_> {
         // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
         // as if it were the literal text (issue #1375).
         if !arg_single[0] || !super::seg_word_is_static_literal(seg, 2) {
-            return Self::barrier(seg, "while with dynamic arguments");
+            return self.barrier(seg, "while with dynamic arguments");
         }
         // See `lower_for`: a body redefining break/continue must use the runtime
         // builtin so the redefinition is dispatched (proc-7.3).
         if redefines_loop_control(&args[1]) {
-            return Self::barrier(seg, "while redefines break/continue");
+            return self.barrier(seg, "while redefines break/continue");
         }
 
         let body = self.lower_body_from_tok(&args[1], Some(&arg_tokens[1]), namespace);
@@ -423,7 +423,7 @@ impl Lowerer<'_> {
             body,
             body_span: arg_tokens[1].span,
             raw_args: args.to_vec(),
-            raw_tokens: Some(Self::cmd_tokens(seg)),
+            raw_tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
@@ -440,7 +440,7 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
 
         if args.len() < 3 || args.len().is_multiple_of(2) {
-            return Self::barrier(seg, "malformed foreach");
+            return self.barrier(seg, "malformed foreach");
         }
 
         let body_idx = args.len() - 1;
@@ -452,7 +452,7 @@ impl Lowerer<'_> {
         // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
         // as if it were the literal text (issue #1375).
         if body_tok.is_none() || !super::seg_word_is_static_literal(seg, body_idx + 1) {
-            return Self::barrier(seg, "foreach with dynamic body");
+            return self.barrier(seg, "foreach with dynamic body");
         }
 
         // The value word's brace-quoting is a fact only the tokens carry:
@@ -461,7 +461,7 @@ impl Lowerer<'_> {
         // "a $b c"` substitutes. Both lower to the same `list_arg` text,
         // so the flag is what downstream read-harvesting gates on
         // (issue #1260).
-        let cmd_tokens = Self::cmd_tokens(seg);
+        let cmd_tokens = self.cmd_tokens(seg);
         let mut iterators = Vec::new();
         for i in (0..body_idx).step_by(2) {
             // A varList that is not a well-formed Tcl list binds nothing we can
@@ -469,7 +469,7 @@ impl Lowerer<'_> {
             let Some(var_names) =
                 parse_var_list_names(&args[i], WordValueRules::from_config(&self.config))
             else {
-                return Self::barrier(seg, "foreach with malformed variable list");
+                return self.barrier(seg, "foreach with malformed variable list");
             };
             iterators.push(ForeachIterator {
                 vars: var_names,
@@ -507,7 +507,7 @@ impl Lowerer<'_> {
             .any(|statement| matches!(statement, Statement::Foreach { .. }));
         let lmap_needs_runtime = is_lmap && !Self::body_is_straight_line(&body);
         if self.target.is_bytecode() && (lmap_needs_runtime || body_nests_foreach) {
-            return Self::barrier(seg, if is_lmap { "lmap" } else { "foreach" });
+            return self.barrier(seg, if is_lmap { "lmap" } else { "foreach" });
         }
 
         Statement::Foreach {
@@ -577,7 +577,7 @@ impl Lowerer<'_> {
 
         // `foreachLine varName filename body` — exactly three args.
         if args.len() != 3 {
-            return Self::barrier(seg, "malformed foreachLine");
+            return self.barrier(seg, "malformed foreachLine");
         }
 
         // Body must be a single static brace-string literal; dynamic
@@ -588,7 +588,7 @@ impl Lowerer<'_> {
         // static loop body.
         let body_tok = arg_tokens.get(2);
         if !super::seg_word_is_static_braced(seg, 3) {
-            return Self::barrier(seg, "foreachLine with dynamic body");
+            return self.barrier(seg, "foreachLine with dynamic body");
         }
 
         // Single iterator binding the loop variable.  `list_arg`
@@ -598,10 +598,10 @@ impl Lowerer<'_> {
         // dataflow doesn't care: the lattice-propagation matters,
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
-        let cmd_tokens = Self::cmd_tokens(seg);
+        let cmd_tokens = self.cmd_tokens(seg);
         let Some(vars) = parse_var_list_names(&args[0], WordValueRules::from_config(&self.config))
         else {
-            return Self::barrier(seg, "foreachLine with malformed variable list");
+            return self.barrier(seg, "foreachLine with malformed variable list");
         };
         let iterators = vec![ForeachIterator {
             vars,
@@ -632,7 +632,7 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
 
         if args.is_empty() {
-            return Self::barrier(seg, "malformed catch");
+            return self.barrier(seg, "malformed catch");
         }
         // Body must be a single brace-literal (`Str` kind) token to
         // compile statically.  Variable references (`$cmd`) and
@@ -642,7 +642,7 @@ impl Lowerer<'_> {
         // value.  Without the kind check, ``catch $cmd res`` would
         // be compiled as "call the proc named by ``$cmd``" — wrong.
         if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
-            return Self::barrier(seg, "catch with dynamic body");
+            return self.barrier(seg, "catch with dynamic body");
         }
 
         let body = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
@@ -656,7 +656,7 @@ impl Lowerer<'_> {
             result_var,
             options_var,
             raw_args: args.to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
@@ -669,7 +669,7 @@ impl Lowerer<'_> {
         // be compiled correctly (its handler/finally clauses would be dropped).
         // Analysis callers keep the structured form below. See `CompileTarget`.
         if self.target.is_bytecode() {
-            return Self::barrier(seg, "try");
+            return self.barrier(seg, "try");
         }
 
         let args = seg.args();
@@ -677,7 +677,7 @@ impl Lowerer<'_> {
         let arg_single = seg.arg_single_token();
 
         if args.is_empty() {
-            return Self::barrier(seg, "malformed try");
+            return self.barrier(seg, "malformed try");
         }
         // The body is lowered via `lower_body_from_tok`, which rebases the
         // segmenter-reconstructed word text at the token's span — safe only
@@ -686,7 +686,7 @@ impl Lowerer<'_> {
         // barrier rather than be lowered as if it were the literal text
         // (issue #1375).
         if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
-            return Self::barrier(seg, "try with dynamic body");
+            return self.barrier(seg, "try with dynamic body");
         }
 
         let body = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
@@ -710,7 +710,7 @@ impl Lowerer<'_> {
                 // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`, deferring
                 // the whole `try` to the runtime command.
                 if fin_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 2) {
-                    return Self::barrier(seg, "try with dynamic finally body");
+                    return self.barrier(seg, "try with dynamic finally body");
                 }
                 finally_body = Some(self.lower_body_from_tok(&args[i + 1], fin_tok, namespace));
                 finally_span = fin_tok.map(|t| t.span);
@@ -749,7 +749,7 @@ impl Lowerer<'_> {
                 let Some(var_names) =
                     parse_var_list_names(var_list, WordValueRules::from_config(&self.config))
                 else {
-                    return Self::barrier(seg, "try with malformed handler variable list");
+                    return self.barrier(seg, "try with malformed handler variable list");
                 };
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
                 let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
@@ -788,7 +788,7 @@ impl Lowerer<'_> {
                 if !is_fallthrough
                     && (handler_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 4))
                 {
-                    return Self::barrier(seg, "try with dynamic handler body");
+                    return self.barrier(seg, "try with dynamic handler body");
                 }
                 let handler_body = if is_fallthrough {
                     crate::ir::Script::new()
@@ -810,7 +810,7 @@ impl Lowerer<'_> {
                 continue;
             }
 
-            return Self::barrier(seg, "malformed try handler");
+            return self.barrier(seg, "malformed try handler");
         }
 
         Statement::Try {
@@ -908,7 +908,7 @@ impl Lowerer<'_> {
         let arg_single = seg.arg_single_token();
 
         if args.len() < 2 {
-            return Self::barrier(seg, "malformed switch");
+            return self.barrier(seg, "malformed switch");
         }
 
         let (mut i, mode, nocase, unknown) = parse_switch_options(args);
@@ -916,16 +916,16 @@ impl Lowerer<'_> {
         // An unrecognised / arg-taking option (`-foo`, `-matchvar`, …): bail to
         // the runtime `switch`, which validates options and does the var writes.
         if unknown {
-            return Self::barrier(seg, "switch with non-inlined option");
+            return self.barrier(seg, "switch with non-inlined option");
         }
         if i >= args.len() {
-            return Self::barrier(seg, "malformed switch options");
+            return self.barrier(seg, "malformed switch options");
         }
 
         let subject = args[i].clone();
         i += 1;
         if i >= args.len() {
-            return Self::barrier(seg, "switch missing arms");
+            return self.barrier(seg, "switch missing arms");
         }
 
         // Collect pattern/body pairs. Each pair carries a
@@ -954,15 +954,15 @@ impl Lowerer<'_> {
             // Not a well-formed Tcl list — bail to the runtime `switch`,
             // which reports the list error exactly as C Tcl does.
             let Some(elements) = switch_body_elements(body_text) else {
-                return Self::barrier(seg, "switch case list is not a list");
+                return self.barrier(seg, "switch case list is not a list");
             };
             // An empty arm list (`switch x {}`) is a "wrong # args" error, not a
             // no-op — bail to the runtime command, which reports it.
             if elements.is_empty() {
-                return Self::barrier(seg, "switch with no arms");
+                return self.barrier(seg, "switch with no arms");
             }
             if !elements.len().is_multiple_of(2) {
-                return Self::barrier(seg, "switch odd pattern count");
+                return self.barrier(seg, "switch odd pattern count");
             }
             let relocate = |local: Span| {
                 let start = body_base.saturating_add(local.start());
@@ -991,7 +991,7 @@ impl Lowerer<'_> {
             patterns_braced = false;
             let remaining = args.len() - i;
             if !remaining.is_multiple_of(2) {
-                return Self::barrier(seg, "switch odd pattern count");
+                return self.barrier(seg, "switch odd pattern count");
             }
             while i + 1 < args.len() {
                 let pattern = args[i].clone();
@@ -1010,7 +1010,7 @@ impl Lowerer<'_> {
                 // command word, so the body word `args[i + 1]` is index
                 // `i + 2`.).
                 if body_text_inner != "-" && !super::seg_word_is_static_literal(seg, i + 2) {
-                    return Self::barrier(seg, "switch with non-literal arm body");
+                    return self.barrier(seg, "switch with non-literal arm body");
                 }
                 let body_span_val = arg_tokens.get(body_tok_idx).map(|t| t.span);
                 pairs.push(SwitchPair {
@@ -1065,7 +1065,7 @@ impl Lowerer<'_> {
                 let Some(var_names) =
                     parse_var_list_names(&sub_args[0], WordValueRules::from_config(&self.config))
                 else {
-                    return Self::barrier(seg, &format!("dict {sub} with malformed variable list"));
+                    return self.barrier(seg, &format!("dict {sub} with malformed variable list"));
                 };
                 let body_idx = 3; // index in original args
                 let body_tok = arg_tokens.get(body_idx);
@@ -1077,7 +1077,7 @@ impl Lowerer<'_> {
                 // barrier rather than be lowered as if it were the literal
                 // text (issue #1375).
                 if body_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1) {
-                    return Self::barrier(seg, &format!("dict {sub} with dynamic body"));
+                    return self.barrier(seg, &format!("dict {sub} with dynamic body"));
                 }
                 let body = self.lower_body_from_tok(&sub_args[2], body_tok, namespace);
 
@@ -1089,7 +1089,7 @@ impl Lowerer<'_> {
                         // `dict for {k v} {a $b} …` iterates the literal
                         // dictionary; the value word is `args[2]` in the
                         // full argument list (issue #1260).
-                        list_braced: Self::cmd_tokens(seg).arg_is_braced_literal(2),
+                        list_braced: self.cmd_tokens(seg).arg_is_braced_literal(2),
                     }],
                     body,
                     body_span: body_tok.map_or(seg.span, |t| t.span),
@@ -1097,7 +1097,7 @@ impl Lowerer<'_> {
                     raw_args: args.to_vec(),
                     is_dict_iteration: true,
                     is_array_iteration: false,
-                    raw_tokens: Some(Self::cmd_tokens(seg)),
+                    raw_tokens: Some(self.cmd_tokens(seg)),
                 }
             }
 
@@ -1111,7 +1111,7 @@ impl Lowerer<'_> {
                 command: seg.name().into(),
                 canonical_command: None,
                 args: args.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
             },
 
             // A sub-mutator (`dict set/unset/append/lappend/incr …`) tags
@@ -1130,7 +1130,7 @@ impl Lowerer<'_> {
                     reads: vec![],
                     reads_own_defs: true,
                     safe_on_uninit: self.safe_on_uninit(seg.name(), args),
-                    tokens: Some(Self::cmd_tokens(seg)),
+                    tokens: Some(self.cmd_tokens(seg)),
                     foreach_groups: None,
                 }
             }
@@ -1144,7 +1144,7 @@ impl Lowerer<'_> {
                 reads: vec![],
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: Some(Self::cmd_tokens(seg)),
+                tokens: Some(self.cmd_tokens(seg)),
                 foreach_groups: None,
             },
         }
@@ -1153,14 +1153,14 @@ impl Lowerer<'_> {
     // Helpers
 
     /// Create a barrier statement from a segmented command.
-    fn barrier(seg: &SegmentedCommand, reason: &str) -> Statement {
+    fn barrier(&self, seg: &SegmentedCommand, reason: &str) -> Statement {
         Statement::Barrier {
             span: seg.span,
             reason: reason.into(),
             command: seg.name().into(),
             canonical_command: None,
             args: seg.args().to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
+            tokens: Some(self.cmd_tokens(seg)),
         }
     }
 
