@@ -614,13 +614,17 @@ pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<V
     crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
         .iter()
         .filter(|command| !command.argv.is_empty())
-        .map(|command| command_words(&sm, command))
+        .map(|command| command_words(&sm, config, command))
         .collect()
 }
 
 /// Map one segmented command onto its per-word [`CommandWord`] facts.
-fn command_words(sm: &SourceMap<'_>, command: &SegmentedCommand) -> Vec<CommandWord> {
-    let tokens = CommandTokens::from_segmented(command);
+fn command_words(
+    sm: &SourceMap<'_>,
+    config: LexerConfig,
+    command: &SegmentedCommand,
+) -> Vec<CommandWord> {
+    let tokens = CommandTokens::from_segmented(sm, config, command);
     command
         .argv
         .iter()

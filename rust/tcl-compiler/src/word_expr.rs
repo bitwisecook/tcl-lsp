@@ -62,6 +62,12 @@ impl WordExpr {
     /// `fragments` are the word's lexer tokens in document order (the
     /// segmenter's word boundary); `compat_text` is the argv spelling kept on
     /// an opaque word; `expansion_span` is the `{*}` marker when `expanded`.
+    ///
+    /// `sm` holds the buffer those spans index into. A sub-lex — the script
+    /// inside a `[…]`, segmented at the offset it sits at — carries its
+    /// document base on the map ([`SourceMap::with_base`]), so the text is
+    /// read locally and every span this returns stays in the document's
+    /// space.
     #[must_use]
     pub fn from_word(
         sm: &SourceMap<'_>,
@@ -72,10 +78,13 @@ impl WordExpr {
         expansion_span: Option<Span>,
     ) -> Self {
         let (Some(first), Some(last)) = (fragments.first(), fragments.last()) else {
+            // No ordered fragments to decompose: the argv spelling is all
+            // that survives, which is exactly what
+            // [`WordOpacity::MissingFragments`] names.
             return Self::Opaque {
                 text: compat_text.to_owned(),
                 source: SourceSite::opaque(Span::new(0, 0)),
-                reason: WordOpacity::LossySnapshot,
+                reason: WordOpacity::MissingFragments,
             };
         };
         let word_span = Span::new(first.span.start(), last.span.end());
@@ -105,6 +114,18 @@ struct Regions {
     parts: Vec<WordPart>,
     count: usize,
     quoted: bool,
+    /// The document offset the decomposed buffer's first byte sits at, so a
+    /// part built from a *local* slice offset carries its document span.
+    base: u32,
+}
+
+/// Re-anchor a token's span into the buffer `sm` holds, so
+/// [`SourceMap::token_text`] — which takes buffer-local spans — reads it.
+fn localise(tok: Token, base: u32) -> Token {
+    Token {
+        span: Span::new(tok.span.start() - base, tok.span.end() - base),
+        ..tok
+    }
 }
 
 fn build(
@@ -114,14 +135,19 @@ fn build(
 ) -> Result<WordExpr, &'static str> {
     let source = sm.source();
     let bytes = source.as_bytes();
+    // The fragments' spans are in the *document's* space; `source` may be a
+    // sub-lexed slice of it (a `[…]` substitution's script), so every index
+    // into `source` drops the base and every span emitted keeps it.
+    let base = sm.base_offset();
+    let at = |offset: u32| (offset - base) as usize;
     let first = fragments[0];
     let last = fragments[fragments.len() - 1];
     let word_span = Span::new(first.span.start(), last.span.end());
-    let opener_of = |tok: Token| bytes.get(tok.span.start() as usize).copied();
+    let opener_of = |tok: Token| bytes.get(at(tok.span.start())).copied();
 
     if fragments.len() == 1 && first.kind == TokenType::Str && opener_of(first) == Some(b'{') {
         return Ok(WordExpr::BracedLiteral {
-            text: sm.token_text(first).to_owned(),
+            text: sm.token_text(localise(first, base)).to_owned(),
             source: SourceSite::source(first.span),
         });
     }
@@ -130,18 +156,19 @@ fn build(
         parts: Vec::new(),
         count: 0,
         quoted: false,
+        base,
     };
     // Start of the bare run being accumulated, if one is open.
     let mut run_start: Option<usize> = None;
     let mut i = 0;
     while i < fragments.len() {
         let tok = fragments[i];
-        let start = tok.span.start() as usize;
+        let start = at(tok.span.start());
         let opener = opener_of(tok);
         if tok.kind == TokenType::Str && opener == Some(b'{') {
             flush_run(&mut regions, source, config, run_start.take(), start)?;
             regions.parts.push(WordPart::Text {
-                text: sm.token_text(tok).to_owned(),
+                text: sm.token_text(localise(tok, base)).to_owned(),
                 source: SourceSite::source(tok.span),
             });
             regions.count += 1;
@@ -157,7 +184,7 @@ fn build(
             // The rest of the quoted run's fragments — its `$` / `[` pieces
             // and the (possibly empty) closing-quote fragment — are covered.
             i += 1;
-            while i < fragments.len() && (fragments[i].span.end() as usize) <= end {
+            while i < fragments.len() && at(fragments[i].span.end()) <= end {
                 i += 1;
             }
             continue;
@@ -168,7 +195,7 @@ fn build(
         i += 1;
     }
     if let Some(start) = run_start {
-        let end = tcl_lexer::word_span_at(source, last.span).end() as usize;
+        let end = tcl_lexer::word_span_at(source, localise(last, base).span).end() as usize;
         flush_run(&mut regions, source, config, Some(start), end)?;
     }
 
@@ -196,7 +223,8 @@ fn build(
     Ok(word)
 }
 
-/// Close the bare run `[start, end)`, if one is open, as one decomposed region.
+/// Close the bare run `[start, end)`, if one is open, as one decomposed
+/// region. Both offsets are local to `source`.
 fn flush_run(
     regions: &mut Regions,
     source: &str,
@@ -220,17 +248,24 @@ fn decompose_region(
 ) -> Result<(), &'static str> {
     let content = source.get(start..end).unwrap_or("");
     regions.count += 1;
+    let base = regions.base;
     for spanned in decompose_spanned(content.as_bytes(), SubstFlags::default(), config) {
-        regions.parts.push(part_at(source, start, &spanned)?);
+        regions.parts.push(part_at(source, start, base, &spanned)?);
     }
     Ok(())
 }
 
-/// One owner part, re-anchored at `base` in `source`, as a compatibility part.
-fn part_at(source: &str, base: usize, spanned: &SpannedPart<'_>) -> Result<WordPart, &'static str> {
-    let (start, end) = (base + spanned.start, base + spanned.end);
+/// One owner part, re-anchored at the local offset `start` in `source` and
+/// carried out in the document space `base` anchors.
+fn part_at(
+    source: &str,
+    start: usize,
+    base: u32,
+    spanned: &SpannedPart<'_>,
+) -> Result<WordPart, &'static str> {
+    let (start, end) = (start + spanned.start, start + spanned.end);
     let raw = source.get(start..end).unwrap_or("");
-    let span = |end: usize| Span::new(offset(start), offset(end));
+    let span = |end: usize| Span::new(offset(start) + base, offset(end) + base);
     Ok(match &spanned.part {
         tcl_lexer::WordPart::Text(_) => WordPart::Text {
             text: raw.to_owned(),

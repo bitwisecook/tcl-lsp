@@ -95,6 +95,18 @@ impl<'src> SourceMap<'src> {
         self
     }
 
+    /// The document offset this map's first byte sits at — the
+    /// `base_offset` given to [`Self::with_base`], and `0` for a map over a
+    /// whole document.
+    ///
+    /// A caller that holds spans in the *parent* span space (a sub-lex
+    /// segmented at an offset) subtracts this to index [`Self::text`] /
+    /// [`Self::token_text`], which take spans local to the buffer.
+    #[must_use]
+    pub const fn base_offset(&self) -> u32 {
+        self.base_offset
+    }
+
     /// Borrow the underlying source buffer.
     #[must_use]
     pub fn source(&self) -> &'src str {

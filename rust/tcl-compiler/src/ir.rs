@@ -27,10 +27,10 @@
 //! [`SourceMap`](tcl_lexer::SourceMap). This mirrors the span-first
 //! design established in the lexer crate.
 
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, SourceMap, Span, Token};
 
 use crate::expr_ast::ExprNode;
-use crate::segmenter::{SegmentedCommand, WordFragment};
+use crate::segmenter::SegmentedCommand;
 
 // Command tokens
 
@@ -230,53 +230,6 @@ impl WordExpr {
         }
     }
 
-    fn from_fragments(
-        fragments: &[WordFragment],
-        fallback_text: &str,
-        fallback_span: Span,
-        expanded: bool,
-        expansion_span: Option<Span>,
-    ) -> Self {
-        let word = match fragments {
-            [fragment] if is_plain_bare_literal(fragment) => Self::Literal {
-                text: fragment.text.clone(),
-                source: SourceSite::source(fragment.token.span),
-            },
-            [fragment] if fragment.token.kind == tcl_lexer::TokenType::Str => Self::BracedLiteral {
-                text: fragment.text.clone(),
-                source: SourceSite::source(fragment.token.span),
-            },
-            [fragment] if fragment.token.kind == tcl_lexer::TokenType::Var => Self::Variable {
-                spelling: fragment.text.clone(),
-                source: SourceSite::source(fragment.token.span),
-            },
-            [fragment] if fragment.token.kind == tcl_lexer::TokenType::Cmd => {
-                Self::CommandSubstitution {
-                    spelling: fragment.text.clone(),
-                    source: SourceSite::source(fragment.token.span),
-                }
-            }
-            [] => Self::Opaque {
-                text: fallback_text.to_owned(),
-                source: SourceSite::opaque(fallback_span),
-                reason: WordOpacity::MissingFragments,
-            },
-            _ => Self::Template {
-                parts: fragments.iter().map(WordPart::from_fragment).collect(),
-                source: SourceSite::source(fallback_span),
-            },
-        };
-        if expanded {
-            let start = expansion_span.map_or(fallback_span.start(), Span::start);
-            Self::Expand {
-                source: SourceSite::source(Span::new(start, fallback_span.end())),
-                word: Box::new(word),
-            }
-        } else {
-            word
-        }
-    }
-
     fn from_lossy_snapshot(
         text: &str,
         span: Span,
@@ -323,19 +276,6 @@ impl WordExpr {
     }
 }
 
-/// Whether a single lexer fragment is statically a bare Tcl literal.
-///
-/// `Esc` is intentionally broader than a semantic literal: quoted fragments
-/// and fragments containing a backslash need Tcl substitution processing.
-/// This predicate only admits the demonstrably plain subset so a later
-/// resolver receives static command heads without overclaiming word meaning.
-fn is_plain_bare_literal(fragment: &WordFragment) -> bool {
-    fragment.token.kind == tcl_lexer::TokenType::Esc
-        && !fragment.token.in_quote
-        && fragment.token.content_offset == 0
-        && !fragment.text.contains('\\')
-}
-
 /// One ordered lexical component of a [`WordExpr::Template`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum WordPart {
@@ -371,28 +311,6 @@ pub enum WordPart {
 }
 
 impl WordPart {
-    fn from_fragment(fragment: &WordFragment) -> Self {
-        let source = SourceSite::source(fragment.token.span);
-        match fragment.token.kind {
-            tcl_lexer::TokenType::Var => Self::Variable {
-                spelling: fragment.text.clone(),
-                source,
-            },
-            tcl_lexer::TokenType::Cmd => Self::CommandSubstitution {
-                spelling: fragment.text.clone(),
-                source,
-            },
-            tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str => Self::Text {
-                text: fragment.text.clone(),
-                source,
-            },
-            _ => Self::Opaque {
-                text: fragment.text.clone(),
-                source,
-            },
-        }
-    }
-
     fn legacy_text(&self) -> String {
         match self {
             Self::Text { text, .. } | Self::Opaque { text, .. } => text.clone(),
@@ -523,35 +441,54 @@ pub struct CommandTokens {
 
 impl CommandTokens {
     /// Build a token snapshot from the segmenter without losing word shape.
+    ///
+    /// `sm` is the buffer the segment's spans index into — the document, or a
+    /// sub-lexed slice carrying its document base
+    /// ([`SourceMap::with_base`]) — and `config` is that document's grammar,
+    /// resolved once at the ingress and threaded here so every word is
+    /// decomposed under the release it is written for.
     #[must_use]
-    pub fn from_segmented(seg: &SegmentedCommand) -> Self {
+    pub fn from_segmented(sm: &SourceMap<'_>, config: LexerConfig, seg: &SegmentedCommand) -> Self {
         let expand = seg.expand_word.as_deref();
-        let word_exprs = seg
-            .argv
-            .iter()
-            .enumerate()
-            .map(|(idx, token)| {
-                let fragments = seg.word_fragments.get(idx).map_or(&[][..], Vec::as_slice);
-                let text = seg.texts.get(idx).map_or("", String::as_str);
-                let expanded = expand
-                    .and_then(|flags| flags.get(idx))
-                    .copied()
-                    .unwrap_or(false);
-                let expansion_span = expanded
-                    .then(|| {
-                        seg.all_tokens
-                            .iter()
-                            .rev()
-                            .find(|candidate| {
-                                candidate.kind == tcl_lexer::TokenType::Expand
-                                    && candidate.span.end() <= token.span.start()
-                            })
-                            .map(|candidate| candidate.span)
-                    })
-                    .flatten();
-                WordExpr::from_fragments(fragments, text, token.span, expanded, expansion_span)
-            })
-            .collect();
+        // One reused buffer: `WordExpr::from_word` takes the word's lexer
+        // tokens, and the segmenter keeps them behind its own fragment type.
+        let mut fragments: Vec<Token> = Vec::new();
+        let mut word_exprs = Vec::with_capacity(seg.argv.len());
+        for (idx, token) in seg.argv.iter().enumerate() {
+            fragments.clear();
+            fragments.extend(
+                seg.word_fragments
+                    .get(idx)
+                    .map_or(&[][..], Vec::as_slice)
+                    .iter()
+                    .map(|fragment| fragment.token),
+            );
+            let text = seg.texts.get(idx).map_or("", String::as_str);
+            let expanded = expand
+                .and_then(|flags| flags.get(idx))
+                .copied()
+                .unwrap_or(false);
+            let expansion_span = expanded
+                .then(|| {
+                    seg.all_tokens
+                        .iter()
+                        .rev()
+                        .find(|candidate| {
+                            candidate.kind == tcl_lexer::TokenType::Expand
+                                && candidate.span.end() <= token.span.start()
+                        })
+                        .map(|candidate| candidate.span)
+                })
+                .flatten();
+            word_exprs.push(WordExpr::from_word(
+                sm,
+                config,
+                &fragments,
+                text,
+                expanded,
+                expansion_span,
+            ));
+        }
         Self {
             argv: seg.argv.iter().map(|token| token.span).collect(),
             argv_texts: seg.texts.clone(),
