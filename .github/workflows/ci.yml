@@ -888,6 +888,19 @@ jobs:
   # This is an ADDITIONAL semantic gate, not a replacement: `wasm-real-link`
   # remains the real-link check, and this job never links anything.
   #
+  # It also runs the mirror-image config: `make runtime-rust-test-no-tommath`,
+  # BEFORE the libtommath fetch step below, so the source tree genuinely does
+  # not exist yet — no hiding trick needed on this runner. Every job here
+  # fetches the Tcl 9.0.4 source before touching `runtime/rust`, so the
+  # degraded fallback build.rs takes when that source is absent (no bignum
+  # tower, and `expr`/`if`/the `mathfunc`/`mathop` ensembles un-registered)
+  # had never once been compiled in CI, let alone tested — despite two real
+  # bugs recently found in exactly that fallback by hand (a `read_double` that
+  # widened every bignum to infinity, and an `incr` that bypassed the
+  # read-trace chokepoint). Same step-level skip and shared make target as the
+  # tommath-enabled run below, so this doesn't cost a second job or a second
+  # checkout.
+  #
   # The step-level skip keys on `runtime_rust_changed` (see the channel job
   # header): the crate plus the path-dependency closure its own lockfile
   # resolves.  The job itself always runs and reports, per the redundancy
@@ -909,6 +922,16 @@ jobs:
           # target dir, so it keeps its own cache rather than racing the root
           # workspace jobs on save.
           cache-key: runtime-rust-tests
+
+      # The no-bignum fallback config, run BEFORE the fetch step below so
+      # libtommath's source tree genuinely is not present on this runner —
+      # the natural way to exercise the degraded build, no hide-and-restore
+      # dance required. See `runtime-rust-test-no-tommath` in the Makefile for
+      # why this configuration is worth gating and how it forces absence on a
+      # checkout where the tree WAS already fetched.
+      - name: make runtime-rust-test-no-tommath (standalone runtime, no libtommath)
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: make runtime-rust-test-no-tommath
 
       # libtommath, for the same reason `wasm-real-link` fetches it: without
       # the source `runtime/rust`'s build script prints a `cargo:warning` and
