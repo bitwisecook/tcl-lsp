@@ -22,11 +22,22 @@
 # Edit this file to change the specs; there is no generator to re-run.
 # Syntax: docs/design/spec-dsl-examples/README.md.
 
-speclib eda_microchip 1.1 {
+speclib eda_microchip 2.0 {
 
 display_name {Microchip Libero SoC}
 
-default dialects all-tcl
+environment microchip-libero-eda-tcl {
+    display_name    {Microchip Libero EDA Tcl}
+    core            tcl 8.5
+    version_ceiling 8.5
+    editor_identity tcl-microchip
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    ambient         libero keyed ToolVersion
+    help_terms      {microchip microsemi actel libero smartfusion igloo proasic}
+}
+
+default available {tcl 8.4-}
 default required_package libero
 
 command add_file_to_library {

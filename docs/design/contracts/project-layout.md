@@ -123,7 +123,7 @@ dependency graph (a crate can only use what it declares in
 - [`Cargo.toml`](../../../Cargo.toml) — `[workspace] members` and the
   per-crate `[[bin]]` entries (`tcl`, `f5-query`, `tcl-lsp-server`,
   `tcl-mcp`).
-- [`AGENTS.md`](../../../AGENTS.md) — Repository layout section.
+- [`AGENTS.md`](../../../AGENTS.md) — the agent guide; links here for the crate map.
 
 ## Test anchors
 
@@ -139,8 +139,7 @@ dependency graph (a crate can only use what it declares in
 
 ## Discoverability
 
-- [`AGENTS.md`](../../../AGENTS.md) "Repository layout" section —
-  per-crate one-line summaries.
+- [`AGENTS.md`](../../../AGENTS.md) — the agent guide's one-paragraph layout.
 - [`shared-utility-contracts-rust.md`](shared-utility-contracts-rust.md) —
   ownership rules for the cross-cutting helpers.
 - [`pipeline-lsp-first.md`](pipeline-lsp-first.md) — pipeline layering

@@ -15,7 +15,7 @@ existing one?
 ## Before you start
 
 - You have a local checkout with the development environment set up
-  (`uv sync` passes).
+  (`cargo build --workspace` passes).
 - You have read the
   [compiler pipeline overview](../design/compiler/compiler-pipeline-overview.md)
   and know where in the pipeline your pass should sit.

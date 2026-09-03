@@ -27,6 +27,10 @@ kotlin {
 dependencies {
     testImplementation(kotlin("test"))
     intellijPlatform {
+        // Compile at the 2024.1 support floor. JCEF is part of the platform at
+        // this version, so the 2025.3.1+ `intellij.platform.ui.jcef` bundled
+        // plugin cannot be added to this compile classpath. plugin.xml carries
+        // the optional compatibility dependency used by newer IDEs instead.
         intellijIdeaUltimate("2024.1")
         bundledPlugin("org.jetbrains.plugins.textmate")
 
@@ -94,7 +98,13 @@ intellijPlatform {
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.1.7.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6.2")
+            // First release whose core plugin advertises the JCEF dependency
+            // alias used to bridge the pre- and post-extraction layouts.
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.3.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.1")
+            // #1780 was reported against this exact product/version, where
+            // JCEF is isolated behind the bundled Web Browser plugin.
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.CLion, "2026.2.2")
         }
     }
 

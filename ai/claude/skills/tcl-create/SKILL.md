@@ -6,22 +6,18 @@ allowed-tools: mcp__tcl-lsp__analyze, Read, Write
 
 # Tcl Create
 
-Generate Tcl code from a user description, validate with LSP, and iterate until clean.
+Generate Tcl from a description, validate with the LSP, iterate until clean.
 
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/tcl_system.md` for idiomatic Tcl patterns
-2. Generate Tcl code based on the user's description. Requirements:
-   - Use braced expressions (`expr {$a + $b}`) and braced script bodies
-   - Use list-safe APIs (`list`, `lappend`, `lindex`, `dict`) over manual string concatenation
-   - Use `file join` for path construction
-   - Use `--` option terminator where needed
-   - Include comments for non-obvious logic
-3. Write the generated code to a `.tcl` file
-4. Validate the generated code: Read the file, then call `mcp__tcl-lsp__analyze` with its contents as `source`
-5. If the tool fails (e.g. parse error), report the error and adjust the generated code
-6. If there are errors or warnings, fix them and re-validate (up to 5 iterations)
-7. If validation still fails after 5 iterations, report remaining issues and explain what could not be resolved
-8. Report the final status with a summary of the generated code structure
+1. Read `../_prompts/tcl_system.md`.
+2. Generate the code: braced expressions and bodies, list-safe APIs (`list`,
+   `lappend`, `lindex`, `dict`), `file join` for paths, `--` where a value may
+   start with `-`, comments only for non-obvious logic.
+3. Write it to a `.tcl` file, then call `mcp__tcl-lsp__analyze` with the
+   contents as `source`. On a tool error report it and adjust the code.
+4. Fix errors and warnings and re-validate, up to 5 iterations; then report
+   what remains and why it could not be resolved.
+5. Report the final status and a summary of the structure.
 
 $ARGUMENTS

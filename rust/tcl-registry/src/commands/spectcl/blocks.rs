@@ -233,7 +233,7 @@ fn ambient_package_statement() -> CommandSpec {
         "ambient_package",
         Arity::exact(2),
         "Declare a package the dialect provides with no `package require`.",
-        "One row per package (`ambient_package mylib 2.1`). The version is the one the environment guarantees, and it floors that package for every document the pack is active in — so a call gated on `mylib 2.1` is not reported as needing a require the runtime already satisfies. Both words are required: a row naming no version would floor at nothing, which is the situation the row exists to prevent, so it is dropped with a notice. Two active packs declaring different versions for one package compose by taking the greater.",
+        "One row per package (`ambient_package mylib 2.1`). The version is the one the environment guarantees, and it floors that package for every document the pack is active in — so a call gated on `mylib 2.1` is not reported as needing a require the runtime already satisfies. Both words are required: a row naming no version would floor at nothing, which is the situation the row exists to prevent, so it is dropped with a notice. Two active packs declaring different versions for one package compose by taking the greater. The row is unscoped and has no scoping flag: to say a package is ambient under one of the pack's environments and not another, write `environment NAME { ambient PACKAGE VERSION }` instead. A row carrying `-dialects` is dropped whole rather than applied everywhere.",
     )
 }
 

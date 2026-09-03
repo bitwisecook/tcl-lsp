@@ -45,7 +45,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definition_grammar};
+use crate::oo_body::{HeadWords, is_member, member_block_indices_in, next_definition_grammar};
 use tcl_registry::definer::DefinitionBodyGrammar;
 
 /// LSP folding-range kind.
@@ -147,7 +147,13 @@ pub fn folding_ranges(
         config: tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     };
     collect_body_folds(
-        source, 0, 0, None, // top-level body is not inside a definition body
+        source,
+        0,
+        0,
+        // An authoring dialect whose *file* is a declaration body states that
+        // as a document grammar; an ordinary Tcl document has none, and the
+        // root stays an open command position (`None`).
+        registry.document_grammar(),
         &mut ctx,
     );
 
@@ -459,11 +465,26 @@ fn collect_body_folds(
         // definition-body grammar ([`crate::oo_body`]).
         let body_indices: Vec<usize> = match oo_grammar {
             Some(g) if is_member(g, head.written) => {
-                member_body_indices_in(g, head.written, &args_borrow, ctx.availability)
+                member_block_indices_in(g, head.written, &args_borrow, ctx.availability)
             }
-            _ => ctx
-                .registry
-                .arg_indices_for_role(head.resolved, &args_borrow, ArgRole::Body),
+            // Every role that denotes a collapsible braced block, not just
+            // the executable one: `ArgRole::OpaqueScript` is script-shaped
+            // data a reader still wants to fold (SslicTcl's never-evaluated
+            // `predicate`), and asking the role rather than testing for `Body`
+            // is what stops this walk from deciding that for itself.
+            _ => {
+                let mut indices: Vec<usize> = ArgRole::ALL
+                    .iter()
+                    .filter(|role| role.folds_as_block())
+                    .flat_map(|&role| {
+                        ctx.registry
+                            .arg_indices_for_role(head.resolved, &args_borrow, role)
+                    })
+                    .collect();
+                indices.sort_unstable();
+                indices.dedup();
+                indices
+            }
         };
 
         // A clause-list command (`switch … {pat body …}`, Expect's `expect

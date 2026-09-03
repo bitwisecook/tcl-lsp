@@ -35,7 +35,18 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 
 ## Style and formatting
 
-- Rust style is enforced with `cargo fmt` + `clippy` (`-D warnings`). Run `make check-rust`.
+- Rust style is enforced with `cargo fmt` + `clippy` (`-D warnings`), including
+  the workspace-enabled `clippy::pedantic`. Run `make check-rust`.
+- **Do not add `#[allow(...)]` / `#[expect(...)]` to silence a lint.** Fix the
+  cause: `too_many_lines` → extract helpers; `similar_names` → rename;
+  `too_many_arguments` → group into a config/options struct. Allow only when
+  the lint is genuinely wrong *and* no reasonable refactor exists, with a
+  one-line comment saying why. Pre-existing allows are not licence for more.
+  The one clear pass: a config/options constructor whose many parameters
+  *are* the config — grouping them only makes the API worse.
+- Comments are plain and minimal, present only where the code does not
+  convey the point. No banner comments (`// -----`, `// --- Text ---`) and no
+  standalone separator lines; a plain `// Text` line instead.
 - TypeScript style is enforced with ESLint and Prettier. Run `make lint-ts`.
 - Python style (the remaining `f5report` / skills / Sublime code) is enforced with Ruff. Run `make lint-py` and `make format-py`.
 - Use UK spelling in internal names and comments (for example `normalise`, `optimiser`, `analyse`).
@@ -99,21 +110,47 @@ another copy.
 The project has two kinds of written content, with different rules:
 
 - **KCS notes** (`docs/kcs/`) — small, user-facing answers to one question
-  each, written in plain British English. They are for people trying to
-  get something done. There are four categories: Issue, Q&A, How-To, and
-  Functionality.
+  each, written in plain British English, for people trying to get
+  something done. Six categories: Issue, Q&A, How-To, Functionality,
+  Diagnostic, and Optimisation.
 - **Design docs** (`docs/design/`) — technical material describing how the
   system is built: architecture, contracts, interfaces, data-structure
   references. Technical jargon is allowed.
 
-The authoritative split, the four KCS categories, and the nine-rule style
-guide all live in [`AGENTS.md`](AGENTS.md) under "Knowledge base and
-documentation". The full style guide with worked examples lives in
-[`docs/kcs/STYLE.md`](docs/kcs/STYLE.md).
+The split, the six categories, and the fourteen style rules live in
+[`docs/kcs/STYLE.md`](docs/kcs/STYLE.md); templates are under
+[`docs/kcs/templates/`](docs/kcs/templates/README.md) and
+[`docs/design/templates/`](docs/design/templates/README.md). Complex terms go
+in [`docs/GLOSSARY.md`](docs/GLOSSARY.md): KCS notes link it instead of
+defining inline; design docs may do either.
 
-KCS templates are at [`docs/kcs/templates/`](docs/kcs/templates/README.md).
-Design-doc templates are at
-[`docs/design/templates/`](docs/design/templates/README.md).
+| Content | Folder |
+|---|---|
+| answer to one user/contributor question | `docs/kcs/` |
+| feature, command, or tool description | `docs/kcs/features/` |
+| architecture and pipeline walkthroughs | `docs/design/` |
+| compiler pass, stage, or analysis internals | `docs/design/compiler/` |
+| module ownership or API contract | `docs/design/contracts/` |
+
+### Documentation required for a PR
+
+A PR that adds or changes a feature is incomplete without, in the same
+change:
+
+1. **README.md** — the relevant section reflects the new behaviour.
+2. **KCS note** — created or updated from the matching template and linked
+   from [`docs/kcs/README.md`](docs/kcs/README.md) (feature changes: the file
+   under [`docs/kcs/features/`](docs/kcs/features/README.md)).
+3. **Design doc** — if a contract, interface, or data structure changed, the
+   owning file under `docs/design/` is updated and linked from
+   [`docs/design/README.md`](docs/design/README.md).
+4. **Glossary** — a new technical term gets a stable anchor in
+   `docs/GLOSSARY.md`.
+5. **Screenshots** — for user-visible changes, referenced from the KCS note
+   and `README.md`.
+
+`cargo xtask kcs-index-links` (in `make rust-check`) fails on an unindexed
+note or a broken local link.
 
 When you document compiler behaviour or diagnostics contracts:
 

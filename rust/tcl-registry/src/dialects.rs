@@ -317,11 +317,17 @@ fn is_package_require_tcl(s: &str, requested_version: &str) -> bool {
         && is_tcl_core_package(words.get(2).copied(), requested_version)
 }
 
-/// Return the dialect named by a `# tcl-dialect: <dialect>` comment directive in
-/// the first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines, or `None`. The directive
-/// keyword is matched case-insensitively; the named dialect must be one of
-/// [`KNOWN_DIALECTS`] or a registered environment's id or alias (so an
-/// unknown name yields `None`).
+/// Return the environment named by a `# tcl-dialect: <name>` comment
+/// directive in the first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines, or `None`.
+///
+/// The directive keyword is matched case-insensitively; the name resolves
+/// through the one environment resolver
+/// ([`crate::model::resolve_known_environment`]) exactly as a settings
+/// string or `tcl-lsp.setDialect` does — a canonical id, an alias (`wish`
+/// → `tk`, `irules` → `f5-irules`), a contributed editor identity, or an
+/// environment a loaded pack declares — and the answer is the resolved
+/// **canonical id**. A name no environment carries makes the tier abstain,
+/// so detection falls through rather than erroring (redesign §5.1, E8).
 #[must_use]
 pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
     const KEY: &str = "tcl-dialect:";
@@ -345,32 +351,28 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             .split_whitespace()
             .next()
             .unwrap_or_default();
-        if let Some(known) = KNOWN_DIALECTS.iter().copied().find(|&d| d == candidate) {
-            return Some(known);
-        }
-        // An environment with no catalogue row (`jim`, and any pack- or
-        // workspace-registered environment) is just as real a dialect to
-        // name here; it answers with its canonical id, so `jimsh` and `jim`
-        // detect as one thing.
-        return crate::model::ingress::resolve_known_environment(candidate)
-            .map(|env| intern_environment_id(env.id()));
+        return crate::model::resolve_known_environment(candidate)
+            .map(|environment| intern_environment_id(environment.id()));
     }
     None
 }
 
-/// Canonical environment ids handed out by [`detect_dialect_directive`] for
-/// environments outside [`KNOWN_DIALECTS`], interned so the `&'static`
-/// contract holds; bounded by the number of distinct environments.
+/// The `&'static` spelling of a resolved environment id, for the detection
+/// table's static-string shape. Bounded by the number of distinct
+/// environment ids a process ever resolves through a directive — the
+/// compiled catalogue plus whatever packs declare — so it leaks nothing a
+/// reload can grow.
 fn intern_environment_id(id: &str) -> &'static str {
-    use std::sync::{Mutex, OnceLock};
-    static IDS: OnceLock<Mutex<rustc_hash::FxHashMap<String, &'static str>>> = OnceLock::new();
-    let cell = IDS.get_or_init(|| Mutex::new(rustc_hash::FxHashMap::default()));
-    let mut map = cell.lock().expect("environment-id intern mutex poisoned");
-    if let Some(&s) = map.get(id) {
-        return s;
+    static INTERNED: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+    let mut interned = match INTERNED.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if let Some(known) = interned.iter().find(|known| **known == id) {
+        return known;
     }
     let leaked: &'static str = Box::leak(id.to_owned().into_boxed_str());
-    map.insert(id.to_owned(), leaked);
+    interned.push(leaked);
     leaked
 }
 
@@ -418,6 +420,10 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     // SpecTcl packs (`spec-packs.md`): a `.tclspec` is one Tcl script, sits
     // beside the code it describes, and is indexed like any other source.
     "tclspec",
+    // SslicTcl TLS declarations (#1543): a `.sslictcl` is one Tcl script that
+    // is read and never evaluated, kept beside the deployment it describes,
+    // and indexed like any other source.
+    "sslictcl",
 ];
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], written so it
@@ -748,31 +754,108 @@ fn has_irules_when(head: &str) -> bool {
 /// detector in its own right.
 pub fn dialect_hint_markers() -> impl Iterator<Item = &'static str> {
     const EXTRA: &[&str] = &["tcl-dialect:", "#!", "package", "vsatisfies", "when"];
-    EXTRA.iter().copied().chain(
-        CONTENT_SIGNATURES
+    EXTRA
+        .iter()
+        .copied()
+        .chain(CONTENT_SIGNATURES.iter().flat_map(|(_, signature)| {
+            match signature {
+                Signature::Words(markers) => *markers,
+                // A header signature can only fire on a line whose first word
+                // is the head, so the head is still the substring nothing can
+                // change the answer without.
+                Signature::Header { head, .. } => std::slice::from_ref(head),
+            }
             .iter()
-            .flat_map(|&(_, markers)| markers.iter().copied()),
-    )
+            .copied()
+        }))
+}
+
+/// The shape of a content signature — how a marker has to appear before it
+/// speaks for a dialect.
+enum Signature {
+    /// Any of these marker words appearing anywhere in the scanned head, at a
+    /// word boundary (see [`contains_token`]). The right signal for a dialect
+    /// identified by *proprietary vocabulary*: an EDA script that calls
+    /// `synth_design` is a Vivado script wherever the call sits.
+    Words(&'static [&'static str]),
+    /// `head` appearing as a **command head** — the first word of a
+    /// non-comment line — followed by an argument word of the declared shape.
+    ///
+    /// The right signal for a declarative dialect whose marker is an ordinary
+    /// English word: `sslictcl` is a header *statement*, and `set format
+    /// sslictcl` or `puts "sslictcl"` in an ordinary script must stay Tcl. It
+    /// deliberately does not require the statement to be the *first* one (a
+    /// document may open with comments or blank lines) and it accepts leading
+    /// whitespace, so a header indented inside a braced body would also match;
+    /// that is a far smaller false-positive surface than a bare word, and
+    /// bounded by the argument shape.
+    Header {
+        /// The command word.
+        head: &'static str,
+        /// The shape the word after `head` must have.
+        arg: HeaderArg,
+    },
+}
+
+/// The shape a [`Signature::Header`] argument word must have.
+enum HeaderArg {
+    /// One or more ASCII digits — `sslictcl 1`, never `sslictcl foo`.
+    Integer,
+}
+
+impl HeaderArg {
+    fn admits(&self, word: &str) -> bool {
+        match self {
+            Self::Integer => !word.is_empty() && word.bytes().all(|b| b.is_ascii_digit()),
+        }
+    }
+}
+
+impl Signature {
+    /// Whether this signature fires over `code` — the scanned head with its
+    /// full-line comments already removed.
+    fn matches(&self, code: &str) -> bool {
+        match self {
+            Self::Words(markers) => markers.iter().any(|marker| contains_token(code, marker)),
+            Self::Header { head, arg } => code.lines().any(|line| {
+                let mut words = line.split_ascii_whitespace();
+                words.next() == Some(*head) && words.next().is_some_and(|word| arg.admits(word))
+            }),
+        }
+    }
 }
 
 /// Content signatures for the non-Tcl-core dialects, checked in priority order.
-/// Each entry is `(dialect, &[marker words])`; a marker matches when it appears
-/// as a whole word anywhere in the scanned head. Ordered most-specific first so
-/// an EDA-tool script never falls through to a weaker signal.
-const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
+/// Each entry is `(dialect, signature)`; see [`Signature`] for the two shapes a
+/// signature can take. Ordered most-specific first so an EDA-tool script never
+/// falls through to a weaker signal.
+const CONTENT_SIGNATURES: &[(&str, Signature)] = &[
+    // SslicTcl TLS declarations. The mandatory `sslictcl VERSION` header is
+    // the document's first declaration, and it is the signature that catches a
+    // document saved under a `.tcl` name. `sslictcl` is an ordinary word,
+    // though, so this is a *structural* signature rather than a word one: it
+    // fires only where the word is a command head followed by an integer, and
+    // never for `set format sslictcl` or `puts "sslictcl"`.
+    (
+        "sslictcl",
+        Signature::Header {
+            head: "sslictcl",
+            arg: HeaderArg::Integer,
+        },
+    ),
     // SpecTcl command packs. `speclib` is the DSL's one loader directive and
     // its only possible top-level word, so it is both the most specific
     // signature here and the one that catches a pack saved under a `.tcl`
     // name — the case the extension tier below cannot reach.
-    ("spectcl", &["speclib"]),
+    ("spectcl", Signature::Words(&["speclib"])),
     // F5 tmsh / iApp management scripts.
     (
         "f5-iapps",
-        &["iapp::", "tmsh::create_app", "sys application template"],
+        Signature::Words(&["iapp::", "tmsh::create_app", "sys application template"]),
     ),
     (
         "f5-tmsh",
-        &["tmsh::", "tmsh create", "tmsh modify", "tmsh list"],
+        Signature::Words(&["tmsh::", "tmsh create", "tmsh modify", "tmsh list"]),
     ),
     // EDA-tool Tcl (synthesis / P&R / simulation). Markers are the vendors'
     // *proprietary* commands only — shared SDC verbs (create_clock,
@@ -781,18 +864,18 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
     // a portable `.sdc` (eda-library-packages.md; the July-2026 EDA study).
     (
         "xilinx-eda-tcl",
-        &[
+        Signature::Words(&[
             "synth_design",
             "launch_runs",
             "create_bd_design",
             "write_bitstream",
             "create_project",
             "read_xdc",
-        ],
+        ]),
     ),
     (
         "synopsys-eda-tcl",
-        &[
+        Signature::Words(&[
             "compile_ultra",
             "dc_shell",
             "pt_shell",
@@ -800,11 +883,11 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
             "fm_shell",
             "set_svf",
             "set_app_var",
-        ],
+        ]),
     ),
     (
         "cadence-eda-tcl",
-        &[
+        Signature::Words(&[
             "set_db",
             "get_db",
             "syn_generic",
@@ -812,41 +895,41 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
             "innovus",
             "genus",
             "init_design",
-        ],
+        ]),
     ),
     (
         "intel-quartus-eda-tcl",
-        &[
+        Signature::Words(&[
             "quartus_",
             "::quartus::",
             "project_new",
             "set_global_assignment",
             "set_location_assignment",
             "execute_flow",
-        ],
+        ]),
     ),
     (
         "mentor-eda-tcl",
-        &["vsim", "vlog", "vcom", "vlib", "vmap", "vopt", "questa"],
+        Signature::Words(&["vsim", "vlog", "vcom", "vlib", "vmap", "vopt", "questa"]),
     ),
     // Microchip (Microsemi) Libero SoC project/flow scripting. Markers are
     // Libero-proprietary command spellings only — the SmartTime SDC verbs are
     // excluded for the same portable-`.sdc` reason as the vendors above.
     (
         "microchip-libero-eda-tcl",
-        &[
+        Signature::Words(&[
             "run_designer",
             "select_libero_design_device",
             "smartpower_report_power",
             "export_prog_job",
             "pin_fix_all",
             "configure_tool",
-        ],
+        ]),
     ),
     // Expect automation.
     (
         "expect",
-        &["spawn", "expect_before", "send_user", "interact"],
+        Signature::Words(&["spawn", "expect_before", "send_user", "interact"]),
     ),
 ];
 
@@ -900,8 +983,8 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
         return Some("f5-irules");
     }
     let code = strip_comment_lines(head);
-    for (dialect, markers) in CONTENT_SIGNATURES {
-        if markers.iter().any(|m| contains_token(&code, m)) {
+    for (dialect, signature) in CONTENT_SIGNATURES {
+        if signature.matches(&code) {
             return Some(dialect);
         }
     }

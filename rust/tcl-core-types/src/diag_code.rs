@@ -89,6 +89,8 @@ pub enum DiagSection {
     IrulesVariable,
     /// BIG-IP configuration-model checks.
     Bigip,
+    /// `SslicTcl` declarative TLS-document checks.
+    Sslic,
     /// `tclpkg` package-manager diagnostics.
     Tclpkg,
 }
@@ -110,6 +112,7 @@ impl DiagSection {
             Self::IrulesSecurity => "irules_security",
             Self::IrulesVariable => "irules_variable",
             Self::Bigip => "bigip",
+            Self::Sslic => "sslictcl",
             Self::Tclpkg => "tclpkg",
         }
     }
@@ -452,6 +455,21 @@ diagnostic_codes! {
     Iapp7001 => "IAPP7001", diag(Bigip, true, "iApp implementation references a presentation field that is not defined.");
     Iapp7002 => "IAPP7002", diag(Bigip, true, "iApp presentation field is never referenced by the implementation.");
     Iapp7003 => "IAPP7003", diag(Bigip, true, "iApp presentation `#include` file could not be resolved.");
+    Sslic1001 => "SSLIC1001", diag(Sslic, true, "SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter.");
+    Sslic1002 => "SSLIC1002", diag(Sslic, true, "SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative.");
+    Sslic1003 => "SSLIC1003", diag(Sslic, true, "SslicTcl document is missing its `sslictcl VERSION` header.");
+    Sslic1004 => "SSLIC1004", diag(Sslic, true, "SslicTcl document declares its `sslictcl` header more than once.");
+    Sslic1005 => "SSLIC1005", diag(Sslic, true, "SslicTcl declaration has the wrong number of words.");
+    Sslic1006 => "SSLIC1006", diag(Sslic, true, "SslicTcl declaration body must be a braced literal.");
+    Sslic1007 => "SSLIC1007", diag(Sslic, true, "SslicTcl closed block contains an unknown member.");
+    Sslic1008 => "SSLIC1008", diag(Sslic, true, "SslicTcl declaration duplicates an earlier declaration of the same kind and name.");
+    Sslic1009 => "SSLIC1009", diag(Sslic, true, "SslicTcl value is outside its declared domain.");
+    Sslic1010 => "SSLIC1010", diag(Sslic, true, "SslicTcl declaration is missing a required member.");
+    Sslic1011 => "SSLIC1011", diag(Sslic, true, "SslicTcl declaration references a name that is not declared.");
+    Sslic1012 => "SSLIC1012", diag(Sslic, true, "SslicTcl declaration combines mutually exclusive members.");
+    Sslic1101 => "SSLIC1101", diag(Sslic, true, "SslicTcl unknown declaration preserved as an extension.");
+    Sslic1102 => "SSLIC1102", diag(Sslic, true, "SslicTcl document vocabulary is newer than this build supports; unknown declarations are preserved.");
+    Sslic1103 => "SSLIC1103", diag(Sslic, true, "SslicTcl `predicate` body is retained but never evaluated in vocabulary 1.");
     Irule4001 => "IRULE4001", diag(IrulesVariable, true, "Write to `static::` variable outside `RULE_INIT`.");
     Irule4002 => "IRULE4002", diag(IrulesVariable, true, "Generic `static::` variable name — collision likely across iRules.");
     Irule4003 => "IRULE4003", diag(IrulesVariable, true, "Variable scoping concern across events.");
@@ -1098,6 +1116,8 @@ mod tests {
             (Irules, "irules"),
             (IrulesSecurity, "irules_security"),
             (IrulesVariable, "irules_variable"),
+            (Bigip, "bigip"),
+            (Sslic, "sslictcl"),
             (Tclpkg, "tclpkg"),
         ] {
             assert_eq!(section.as_str(), key);

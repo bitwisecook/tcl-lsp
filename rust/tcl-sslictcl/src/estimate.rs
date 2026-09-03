@@ -9,12 +9,13 @@
 //! or how a particular scanner version scores a new primitive.
 
 use std::fmt;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
 use crate::certificate::Certificate;
 use crate::chain::{ChainEvaluation, ChainFindingKind, ChainStatus, evaluate_chain};
-use crate::model::{Endpoint, ProtocolVersion};
+use crate::model::{Endpoint, ProtocolVersion, TlsFacts, TlsStatus};
 use crate::testssl::TestSslImport;
 use crate::trust::TrustStore;
 
@@ -42,6 +43,43 @@ pub enum Grade {
     M,
     /// Insufficient static evidence.
     Unknown,
+}
+
+impl Grade {
+    /// Ordinal rank used by cap logic and by declarative grade floors:
+    /// `Unknown`/`T`/`M` are 0, `F` is 1, and `A+` is 7.
+    #[must_use]
+    pub const fn rank(self) -> u8 {
+        match self {
+            Self::Unknown | Self::T | Self::M => 0,
+            Self::F => 1,
+            Self::E => 2,
+            Self::D => 3,
+            Self::C => 4,
+            Self::B => 5,
+            Self::A => 6,
+            Self::APlus => 7,
+        }
+    }
+}
+
+impl FromStr for Grade {
+    type Err = String;
+
+    /// Parses the seven declarable grades. `T`, `M`, and `?` are estimator
+    /// outcomes, not policy inputs, so they are not accepted.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_uppercase().as_str() {
+            "A+" => Ok(Self::APlus),
+            "A" => Ok(Self::A),
+            "B" => Ok(Self::B),
+            "C" => Ok(Self::C),
+            "D" => Ok(Self::D),
+            "E" => Ok(Self::E),
+            "F" => Ok(Self::F),
+            _ => Err(format!("unknown grade `{value}`")),
+        }
+    }
 }
 
 impl fmt::Display for Grade {
@@ -75,6 +113,39 @@ pub enum EstimateSeverity {
     Critical,
 }
 
+impl EstimateSeverity {
+    /// The stable `SslicTcl` spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Warning => "warning",
+            Self::Error => "error",
+            Self::Critical => "critical",
+        }
+    }
+}
+
+impl fmt::Display for EstimateSeverity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for EstimateSeverity {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "info" => Ok(Self::Info),
+            "warning" => Ok(Self::Warning),
+            "error" => Ok(Self::Error),
+            "critical" => Ok(Self::Critical),
+            _ => Err(format!("unknown severity `{value}`")),
+        }
+    }
+}
+
 /// One stable finding from static or imported evidence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EstimateFinding {
@@ -99,6 +170,9 @@ pub struct EstimateInput<'a> {
     pub trust_store: &'a TrustStore,
     /// Optional live testssl evidence to merge.
     pub testssl: Option<&'a TestSslImport>,
+    /// Optional declared protocol/cipher catalogue. Declared facts are
+    /// consulted before the built-in heuristics.
+    pub facts: Option<&'a TlsFacts>,
     /// Evaluation time as Unix seconds.
     pub unix_time: i64,
 }
@@ -137,9 +211,10 @@ pub fn estimate(input: EstimateInput<'_>) -> Estimate {
         input.endpoint.hostname.as_deref(),
         input.unix_time,
     );
-    let protocol_score = protocol_score(&input.endpoint.protocols);
-    let key_exchange_score = key_exchange_score(input.certificates.first(), input.endpoint);
-    let cipher_score = cipher_score(&input.endpoint.ciphers);
+    let facts = input.facts;
+    let protocol_score = protocol_score(&input.endpoint.protocols, facts);
+    let key_exchange_score = key_exchange_score(input.certificates.first(), input.endpoint, facts);
+    let cipher_score = cipher_score(&input.endpoint.ciphers, facts);
     let numeric_score = weighted(protocol_score, key_exchange_score, cipher_score);
     let mut grade = grade_for_score(numeric_score);
     let mut caps = Vec::new();
@@ -164,8 +239,8 @@ pub fn estimate(input: EstimateInput<'_>) -> Estimate {
         ));
     }
 
-    apply_protocol_caps(input.endpoint, &mut grade, &mut caps, &mut findings);
-    apply_cipher_caps(input.endpoint, &mut grade, &mut caps, &mut findings);
+    apply_protocol_caps(input.endpoint, facts, &mut grade, &mut caps, &mut findings);
+    apply_cipher_caps(input.endpoint, facts, &mut grade, &mut caps, &mut findings);
     apply_certificate_caps(
         input.certificates.first(),
         &mut grade,
@@ -217,22 +292,68 @@ pub fn estimate(input: EstimateInput<'_>) -> Estimate {
     }
 }
 
-fn protocol_score(protocols: &[ProtocolVersion]) -> u8 {
+fn protocol_score(protocols: &[ProtocolVersion], facts: Option<&TlsFacts>) -> u8 {
     protocols
         .iter()
-        .map(|protocol| match protocol {
-            ProtocolVersion::Ssl2 => 0,
-            ProtocolVersion::Ssl3 => 20,
-            ProtocolVersion::Tls10 => 65,
-            ProtocolVersion::Tls11 => 70,
-            ProtocolVersion::Tls12 => 95,
-            ProtocolVersion::Tls13 => 100,
-        })
+        .map(|protocol| declared_protocol_score(*protocol, facts))
         .min()
         .unwrap_or(0)
 }
 
-fn key_exchange_score(certificate: Option<&Certificate>, endpoint: &Endpoint) -> u8 {
+/// A declared `protocol … score N` overrides the built-in judgement for that
+/// version; everything else keeps the heuristic.
+fn declared_protocol_score(protocol: ProtocolVersion, facts: Option<&TlsFacts>) -> u8 {
+    if let Some(score) = facts
+        .and_then(|facts| facts.protocols.get(&protocol))
+        .and_then(|fact| fact.score)
+    {
+        return score.min(100);
+    }
+    match protocol {
+        ProtocolVersion::Ssl2 => 0,
+        ProtocolVersion::Ssl3 => 20,
+        ProtocolVersion::Tls10 => 65,
+        ProtocolVersion::Tls11 => 70,
+        ProtocolVersion::Tls12 => 95,
+        ProtocolVersion::Tls13 => 100,
+    }
+}
+
+/// Whether the declared catalogue prohibits `protocol`.
+fn protocol_is_prohibited(protocol: ProtocolVersion, facts: Option<&TlsFacts>) -> bool {
+    facts
+        .and_then(|facts| facts.protocols.get(&protocol))
+        .and_then(|fact| fact.status)
+        == Some(TlsStatus::Prohibited)
+}
+
+/// Whether the declared catalogue prohibits `cipher`.
+fn cipher_is_prohibited(cipher: &str, facts: Option<&TlsFacts>) -> bool {
+    facts
+        .and_then(|facts| facts.ciphers.get(cipher))
+        .and_then(|fact| fact.status)
+        == Some(TlsStatus::Prohibited)
+}
+
+/// Whether `cipher` provides forward secrecy: a declared `forward-secrecy`
+/// fact wins, otherwise the suite-name heuristic decides.
+#[must_use]
+pub fn cipher_has_forward_secrecy(cipher: &str, facts: Option<&TlsFacts>) -> bool {
+    if let Some(declared) = facts
+        .and_then(|facts| facts.ciphers.get(cipher))
+        .and_then(|fact| fact.forward_secrecy)
+    {
+        return declared;
+    }
+    let upper = cipher.to_ascii_uppercase();
+    upper.contains("ECDHE") || upper.contains("DHE") || upper.starts_with("TLS_")
+}
+
+fn key_exchange_score(
+    certificate: Option<&Certificate>,
+    endpoint: &Endpoint,
+    facts: Option<&TlsFacts>,
+) -> u8 {
     let Some(certificate) = certificate else {
         return 0;
     };
@@ -251,10 +372,10 @@ fn key_exchange_score(certificate: Option<&Certificate>, endpoint: &Endpoint) ->
     };
     let has_forward_secrecy = endpoint.protocols.contains(&ProtocolVersion::Tls13)
         || (!endpoint.ciphers.is_empty()
-            && endpoint.ciphers.iter().all(|cipher| {
-                let upper = cipher.to_ascii_uppercase();
-                upper.contains("ECDHE") || upper.contains("DHE") || upper.starts_with("TLS_")
-            }));
+            && endpoint
+                .ciphers
+                .iter()
+                .all(|cipher| cipher_has_forward_secrecy(cipher, facts)));
     if has_forward_secrecy {
         base
     } else {
@@ -262,10 +383,10 @@ fn key_exchange_score(certificate: Option<&Certificate>, endpoint: &Endpoint) ->
     }
 }
 
-fn cipher_score(ciphers: &[String]) -> u8 {
+fn cipher_score(ciphers: &[String], facts: Option<&TlsFacts>) -> u8 {
     ciphers
         .iter()
-        .map(|cipher| match cipher_strength(cipher) {
+        .map(|cipher| match declared_cipher_strength(cipher, facts) {
             256.. => 100,
             128..=255 => 90,
             112..=127 => 70,
@@ -276,6 +397,14 @@ fn cipher_score(ciphers: &[String]) -> u8 {
         })
         .min()
         .unwrap_or(0)
+}
+
+/// A declared `cipher … bits N` overrides [`cipher_strength`] for that suite.
+fn declared_cipher_strength(cipher: &str, facts: Option<&TlsFacts>) -> u16 {
+    facts
+        .and_then(|facts| facts.ciphers.get(cipher))
+        .and_then(|fact| fact.bits)
+        .unwrap_or_else(|| cipher_strength(cipher))
 }
 
 fn cipher_strength(cipher: &str) -> u16 {
@@ -322,20 +451,12 @@ fn cap(grade: &mut Grade, maximum: Grade, reason: &str, caps: &mut Vec<String>) 
 }
 
 const fn grade_rank(grade: Grade) -> u8 {
-    match grade {
-        Grade::Unknown | Grade::T | Grade::M => 0,
-        Grade::F => 1,
-        Grade::E => 2,
-        Grade::D => 3,
-        Grade::C => 4,
-        Grade::B => 5,
-        Grade::A => 6,
-        Grade::APlus => 7,
-    }
+    grade.rank()
 }
 
 fn apply_protocol_caps(
     endpoint: &Endpoint,
+    facts: Option<&TlsFacts>,
     grade: &mut Grade,
     caps: &mut Vec<String>,
     findings: &mut Vec<EstimateFinding>,
@@ -357,6 +478,24 @@ fn apply_protocol_caps(
             "configuration",
         ));
     }
+    for protocol in endpoint
+        .protocols
+        .iter()
+        .filter(|protocol| protocol_is_prohibited(**protocol, facts))
+    {
+        cap(
+            grade,
+            Grade::F,
+            "a declared-prohibited protocol is enabled",
+            caps,
+        );
+        findings.push(finding(
+            "SSLICTL1104",
+            EstimateSeverity::Critical,
+            &format!("prohibited protocol `{protocol}` is enabled"),
+            "configuration",
+        ));
+    }
     if endpoint
         .protocols
         .iter()
@@ -374,13 +513,27 @@ fn apply_protocol_caps(
 
 fn apply_cipher_caps(
     endpoint: &Endpoint,
+    facts: Option<&TlsFacts>,
     grade: &mut Grade,
     caps: &mut Vec<String>,
     findings: &mut Vec<EstimateFinding>,
 ) {
     for cipher in &endpoint.ciphers {
         let upper = cipher.to_ascii_uppercase();
-        if upper.contains("NULL") || upper.contains("EXPORT") || upper.contains("ANON") {
+        if cipher_is_prohibited(cipher, facts) {
+            cap(
+                grade,
+                Grade::F,
+                "a declared-prohibited cipher is enabled",
+                caps,
+            );
+            findings.push(finding(
+                "SSLICTL1204",
+                EstimateSeverity::Critical,
+                &format!("prohibited cipher `{cipher}` is enabled"),
+                "configuration",
+            ));
+        } else if upper.contains("NULL") || upper.contains("EXPORT") || upper.contains("ANON") {
             cap(
                 grade,
                 Grade::F,
@@ -544,14 +697,17 @@ mod tests {
     #[test]
     fn modern_cipher_and_protocol_components_are_high() {
         assert_eq!(
-            protocol_score(&[ProtocolVersion::Tls12, ProtocolVersion::Tls13]),
+            protocol_score(&[ProtocolVersion::Tls12, ProtocolVersion::Tls13], None),
             95
         );
         assert_eq!(
-            cipher_score(&[
-                "TLS_AES_128_GCM_SHA256".to_owned(),
-                "TLS_AES_256_GCM_SHA384".to_owned()
-            ]),
+            cipher_score(
+                &[
+                    "TLS_AES_128_GCM_SHA256".to_owned(),
+                    "TLS_AES_256_GCM_SHA384".to_owned()
+                ],
+                None
+            ),
             90
         );
     }
@@ -566,10 +722,147 @@ mod tests {
         let mut grade = Grade::A;
         let mut caps = Vec::new();
         let mut findings = Vec::new();
-        apply_protocol_caps(&endpoint, &mut grade, &mut caps, &mut findings);
-        apply_cipher_caps(&endpoint, &mut grade, &mut caps, &mut findings);
+        apply_protocol_caps(&endpoint, None, &mut grade, &mut caps, &mut findings);
+        apply_cipher_caps(&endpoint, None, &mut grade, &mut caps, &mut findings);
         assert_eq!(grade, Grade::C);
         assert!(findings.len() >= 2);
+    }
+
+    fn facts_with_protocol(version: ProtocolVersion, fact: crate::model::ProtocolFact) -> TlsFacts {
+        let mut facts = TlsFacts::default();
+        facts.protocols.insert(version, fact);
+        facts
+    }
+
+    fn facts_with_cipher(name: &str, fact: crate::model::CipherFact) -> TlsFacts {
+        let mut facts = TlsFacts::default();
+        facts.ciphers.insert(name.to_owned(), fact);
+        facts
+    }
+
+    #[test]
+    fn declared_protocol_score_overrides_the_built_in_judgement() {
+        assert_eq!(protocol_score(&[ProtocolVersion::Tls10], None), 65);
+        let facts = facts_with_protocol(
+            ProtocolVersion::Tls10,
+            crate::model::ProtocolFact {
+                score: Some(20),
+                ..crate::model::ProtocolFact::default()
+            },
+        );
+        assert_eq!(protocol_score(&[ProtocolVersion::Tls10], Some(&facts)), 20);
+    }
+
+    #[test]
+    fn declared_cipher_bits_override_the_strength_heuristic() {
+        let ciphers = ["MYSTERY-SUITE".to_owned()];
+        assert_eq!(cipher_score(&ciphers, None), 90);
+        let facts = facts_with_cipher(
+            "MYSTERY-SUITE",
+            crate::model::CipherFact {
+                bits: Some(40),
+                ..crate::model::CipherFact::default()
+            },
+        );
+        assert_eq!(cipher_score(&ciphers, Some(&facts)), 20);
+    }
+
+    #[test]
+    fn declared_prohibited_protocol_caps_the_grade() {
+        let endpoint = Endpoint {
+            protocols: vec![ProtocolVersion::Tls12],
+            ..Endpoint::default()
+        };
+        let facts = facts_with_protocol(
+            ProtocolVersion::Tls12,
+            crate::model::ProtocolFact {
+                status: Some(TlsStatus::Prohibited),
+                ..crate::model::ProtocolFact::default()
+            },
+        );
+        let mut grade = Grade::A;
+        let mut caps = Vec::new();
+        let mut findings = Vec::new();
+        apply_protocol_caps(
+            &endpoint,
+            Some(&facts),
+            &mut grade,
+            &mut caps,
+            &mut findings,
+        );
+        assert_eq!(grade, Grade::F);
+        assert_eq!(findings[0].code, "SSLICTL1104");
+    }
+
+    #[test]
+    fn declared_prohibited_cipher_caps_the_grade() {
+        let endpoint = Endpoint {
+            ciphers: vec!["ECDHE-RSA-AES128-GCM-SHA256".to_owned()],
+            ..Endpoint::default()
+        };
+        let facts = facts_with_cipher(
+            "ECDHE-RSA-AES128-GCM-SHA256",
+            crate::model::CipherFact {
+                status: Some(TlsStatus::Prohibited),
+                ..crate::model::CipherFact::default()
+            },
+        );
+        let mut grade = Grade::A;
+        let mut caps = Vec::new();
+        let mut findings = Vec::new();
+        apply_cipher_caps(
+            &endpoint,
+            Some(&facts),
+            &mut grade,
+            &mut caps,
+            &mut findings,
+        );
+        assert_eq!(grade, Grade::F);
+        assert_eq!(findings[0].code, "SSLICTL1204");
+    }
+
+    #[test]
+    fn declared_forward_secrecy_replaces_the_name_heuristic() {
+        assert!(!cipher_has_forward_secrecy("AES128-SHA", None));
+        let facts = facts_with_cipher(
+            "AES128-SHA",
+            crate::model::CipherFact {
+                forward_secrecy: Some(true),
+                ..crate::model::CipherFact::default()
+            },
+        );
+        assert!(cipher_has_forward_secrecy("AES128-SHA", Some(&facts)));
+        let denied = facts_with_cipher(
+            "ECDHE-RSA-AES128-SHA",
+            crate::model::CipherFact {
+                forward_secrecy: Some(false),
+                ..crate::model::CipherFact::default()
+            },
+        );
+        assert!(!cipher_has_forward_secrecy(
+            "ECDHE-RSA-AES128-SHA",
+            Some(&denied)
+        ));
+    }
+
+    #[test]
+    fn declarable_grades_round_trip_and_estimator_only_grades_do_not() {
+        for grade in [
+            Grade::APlus,
+            Grade::A,
+            Grade::B,
+            Grade::C,
+            Grade::D,
+            Grade::E,
+            Grade::F,
+        ] {
+            assert_eq!(grade.to_string().parse(), Ok(grade));
+        }
+        assert!(Grade::from_str("T").is_err());
+        assert!(Grade::from_str("?").is_err());
+        assert!(Grade::APlus.rank() > Grade::A.rank());
+        assert_eq!("critical".parse(), Ok(EstimateSeverity::Critical));
+        assert!(EstimateSeverity::from_str("nope").is_err());
     }
 
     #[test]

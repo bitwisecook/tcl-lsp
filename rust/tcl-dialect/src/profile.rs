@@ -383,7 +383,7 @@ impl Eq for DialectProfile {}
 ///
 /// Surface and behaviour values follow the per-dialect table in
 /// `docs/design/dialect-profile-model.md` §7.
-static CATALOG: [DialectProfile; 18] = [
+static CATALOG: [DialectProfile; 19] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
     // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
     // and a precise point: 9.0 core plus the bpf surface resolve, while
@@ -961,6 +961,50 @@ static CATALOG: [DialectProfile; 18] = [
         vm_runtime_version: TclVersion::V9_0,
         libraries: &[],
         help_terms: &["spectcl", "speclib", "tclspec"],
+    },
+    // SslicTcl — the `.sslictcl` TLS-assurance declaration DSL (#1543).
+    // A document is an ordinary Tcl script read from the CST and never
+    // executed: the loader evaluates nothing, not even a `predicate` body,
+    // which it retains verbatim. Like SpecTcl this is an *environment* over
+    // Tcl 9.0 rather than a grammar axis — what makes it a dialect is the
+    // availability half, the declaration vocabulary (`certificate` /
+    // `endpoint` / `policy` / …) that must exist inside a `.sslictcl`
+    // document and nowhere else.
+    DialectProfile {
+        name: "sslictcl",
+        aliases: &["sslic-tcl", "tls-sslictcl"],
+        display_name: "SslicTcl",
+        short_name: "SslicTcl",
+        editor_language_id: Some("sslictcl"),
+        filenames: &[],
+        file_extensions: &[DialectFileExtension {
+            extension: "sslictcl",
+            display_name: "SslicTcl TLS Declaration",
+        }],
+        vendor_surface: Some(SpecProvider::Package("sslictcl")),
+        surface_packages: &["sslictcl"],
+        base_layers: &[SurfaceLayer::Package("sslictcl")],
+        grammar_union: &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Package("sslictcl"),
+        ],
+        version_ceiling: Some(TclVersion::V9_0),
+        signature_base: Some(TclVersion::V9_0),
+        runtime_base: Some(TclVersion::V9_0),
+        leading_zero_is_octal: Ternary::No,
+        // The declaration vocabulary evaluates nothing, so no `expr` is ever
+        // run from a `.sslictcl` document. The field is still V9_0 because it
+        // is derived, not chosen: `expr_grammar_base == runtime_base` is a
+        // profile invariant, and base Tcl stays loaded underneath the
+        // declaration surface.
+        expr_grammar_base: Some(TclVersion::V9_0),
+        grammar: GRAMMAR_TCL9X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
+        libraries: &[],
+        help_terms: &["sslictcl", "tls", "certificate", "endpoint"],
     },
     DialectProfile {
         name: "synopsys-eda-tcl",
@@ -1684,6 +1728,7 @@ pub const KNOWN_DIALECTS: &[&str] = &[
     "mentor-eda-tcl",
     "microchip-libero-eda-tcl",
     "spectcl",
+    "sslictcl",
     "synopsys-eda-tcl",
     "tcl8.4",
     "tcl8.5",

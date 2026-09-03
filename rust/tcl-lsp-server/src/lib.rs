@@ -4737,6 +4737,17 @@ struct RefinementInputs<'a> {
     cross_file_resolution: bool,
 }
 
+/// The resolved per-document settings an F5 model dialect's pull report reads
+/// — everything [`Backend::f5_pull_report`] needs beyond the buffers and the
+/// URI.
+struct F5PullInputs<'a> {
+    profile: &'static tcl_dialect::DialectProfile,
+    disabled: &'a HashSet<String>,
+    severity_overrides:
+        &'a std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
+}
+
 /// The document-local settings shared by every pull-diagnostic workspace
 /// refinement. Keeping them together makes the pull path's central
 /// finalisation entry point explicit without repeating its configuration at
@@ -4759,6 +4770,15 @@ async fn refine_and_lift_diagnostics(
     refinement: &RefinementInputs<'_>,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError> {
+    // A `.sslictcl` document is never evaluated, so its unrecognised words are
+    // unknown *declarations* the loader reports (`SSLIC1101` / `SSLIC1007`),
+    // not unknown commands. Drop the superseded analyser verdicts before the
+    // refinements that would otherwise chase them (the pull path and code
+    // actions do the same in `published_analyser_diagnostics`).
+    let mut analyser_diags = analyser_diags;
+    if tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect) {
+        tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
+    }
     // #723 + #804: refine the analyser's single-file W120 against the workspace
     // package database and the requires inherited from entry points / `source`
     // ancestors (shared with the pull path via `refine_workspace_w120`).
@@ -4814,6 +4834,10 @@ async fn refine_and_lift_diagnostics(
     let style_line_length = inputs.style_line_length;
     let dialect = inputs.dialect.to_owned();
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
+    // SslicTcl documents carry a second whole-file validator, exactly as the
+    // F5 dialects do: the `.sslictcl` loader. Resolved from the profile here
+    // rather than inside the worker so the closure captures a plain `bool`.
+    let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect);
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
@@ -4844,6 +4868,23 @@ async fn refine_and_lift_diagnostics(
                 &lift_text,
                 &disabled,
                 &analysis_lifts.suppressed_lines,
+            ));
+        }
+        // Routed by dialect: a `.sslictcl` document's `SSLIC1xxx` loader
+        // findings are ordinary document diagnostics (mirrored on the pull
+        // path in `full_diagnostics_for`). The loader parses the *analysis*
+        // form — a lone `\r` terminates a command for `tclsh` — while the
+        // spans lift against the client's buffer, which the rewrite leaves
+        // byte-for-byte the same length.
+        if sslictcl {
+            let loader_text = tcl_lexer::normalise_lone_cr(&lift_text);
+            diagnostics.extend(lift_analyser_diagnostics(
+                &lift_text,
+                &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+                    &loader_text,
+                    &disabled,
+                    &analysis_lifts.suppressed_lines,
+                ),
             ));
         }
         finalise_diagnostics(
@@ -15749,6 +15790,54 @@ impl Backend {
         })
     }
 
+    /// The pull-path report for an F5 **model** dialect — BIG-IP config or
+    /// iApp APL presentation text, which is not Tcl source and has its own
+    /// validators rather than the analyser.
+    ///
+    /// Split out of [`Self::full_diagnostics_for`] because it is a complete
+    /// alternative report rather than a step of one: it shares only the
+    /// resolved settings, and keeping it inline made the Tcl path harder to
+    /// read than either is on its own.
+    async fn f5_pull_report(
+        &self,
+        uri: &Uri,
+        text: &str,
+        analysis_text: &str,
+        language_id: &str,
+        inputs: &F5PullInputs<'_>,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let encoding_abstains = inputs
+            .decode_report
+            .is_some_and(|report| report.requires_abstention());
+        let mut diagnostics = if encoding_abstains {
+            Vec::new()
+        } else {
+            f5_dialect_diagnostics(
+                uri,
+                analysis_text,
+                inputs.profile,
+                language_id,
+                inputs.disabled,
+                &self.documents,
+                self.store.as_ref(),
+            )
+            .await
+            .unwrap_or_default()
+        };
+        diagnostics.extend(lift_f5_source_integrity_diagnostics(
+            text,
+            inputs.decode_report.as_ref(),
+            inputs.disabled,
+            inputs.profile,
+        ));
+        finalise_diagnostics(
+            &mut diagnostics,
+            inputs.severity_overrides,
+            encoding_abstains,
+        );
+        diagnostics
+    }
+
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
@@ -15797,30 +15886,20 @@ impl Backend {
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
         if Self::is_bigip_dialect(&dialect) || is_apl_source(uri, language_id) {
-            let encoding_abstains = decode_report.is_some_and(|r| r.requires_abstention());
-            let mut diagnostics = if encoding_abstains {
-                Vec::new()
-            } else {
-                f5_dialect_diagnostics(
+            return self
+                .f5_pull_report(
                     uri,
+                    &text,
                     &analysis_text,
-                    profile,
                     language_id,
-                    &disabled,
-                    &self.documents,
-                    self.store.as_ref(),
+                    &F5PullInputs {
+                        profile,
+                        disabled: &disabled,
+                        severity_overrides: &severity_overrides,
+                        decode_report,
+                    },
                 )
-                .await
-                .unwrap_or_default()
-            };
-            diagnostics.extend(lift_f5_source_integrity_diagnostics(
-                &text,
-                decode_report.as_ref(),
-                &disabled,
-                profile,
-            ));
-            finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
-            return diagnostics;
+                .await;
         }
         let analysis = self
             .analysis_for(uri, analysis_text.clone(), dialect.clone())
@@ -15834,6 +15913,9 @@ impl Backend {
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules() && xc_on;
+        // The push path's SslicTcl branch, mirrored: a pull-mode editor gets
+        // the same `SSLIC1xxx` loader findings a pushed report carries.
+        let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(profile);
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -15870,6 +15952,16 @@ impl Backend {
                     &analysis_text,
                     &disabled,
                     &analysis.suppressed_lines,
+                ));
+            }
+            if sslictcl {
+                diagnostics.extend(lift_analyser_diagnostics(
+                    &analysis_text,
+                    &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+                        &analysis_text,
+                        &disabled,
+                        &analysis.suppressed_lines,
+                    ),
                 ));
             }
             finalise_diagnostics(
@@ -16012,6 +16104,14 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
+        // The push path's `refine_and_lift_diagnostics` supersession, mirrored:
+        // in a never-evaluated `.sslictcl` document the loader owns the verdict
+        // on an unrecognised word, so neither a pulled report nor a code action
+        // may offer the analyser's unknown-command guess over one.
+        let mut analyser_diags = analyser_diags;
+        if tcl_lsp_core::sslictcl_diagnostics::applies_to(dialect) {
+            tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
+        }
         self.refine_pull_analyser_diagnostics(
             uri,
             analyser_diags,
@@ -18999,6 +19099,22 @@ impl LanguageServer for Backend {
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
             let text = doc.text.clone();
             crate::rt::spawn_blocking(move || core_bigip::document_symbols(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
+        } else if tcl_lsp_core::declaration_outline::is_declaration_document(
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        ) {
+            // A declaration document (`.sslictcl`) has no procs, classes or
+            // namespaces for the scope walk to find: its *blocks* are its
+            // structure, so the outline is the block tree. Same shape as the
+            // BIG-IP branch above, and for the same reason.
+            let text = doc.text.clone();
+            let profile = tcl_lsp_core::profile_for_dialect(&doc.dialect);
+            crate::rt::spawn_blocking(move || core_symbols::declaration_symbols(&text, profile))
                 .await
                 .map_err(|err| jsonrpc::Error {
                     code: jsonrpc::ErrorCode::InternalError,
@@ -30418,6 +30534,7 @@ mod tests {
             ("tclspec", "spectcl"),
             ("tcl-spec", "spectcl"),
             ("spectcl", "spectcl"),
+            ("sslictcl", "sslictcl"),
             ("tk", "tk"),
         ] {
             assert_eq!(
@@ -35058,6 +35175,51 @@ mod tests {
         // …and the registry that dialect resolves to really carries the pack.
         let reg = tcl_registry::model::ingress::static_context_for("spectcl").commands();
         assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
+        assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
+    }
+
+    /// Opening a `.sslictcl` activates the `SslicTcl` vocabulary.
+    ///
+    /// The `SpecTcl` test above, for the sibling declarative dialect: the
+    /// `.sslictcl` extension routes under the bare `tcl` language id every
+    /// editor sends, the mandatory `sslictcl VERSION` header is the content
+    /// signature that recognises a document saved under a `.tcl` name, and the
+    /// canonical name — which is also the editor language id — routes
+    /// directly.
+    #[tokio::test]
+    async fn dialect_for_open_routes_sslictcl_to_the_sslictcl_dialect() {
+        let backend = test_backend();
+        // As above: a folder override proves the file's own identity wins.
+        *backend.folder_dialects.lock().await = vec![(
+            Uri::from_str("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let doc = Uri::from_str("file:///workspace/site.sslictcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&doc, "tcl", "sslictcl 1\nendpoint /Common/www {\n}\n")
+                .await,
+            "sslictcl".to_owned(),
+            "the `.sslictcl` extension selects the SslicTcl dialect",
+        );
+        let misnamed = Uri::from_str("file:///workspace/site.tcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&misnamed, "tcl", "sslictcl 1\n")
+                .await,
+            "sslictcl".to_owned(),
+            "the `sslictcl VERSION` header is the content signature",
+        );
+        for id in ["sslictcl"] {
+            assert_eq!(
+                backend.dialect_for_open(&doc, id, "").await,
+                "sslictcl".to_owned(),
+                "language id {id:?} names the SslicTcl dialect",
+            );
+        }
+        // …and the registry that dialect resolves to really carries the pack.
+        let reg = tcl_registry::model::ingress::static_context_for("sslictcl").commands();
+        assert!(reg.get("endpoint").is_some(), "the SslicTcl pack is loaded");
         assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
     }
 

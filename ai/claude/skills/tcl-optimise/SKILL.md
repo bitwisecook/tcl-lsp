@@ -6,51 +6,36 @@ allowed-tools: mcp__tcl-lsp__optimize, mcp__tcl-lsp__analyze, Read, Edit
 
 # Tcl Optimise
 
-Apply LSP optimiser suggestions to Tcl files with safety explanations for each transformation.
+Apply the optimiser's rewrites to a Tcl file and explain each one.
 
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/tcl_system.md`
-2. Read the Tcl file to optimise
-3. Run the optimiser: call the `mcp__tcl-lsp__optimize` MCP tool, passing the
-   file's contents as the `source` argument (optionally set `profile` to
-   `full` — the default — or `aggressive`)
-4. If the tool fails (e.g. parse error), report the error clearly and suggest fixes
-5. If no optimisations found, report the code is already well-optimised
-6. If the tool returns an optimised-source rewrite, apply it to the file using the Edit tool
-7. For each optimisation applied, explain in 1-2 sentences:
-   - Why it is safe (preserves behaviour)
-   - What benefit it provides
-8. Validate the optimised file to confirm no regressions: call the
-   `mcp__tcl-lsp__analyze` MCP tool, passing the rewritten file's contents as `source`
-9. If validation finds new issues, revert the problematic optimisation and explain why
+1. Read `../_prompts/tcl_system.md`, then the file.
+2. Call `mcp__tcl-lsp__optimize` with the contents as `source` (`profile`
+   defaults to `full`; `aggressive` iterates to a fixpoint). On a tool error
+   (e.g. a parse failure) report it and suggest fixes; on no findings report
+   the code is already well-optimised.
+3. Apply the returned optimised source with Edit.
+4. For each optimisation, one or two sentences: why it preserves behaviour,
+   and what it gains. A grouped item (constant propagation whose dead store
+   was then eliminated) is one transformation — explain it as one.
+5. Re-validate with `mcp__tcl-lsp__analyze` on the rewritten source; revert
+   any optimisation that introduced an issue and say why.
+6. Summarise what was applied.
 
-## Optimisation codes reference
+## Optimisation codes
 
-See `docs/generated/optimisation_codes.md` for the full auto-generated table of O100+ codes.
-Key categories:
+Full table: `docs/generated/optimisation_codes.md`. Categories:
 
-- **Readability** (O111, O114, O115, O117, O120, O128): Idiomatic rewrites (incr, eq/ne, bracing)
-- **Constant folding/propagation** (O100, O101, O102, O103, O105, O110, O113, O116, O118, O129): Inline and simplify known values
-- **Pattern recognition** (O104, O119, O130): Fold string chains, pack consecutive sets
-- **Dead code** (O107, O108, O109, O112, O124, O126): Remove unreachable or unused code and stores
-- **Code motion** (O106, O125, O127): Hoist, sink, and inline assignments
-- **Recursion** (O121, O122, O123): Tail-call rewriting and accumulator hints
+- Readability (O111, O114, O115, O117, O120, O128): idiomatic rewrites (incr, eq/ne, bracing)
+- Constant folding/propagation (O100, O101, O102, O103, O105, O110, O113, O116, O118, O129): inline and simplify known values
+- Pattern recognition (O104, O119, O130): fold string chains, pack consecutive sets
+- Dead code (O107, O108, O109, O112, O124, O126): remove unreachable or unused code and stores
+- Code motion (O106, O125, O127): hoist, sink, and inline assignments
+- Recursion (O121, O122, O123): tail-call rewriting and accumulator hints
 
-## Optimiser profiles
-
-- **off**: All optimisations disabled
-- **readability** (editor default): O111, O114, O115, O117, O120, O128
-- **standard**: readability + constant folding + pattern recognition
-- **full** (CLI/AI default): All 28 passes, single pass
-- **aggressive**: All passes, multi-pass to fixpoint
-
-## Grouped optimisations
-
-The optimiser automatically groups causally-linked passes. When constant
-propagation/folding makes a variable definition dead, the resulting dead store
-elimination is grouped with the propagation as one logical optimisation. The
-tool output shows these as a single item with sub-entries. When explaining
-grouped optimisations, treat them as one transformation.
+Profiles: off; readability (editor default: O111, O114, O115, O117, O120, O128); standard
+(readability + constant folding + pattern recognition); full (every pass,
+single pass; CLI/AI default); aggressive (every pass, to a fixpoint).
 
 $ARGUMENTS

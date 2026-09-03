@@ -270,12 +270,24 @@ impl PackDialect {
 
 /// Parse one `dialect NAME { … }` block, or reject it.
 pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackDialect> {
+    let rows = stmt.arg(2).map(block);
+    parse_rows(stmt, rows.as_deref(), log)
+}
+
+/// Parse one `dialect` declaration from its header and its already-read
+/// rows, or reject it.
+///
+/// The single owner of the block's validation and notices, shared by the
+/// literal reader above and the evaluation loader, which runs the body as
+/// a script and passes the rows the script registered. `rows` is `None`
+/// when the declaration carried no `{ … }` body word at all.
+pub(super) fn parse_rows(stmt: &Stmt, rows: Option<&[Stmt]>, log: &mut Log) -> Option<PackDialect> {
     let name = stmt.word_text(1);
     if name.is_empty() || stmt.words.get(1).is_some_and(|word| word.braced) {
         log.say(stmt.line, "`dialect` needs a name and a `{ … }` block");
         return None;
     }
-    let Some(body) = stmt.arg(2) else {
+    let Some(rows) = rows else {
         log.say(
             stmt.line,
             format!("`dialect {name}` has no `{{ … }}` block; the block is rejected"),
@@ -290,8 +302,8 @@ pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackDialect> {
     };
     let mut rejected = false;
     log.scoped(format!("dialect {name}"), |log| {
-        for row in block(body) {
-            if !read_row(&mut dialect, &row, log) {
+        for row in rows {
+            if !read_row(&mut dialect, row, log) {
                 rejected = true;
             }
         }

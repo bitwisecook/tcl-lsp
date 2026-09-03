@@ -6112,7 +6112,11 @@ fn collect_entries(
         numbers: profile.grammar.numbers,
         registry,
         line_index: &line_index,
-        oo_grammar: None,
+        // The root of a document is itself a definition body when the dialect
+        // says so: a `.sslictcl` document's legal top-level words are exactly
+        // its document grammar's members, painted from membership like every
+        // level below. An ordinary Tcl document has no such grammar.
+        oo_grammar: registry.document_grammar(),
         scoped_env: None,
         regex_sources: &regex_sources,
         head_identities: &head_identities,

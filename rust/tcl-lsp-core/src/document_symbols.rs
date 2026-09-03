@@ -228,6 +228,52 @@ pub fn document_symbols_from_analysis(
     symbols
 }
 
+/// The outline of a **declaration document** — a `.sslictcl` file, whose
+/// blocks are its structure (see [`crate::declaration_outline`]).
+///
+/// Empty for a script document, whose outline is the analyser's scope tree
+/// ([`document_symbols_from_analysis`]); the two never both answer, so the
+/// dispatcher picks one and no outline is ever doubled.
+///
+/// A named block (`endpoint /Common/www`) is a [`SymbolKind::Class`] — the
+/// same kind the BIG-IP config outline gives a configured object — and an
+/// unnamed one (`hsts`, `grade`) a [`SymbolKind::Property`] of the block that
+/// contains it.
+#[must_use]
+pub fn declaration_symbols(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<DocumentSymbol> {
+    let declarations = crate::declaration_outline::declarations(source, dialect);
+    if declarations.is_empty() {
+        return Vec::new();
+    }
+    let line_index = LineIndex::new(source);
+    lift_declarations(source, &line_index, &declarations)
+}
+
+fn lift_declarations(
+    source: &str,
+    line_index: &LineIndex,
+    declarations: &[crate::declaration_outline::BlockDeclaration],
+) -> Vec<DocumentSymbol> {
+    declarations
+        .iter()
+        .map(|declaration| DocumentSymbol {
+            name: declaration.label(),
+            detail: None,
+            kind: if declaration.name.is_some() {
+                SymbolKind::Class
+            } else {
+                SymbolKind::Property
+            },
+            range: span_to_range(source, line_index, declaration.range),
+            selection_range: span_to_range(source, line_index, declaration.selection),
+            children: lift_declarations(source, line_index, &declaration.children),
+        })
+        .collect()
+}
+
 /// Enclosing namespace of a fully-qualified name (`"::ns::foo"` → `"::ns"`,
 /// `"::foo"` → `"::"`) — the same pure-string rule
 /// `ItemTree::from_analysis` uses, so the outline and the item tree agree

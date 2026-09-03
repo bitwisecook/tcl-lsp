@@ -43,6 +43,7 @@
 //! new registry.
 
 pub mod authored_surface;
+mod bundled_environments;
 pub mod dynamic;
 pub mod environment;
 pub mod expr_grammar;
@@ -61,11 +62,12 @@ pub use dynamic::{
     register_dynamic_families, reserved_family_name, resolve_dynamic_family,
 };
 pub use environment::{
-    ConfigurationOrigin, CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId,
-    EnvironmentDefinition, EnvironmentId, EnvironmentIdentity, EnvironmentOverlay,
-    EnvironmentOverlayError, EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError,
-    FileExtensionClaim, KeyedAxis, PackageChanges, PackagePlacement, Placement, Provenance,
-    TargetChanges, WorldPolicy, compiled_definitions,
+    BundledCore, BundledEnvironmentRow, BundledPlacement, BundledVersion, ConfigurationOrigin,
+    CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
+    EnvironmentId, EnvironmentIdentity, EnvironmentOverlay, EnvironmentOverlayError,
+    EnvironmentPolicy, EnvironmentRegistry, EnvironmentRegistryError, FileExtensionClaim,
+    KeyedAxis, PackageChanges, PackagePlacement, Placement, Provenance, TargetChanges, WorldPolicy,
+    bundled_pack_definitions, compiled_definitions, release_line, reserved_against,
 };
 pub use expr_grammar::{
     ExprArity, ExprGrammar, ExprSubstitution, MathFunc, MathFuncSet, PrecedenceTable, WordOperator,

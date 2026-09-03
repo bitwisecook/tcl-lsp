@@ -80,6 +80,32 @@ fn docker_info_lists_families() {
     assert!(stdout.contains("alpine        8.4, 8.5, 8.6, 9.0"));
     assert!(stdout.contains("debian        8.4, 8.5, 8.6, 9.0"));
     assert!(stdout.contains("redhat        8.4, 8.5, 8.6, 9.0"));
+    // The native CLI half: which releases and architectures it can install.
+    assert!(stdout.contains("Native tcl CLI:"));
+    assert!(stdout.contains("x86_64-unknown-linux-gnu"));
+    assert!(stdout.contains("base families    debian, redhat"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn docker_recipe_cli_fetches_a_verified_release_asset() {
+    let dir = temp_dir("docker-recipe-cli");
+    let (stdout, _stderr, code) = run_in(
+        &dir,
+        &[
+            "docker",
+            "recipe",
+            "debian:bookworm-slim",
+            "--cli",
+            "--cli-version",
+            "2.2.1",
+        ],
+    );
+    assert_eq!(code, 0);
+    assert!(stdout.contains("ARG TCL_LSP_VERSION=2.2.1"));
+    assert!(stdout.contains("SHA256SUMS"));
+    assert!(stdout.contains("sha256sum -c -"));
+    assert!(!stdout.contains("python"), "{stdout}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -103,6 +129,53 @@ fn docker_create_writes_dockerfile() {
     assert!(content.contains("# Install Tcl 8.6"));
     assert!(content.contains("WORKDIR /app"));
     assert!(content.trim_end().ends_with("CMD [\"tclsh\"]"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn docker_create_installs_the_native_cli() {
+    let dir = temp_dir("docker-create-cli");
+    let (_stdout, _stderr, code) = run_in(
+        &dir,
+        &[
+            "docker",
+            "create",
+            "debian:bookworm-slim",
+            "--tcl-version",
+            "8.6",
+            "--cli-version",
+            "2.2.1",
+        ],
+    );
+    assert_eq!(code, 0);
+    let content = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+    // The CLI arrives as a verified native release asset, never a zipapp.
+    assert!(content.contains("ARG TCL_LSP_VERSION=2.2.1"));
+    assert!(content.contains("releases/download/$tag"));
+    assert!(content.contains("sha256sum -c -"));
+    assert!(content.contains("RUN if [ -f tclpkg.lock ]; then tcl pkg install --frozen; fi"));
+    assert!(
+        !content.to_lowercase().contains("python"),
+        "generated Dockerfile still mentions Python:\n{content}"
+    );
+    assert!(!content.contains(".pyz"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn docker_create_rejects_the_cli_on_musl() {
+    let dir = temp_dir("docker-create-alpine");
+    let (_stdout, stderr, code) = run_in(&dir, &["docker", "create", "alpine:3.19"]);
+    assert_eq!(code, 1);
+    assert!(stderr.contains("musl"), "{stderr}");
+    assert!(!dir.join("Dockerfile").exists());
+
+    // Without the CLI verbs an alpine image is still generated.
+    let (_stdout, _stderr, code) =
+        run_in(&dir, &["docker", "create", "alpine:3.19", "--no-packages"]);
+    assert_eq!(code, 0);
+    let content = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+    assert!(content.contains("RUN apk add --no-cache tcl"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

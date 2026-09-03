@@ -74,6 +74,7 @@ mod environment;
 mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;
+mod gen_bundled_environments;
 mod gen_editor_catalogs;
 mod gen_editor_dialects;
 mod gen_editor_settings;
@@ -205,6 +206,15 @@ enum Command {
     GenEditorExtensions {
         /// Verify the committed manifests are in sync instead of rewriting
         /// them; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Project the bundled packs' `environment` blocks into the compiled
+    /// environment seed (`rust/tcl-dialect/src/model/bundled_environments.rs`).
+    GenBundledEnvironments {
+        /// Verify the committed seed is in sync with the packs instead of
+        /// rewriting it; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -432,6 +442,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenEditorExtensions { check } => editor_extensions::run(check),
+        Command::GenBundledEnvironments { check } => gen_bundled_environments::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),

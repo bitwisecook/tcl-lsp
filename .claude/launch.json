@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "compiler-explorer",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "tcl-lsp/tooling/explorer/static"],
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "make explorer-build && cargo run -q -p tcl-cli --bin tcl -- explore --serve --port 8080"],
       "port": 8080
     }
   ]

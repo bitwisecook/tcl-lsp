@@ -179,6 +179,21 @@
 | IAPP7001 | bigip | iApp implementation references a presentation field that is not defined. | ✓ |
 | IAPP7002 | bigip | iApp presentation field is never referenced by the implementation. | ✓ |
 | IAPP7003 | bigip | iApp presentation `#include` file could not be resolved. | ✓ |
+| SSLIC1001 | sslictcl | SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter. | ✓ |
+| SSLIC1002 | sslictcl | SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative. | ✓ |
+| SSLIC1003 | sslictcl | SslicTcl document is missing its `sslictcl VERSION` header. | ✓ |
+| SSLIC1004 | sslictcl | SslicTcl document declares its `sslictcl` header more than once. | ✓ |
+| SSLIC1005 | sslictcl | SslicTcl declaration has the wrong number of words. | ✓ |
+| SSLIC1006 | sslictcl | SslicTcl declaration body must be a braced literal. | ✓ |
+| SSLIC1007 | sslictcl | SslicTcl closed block contains an unknown member. | ✓ |
+| SSLIC1008 | sslictcl | SslicTcl declaration duplicates an earlier declaration of the same kind and name. | ✓ |
+| SSLIC1009 | sslictcl | SslicTcl value is outside its declared domain. | ✓ |
+| SSLIC1010 | sslictcl | SslicTcl declaration is missing a required member. | ✓ |
+| SSLIC1011 | sslictcl | SslicTcl declaration references a name that is not declared. | ✓ |
+| SSLIC1012 | sslictcl | SslicTcl declaration combines mutually exclusive members. | ✓ |
+| SSLIC1101 | sslictcl | SslicTcl unknown declaration preserved as an extension. | ✓ |
+| SSLIC1102 | sslictcl | SslicTcl document vocabulary is newer than this build supports; unknown declarations are preserved. | ✓ |
+| SSLIC1103 | sslictcl | SslicTcl `predicate` body is retained but never evaluated in vocabulary 1. | ✓ |
 | W130 | tclpkg | tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'. | ✓ |
 | W131 | tclpkg | tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'. | ✓ |
 | W132 | tclpkg | tclpkg.lock integrity mismatch — CAS hash differs from lockfile. | ✓ |

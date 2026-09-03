@@ -1002,6 +1002,30 @@ impl Analyser {
         }
     }
 
+    /// The name a guarantor phrase calls this document's environment.
+    ///
+    /// The resolved environment's own canonical id, not the interned
+    /// [`tcl_dialect::DialectProfile`]'s name. Every compiled environment
+    /// shares its name with its profile, so no shipped message moves; a
+    /// **pack-declared** environment has no compiled profile and sinks to
+    /// the permissive fallback, which used to make its placements report as
+    /// `tcl ships Tk 8.6` — naming a profile the author never chose instead
+    /// of the shell they declared.
+    fn environment_label(&self) -> String {
+        let id = self
+            .analysis_context()
+            .context()
+            .environment
+            .id
+            .as_str()
+            .to_owned();
+        if id.is_empty() {
+            self.profile.name.to_owned()
+        } else {
+            id
+        }
+    }
+
     /// The resolved version floor on `axis`, with the phrase naming what
     /// guarantees it.
     ///
@@ -1020,7 +1044,7 @@ impl Analyser {
                             format!("a spec pack declares {package} {floor} ambient here")
                         }
                         FloorSource::ProfilePin => {
-                            format!("{} ships {package} {floor}", self.profile.name)
+                            format!("{} ships {package} {floor}", self.environment_label())
                         }
                     };
                     (floor, guarantee)

@@ -1007,6 +1007,99 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     description: "iApp presentation `#include` file could not be resolved.",
     defaultEnabled: true,
   },
+  {
+    code: "SSLIC1001",
+    section: "sslictcl",
+    description: "SslicTcl declaration is not valid Tcl syntax or has an unclosed delimiter.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1002",
+    section: "sslictcl",
+    description:
+      "SslicTcl declaration uses substitution or argument expansion; the vocabulary is declarative.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1003",
+    section: "sslictcl",
+    description: "SslicTcl document is missing its `sslictcl VERSION` header.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1004",
+    section: "sslictcl",
+    description: "SslicTcl document declares its `sslictcl` header more than once.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1005",
+    section: "sslictcl",
+    description: "SslicTcl declaration has the wrong number of words.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1006",
+    section: "sslictcl",
+    description: "SslicTcl declaration body must be a braced literal.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1007",
+    section: "sslictcl",
+    description: "SslicTcl closed block contains an unknown member.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1008",
+    section: "sslictcl",
+    description:
+      "SslicTcl declaration duplicates an earlier declaration of the same kind and name.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1009",
+    section: "sslictcl",
+    description: "SslicTcl value is outside its declared domain.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1010",
+    section: "sslictcl",
+    description: "SslicTcl declaration is missing a required member.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1011",
+    section: "sslictcl",
+    description: "SslicTcl declaration references a name that is not declared.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1012",
+    section: "sslictcl",
+    description: "SslicTcl declaration combines mutually exclusive members.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1101",
+    section: "sslictcl",
+    description: "SslicTcl unknown declaration preserved as an extension.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1102",
+    section: "sslictcl",
+    description:
+      "SslicTcl document vocabulary is newer than this build supports; unknown declarations are preserved.",
+    defaultEnabled: true,
+  },
+  {
+    code: "SSLIC1103",
+    section: "sslictcl",
+    description: "SslicTcl `predicate` body is retained but never evaluated in vocabulary 1.",
+    defaultEnabled: true,
+  },
 ];
 
 export const OPTIMISATIONS: OptimisationDef[] = [
@@ -1183,6 +1276,7 @@ export const SECTION_TITLES: Record<string, string> = {
   taint: "Diagnostics — Taint",
   irules: "Diagnostics — iRules",
   bigip: "Diagnostics — BIG-IP Configuration",
+  sslictcl: "Diagnostics — SslicTcl",
   tclpkg: "Diagnostics — Package Manager",
 };
 
@@ -1196,5 +1290,6 @@ export const SECTION_ORDER: string[] = [
   "taint",
   "irules",
   "bigip",
+  "sslictcl",
   "tclpkg",
 ];

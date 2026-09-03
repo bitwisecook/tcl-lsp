@@ -1,6 +1,6 @@
 # Sample Tcl code exercising all optimisation passes.
 # Used to demonstrate what each profile produces.
-# Run: uv run python ai/claude/tcl_ai.py optimize samples/optimiser/input.tcl
+# Run: tcl opt --profile full samples/optimiser/input.tcl
 
 # --- Readability candidates (O111, O114, O115, O117, O120) ---
 
