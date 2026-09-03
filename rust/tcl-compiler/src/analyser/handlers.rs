@@ -4207,10 +4207,12 @@ impl Analyser {
         // The body is always the last argument; recurse so vars
         // defined inside the loop land in the enclosing scope.
         if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
+            self.control_flow_body_depth += 1;
             self.analyse_body(body_text, body_tok, scope_path);
             if let Some((var, elements)) = &literal_binding {
                 self.simulate_remaining_foreach_iterations(var, elements, body_tok, scope_path);
             }
+            self.control_flow_body_depth -= 1;
         }
         true
     }
@@ -4407,11 +4409,11 @@ impl Analyser {
         }
         // next body
         if let Some(tok) = arg_tokens.get(2).copied() {
-            self.analyse_body(&args[2], tok, scope_path);
+            self.analyse_control_flow_body(&args[2], tok, scope_path);
         }
         // main body
         if let Some(tok) = arg_tokens.get(3).copied() {
-            self.analyse_body(&args[3], tok, scope_path);
+            self.analyse_control_flow_body(&args[3], tok, scope_path);
         }
         true
     }
@@ -4509,7 +4511,7 @@ impl Analyser {
                     );
                 }
                 if case.fallthrough_body != Some(body_text.as_str()) {
-                    self.analyse_body(body_text, *body_tok, scope_path);
+                    self.analyse_control_flow_body(body_text, *body_tok, scope_path);
                 }
             }
         } else if let Some(i) = invocation.inline_clause_start {
@@ -4541,7 +4543,7 @@ impl Analyser {
                 if let Some(body_tok) = arg_tokens.get(body_index).copied()
                     && case.fallthrough_body != Some(body_text.as_str())
                 {
-                    self.analyse_body(body_text, body_tok, scope_path);
+                    self.analyse_control_flow_body(body_text, body_tok, scope_path);
                 }
             }
         }
@@ -5876,11 +5878,11 @@ impl Analyser {
     ///
     /// Two shapes are recognised:
     ///
-    /// - ``package require ?-exact? NAME ?VERSION?`` — appends a
+    /// - ``package require ?-exact? NAME ?requirement ...?`` — appends a
     ///   ``SignaturePackageRequire`` record to
     ///   ``result.package_requires`` (carrying ``exact`` when the
-    ///   flag is present, which narrows the version to the
-    ///   degenerate range ``V-V`` for the resolver — issue #1090)
+    ///   flag is present, which narrows each requirement to an exact
+    ///   version for the resolver — issue #1090)
     ///   and flips ``has_dynamic_providers`` when the name argument
     ///   is a ``$``-substitution / ``[…]``-substitution token.
     /// - ``package provide NAME ?VERSION?`` — consumed silently;
@@ -5910,7 +5912,7 @@ impl Analyser {
         if args.len() < 2 {
             return;
         }
-        // ``package require -exact NAME ?VERSION?`` —
+        // ``package require -exact NAME ?requirement ...?`` —
         // record the flag and shift the name index.
         let exact = args[1] == "-exact" && args.len() >= 3;
         let (name_idx, name_text) = if exact {
@@ -5919,11 +5921,8 @@ impl Analyser {
             (1usize, args[1].clone())
         };
         let version_idx = name_idx + 1;
-        let version = if version_idx < args.len() {
-            Some(args[version_idx].clone())
-        } else {
-            None
-        };
+        let requirements = args[version_idx..].to_vec();
+        let version = requirements.first().cloned();
 
         // Dynamic-provider detection — non-literal package
         // name suppresses W123 unknown-command emission
@@ -5942,9 +5941,11 @@ impl Analyser {
             .push(crate::signature_scan::types::SignaturePackageRequire {
                 name: name_text,
                 version,
+                requirements,
                 exact,
                 range: cmd_tok.span,
                 conditional: self.conditional_depth > 0,
+                control_flow: self.control_flow_body_depth > 0,
             });
     }
 
@@ -15815,8 +15816,108 @@ mod tests {
         let p = &r.package_requires[0];
         assert_eq!(p.name, "Tcl");
         assert_eq!(p.version.as_deref(), Some("8.6"));
+        assert_eq!(p.requirements, ["8.6"]);
         assert!(!p.conditional);
+        assert!(!p.control_flow);
         assert!(!p.exact, "no `-exact` word means the ranged requirement");
+    }
+
+    #[test]
+    fn analyse_records_every_package_requirement_alternative() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Foo 1.0 2.0-2.5", "tcl8.6");
+        let p = &r.package_requires[0];
+        assert_eq!(p.version.as_deref(), Some("1.0"));
+        assert_eq!(p.requirements, ["1.0", "2.0-2.5"]);
+    }
+
+    #[test]
+    fn analyse_marks_package_requires_in_control_flow() {
+        let cases = [
+            (
+                "while {$enabled} { package require WhileDep 1.0 }",
+                "tcl8.6",
+                "WhileDep",
+            ),
+            (
+                "foreach item $items { package require ForeachDep 1.0 }",
+                "tcl8.6",
+                "ForeachDep",
+            ),
+            (
+                "lmap item $items { package require LmapDep 1.0 }",
+                "tcl8.6",
+                "LmapDep",
+            ),
+            (
+                "dict for {key value} {} { package require DictForDep 1.0 }",
+                "tcl8.6",
+                "DictForDep",
+            ),
+            (
+                "dict map {key value} {} { package require DictMapDep 1.0 }",
+                "tcl8.6",
+                "DictMapDep",
+            ),
+            (
+                "::tcl::dict::for {key value} {} { package require QualifiedDictForDep 1.0 }",
+                "tcl8.6",
+                "QualifiedDictForDep",
+            ),
+            (
+                "array for {key value} values { package require ArrayForDep 1.0 }",
+                "tcl9.0",
+                "ArrayForDep",
+            ),
+            (
+                "switch $kind a { package require SwitchDep 1.0 }",
+                "tcl8.6",
+                "SwitchDep",
+            ),
+            (
+                "timerate { package require TimerateDep 1.0 } 10 1",
+                "tcl9.0",
+                "TimerateDep",
+            ),
+        ];
+        for (source, dialect, name) in cases {
+            let mut a = crate::analyser::Analyser::new();
+            let r = a.analyse(source, dialect);
+            let p = r
+                .package_requires
+                .iter()
+                .find(|p| p.name == name)
+                .unwrap_or_else(|| panic!("missing {name} from {source:?}"));
+            assert!(
+                p.control_flow,
+                "{name} is inside a skippable or repeatable body: {source:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn analyse_marks_only_the_repeatable_for_scripts_as_control_flow() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "for {package require InitDep 1.0} {$enabled} \
+             {package require NextDep 1.0} {package require BodyDep 1.0}\n\
+             package require TailDep 1.0",
+            "tcl8.6",
+        );
+        let flags: Vec<_> = r
+            .package_requires
+            .iter()
+            .map(|p| (p.name.as_str(), p.control_flow))
+            .collect();
+        assert_eq!(
+            flags,
+            [
+                ("InitDep", false),
+                ("NextDep", true),
+                ("BodyDep", true),
+                ("TailDep", false),
+            ],
+        );
     }
 
     #[test]

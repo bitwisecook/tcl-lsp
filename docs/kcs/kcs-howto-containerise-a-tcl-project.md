@@ -19,6 +19,17 @@ version and the same locked packages I develop against?
   downloads the `tcl` release binary during the build.
 - A `tclpkg.lock` in the project, if you want packages installed for you.
 
+To derive that lockfile from literal and statically-resolvable `package
+require` calls, run:
+
+```sh
+tcl pkg discover --add
+tcl pkg install
+```
+
+Review any dynamic, optional, loop-contained, or alternative findings and
+supplement them with `tcl pkg add`.
+
 ## Answer
 
 `tcl docker create` writes a Dockerfile that installs Tcl, installs the
@@ -26,26 +37,31 @@ version and the same locked packages I develop against?
 `tcl pkg install --frozen` against your lockfile. No Python interpreter is
 installed or needed — the 1.x-era zipapp is gone.
 
-### 1. Pick a base image and Tcl version
+### 1. Pick a Tcl version
 
 ```sh
 tcl docker info
 ```
 
-Lists the Tcl versions with install recipes (8.4, 8.5, 8.6, 9.0), the
-base-image families they cover, the release the CLI is pinned to by default,
-and the architectures a release asset exists for.
+Lists the Tcl versions with install recipes (8.4, 8.5, 8.6, 9.0), the release
+the CLI is pinned to by default, and the architectures a release asset exists
+for. Generated Dockerfiles use `debian:bookworm-slim` by default because the
+published Linux binaries require glibc.
 
 ### 2. Generate the Dockerfile
 
 ```sh
-tcl docker create debian:bookworm-slim --tcl-version 8.6 --entrypoint main.tcl
+tcl docker create --tcl-version 8.6 --entrypoint main.tcl
 ```
+
+The generated file includes a comment explaining the Debian/glibc choice and
+the source-build alternative for Alpine/musl.
 
 Useful flags:
 
 | Flag | Effect |
 |---|---|
+| `[IMAGE]` | override the default `debian:bookworm-slim` base |
 | `--venv` | create a `tcl venv` inside the image and install into it |
 | `--no-packages` | skip the CLI download and `pkg install` entirely |
 | `--no-copy` | omit `COPY . .` (for multi-stage builds) |
@@ -114,7 +130,8 @@ image with --no-packages and no --venv.
 
 Every published Linux `tcl` asset is glibc-linked, and `gcompat` re-exports
 neither `fcntl64` nor `__res_init`, so the binary dies in the dynamic loader.
-Either move to a glibc base image, or keep Alpine and drop the CLI:
+Use the default Debian base. If Alpine is required, compile tcl-lsp from source
+for musl inside the image. A Tcl-only Alpine image can instead drop the CLI:
 
 ```sh
 tcl docker create alpine:3.21 --tcl-version 8.6 --no-packages

@@ -347,6 +347,19 @@ impl Analyser {
         self.body_depth -= 1;
     }
 
+    /// Analyse one registry-declared control-flow body while recording that
+    /// facts inside it may execute zero or multiple times.
+    pub(super) fn analyse_control_flow_body(
+        &mut self,
+        body_text: &str,
+        body_tok: Token,
+        scope_path: &[usize],
+    ) {
+        self.control_flow_body_depth += 1;
+        self.analyse_body(body_text, body_tok, scope_path);
+        self.control_flow_body_depth -= 1;
+    }
+
     /// Walk a script argument that was **built** with `list` instead of
     /// written as a literal `{…}` block.
     ///
@@ -2156,9 +2169,11 @@ impl Analyser {
         // the first argument. `conditional_depth` rises for a command whose
         // bodies are branch-selected (`BRANCH_SELECTED_BODY` — `if` / `try`),
         // which is what makes a `package require` inside one conditional.
-        let spec_traits = registry
-            .get(cmd_name)
-            .map_or_else(tcl_registry::Traits::empty, |s| s.traits);
+        let spec_traits = registry.invocation_traits(
+            body_cmd,
+            &body_args,
+            Some(self.analysis_context().context().authoring_query()),
+        );
         // iRules event handlers are a file-level declaration surface.  A
         // handler-shaped command reached while already walking any body is
         // invalid (IRULE5006) and must not manufacture or replace event

@@ -1791,11 +1791,18 @@ isolated virtual environments that pin a specific tclsh version.
 tcl venv create .venv            # create a virtual environment
 source .venv/bin/activate        # activate it
 tcl pkg init                     # create tclpkg.tcl manifest
-tcl pkg add json 1.0             # add a dependency
+tcl pkg discover --add           # find safe package requires in source
+tcl pkg add optional 1.0         # supplement discovery explicitly
 tcl pkg install                  # resolve, fetch, and lock
 tcl pkg tree                     # show dependency tree
 tcl pkg verify                   # check integrity hashes
 ```
+
+`tcl pkg discover` scans source with the full analyser and optimiser. It
+auto-adds only statically resolved, straight-line requirements that the
+manifest can express; dynamic, guarded, loop-contained, exact, bounded, and
+alternative requirements stay visible as review findings for explicit
+`tcl pkg add` decisions.
 
 The manifest is a native Tcl file (`tclpkg.tcl`) evaluated in a sandboxed
 interpreter.  The lockfile (`tclpkg.lock`) is canonical JSON — two runs against

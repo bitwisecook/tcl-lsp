@@ -761,6 +761,24 @@ pub enum PkgCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Discover package requirements in project Tcl source.
+    #[command(visible_alias = "scan")]
+    Discover {
+        /// Files or directories to scan (default: the manifest directory).
+        #[arg(value_name = "INPUT")]
+        inputs: Vec<PathBuf>,
+        /// Add safe, previously undeclared findings to tclpkg.tcl.
+        #[arg(long)]
+        add: bool,
+        /// Do not recurse into input directories.
+        #[arg(long = "no-recursive")]
+        no_recursive: bool,
+        /// Dialect profile override (default: detect per file).
+        #[arg(long, value_name = "DIALECT", value_parser = dialect_parser())]
+        dialect: Option<String>,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Resolve + fetch + materialise packages.
     Install {
         #[command(flatten)]
@@ -1017,7 +1035,9 @@ pub enum VenvCommand {
 pub enum DockerCommand {
     /// Generate a Dockerfile for a Tcl project.
     Create {
-        /// Base Docker image (e.g. debian:bookworm-slim, alpine:3.19).
+        /// Base Docker image. Defaults to Debian because release binaries
+        /// require glibc.
+        #[arg(default_value = tcl_pkg::docker::DEFAULT_BASE_IMAGE)]
         image: String,
         /// Tcl version to install.
         #[arg(long = "tcl-version", default_value = "8.6", value_parser = ["8.4", "8.5", "8.6", "9.0"])]

@@ -26,10 +26,15 @@ mismatch, or a binary that cannot start fails the build. The release is an
 `docker build --build-arg TCL_LSP_VERSION=2.2.1 .` (empty resolves the newest
 release).
 
-**Alpine cannot carry the CLI.** Every published Linux asset is glibc-linked
-and `gcompat` re-exports neither `fcntl64` nor `__res_init`, so
-`tcl docker create alpine:…` errors as soon as a CLI verb is wanted. Use a
-glibc base, or `--no-packages` (and no `--venv`) for a Tcl-only Alpine image.
+**Default to Debian.** `tcl docker create` uses `debian:bookworm-slim` when no
+image is supplied and records why in the generated file: published Linux
+binaries require glibc. If Alpine/musl is required, compile tcl-lsp from source
+inside that image.
+
+**Alpine cannot carry a release CLI.** Every published Linux asset is
+glibc-linked and `gcompat` re-exports neither `fcntl64` nor `__res_init`, so
+`tcl docker create alpine:…` errors as soon as a CLI verb is wanted. A Tcl-only
+Alpine image may use `--no-packages` (and no `--venv`).
 
 ## CLI
 
@@ -37,16 +42,16 @@ glibc base, or `--no-packages` (and no `--venv`) for a Tcl-only Alpine image.
 tcl docker info                              # families, Tcl versions, CLI targets
 tcl docker recipe IMAGE --tcl-version V      # the Tcl install recipe it would use
 tcl docker recipe IMAGE --cli                # the native tcl CLI install layer
-tcl docker create IMAGE [--tcl-version 8.6] [-o Dockerfile] [--workdir /app]
+tcl docker create [IMAGE] [--tcl-version 8.6] [-o Dockerfile] [--workdir /app]
     [--entrypoint main.tcl] [--venv] [--no-copy] [--no-packages]
     [--extra-package PKG]... [--label k=v]... [--env k=v]...
     [--cli-version X.Y.Z] [--force] [--json]
 ```
 
 Defaults: `debian:bookworm-slim`, Tcl 8.6, and the release the `tcl` running
-the command was built from. An unknown image falls back to Debian recipes —
-say so. Confirm the `--cli-version` asset exists on GitHub Releases before
-shipping the file.
+the command was built from. Prefer the default Debian base. An unknown image
+falls back to Debian recipes — say so. Confirm the `--cli-version` asset exists
+on GitHub Releases before shipping the file.
 
 ## Steps
 
