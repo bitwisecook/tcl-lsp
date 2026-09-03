@@ -232,6 +232,27 @@ pub enum WordBody<'s> {
     Parts(Vec<WordPart<'s>>),
 }
 
+/// A top-level component of [`decompose_spanned`] with its byte extent in the
+/// scanned source.
+///
+/// The extent is what a consumer that keeps *positions* needs — the compiler's
+/// `WordExpr` carries a source span per part — and it is not recoverable from
+/// the part alone: a [`WordPart::Text`] whose escapes were decoded owns its
+/// bytes, and a [`WordPart::ParseError`] borrows nothing. A `Text` extent is
+/// the raw, undecoded run; a `Variable` extent covers `$` through the end of
+/// the reference (the closing `}` or `)` included); a `Command` extent covers
+/// both brackets; a `ParseError` extent runs from the construct C rejected to
+/// the end of the source, which is where C stopped parsing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpannedPart<'s> {
+    /// The component.
+    pub part: WordPart<'s>,
+    /// Byte offset of the component's first source byte.
+    pub start: usize,
+    /// Byte offset one past the component's last source byte.
+    pub end: usize,
+}
+
 /// Cap on `$name(index)` nesting depth [`decompose`] recurses into while
 /// parsing an index's own components.
 ///
@@ -255,7 +276,40 @@ const MAX_INDEX_DEPTH: u32 = 64;
 /// enabled substitution actually occurs.
 #[must_use]
 pub fn decompose(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> {
+    body_of(decompose_at_depth(src, flags, config, 0))
+}
+
+/// [`decompose`] with each top-level component's byte extent in `src`.
+///
+/// A word with nothing to substitute comes back as exactly one borrowed
+/// [`WordPart::Text`] spanning all of `src` — the same span [`decompose`]
+/// collapses to [`WordBody::Literal`]. Index components of a `$arr(index)`
+/// reference are nested inside the [`WordPart::Variable`] without extents.
+#[must_use]
+pub fn decompose_spanned(
+    src: &[u8],
+    flags: SubstFlags,
+    config: LexerConfig,
+) -> Vec<SpannedPart<'_>> {
     decompose_at_depth(src, flags, config, 0)
+}
+
+/// C's `TCL_TOKEN_SIMPLE_WORD` collapse. A span whose only component is one
+/// *borrowed* text run had nothing to substitute after all — a `$` with no
+/// name behind it, a `[` that the flags left inert — so it goes back as a
+/// zero-copy `Literal`. An *owned* run (escapes were decoded) cannot: it no
+/// longer borrows the source.
+fn body_of(parts: Vec<SpannedPart<'_>>) -> WordBody<'_> {
+    if let [
+        SpannedPart {
+            part: WordPart::Text(Cow::Borrowed(b)),
+            ..
+        },
+    ] = parts.as_slice()
+    {
+        return WordBody::Literal(b);
+    }
+    WordBody::Parts(parts.into_iter().map(|spanned| spanned.part).collect())
 }
 
 /// Where the `"`-delimited word opening at `open_quote` closes, or
@@ -368,20 +422,24 @@ fn decompose_at_depth(
     flags: SubstFlags,
     config: LexerConfig,
     depth: u32,
-) -> WordBody<'_> {
+) -> Vec<SpannedPart<'_>> {
     let len = src.len();
     let triggered = src.iter().any(|&c| {
         (flags.vars && c == b'$') || (flags.cmds && c == b'[') || (flags.backslashes && c == b'\\')
     });
     if !triggered {
-        return WordBody::Literal(src);
+        return vec![SpannedPart {
+            part: WordPart::Text(Cow::Borrowed(src)),
+            start: 0,
+            end: len,
+        }];
     }
     // Computed once per call, not per byte: whether this call already sits at
     // the index-nesting cap, so any `$name(index)` here keeps its index as
     // literal text rather than recursing further.
     let past_cap = depth >= MAX_INDEX_DEPTH;
 
-    let mut parts: Vec<WordPart> = Vec::new();
+    let mut parts: Vec<SpannedPart> = Vec::new();
     let mut lit_start = 0usize;
     let mut i = 0usize;
 
@@ -395,16 +453,20 @@ fn decompose_at_depth(
                         if past_cap {
                             vec![WordPart::Text(Cow::Borrowed(idx))]
                         } else {
-                            match decompose_at_depth(idx, flags, config, depth + 1) {
+                            match body_of(decompose_at_depth(idx, flags, config, depth + 1)) {
                                 WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                                 WordBody::Parts(p) => p,
                             }
                         }
                     });
-                    parts.push(WordPart::Variable(VarRef {
-                        name: raw.name,
-                        index,
-                    }));
+                    parts.push(SpannedPart {
+                        part: WordPart::Variable(VarRef {
+                            name: raw.name,
+                            index,
+                        }),
+                        start: i,
+                        end: raw.next,
+                    });
                     i = raw.next;
                 }
                 // `Ok(None)` cannot happen: `starts_var_ref` already tested
@@ -418,8 +480,12 @@ fn decompose_at_depth(
                 // scanned are kept (they run first — see the module docs) and
                 // the error terminates the walk.
                 Err(msg) => {
-                    parts.push(WordPart::ParseError(msg));
-                    return WordBody::Parts(parts);
+                    parts.push(SpannedPart {
+                        part: WordPart::ParseError(msg),
+                        start: i,
+                        end: len,
+                    });
+                    return parts;
                 }
             }
             lit_start = i;
@@ -427,7 +493,11 @@ fn decompose_at_depth(
             match command_subst_close(src, i, flags, config) {
                 Ok(end) => {
                     flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
-                    parts.push(WordPart::Command(&src[i + 1..end - 1]));
+                    parts.push(SpannedPart {
+                        part: WordPart::Command(&src[i + 1..end - 1]),
+                        start: i,
+                        end,
+                    });
                     i = end;
                     lit_start = i;
                 }
@@ -438,8 +508,12 @@ fn decompose_at_depth(
                 Err(_) if flags.unclosed_bracket_is_data => i += 1,
                 Err(msg) => {
                     flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
-                    parts.push(WordPart::ParseError(msg));
-                    return WordBody::Parts(parts);
+                    parts.push(SpannedPart {
+                        part: WordPart::ParseError(msg),
+                        start: i,
+                        end: len,
+                    });
+                    return parts;
                 }
             }
         } else if flags.backslashes && c == b'\\' && i + 1 < len {
@@ -454,15 +528,7 @@ fn decompose_at_depth(
         }
     }
     flush_text(&mut parts, src, lit_start, len, flags, config.escapes);
-    // C's `TCL_TOKEN_SIMPLE_WORD` collapse. A span whose only component is one
-    // *borrowed* text run had nothing to substitute after all — a `$` with no
-    // name behind it, a `[` that the flags left inert — so it goes back as a
-    // zero-copy `Literal`. An *owned* run (escapes were decoded) cannot: it no
-    // longer borrows `src`.
-    if let [WordPart::Text(Cow::Borrowed(b))] = parts.as_slice() {
-        return WordBody::Literal(b);
-    }
-    WordBody::Parts(parts)
+    parts
 }
 
 /// [`command_subst_close`]'s error choice for an unterminated `[`.
@@ -656,7 +722,7 @@ fn brace_word_close(src: &[u8], at: usize) -> Option<usize> {
 /// Push `src[start..end]` as a [`WordPart::Text`], decoding its escapes under
 /// the release's grammar when backslash substitution is on (borrowing else).
 fn flush_text<'s>(
-    parts: &mut Vec<WordPart<'s>>,
+    parts: &mut Vec<SpannedPart<'s>>,
     src: &'s [u8],
     start: usize,
     end: usize,
@@ -670,7 +736,11 @@ fn flush_text<'s>(
         } else {
             Cow::Borrowed(run)
         };
-        parts.push(WordPart::Text(text));
+        parts.push(SpannedPart {
+            part: WordPart::Text(text),
+            start,
+            end,
+        });
     }
 }
 
@@ -1056,6 +1126,40 @@ mod tests {
         assert_eq!(
             decompose(b"x\\$y", SubstFlags::compiled_word(), nine()),
             WordBody::Parts(vec![text(b"x$y")])
+        );
+    }
+
+    /// The extents [`decompose_spanned`] reports are the raw source runs:
+    /// a decoded text run keeps its undecoded width, a reference covers its
+    /// closer, and a parse error runs to the end of the source (where C
+    /// stopped). Nested index components carry no extents of their own.
+    #[test]
+    fn spanned_parts_carry_their_raw_extents() {
+        let src = b"a\\tb${x}[c]$arr($i)\\$z";
+        let spanned = decompose_spanned(src, SubstFlags::default(), nine());
+        let extents: Vec<(usize, usize)> = spanned.iter().map(|p| (p.start, p.end)).collect();
+        assert_eq!(extents, vec![(0, 4), (4, 8), (8, 11), (11, 19), (19, 22)]);
+        assert_eq!(&src[4..8], b"${x}");
+        assert_eq!(&src[8..11], b"[c]");
+        assert_eq!(&src[11..19], b"$arr($i)");
+        assert_eq!(spanned[0].part, text(b"a\tb"));
+        assert_eq!(spanned[4].part, text(b"$z"));
+        // Every extent tiles the source without gaps.
+        assert!(spanned.windows(2).all(|w| w[0].end == w[1].start));
+
+        let stopped = decompose_spanned(b"x[side][b", SubstFlags::default(), nine());
+        assert_eq!(
+            stopped.last().map(|p| (p.part.clone(), p.start, p.end)),
+            Some((WordPart::ParseError(MISSING_CLOSE_BRACKET), 7, 9))
+        );
+        // The literal fast path is one borrowed run over the whole source.
+        assert_eq!(
+            decompose_spanned(b"plain", SubstFlags::default(), nine()),
+            vec![SpannedPart {
+                part: text(b"plain"),
+                start: 0,
+                end: 5,
+            }]
         );
     }
 
