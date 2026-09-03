@@ -214,9 +214,8 @@ impl<'a> Lowerer<'a> {
         // keyed lookup, not a second resolution of a user string, and
         // `unit_profile` is the same door `CompilationUnit::build_for_dialect`
         // uses (so `tk` keeps its typed profile).
-        let profile = environment.map(|id| {
-            crate::environment_ingress::resolve_environment(id).unit_profile()
-        });
+        let profile = environment
+            .map(|id| crate::environment_ingress::resolve_environment(id).unit_profile());
         // `expr` resolves `abs(…)` through the command table, so a native
         // math function is only sound while nothing in the module can have
         // replaced one: no dynamic trace, no proc declaring one, and no
