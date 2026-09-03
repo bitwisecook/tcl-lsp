@@ -272,11 +272,17 @@ const MAX_INDEX_DEPTH: u32 = 64;
 /// Decompose `src` into its substitution components under `flags`.
 ///
 /// `src` is a word's **content** (delimiters already stripped) or a `subst`
-/// template. Returns [`WordBody::Literal`] — a borrow of `src` — when no
-/// enabled substitution actually occurs.
+/// template. Returns [`WordBody::Literal`] — a borrow of `src`, with no
+/// allocation at all — when no enabled substitution actually occurs. That
+/// check ([`triggers`]) is hoisted here, ahead of [`scan_parts`]'s walk, so
+/// this fast path never builds the one-element `Vec` [`decompose_spanned`]'s
+/// contract requires; see the module docs' "zero-copy" claim.
 #[must_use]
 pub fn decompose(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> {
-    body_of(decompose_at_depth(src, flags, config, 0))
+    if !triggers(src, flags) {
+        return WordBody::Literal(src);
+    }
+    body_of(scan_parts(src, flags, config, 0))
 }
 
 /// [`decompose`] with each top-level component's byte extent in `src`.
@@ -417,23 +423,42 @@ fn is_var_name_byte(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_' || c == b':'
 }
 
+/// Whether any byte of `src` could start a substitution `flags` has enabled —
+/// the "nothing to do" test shared by [`decompose`]'s fast path and
+/// [`decompose_at_depth`]'s.
+fn triggers(src: &[u8], flags: SubstFlags) -> bool {
+    src.iter().any(|&c| {
+        (flags.vars && c == b'$') || (flags.cmds && c == b'[') || (flags.backslashes && c == b'\\')
+    })
+}
+
 fn decompose_at_depth(
     src: &[u8],
     flags: SubstFlags,
     config: LexerConfig,
     depth: u32,
 ) -> Vec<SpannedPart<'_>> {
-    let len = src.len();
-    let triggered = src.iter().any(|&c| {
-        (flags.vars && c == b'$') || (flags.cmds && c == b'[') || (flags.backslashes && c == b'\\')
-    });
-    if !triggered {
+    if !triggers(src, flags) {
         return vec![SpannedPart {
             part: WordPart::Text(Cow::Borrowed(src)),
             start: 0,
-            end: len,
+            end: src.len(),
         }];
     }
+    scan_parts(src, flags, config, depth)
+}
+
+/// The substitution walk itself, once [`triggers`] has confirmed there is
+/// something to scan for. Shared by [`decompose`] (triggered case) and
+/// [`decompose_at_depth`] (always, including the recursive `$name(index)`
+/// call) so the walk exists exactly once.
+fn scan_parts(
+    src: &[u8],
+    flags: SubstFlags,
+    config: LexerConfig,
+    depth: u32,
+) -> Vec<SpannedPart<'_>> {
+    let len = src.len();
     // Computed once per call, not per byte: whether this call already sits at
     // the index-nesting cap, so any `$name(index)` here keeps its index as
     // literal text rather than recursing further.
