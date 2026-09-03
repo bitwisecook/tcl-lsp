@@ -30,6 +30,11 @@
 //! `serialise_result` the WASM facade calls) and drives the shipped GUI in
 //! headless Chromium via `tests/gui/explorer-gui-smoke.mjs`.
 //!
+//! Source goes in the way the shipped UI accepts it: Monaco owns the editor
+//! and the `#source` textarea behind it is hidden state plumbing, so the
+//! driver writes through the editor host's `onChange` bridge rather than
+//! typing into an element no user can reach.
+//!
 //! It needs `node` plus a Playwright install; without them it prints why and
 //! passes, so a plain `cargo test` on a machine with no browser stack is not
 //! blocked. Point it at a non-default install with:
@@ -120,7 +125,28 @@ fn native_serve_requires_the_complete_monaco_bundle() {
     assert!(!GUI_RS.contains("make explorer-wasm && cargo build -p tcl-cli --release"));
 }
 
-fn assert_forced_compiles(report: &Value) {
+/// The other half of #1183: an edit made while the WASM module is still
+/// loading must not be dropped. The driver holds module load open (the stubbed
+/// `wasm_bindgen` parks on a gate), enters the source through the Monaco host
+/// — the only editor the shipped page shows — and only then lets the worker
+/// report ready, so this is a state the test enters on purpose rather than a
+/// timing window it has to win.
+fn assert_compile_survives_module_load(report: &Value, first: &Value, source: &str) {
+    assert_eq!(
+        report["queuedDuringLoad"], true,
+        "the GUI never queued a compile for the edit made during module load"
+    );
+    assert_eq!(
+        report["compilesDuringLoad"], 0,
+        "the worker compiled before it finished loading"
+    );
+    assert_eq!(
+        first["compiledSource"], source,
+        "the compile owed from module load never reached the compiler"
+    );
+}
+
+fn assert_compile_triggers(report: &Value) {
     let before = report["compilesBeforeButton"]
         .as_u64()
         .expect("compile count");
@@ -143,6 +169,20 @@ fn assert_forced_compiles(report: &Value) {
         after_shortcut,
         before_shortcut + 1,
         "Ctrl/Cmd+Enter in Monaco did not force compilation ({before_shortcut} -> {after_shortcut})"
+    );
+
+    // Monaco is the only editor: an ordinary edit reaches the compiler only
+    // through its `onChange` bridge into the hidden `#source` textarea.
+    let before_edit = report["compilesBeforeEdit"]
+        .as_u64()
+        .expect("edit compile count");
+    let after_edit = report["compilesAfterEdit"]
+        .as_u64()
+        .expect("edit compile count");
+    assert_eq!(
+        after_edit,
+        before_edit + 1,
+        "editing in Monaco did not recompile ({before_edit} -> {after_edit})"
     );
 }
 
@@ -211,6 +251,8 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
         first["errorBoxes"]
     );
 
+    assert_compile_survives_module_load(&report, first, source);
+
     // Issue #1183: the throbber must stop once a result is in.
     assert_eq!(
         first["spinnerDisplay"], "none",
@@ -258,5 +300,5 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
         "the ready-message trait reference was empty before compilation"
     );
 
-    assert_forced_compiles(&report);
+    assert_compile_triggers(&report);
 }

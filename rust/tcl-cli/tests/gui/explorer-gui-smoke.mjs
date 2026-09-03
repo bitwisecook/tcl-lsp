@@ -23,7 +23,9 @@
  *   - the WASM tab actually renders a disassembly,
  *   - the compile spinner stops,
  *   - the dialect dropdown is populated before the first result,
- *   - typing before the WASM module is ready still produces a compile,
+ *   - an edit made while the WASM module is still loading still produces a
+ *     compile (the stub holds module load open, so this is a state the test
+ *     enters on purpose rather than a race it has to win),
  *   - the Compile button forces a recompile,
  *   - no uncaught page errors along the way.
  */
@@ -57,7 +59,11 @@ await writeFile(
   `self.__PAYLOAD = ${JSON.stringify(payload)};\n` +
     `self.__META = ${JSON.stringify(meta)};\n` +
     'self.__COMPILES = 0;\n' +
-    'self.wasm_bindgen = function () { return Promise.resolve(); };\n' +
+    // Module load blocks until the driver opens this gate. `worker.js` awaits
+    // `wasm_bindgen(...)` before it posts `ready`, so the driver — not a
+    // timing window — decides when the GUI leaves its "still loading" state.
+    'self.__initGate = new Promise(function (resolve) { self.__finishInit = resolve; });\n' +
+    'self.wasm_bindgen = function () { return self.__initGate; };\n' +
     'self.wasm_bindgen.meta = function () { return self.__META; };\n' +
     'self.wasm_bindgen.compile = function () { self.__COMPILES += 1; return self.__PAYLOAD; };\n',
 );
@@ -74,6 +80,13 @@ await writeFile(join(root, 'build_info.json'), '{"version":"smoke-test"}');
 // browser/native editor bundle has its own boot tests). Supply the same module
 // boundary with a tiny test surface so the production page still has exactly
 // one editor path and makes no failed asset requests here.
+//
+// The stub keeps the parts of the contract the page depends on (see
+// `Surface` in `rust/tcl-spec-studio/web/src/monacoHost.ts`): the textarea is
+// hidden state plumbing, not a second editor, and an edit writes the model
+// text into it before calling `onChange`. `__tclEditorStub.setText` is the
+// only way this driver puts source into the page, because it is the only way
+// the shipped UI has.
 await mkdir(join(root, 'editor', 'assets'), { recursive: true });
 await writeFile(
   join(root, 'editor', 'build-info.json'),
@@ -82,11 +95,16 @@ await writeFile(
 await writeFile(
   join(root, 'editor', 'assets', 'monaco-host.js'),
   'export async function mountTclEditor(options){' +
+    'options.textarea.hidden=true;' +
     'options.container.classList.add("monaco-mounted");' +
     'options.container.tabIndex=0;' +
     'options.container.addEventListener("keydown",event=>{' +
       'if(event.key==="Enter"&&(event.ctrlKey||event.metaKey)){event.preventDefault();options.onCompile?.();}' +
     '});' +
+    'globalThis.__tclEditorStub={' +
+      'setText(text){options.textarea.value=text;options.onChange(text);},' +
+      'getText(){return options.textarea.value;}' +
+    '};' +
     'return {setDialect(){},highlightRanges(){},layout(){},lspReady:true};' +
   '}',
 );
@@ -128,6 +146,7 @@ try {
   const referencePage = await browser.newPage();
   referencePage.on('pageerror', (err) => pageErrors.push(err.stack || String(err)));
   await referencePage.goto(base);
+  await finishModuleLoad(referencePage);
   await referencePage.waitForFunction(
     () => document.querySelectorAll('.trait-reference-row').length > 90,
     null,
@@ -140,10 +159,29 @@ try {
   page.on('pageerror', (err) => pageErrors.push(err.stack || String(err)));
 
   await page.goto(base);
-  // Deliberately type *before* the worker signals ready: a compile queued
-  // during module load must still happen (it used to be dropped, leaving
-  // the GUI blank forever).
-  await page.fill('#source', SOURCE);
+  // Monaco is the only editor the shipped page shows; the textarea behind it
+  // is hidden state plumbing. Put the source in through the editor host, the
+  // way a real keystroke reaches the page.
+  await page.waitForSelector('#monacoSource.monaco-mounted', { timeout: 30_000 });
+  await setEditorText(page, SOURCE);
+
+  // Deliberately edit *before* the worker signals ready — the stub's module
+  // load is still parked on its gate, so this is not a race. A compile owed
+  // from that window must still happen (it used to be dropped, leaving the
+  // GUI blank forever), so wait until the page has actually queued one.
+  await page.waitForFunction(
+    // `pendingCompile` / `workerReady` are index.html's own module-load state.
+    () => pendingCompile === true && workerReady === false,
+    null,
+    { timeout: 30_000 },
+  );
+  const queuedDuringLoad = await page.evaluate(
+    () => pendingCompile === true && workerReady === false,
+  );
+  const compilesDuringLoad = await compileCount(page);
+
+  // Now let module load finish: the queued compile must be picked up.
+  await finishModuleLoad(page);
   await page.waitForFunction(() => !!window.data, null, { timeout: 30_000 });
 
   const afterFirst = await snapshot(page);
@@ -169,14 +207,31 @@ try {
     afterShortcut = await compileCount(page);
   }
 
+  // An ordinary edit must recompile on its own. Monaco writes the model text
+  // into the hidden textarea and calls `onChange`, which index.html turns into
+  // an `input` event on `#source`; nothing else compiles once a result is in
+  // (the page's one-second safety net only fires while `data` is still null),
+  // so this isolates the editor → page bridge.
+  const beforeEdit = afterShortcut;
+  await setEditorText(page, SOURCE + 'puts [add 3 4]\n');
+  let afterEdit = beforeEdit;
+  for (let i = 0; i < 100 && afterEdit === beforeEdit; i += 1) {
+    await page.waitForTimeout(100);
+    afterEdit = await compileCount(page);
+  }
+
   report = {
     ok: true,
     first: afterFirst,
     traitRowsBeforeCompile,
+    queuedDuringLoad,
+    compilesDuringLoad,
     compilesBeforeButton: before,
     compilesAfterButton: after,
     compilesBeforeShortcut: beforeShortcut,
     compilesAfterShortcut: afterShortcut,
+    compilesBeforeEdit: beforeEdit,
+    compilesAfterEdit: afterEdit,
     pageErrors,
   };
 } finally {
@@ -200,6 +255,9 @@ async function snapshot(page) {
       wasmInstructions: wasm.querySelectorAll('.wasm-instr').length,
       asmFunctions: asm.querySelectorAll('.wasm-function').length,
       monacoMounted: !!document.querySelector('#monacoSource.monaco-mounted'),
+      // What the page actually compiled — the text that went in during
+      // module load must be what came back out.
+      compiledSource: window.compiledSource,
       stateEditorDisplay: getComputedStyle(document.querySelector('#editorContainer')).display,
       traitRows: document.querySelectorAll('.trait-reference-row').length,
       traitGroups: document.querySelectorAll('.trait-group').length,
@@ -220,4 +278,35 @@ async function compileCount(page) {
   const workers = page.workers();
   if (!workers.length) return null;
   return workers[0].evaluate(() => self.__COMPILES);
+}
+
+// Put source into the page the only way the shipped UI offers: through the
+// Monaco host, which writes the model text into the hidden `#source` textarea
+// and then calls the page's `onChange`.
+async function setEditorText(page, text) {
+  await page.evaluate((value) => {
+    if (!globalThis.__tclEditorStub) throw new Error('the editor host never mounted');
+    globalThis.__tclEditorStub.setText(value);
+  }, text);
+}
+
+// Release the stub's module-load gate, so `worker.js` finishes `init()` and
+// posts `ready`. Until this runs the page is genuinely mid-load, which is the
+// state the "compile queued during load" guard needs.
+async function finishModuleLoad(page) {
+  for (let i = 0; i < 300; i += 1) {
+    const worker = page.workers()[0];
+    if (
+      worker &&
+      (await worker.evaluate(() => {
+        if (typeof self.__finishInit !== 'function') return false;
+        self.__finishInit();
+        return true;
+      }))
+    ) {
+      return;
+    }
+    await page.waitForTimeout(50);
+  }
+  throw new Error('the compiler worker never reached its module-load gate');
 }
