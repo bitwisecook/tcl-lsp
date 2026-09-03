@@ -98,10 +98,11 @@ jobs:
   #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
   #                    and exact-reference-toolchain closure changed. Runs the
   #                    non-vacuous 15+3+4+2+1 compatibility lane.
-  #   runtime_rust_changed — the standalone `runtime/rust` crate or one of the
-  #                    path dependencies its own cargo workspace resolves
-  #                    changed, so `runtime-rust-tests` must execute that
-  #                    crate's unit suite.  `runtime/rust` is NOT a member of
+  #   runtime_rust_changed — the standalone `runtime/rust` crate, its Tcl 9
+  #                    smoke corpus, or one of the path dependencies its own
+  #                    cargo workspace resolves changed, so
+  #                    `runtime-rust-tests` must execute that crate's suite.
+  #                    `runtime/rust` is NOT a member of
   #                    the root workspace: `cargo test --workspace` never runs
   #                    those tests, and `wasm-real-link` builds and links the
   #                    crate without running a single one of them, so before
@@ -953,9 +954,9 @@ jobs:
   # remains the real-link check, and this job never links anything.
   #
   # The step-level skip keys on `runtime_rust_changed` (see the channel job
-  # header): the crate plus the path-dependency closure its own lockfile
-  # resolves.  The job itself always runs and reports, per the redundancy
-  # contract in AGENTS.md.
+  # header): the crate, its external Tcl 9 smoke corpus, plus the path-dependency
+  # closure its own lockfile resolves. The job itself always runs and reports,
+  # per the redundancy contract in AGENTS.md.
   runtime-rust-tests:
     needs: [channel]
     runs-on: ubuntu-26.04
