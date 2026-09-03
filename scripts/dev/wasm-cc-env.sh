@@ -19,9 +19,17 @@ wasm_cc_run() {
     shift
     local -a command
 
+    # A compiler discovered below is an executable path, which may legitimately
+    # contain whitespace (for example on a named macOS volume). Try the whole
+    # value first so wrapper parsing cannot split that path apart.
+    if [ -x "$compiler" ]; then
+        "$compiler" "$@"
+        return
+    fi
+
     # cc-rs permits a wrapper plus compiler in CC (for example "sccache
-    # clang"). Preserve that convention for explicit overrides. Paths used by
-    # the owned wasi-sdk do not contain whitespace.
+    # clang"). Preserve that convention for explicit overrides that are not a
+    # directly executable path.
     read -r -a command <<< "$compiler"
     if [ "${#command[@]}" -eq 0 ] || ! command -v "${command[0]}" >/dev/null 2>&1; then
         return 127

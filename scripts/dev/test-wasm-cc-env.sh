@@ -16,7 +16,9 @@ INSTALLER="$SCRIPT_DIR/ensure-test-deps.sh"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
 apple_clang="$fixture/apple-clang"
-sdk_root="$fixture/wasi-sdk"
+# The whitespace is intentional: custom SDK roots and target-specific compiler
+# paths on macOS must reach exec as one argument, not be split like a wrapper.
+sdk_root="$fixture/wasi sdk"
 sdk_clang="$sdk_root/bin/clang"
 probe_log="$fixture/probe.log"
 mkdir -p "$sdk_root/bin"
@@ -87,6 +89,21 @@ selected="$({
 })"
 if [ "$selected" != "$sdk_clang" ]; then
     echo "owned wasi-sdk clang was not selected (got '$selected')" >&2
+    exit 1
+fi
+
+# The same whitespace-bearing executable must also work when selected through
+# cc-rs's shell-friendly target override rather than through WASI_SDK_PATH.
+target_selected="$({
+    env -u 'CC_wasm32-unknown-unknown' \
+        CC_wasm32_unknown_unknown="$sdk_clang" \
+        WASI_SDK_PATH="$fixture/unused sdk" \
+        WASM_CC_TEST_LOG="$probe_log" \
+        /bin/bash -c '. "$1"; wasm_cc_prepare >/dev/null; printf "%s" "$CC_wasm32_unknown_unknown"' \
+            wasm-cc-test "$HELPER"
+})"
+if [ "$target_selected" != "$sdk_clang" ]; then
+    echo "whitespace-bearing target compiler was not selected (got '$target_selected')" >&2
     exit 1
 fi
 case "$(cat "$probe_log")" in
