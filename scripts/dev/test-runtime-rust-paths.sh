@@ -7,9 +7,9 @@
 # Contract tests for the standalone-runtime CI lane (issue #1768):
 #
 #   1. `scripts/dev/runtime-rust-path.sh` classifies exactly the runtime's
-#      resolved local package closure as relevant — no less (a new path
-#      dependency must start triggering the job) and no more (an over-broad
-#      entry must not make every PR pay for the lane).
+#      resolved local package closure and its external Tcl 9 smoke corpus as
+#      relevant — no less (a new path dependency or oracle edit must trigger
+#      the job) and no more (an over-broad entry must not make every PR pay).
 #   2. `make runtime-rust-test` really runs the standalone suite locked, with
 #      the numeric tower explicitly enabled.
 #   3. `.github/workflows/ci.yml` wires the classifier to a step-level,
@@ -100,6 +100,8 @@ done
 
 # Build inputs and the gate's own definition.
 expect_relevant runtime/rust/Cargo.lock
+expect_relevant samples/tcl9_smoke/eval/01_braced_literal.tcl
+expect_relevant samples/tcl9_smoke/eval/01_braced_literal.expected
 expect_relevant rust-toolchain.toml
 expect_relevant Makefile
 expect_relevant .github/workflows/ci.yml
@@ -107,6 +109,9 @@ expect_relevant scripts/dev/runtime-rust-path.sh
 expect_relevant scripts/dev/test-runtime-rust-paths.sh
 
 expect_unrelated README.md
+expect_unrelated samples/hello.tcl
+expect_unrelated samples/tcl9_smoke/README.md
+expect_unrelated samples/tcl9_smoke/eval/notes.txt
 expect_unrelated docs/design/compiler/wasm-native-lowering-plan.md
 expect_unrelated editors/vscode/src/extension.ts
 

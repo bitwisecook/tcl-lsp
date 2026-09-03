@@ -15,7 +15,8 @@
 # partition green — which is exactly what #1768 was filed for.
 #
 # The case list below is the runtime's LOCAL PACKAGE CLOSURE (the crate itself
-# plus every path dependency `cargo metadata` resolves for it), not a guess.
+# plus every path dependency `cargo metadata` resolves for it), its external
+# Tcl 9 smoke corpus, and the lane's build inputs — not a guess.
 # `scripts/dev/test-runtime-rust-paths.sh` re-derives that closure from cargo
 # and fails if this list has drifted either way, so a new path dependency
 # cannot silently stop triggering the job, and an over-broad entry cannot
@@ -33,6 +34,10 @@ PATH_TO_CLASSIFY=$1
 case "$PATH_TO_CLASSIFY" in
     # The crate under test.
     runtime/rust/*)
+        exit 0
+        ;;
+    # External golden inputs executed by runtime/rust/tests/tcl9_smoke.rs.
+    samples/tcl9_smoke/*.tcl | samples/tcl9_smoke/*.expected)
         exit 0
         ;;
     # Its resolved path-dependency closure. Keep in sync with
