@@ -202,6 +202,22 @@ fn loop_counters_read_from_the_cell_take_the_dynamic_fast_path() {
 }
 
 #[test]
+fn double_division_takes_the_runtime_operator() {
+    // C Tcl raises ARITH DOMAIN for `0.0/0.0` but yields Inf for `1.0/0.0`,
+    // and the double lattice cannot prove a divisor non-zero, so division
+    // must not be emitted as a raw `f64.div` that stores NaN and continues.
+    let source = "set a 1.0\nset b 0.0\nputs [expr {$a / $b}]\n";
+    let (function, _) = lower(source, native_config()).expect("lowers");
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::DoubleBinary { .. })),
+        0,
+        "{:?}",
+        all_ops(&function)
+    );
+    assert!(count(&function, |op| matches!(op, NativeOp::DynamicBinary { .. })) >= 1);
+}
+
+#[test]
 fn doubles_lower_to_native_f64_arithmetic() {
     let source =
         "set r 2.5\nset area [expr {3.14159 * $r * $r}]\nputs $area\nputs [expr {$area > 19.0}]\n";
@@ -335,7 +351,9 @@ fn expression_operators_without_a_native_shape_use_the_runtime_operator() {
         0
     );
     assert!(count(&function, |op| matches!(op, NativeOp::IfElse { .. })) >= 3);
-    assert!(count(&function, |op| matches!(op, NativeOp::DoubleBinary { .. })) >= 1);
+    // `double($a) / $b` is a division: no divisor can be proven non-zero, so
+    // it takes the runtime operator rather than a raw `f64.div`.
+    assert!(count(&function, |op| matches!(op, NativeOp::DynamicBinary { .. })) >= 1);
 }
 
 #[test]

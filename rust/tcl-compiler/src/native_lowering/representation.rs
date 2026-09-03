@@ -131,6 +131,24 @@ pub const fn double_op(op: BinOp) -> Option<DoubleOp> {
     }
 }
 
+/// Whether a native `f64` operation on two proven-finite operands cannot
+/// produce `NaN`.
+///
+/// C Tcl raises `ARITH DOMAIN` ("domain error: argument not in valid range")
+/// whenever a double operation yields `NaN`, while an infinite result is an
+/// ordinary value (`1.0/0.0` is `Inf`, `0.0/0.0` errors). Finite operands can
+/// only reach `NaN` through `0.0/0.0`, and the double lattice carries no value
+/// interval to prove a divisor non-zero, so division takes the runtime
+/// operator — the same conservative edge `proven_int_result` gives integer
+/// division by an unproven divisor.
+#[must_use]
+pub const fn double_result_defined(op: DoubleOp) -> bool {
+    match op {
+        DoubleOp::Add | DoubleOp::Sub | DoubleOp::Mul => true,
+        DoubleOp::Div => false,
+    }
+}
+
 /// The native comparison a Tcl numeric comparison maps to.
 #[must_use]
 pub const fn cmp_op(op: BinOp) -> Option<CmpOp> {

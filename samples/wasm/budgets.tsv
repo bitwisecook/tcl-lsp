@@ -44,6 +44,9 @@ t1-expr-control	14_unbraced_expr	native	0	0	4	0
 t1-expr-control	15_switch	default	2	0	0	0
 t1-expr-control	15_switch	analysis	2	0	0	0
 t1-expr-control	15_switch	native	2	0	0	0
+t1-expr-control	16_conditional_arms	default	16	0	0	0
+t1-expr-control	16_conditional_arms	analysis	0	0	17	0
+t1-expr-control	16_conditional_arms	native	0	0	12	19
 t2-values	20_lists	default	18	0	0	0
 t2-values	20_lists	analysis	0	0	28	0
 t2-values	20_lists	native	0	0	27	0

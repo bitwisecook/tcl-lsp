@@ -132,6 +132,17 @@ impl ShadowState {
         self.shadows.clear();
     }
 
+    /// Keep only the shadows this state and `other` agree on.
+    ///
+    /// The merge for a conditionally executed arm: an entry survives only when
+    /// both paths reach it with the same value, so a shadow an arm established
+    /// (whose defining operation the other path never runs) and one an arm
+    /// invalidated are both dropped.
+    pub fn intersect(&mut self, other: &Self) {
+        self.shadows
+            .retain(|place, value| other.shadows.get(place) == Some(value));
+    }
+
     /// Whether no shadow is held.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -142,6 +153,24 @@ impl ShadowState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn intersect_keeps_only_shadows_both_paths_agree_on() {
+        let place = |name: &str| CellPlace::Named {
+            name: name.to_owned(),
+        };
+        let mut taken = ShadowState::default();
+        taken.write(place("a"), NativeValueId(1));
+        taken.write(place("b"), NativeValueId(2));
+        taken.write(place("c"), NativeValueId(3));
+        let mut other = ShadowState::default();
+        other.write(place("a"), NativeValueId(1));
+        other.write(place("b"), NativeValueId(9));
+        taken.intersect(&other);
+        assert_eq!(taken.read(&place("a")), Some(NativeValueId(1)));
+        assert_eq!(taken.read(&place("b")), None, "values disagree");
+        assert_eq!(taken.read(&place("c")), None, "only one path has it");
+    }
 
     #[test]
     fn element_and_whole_shadows_invalidate_each_other() {

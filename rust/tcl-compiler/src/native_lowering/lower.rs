@@ -45,7 +45,8 @@ use super::ir::{
     NativeStatement, NativeTerminator, NativeType, NativeValue, NativeValueId,
 };
 use super::representation::{
-    Representation, cmp_op, double_op, int_op, numeric_hint, proven_int_result, proven_neg_result,
+    Representation, cmp_op, double_op, double_result_defined, int_op, numeric_hint,
+    proven_int_result, proven_neg_result,
 };
 use super::{
     CellAccessKind, CellAccessRecord, FunctionDecline, FunctionReport, FunctionStatus,
@@ -1282,13 +1283,18 @@ impl<'a> Lowerer<'a> {
             } => {
                 let condition = self.lower_expr(condition)?;
                 let condition = self.truth(condition);
+                // Exactly one arm runs: each lowers from the state the
+                // condition left, and only what both agree on survives.
+                let entry_shadows = self.shadows.clone();
                 self.push_buffer();
                 let then_value = self.lower_expr(true_branch);
                 let mut then_ops = self.pop_buffer();
+                let then_shadows = std::mem::replace(&mut self.shadows, entry_shadows);
                 let then_value = then_value?;
                 self.push_buffer();
                 let else_value = self.lower_expr(false_branch);
                 let mut else_ops = self.pop_buffer();
+                self.shadows.intersect(&then_shadows);
                 let else_value = else_value?;
                 let result = self.merge_arms(&mut then_ops, then_value, &mut else_ops, else_value);
                 self.emit(NativeOp::IfElse {
@@ -1331,9 +1337,13 @@ impl<'a> Lowerer<'a> {
             BinOp::And | BinOp::Or => {
                 let lhs = self.lower_expr(left)?;
                 let lhs = self.truth(lhs);
+                // The right operand is only evaluated when the left does not
+                // short-circuit, so its shadows hold on one path only.
+                let entry_shadows = self.shadows.clone();
                 self.push_buffer();
                 let rhs = self.lower_expr(right).map(|value| self.truth(value));
                 let rhs_ops = self.pop_buffer();
+                self.shadows.intersect(&entry_shadows);
                 let rhs = rhs?;
                 let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
                 let short = self.new_value(NativeType::Bool, Representation::NativeBool);
@@ -1431,6 +1441,7 @@ impl<'a> Lowerer<'a> {
                 return Ok(dst);
             }
             if let Some(dop) = double_op(op)
+                && double_result_defined(dop)
                 && lrep.is_native_numeric()
                 && rrep.is_native_numeric()
                 && (matches!(lrep, Representation::NativeDouble { .. })

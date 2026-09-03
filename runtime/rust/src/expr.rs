@@ -210,6 +210,11 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
             b"exponentiation of zero by negative power",
             b"ARITH DOMAIN {exponentiation of zero by negative power}",
         ),
+        // C's `TclExprFloatError` for a produced NaN (`tclExecute.c`).
+        ArithError::NanResult => ExprError::with_code(
+            b"domain error: argument not in valid range",
+            b"ARITH DOMAIN {domain error: argument not in valid range}",
+        ),
         ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
         ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
         ArithError::TooLargeToRepresent => ExprError::msg(b"integer value too large to represent"),

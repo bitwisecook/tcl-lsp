@@ -346,6 +346,13 @@ pub enum ArithError {
     /// DOMAIN`) — C's `EXPON_OF_ZERO`, a domain error rather than a division
     /// by zero.
     ZeroToNegativePower,
+    /// A double operation produced a `NaN` (`0.0/0.0`, `Inf-Inf`, `0.0*Inf`)
+    /// — C's `doubleResult` check in `tclExecute.c`, reported through
+    /// `TclExprFloatError` as `domain error: argument not in valid range`
+    /// with `-errorcode ARITH DOMAIN`. An *infinite* result is an ordinary
+    /// value (`1.0/0.0` is `Inf`), and a `NaN` operand is refused earlier as
+    /// an operand-type error, so only a produced `NaN` lands here.
+    NanResult,
     /// A negative shift count (`negative shift argument`).
     NegativeShift,
     /// An exponent too large to compute (`exponent too large`).
@@ -371,8 +378,8 @@ fn arith(op: IntOp, a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, Arith
     let y = num(b)?;
     let v = match (x, y) {
         // Float promotion: mixed or both float → double result.
-        (NumVal::Float(p), q) => NumVal::Float(float_op(op, p, as_f64(q))),
-        (p, NumVal::Float(q)) => NumVal::Float(float_op(op, as_f64(p), q)),
+        (NumVal::Float(p), q) => NumVal::Float(double_result(float_op(op, p, as_f64(q)))?),
+        (p, NumVal::Float(q)) => NumVal::Float(double_result(float_op(op, as_f64(p), q))?),
         // Wide fast path: checked op, overflow → bignum.
         (NumVal::Wide(p), NumVal::Wide(q)) => match wide_op(op, p, q) {
             Some(w) => NumVal::Wide(w),
@@ -408,6 +415,18 @@ fn float_op(op: IntOp, a: f64, b: f64) -> f64 {
         IntOp::Sub => a - b,
         IntOp::Mul => a * b,
     }
+}
+
+/// C's `doubleResult` gate (`tclExecute.c`): a produced `NaN` is a domain
+/// error, every other double result — infinities included — is a value.
+/// [`read`] folds a `NaN` spelling to `None`, so the operands here are never
+/// `NaN` themselves.
+#[inline]
+fn double_result(value: f64) -> Result<f64, ArithError> {
+    if value.is_nan() {
+        return Err(ArithError::NanResult);
+    }
+    Ok(value)
 }
 
 #[inline]
@@ -490,7 +509,7 @@ fn divmod(a: *mut TclObj, b: *mut TclObj, want_quotient: bool) -> Result<*mut Tc
             return Err(ArithError::NonInteger);
         }
         let (p, q) = (as_f64(x), as_f64(y));
-        return Ok(obj::new_double_obj(p / q));
+        return Ok(obj::new_double_obj(double_result(p / q)?));
     }
     // The integer tier is the shared tower's (`int_div` / `int_mod` over the
     // libtommath adapter): the floor quotient, the divisor-signed remainder,
@@ -802,7 +821,7 @@ pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
         if p == 0.0 && q < 0.0 {
             return Err(ArithError::ZeroToNegativePower);
         }
-        return Ok(obj::new_double_obj(p.powf(q)));
+        return Ok(obj::new_double_obj(double_result(p.powf(q))?));
     }
     let e = match exp {
         NumVal::Wide(e) => e,
@@ -1409,6 +1428,32 @@ mod tests {
             binop(mul, int_obj(6), int_obj(7)),
             (b"42".to_vec(), "int/other")
         );
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn a_produced_nan_is_a_domain_error_but_an_infinity_is_a_value() {
+        crate::counters::reset();
+        let zero = || rc1(obj::new_double_obj(0.0));
+        let one = || rc1(obj::new_double_obj(1.0));
+        // `0.0/0.0` is C's `doubleResult` domain error; `1.0/0.0` is Inf.
+        let (a, b) = (zero(), zero());
+        assert_eq!(div(a, b), Err(ArithError::NanResult));
+        drop1(a);
+        drop1(b);
+        assert_eq!(binop(div, one(), zero()).0, b"Inf");
+        // Inf - Inf and 0.0 * Inf are NaN the same way.
+        let inf = || rc1(obj::new_double_obj(f64::INFINITY));
+        let (a, b) = (inf(), inf());
+        assert_eq!(sub(a, b), Err(ArithError::NanResult));
+        drop1(a);
+        drop1(b);
+        let (a, b) = (zero(), inf());
+        assert_eq!(mul(a, b), Err(ArithError::NanResult));
+        drop1(a);
+        drop1(b);
+        // A finite overflow to Inf stays a value.
+        assert_eq!(binop(mul, inf(), one()).0, b"Inf");
         assert_eq!(crate::counters::finalize(), 0);
     }
 
