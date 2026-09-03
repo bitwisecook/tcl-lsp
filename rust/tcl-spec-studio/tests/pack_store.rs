@@ -349,3 +349,126 @@ fn every_hand_written_pack_is_canonical() {
         );
     }
 }
+
+/// A word left at top level — the half-typed `command` an author has on screen
+/// the moment before they name it — is a malformed statement, not a program.
+///
+/// The registration record covers the whole file, so that stray word is
+/// recorded like any other statement; comparing it against the `speclib`
+/// body alone made the counts disagree and judged the document programmed.
+/// Every edit then went to a patch pack the document never shows: the write
+/// reported success, the document did not change, and reading the command
+/// back said it was in neither the pack nor the registry.
+#[test]
+fn a_stray_word_outside_the_block_is_not_a_program() {
+    let base = PackStore::empty("mylib").source().to_owned();
+    for stray in ["command", "foo bar", "command\nfoo bar"] {
+        let source = format!("{base}\n{stray}\n");
+        let store = PackStore::from_source(&source);
+        assert_eq!(
+            store.programmed(),
+            None,
+            "a stray `{stray}` outside the block was judged a program"
+        );
+    }
+
+    // The discrimination this rests on. A statement the loader *runs* is not
+    // recorded as a registration, so it still fails to pair and still marks
+    // the document a program. One that registers but computes a word — the
+    // head and the first argument pair with the value it evaluated to — is
+    // caught by reading the rest of the words: outside the block there is no
+    // count mismatch to fall back on, and a re-render would drop the line.
+    for program in [
+        "set version 1.2",
+        "proc helper {} { return 1 }",
+        "default dialects [list tcl9.0]",
+    ] {
+        let source = format!("{program}\n{base}");
+        assert!(
+            PackStore::from_source(&source).programmed().is_some(),
+            "a `{program}` outside the block is a program and must not be rewritten"
+        );
+    }
+
+    // Its static twin states what it registers, so it stays editable.
+    assert_eq!(
+        PackStore::from_source(format!("default dialects tcl9.0\n{base}")).programmed(),
+        None,
+        "a statement outside the block that states what it registers is not a program"
+    );
+
+    let mut store = PackStore::from_source(format!("{base}\ncommand\n"));
+    let write = store.set_command("widget::paint", &draft_named("widget::paint"), false);
+    assert_eq!(
+        write.how,
+        WriteBack::Spliced,
+        "the write did not reach the document"
+    );
+    assert!(
+        store.source().contains("command widget::paint"),
+        "the document does not declare the written command: {}",
+        store.source()
+    );
+    assert_eq!(store.patch_source(), None, "the write became a patch");
+    assert!(
+        store.source().trim_end().ends_with("command"),
+        "the splice ate the author's stray word: {}",
+        store.source()
+    );
+
+    let builtins = Builtins::for_dialect("spectcl");
+    assert!(
+        Resolution::new(builtins, &store)
+            .view("widget::paint")
+            .is_some(),
+        "the written command is invisible to the surface that wrote it"
+    );
+}
+
+/// A genuinely programmed document still refuses the rewrite (E-R12) — and the
+/// patch that takes the write's place is a definition the surface can read
+/// back. A patch-only command used to resolve nowhere, so the studio crashed
+/// on the command it had just written.
+#[test]
+fn a_patched_command_resolves_through_the_patch() {
+    let source = "\
+speclib mylib 2.0 {
+    foreach name {alpha beta} {
+        command $name {
+            arity 1
+        }
+    }
+}
+";
+    let mut store = PackStore::from_source(source);
+    assert!(
+        store.programmed().is_some(),
+        "a `foreach` that registers is a program"
+    );
+
+    let write = store.set_command("widget::paint", &draft_named("widget::paint"), false);
+    assert_eq!(write.how, WriteBack::Patched, "the write rewrote a program");
+    assert_eq!(store.source(), source, "the author's program was rewritten");
+
+    let builtins = Builtins::for_dialect("spectcl");
+    let merged = Resolution::new(builtins, &store);
+    let view = merged
+        .view("widget::paint")
+        .expect("the patched command resolves");
+    assert_eq!(view["patched"], json!(true), "{view:#}");
+    assert_eq!(view["origin"], json!("pack"), "{view:#}");
+
+    // One the shipped registry holds too: the patch always overrides, so that
+    // is what the surface must say is live.
+    store.set_command("lsort", &draft_named("lsort"), false);
+    let merged = Resolution::new(builtins, &store);
+    let view = merged.view("lsort").expect("the patched builtin resolves");
+    assert_eq!(view["origin"], json!("override"), "{view:#}");
+}
+
+/// The smallest draft the store accepts: a command by name.
+fn draft_named(name: &str) -> tcl_spec_studio::draft::Draft {
+    let mut draft = tcl_spec_studio::draft::default_command_draft();
+    draft.insert("name".to_owned(), json!(name));
+    draft
+}

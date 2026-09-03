@@ -602,6 +602,12 @@ function writeBackOpenCommand(): void {
       );
     } else if (written.upgraded_from) {
       setStatus("dslStatus", vocabularyUpgradeMessage(written) ?? "", "ok");
+    } else if (written.writeback === "patched") {
+      setStatus(
+        "dslStatus",
+        "this document is a program, so it was not rewritten — the edit stands as a patch over it and will not appear in this pane",
+        "ok",
+      );
     } else if (written.writeback === "rerendered") {
       setStatus(
         "dslStatus",
@@ -1212,9 +1218,11 @@ function writeDraftsToPack(commands: { name: string; draft: Draft }[]): {
   written: number;
   failed: string[];
   firstWritten: string | null;
+  patched: number;
 } {
   let source = state.pack.source;
   let written = 0;
+  let patched = 0;
   const failed: string[] = [];
   let firstWritten: string | null = null;
   for (const found of commands) {
@@ -1224,6 +1232,7 @@ function writeDraftsToPack(commands: { name: string; draft: Draft }[]): {
       );
       source = out.source;
       written += 1;
+      if (out.writeback === "patched") patched += 1;
       firstWritten ??= found.name;
     } catch {
       failed.push(found.name);
@@ -1231,28 +1240,43 @@ function writeDraftsToPack(commands: { name: string; draft: Draft }[]): {
   }
   state.pack.open = null;
   setPackSource(source);
-  return { written, failed, firstWritten };
+  return { written, failed, firstWritten, patched };
 }
 
 function addImportedToPack(): void {
   if (!state.imported.length) return;
-  const { written, failed, firstWritten } = writeDraftsToPack(state.imported);
+  const { written, failed, firstWritten, patched } = writeDraftsToPack(state.imported);
   // The generated-code panes render the active draft, not the pack as a
   // whole. Import used to write a perfectly good `.tclspec` and leave the
   // boot-time `mycommand` placeholder active, so Rust and stub output looked
   // as though generation had failed. Make the first successfully imported
   // command the active pack draft while leaving the author on the Import tab.
+  //
+  // Reading it back can still fail — the store is the authority on what it
+  // holds — and a throw out of a click handler leaves the page half-updated
+  // with nothing said. Report it in the panel instead.
+  let unreadable: string | null = null;
   if (firstWritten) {
-    const view = unwrap<PackCommandView>(
-      wasm.pack_command(state.pack.source, firstWritten, state.dialect),
-    );
-    if (view.pack) loadDraft(view.pack, packOrigin(view), firstWritten);
+    try {
+      const view = unwrap<PackCommandView>(
+        wasm.pack_command(state.pack.source, firstWritten, state.dialect),
+      );
+      if (view.pack) loadDraft(view.pack, packOrigin(view), firstWritten);
+    } catch (e) {
+      unreadable = message(e);
+    }
   }
   setStatus(
     "importStatus",
     `${written} command(s) written into pack ${state.pack.view?.pack ?? ""}` +
-      (failed.length ? ` — ${failed.length} could not be written: ${failed.join(", ")}` : ""),
-    failed.length ? "err" : "ok",
+      // E-R12: a programmed document is never rewritten, so the write stands
+      // in a patch pack over it. Say so — the DSL pane will not show it.
+      (patched
+        ? ` — ${patched} of them as a patch over this document, which is a program and is not rewritten`
+        : "") +
+      (failed.length ? ` — ${failed.length} could not be written: ${failed.join(", ")}` : "") +
+      (unreadable ? ` — could not reopen ${firstWritten ?? ""}: ${unreadable}` : ""),
+    failed.length || unreadable ? "err" : "ok",
   );
 }
 
