@@ -545,9 +545,16 @@ mod tests {
             let setup = b"set x 1\n                 proc R {n1 n2 op} { set ::x 99 }\n                 trace add variable x write R\n";
             assert_eq!(interp.eval_str(setup), Code::Ok);
             let delta = obj::new_wide_int_obj(1);
+            // `tcl_codegen_var_incr` *borrows* its delta: the argv pin it
+            // takes is released after the call, which frees a bare `rc 0`
+            // word. Hold a reference of our own across the call and release
+            // exactly that one, or the release below is a double free.
+            // SAFETY: `delta` is a fresh live object.
+            unsafe { obj::incr_ref_count(delta) };
             // SAFETY: a live name range and a live delta on the current interp.
             let result = unsafe { tcl_codegen_var_incr(b"x".as_ptr(), 1, delta) };
-            crate::interp::drop_fresh(delta);
+            // SAFETY: releases exactly the reference taken above.
+            unsafe { obj::decr_ref_count(delta) };
             assert!(!result.is_null(), "the incr completed");
             assert_eq!(
                 String::from_utf8_lossy(&obj_bytes(result)),
