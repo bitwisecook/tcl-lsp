@@ -209,6 +209,7 @@ impl<'a> Lowerer<'a> {
         let mutations = scan_module_command_mutations(module, input.registry);
         let mathfunc_native = !module.has_dynamic_trace
             && !mutations.has_dynamic_mutation()
+            && !mutations.changes_command_resolution()
             && !mutations.rebinds_under("::tcl::mathfunc::")
             && !module
                 .procedures

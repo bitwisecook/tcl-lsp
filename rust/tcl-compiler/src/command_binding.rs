@@ -46,8 +46,8 @@ use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
 use tcl_registry::{
-    CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry, StateTransition,
-    StateTransitionDomain, TransitionSubject,
+    CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry, NamespaceTransition,
+    StateTransition, StateTransitionDomain, TransitionSubject,
 };
 
 /// The lattice element a command name resolves to.
@@ -620,6 +620,15 @@ pub struct ModuleCommandMutations {
     /// A body performs a dynamic `rename`/alias/proc (target not
     /// statically known) → resolution of *any* name is opaque.
     dynamic: bool,
+    /// A body changes how a namespace *resolves* command names, without
+    /// renaming anything: `namespace import`/`forget`, `namespace path`,
+    /// `namespace unknown`, `namespace ensemble`, or a namespace delete.
+    /// These never touch [`Self::rebound`], yet
+    /// `namespace import -force ::evil::abs` into `::tcl::mathfunc` replaces
+    /// what `abs(…)` resolves to just as a `rename` would. Recorded whatever
+    /// the target namespace, because the pattern list is a Tcl value this
+    /// scan does not evaluate.
+    resolution_changed: bool,
 }
 
 impl ModuleCommandMutations {
@@ -630,6 +639,14 @@ impl ModuleCommandMutations {
     #[must_use]
     pub const fn has_dynamic_mutation(&self) -> bool {
         self.dynamic
+    }
+
+    /// Whether any body changes namespace command *resolution* — see
+    /// [`Self::resolution_changed`]. A consumer folding a command it resolved
+    /// itself must decline when this is true.
+    #[must_use]
+    pub const fn changes_command_resolution(&self) -> bool {
+        self.resolution_changed
     }
 
     /// Whether any command whose canonical name lies under `prefix` is
@@ -670,6 +687,7 @@ impl ModuleCommandMutations {
             names: std::collections::HashSet::new(),
             rebound: std::collections::HashSet::new(),
             dynamic: true,
+            resolution_changed: true,
         }
     }
 
@@ -685,6 +703,7 @@ impl ModuleCommandMutations {
             untrusted_builtins,
             rebound,
             dynamic: self.dynamic,
+            resolution_changed: self.resolution_changed,
         }
     }
 
@@ -722,6 +741,9 @@ pub struct CommandTrustSnapshot {
     untrusted_builtins: Vec<String>,
     rebound: Vec<String>,
     dynamic: bool,
+    /// Part of the key: a memo taken with namespace command resolution
+    /// unperturbed must not be reused once a `namespace import` appears.
+    resolution_changed: bool,
 }
 
 impl CommandTrustSnapshot {
@@ -732,6 +754,7 @@ impl CommandTrustSnapshot {
             names: self.untrusted_builtins.iter().cloned().collect(),
             rebound: self.rebound.iter().cloned().collect(),
             dynamic: self.dynamic,
+            resolution_changed: self.resolution_changed,
         }
     }
 }
@@ -778,6 +801,7 @@ fn collect_proc_rebindings(
     registry: &CommandRegistry,
     rebound: &mut std::collections::HashSet<String>,
     dynamic: &mut bool,
+    resolution: &mut bool,
 ) {
     if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
@@ -850,6 +874,16 @@ fn collect_proc_rebindings(
                     *dynamic = true;
                     return;
                 }
+                // Resolution changes, not rebindings: no name moves, but what
+                // a name resolves to in some namespace does.
+                StateTransition::Namespace(
+                    NamespaceTransition::Import { .. }
+                    | NamespaceTransition::Forget { .. }
+                    | NamespaceTransition::SetPath { .. }
+                    | NamespaceTransition::SetUnknown { .. }
+                    | NamespaceTransition::Ensemble { .. }
+                    | NamespaceTransition::Delete { .. },
+                ) => *resolution = true,
                 StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
                 | StateTransition::Interpreter(_)
                 | StateTransition::VariableCellAlias(_)
@@ -898,6 +932,7 @@ struct RebindState<'a> {
     names: &'a mut std::collections::HashSet<String>,
     rebound: &'a mut std::collections::HashSet<String>,
     dynamic: &'a mut bool,
+    resolution: &'a mut bool,
 }
 
 /// Apply the gen of every `Call` / `Barrier` in `script` (recursing into
@@ -924,7 +959,14 @@ fn walk_body_calls(
     for stmt in &script.statements {
         match stmt {
             Statement::Call { .. } | Statement::Barrier { .. } => {
-                collect_proc_rebindings(stmt, namespace, registry, rebind.rebound, rebind.dynamic);
+                collect_proc_rebindings(
+                    stmt,
+                    namespace,
+                    registry,
+                    rebind.rebound,
+                    rebind.dynamic,
+                    rebind.resolution,
+                );
                 stmt_gen(stmt, state, registry);
                 collect_tampered_builtins(state, registry, rebind.names, rebind.dynamic);
             }
@@ -998,6 +1040,7 @@ pub fn scan_module_command_mutations(
     let mut names = std::collections::HashSet::new();
     let mut rebound = std::collections::HashSet::new();
     let mut dynamic = false;
+    let mut resolution_changed = false;
 
     let mut visit = |script: &crate::ir::Script, namespace: &str| {
         let mut state = State::default();
@@ -1005,6 +1048,7 @@ pub fn scan_module_command_mutations(
             names: &mut names,
             rebound: &mut rebound,
             dynamic: &mut dynamic,
+            resolution: &mut resolution_changed,
         };
         walk_body_calls(script, &mut state, registry, namespace, &mut rebind, 0);
     };
@@ -1013,6 +1057,14 @@ pub fn scan_module_command_mutations(
     for (qname, proc) in &ir_module.procedures {
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(qname);
         visit(&proc.body, &namespace);
+    }
+    // `namespace eval` and `apply` bodies mutate the command table exactly as
+    // any other body does — `namespace eval ::tcl::mathfunc { namespace import
+    // -force ::evil::abs }` is the realistic shape of that attack, and a
+    // `rename` inside a `namespace eval` was equally invisible before.
+    for (qname, unit) in &ir_module.body_units {
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(qname);
+        visit(&unit.body, &namespace);
     }
     for (mqname, method) in &ir_module.methods {
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(mqname);
@@ -1023,6 +1075,7 @@ pub fn scan_module_command_mutations(
         names,
         rebound,
         dynamic,
+        resolution_changed,
     }
 }
 

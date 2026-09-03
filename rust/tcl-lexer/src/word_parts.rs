@@ -484,45 +484,105 @@ fn error_inside_unterminated_bracket(
 ///
 /// The substituted text of an unterminated `[…]` — and of an unterminated
 /// `$a(…)` — is a script C parses before it can complain about the missing
-/// closer, so an unterminated word *inside* is the error it reports:
-/// `subst {[list "abc}` is `missing "`, not `missing close-bracket`. The walk
-/// is deliberately shallow — one word level, no command splitting — because
-/// full script segmentation belongs to the boundary owner (#1786); it covers
-/// the constructs whose closers are unambiguous from here.
+/// closer, so an unterminated construct *inside* is the error it reports:
+/// `subst {[list "abc}` is `missing "`, not `missing close-bracket`.
+///
+/// The walk is **iterative**: an unclosed `[` does not recurse, it records
+/// itself as the fallback and keeps scanning the same buffer, since everything
+/// after it is inside it. Recursing here cost one native stack frame per
+/// unmatched bracket, so a template of many `[` bytes aborted the process
+/// instead of returning a catchable error.
+///
+/// It is also deliberately shallow — one word level, no command splitting —
+/// because full script segmentation belongs to the boundary owner (#1786). It
+/// covers the constructs whose closers are unambiguous from here and leaves
+/// the outer error for everything else.
 fn error_inside_unterminated(
     src: &[u8],
     flags: SubstFlags,
     config: LexerConfig,
 ) -> Option<&'static str> {
+    // The innermost unclosed `[` seen so far: the answer if nothing deeper
+    // turns out to be unterminated.
+    let mut pending: Option<&'static str> = None;
     let mut i = 0usize;
+    let mut command_position = true;
+    let mut closable = true;
     while i < src.len() {
-        match src[i] {
+        let c = src[i];
+        match c {
             b'\\' => i += 2,
+            // A comment runs to the end of the line, and a `"` or `{` inside
+            // it opens nothing.
+            b'#' if command_position => {
+                while i < src.len() && src[i] != b'\n' {
+                    i += 1;
+                }
+            }
             b'$' if flags.vars && starts_var_ref(src, i, flags) => {
                 match scan_var_ref(src, i, config) {
                     Ok(Some(raw)) => i = raw.next,
                     Ok(None) => i += 1,
                     Err(msg) => return Some(msg),
                 }
+                command_position = false;
             }
-            // A nested `[…]` that closes is stepped over; one that does not
-            // carries its own (possibly deeper) error.
-            b'[' if flags.cmds => match command_substitution_end_bytes(src, i) {
-                Some(end) => i = end,
-                None => return Some(error_inside_unterminated_bracket(src, i, flags, config)),
-            },
+            // `closable` collapses the pathological all-`[` template to a
+            // linear walk: with no `]` left in the buffer no bracket from here
+            // can close, so there is nothing to search for.
+            b'[' if flags.cmds && closable => {
+                if let Some(end) = command_substitution_end_bytes(src, i) {
+                    i = end;
+                    command_position = false;
+                } else {
+                    pending.get_or_insert(MISSING_CLOSE_BRACKET);
+                    closable = src[i..].contains(&b']');
+                    i += 1;
+                    // The unclosed bracket opens a nested script.
+                    command_position = true;
+                }
+            }
+            b'[' => {
+                pending.get_or_insert(MISSING_CLOSE_BRACKET);
+                i += 1;
+                command_position = true;
+            }
             b'"' if word_start(src, i) => match close_quote_offset_bytes(src, i) {
-                Some(end) => i = end + 1,
-                None => return Some(MISSING_QUOTE),
+                Ok(end) => {
+                    i = end + 1;
+                    command_position = false;
+                }
+                Err(msg) => return Some(msg),
             },
             b'{' if word_start(src, i) => match brace_word_close(src, i) {
-                Some(end) => i = end + 1,
+                Some(end) => {
+                    i = end + 1;
+                    command_position = false;
+                }
                 None => return Some(MISSING_CLOSE_BRACE),
             },
-            _ => i += 1,
+            b'\n' | b';' => {
+                command_position = true;
+                i += 1;
+            }
+            _ => {
+                if !c.is_ascii_whitespace() {
+                    command_position = false;
+                }
+                i += 1;
+            }
         }
     }
-    None
+    pending
+}
+
+/// Whether the `$` at `at` opens a variable reference under `flags`.
+fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags) -> bool {
+    match src.get(at + 1) {
+        Some(b'{') => true,
+        Some(&c) => flags.bare_var_refs && is_var_name_byte(c),
+        None => false,
+    }
 }
 
 /// Whether `at` begins a word: the start, or preceded by a word separator.
@@ -533,19 +593,25 @@ fn word_start(src: &[u8], at: usize) -> bool {
     }
 }
 
-/// The index of the `"` closing the quoted word opening at `at`, stepping over
-/// `\X` pairs and complete `[…]` substitutions.
-fn close_quote_offset_bytes(src: &[u8], at: usize) -> Option<usize> {
+/// The index of the `"` closing the quoted word opening at `at`.
+///
+/// Steps over `\X` pairs and complete `[…]` substitutions. An **incomplete**
+/// nested substitution is the bracket's error, not the quote's: C reports
+/// `missing close-bracket` for `subst {[list "[foo}`.
+fn close_quote_offset_bytes(src: &[u8], at: usize) -> Result<usize, &'static str> {
     let mut i = at + 1;
     while i < src.len() {
         match src[i] {
             b'\\' => i += 2,
-            b'[' => i = command_substitution_end_bytes(src, i)?,
-            b'"' => return Some(i),
+            b'[' => match command_substitution_end_bytes(src, i) {
+                Some(end) => i = end,
+                None => return Err(MISSING_CLOSE_BRACKET),
+            },
+            b'"' => return Ok(i),
             _ => i += 1,
         }
     }
-    None
+    Err(MISSING_QUOTE)
 }
 
 /// The index of the `}` closing the braced word opening at `at`, counting
@@ -571,15 +637,6 @@ fn brace_word_close(src: &[u8], at: usize) -> Option<usize> {
         }
     }
     None
-}
-
-/// Whether the `$` at `at` opens a variable reference under `flags`.
-fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags) -> bool {
-    match src.get(at + 1) {
-        Some(b'{') => true,
-        Some(&c) => flags.bare_var_refs && is_var_name_byte(c),
-        None => false,
-    }
 }
 
 /// Push `src[start..end]` as a [`WordPart::Text`], decoding its escapes under
@@ -645,6 +702,28 @@ mod tests {
         assert_eq!(err(br#"[list "abc" def"#), Some(MISSING_CLOSE_BRACKET));
         assert_eq!(err(br#"[list "abc"]"#), None);
         assert_eq!(err(b"$a(plain"), Some(MISSING_PAREN));
+        // An incomplete substitution *inside* a quoted word is the bracket's
+        // error, not the quote's, and a `"` inside a comment opens nothing.
+        // tclsh 9.0.4 answers `missing close-bracket` for both.
+        assert_eq!(err(br#"[list "[foo"#), Some(MISSING_CLOSE_BRACKET));
+        assert_eq!(
+            err(br#"[list
+# a " comment
+"#),
+            Some(MISSING_CLOSE_BRACKET)
+        );
+    }
+
+    /// The walk over an unterminated bracket is iterative: a template of many
+    /// unmatched `[` must return C's catchable error, not exhaust the native
+    /// stack. Recursing per bracket aborted the process instead.
+    #[test]
+    fn many_unmatched_brackets_do_not_exhaust_the_stack() {
+        let src = vec![b'['; 100_000];
+        assert_eq!(
+            decompose(&src, SubstFlags::default(), LexerConfig::default()),
+            WordBody::Parts(vec![WordPart::ParseError(MISSING_CLOSE_BRACKET)])
+        );
     }
 
     /// A compiled word's unclosed `[` is data, not `missing close-bracket`:

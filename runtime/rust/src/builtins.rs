@@ -28,7 +28,11 @@
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
 use crate::frame::{split_array_ref, VarError};
-use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
+use crate::interp::{obj_bytes, Code, Interp};
+// The transient `1` of a tower `incr` is the only fresh object left to drop
+// by hand; every other path now stores through `store_var_result`.
+#[cfg(have_tommath)]
+use crate::interp::drop_fresh;
 use crate::obj::{self, TclObj};
 
 /// Register the starter builtins on a fresh interp.
@@ -271,19 +275,14 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return interp.set_error(e.message().as_bytes()),
     };
 
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, sum),
-        None => interp.var_set(&base, sum),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(sum);
-            Code::Ok
-        }
-        Err(e) => {
-            drop_fresh(sum);
-            var_error(interp, &name, e)
-        }
+    // The protected store (#1633 row 1): a write trace that rewrites or unsets
+    // the cell drops the store's reference to this fresh sum, so a bare
+    // `set_result` would read freed memory. `cmd_var::incr_cmd` overrides this
+    // command in the table, but the body must be safe on its own — a direct
+    // caller (the codegen ABI was one) must not be able to reach a use-after-free.
+    match interp.store_var_result(&base, elem.as_deref(), sum) {
+        Ok(()) => Code::Ok,
+        Err(e) => var_error(interp, &name, e),
     }
 }
 
@@ -321,19 +320,14 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         None => return interp.set_error(b"integer overflow (bignum promotion needs the tower)"),
     };
     let obj = obj::new_wide_int_obj(sum); // rc 0
-    let stored = match &elem {
-        Some(k) => interp.var_set_elem(&base, k, obj),
-        None => interp.var_set(&base, obj),
-    };
-    match stored {
-        Ok(()) => {
-            interp.set_result(obj);
-            Code::Ok
-        }
-        Err(e) => {
-            drop_fresh(obj);
-            var_error(interp, &name, e)
-        }
+                                          // The protected store, as the tower build's `cmd_var::incr_cmd` uses: a
+                                          // write trace that rewrites or unsets the cell drops the store's reference
+                                          // to this fresh sum, and a bare `set_result` would then read freed memory
+                                          // (#1633 row 1). It also publishes the cell's post-trace value, which is
+                                          // what C returns.
+    match interp.store_var_result(&base, elem.as_deref(), obj) {
+        Ok(()) => Code::Ok,
+        Err(e) => var_error(interp, &name, e),
     }
 }
 

@@ -246,6 +246,17 @@ fn renaming_a_math_function_stops_the_native_arm() {
         "the call must go back through the command table: {:?}",
         all_ops(&function)
     );
+    // A `namespace import` into `::tcl::mathfunc` replaces the function just
+    // as a rename does — tclsh answers `EVIL` for the sheet below — and no
+    // name is *rebound*, so only the resolution-changed signal catches it.
+    let imported = "namespace eval ::tcl::mathfunc { namespace import -force ::evil::abs }\n\
+         set a -2\nputs [expr {abs($a)}]\n";
+    let (function, _) = lower(imported, native_config()).expect("lowers");
+    assert!(
+        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
+        "{:?}",
+        all_ops(&function)
+    );
     // Untouched, `abs` still folds to the inline compare/negate arm.
     let plain = "set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(plain, native_config()).expect("lowers");
