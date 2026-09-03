@@ -138,6 +138,8 @@ pub fn scan_parts(
             cmds: do_cmds,
             backslashes: do_bs,
             bare_var_refs: true,
+            // Source, so an unclosed `[` keeps C's parse error.
+            ..tcl_lexer::word_parts::SubstFlags::default()
         },
         config,
     )

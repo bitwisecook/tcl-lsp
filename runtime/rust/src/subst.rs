@@ -88,8 +88,10 @@ pub fn scan(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> 
             vars: flags.vars,
             cmds: flags.cmds,
             backslashes: flags.backslashes,
-            // Source `subst` reads every `$name` spelling C does.
+            // Source `subst` reads every `$name` spelling C does, and an
+            // unclosed `[` keeps C's parse error.
             bare_var_refs: true,
+            ..tcl_lexer::word_parts::SubstFlags::default()
         },
         config,
     )
