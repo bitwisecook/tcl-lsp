@@ -110,6 +110,8 @@ expect_relevant scripts/dev/test-runtime-rust-paths.sh
 
 expect_unrelated README.md
 expect_unrelated samples/hello.tcl
+expect_unrelated samples/tcl9_smoke/README.md
+expect_unrelated samples/tcl9_smoke/eval/notes.txt
 expect_unrelated docs/design/compiler/wasm-native-lowering-plan.md
 expect_unrelated editors/vscode/src/extension.ts
 

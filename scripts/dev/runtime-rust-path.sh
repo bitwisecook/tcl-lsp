@@ -37,7 +37,7 @@ case "$PATH_TO_CLASSIFY" in
         exit 0
         ;;
     # External golden inputs executed by runtime/rust/tests/tcl9_smoke.rs.
-    samples/tcl9_smoke/*)
+    samples/tcl9_smoke/*.tcl | samples/tcl9_smoke/*.expected)
         exit 0
         ;;
     # Its resolved path-dependency closure. Keep in sync with

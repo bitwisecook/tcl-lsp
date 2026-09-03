@@ -119,7 +119,20 @@ fn collect_paths(root: &Path, extension: &str) -> Vec<PathBuf> {
 }
 
 fn rendered(bytes: &[u8]) -> String {
-    format!("{:?}", String::from_utf8_lossy(bytes))
+    let escaped = bytes
+        .iter()
+        .flat_map(|byte| std::ascii::escape_default(*byte))
+        .map(char::from)
+        .collect::<String>();
+    format!("b\"{escaped}\"")
+}
+
+#[test]
+fn failure_rendering_preserves_every_byte() {
+    assert_eq!(
+        rendered(&[0x80, b'\n', b'"', b'\\', b'A']),
+        "b\"\\x80\\n\\\"\\\\A\""
+    );
 }
 
 #[test]
@@ -157,21 +170,22 @@ fn every_tcl9_smoke_sample_matches_its_oracle() {
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", sample.display()));
         let expected = std::fs::read(&expected_path)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", expected_path.display()));
-        let source_name = sample
+        let source_path = sample
             .strip_prefix(&repository)
-            .expect("corpus lives under repository root")
-            .to_string_lossy();
+            .expect("corpus lives under repository root");
+        let source_name = source_path.as_os_str().as_encoded_bytes();
 
         let host = Rc::new(CaptureHost::new());
         let mut interp = Interp::new();
         interp.set_runtime_version(TclVersion::V9_0);
         interp.set_host(host.clone());
-        let code = interp.eval_sourced(&script, source_name.as_bytes());
+        let code = interp.eval_sourced(&script, source_name);
         let actual = host.stdout();
 
         if code != Code::Ok || actual != expected {
             failures.push(format!(
-                "{source_name}: code={code:?}, result={}, stderr={}\n  expected {}\n    actual {}",
+                "{}: code={code:?}, result={}, stderr={}\n  expected {}\n    actual {}",
+                source_path.display(),
                 rendered(&interp.result_bytes()),
                 rendered(&host.stderr()),
                 rendered(&expected),
