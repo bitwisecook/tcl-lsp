@@ -332,6 +332,16 @@ pub enum WordOpacity {
     /// C Tcl's parser rejects the word; the payload is its exact message
     /// (`missing close-bracket`, `missing )`, …) for diagnostics.
     ParseError(&'static str),
+    /// The word carries a dialect substitution the word-component owner does
+    /// not model — today only `JimTcl`'s `$(expr)` (`TokenType::ExprSugar`).
+    ///
+    /// `word_parts::decompose` applies Tcl's `$` rules, under which `$(` is
+    /// ordinary text, so such a word would otherwise decompose to a single
+    /// `Text` part and be promoted to [`WordExpr::Literal`] — and lowering
+    /// would emit the *spelling* `$(1+2)` instead of evaluating it. The word
+    /// is opaque instead, which is what the pre-#1785 fragment walk produced
+    /// (a `Template` whose only part was opaque).
+    DialectSubstitution,
 }
 
 /// A statement the CFG builder **synthesised**: it models an analysis effect

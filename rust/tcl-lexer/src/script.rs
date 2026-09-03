@@ -246,6 +246,9 @@ struct Grouper<'a> {
     expand_markers: Vec<usize>,
     comment: Vec<usize>,
     prev_type: TokenType,
+    /// Index of the token `prev_type` came from, so the weld test can read its
+    /// source bytes rather than trusting its kind alone.
+    prev_tok: Option<usize>,
 
     first_tok: Option<usize>,
     last_tok: usize,
@@ -265,6 +268,7 @@ impl<'a> Grouper<'a> {
             // The lexer's own initial state: the first byte of the source is
             // at a word boundary and at command position.
             prev_type: TokenType::Eol,
+            prev_tok: None,
             first_tok: None,
             last_tok: 0,
         }
@@ -281,10 +285,14 @@ impl<'a> Grouper<'a> {
                 // at command position, so there is no word in progress to
                 // break — and accumulates for the *next* command.
                 TokenType::Comment => self.comment.push(i),
-                TokenType::Sep => self.prev_type = TokenType::Sep,
+                TokenType::Sep => {
+                    self.prev_type = TokenType::Sep;
+                    self.prev_tok = Some(i);
+                }
                 TokenType::Eol => {
                     self.close(Some(i));
                     self.prev_type = TokenType::Eol;
+                    self.prev_tok = Some(i);
                 }
                 TokenType::Expand => {
                     self.note_weld();
@@ -295,6 +303,7 @@ impl<'a> Grouper<'a> {
                     // The stale-boundary quirk: `{*}` reads as a separator for
                     // word-start purposes without advancing a word boundary.
                     self.prev_type = TokenType::Sep;
+                    self.prev_tok = Some(i);
                 }
                 // Esc / Str / Cmd / Var / ExprSugar — word content.
                 _ => {
@@ -302,13 +311,18 @@ impl<'a> Grouper<'a> {
                     if matches!(self.prev_type, TokenType::Sep | TokenType::Eol) {
                         self.finish_word();
                         self.start_word(i);
+                    } else if self.prev_closed_a_brace() {
+                        if let Some(word) = self.cur.as_mut() {
+                            word.end = i;
+                            word.welded = true;
+                        }
                     } else if let Some(word) = self.cur.as_mut() {
                         word.end = i;
-                        word.welded |= self.prev_type == TokenType::Str;
                     } else {
                         self.start_word(i);
                     }
                     self.prev_type = tok.kind;
+                    self.prev_tok = Some(i);
                 }
             }
         }
@@ -328,8 +342,25 @@ impl<'a> Grouper<'a> {
 
     /// Flag the word in progress when the token about to be consumed sits
     /// directly against a braced fragment's close-brace.
+    /// Did the previous token close a **braced** word?
+    ///
+    /// `TokenType::Str` alone does not mean a brace: the lexer also gives a
+    /// nameless `$` that kind, so `$$x` is `Str,Var` with no brace anywhere
+    /// and Tcl reports no error for it (`$` is literal, `$x` substitutes).
+    /// Keying the weld on the kind alone flagged those, contradicting
+    /// [`WordSpan::welded_after_close`]'s contract. Read the opening byte
+    /// instead.
+    fn prev_closed_a_brace(&self) -> bool {
+        self.prev_type == TokenType::Str
+            && self
+                .prev_tok
+                .and_then(|i| self.tokens.get(i))
+                .and_then(|t| self.src.as_bytes().get(t.span.start() as usize))
+                == Some(&b'{')
+    }
+
     fn note_weld(&mut self) {
-        if self.prev_type == TokenType::Str
+        if self.prev_closed_a_brace()
             && let Some(word) = self.cur.as_mut()
         {
             word.welded = true;
@@ -632,6 +663,13 @@ mod tests {
             ("puts {a} b", false),
             ("puts a{b}", false),   // `{` mid-word is literal, not a Str token
             ("puts \"a\"b", false), // close-quote weld: not this flag
+            // A nameless `$` is also a `Str` token, with no brace anywhere:
+            // `$$x` is `Str,Var` and Tcl reports no error for it (the first
+            // `$` is literal, `$x` substitutes). Keying the weld on the token
+            // kind alone flagged these.
+            ("puts $$x", false),
+            ("puts $$$x", false),
+            ("puts ${a}$b", false),
         ] {
             let (_toks, cmds) = group(src);
             let last = cmds[0].words[1].welded_after_close;

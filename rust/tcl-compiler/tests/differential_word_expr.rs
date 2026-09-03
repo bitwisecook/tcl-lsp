@@ -58,6 +58,13 @@ fn eight() -> LexerConfig {
     LexerConfig::for_dialect("tcl8.4")
 }
 
+/// `JimTcl`, the one modelled grammar with a substitution spelling the
+/// word-component owner does not model (`$(expr)` → `TokenType::ExprSugar`).
+/// The 9.x/8.x pair above cannot reach it: under both, `$(` is literal text.
+fn jim() -> LexerConfig {
+    LexerConfig::for_dialect("jim")
+}
+
 fn segments(src: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     segment_commands_with_offset_and_config(src, 0, config)
 }
@@ -377,7 +384,7 @@ const EDGE_CASES: &[&str] = &[
 fn owner_matches_oracle_on_edge_cases() {
     let mut failures = Vec::new();
     for (idx, src) in EDGE_CASES.iter().enumerate() {
-        for (label, config) in [("9.x", nine()), ("8.x", eight())] {
+        for (label, config) in [("9.x", nine()), ("8.x", eight()), ("jim", jim())] {
             if let Err(msg) = check(src, config, &format!("edge {idx} {src:?} {label}")) {
                 failures.push(msg);
             }
@@ -624,4 +631,46 @@ mod frozen_oracle {
             },
         }
     }
+}
+
+/// `JimTcl`'s `$(expr)` must never become a [`WordExpr::Literal`].
+///
+/// `word_parts::decompose` applies Tcl's `$` rules, under which `$(` is
+/// ordinary text, so a lone `ExprSugar` token decomposes to a single `Text`
+/// part and would be promoted to a literal carrying its own spelling — after
+/// which native/WASM lowering emits `$(1+2)` rather than evaluating it. The
+/// pre-#1785 fragment walk fell through to a `Template` whose only part was
+/// opaque, which blocked that; [`WordOpacity::DialectSubstitution`] restores
+/// the same conservatism through the owner.
+///
+/// The 9.x/8.x differential above could not catch this: `$(1+2)` is a `Var`
+/// under 9.0 and 8.4, where `Literal` is the *correct* answer, and only the
+/// Jim grammar lexes it as `ExprSugar`.
+#[test]
+fn jim_expression_substitution_is_never_a_literal() {
+    let src = "puts $(1+2)";
+    let segs = segments(src, jim());
+    let words = production(src, jim(), &segs[0]);
+    assert_eq!(words.len(), 2, "{words:#?}");
+    assert!(
+        matches!(
+            &words[1],
+            WordExpr::Opaque {
+                reason: WordOpacity::DialectSubstitution,
+                ..
+            }
+        ),
+        "JimTcl `$(1+2)` must stay opaque, got {:#?}",
+        words[1]
+    );
+
+    // The same spelling under a Tcl grammar is genuinely literal text — `$(`
+    // starts no variable name there — so the guard must not fire.
+    let segs = segments(src, nine());
+    let words = production(src, nine(), &segs[0]);
+    assert!(
+        matches!(&words[1], WordExpr::Literal { text, .. } if text == "$(1+2)"),
+        "under 9.x `$(1+2)` is literal text, got {:#?}",
+        words[1]
+    );
 }

@@ -88,6 +88,20 @@ impl WordExpr {
             };
         };
         let word_span = Span::new(first.span.start(), last.span.end());
+        // A dialect substitution the owner does not model must not reach the
+        // literal promotion below: `decompose` reads `$(` as plain text, so a
+        // JimTcl `$(1+2)` would become a `Literal` carrying its own spelling.
+        if fragments
+            .iter()
+            .any(|t| t.kind == tcl_lexer::TokenType::ExprSugar)
+        {
+            let word = Self::Opaque {
+                text: compat_text.to_owned(),
+                source: SourceSite::opaque(word_span),
+                reason: WordOpacity::DialectSubstitution,
+            };
+            return Self::maybe_expand(word, expanded, expansion_span, word_span);
+        }
         let word = match build(sm, config, fragments) {
             Ok(word) => word,
             Err(message) => Self::Opaque {
@@ -96,6 +110,17 @@ impl WordExpr {
                 reason: WordOpacity::ParseError(message),
             },
         };
+        Self::maybe_expand(word, expanded, expansion_span, word_span)
+    }
+
+    /// Wrap `word` in [`WordExpr::Expand`] when the segmenter marked it with
+    /// `{*}`, spanning from the marker so the expansion's own source is kept.
+    fn maybe_expand(
+        word: Self,
+        expanded: bool,
+        expansion_span: Option<Span>,
+        word_span: Span,
+    ) -> Self {
         if expanded {
             let start = expansion_span.map_or(word_span.start(), Span::start);
             Self::Expand {
