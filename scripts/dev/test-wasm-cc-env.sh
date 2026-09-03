@@ -102,6 +102,7 @@ run_installer_check() {
     env \
         WASI_SDK_PATH="$1" \
         WASM_CC_TEST_LOG="$probe_log" \
+        SKIP_WASI_SDK=0 \
         SKIP_TCLSH=1 \
         SKIP_PYTHON_TK=1 \
         SKIP_NODE=1 \
