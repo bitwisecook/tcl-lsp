@@ -20,7 +20,7 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::{Scope, VarDef};
-use tcl_lexer::{LineIndex, Token, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
 use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
@@ -40,7 +40,11 @@ pub fn inline_variable(
     registry: &CommandRegistry,
     line_index: &LineIndex,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("set"), registry)?;
+    // The document's own lexing grammar — `analysis.dialect` carries the
+    // name the host analysed this document under (issue: dialect-drift).
+    let config =
+        LexerConfig::from_grammar(crate::environment_for_dialect(&analysis.dialect).grammar());
+    let cmd = find_command_at(source, cursor, Some("set"), registry, config)?;
     if cmd.texts.len() < 3 {
         return None; // `set var` read form — nothing to inline
     }
@@ -80,7 +84,7 @@ pub fn inline_variable(
     // Resolve the reference's VAR token + enclosing word so we know,
     // from the tokens alone, whether the reference is a standalone word
     // or interpolated inside a larger word.
-    let ctx = reference_token(source, ref_span.start(), registry)?;
+    let ctx = reference_token(source, ref_span.start(), registry, config)?;
 
     // The `$var` / `${var}` span to replace.  The VAR token starts at
     // `$`; its end omits the braced form's `}`, so re-add it.
@@ -144,8 +148,13 @@ struct RefContext {
 
 /// Resolve `ref_off` through the segmenter
 /// to its VAR token and enclosing word.
-fn reference_token(source: &str, ref_off: u32, registry: &CommandRegistry) -> Option<RefContext> {
-    let cmd = find_command_at(source, ref_off, None, registry)?;
+fn reference_token(
+    source: &str,
+    ref_off: u32,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<RefContext> {
+    let cmd = find_command_at(source, ref_off, None, registry, config)?;
 
     let var_tok = cmd.all_tokens.iter().copied().find(|tok| {
         tok.kind == TokenType::Var

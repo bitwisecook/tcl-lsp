@@ -124,12 +124,7 @@ impl BracedVarStyle {
     /// turn it into this grammar fact (issue #1568).
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
-        name.map_or(Self::default(), |n| {
-            crate::DialectProfile::find(n)
-                .unwrap_or_else(crate::DialectProfile::plain_tcl)
-                .grammar
-                .braced_var
-        })
+        grammar_of_dialect_name(name).braced_var
     }
 
     /// The rule of an already-resolved `profile`, or the 9.x default when the
@@ -146,6 +141,37 @@ impl BracedVarStyle {
     pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
         profile.map_or(Self::default(), |p| p.grammar.braced_var)
     }
+}
+
+/// The [`LexerGrammar`] a dialect *name* selects — the one place a name
+/// becomes a grammar.
+///
+/// Every `of_dialect_name` axis constructor delegates here, so a layer that
+/// holds only a name (codegen from `IrModule::dialect`, the optimiser's
+/// `PassContext`, taint) reads the same grammar the document was lexed with
+/// rather than a per-axis approximation of it.
+///
+/// It resolves through [`crate::model::DialectPoint`], which is where P6 put
+/// the truth: a grammar is a function of `(family, release, build)`, so an
+/// environment names its family and ladder and needs no resolved-grammar row.
+/// That is why `jim` works at all — it is an environment with no catalogue
+/// profile, so every axis constructor used to answer `Tcl90` for a Jim
+/// document. `tk` had the same hole.
+///
+/// A name carries only the environment's *default* release, so this cannot
+/// tell jim 0.79 from 0.84 or tcl8.5 from 8.6. A caller that knows the
+/// document's release should resolve a [`crate::model::DialectPoint`] with
+/// [`crate::model::DialectPoint::of_name_and_release`] and take its grammar.
+#[must_use]
+pub fn grammar_of_dialect_name(name: Option<&str>) -> LexerGrammar {
+    if let Some(point) = crate::model::DialectPoint::of_dialect_name(name) {
+        return point.grammar();
+    }
+    // No Tcl ladder: either no name at all, or the one shipped dialect that
+    // is not Tcl (`f5-bigip`, the BIG-IP config surface), whose grammar the
+    // legacy catalogue still states.
+    name.and_then(crate::DialectProfile::find)
+        .map_or_else(LexerGrammar::default, |p| p.grammar)
 }
 
 /// Which literal source bytes may appear in a `$name(index)` variable read.
@@ -295,6 +321,22 @@ pub struct LexerGrammar {
     /// development cycle, and since 8.7 is not a version this crate models,
     /// `>= V9_0` is the exact gate for the supported set.
     pub expr_comments: ExprCommentStyle,
+    /// Which characters end a command word — see [`WordSeparators`].
+    pub word_separators: WordSeparators,
+    /// What a backslash-newline pair inside a `{braced}` word becomes — see
+    /// [`BraceBackslashNewline`]. Distinct from
+    /// [`Self::brace_line_continuation`], which is the F5 fork's
+    /// next-line-`{` rule: this one is about a word's *value*, that one
+    /// about where a command ends.
+    pub brace_backslash_newline: BraceBackslashNewline,
+    /// Whether text may follow a word's closing `"` — see
+    /// [`QuoteTermination`].
+    pub quote_termination: QuoteTermination,
+    /// How a `$` substitution's name, index and sugar forms are parsed —
+    /// see [`VarSyntax`].
+    pub var_syntax: VarSyntax,
+    /// Whether malformed list text is an error — see [`ListParse`].
+    pub list_parse: ListParse,
     /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
     pub numbers: NumberSyntax,
     /// Which backslash-escape grammar the release decodes — see
@@ -349,13 +391,30 @@ pub enum EscapeSyntax {
     /// and 9.1b0; `tcl.h:2094` raises `TCL_UTF_MAX` to 4.
     #[default]
     Tcl90,
+    /// `JimTcl` 0.76-0.84: a combination no C Tcl release has — 9.0's `\x`
+    /// cap and wide `\U`, but 8.4's greedy octal escape.
+    ///
+    /// `JimEscape` in `jim.c` caps `\x` at two hex digits and implements
+    /// `\u`, `\u{...}` and `\U` over a UCS-4 internal string, so
+    /// `\U0001F600` really is U+1F600 (measured: `scan \U0001F600 %c` is
+    /// 128512 in every modelled release, where 8.6 would give U+FFFD).
+    /// Its octal arm, though, always takes a third digit and truncates to a
+    /// byte, with none of 8.6's `result >= 0x20` guard: `subst \400` is a
+    /// single NUL under Jim (`string length` 1, `scan %c` 0) where Tcl 8.6
+    /// and 9.0 both read `\40` plus a literal `0` (`string length` 2,
+    /// `scan %c` 32) — measured on jimsh 0.84 against tclsh 8.6/9.0.
+    ///
+    /// So Jim can borrow neither [`Self::Tcl86`] (which is BMP-only and
+    /// would fold the emoji to U+FFFD) nor [`Self::Tcl90`] (which would cut
+    /// the octal escape one digit short).
+    Jim,
 }
 
 impl EscapeSyntax {
     /// Every escape grammar, oldest first — the counterpart of
     /// [`NumberSyntax::ALL`], for callers that must answer a question across
     /// all of them.
-    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl86, Self::Tcl90];
+    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl86, Self::Tcl90, Self::Jim];
 
     /// The grammar of `profile`, or the permissive 9.x default when no profile
     /// is loaded.
@@ -368,12 +427,7 @@ impl EscapeSyntax {
     /// `name` is [`None`].
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
-        name.map_or(Self::default(), |n| {
-            crate::DialectProfile::find(n)
-                .unwrap_or_else(crate::DialectProfile::plain_tcl)
-                .grammar
-                .escapes
-        })
+        grammar_of_dialect_name(name).escapes
     }
 
     /// How many hex digits `\x` may consume. [`None`] means unbounded — the
@@ -382,7 +436,7 @@ impl EscapeSyntax {
     pub fn hex_escape_digits(self) -> Option<usize> {
         match self {
             Self::Tcl84 => None,
-            Self::Tcl86 | Self::Tcl90 => Some(2),
+            Self::Tcl86 | Self::Tcl90 | Self::Jim => Some(2),
         }
     }
 
@@ -391,6 +445,22 @@ impl EscapeSyntax {
     #[must_use]
     pub fn has_wide_unicode(self) -> bool {
         !matches!(self, Self::Tcl84)
+    }
+
+    /// Whether `\u{…}` — a brace-delimited scalar of any width — is a form
+    /// this grammar decodes.
+    ///
+    /// `JimTcl` alone accepts it (`\u{1F600}` is one character on jimsh 0.76
+    /// and 0.84); no build of the Tcl core does, and tclsh 8.6 / 9.0 both read
+    /// the same text as a literal `u` followed by `{1F600}`. Spelled as an
+    /// exhaustive match so a new grammar has to state its answer rather than
+    /// inherit Jim's.
+    #[must_use]
+    pub fn has_braced_unicode(self) -> bool {
+        match self {
+            Self::Tcl84 | Self::Tcl86 | Self::Tcl90 => false,
+            Self::Jim => true,
+        }
     }
 
     /// Whether an octal escape takes a **third** digit given the value its
@@ -402,7 +472,8 @@ impl EscapeSyntax {
     #[must_use]
     pub fn octal_takes_third_digit(self, two_digit_value: u32) -> bool {
         match self {
-            Self::Tcl84 => true,
+            // Jim's octal arm has no `result >= 0x20` guard at all.
+            Self::Tcl84 | Self::Jim => true,
             Self::Tcl86 | Self::Tcl90 => two_digit_value < 0x20,
         }
     }
@@ -455,6 +526,23 @@ pub enum NumberSyntax {
     /// interpretation. Use `0oNNN`." (`doc/expr.n` lists all four prefixes.)
     #[default]
     Tcl90,
+    /// `JimTcl` 0.76-0.79: `0x` / `0o` / `0b` prefixes, leading zero is
+    /// **decimal**, and neither the `0d` prefix nor `_` separators exist.
+    ///
+    /// Jim never adopted leading-zero octal, so `010` is 10 in every
+    /// modelled release — the Tcl 9.0 answer, a decade before Tcl 9.0
+    /// (measured; `jim_strtoull` in `jim.c` takes an explicit base).
+    /// `expr 0d5` is a syntax error through 0.79 and `expr 1_000` is one in
+    /// every release, so this is neither [`Self::Tcl85`] (which would read
+    /// `010` as 8) nor [`Self::Tcl90`] (which would accept both).
+    Jim,
+    /// `JimTcl` 0.80 and later: [`Self::Jim`] plus the `0d` decimal prefix.
+    ///
+    /// 0.80 added `0d` alongside the `lt`/`le`/`gt`/`ge` operators —
+    /// measured: `expr 0d10` is a syntax error on jimsh 0.79 and 10 on 0.80.
+    /// `_` digit separators are still rejected, which is what keeps this
+    /// distinct from [`Self::Tcl90`].
+    Jim080,
 }
 
 impl NumberSyntax {
@@ -463,7 +551,13 @@ impl NumberSyntax {
     /// For callers that must answer a question across all of them — e.g.
     /// "do the releases agree how to read this word?" — so adding a future
     /// grammar reaches them without each keeping its own list.
-    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl85, Self::Tcl90];
+    pub const ALL: &'static [Self] = &[
+        Self::Tcl84,
+        Self::Tcl85,
+        Self::Tcl90,
+        Self::Jim,
+        Self::Jim080,
+    ];
 
     /// The grammar of `profile`, or the permissive 9.x default when no profile
     /// is loaded.
@@ -481,12 +575,7 @@ impl NumberSyntax {
     /// `name` is [`None`].
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
-        name.map_or(Self::default(), |n| {
-            crate::DialectProfile::find(n)
-                .unwrap_or_else(crate::DialectProfile::plain_tcl)
-                .grammar
-                .numbers
-        })
+        grammar_of_dialect_name(name).numbers
     }
 
     /// Answer `f` under **every** grammar, returning `Some` only when they all
@@ -535,19 +624,32 @@ impl NumberSyntax {
     /// as it does up to 8.6. False from 9.0, where it is plain decimal.
     #[must_use]
     pub fn leading_zero_is_octal(self) -> bool {
-        matches!(self, Self::Tcl84 | Self::Tcl85)
+        match self {
+            Self::Tcl84 | Self::Tcl85 => true,
+            // Jim never adopted the rule — `expr 010` is 10 in every
+            // modelled release, the Tcl 9.0 answer a decade early.
+            Self::Tcl90 | Self::Jim | Self::Jim080 => false,
+        }
     }
 
     /// Whether the `0b` (binary) and `0o` (octal) prefixes exist — 8.5 onward.
     #[must_use]
     pub fn has_binary_octal_prefix(self) -> bool {
-        !matches!(self, Self::Tcl84)
+        match self {
+            Self::Tcl84 => false,
+            Self::Tcl85 | Self::Tcl90 | Self::Jim | Self::Jim080 => true,
+        }
     }
 
     /// Whether the explicit `0d` (decimal) prefix exists — 9.0 onward.
     #[must_use]
     pub fn has_decimal_prefix(self) -> bool {
-        matches!(self, Self::Tcl90)
+        match self {
+            Self::Tcl84 | Self::Tcl85 | Self::Jim => false,
+            // Jim added `0d` in 0.80, alongside the `lt`/`ge` operators:
+            // `expr 0d10` is a syntax error on jimsh 0.79 and 10 on 0.80.
+            Self::Tcl90 | Self::Jim080 => true,
+        }
     }
 
     /// The radix selected by an explicit numeral-prefix marker in this release.
@@ -568,9 +670,197 @@ impl NumberSyntax {
 
     /// Whether `_` may separate digits (`1__000`, `0xff__ff`) — 9.0 onward.
     #[must_use]
+    #[allow(clippy::match_same_arms)]
     pub fn allows_digit_separators(self) -> bool {
-        matches!(self, Self::Tcl90)
+        match self {
+            Self::Tcl84 | Self::Tcl85 => false,
+            Self::Tcl90 => true,
+            // Pre-9.0 Tcl and Jim both reject `_`, but not for the same
+            // reason, and the arms are the place that is recorded. This is
+            // what keeps `Jim080` distinct from `Tcl90`.
+            Self::Jim | Self::Jim080 => false,
+        }
     }
+}
+
+/// Which characters separate one command word from the next.
+///
+/// Every Tcl release treats space, tab, carriage return, vertical tab and
+/// form feed as horizontal whitespace inside a command
+/// (`TclParseWhiteSpace`'s `TYPE_SPACE` class in `generic/tclParse.c`, whose
+/// `charTypeTable` marks all five). `JimTcl`'s script parser spells the set
+/// out as a `switch` and simply has no `case '\v'` (`jim.c:1338-1341` —
+/// `' '`, `'\t'`, `'\r'`, `'\f'`), so a vertical tab is an ordinary word
+/// character there.
+///
+/// Measured: `eval "f a\vb"` passes **one** argument under every modelled Jim
+/// release and **two** under tclsh 8.6.
+///
+/// This axis governs *command* parsing only. Jim's **list** parser is a
+/// separate routine that tests `isspace()` (`JimParseList`, `jim.c:2121`),
+/// and `isspace` does include `\v` — so `llength "a\vb"` is 2 in Jim even
+/// though the same bytes are one word in a command.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum WordSeparators {
+    /// ` `, `\t`, `\r`, `\v`, `\f` — every build of the Tcl core.
+    #[default]
+    Tcl,
+    /// ` `, `\t`, `\r`, `\f` — `JimTcl`. `\v` is a word character.
+    Jim,
+}
+
+impl WordSeparators {
+    /// Whether `byte` separates two words in a command under this grammar.
+    ///
+    /// Newline and `;` are *terminators*, not separators, and are not
+    /// reported here by either variant.
+    #[must_use]
+    pub const fn is_separator(self, byte: u8) -> bool {
+        match byte {
+            b' ' | b'\t' | b'\r' | 0x0C => true,
+            // The one byte the two variants disagree on.
+            0x0B => matches!(self, Self::Tcl),
+            _ => false,
+        }
+    }
+}
+
+/// What a backslash-newline pair inside a `{braced}` word becomes.
+///
+/// A braced word is otherwise substitution-free in both implementations;
+/// this is the single exception, and they resolve it opposite ways.
+///
+/// C Tcl folds the pair — `TclCopyAndCollapse` rewrites backslash-newline
+/// plus any following leading whitespace to one space, so `{a\<newline>b}` is
+/// the three-character string `a b`. `JimTcl` deliberately does not:
+/// `JimParseSubBrace` (`jim.c:1444-1485`) advances past the escaped
+/// character and bumps `linenr`, but the token keeps its original bytes, so
+/// the same word is the four-character `a\<newline>b` — upstream keeps it
+/// that way to preserve line numbers through a braced body.
+///
+/// Measured: `string length {a\<newline>b}` is 3 under tclsh 8.6 and 9.0, and
+/// 4 under every modelled Jim release.
+///
+/// Both variants agree on *boundaries* — a backslash always hides the next
+/// character from the brace counter, so `{a\}b}` is one word either way.
+/// This axis moves only the resulting **value** and its length, which is what
+/// separates it from [`BraceLineContinuation`]: that one decides where a
+/// command ends, this one what a word contains.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum BraceBackslashNewline {
+    /// Collapse backslash-newline (and the whitespace run after it) to a
+    /// single space — every build of the Tcl core.
+    #[default]
+    Folds,
+    /// Keep every byte, so the word spans lines verbatim — `JimTcl`.
+    Literal,
+}
+
+impl BraceBackslashNewline {
+    /// Whether the pair collapses to a space.
+    #[must_use]
+    pub const fn folds(self) -> bool {
+        matches!(self, Self::Folds)
+    }
+}
+
+/// Whether ordinary text may follow the `"` that closes a quoted word.
+///
+/// C Tcl requires a separator after the closing quote: `ParseTokens` checks
+/// the next character and raises `extra characters after close-quote`
+/// otherwise, so `puts "abc"def` is a parse error. `JimTcl` has no such
+/// check anywhere — `JimParseStr` simply clears `inquote` and keeps
+/// scanning, so the quoted and unquoted runs concatenate into one word and
+/// `puts "abc"def` prints `abcdef`.
+///
+/// The mirror-image rule for braces (`extra characters after close-brace`)
+/// is **not** on this axis: Jim rejects `{abc}def` the same way C Tcl does,
+/// so that diagnostic stays unconditional.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum QuoteTermination {
+    /// A close-quote must be followed by a separator — every build of the
+    /// Tcl core.
+    #[default]
+    Strict,
+    /// Text after a close-quote concatenates onto the same word — `JimTcl`.
+    Concatenating,
+}
+
+impl QuoteTermination {
+    /// Whether a close-quote must be followed by a separator.
+    #[must_use]
+    pub const fn is_strict(self) -> bool {
+        matches!(self, Self::Strict)
+    }
+}
+
+/// How a `$` substitution's name, index and sugar forms are parsed.
+///
+/// `JimTcl`'s `JimParseVar` (`jim.c:1641-1746`) diverges from
+/// `TclParseVarName` on three points at once, and all three are present in
+/// every modelled release (0.76-0.84), so they ride one axis:
+///
+/// * **`$(...)` is expression substitution.** With an empty variable name,
+///   the parenthesised text is an `expr` body, not a dict index —
+///   `JIM_TT_EXPRSUGAR`. `set a 5; puts $($a * 2)` prints `10`. C Tcl reads
+///   `$(` as a variable named `(`, so ordinary Jim code draws false
+///   diagnostics without this. (The `$[...]` spelling sits behind
+///   `EXPRSUGAR_BRACKET`, which no shipped build defines — not modelled.)
+/// * **Index parens nest.** The scanner counts `(` and `)` and honours a
+///   backslash escape, so `$d(a(b))` indexes by the whole `a(b)`. C Tcl
+///   stops at the first `)`.
+/// * **A name may contain any byte >= 0x80.** Jim's name loop accepts
+///   `isalnum`, `_`, and every non-ASCII byte — its comment reads "we
+///   consider all unicode points outside of ASCII as letters" — so `$café`
+///   is one variable where C Tcl names `caf`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum VarSyntax {
+    /// `TclParseVarName`: `$(` is a variable named `(`, an index ends at the
+    /// first `)`, and a bare name is ASCII alphanumerics plus `_`.
+    #[default]
+    Tcl,
+    /// `JimParseVar`: `$(...)` is expression sugar, index parens nest, and a
+    /// name may contain any byte >= 0x80.
+    Jim,
+}
+
+impl VarSyntax {
+    /// Whether `$(...)` at a word start is an expression substitution.
+    #[must_use]
+    pub const fn has_expr_sugar(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+
+    /// Whether a `$name(index)` index counts nested parens.
+    #[must_use]
+    pub const fn index_parens_nest(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+
+    /// Whether a bare `$name` may contain bytes >= 0x80.
+    #[must_use]
+    pub const fn name_allows_high_bytes(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+}
+
+/// Whether text that cannot be split as a list is an error.
+///
+/// C Tcl's `TclFindElement` reports `unmatched open brace in list`,
+/// `unmatched open quote in list` and `list element in braces followed by
+/// "x" instead of space`, so `llength "a {b"` fails. `JimTcl`'s list parser
+/// has no error path at all: `JimParseBrace` records a `missing.ch` for the
+/// script parser's benefit but `SetListFromAny` never consults it, so the
+/// unterminated element is taken to end at the end of the string and
+/// `llength "a {b"` is 2.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ListParse {
+    /// Malformed list text raises an error — every build of the Tcl core.
+    #[default]
+    Strict,
+    /// Malformed list text never errors; an unterminated element runs to the
+    /// end of the string — `JimTcl`.
+    Lenient,
 }
 
 impl Default for LexerGrammar {
@@ -587,6 +877,11 @@ impl Default for LexerGrammar {
             expr_comments: ExprCommentStyle::Hash,
             numbers: NumberSyntax::Tcl90,
             escapes: EscapeSyntax::Tcl90,
+            word_separators: WordSeparators::Tcl,
+            brace_backslash_newline: BraceBackslashNewline::Folds,
+            quote_termination: QuoteTermination::Strict,
+            var_syntax: VarSyntax::Tcl,
+            list_parse: ListParse::Strict,
         }
     }
 }
@@ -665,6 +960,12 @@ mod tests {
         assert!(EscapeSyntax::Tcl84.is_bmp_only());
         assert!(EscapeSyntax::Tcl86.is_bmp_only());
         assert!(!EscapeSyntax::Tcl90.is_bmp_only());
+        // Jim: 9.0's `\x` cap and wide `\U`, but 8.4's greedy octal — the
+        // combination no C Tcl release has. Measured on jimsh 0.84.
+        assert_eq!(EscapeSyntax::Jim.hex_escape_digits(), Some(2));
+        assert!(EscapeSyntax::Jim.has_wide_unicode());
+        assert!(!EscapeSyntax::Jim.is_bmp_only());
+        assert!(EscapeSyntax::Jim.octal_takes_third_digit(0x20));
         assert_eq!(EscapeSyntax::default(), EscapeSyntax::Tcl90);
     }
 
@@ -674,9 +975,120 @@ mod tests {
         // narrows every cross-release sweep built on it.
         for syntax in EscapeSyntax::ALL {
             match syntax {
-                EscapeSyntax::Tcl84 | EscapeSyntax::Tcl86 | EscapeSyntax::Tcl90 => {}
+                EscapeSyntax::Tcl84
+                | EscapeSyntax::Tcl86
+                | EscapeSyntax::Tcl90
+                | EscapeSyntax::Jim => {}
             }
         }
-        assert_eq!(EscapeSyntax::ALL.len(), 3);
+        assert_eq!(EscapeSyntax::ALL.len(), 4);
+    }
+}
+
+/// The single name→grammar resolution, and the agreement it buys.
+#[cfg(test)]
+mod grammar_of_dialect_name_tests {
+    use super::*;
+    use crate::model::DialectPoint;
+
+    /// Wherever both catalogues know a name they must answer the same
+    /// grammar. This is the property that lets the resolution prefer the
+    /// environment model without changing any existing dialect's behaviour —
+    /// and it fails loudly if the two ever drift apart.
+    #[test]
+    fn the_two_catalogues_agree_wherever_both_know_a_name() {
+        // `tk` is a catalogue profile that `all()` deliberately excludes, and
+        // it is exactly the row that drifted: 9.x here, 8.6 in the
+        // environment model, until the two were made to agree.
+        let rows = crate::DialectProfile::all()
+            .iter()
+            .chain(std::iter::once(crate::DialectProfile::tk()));
+        for profile in rows {
+            let Some(point) = DialectPoint::of_dialect_name(Some(profile.name)) else {
+                continue;
+            };
+            assert_eq!(
+                point.grammar(),
+                profile.grammar,
+                "`{}` resolves to a different grammar in the two catalogues",
+                profile.name
+            );
+        }
+    }
+
+    /// An environment with no catalogue profile still gets its own grammar —
+    /// the hole this resolution closes. Before it, every `of_dialect_name`
+    /// answered with C Tcl's grammar for a Jim document, so codegen compiled
+    /// one with 9.0 numerals and escapes.
+    #[test]
+    fn an_environment_without_a_profile_still_resolves() {
+        assert!(
+            crate::DialectProfile::find("jim").is_none(),
+            "jim is deliberately not a catalogue profile (P6)"
+        );
+        let jim = grammar_of_dialect_name(Some("jim"));
+        // The default release is 0.84, which sits on the `Jim080` rung —
+        // `0d` became available at 0.80.
+        assert_eq!(jim.numbers, NumberSyntax::Jim080);
+        assert_eq!(jim.escapes, EscapeSyntax::Jim);
+        assert_eq!(jim.word_separators, WordSeparators::Jim);
+        assert_eq!(jim.list_parse, ListParse::Lenient);
+        assert_eq!(jim.brace_backslash_newline, BraceBackslashNewline::Literal);
+        assert_ne!(
+            jim,
+            LexerGrammar::default(),
+            "a Jim document is not compiled under the 9.0 grammar"
+        );
+        for alias in ["jimsh", "jimtcl"] {
+            assert_eq!(grammar_of_dialect_name(Some(alias)), jim, "{alias}");
+        }
+    }
+
+    /// The one shipped dialect with no Tcl ladder still answers from the
+    /// legacy catalogue rather than falling to the default.
+    #[test]
+    fn the_config_dialect_still_answers() {
+        assert!(DialectPoint::of_dialect_name(Some("f5-bigip")).is_none());
+        let profile = crate::DialectProfile::find("f5-bigip").expect("shipped");
+        assert_eq!(grammar_of_dialect_name(Some("f5-bigip")), profile.grammar);
+    }
+
+    /// A name neither catalogue knows, and no name at all, are C Tcl.
+    #[test]
+    fn an_unknown_name_is_the_default() {
+        assert_eq!(grammar_of_dialect_name(None), LexerGrammar::default());
+        assert_eq!(
+            grammar_of_dialect_name(Some("nonsense")),
+            LexerGrammar::default()
+        );
+    }
+
+    /// The per-axis constructors must not disagree with the central one for
+    /// any name in either catalogue — the regression this exists to prevent.
+    #[test]
+    fn every_axis_constructor_agrees_with_the_central_one() {
+        let mut names: Vec<String> = crate::DialectProfile::all()
+            .iter()
+            .map(|p| p.name.to_string())
+            .collect();
+        names.extend(["jim".to_string(), "tk".to_string()]);
+        for name in names {
+            let central = grammar_of_dialect_name(Some(&name));
+            assert_eq!(
+                NumberSyntax::of_dialect_name(Some(&name)),
+                central.numbers,
+                "numbers disagree for `{name}`"
+            );
+            assert_eq!(
+                EscapeSyntax::of_dialect_name(Some(&name)),
+                central.escapes,
+                "escapes disagree for `{name}`"
+            );
+            assert_eq!(
+                BracedVarStyle::of_dialect_name(Some(&name)),
+                central.braced_var,
+                "braced_var disagrees for `{name}`"
+            );
+        }
     }
 }

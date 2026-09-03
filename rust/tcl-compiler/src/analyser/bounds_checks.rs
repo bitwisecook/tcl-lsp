@@ -31,7 +31,7 @@
 //! positives.
 
 use tcl_core_types::DiagCode;
-use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr};
+use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr_checked_with_grammar};
 
 use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 
@@ -72,6 +72,7 @@ pub(crate) fn loop_termination_diagnostics(
     arg_tokens: &[Token],
     registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
 ) -> Vec<Diagnostic> {
     // (init, cond, step, body, cond_tok) — init/step empty for `while`.
     let (init_text, cond_text, step_text, body_text, cond_tok) = match cmd_name {
@@ -121,6 +122,7 @@ pub(crate) fn loop_termination_diagnostics(
             body_text,
             registry,
             lexer_config,
+            grammar,
         )
     {
         return vec![crate::analyser::types::Diagnostic::new(
@@ -136,7 +138,7 @@ pub(crate) fn loop_termination_diagnostics(
     // the condition token, like W240/W241.  The analyser always emits
     // W242; the default-off opt-in is applied by the consuming LSP/config
     // layer.
-    if let Some(var) = extract_counter_name(cond_text)
+    if let Some(var) = extract_counter_name(cond_text, grammar)
         && !loop_modifies_var(&var, step_text, body_text, registry, lexer_config)
     {
         return vec![crate::analyser::types::Diagnostic::new(
@@ -169,8 +171,8 @@ pub(crate) fn loop_termination_diagnostics(
 /// "intentionally shallow ... avoiding false positives" philosophy,
 /// extended to the one case that slipped through it — corpus example:
 /// `tcltest.tcl`'s option-usage word-wrapper).
-fn extract_counter_name(cond: &str) -> Option<String> {
-    let tokens = tokenise_expr(strip_braces(cond), None);
+fn extract_counter_name(cond: &str, grammar: &tcl_dialect::LexerGrammar) -> Option<String> {
+    let tokens = tokenise_expr_checked_with_grammar(strip_braces(cond), grammar).0;
     if tokens.iter().any(|t| t.kind == ExprTokenType::Command) {
         return None;
     }
@@ -232,8 +234,9 @@ fn for_is_provably_infinite(
     body: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<String> {
-    let (var_c, op, bound) = parse_simple_for_cond(cond)?;
+    let (var_c, op, bound) = parse_simple_for_cond(cond, grammar)?;
     let (var_i, start) = parse_init_var_value(init, lexer_config)?;
     let (var_s, delta) = parse_step_incr(step, lexer_config)?;
     if var_c != var_i || var_c != var_s {
@@ -305,8 +308,11 @@ fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
 /// comparison operator must split it into a single-variable side and a
 /// signed-integer side; any logical / ternary operator, or a second
 /// comparison, disqualifies it as compound.
-fn parse_simple_for_cond(cond: &str) -> Option<(String, String, i64)> {
-    let all = tokenise_expr(strip_braces(cond), None);
+fn parse_simple_for_cond(
+    cond: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> Option<(String, String, i64)> {
+    let all = tokenise_expr_checked_with_grammar(strip_braces(cond), grammar).0;
     let tokens: Vec<&ExprToken> = all
         .iter()
         .filter(|t| !t.kind.is_skipped() && t.kind != ExprTokenType::Eof)
@@ -544,6 +550,7 @@ pub(crate) fn list_index_diagnostics(
     args: &[String],
     arg_tokens: &[Token],
     numbers: tcl_dialect::NumberSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Vec<Diagnostic> {
     if !matches!(cmd_name, "lindex" | "lrange" | "lreplace")
         || args.len() < 2
@@ -559,8 +566,8 @@ pub(crate) fn list_index_diagnostics(
     // segmenter, so split the list content directly — a second
     // `strip_braces` here would wrongly peel a single-element list like
     // `{{a b c}}` (segmented to `{a b c}`) down to its three inner words.
-    let length =
-        i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0]).len()).unwrap_or(i64::MAX);
+    let length = i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0], rules).len())
+        .unwrap_or(i64::MAX);
 
     if cmd_name == "lindex" {
         return lindex_diagnostics(args, arg_tokens, length, numbers);
@@ -823,6 +830,9 @@ fn literal_list_assignment(
     cmd: &SegmentedCommand,
     var_name: &str,
 ) -> Option<i64> {
+    // The registry carries the environment's profile, so the assigned list
+    // divides under the document's own list grammar.
+    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
     let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
     let spec = registry.get(head)?;
     if spec.traits.intersects(
@@ -845,7 +855,9 @@ fn literal_list_assignment(
         return None;
     }
     let value = cmd.args().get(value_index)?;
-    Some(i64::try_from(crate::tcl_expr_eval::split_tcl_list(value).len()).unwrap_or(i64::MAX))
+    Some(
+        i64::try_from(crate::tcl_expr_eval::split_tcl_list(value, rules).len()).unwrap_or(i64::MAX),
+    )
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
@@ -1237,44 +1249,71 @@ mod tests {
     #[test]
     fn for_cond_parsers() {
         assert_eq!(
-            super::parse_simple_for_cond("$i < 10"),
+            super::parse_simple_for_cond("$i < 10", &tcl_dialect::LexerGrammar::default()),
             Some(("i".into(), "<".into(), 10)),
         );
         assert_eq!(
-            super::parse_simple_for_cond("10 > $i"),
+            super::parse_simple_for_cond("10 > $i", &tcl_dialect::LexerGrammar::default()),
             Some(("i".into(), "<".into(), 10)), // flipped
         );
-        assert_eq!(super::parse_simple_for_cond("$i < 10 && 0"), None);
+        assert_eq!(
+            super::parse_simple_for_cond("$i < 10 && 0", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
         // Negative bound: the expression lexer splits `-5` into a unary
         // `-` plus `5`, which the signed-integer folding reassembles.
         assert_eq!(
-            super::parse_simple_for_cond("$i > -5"),
+            super::parse_simple_for_cond("$i > -5", &tcl_dialect::LexerGrammar::default()),
             Some(("i".into(), ">".into(), -5)),
         );
         assert_eq!(
-            super::parse_simple_for_cond("-5 < $i"),
+            super::parse_simple_for_cond("-5 < $i", &tcl_dialect::LexerGrammar::default()),
             Some(("i".into(), ">".into(), -5)), // flipped
         );
         // String comparison operators are accepted; braces are stripped.
         assert_eq!(
-            super::parse_simple_for_cond("{$i ne 3}"),
+            super::parse_simple_for_cond("{$i ne 3}", &tcl_dialect::LexerGrammar::default()),
             Some(("i".into(), "ne".into(), 3)),
         );
         // `${i}` braced variable form and `==`.
         assert_eq!(
-            super::parse_simple_for_cond("${i} == 7"),
+            super::parse_simple_for_cond("${i} == 7", &tcl_dialect::LexerGrammar::default()),
             Some(("i".into(), "==".into(), 7)),
         );
         // Compound / logical / ternary / non-integer bounds reject.
-        assert_eq!(super::parse_simple_for_cond("$i < 10 || $j > 0"), None);
-        assert_eq!(super::parse_simple_for_cond("!$done"), None);
-        assert_eq!(super::parse_simple_for_cond("$i ? 1 : 0"), None);
-        assert_eq!(super::parse_simple_for_cond("$i < 10.5"), None);
+        assert_eq!(
+            super::parse_simple_for_cond(
+                "$i < 10 || $j > 0",
+                &tcl_dialect::LexerGrammar::default()
+            ),
+            None
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("!$done", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("$i ? 1 : 0", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("$i < 10.5", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
         // The `-?\d+` bound and `\$\{?(\w+)\}?` var shapes mean a leading
         // `+`, an array index, or a namespace qualifier reject.
-        assert_eq!(super::parse_simple_for_cond("$i < +5"), None);
-        assert_eq!(super::parse_simple_for_cond("$arr(i) < 5"), None);
-        assert_eq!(super::parse_simple_for_cond("$ns::v < 5"), None);
+        assert_eq!(
+            super::parse_simple_for_cond("$i < +5", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("$arr(i) < 5", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("$ns::v < 5", &tcl_dialect::LexerGrammar::default()),
+            None
+        );
         assert_eq!(
             super::parse_init_var_value("set i 5", config()),
             Some(("i".into(), 5))

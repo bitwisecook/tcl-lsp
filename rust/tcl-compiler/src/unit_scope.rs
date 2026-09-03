@@ -74,7 +74,7 @@ use crate::interprocedural::command_prefix_head;
 use crate::ir::{Module as IrModule, Statement};
 use crate::naming::is_dynamic_word;
 use crate::value_shapes::{
-    is_pure_var_ref, parse_command_substitution, whole_word_scalar_var_name,
+    is_pure_var_ref, parse_command_substitution_with_config, whole_word_scalar_var_name,
 };
 
 /// Recursion cap for [`record_call_site_evidence`]'s descent into nested
@@ -601,8 +601,8 @@ fn parameter_values(
 /// only a reference to one.  Testing `is_dynamic_word` alone conflates the
 /// two and would treat every ordinary braced body that mentions a variable
 /// as unresolvable.
-fn word_is_whole_substitution(word: &str) -> bool {
-    is_pure_var_ref(word) || parse_command_substitution(word).is_some()
+fn word_is_whole_substitution(word: &str, config: tcl_lexer::LexerConfig) -> bool {
+    is_pure_var_ref(word) || parse_command_substitution_with_config(word, config).is_some()
 }
 
 /// Resolve `command` to a qualified proc name via a `namespace import`
@@ -716,7 +716,9 @@ fn record_call_site_evidence(
         .registry
         .arg_indices_for_role(command, &arg_strs, ArgRole::LambdaLiteral)
     {
-        if args.get(idx).is_some_and(|w| word_is_whole_substitution(w)) {
+        if args.get(idx).is_some_and(|w| {
+            word_is_whole_substitution(w, tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar))
+        }) {
             out.record_unenumerable_caller(ctx.unenumerable_reach);
         }
     }
@@ -732,7 +734,10 @@ fn record_call_site_evidence(
         // any argument.  A literal body that merely *mentions* a variable
         // (`catch {puts $x}`) is still walked — the discriminator is "the
         // whole word is one substitution", not "contains a `$`".
-        if word_is_whole_substitution(body_text) {
+        if word_is_whole_substitution(
+            body_text,
+            tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ) {
             out.record_unenumerable_caller(ctx.unenumerable_reach);
             continue;
         }
@@ -1185,6 +1190,7 @@ fn collect_upframes<'a>(
 pub(crate) fn build_extra_call_site_scan_contexts(
     ir_module: &IrModule,
     cfg_context: Option<&crate::cfg_builder::CfgContext>,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<(String, CfgFunction)> {
     let upframes = upframe_scan_bodies(ir_module);
     if ir_module.methods.is_empty() && ir_module.body_units.is_empty() && upframes.is_empty() {
@@ -1194,13 +1200,14 @@ pub(crate) fn build_extra_call_site_scan_contexts(
         return Vec::new();
     };
     let build = |qname: &str, body: &crate::ir::Script| {
-        crate::cfg_builder::build_cfg_function_with_upvars(
+        crate::cfg_builder::build_cfg_function_with_upvars_and_config(
             qname,
             body,
             true,
             upvar_procs.clone(),
             proc_params.clone(),
             global_write_procs.clone(),
+            config,
         )
     };
     ir_module
@@ -1476,10 +1483,10 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     let mut ir_module = crate::lowering::lower_to_ir_with_config(source, registry, config);
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let cfg_module = crate::cfg_builder::build_cfg(&ir_module, false);
+    let cfg_module = crate::cfg_builder::build_cfg_with_config(&ir_module, false, config);
     let cfg_context = needs_extra_call_site_scan_contexts(&ir_module)
         .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
-    let extra = build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref());
+    let extra = build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref(), config);
     // The cross-file scan resolves a dispatch word exactly as the in-unit one
     // does — `scan_cfg_callers`/`record_call_site_evidence` are shared, so a
     // `set cmd helper; $cmd dev` in *another* file retracts this unit's seed
@@ -2606,14 +2613,26 @@ mod tests {
 
     #[test]
     fn whole_substitution_recognises_only_a_single_reference() {
-        assert!(word_is_whole_substitution("$script"));
-        assert!(word_is_whole_substitution("${script}"));
-        assert!(word_is_whole_substitution("[build]"));
+        assert!(word_is_whole_substitution(
+            "$script",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(word_is_whole_substitution(
+            "${script}",
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(word_is_whole_substitution(
+            "[build]",
+            tcl_lexer::LexerConfig::default()
+        ));
         assert!(
-            !word_is_whole_substitution("puts $v"),
+            !word_is_whole_substitution("puts $v", tcl_lexer::LexerConfig::default()),
             "a braced body that merely mentions a variable is literal script text",
         );
-        assert!(!word_is_whole_substitution("helper dev"));
+        assert!(!word_is_whole_substitution(
+            "helper dev",
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]

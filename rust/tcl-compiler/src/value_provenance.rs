@@ -151,9 +151,12 @@ fn pure_copy_source(value: &str) -> Option<&str> {
 /// first element's own byte offset and length — both relative to `value`'s
 /// own start (its opening `[`) — so the caller can anchor a rename-writable
 /// span on just that one argument.
-fn fold_literal_list_call(value: &str) -> Option<(String, u32, u32)> {
+fn fold_literal_list_call(
+    value: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, u32, u32)> {
     let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-    let cmds = crate::segmenter::segment_commands_with_offset(inner, 0);
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
     let [cmd] = cmds.as_slice() else {
         return None;
     };
@@ -201,13 +204,14 @@ pub fn const_contributors(
     fu: &FunctionUnit,
     use_offset: u32,
     var_name: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ValueContributor>> {
     if fu.complexity_guarded {
         return None;
     }
     let sym = fu.ssa.var_symbol(var_name)?;
     let version = use_version_at(fu, use_offset, sym)?;
-    const_contributors_for_version(fu, var_name, version)
+    const_contributors_for_version(fu, var_name, version, config)
 }
 
 /// [`const_contributors`] when the caller already owns the exact reaching SSA
@@ -219,6 +223,7 @@ pub fn const_contributors_for_version(
     fu: &FunctionUnit,
     var_name: &str,
     version: Version,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ValueContributor>> {
     if fu.complexity_guarded {
         return None;
@@ -227,7 +232,7 @@ pub fn const_contributors_for_version(
     let index = def_index(fu);
     let mut visited: HashSet<(Symbol, Version)> = HashSet::new();
     let mut out: Vec<ValueContributor> = Vec::new();
-    collect(fu, &index, sym, version, &mut visited, &mut out)?;
+    collect(fu, &index, sym, version, &mut visited, &mut out, config)?;
     if out.is_empty() {
         return None;
     }
@@ -246,6 +251,7 @@ pub fn known_const_contributors_for_version(
     fu: &FunctionUnit,
     var_name: &str,
     version: Version,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<ValueContributor> {
     if fu.complexity_guarded {
         return Vec::new();
@@ -256,7 +262,7 @@ pub fn known_const_contributors_for_version(
     let index = def_index(fu);
     let mut visited = HashSet::new();
     let mut out = Vec::new();
-    let _ = collect(fu, &index, sym, version, &mut visited, &mut out);
+    let _ = collect(fu, &index, sym, version, &mut visited, &mut out, config);
     deduplicate_contributors(&mut out);
     out
 }
@@ -268,6 +274,7 @@ pub fn known_const_contributors(
     fu: &FunctionUnit,
     use_offset: u32,
     var_name: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<ValueContributor> {
     if fu.complexity_guarded {
         return Vec::new();
@@ -278,7 +285,7 @@ pub fn known_const_contributors(
     let Some(version) = use_version_at(fu, use_offset, sym) else {
         return Vec::new();
     };
-    known_const_contributors_for_version(fu, var_name, version)
+    known_const_contributors_for_version(fu, var_name, version, config)
 }
 
 fn deduplicate_contributors(out: &mut Vec<ValueContributor>) {
@@ -302,6 +309,7 @@ fn collect(
     version: Version,
     visited: &mut HashSet<(Symbol, Version)>,
     out: &mut Vec<ValueContributor>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<()> {
     if !visited.insert((sym, version)) {
         // Already being resolved along this walk (a loop-carried φ
@@ -316,13 +324,13 @@ fn collect(
         Some(DefSite::Phi(phi)) => {
             let mut complete = true;
             for &incoming in phi.incoming.values() {
-                if collect(fu, index, sym, incoming, visited, out).is_none() {
+                if collect(fu, index, sym, incoming, visited, out, config).is_none() {
                     complete = false;
                 }
             }
             complete.then_some(())
         }
-        Some(DefSite::Stmt(stmt)) => contributor_from_stmt(fu, index, stmt, visited, out),
+        Some(DefSite::Stmt(stmt)) => contributor_from_stmt(fu, index, stmt, visited, out, config),
     }
 }
 
@@ -334,6 +342,7 @@ fn contributor_from_stmt(
     stmt: &crate::ssa::SsaStatement,
     visited: &mut HashSet<(Symbol, Version)>,
     out: &mut Vec<ValueContributor>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<()> {
     match &stmt.statement {
         Statement::AssignConst {
@@ -356,7 +365,7 @@ fn contributor_from_stmt(
             if let Some(src_name) = pure_copy_source(value) {
                 let src_sym = fu.ssa.var_symbol(src_name)?;
                 let &src_version = stmt.uses.get(&src_sym)?;
-                return collect(fu, index, src_sym, src_version, visited, out);
+                return collect(fu, index, src_sym, src_version, visited, out, config);
             }
             // A `[list W1 W2 ...]` value whose every element is a plain
             // literal folds to the space-joined string — issue #923 idx
@@ -377,7 +386,8 @@ fn contributor_from_stmt(
             // *start* offset needs no such adjustment), so this reads it
             // directly rather than reusing that helper.
             if !*value_needs_backsubst
-                && let Some((joined, first_offset, first_len)) = fold_literal_list_call(value)
+                && let Some((joined, first_offset, first_len)) =
+                    fold_literal_list_call(value, config)
             {
                 let literal_span = tokens.as_ref().and_then(|t| {
                     let base = t.argv.get(2)?.start() + first_offset;

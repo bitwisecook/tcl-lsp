@@ -66,7 +66,7 @@ use tcl_lexer::{SourceMap, Span, Token, TokenType};
 use tcl_registry::{AppendedArity, CommandRegistry, InvocationWord};
 use tcl_syntax::list::find_element;
 
-use crate::segmenter::{SegmentedCommand, segment_commands_with_offset};
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 
 /// A command-prefix callback head extracted from a call site.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -391,7 +391,11 @@ fn extract_wrapped_prefix_head(
 ) -> Option<(String, Span, usize)> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
     let content_start = tok.span.start() + u32::from(tok.content_offset);
-    let mut segs = segment_commands_with_offset(inner, content_start);
+    let mut segs = segment_commands_with_offset_and_config(
+        inner,
+        content_start,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     if segs.len() != 1 {
         return None;
     }
@@ -462,7 +466,11 @@ pub(crate) fn list_quoted_command_segment(
 ) -> Option<SegmentedCommand> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
     let content_start = tok.span.start() + u32::from(tok.content_offset);
-    let mut segs = segment_commands_with_offset(inner, content_start);
+    let mut segs = segment_commands_with_offset_and_config(
+        inner,
+        content_start,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     if segs.len() != 1 {
         return None;
     }

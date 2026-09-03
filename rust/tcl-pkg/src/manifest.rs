@@ -409,6 +409,8 @@ fn parse_script(src: &str) -> Result<Vec<Vec<String>>, String> {
         src,
         LexerConfig {
             strict_quoting: true,
+            // dialect-drift-ok: a `tclpkg.tcl` manifest DSL, not a Tcl
+            // document — a fixed declarative vocabulary with no dialect axis.
             ..LexerConfig::default()
         },
     )

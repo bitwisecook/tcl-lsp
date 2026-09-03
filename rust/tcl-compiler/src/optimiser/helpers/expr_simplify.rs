@@ -49,12 +49,12 @@
 
 use std::collections::HashSet;
 
-use tcl_lexer::{ExprTokenType, tokenise_expr};
+use tcl_lexer::ExprTokenType;
 
 use crate::compilation_unit::FunctionUnit;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
-use crate::expr_parser::parse_expr;
+use crate::expr_parser::parse_expr_for_profile;
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{
     Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
@@ -321,12 +321,15 @@ fn is_integer_string(text: &str) -> bool {
 /// substitution, or any domain error (match `eval_tcl_expr`'s
 /// conservative "give up, use runtime form" contract).
 #[must_use]
-pub fn try_fold_expr(expr: &str, dialect: Option<&tcl_dialect::DialectProfile>) -> Option<String> {
+pub fn try_fold_expr(
+    expr: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<String> {
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr(trimmed, dialect.map(|profile| profile.name));
+    let node = parse_expr_for_profile(trimmed, dialect);
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
@@ -365,14 +368,14 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
     expr: &str,
     constants: &std::collections::HashMap<String, String, S>,
     braced: bool,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
     use crate::tcl_expr_eval::EnvValue;
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr(trimmed, dialect.map(|profile| profile.name));
+    let node = parse_expr_for_profile(trimmed, dialect);
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
@@ -469,9 +472,12 @@ pub struct SubstitutionResult {
 pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
     expr: &str,
     constants: &std::collections::HashMap<String, String, S>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> SubstitutionResult {
-    let tokens = tokenise_expr(expr, dialect.map(|profile| profile.name));
+    let tokens = tcl_lexer::tokenise_expr_for_profile(
+        expr,
+        dialect.unwrap_or_else(|| tcl_dialect::DialectProfile::plain_tcl()),
+    );
     let mut pieces: Vec<String> = Vec::new();
     let mut cursor: usize = 0;
     let mut changed = false;
@@ -543,8 +549,9 @@ fn is_numeric_literal(text: &str) -> bool {
 /// pass. Callers that need only a specific transform should use
 /// the narrow helpers instead.
 #[must_use]
+#[cfg(test)]
 pub fn instcombine_expr(expr: &str, bool_context: bool) -> (String, bool) {
-    instcombine_expr_typed(expr, bool_context, None)
+    instcombine_expr_typed(expr, bool_context, None, None)
 }
 
 /// As [`instcombine_expr`], but with a numeric-type context so the
@@ -555,9 +562,10 @@ pub fn instcombine_expr_typed(
     expr: &str,
     bool_context: bool,
     numeric: NumericCtx<'_>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> (String, bool) {
     let trimmed = expr.trim();
-    let parsed = parse_expr(trimmed, None);
+    let parsed = crate::expr_parser::parse_expr_for_profile(trimmed, dialect);
     if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
         return (expr.to_owned(), false);
     }
@@ -856,16 +864,21 @@ fn simplify_to_fixpoint(node: &ExprNode, bool_context: bool, numeric: NumericCtx
 /// indicates a text change. Unparseable / command-subst-laden
 /// inputs come back unchanged.
 #[must_use]
+#[cfg(test)]
 pub fn try_strength_reduce_expr(expr: &str) -> (String, bool) {
-    try_strength_reduce_expr_typed(expr, None)
+    try_strength_reduce_expr_typed(expr, None, None)
 }
 
 /// As [`try_strength_reduce_expr`], but with a numeric-type context for the
 /// operand-dropping identities. See [`NumericCtx`].
 #[must_use]
-pub fn try_strength_reduce_expr_typed(expr: &str, numeric: NumericCtx<'_>) -> (String, bool) {
+pub fn try_strength_reduce_expr_typed(
+    expr: &str,
+    numeric: NumericCtx<'_>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> (String, bool) {
     let trimmed = expr.trim();
-    let parsed = parse_expr(trimmed, None);
+    let parsed = crate::expr_parser::parse_expr_for_profile(trimmed, dialect);
     if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
         return (expr.to_owned(), false);
     }
@@ -887,9 +900,12 @@ pub fn try_strength_reduce_expr_typed(expr: &str, numeric: NumericCtx<'_>) -> (S
 /// We detect the shape via the `text` field when the expression
 /// is a binary `==` / `!=` against `0`.
 #[must_use]
-pub fn try_strlen_simplify_expr(expr: &str) -> (String, bool) {
+pub fn try_strlen_simplify_expr(
+    expr: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> (String, bool) {
     let trimmed = expr.trim();
-    let parsed = parse_expr(trimmed, None);
+    let parsed = crate::expr_parser::parse_expr_for_profile(trimmed, dialect);
     let ExprNode::Binary { op, left, right } = &parsed else {
         return (expr.to_owned(), false);
     };
@@ -952,9 +968,12 @@ pub fn try_strlen_simplify_expr(expr: &str) -> (String, bool) {
 /// parser as `ExprNode::String`) — numeric literals keep the
 /// numeric compare.
 #[must_use]
-pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
+pub fn try_eq_ne_string_compare_simplify_expr(
+    expr: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> (String, bool) {
     let trimmed = expr.trim();
-    let parsed = parse_expr(trimmed, None);
+    let parsed = crate::expr_parser::parse_expr_for_profile(trimmed, dialect);
     let Some(rewritten) = streq_promote_node(&parsed) else {
         return (expr.to_owned(), false);
     };
@@ -1846,11 +1865,11 @@ mod tests {
 
     #[test]
     fn command_subst_detection() {
-        let expr = parse_expr("[foo] + 1", None);
+        let expr = parse_expr_for_profile("[foo] + 1", None);
         assert!(expr_has_command_subst(&expr));
-        let expr = parse_expr("$x + 1", None);
+        let expr = parse_expr_for_profile("$x + 1", None);
         assert!(!expr_has_command_subst(&expr));
-        let expr = parse_expr("1 + 2", None);
+        let expr = parse_expr_for_profile("1 + 2", None);
         assert!(!expr_has_command_subst(&expr));
     }
 
@@ -1908,19 +1927,19 @@ mod tests {
         // operand (dropping it would hide a coercion error).
         let empty = OperandTypes::default();
         for e in ["$x * 0", "$x + 0", "$x * 1", "$x % 1", "$x << 0"] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty), None);
             assert!(!changed, "non-numeric `$x` must keep {e:?}, got {out:?}");
         }
         // With `$x` proven numeric (but not integer) → identities that KEEP the
         // operand fire (`$x + 0` → `$x`), but the integer-result annihilator
         // (`$x * 0` → `0`) does NOT (a double `$x` yields `0.0`).
         let numeric = OperandTypes::numeric_only(&["x"]);
-        let (out, changed) = instcombine_expr_typed("$x + 0", false, Some(&numeric));
+        let (out, changed) = instcombine_expr_typed("$x + 0", false, Some(&numeric), None);
         assert!(
             changed && out.trim() == "$x",
             "numeric `$x + 0` → $x, got {out:?}"
         );
-        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&numeric));
+        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&numeric), None);
         assert!(
             !changed,
             "numeric-but-not-integer `$x * 0` must NOT fold to 0, got {out:?}"
@@ -1928,7 +1947,7 @@ mod tests {
         // With `$x` proven integer → the integer-result / integer-only rewrites
         // fire.
         let integer = OperandTypes::integer(&["x"]);
-        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&integer));
+        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&integer), None);
         assert!(
             changed && out.trim() == "0",
             "integer `$x * 0` → 0, got {out:?}"
@@ -1946,7 +1965,7 @@ mod tests {
             "$x << 0", "$x >> 0", "$x & 0", "$x | 0", "$x ^ 0", "$x % 1", "$x ** 0", "$x * 0",
             "$x - $x", "$x ^ $x",
         ] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&double));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&double), None);
             assert!(
                 !changed,
                 "double `$x`: {e:?} must not be rewritten, got {out:?}"
@@ -1961,7 +1980,7 @@ mod tests {
             ("$x ** 0", "1"),
             ("$x - $x", "0"),
         ] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer), None);
             assert!(
                 changed && out.trim() == want,
                 "integer `$x`: {e:?} → {want:?}, got {out:?}"
@@ -1980,7 +1999,7 @@ mod tests {
         for e in ["!($x < 1)", "!($x <= 1)", "!($x > 1)", "!($x >= 1)"] {
             let (out, changed) = instcombine_expr(e, false);
             assert!(!changed, "untyped `$x`: {e:?} must not invert, got {out:?}");
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty), None);
             assert!(
                 !changed,
                 "unproven `$x`: {e:?} must not invert, got {out:?}"
@@ -1994,7 +2013,7 @@ mod tests {
             ("!($x > 1)", "$x <= 1"),
             ("!($x >= 1)", "$x < 1"),
         ] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer), None);
             assert!(
                 changed && out.trim() == want,
                 "integer `$x`: {e:?} → {want:?}, got {out:?}"
@@ -2002,15 +2021,15 @@ mod tests {
         }
         // A `Double`-typed operand is numeric but may still be NaN.
         let double = OperandTypes::numeric_only(&["x"]);
-        let (out, changed) = instcombine_expr_typed("!($x < 1)", false, Some(&double));
+        let (out, changed) = instcombine_expr_typed("!($x < 1)", false, Some(&double), None);
         assert!(!changed, "double `$x`: must not invert, got {out:?}");
         // A NaN *literal* is no proof either, in any spelling.
         for e in ["!(NaN < 1)", "!(nan < 1)", "!(1 < NaN)"] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty), None);
             assert!(!changed, "{e:?} must not invert, got {out:?}");
         }
         // Two ordinary numeric literals are proof enough.
-        let (out, changed) = instcombine_expr_typed("!(2 < 1)", false, Some(&empty));
+        let (out, changed) = instcombine_expr_typed("!(2 < 1)", false, Some(&empty), None);
         assert!(changed && out.trim() == "2 >= 1", "got {out:?}");
     }
 
@@ -2029,7 +2048,7 @@ mod tests {
             ("!($x in $y)", "$x ni $y"),
             ("!($x ni $y)", "$x in $y"),
         ] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty), None);
             assert!(
                 changed && out.trim() == want,
                 "{e:?} → {want:?}, got {out:?}"
@@ -2047,7 +2066,7 @@ mod tests {
         for e in ["$x == $x", "$x != $x", "$x <= $x", "$x >= $x"] {
             let (out, changed) = instcombine_expr(e, false);
             assert!(!changed, "untyped `$x`: {e:?} must not fold, got {out:?}");
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty), None);
             assert!(!changed, "unproven `$x`: {e:?} must not fold, got {out:?}");
         }
         // Always-false and string-identity rows fold with no proof.
@@ -2057,7 +2076,7 @@ mod tests {
             ("$x eq $x", "1"),
             ("$x ne $x", "0"),
         ] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty), None);
             assert!(
                 changed && out.trim() == want,
                 "{e:?} → {want:?}, got {out:?}"
@@ -2071,7 +2090,7 @@ mod tests {
             ("$x <= $x", "1"),
             ("$x >= $x", "1"),
         ] {
-            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer));
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer), None);
             assert!(
                 changed && out.trim() == want,
                 "integer `$x`: {e:?} → {want:?}, got {out:?}"
@@ -2079,7 +2098,7 @@ mod tests {
         }
         // A `Double` is numeric but not NaN-free.
         let double = OperandTypes::numeric_only(&["x"]);
-        let (out, changed) = instcombine_expr_typed("$x == $x", false, Some(&double));
+        let (out, changed) = instcombine_expr_typed("$x == $x", false, Some(&double), None);
         assert!(!changed, "double `$x == $x` must not fold, got {out:?}");
     }
 
@@ -2088,7 +2107,7 @@ mod tests {
     fn node_cannot_be_nan_proof_sources() {
         let integer = OperandTypes::integer(&["i"]);
         let double = OperandTypes::numeric_only(&["d"]);
-        let node = |src: &str| parse_expr(src, None);
+        let node = |src: &str| parse_expr_for_profile(src, None);
         assert!(node_cannot_be_nan(&node("1"), Some(&integer)));
         assert!(node_cannot_be_nan(&node("1.5"), Some(&integer)));
         assert!(node_cannot_be_nan(&node("\"abc\""), Some(&integer)));
@@ -2175,7 +2194,7 @@ mod tests {
         // Before the fix, `is_numeric_string_in_every_release("0x1a")` was false, so
         // `node_provably_non_numeric` wrongly returned true for this
         // literal and the eq/ne promotion fired.
-        let (out, changed) = try_eq_ne_string_compare_simplify_expr("\"0x1a\" == $y");
+        let (out, changed) = try_eq_ne_string_compare_simplify_expr("\"0x1a\" == $y", None);
         assert!(
             !changed,
             "hex literal must not be promoted to string eq, got {out:?}"
@@ -2186,14 +2205,14 @@ mod tests {
 
     #[test]
     fn strlen_zero_equal_becomes_eq_empty() {
-        let (out, changed) = try_strlen_simplify_expr("[string length $s] == 0");
+        let (out, changed) = try_strlen_simplify_expr("[string length $s] == 0", None);
         assert!(changed);
         assert!(out.contains("eq") && out.contains("\"\""));
     }
 
     #[test]
     fn strlen_nonzero_literal_not_rewritten() {
-        let (out, changed) = try_strlen_simplify_expr("[string length $s] == 1");
+        let (out, changed) = try_strlen_simplify_expr("[string length $s] == 1", None);
         assert!(!changed);
         assert_eq!(out, "[string length $s] == 1");
     }
@@ -2202,7 +2221,7 @@ mod tests {
 
     #[test]
     fn streq_promotion_with_quoted_literal() {
-        let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == \"foo\"");
+        let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == \"foo\"", None);
         assert!(changed);
         assert!(out.contains("eq"));
     }
@@ -2211,7 +2230,7 @@ mod tests {
     fn streq_promotion_with_numeric_literal_noop() {
         // `$x == 5` is a legitimate numeric compare — don't
         // promote to `eq`.
-        let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == 5");
+        let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == 5", None);
         assert!(!changed);
         assert_eq!(out, "$x == 5");
     }
@@ -2224,7 +2243,7 @@ mod tests {
         // `"1"`/`"3.5"` are numeric; `"yes"` is a Tcl boolean word that
         // `==` still treats as number-ish — none may promote.
         for input in ["$x == \"1\"", "$x != \"3.5\"", "$x == \"yes\""] {
-            let (out, changed) = try_eq_ne_string_compare_simplify_expr(input);
+            let (out, changed) = try_eq_ne_string_compare_simplify_expr(input, None);
             assert!(!changed, "{input:?} should not promote to eq/ne");
             assert_eq!(out, input);
         }
@@ -2235,7 +2254,7 @@ mod tests {
         // At least one operand is a provably non-numeric string literal,
         // so the string-compare path is guaranteed — promotion is sound.
         for input in ["$x == \"foo\"", "\"a\" != $y", "$x == \"\""] {
-            let (_out, changed) = try_eq_ne_string_compare_simplify_expr(input);
+            let (_out, changed) = try_eq_ne_string_compare_simplify_expr(input, None);
             assert!(changed, "{input:?} should promote to eq/ne");
         }
     }
@@ -2322,7 +2341,7 @@ mod tests {
         // Mirror the multiplicative `$a * 1` guard and abstain (the AST pass
         // has no numeric proof).
         assert!(
-            reassociate_node(&parse_expr("$a + 1 - 1", None)).is_none(),
+            reassociate_node(&parse_expr_for_profile("$a + 1 - 1", None)).is_none(),
             "lone additive term cancelling to zero must not fold to a bare term",
         );
         let (out, changed) = instcombine_expr("$a + 1 - 1", false);
@@ -2334,13 +2353,13 @@ mod tests {
         // No additive chain to flatten → the reassociation does not fire
         // (a bare `1 + $a` reorder is left to other passes / suppressed).
         assert!(
-            reassociate_node(&parse_expr("1 + $a", None)).is_none(),
+            reassociate_node(&parse_expr_for_profile("1 + $a", None)).is_none(),
             "reassociation must not fire on a non-chain reorder",
         );
         // `* 0` annihilation across a chain needs a numeric proof this
         // AST-level pass cannot make, so the reassociation abstains (the
         // result, if any, comes from the separate identity pass, not here).
-        let parsed = parse_expr("$a * 0 * 3", None);
+        let parsed = parse_expr_for_profile("$a * 0 * 3", None);
         assert!(
             reassociate_node(&parsed).is_none(),
             "reassociation must not annihilate `* 0` without a numeric proof",

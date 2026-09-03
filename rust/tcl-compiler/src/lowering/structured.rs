@@ -33,6 +33,7 @@ use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
 use super::{Lowerer, parse_var_list_names};
+use tcl_syntax::word_rules::WordValueRules;
 
 /// A single pattern/body pair collected by
 /// [`lower_switch`](super::Lowerer::lower_switch) before the
@@ -465,7 +466,9 @@ impl Lowerer<'_> {
         for i in (0..body_idx).step_by(2) {
             // A varList that is not a well-formed Tcl list binds nothing we can
             // name; the runtime `foreach` raises Tcl's own error.
-            let Some(var_names) = parse_var_list_names(&args[i]) else {
+            let Some(var_names) =
+                parse_var_list_names(&args[i], WordValueRules::from_config(&self.config))
+            else {
                 return Self::barrier(seg, "foreach with malformed variable list");
             };
             iterators.push(ForeachIterator {
@@ -596,7 +599,8 @@ impl Lowerer<'_> {
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
         let cmd_tokens = Self::cmd_tokens(seg);
-        let Some(vars) = parse_var_list_names(&args[0]) else {
+        let Some(vars) = parse_var_list_names(&args[0], WordValueRules::from_config(&self.config))
+        else {
             return Self::barrier(seg, "foreachLine with malformed variable list");
         };
         let iterators = vec![ForeachIterator {
@@ -731,7 +735,8 @@ impl Lowerer<'_> {
                         } else {
                             tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
                         };
-                        tcl_syntax::list::split_list(&value)
+                        WordValueRules::from_config(&self.config)
+                            .split_list(&value)
                             .ok()
                             .map(|elements| elements.into_iter().map(Into::into).collect())
                     } else {
@@ -741,7 +746,9 @@ impl Lowerer<'_> {
                 let handler_tok = arg_tokens.get(i + 3);
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
-                let Some(var_names) = parse_var_list_names(var_list) else {
+                let Some(var_names) =
+                    parse_var_list_names(var_list, WordValueRules::from_config(&self.config))
+                else {
                     return Self::barrier(seg, "try with malformed handler variable list");
                 };
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
@@ -841,8 +848,9 @@ impl Lowerer<'_> {
             // continuations to a single space, like every other braced word
             // (`switch "a b" { {a\<nl>b} … }` must match). A no-op for the
             // common single-line pattern (and for `default` / `-`).
-            let pattern =
-                tcl_syntax::backslash::collapse_brace_continuations_str(&pair.pattern).into_owned();
+            let pattern = WordValueRules::from_config(&self.config)
+                .collapse_braced_word(&pair.pattern)
+                .into_owned();
             if pair.body_text == "-" {
                 arms.push(SwitchArm {
                     pattern,
@@ -1054,7 +1062,9 @@ impl Lowerer<'_> {
 
         match sub.as_str() {
             "for" | "map" if sub_args.len() >= 3 => {
-                let Some(var_names) = parse_var_list_names(&sub_args[0]) else {
+                let Some(var_names) =
+                    parse_var_list_names(&sub_args[0], WordValueRules::from_config(&self.config))
+                else {
                     return Self::barrier(seg, &format!("dict {sub} with malformed variable list"));
                 };
                 let body_idx = 3; // index in original args

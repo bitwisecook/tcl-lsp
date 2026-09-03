@@ -512,7 +512,9 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            config: tcl_lexer::LexerConfig::for_file_grammar(
+                tcl_registry::model::resolve_environment(dialect).grammar(),
+            ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
         },
@@ -532,7 +534,9 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            config: tcl_lexer::LexerConfig::for_file_grammar(
+                tcl_registry::model::resolve_environment(dialect).grammar(),
+            ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
         },

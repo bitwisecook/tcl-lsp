@@ -838,7 +838,7 @@ mod guard_narrowing {
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
-        let gi = build_guard_index(&fu.cfg, &fu.ssa);
+        let gi = build_guard_index(&fu.cfg, &fu.ssa, tcl_dialect::LexerGrammar::default());
         let body = loop_body_block(fu);
         let sym = fu.ssa.var_symbol("i").expect("i interned");
         let narrowed_to_9 = (1u32..=6).any(|ver| {
@@ -879,7 +879,7 @@ mod guard_narrowing {
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
-        let gi = build_guard_index(&fu.cfg, &fu.ssa);
+        let gi = build_guard_index(&fu.cfg, &fu.ssa, tcl_dialect::LexerGrammar::default());
         let body = loop_body_block(fu);
         let sym = fu.ssa.var_symbol("i").expect("i interned");
         // Consider only the *widened* versions — those whose base interval is
@@ -1030,7 +1030,7 @@ mod dialect_numerals {
             tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         ));
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers);
-        let gi = build_guard_index(&fu.cfg, &fu.ssa);
+        let gi = build_guard_index(&fu.cfg, &fu.ssa, tcl_dialect::LexerGrammar::default());
         let pc = pred_counts(fu);
         // A spelling that is not a numeral for this release may not even parse
         // to a comparison — `$i < 0xZZ` leaves no `Binary`-guarded branch to

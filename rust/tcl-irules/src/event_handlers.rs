@@ -5,7 +5,7 @@
 //! Registry-driven extraction of iRules event handlers and effective priorities.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{LexerConfig, TokenType};
+use tcl_lexer::TokenType;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// A statically-resolved iRules event handler.
@@ -29,7 +29,7 @@ pub fn extract_irules_event_handlers(
     source: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesEventHandler> {
-    let config = LexerConfig::for_dialect("f5-irules");
+    let config = crate::irules_lexer_config();
     let mut inherited_priority = registry
         .event_handler_spec()
         .and_then(|spec| spec.event_handler_priority)

@@ -53,7 +53,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_traced};
+use tcl_compiler::lowering::{lower_to_ir_traced, lower_to_ir_with_config};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Vm};
 use wasmtime::{Caller, Config, Engine, Linker, Memory, MemoryType, Module, Store, Trap};
@@ -104,7 +104,11 @@ struct Svc {
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.registry);
+        let ir = lower_to_ir_with_config(
+            src,
+            &self.registry,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
@@ -137,7 +141,11 @@ fn fresh_vm() -> (Vm, Rc<RefCell<Vec<u8>>>) {
 /// Run `src` directly on `tcl-vm`; return `(errored, stdout)`.
 fn run_direct(src: &str) -> (bool, String) {
     let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
+    let ir = lower_to_ir_with_config(
+        src,
+        &registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
     let (mut vm, buf) = fresh_vm();
@@ -163,7 +171,12 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
         let src = src.to_owned();
         std::panic::catch_unwind(move || {
             let registry = CommandRegistry::build_default();
-            let unit = CompilationUnit::build_for(&src, &registry, false);
+            let unit = CompilationUnit::build_for_with_config(
+                &src,
+                &registry,
+                false,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            );
             compile_wasm(
                 &unit,
                 &registry,

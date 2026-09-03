@@ -1568,7 +1568,14 @@ fn plan_leaf_statement(
     let selection_facts = resolved.map_or_else(SelectionFacts::unavailable, |facts| {
         SelectionFacts::from_invocation(facts)
     });
-    match select_leaf_invocation(tokens.words(), operation, selection_facts) {
+    match select_leaf_invocation(
+        tokens.words(),
+        operation,
+        selection_facts,
+        // The registry carries the environment's profile: a nested `[…]` word
+        // is re-segmented while planning, under the document's own grammar.
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    ) {
         Ok(plan) => {
             facts.leaf_invocations.insert(key, plan);
         }

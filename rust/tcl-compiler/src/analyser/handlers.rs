@@ -807,7 +807,11 @@ fn matching_bracket(text: &str) -> Option<usize> {
 /// corresponding argument, resolved per call.  Anything else — a substitution
 /// with no statically-known value, or a `{*}` over one — yields `None`, and
 /// the caller abstains rather than inventing a superclass list.
-fn template_injected_member(seg: &SegmentedCommand, params: &[&str]) -> Option<FactoryMember> {
+fn template_injected_member(
+    seg: &SegmentedCommand,
+    params: &[&str],
+    config: tcl_lexer::LexerConfig,
+) -> Option<FactoryMember> {
     let texts_in = seg.args();
     let tokens_in = seg.arg_tokens();
     let mut words: Vec<FactoryWord> = Vec::new();
@@ -818,7 +822,7 @@ fn template_injected_member(seg: &SegmentedCommand, params: &[&str]) -> Option<F
             .and_then(|e| e.get(i + 1).copied())
             .unwrap_or(false);
         if expanded {
-            let refs = crate::var_refs::scan_var_ref_forms(text);
+            let refs = crate::var_refs::scan_var_ref_forms_with_config(text, config);
             let [name] = refs.as_slice() else {
                 return None;
             };
@@ -1876,7 +1880,7 @@ impl Analyser {
         let params = if params_computed {
             Vec::new()
         } else {
-            parse_param_list(&args[1])
+            parse_param_list(&args[1], self.word_rules())
         };
         // Doc string: prefer the preceding-comment harvest from
         // the segmenter; fall back to ``extract_body_docstring``
@@ -2183,7 +2187,7 @@ impl Analyser {
         self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
         self.emit_w314_no_absolute_name(raw_name, name_span);
 
-        let (real_params, opt_locals) = Self::opt_proc_params(&args[1]);
+        let (real_params, opt_locals) = Self::opt_proc_params(&args[1], self.word_rules());
 
         let mut doc = std::mem::take(&mut self.last_comment);
         if doc.is_empty() && args.len() >= 3 {
@@ -2317,6 +2321,7 @@ impl Analyser {
     /// line-count lint.
     fn opt_proc_params(
         optlist_text: &str,
+        rules: tcl_syntax::word_rules::WordValueRules,
     ) -> (
         Vec<crate::signature_scan::types::ParamDef>,
         Vec<crate::signature_scan::types::ParamDef>,
@@ -2327,7 +2332,7 @@ impl Analyser {
             default_value: None,
         }];
         let opt_locals: Vec<crate::signature_scan::types::ParamDef> =
-            parse_param_list(optlist_text)
+            parse_param_list(optlist_text, rules)
                 .into_iter()
                 .map(|p| crate::signature_scan::types::ParamDef {
                     name: p
@@ -2614,7 +2619,7 @@ impl Analyser {
             }
         }
 
-        let params = parse_param_list(params_text);
+        let params = parse_param_list(params_text, self.word_rules());
         let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
         let body_span = body_tok.span;
         // Anonymous, but keyed by source position so two lambdas never collide
@@ -3479,7 +3484,7 @@ impl Analyser {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
-        let Ok(elements) = tcl_syntax::list::split_list(&args[1]) else {
+        let Ok(elements) = self.word_rules().split_list(&args[1]) else {
             // A malformed list (an unbalanced brace) is not a path Tcl would
             // accept either; record nothing rather than half of one.
             return;
@@ -4121,7 +4126,7 @@ impl Analyser {
     /// decoded for the variable name while each definition span remains the
     /// exact source range of its list element.
     fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
-        let Ok(names) = tcl_syntax::list::split_list(var_list_text) else {
+        let Ok(names) = self.word_rules().split_list(var_list_text) else {
             return;
         };
         let content_start = tok.span.start() + u32::from(tok.content_offset);
@@ -4190,7 +4195,9 @@ impl Analyser {
             .get(1)
             .is_some_and(|tok| tok.kind == TokenType::Str);
         let literal_binding = (args.len() == 3)
-            .then(|| Self::literal_foreach_binding(&args[0], &args[1], list_braced))
+            .then(|| {
+                Self::literal_foreach_binding(&args[0], &args[1], list_braced, self.word_rules())
+            })
             .flatten();
         if let Some((var, elements)) = &literal_binding
             && let Some(first) = elements.first()
@@ -4228,8 +4235,9 @@ impl Analyser {
         var_list_text: &str,
         list_text: &str,
         list_braced: bool,
+        rules: tcl_syntax::word_rules::WordValueRules,
     ) -> Option<(String, Vec<String>)> {
-        let vars = tcl_syntax::list::split_list(var_list_text).ok()?;
+        let vars = rules.split_list(var_list_text).ok()?;
         let [var] = vars.as_slice() else {
             return None;
         };
@@ -4245,7 +4253,8 @@ impl Analyser {
         // iteration (Codex review, PR #1020). A malformed list (unbalanced
         // brace/quote) is not a valid `foreach` value at all — real Tcl
         // errors on it — so `split_list`'s `Err` means abstain entirely.
-        let elements: Vec<String> = tcl_syntax::list::split_list(list_text)
+        let elements: Vec<String> = rules
+            .split_list(list_text)
             .ok()?
             .into_iter()
             .map(std::borrow::Cow::into_owned)
@@ -4419,7 +4428,7 @@ impl Analyser {
     ///    — pattern and body args alternate inline.
     /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
     ///    — pattern/body pairs live inside a single braced
-    ///    block.  See [`crate::segmenter::flatten_clause_list_elements`]
+    ///    block.  See [`crate::segmenter::flatten_clause_list_elements_with_config`]
     ///    for how that braced form is split.
     ///
     /// Bodies that are literally ``-`` are fall-through markers
@@ -4467,6 +4476,7 @@ impl Analyser {
                 &body_text,
                 body_tok,
                 &case,
+                self.lexer_config(),
             );
             let shape = tcl_syntax::case_list::CaseListShape {
                 clause_flags: case.clause_flags,
@@ -5046,7 +5056,7 @@ impl Analyser {
         else {
             return;
         };
-        let elements = crate::tcl_expr_eval::split_tcl_list(&const_val);
+        let elements = crate::tcl_expr_eval::split_tcl_list(&const_val, self.word_rules());
         let mut i = 0;
         while i < elements.len() {
             if !elements[i].is_empty() {
@@ -6346,7 +6356,9 @@ impl Analyser {
     }
 
     fn literal_boolean_expr(&self, word: &str) -> Option<bool> {
-        if !crate::var_refs::scan_var_ref_forms(word).is_empty() || word.contains('[') {
+        if !crate::var_refs::scan_var_ref_forms_with_config(word, self.lexer_config()).is_empty()
+            || word.contains('[')
+        {
             return None;
         }
         let expr = word
@@ -6355,7 +6367,7 @@ impl Analyser {
             .and_then(|value| value.strip_suffix('}'))
             .unwrap_or(word.trim());
         crate::static_loops::evaluate_expr_with_constants(
-            &crate::parse_expr(expr, Some(self.dialect())),
+            &crate::parse_expr_for_profile(expr, Some(self.profile)),
             &crate::static_loops::StaticEnv::new(),
             crate::tcl_expr_eval::FoldPolicy::default(),
         )
@@ -6927,7 +6939,7 @@ impl Analyser {
             return None;
         }
         let actuals: Vec<Option<String>> = seg.args().iter().cloned().map(Some).collect();
-        bind_proc_formals(&proc_def.params, &actuals)?;
+        bind_proc_formals(&proc_def.params, &actuals, self.word_rules())?;
         stack.push(qname.clone());
         let result = self.static_proc_body_falls_through(&qname, proc_def.body_span, depth, stack);
         stack.pop();
@@ -7231,7 +7243,7 @@ impl Analyser {
     ) -> Option<String> {
         let actuals: Vec<Option<String>> = binding.iter().cloned().map(Some).collect();
         let mut env: std::collections::HashMap<String, String> =
-            bind_proc_formals(&candidate.params, &actuals)?
+            bind_proc_formals(&candidate.params, &actuals, self.word_rules())?
                 .into_iter()
                 .filter_map(|(name, value)| value.map(|value| (name, value)))
                 .filter(|(_, value)| !tcl_syntax::naming::is_dynamic_word(value))
@@ -7577,9 +7589,13 @@ impl Analyser {
                     complete = false;
                     continue;
                 };
-                for (_, (body_word, body_token)) in
-                    crate::segmenter::flatten_case_list_clauses(&self.source, word, token, &case)
-                {
+                for (_, (body_word, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                    &self.source,
+                    word,
+                    token,
+                    &case,
+                    self.lexer_config(),
+                ) {
                     if body_token.kind == TokenType::Str
                         || (body_token.kind == TokenType::Esc
                             && !tcl_syntax::naming::is_dynamic_word(&body_word)
@@ -7738,9 +7754,13 @@ impl Analyser {
         if let Some(list_index) = invocation.clause_list_index {
             let word = arm.controller.args().get(list_index)?;
             let token = *arm.controller.arg_tokens().get(list_index)?;
-            for ((pattern, _), (body, body_token)) in
-                crate::segmenter::flatten_case_list_clauses(&self.source, word, token, &case)
-            {
+            for ((pattern, _), (body, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                &self.source,
+                word,
+                token,
+                &case,
+                self.lexer_config(),
+            ) {
                 clauses.push((pattern, body, body_token.span));
             }
         } else {
@@ -7943,7 +7963,7 @@ impl Analyser {
                     return Some(());
                 }
                 let names: Vec<String> = if role == tcl_registry::ArgRole::LoopVarList {
-                    let Ok(names) = tcl_syntax::list::split_list(word) else {
+                    let Ok(names) = self.word_rules().split_list(word) else {
                         env.clear();
                         return Some(());
                     };
@@ -8025,7 +8045,10 @@ impl Analyser {
             .strip_prefix('"')
             .and_then(|s| s.strip_suffix('"'))
             .unwrap_or(trimmed);
-        if let Some((head, args)) = crate::value_shapes::parse_command_substitution(unquoted) {
+        if let Some((head, args)) = crate::value_shapes::parse_command_substitution_with_config(
+            unquoted,
+            self.lexer_config(),
+        ) {
             let values: Vec<Option<String>> = args
                 .iter()
                 .map(|arg| self.static_word_value(arg, proc_qname, env, stack, depth))
@@ -8211,7 +8234,7 @@ impl Analyser {
             return None;
         }
         let mut env = std::collections::HashMap::new();
-        for (name, value) in bind_proc_formals(&proc_def.params, args)? {
+        for (name, value) in bind_proc_formals(&proc_def.params, args, self.word_rules())? {
             if let Some(value) = value {
                 env.insert(name, value);
             }
@@ -8368,7 +8391,7 @@ impl Analyser {
             })
             .collect();
         crate::static_loops::evaluate_expr_with_constants(
-            &crate::parse_expr(&expr, Some(self.dialect())),
+            &crate::parse_expr_for_profile(&expr, Some(self.profile)),
             &static_env,
             crate::tcl_expr_eval::FoldPolicy::default(),
         )
@@ -8479,7 +8502,8 @@ impl Analyser {
                 && registry.is_manufacturer_method(first)
                 && let Some(name_arg) = registry.uniform_manufacturer_names_instance_at(first)
                 && let Some(name_word) = seg.args().get(name_arg)
-                && !crate::var_refs::scan_var_ref_forms(name_word).is_empty()
+                && !crate::var_refs::scan_var_ref_forms_with_config(name_word, self.lexer_config())
+                    .is_empty()
             {
                 out.push(ParameterisedCreation {
                     proc_qname: proc_context.qname.to_owned(),
@@ -8521,6 +8545,7 @@ impl Analyser {
                         word,
                         token,
                         &case,
+                        self.lexer_config(),
                     ) {
                         if body_token.kind != TokenType::Str {
                             continue;
@@ -8648,6 +8673,7 @@ impl Analyser {
                         word,
                         token,
                         &case,
+                        self.lexer_config(),
                     ) {
                         if body_token.kind != TokenType::Str {
                             continue;
@@ -8724,7 +8750,9 @@ impl Analyser {
         let refs: Vec<String> = next_seg
             .args()
             .iter()
-            .flat_map(|word| crate::var_refs::scan_var_ref_forms(word))
+            .flat_map(|word| {
+                crate::var_refs::scan_var_ref_forms_with_config(word, self.lexer_config())
+            })
             .collect();
         let name_arg = param_arg(refs.first()?.as_str())?;
         let body_arg = param_arg(refs.last()?.as_str())?;
@@ -8805,7 +8833,7 @@ impl Analyser {
         // into.
         let (word_index, prologue) =
             next_seg.args().iter().enumerate().rev().find(|(_, word)| {
-                crate::var_refs::scan_var_ref_forms(word)
+                crate::var_refs::scan_var_ref_forms_with_config(word, self.lexer_config())
                     .iter()
                     .any(|name| params.contains(&name.as_str()))
             })?;
@@ -8875,7 +8903,7 @@ impl Analyser {
             .first()
             .and_then(|keyword| meta.grammar.member(keyword))?;
         member.all_args_ref?;
-        template_injected_member(&seg, params)
+        template_injected_member(&seg, params, self.lexer_config())
     }
 
     /// The [`ClassFactory`] the command `cmd_name` names, when that command
@@ -9270,7 +9298,10 @@ impl Analyser {
                     &injected.texts,
                     &injected.argv,
                     &mut class,
-                    Some(self.analysis_context().context().authoring_query()),
+                    super::oo::MemberDialect {
+                        surface: Some(self.analysis_context().context().authoring_query()),
+                        rules: self.word_rules(),
+                    },
                 );
             }
         }
@@ -13856,14 +13887,35 @@ mod tests {
     #[test]
     fn literal_foreach_binding_parses_single_variable_as_tcl_list() {
         assert_eq!(
-            Analyser::literal_foreach_binding(r"{one name}", "alpha beta", true),
+            Analyser::literal_foreach_binding(
+                r"{one name}",
+                "alpha beta",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            ),
             Some((
                 "one name".to_string(),
                 vec!["alpha".to_string(), "beta".to_string()]
             ))
         );
-        assert!(Analyser::literal_foreach_binding("{unterminated", "alpha", true).is_none());
-        assert!(Analyser::literal_foreach_binding("one two", "alpha", true).is_none());
+        assert!(
+            Analyser::literal_foreach_binding(
+                "{unterminated",
+                "alpha",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            )
+            .is_none()
+        );
+        assert!(
+            Analyser::literal_foreach_binding(
+                "one two",
+                "alpha",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            )
+            .is_none()
+        );
     }
 
     #[test]

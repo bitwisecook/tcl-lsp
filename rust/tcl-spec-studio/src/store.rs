@@ -558,27 +558,70 @@ impl PackStore {
         (!self.straight_line()).then_some(Programmed::NonCanonicalStatement)
     }
 
-    /// Whether every top-level statement of the `speclib` body is one of the
+    /// Whether every top-level statement the document states is one of the
     /// registration calls the snapshot recorded, in the same order.
     ///
     /// True for every canonical pack — the loader records the file's own
     /// statements — and false the moment a statement runs rather than
     /// registers.
     fn straight_line(&self) -> bool {
-        let Some(body) = pack_body(&self.source) else {
+        if pack_body(&self.source).is_none() {
             // Not a pack at all: nothing was registered, and there is nothing
             // programmed about a document that declares nothing.
             return self.pack.registrations.is_empty();
-        };
-        let statements = segments(&self.source[body]);
+        }
+        let statements = self.document_statements();
         statements.len() == self.pack.registrations.len()
             && statements
                 .iter()
                 .zip(&self.pack.registrations)
                 .all(|(statement, registration)| {
-                    statement.words.first().map(String::as_str) == Some(registration.word())
-                        && statement.words.get(1).map_or("", String::as_str) == registration.arg(1)
+                    let paired = statement.words.first().map(String::as_str)
+                        == Some(registration.word())
+                        && statement.words.get(1).map_or("", String::as_str) == registration.arg(1);
+                    paired && (statement.inside_pack || stated_verbatim(statement, registration))
                 })
+    }
+
+    /// The document's own top-level statements, in the order the loader reads
+    /// them: the `speclib` call stands for the statements its body holds, and
+    /// a statement the file states *outside* that call keeps its place in the
+    /// list.
+    ///
+    /// The registration record covers the whole file rather than the block
+    /// alone, so the comparison in [`Self::straight_line`] has to be made
+    /// against the whole file too. Reading only the body counted a word left
+    /// outside the block as a statement the program had computed, and judged
+    /// an ordinary document a program: every edit after it then went silently
+    /// to a patch pack instead of into the document (E-R12).
+    ///
+    /// The discrimination survives the widening. A statement that *runs* is
+    /// recorded as nothing at all, so the counts still disagree and the
+    /// document is still a program; text the loader reads and drops — a
+    /// half-typed `command`, an unknown property — is recorded like any other
+    /// statement and pairs off. A statement outside the block that registers
+    /// is held to [`stated_verbatim`] as well, because outside is exactly
+    /// where the head-and-first-argument comparison is too weak to tell a
+    /// declaration from the program that computed it.
+    fn document_statements(&self) -> Vec<Segmented> {
+        let body = pack_body(&self.source);
+        let mut seen_pack = false;
+        let mut out = Vec::new();
+        for mut statement in segments(&self.source) {
+            if !seen_pack && statement.words.first().map(String::as_str) == Some("speclib") {
+                seen_pack = true;
+                if let Some(body) = body.clone() {
+                    out.extend(segments(&self.source[body]).into_iter().map(|mut inner| {
+                        inner.inside_pack = true;
+                        inner
+                    }));
+                }
+            } else {
+                statement.inside_pack = false;
+                out.push(statement);
+            }
+        }
+        out
     }
 
     /// The canonical patch pack standing over this document, when form edits
@@ -1522,15 +1565,28 @@ impl<'a> Resolution<'a> {
     /// This is `tcl_spectcl::pack::installs_over`'s rule — *shipped wins unless
     /// the pack says `-override`* — restated as a four-way answer so a surface
     /// can show the author which of the two definitions is live.
+    ///
+    /// The **effective** draft decides, patch pack included (E-R12): an edit
+    /// to a programmed document lands in the patch, the patch is what the
+    /// installed registry answers with, and a command the patch alone
+    /// declares is therefore a command the pack has. Asking the document
+    /// alone made every such write invisible the moment it was made — the
+    /// surface that had just written it was told the name is in neither the
+    /// pack nor the registry.
     #[must_use]
     pub fn origin(&self, name: &str) -> Option<Origin> {
-        let in_pack = self.store.draft(name).is_some();
+        let in_pack = self.store.effective_draft(name).is_some();
         let in_builtins = self.builtins.contains(name);
+        // A patch declaration is written `-override` whatever the form asked
+        // for — a patch that does not override is inert — so a standing patch
+        // over a shipped name is an override of it.
+        let overrides =
+            self.store.overrides_shipped(name) || self.store.patch_draft(name).is_some();
         match (in_pack, in_builtins) {
             (false, false) => None,
             (false, true) => Some(Origin::Builtin),
             (true, false) => Some(Origin::Pack),
-            (true, true) if self.store.overrides_shipped(name) => Some(Origin::Override),
+            (true, true) if overrides => Some(Origin::Override),
             (true, true) => Some(Origin::Shadowed),
         }
     }
@@ -1961,6 +2017,30 @@ struct Segmented {
     words: Vec<String>,
     span: std::ops::Range<usize>,
     spans: Vec<WordSpan>,
+    /// Whether the statement is one the `speclib` block holds, rather than
+    /// one the file states outside it. Set by
+    /// [`PackStore::document_statements`]; `false` for a bare body read on
+    /// its own, which is the shape every other caller reads.
+    inside_pack: bool,
+}
+
+/// Whether `statement` states, word for word, what `registration` recorded.
+///
+/// The [`PackStore::straight_line`] pairing reads the head and the first
+/// argument, which is enough for a declaration inside the block: the loader
+/// records that block's statements, so a computed one shows up as a count
+/// that does not match. Outside the block there is no such backstop —
+/// `default dialects [list tcl9.0]` registers `default dialects tcl9.0` and
+/// pairs on both words it compares — so the rest of the words have to be
+/// read. A word that was substituted differs from the value it evaluated to,
+/// and the document is a program after all.
+fn stated_verbatim(statement: &Segmented, registration: &Registration) -> bool {
+    statement
+        .words
+        .iter()
+        .enumerate()
+        .all(|(index, word)| word == registration.arg(index))
+        && registration.arg(statement.words.len()).is_empty()
 }
 
 /// A word's byte ranges: `outer` includes any `{ }` / `" "` delimiters,
@@ -1975,6 +2055,8 @@ struct WordSpan {
 /// same statements.
 fn segments(source: &str) -> Vec<Segmented> {
     let source_map = SourceMap::new(source);
+    // dialect-drift-ok: `.tclspec` pack DSL text, not a document's Tcl — this
+    // must read exactly what the SpecTcl loader reads, under its own grammar.
     let (document, _warnings) = build_document(source, LexerConfig::default());
     segments_from_document(document, &source_map)
         .into_iter()
@@ -2001,6 +2083,7 @@ fn segments(source: &str) -> Vec<Segmented> {
                 words: segment.texts.clone(),
                 span: segment.span.start() as usize..segment.span.end() as usize,
                 spans,
+                inside_pack: false,
             }
         })
         .collect()

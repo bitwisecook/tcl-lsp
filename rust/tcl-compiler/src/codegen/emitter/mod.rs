@@ -95,6 +95,8 @@ struct ModuleEmit<'a> {
     numbers: tcl_dialect::NumberSyntax,
     escapes: tcl_dialect::EscapeSyntax,
     braced_var: tcl_dialect::BracedVarStyle,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
+    expr_grammar: Option<tcl_dialect::LexerGrammar>,
     /// The unit's command-binding summary — see
     /// [`CodegenCtx::command_bindings`](crate::codegen::CodegenCtx::command_bindings).
     /// Scanned once per module, not once per function.
@@ -118,6 +120,8 @@ fn codegen_function_src(
     ctx.numbers = module.numbers;
     ctx.escapes = module.escapes;
     ctx.braced_var = module.braced_var;
+    ctx.word_rules = module.word_rules;
+    ctx.expr_grammar = module.expr_grammar;
     ctx.dialect = module.dialect;
     ctx.command_bindings = Some(module.command_bindings);
     ctx.set_source(module.source);
@@ -173,9 +177,15 @@ pub fn codegen_module(
     // The compile's target release: a named dialect's own numeric grammar, else
     // the permissive 9.x default.
     let dialect = ir_module.dialect.as_deref();
-    let numbers = tcl_dialect::NumberSyntax::of_dialect_name(dialect);
-    let escapes = tcl_dialect::EscapeSyntax::of_dialect_name(dialect);
-    let braced_var = tcl_dialect::BracedVarStyle::of_dialect_name(dialect);
+    // One grammar, resolved once from the name, and every axis read off it
+    // — so the numerals codegen emits and the numerals it re-parses `expr`
+    // bodies under are the same value by construction.
+    let grammar = tcl_dialect::grammar_of_dialect_name(dialect);
+    let numbers = grammar.numbers;
+    let escapes = grammar.escapes;
+    let braced_var = grammar.braced_var;
+    let word_rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
+    let expr_grammar = dialect.map(|_| grammar);
     // Which builtins this unit leaves alone (issue #1585). Scanned from the IR
     // — the top-level script plus every proc / method body — so a `rename` or
     // shadowing `proc` *anywhere* in the unit is seen before the first
@@ -189,6 +199,8 @@ pub fn codegen_module(
         numbers,
         escapes,
         braced_var,
+        word_rules,
+        expr_grammar,
         command_bindings: &command_bindings,
     };
     let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], module, 0);
@@ -256,13 +268,19 @@ mod tests {
         }
     }
 
-    /// The two names `find` rejects still pick the compile's *target* numeral
-    /// grammar, not the ambient one.
+    /// A name `find` rejects still picks the compile's *target* numeral
+    /// grammar, not the ambient one — and the target is the name's **own**
+    /// point, not the fallback it used to sink to.
     ///
-    /// Pinned through the same `numbers_for` decision the `expr` re-parse
-    /// makes: with a non-9.x grammar installed on this thread, a `tk` compile
-    /// must still read `010` under the plain-Tcl 9.x grammar `tk` sinks to,
-    /// rather than the 8.4 grammar that would make it octal.
+    /// `tk` has no catalogue row; its grammar is the `tk` environment's
+    /// 8.6 core, so a `tk` compile reads `010` as octal 8 — under 8.6's
+    /// numerals — whatever grammar happens to be installed on the thread.
+    /// `emit_profile("tk")` is still the anonymous fallback profile *by
+    /// design* (the cache-key and help-filter reasons on
+    /// `DocumentEnvironment::analyser_profile`), which is exactly why the
+    /// compile no longer takes its numerals from that profile: it takes them,
+    /// and its `expr` re-parse grammar, from `grammar_of_dialect_name`, so
+    /// the two cannot disagree inside one compile as they did for `tk`.
     #[test]
     fn an_uncatalogued_dialect_keeps_the_target_numeral_grammar() {
         use tcl_dialect::NumberSyntax;
@@ -278,15 +296,27 @@ mod tests {
              anything"
         );
 
+        let grammar = tcl_dialect::grammar_of_dialect_name(Some("tk"));
         let profile = emit_profile(Some("tk")).expect("`tk` resolves to a profile");
-        let numerals = NumberSyntax::of_profile(Some(profile));
         tcl_syntax::number::set_runtime_syntax(restore);
 
         assert_eq!(
-            numerals,
-            NumberSyntax::Tcl90,
-            "a `tk` compile reads numerals under its target grammar, not the \
-             thread-ambient one"
+            grammar.numbers,
+            NumberSyntax::Tcl85,
+            "a `tk` compile reads numerals under its own 8.6 core, not the \
+             thread-ambient grammar and not the 9.x fallback"
+        );
+        assert!(
+            std::ptr::eq(profile, tcl_dialect::DialectProfile::plain_tcl()),
+            "the analyser profile for `tk` is deliberately the anonymous fallback; \
+             the compile must not take its grammar from it"
+        );
+        assert_eq!(
+            grammar,
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some("tk"))
+                .expect("tk has a core")
+                .grammar(),
+            "the name resolves to the environment's point"
         );
     }
 }

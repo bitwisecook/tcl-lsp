@@ -37,10 +37,9 @@ use crate::ir::{
 };
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::normalise_var_name;
-use crate::segmenter::{
-    SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
-};
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::surface_admits;
+use tcl_syntax::word_rules::WordValueRules;
 
 pub(crate) mod hooks;
 mod structured;
@@ -68,6 +67,7 @@ fn arg_token_kind(kind: TokenType) -> ArgTokenKind {
         TokenType::Str => ArgTokenKind::Str,
         TokenType::Esc => ArgTokenKind::Esc,
         TokenType::Cmd => ArgTokenKind::Cmd,
+        TokenType::ExprSugar => ArgTokenKind::ExprSugar,
         TokenType::Var => ArgTokenKind::Var,
         _ => ArgTokenKind::Other,
     }
@@ -331,18 +331,6 @@ fn proc_body_namespace(qualified: &str, lexical_fallback: &str) -> String {
     }
 }
 
-/// Collapse the one substitution a braced word permits before the word's text
-/// is parsed as a list.
-///
-/// Both list words below arrive as brace-quoted source, so a `\<newline>` line
-/// continuation is still spelled out in the text the segmenter hands over —
-/// without collapsing it a wrapped var list (`foreach {a b\<nl>  c} …`) or a
-/// wrapped `proc` parameter list would keep the `\` glued to the preceding name
-/// (`b\`) and bind the wrong variable.
-fn collapse_list_word(word_text: &str) -> std::borrow::Cow<'_, str> {
-    tcl_syntax::backslash::collapse_brace_continuations_str(word_text)
-}
-
 /// Split a Tcl *variable list* word into the variable names it binds.
 ///
 /// This is the `foreach` / `lmap` varList word, and the identically-shaped
@@ -357,15 +345,8 @@ fn collapse_list_word(word_text: &str) -> std::borrow::Cow<'_, str> {
 /// `None` means the word is not a well-formed list (an unmatched brace or
 /// quote). Callers fall back to the runtime command, which raises Tcl's own
 /// error, rather than guessing at a binding.
-fn parse_var_list_names(list_text: &str) -> Option<Vec<String>> {
-    let collapsed = collapse_list_word(list_text);
-    let names = tcl_syntax::list::split_list(&collapsed).ok()?;
-    Some(
-        names
-            .into_iter()
-            .map(std::borrow::Cow::into_owned)
-            .collect(),
-    )
+fn parse_var_list_names(list_text: &str, rules: WordValueRules) -> Option<Vec<String>> {
+    rules.split_word_names(list_text)
 }
 
 /// Split a Tcl *formal parameter* list word into its parameter names.
@@ -386,8 +367,8 @@ fn parse_var_list_names(list_text: &str) -> Option<Vec<String>> {
 /// `None` means Tcl itself would refuse to create the procedure (a malformed
 /// list, a specifier with three or more fields, an array-element or qualified
 /// name), so the caller defers to the runtime command that reports it.
-fn parse_formal_param_names(param_text: &str) -> Option<Vec<String>> {
-    let collapsed = collapse_list_word(param_text);
+fn parse_formal_param_names(param_text: &str, rules: WordValueRules) -> Option<Vec<String>> {
+    let collapsed = rules.collapse_braced_word(param_text);
     let parameters = tcl_syntax::formal_params::parse_formal_parameters(&collapsed).ok()?;
     Some(
         parameters
@@ -494,8 +475,8 @@ fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
 /// re-braced in the synthesised body so list-canonicalisation
 /// stays correct (we trust the segmenter's `single_token_word`
 /// flag plus the absence of `$` / `[` in `Esc` text).
-fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
-    let inner = segment_commands(cmd_text);
+fn eval_list_literal_body(cmd_text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let inner = segment_commands_with_offset_and_config(cmd_text, 0, config);
     if inner.len() != 1 {
         return None;
     }
@@ -575,10 +556,14 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// Returns `true` when the body contains a nested dynamic-shape
 /// barrier (the caller should fall back to [`Statement::Barrier`]); `false`
 /// when the body is safe to relax.
-fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool {
+fn body_has_dynamic_barrier(
+    body_text: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     use tcl_lexer::TokenType;
     use tcl_registry::prelude::Traits;
-    let commands = segment_commands(body_text);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
     for sc in &commands {
         if sc.argv.is_empty() || sc.texts.is_empty() {
             continue;
@@ -608,7 +593,7 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
                     continue;
                 }
                 let arg_text = sc.texts.get(i).map_or("", String::as_str);
-                if body_has_dynamic_barrier(arg_text, registry) {
+                if body_has_dynamic_barrier(arg_text, registry, config) {
                     return true;
                 }
             }
@@ -644,7 +629,7 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
                 return true;
             }
             // Recurse into the literal nested script word.
-            if body_has_dynamic_barrier(text, registry) {
+            if body_has_dynamic_barrier(text, registry, config) {
                 return true;
             }
         }
@@ -894,6 +879,10 @@ impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
     #[must_use]
     pub fn new(registry: &'r CommandRegistry) -> Self {
+        // dialect-drift-ok: the test-only constructor — every production
+        // construction now goes through `Lowerer::with_config` with the
+        // unit's own config; the crate's (and downstream crates') test
+        // fixtures still spell the plain-Tcl default this way.
         Self::with_config(registry, tcl_lexer::LexerConfig::default())
     }
 
@@ -1864,7 +1853,9 @@ impl<'r> Lowerer<'r> {
         // an array-element or qualified name) creates no procedure: leave it to
         // the runtime `proc`, which raises the error, rather than registering a
         // Procedure whose parameters we guessed at.
-        let Some(params) = parse_formal_param_names(&args[1]) else {
+        let Some(params) =
+            parse_formal_param_names(&args[1], WordValueRules::from_config(&self.config))
+        else {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "malformed proc params".into(),
@@ -2225,7 +2216,7 @@ impl<'r> Lowerer<'r> {
         // relax to inline IR with a still-dynamic `eval`; reject.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[body_tok_idx];
-            if body_has_dynamic_barrier(body_text, self.registry) {
+            if body_has_dynamic_barrier(body_text, self.registry, self.config) {
                 return None;
             }
         }
@@ -2343,7 +2334,7 @@ impl<'r> Lowerer<'r> {
         // default Statement::Barrier dispatch.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[0];
-            if body_has_dynamic_barrier(body_text, self.registry) {
+            if body_has_dynamic_barrier(body_text, self.registry, self.config) {
                 return None;
             }
         }
@@ -2353,7 +2344,7 @@ impl<'r> Lowerer<'r> {
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
             let literal = self.const_map_lookup(&args[0])?;
-            if body_has_dynamic_barrier(&literal, self.registry) {
+            if body_has_dynamic_barrier(&literal, self.registry, self.config) {
                 return None;
             }
             self.lower_script(&literal, namespace)
@@ -2370,7 +2361,7 @@ impl<'r> Lowerer<'r> {
             } else {
                 args[0].trim_start_matches('[').trim_end_matches(']')
             };
-            let synthesised = eval_list_literal_body(inner_text)?;
+            let synthesised = eval_list_literal_body(inner_text, self.config)?;
             self.lower_script(&synthesised, namespace)
         } else {
             return None;
@@ -2502,7 +2493,9 @@ impl<'r> Lowerer<'r> {
         // unwalked: with no trustworthy bound names, a body unit would resolve
         // its reads against the wrong frame.
         let params = match lambda_elems.first() {
-            Some((_, param_text)) => parse_formal_param_names(param_text),
+            Some((_, param_text)) => {
+                parse_formal_param_names(param_text, WordValueRules::from_config(&self.config))
+            }
             None => Some(Vec::new()),
         };
 
@@ -2586,7 +2579,8 @@ impl<'r> Lowerer<'r> {
         // body is walked, so a rejected loop leaves no const-map traces behind.
         if args.len() == 4
             && body_is_braced
-            && let Some(vars) = parse_var_list_names(&args[1])
+            && let Some(vars) =
+                parse_var_list_names(&args[1], WordValueRules::from_config(&self.config))
         {
             let body_tok = &arg_tokens[3];
             // The body runs in the *caller's* frame (`vm.eval_source` in place),
@@ -3322,7 +3316,13 @@ impl<'r> Lowerer<'r> {
         // A parameter list Tcl would reject defines no method, and the class as
         // a whole becomes unanalysable — the same abstention the dynamic name /
         // body check above makes.
-        let Some(params) = member_param_names(member, args, seg, base) else {
+        let Some(params) = member_param_names(
+            member,
+            args,
+            seg,
+            base,
+            WordValueRules::from_config(&self.config),
+        ) else {
             self.module
                 .oo_unanalysed_classes
                 .insert(class_qname.to_string());
@@ -3408,6 +3408,7 @@ fn member_param_names(
     args: &[String],
     seg: &SegmentedCommand,
     base: usize,
+    rules: WordValueRules,
 ) -> Option<Vec<String>> {
     let param_text = member
         .indices_for_call(args, ArgRole::ParamList)
@@ -3415,7 +3416,7 @@ fn member_param_names(
         .and_then(|rel| seg.texts.get(base + rel))
         .filter(|text| !text.is_empty());
     match param_text {
-        Some(text) => parse_formal_param_names(text),
+        Some(text) => parse_formal_param_names(text, rules),
         None => Some(Vec::new()),
     }
 }
@@ -3547,6 +3548,10 @@ fn declared_member_vars(
 /// use [`lower_to_ir_with_dialect`] to honour a document's dialect.
 #[must_use]
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
+    // dialect-drift-ok: the test-only entry point — every production caller
+    // now goes through `lower_to_ir_with_config` / `_with_dialect` with the
+    // document's own config; the test fixtures across the workspace still
+    // spell the plain-Tcl default this way.
     lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default())
 }
 
@@ -4235,6 +4240,124 @@ pub(crate) fn is_literal_trace_target(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// Every C-Tcl dialect folds a brace-word line continuation; the Jim
+    /// answer is asserted in `jim_brace_continuation_binds_different_names`.
+    const FOLD_RULES: WordValueRules = WordValueRules {
+        brace: tcl_dialect::BraceBackslashNewline::Folds,
+        list: tcl_dialect::ListParse::Strict,
+    };
+
+    /// `JimTcl`: the braced word keeps its bytes, and a malformed remainder is
+    /// split rather than raised.
+    const LITERAL_RULES: WordValueRules = WordValueRules {
+        brace: tcl_dialect::BraceBackslashNewline::Literal,
+        list: tcl_dialect::ListParse::Lenient,
+    };
+
+    /// A brace-word line continuation is folded to a space by every build of
+    /// the Tcl core and kept verbatim by `JimTcl`, so a wrapped parameter or
+    /// variable list binds *different names* in the two.
+    ///
+    /// Measured on jimsh 0.84 against tclsh 8.6. The two word kinds resolve
+    /// the surviving `\<newline>` differently, because only one of them has a
+    /// `name ?default?` level:
+    ///
+    /// * **Formal parameters** — `proc p {a b\<newline>c} {}` binds three
+    ///   parameters under Tcl and *two* under Jim: the second element is the
+    ///   specifier `b c`, so the parameter is `b` **defaulting to `c`**
+    ///   (`p 1` leaves `b` as `c`; `p 1 2` sets it to `2`).
+    /// * **Variable lists** — `foreach {a b\<newline>c} …` has no such level,
+    ///   so Jim binds a variable whose name really is `b c`
+    ///   (`info exists {b c}` is 1 and `info exists b` is 0).
+    ///
+    /// Jim's `info args` is no help here: unlike Tcl's it reports the raw
+    /// specifiers (`a {b c}`), not the parameter names.
+    #[test]
+    fn jim_brace_continuation_binds_different_names() {
+        let wrapped = "a b\\\nc";
+
+        assert_eq!(
+            parse_formal_param_names(wrapped, FOLD_RULES).unwrap(),
+            vec!["a", "b", "c"],
+            "C Tcl folds the continuation into a separator"
+        );
+        assert_eq!(
+            parse_formal_param_names(wrapped, LITERAL_RULES).unwrap(),
+            vec!["a", "b"],
+            "Jim keeps the bytes, so `b c` is one specifier: `b` defaulting to `c`"
+        );
+
+        assert_eq!(
+            parse_var_list_names(wrapped, FOLD_RULES).unwrap(),
+            vec!["a", "b", "c"]
+        );
+        assert_eq!(
+            parse_var_list_names(wrapped, LITERAL_RULES).unwrap(),
+            vec!["a", "b c"]
+        );
+    }
+
+    /// `JimTcl`'s list parser never raises, so a word whose list text is
+    /// malformed still binds names instead of collapsing lowering to a
+    /// barrier. `llength "a {b"` is 2 under jimsh 0.84 and an error under
+    /// tclsh 8.6, and the same split backs `foreach`'s variable list.
+    #[test]
+    fn malformed_list_word_binds_names_only_for_jim() {
+        assert_eq!(
+            parse_var_list_names("a {b", FOLD_RULES),
+            None,
+            "C Tcl raises, which lowering turns into a barrier"
+        );
+        assert_eq!(
+            parse_var_list_names("a {b", LITERAL_RULES).unwrap(),
+            vec!["a", "b"],
+            "Jim splits it anyway — the unterminated element runs to the end"
+        );
+    }
+
+    /// Both axes reach the helpers from the dialect, so `list_parse` is not
+    /// silently left at its `Strict` default for a Jim document.
+    #[test]
+    fn list_word_rules_come_from_the_dialect() {
+        use tcl_dialect::model::{Family, grammar};
+        for &release in Family::Jim.releases() {
+            let config = tcl_lexer::LexerConfig::from_grammar(grammar(Family::Jim, release));
+            assert_eq!(
+                WordValueRules::from_config(&config),
+                LITERAL_RULES,
+                "{release}"
+            );
+        }
+        for &release in Family::Tcl.releases() {
+            let config = tcl_lexer::LexerConfig::from_grammar(grammar(Family::Tcl, release));
+            assert_eq!(
+                WordValueRules::from_config(&config),
+                FOLD_RULES,
+                "{release}"
+            );
+        }
+    }
+
+    /// The knob is wired to the dialect, not chosen per call site.
+    #[test]
+    fn brace_continuation_comes_from_the_dialect() {
+        use tcl_dialect::model::{Family, grammar};
+        for &release in Family::Jim.releases() {
+            assert_eq!(
+                grammar(Family::Jim, release).brace_backslash_newline,
+                tcl_dialect::BraceBackslashNewline::Literal,
+                "{release}"
+            );
+        }
+        for &release in Family::Tcl.releases() {
+            assert_eq!(
+                grammar(Family::Tcl, release).brace_backslash_newline,
+                tcl_dialect::BraceBackslashNewline::Folds,
+                "{release}"
+            );
+        }
+    }
+
     use super::*;
 
     fn reg() -> CommandRegistry {
@@ -5135,17 +5258,17 @@ mod tests {
     #[test]
     fn formal_param_names_take_the_specifier_name_only() {
         assert_eq!(
-            parse_formal_param_names("a b c").unwrap(),
+            parse_formal_param_names("a b c", FOLD_RULES).unwrap(),
             vec!["a", "b", "c"],
         );
         assert_eq!(
-            parse_formal_param_names("{x default} y").unwrap(),
+            parse_formal_param_names("{x default} y", FOLD_RULES).unwrap(),
             vec!["x", "y"]
         );
-        assert!(parse_formal_param_names("").unwrap().is_empty());
+        assert!(parse_formal_param_names("", FOLD_RULES).unwrap().is_empty());
         // A wrapped parameter list collapses its continuation before splitting.
         assert_eq!(
-            parse_formal_param_names("a b\\\n    c").unwrap(),
+            parse_formal_param_names("a b\\\n    c", FOLD_RULES).unwrap(),
             vec!["a", "b", "c"]
         );
     }
@@ -5153,25 +5276,34 @@ mod tests {
     #[test]
     fn formal_param_names_reject_what_tcl_rejects() {
         // Tcl refuses to create these procedures, so lowering declines too.
-        assert_eq!(parse_formal_param_names("{a b c}"), None);
-        assert_eq!(parse_formal_param_names("{a::b}"), None);
-        assert_eq!(parse_formal_param_names("{a(1)}"), None);
-        assert_eq!(parse_formal_param_names("{a"), None);
+        assert_eq!(parse_formal_param_names("{a b c}", FOLD_RULES), None);
+        assert_eq!(parse_formal_param_names("{a::b}", FOLD_RULES), None);
+        assert_eq!(parse_formal_param_names("{a(1)}", FOLD_RULES), None);
+        assert_eq!(parse_formal_param_names("{a", FOLD_RULES), None);
     }
 
     #[test]
     fn var_list_names_keep_grouped_elements_whole() {
-        assert_eq!(parse_var_list_names("a b").unwrap(), vec!["a", "b"]);
-        // tclsh 9.0: both spellings bind the one variable named `a b`.
-        assert_eq!(parse_var_list_names("{a b}").unwrap(), vec!["a b"]);
-        assert_eq!(parse_var_list_names("a\\ b").unwrap(), vec!["a b"]);
-        assert!(parse_var_list_names("").unwrap().is_empty());
         assert_eq!(
-            parse_var_list_names("a b\\\n    c").unwrap(),
+            parse_var_list_names("a b", FOLD_RULES).unwrap(),
+            vec!["a", "b"]
+        );
+        // tclsh 9.0: both spellings bind the one variable named `a b`.
+        assert_eq!(
+            parse_var_list_names("{a b}", FOLD_RULES).unwrap(),
+            vec!["a b"]
+        );
+        assert_eq!(
+            parse_var_list_names("a\\ b", FOLD_RULES).unwrap(),
+            vec!["a b"]
+        );
+        assert!(parse_var_list_names("", FOLD_RULES).unwrap().is_empty());
+        assert_eq!(
+            parse_var_list_names("a b\\\n    c", FOLD_RULES).unwrap(),
             vec!["a", "b", "c"]
         );
         // Unbalanced — no binding can be named, so the caller barriers.
-        assert_eq!(parse_var_list_names("{a"), None);
+        assert_eq!(parse_var_list_names("{a", FOLD_RULES), None);
     }
 
     // issue #1431: a formal-parameter list has two list levels, so a grouped or
@@ -6177,42 +6309,79 @@ mod tests {
     #[test]
     fn body_has_dynamic_barrier_clean() {
         // No barriers at all.
-        assert!(!body_has_dynamic_barrier("set x 1", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "set x 1",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // Barrier with a fully literal body.
-        assert!(!body_has_dynamic_barrier("eval { set x 1 }", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "eval { set x 1 }",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // Nested literal.
         assert!(!body_has_dynamic_barrier(
             "if { 1 } { eval { set x 1 } }",
-            &reg()
+            &reg(),
+            tcl_lexer::LexerConfig::default()
         ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_dynamic_eval_body() {
         // ``eval $x`` inside the outer body — dynamic.
-        assert!(body_has_dynamic_barrier("eval $x", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "eval $x",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // Same shape nested.
-        assert!(body_has_dynamic_barrier("if { 1 } { eval $x }", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "if { 1 } { eval $x }",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_dynamic_uplevel_body() {
-        assert!(body_has_dynamic_barrier("uplevel 1 $body", &reg()));
-        assert!(body_has_dynamic_barrier("uplevel #0 $b", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel 1 $body",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "uplevel #0 $b",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_uplevel_with_literal_body_clean() {
         // ``uplevel $lvl {body}`` with a literal body is OK — the
         // gate only poisons when the BODY is substitution-bearing.
-        assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "uplevel $lvl {set x 1}",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_qualified_eval_uplevel() {
         // ``::eval`` and ``::uplevel`` are also caught.
-        assert!(body_has_dynamic_barrier("::eval $x", &reg()));
-        assert!(body_has_dynamic_barrier("::uplevel 1 $body", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "::eval $x",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "::uplevel 1 $body",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     /// Issue #1055 — the gate resolves `uplevel`'s script word through the
@@ -6231,7 +6400,7 @@ mod tests {
             "uplevel [expr {$n - 1}] {set x 1}",
         ] {
             assert!(
-                !body_has_dynamic_barrier(clean, &r),
+                !body_has_dynamic_barrier(clean, &r, tcl_lexer::LexerConfig::default()),
                 "{clean} must not poison"
             );
         }
@@ -6243,18 +6412,37 @@ mod tests {
             "uplevel $lvl $body",
             "uplevel 1 [gen]",
         ] {
-            assert!(body_has_dynamic_barrier(dirty, &r), "{dirty} must poison");
+            assert!(
+                body_has_dynamic_barrier(dirty, &r, tcl_lexer::LexerConfig::default()),
+                "{dirty} must poison"
+            );
         }
         // FN guard — the words after the script word concatenate into it
         // (`SCRIPT_CONCATENATES_ARGS`), so a dynamic tail is still dynamic
         // even though the marked body word is a braced literal.
-        assert!(body_has_dynamic_barrier("uplevel 1 {set x} $tail", &reg()));
-        assert!(body_has_dynamic_barrier("eval {set x} $tail", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel 1 {set x} $tail",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "eval {set x} $tail",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // …and an all-literal multi-word tail stays clean.
-        assert!(!body_has_dynamic_barrier("uplevel 1 {set x} {1}", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "uplevel 1 {set x} {1}",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // A bodyless `uplevel 1` is a wrong-#args error the registry exposes
         // no body word for — poison rather than guess.
-        assert!(body_has_dynamic_barrier("uplevel 1", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel 1",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // The deleted local sniff accepted `-N` as a level (it stripped a
         // leading `-` before the digit test); the registry does not, and the
         // registry is right.  Oracle, tclsh8.6.14: with `proc -1 {args} {…}`
@@ -6262,7 +6450,11 @@ mod tests {
         // word is the script's first word, not a level.  tclsh9.0.4 instead
         // errors `bad level "-1"`.  Under either reading the word is an
         // unbraced script word, so the gate poisons.
-        assert!(body_has_dynamic_barrier("uplevel -1 {set x 1}", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel -1 {set x 1}",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     /// Issue #1055, the generalisation dividend: the eval-family *subcommand*
@@ -6275,17 +6467,45 @@ mod tests {
     fn body_has_dynamic_barrier_covers_compound_eval_family() {
         let r = reg();
         // TP — the script is substituted.
-        assert!(body_has_dynamic_barrier("namespace eval ns $body", &r));
-        assert!(body_has_dynamic_barrier("namespace inscope ns $body", &r));
-        assert!(body_has_dynamic_barrier("interp eval slave $body", &r));
+        assert!(body_has_dynamic_barrier(
+            "namespace eval ns $body",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "namespace inscope ns $body",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "interp eval slave $body",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
         // TN — a braced literal script relaxes, and its own contents are
         // still recursed.
-        assert!(!body_has_dynamic_barrier("namespace eval ns {set x 1}", &r));
-        assert!(body_has_dynamic_barrier("namespace eval ns {eval $x}", &r));
+        assert!(!body_has_dynamic_barrier(
+            "namespace eval ns {set x 1}",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "namespace eval ns {eval $x}",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
         // TN — a `namespace` subcommand that evaluates nothing is not a
         // barrier, however dynamic its arguments are.
-        assert!(!body_has_dynamic_barrier("namespace delete $ns", &r));
-        assert!(!body_has_dynamic_barrier("namespace current", &r));
+        assert!(!body_has_dynamic_barrier(
+            "namespace delete $ns",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!body_has_dynamic_barrier(
+            "namespace current",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     /// TN for the barrier test itself: an ordinary command with a
@@ -6294,11 +6514,27 @@ mod tests {
     #[test]
     fn body_has_dynamic_barrier_non_body_command_is_clean() {
         let r = reg();
-        assert!(!body_has_dynamic_barrier("set x $y", &r));
-        assert!(!body_has_dynamic_barrier("puts [format %s $x]", &r));
-        assert!(!body_has_dynamic_barrier("lappend acc $item", &r));
+        assert!(!body_has_dynamic_barrier(
+            "set x $y",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!body_has_dynamic_barrier(
+            "puts [format %s $x]",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!body_has_dynamic_barrier(
+            "lappend acc $item",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
         // A user command the registry does not know at all is not a barrier.
-        assert!(!body_has_dynamic_barrier("mycmd $script", &r));
+        assert!(!body_has_dynamic_barrier(
+            "mycmd $script",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
@@ -6802,5 +7038,94 @@ mod tests {
         // 10 real nested `If`s, not a single opaque barrier standing in for
         // all of them.
         assert_eq!(if_chain_depth(&m.top_level), 10);
+    }
+
+    /// Regression (JimTcl/iRules dialect drift): every re-lex of a *body*
+    /// this lowering performs takes its grammar from the document's own
+    /// [`tcl_lexer::LexerConfig`], not the Tcl 9.x default.
+    ///
+    /// `body_has_dynamic_barrier` re-segments a braced body to find a nested
+    /// dynamic `eval`/`uplevel`.  Under `f5-irules` the lexer treats `}{` as a
+    /// word separator, so `foo {a}{eval $x}` is **three** words and its third
+    /// is a braced script containing a dynamic `eval`; under the default
+    /// grammar the two braces weld into one compound word whose text is
+    /// `aeval $x`, whose head `aeval` is nobody's barrier.  Before the config
+    /// was threaded, the iRules document was re-segmented under Tcl rules and
+    /// the barrier was missed — the outer `eval` relaxed to inline IR that
+    /// runs a still-dynamic inner `eval`.
+    #[test]
+    fn body_relex_follows_the_document_dialect_not_the_default() {
+        let irules = tcl_dialect::DialectProfile::irules();
+        let irules_config = tcl_lexer::LexerConfig::from_grammar(irules.grammar);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(irules).commands();
+
+        let body = "foo {a}{eval $x}";
+        assert!(
+            !body_has_dynamic_barrier(body, registry, tcl_lexer::LexerConfig::default()),
+            "under the default grammar `}}{{` welds one word, so no nested barrier is visible"
+        );
+        assert!(
+            body_has_dynamic_barrier(body, registry, irules_config),
+            "under f5-irules `}}{{` separates words, exposing the nested dynamic `eval`"
+        );
+
+        // End to end: the same fact decides whether the outer `eval` relaxes
+        // to an inline `Block` or stays a runtime `Barrier`.
+        let source = "eval {foo {a}{eval $x}}";
+        let irules_module = lower_to_ir_with_config(source, registry, irules_config);
+        assert!(
+            matches!(
+                irules_module.top_level.statements.as_slice(),
+                [Statement::Barrier { .. }]
+            ),
+            "an iRules document keeps the runtime barrier: {:?}",
+            irules_module.top_level.statements
+        );
+
+        let tcl_module =
+            lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default());
+        assert!(
+            matches!(
+                tcl_module.top_level.statements.as_slice(),
+                [Statement::Block { .. }]
+            ),
+            "the default grammar sees no nested barrier and relaxes to a Block: {:?}",
+            tcl_module.top_level.statements
+        );
+    }
+
+    /// `JimTcl`'s `$(…)` lowers as the expression it is, end to end from the
+    /// lexer: `set x $($a*2)` becomes the `AssignExpr` a `[expr {$a*2}]`
+    /// value produces, with the body anchored two bytes past the `$(` so
+    /// expression diagnostics land on the right source; `return $($a+1)`
+    /// carries its expression the same way.
+    #[test]
+    fn jim_expr_sugar_lowers_as_an_anchored_expression() {
+        let jim = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(jim).commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(jim.grammar);
+        let module = lower_to_ir_with_config("set x $($a*2)\nreturn $($a+1)\n", registry, config);
+        let statements = module.top_level.statements.as_slice();
+        match statements {
+            [
+                Statement::AssignExpr {
+                    name,
+                    expr,
+                    expr_base,
+                    ..
+                },
+                Statement::Return {
+                    expr: return_expr, ..
+                },
+            ] => {
+                assert_eq!(name, "x");
+                let rendered = format!("{expr:?}");
+                assert!(rendered.contains('a'), "operand missing from {rendered}");
+                // `set x ` is six bytes, `$(` two more: the body starts at 8.
+                assert_eq!(*expr_base, Some(8), "the sugar body's absolute anchor");
+                assert!(return_expr.is_some(), "return $(…) carries its expression");
+            }
+            other => panic!("expected AssignExpr + Return; got {other:?}"),
+        }
     }
 }

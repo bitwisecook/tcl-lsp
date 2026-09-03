@@ -108,6 +108,13 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     // where `build_default()` here also leaked the generated mathop/mathfunc
     // ensembles on every call).
     let registry = tcl_registry::default_registry();
+    // A `Module` carries the document's dialect *name* and nothing else, so
+    // this is the one sanctioned name → grammar resolution: the embedded-text
+    // scan below re-lexes command substitutions and must draw the document's
+    // own `[…]` boundaries.
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
+        module.dialect.as_deref(),
+    ));
     let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
     let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
     // Iterate procedures in a deterministic (qualified-name) order, for the same
@@ -123,7 +130,7 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     for (qname, proc) in entries {
-        let info = own_body_global_writes(&proc.body, registry);
+        let info = own_body_global_writes(&proc.body, registry, config);
         let calls = direct_call_targets(&proc.body);
         for key in registered_keys(qname) {
             own.insert(key.clone(), info.clone());
@@ -197,13 +204,14 @@ fn registered_keys(qname: &str) -> Vec<String> {
 fn own_body_global_writes(
     body: &Script,
     registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
     let mut state = State::default();
     let mut renamed_aliases: HashMap<String, String> = HashMap::new();
     accumulate_state(body, &mut state, &mut renamed_aliases, registry);
 
     let mut info = GlobalWriteInfo::default();
-    collect_write_targets(body, &state, &renamed_aliases, &mut info.names);
+    collect_write_targets(body, &state, &renamed_aliases, &mut info.names, config);
     collect_global_frame_effects(body, registry, &mut info);
     info
 }
@@ -408,9 +416,10 @@ fn collect_write_targets(
     state: &State,
     renamed_aliases: &HashMap<String, String>,
     names: &mut BTreeSet<String>,
+    config: tcl_lexer::LexerConfig,
 ) {
     for stmt in &script.statements {
-        for target in own_write_targets(stmt) {
+        for target in own_write_targets(stmt, config) {
             let target = normalise_var_name(&target);
             if let Some(outer) = renamed_aliases.get(target) {
                 names.insert(outer.clone());
@@ -419,7 +428,7 @@ fn collect_write_targets(
             }
         }
         for body in nested_bodies(stmt) {
-            collect_write_targets(body, state, renamed_aliases, names);
+            collect_write_targets(body, state, renamed_aliases, names, config);
         }
     }
 }
@@ -440,7 +449,7 @@ fn collect_write_targets(
 /// (they do create a local binding), but declaring an alias does not write
 /// the *value* of the variable it aliases — only a subsequent assignment
 /// through that alias does.
-fn own_write_targets(stmt: &Statement) -> Vec<String> {
+fn own_write_targets(stmt: &Statement, config: tcl_lexer::LexerConfig) -> Vec<String> {
     let mut out = Vec::new();
     match stmt {
         Statement::AssignConst { name, .. }
@@ -463,7 +472,9 @@ fn own_write_targets(stmt: &Statement) -> Vec<String> {
         _ => {}
     }
     for text in stmt_embedded_texts(stmt) {
-        out.extend(super::CfgBuilder::builtin_write_defs_from_text(text));
+        out.extend(super::CfgBuilder::builtin_write_defs_from_text(
+            text, config,
+        ));
     }
     out
 }

@@ -137,9 +137,16 @@ enum Tok {
 /// lose a directory Tcl treats as a single element.
 ///
 /// Entries outside the supported subset contribute nothing — we never guess.
+///
+/// `profile` is the document's resolved dialect profile, whose list grammar
+/// divides an [`AutoPathForm::Assign`] record's word.
 #[must_use]
-pub fn evaluate_auto_path_entry(entry: &AutoPathEntry, info_script: Option<&str>) -> Vec<String> {
-    evaluate_auto_path_entry_with_constants(entry, info_script, &HashMap::new())
+pub fn evaluate_auto_path_entry(
+    entry: &AutoPathEntry,
+    info_script: Option<&str>,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+) -> Vec<String> {
+    evaluate_auto_path_entry_with_constants(entry, info_script, &HashMap::new(), profile)
 }
 
 /// [`evaluate_auto_path_entry`], with the document's single-assignment
@@ -153,6 +160,7 @@ pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
     entry: &AutoPathEntry,
     info_script: Option<&str>,
     constants: &HashMap<String, String, S>,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<String> {
     let raw = entry.raw_path.as_str();
     if raw.contains('$') || raw.contains('[') {
@@ -164,7 +172,8 @@ pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
     if entry.form == AutoPathForm::Append {
         return fold_path_value(raw).into_iter().collect();
     }
-    let Ok(elements) = tcl_syntax::list::split_list(raw) else {
+    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(profile);
+    let Ok(elements) = rules.split_list(raw) else {
         return Vec::new();
     };
     elements
@@ -2270,12 +2279,13 @@ mod tests {
                 &entry,
                 Some("/proj/SpiceGenTcl.tcl"),
                 &constants,
+                None,
             ),
             vec!["/proj/lib".to_owned()],
         );
         // The constant-less form still contributes nothing — the wiring is
         // opt-in per consumer, never a change to the bare entry point.
-        assert!(evaluate_auto_path_entry(&entry, Some("/proj/SpiceGenTcl.tcl")).is_empty());
+        assert!(evaluate_auto_path_entry(&entry, Some("/proj/SpiceGenTcl.tcl"), None).is_empty());
     }
 
     /// directly.  Pins the *contract between the two*, which is what the
@@ -2435,7 +2445,7 @@ mod tests {
         let r = a.analyse(src, "tcl9.0");
         r.auto_path_entries
             .iter()
-            .flat_map(|e| evaluate_auto_path_entry(e, Some(info_script)))
+            .flat_map(|e| evaluate_auto_path_entry(e, Some(info_script), None))
             .collect()
     }
 

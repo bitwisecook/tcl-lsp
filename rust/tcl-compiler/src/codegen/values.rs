@@ -109,7 +109,7 @@ impl CodegenCtx<'_> {
         };
         // Constant-fold [list arg1 arg2 ...].
         if self.trusts_builtin("list")
-            && let Some(folded) = super::helpers::fold_list_cmd(value)
+            && let Some(folded) = super::helpers::fold_list_cmd(value, self.word_rules)
         {
             push(self, &folded);
             return true;
@@ -136,7 +136,7 @@ impl CodegenCtx<'_> {
         // Constant-fold [dict create k v ...].
         if self.registry.has_command_in_this_dialect("dict")
             && self.trusts_builtin("dict")
-            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
+            && let Some(folded) = super::helpers::fold_dict_create_cmd(value, self.word_rules)
         {
             self.push_lit(&folded);
             self.emit(Op::DUP, vec![]);
@@ -163,12 +163,13 @@ impl CodegenCtx<'_> {
     /// disassembly stays byte-stable.
     pub fn push_lit_verbatim(&mut self, value: &str) {
         // A braced word's value collapses `\<newline>` continuations even inside
-        // braces (the one substitution braces permit); every other backslash
-        // stays verbatim. Only a braced word — or a bare constant, for which
+        // braces (the one substitution braces permit) *in every build of the
+        // Tcl core*; `JimTcl` keeps the bytes, so the dialect answers rather
+        // than this call site. Every other backslash stays verbatim. Only a braced word — or a bare constant, for which
         // this is a borrow-only no-op — reaches this verbatim path (a bare word
         // separates on the continuation; a quoted word is `backslash_subst`-
         // decoded through `push_lit`), so collapsing here is safe.
-        let value = tcl_syntax::backslash::collapse_brace_continuations_str(value);
+        let value = self.word_rules.collapse_braced_word(value);
         let idx = self.literals.intern(&value);
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         let pos = self.emit_comment(

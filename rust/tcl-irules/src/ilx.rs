@@ -139,14 +139,13 @@ pub fn ilx_method_calls(source: &str, registry: &CommandRegistry) -> Vec<IlxMeth
     if !source_can_hold_a_site(source, registry) {
         return Vec::new();
     }
-    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
-        source,
-        LexerConfig::for_dialect("f5-irules"),
-        registry,
-    );
+    let config = crate::irules_lexer_config();
+    let identities =
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let ctx = IlxCtx {
         full: source,
         registry,
+        config,
         identities: &identities,
     };
     let mut out = Vec::new();
@@ -198,6 +197,9 @@ struct IlxCtx<'a> {
     full: &'a str,
     /// The dialect registry every layout fact is read from.
     registry: &'a CommandRegistry,
+    /// The iRules grammar this walk reads under, resolved once at the entry
+    /// point ([`crate::irules_lexer_config`]) and never re-derived here.
+    config: LexerConfig,
     /// Statically proven command-identity facts, so `::ILX::call` and a proven
     /// `interp alias` / `rename` of it resolve like the bare spelling, and a
     /// spelling whose binding was taken over resolves like nothing.
@@ -218,9 +220,7 @@ fn walk(
     if MAX_WALK_DEPTH.exceeded(depth) {
         return;
     }
-    for cmd in
-        segment_commands_with_offset_and_config(slice, base, LexerConfig::for_dialect("f5-irules"))
-    {
+    for cmd in segment_commands_with_offset_and_config(slice, base, ctx.config) {
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
         let head = semantic_head(ctx.registry, resolve_head(ctx.identities, &cmd));
         // Resolve the call *before* this command's own binding effect: an
@@ -395,7 +395,7 @@ fn construction_target(ctx: &IlxCtx<'_>, tok: &Token) -> Option<IlxExtension> {
     let mut commands = segment_commands_with_offset_and_config(
         inner,
         u32::try_from(start).unwrap_or(0),
-        LexerConfig::for_dialect("f5-irules"),
+        ctx.config,
     );
     if commands.len() != 1 {
         return None;

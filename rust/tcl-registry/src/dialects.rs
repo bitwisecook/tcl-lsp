@@ -168,6 +168,8 @@ fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<String> {
     if depth >= VERSION_SCAN_DEPTH {
         return None;
     }
+    // dialect-drift-ok: this *is* dialect detection — it runs before any
+    // dialect is resolved, so no document grammar exists yet to take.
     let tokens = tcl_lexer::Lexer::new(script).tokenise_all().ok()?;
     let sm = tcl_lexer::SourceMap::new(script);
     let mut cmd: Vec<ScanWord> = Vec::new();
@@ -290,6 +292,8 @@ fn is_tcl_core_package(name: Option<&str>, version: &str) -> bool {
 /// Whether `s` tokenises to exactly `package require Tcl` (or Tcl 9's lower
 /// `tcl` alias) — the subject of a `vsatisfies` Tcl-version guard.
 fn is_package_require_tcl(s: &str, requested_version: &str) -> bool {
+    // dialect-drift-ok: a detection-time probe of a `[package require Tcl]`
+    // substitution, run before any dialect is resolved.
     let Ok(tokens) = tcl_lexer::Lexer::new(s).tokenise_all() else {
         return false;
     };

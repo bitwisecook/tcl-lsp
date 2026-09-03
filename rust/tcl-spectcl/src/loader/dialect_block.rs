@@ -59,8 +59,8 @@
 
 use tcl_dialect::model::{BuildProfileId, Family, Release, grammar};
 use tcl_dialect::{
-    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
-    NumberSyntax,
+    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 
 use super::{Log, Stmt, block, next_text};
@@ -195,12 +195,40 @@ impl PackDialect {
             Some("tcl84") => NumberSyntax::Tcl84,
             Some("tcl85") => NumberSyntax::Tcl85,
             Some("tcl90") | None => NumberSyntax::Tcl90,
+            Some("jim") => NumberSyntax::Jim,
+            Some("jim080") => NumberSyntax::Jim080,
             Some(_) => return None,
         };
         let escapes = match self.axis("escapes") {
             Some("tcl84") => EscapeSyntax::Tcl84,
             Some("tcl86") => EscapeSyntax::Tcl86,
             Some("tcl90") | None => EscapeSyntax::Tcl90,
+            Some("jim") => EscapeSyntax::Jim,
+            Some(_) => return None,
+        };
+        let word_separators = match self.axis("word_separators") {
+            Some("tcl") | None => WordSeparators::Tcl,
+            Some("jim") => WordSeparators::Jim,
+            Some(_) => return None,
+        };
+        let brace_backslash_newline = match self.axis("brace_backslash_newline") {
+            Some("folds") | None => BraceBackslashNewline::Folds,
+            Some("literal") => BraceBackslashNewline::Literal,
+            Some(_) => return None,
+        };
+        let quote_termination = match self.axis("quote_termination") {
+            Some("strict") | None => QuoteTermination::Strict,
+            Some("concatenating") => QuoteTermination::Concatenating,
+            Some(_) => return None,
+        };
+        let var_syntax = match self.axis("var_syntax") {
+            Some("tcl") | None => VarSyntax::Tcl,
+            Some("jim") => VarSyntax::Jim,
+            Some(_) => return None,
+        };
+        let list_parse = match self.axis("list_parse") {
+            Some("strict") | None => ListParse::Strict,
+            Some("lenient") => ListParse::Lenient,
             Some(_) => return None,
         };
         Some(LexerGrammar {
@@ -217,6 +245,11 @@ impl PackDialect {
             expr_comments,
             numbers,
             escapes,
+            word_separators,
+            brace_backslash_newline,
+            quote_termination,
+            var_syntax,
+            list_parse,
         })
     }
 

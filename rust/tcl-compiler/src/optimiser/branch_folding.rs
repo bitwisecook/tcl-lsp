@@ -216,7 +216,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         }
 
         let Some((code, message, final_text)) =
-            branch_cascade(&working, sub.changed, &sub.text, &numeric)
+            branch_cascade(&working, sub.changed, &sub.text, &numeric, ctx.dialect)
         else {
             continue;
         };
@@ -233,20 +233,22 @@ fn branch_cascade(
     sub_changed: bool,
     sub_text: &str,
     numeric: &OperandTypes,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<(DiagCode, &'static str, String)> {
-    let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric));
+    let (sred, sred_changed) = try_strength_reduce_expr_typed(working, Some(numeric), dialect);
     if sred_changed {
         return Some((DiagCode::O113, "Strength-reduce expression", sred));
     }
-    let (slen, slen_changed) = try_strlen_simplify_expr(working);
+    let (slen, slen_changed) = try_strlen_simplify_expr(working, dialect);
     if slen_changed {
         return Some((DiagCode::O117, "Simplify string length zero-check", slen));
     }
-    let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(working);
+    let (streq, streq_changed) = try_eq_ne_string_compare_simplify_expr(working, dialect);
     if streq_changed {
         return Some((DiagCode::O120, "Use eq/ne for string comparison", streq));
     }
-    let (combined, combined_changed) = instcombine_expr_typed(working, true, Some(numeric));
+    let (combined, combined_changed) =
+        instcombine_expr_typed(working, true, Some(numeric), dialect);
     if combined_changed {
         return Some((
             DiagCode::O110,

@@ -72,9 +72,9 @@
 //! ```
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::segment_commands_with_offset;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_dialect::{BracedVarStyle, NumberSyntax};
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::{RefactorEdit, Refactoring, command_span_offsets, find_command_at, token_end_offset};
@@ -119,7 +119,11 @@ pub fn inline_proc_in_program(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<Refactoring> {
     let registry = resolution.registry?;
-    let call = find_command_at(source, cursor, None, registry)?;
+    // The document's own lexing grammar — `analysis.dialect` carries the
+    // name the host analysed this document under (issue: dialect-drift).
+    let config =
+        LexerConfig::from_grammar(crate::environment_for_dialect(&analysis.dialect).grammar());
+    let call = find_command_at(source, cursor, None, registry, config)?;
     let head = call.name();
     if head.is_empty() {
         return None;
@@ -154,7 +158,7 @@ pub fn inline_proc_in_program(
     // reference's own span (issue #1605).
     let style = super::braced_var_style(analysis);
 
-    match plan_inline(source, &call, proc_def, registry, numbers, style) {
+    match plan_inline(source, &call, proc_def, registry, numbers, style, config) {
         Ok(new_text) => Some(Refactoring {
             title,
             edits: vec![RefactorEdit {
@@ -184,6 +188,7 @@ fn plan_inline(
     registry: &CommandRegistry,
     numbers: NumberSyntax,
     style: BracedVarStyle,
+    config: LexerConfig,
 ) -> Result<String, String> {
     if proc_def.params_computed {
         return Err(
@@ -191,7 +196,7 @@ fn plan_inline(
                 .to_string(),
         );
     }
-    let body = single_command_body(source, proc_def)?;
+    let body = single_command_body(source, proc_def, config)?;
     let bindings = bind_arguments(source, call, proc_def)?;
     reject_frame_sensitive_body(&body, registry)?;
     reject_body_variable_writes(&body, registry)?;
@@ -212,6 +217,7 @@ struct BodyCommand {
 fn single_command_body(
     source: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    config: LexerConfig,
 ) -> Result<BodyCommand, String> {
     let span = proc_def.body_span;
     let raw = source
@@ -233,7 +239,7 @@ fn single_command_body(
     if text.is_empty() {
         return Err("the proc body is empty".to_string());
     }
-    let commands: Vec<_> = segment_commands_with_offset(&text, 0)
+    let commands: Vec<_> = segment_commands_with_offset_and_config(&text, 0, config)
         .into_iter()
         .filter(|command| !command.name().is_empty())
         .collect();

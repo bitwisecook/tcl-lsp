@@ -687,6 +687,7 @@ fn collect_taint_warnings(
         &fu.rendered_props,
         taints,
         &fu.sccp.executable_blocks,
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
     ) {
         push(w.code.as_str(), w.span, &w.message, &w.variable, "set");
     }

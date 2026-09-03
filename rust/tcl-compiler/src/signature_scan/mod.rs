@@ -81,8 +81,15 @@ pub use types::SignatureScanResult;
 #[must_use]
 pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {
     let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
+    // The registry carries the environment's resolved profile, so the scan
+    // reads every word and segments every body under the document's own
+    // grammar — an iRules `}{`, a Jim `$(…)`, an 8.4 `{*}` — rather than
+    // re-deriving C Tcl's answer.
+    let profile = registry.profile();
     let mut ctx = ScanCtx {
         registry: Some(registry),
+        rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
+        config: tcl_lexer::LexerConfig::for_profile(profile),
         ..ScanCtx::default()
     };
     // Heads that match the factory-wrapper token shape but are not

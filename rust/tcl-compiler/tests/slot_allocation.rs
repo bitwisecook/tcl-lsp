@@ -78,7 +78,12 @@ fn setup(
     });
     // `false` = do not inline loops, matching the analysis CFG (build_cfg);
     // coalescing depends on liveness only.
-    let cfg = build_cfg_function(proc, &procedure.body, false);
+    let cfg = build_cfg_function(
+        proc,
+        &procedure.body,
+        false,
+        tcl_lexer::LexerConfig::default(),
+    );
     let ssa = build_ssa(&cfg, reg);
     let live_out = live_out_by_name(&cfg, &ssa, reg);
     (cfg, ssa, live_out)

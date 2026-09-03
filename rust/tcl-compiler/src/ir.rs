@@ -2181,7 +2181,7 @@ mod tests {
             braced: false,
         };
         if let Statement::Return { expr: Some(e), .. } = &stmt {
-            let vars = e.vars();
+            let vars = e.vars_with_grammar(tcl_dialect::LexerGrammar::default());
             assert!(vars.contains("a"));
         }
     }

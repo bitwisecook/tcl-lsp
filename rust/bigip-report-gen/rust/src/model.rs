@@ -746,7 +746,9 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         "bodyHtml".into(),
         J::String(tcl_lexer::highlight_tcl_with_config(
             &body,
-            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+            tcl_lexer::LexerConfig::from_grammar(
+                tcl_registry::model::resolve_environment("f5-irules").grammar(),
+            ),
         )),
     );
     // IR-based control-flow graph ({nodes, edges} JSON for elkjs); empty when

@@ -50,6 +50,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — a file whose extension a SpecTcl pack claims opens as plain text with
   no language server, and what each editor needs before it will treat the
   extension as Tcl.
+- [kcs-issue-a-spec-studio-edit-does-not-reach-the-pack-document.md](kcs-issue-a-spec-studio-edit-does-not-reach-the-pack-document.md)
+  — the spec studio reports a command written and the Pack DSL pane does not
+  change, because the document is a program the studio patches rather than
+  rewrites.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target

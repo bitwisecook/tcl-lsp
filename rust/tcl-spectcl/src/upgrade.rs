@@ -691,6 +691,8 @@ impl PackRow {
 /// only, no recursion — located through the loader's own lexer.
 fn pack_level_rows(source: &str) -> Vec<PackRow> {
     let source_map = SourceMap::new(source);
+    // dialect-drift-ok: `.tclspec` pack DSL source, not a document's Tcl — the
+    // loader's own fixed vocabulary grammar, which no document dialect varies.
     let (document, _warnings) = build_document(source, LexerConfig::default());
     let mut body: Option<Range<usize>> = None;
     for segment in segments_from_document(document, &source_map) {
@@ -717,6 +719,8 @@ fn pack_level_rows(source: &str) -> Vec<PackRow> {
 /// The statements of one block's text, with ranges absolute to the file.
 fn rows_in(text: &str, base: usize) -> Vec<PackRow> {
     let source_map = SourceMap::new(text);
+    // dialect-drift-ok: `.tclspec` pack DSL source, not a document's Tcl — the
+    // loader's own fixed vocabulary grammar, which no document dialect varies.
     let (document, _warnings) = build_document(text, LexerConfig::default());
     let mut out = Vec::new();
     for segment in segments_from_document(document, &source_map) {
@@ -1260,6 +1264,8 @@ fn dialects_sites(source: &str) -> Vec<Site> {
 /// recorded range is a range in the file rather than in the block.
 fn scan(text: &str, base: usize, out: &mut Vec<Site>) {
     let source_map = SourceMap::new(text);
+    // dialect-drift-ok: `.tclspec` pack DSL source, not a document's Tcl — the
+    // loader's own fixed vocabulary grammar, which no document dialect varies.
     let (document, _warnings) = build_document(text, LexerConfig::default());
     for segment in segments_from_document(document, &source_map) {
         // A `hook` body is arbitrary Tcl, not pack vocabulary; descending

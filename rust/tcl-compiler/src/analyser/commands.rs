@@ -1585,16 +1585,23 @@ impl Analyser {
         arg_tokens: &[Token],
     ) {
         let registry = self.registry.as_deref();
+        let grammar = self.grammar();
         let loop_diags = super::bounds_checks::loop_termination_diagnostics(
             cmd_name,
             args,
             arg_tokens,
             registry,
             self.lexer_config(),
+            &grammar,
         );
-        let numbers = self.profile.grammar.numbers;
-        let idx_diags =
-            super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens, numbers);
+        let numbers = grammar.numbers;
+        let idx_diags = super::bounds_checks::list_index_diagnostics(
+            cmd_name,
+            args,
+            arg_tokens,
+            numbers,
+            self.word_rules(),
+        );
         let lset_diags = super::bounds_checks::lset_index_diagnostics(
             cmd_name,
             args,
@@ -1764,7 +1771,7 @@ impl Analyser {
     /// rejects (W148). Dynamic/substituted words and words that are not valid
     /// Tcl 9 numerals are deliberately ignored.
     fn emit_w148_numeral_release(&mut self, args: &[String], tokens: &[Token]) {
-        let syntax = self.profile.grammar.numbers;
+        let syntax = self.grammar().numbers;
         for (arg, token) in args.iter().zip(tokens.iter()) {
             if !matches!(token.kind, TokenType::Str | TokenType::Esc)
                 || arg.contains('$')
@@ -1821,7 +1828,7 @@ impl Analyser {
             return;
         }
         let grammars = self.range_numeral_grammars.clone();
-        let primary = self.profile.grammar.numbers;
+        let primary = self.grammar().numbers;
         let mut new_diags: Vec<crate::analyser::types::Diagnostic> = Vec::new();
         for (arg, token) in args.iter().zip(tokens.iter()) {
             if !matches!(token.kind, TokenType::Str | TokenType::Esc)
@@ -1898,13 +1905,24 @@ impl Analyser {
     fn range_numeral_target_names(&self, grammar: tcl_dialect::NumberSyntax) -> String {
         use tcl_dialect::model::{Family, VersionAxisId};
         let axis = VersionAxisId::core(Family::Tcl);
+        // JimTcl is a reimplementation, not a point on the Tcl ladder, so
+        // its numeral grammars have no interval on the core axis to
+        // intersect a declared range with. Name the Jim releases directly.
+        match grammar {
+            tcl_dialect::NumberSyntax::Jim => return "JimTcl 0.76-0.79".to_owned(),
+            tcl_dialect::NumberSyntax::Jim080 => return "JimTcl 0.80+".to_owned(),
+            tcl_dialect::NumberSyntax::Tcl84
+            | tcl_dialect::NumberSyntax::Tcl85
+            | tcl_dialect::NumberSyntax::Tcl90 => {}
+        }
         let fallback = || {
             format!(
                 "Tcl {}",
                 match grammar {
                     tcl_dialect::NumberSyntax::Tcl84 => "8.4",
                     tcl_dialect::NumberSyntax::Tcl85 => "8.5",
-                    tcl_dialect::NumberSyntax::Tcl90 => "9.0",
+                    // Unreachable: the Jim arms returned above.
+                    _ => "9.0",
                 }
             )
         };
@@ -1918,7 +1936,8 @@ impl Analyser {
         let requirement = match grammar {
             tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
             tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
-            tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+            // Unreachable: the Jim arms returned above.
+            _ => "9.0-",
         };
         let Ok(era) =
             tcl_dialect::model::VersionSet::from_requirements(axis.clone(), &[requirement])
@@ -3790,7 +3809,7 @@ impl Analyser {
             return Vec::new();
         }
         let trim_base = u32::try_from(expr_text.len() - expr_text.trim_start().len()).unwrap_or(0);
-        let parsed = crate::parse_expr(trimmed, Some(self.dialect()));
+        let parsed = crate::parse_expr_for_profile(trimmed, Some(self.profile));
         parsed
             .function_calls()
             .into_iter()
@@ -4850,6 +4869,7 @@ impl Analyser {
         if self.pending_instance_class_sites.is_empty() {
             return;
         }
+        let config = self.lexer_config();
         let sites = std::mem::take(&mut self.pending_instance_class_sites);
         for site in &sites {
             // A write trace can mutate the variable at any read — see
@@ -4860,9 +4880,12 @@ impl Analyser {
                 continue;
             }
             let fu = cu.function_unit_at(site.span.start());
-            let Some(contributors) =
-                crate::value_provenance::const_contributors(fu, site.span.start(), &site.class_var)
-            else {
+            let Some(contributors) = crate::value_provenance::const_contributors(
+                fu,
+                site.span.start(),
+                &site.class_var,
+                config,
+            ) else {
                 continue;
             };
             let mut resolved: Option<String> = None;
@@ -5115,6 +5138,7 @@ fn record_command_invocations(
                     &body.text,
                     body.token,
                     &case,
+                    config,
                 );
                 for (_, (arm_text, arm_tok)) in clauses {
                     if arm_text != "-" && arm_tok.kind == TokenType::Str {

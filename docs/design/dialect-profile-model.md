@@ -303,14 +303,57 @@ pub struct LexerGrammar {
     pub braced_var: BracedVarStyle,        // Tcl9Nesting vs FirstClose
     pub script_skips_leading_bom: bool,    // a whole-file source's BOM prologue
     pub expr_comments: ExprCommentStyle,   // `#` inside [expr] — TIP 582, 9.0
-    pub numbers: NumberSyntax,             // Tcl84 / Tcl85 / Tcl90
-    pub escapes: EscapeSyntax,             // Tcl84 / Tcl86 / Tcl90
+    pub numbers: NumberSyntax,             // Tcl84 / Tcl85 / Tcl90 / Jim / Jim080
+    pub escapes: EscapeSyntax,             // Tcl84 / Tcl86 / Tcl90 / Jim
+
+    // ---- the five JimTcl lexical axes (§Jim below) ----
+    pub word_separators: WordSeparators,   // is \v a separator? Tcl vs Jim
+    pub brace_backslash_newline: BraceBackslashNewline, // {a\<nl>b} — Folds vs Literal
+    pub quote_termination: QuoteTermination,  // "abc"def — Strict vs Concatenating
+    pub var_syntax: VarSyntax,             // $(...), nested index parens, high bytes
+    pub list_parse: ListParse,             // malformed list text — Strict vs Lenient
 }
 
 /// Three-valued so f5-bigip (runtime_base=None, "not Tcl") is INERT, not
 /// silently defaulted to octal/decimal (§11.1).
 pub enum Ternary { Yes, No, Inert }
 ```
+
+`JimTcl`'s parser is a reimplementation rather than a fork, so it differs from
+every C Tcl release on five further lexical points, each measured on
+interpreters built from the upstream tags 0.76-0.84 against tclsh 8.6 / 9.0:
+
+* `word_separators` — Jim's script parser has no `case '\v'`
+  (`JimParseSep`, jim.c:1338), so `eval "f a\vb"` passes **one** argument
+  where tclsh 8.6 passes two. Command parsing only: Jim's *list* parser still
+  uses `isspace()`, so `llength "a\vb"` is 2 in both.
+* `brace_backslash_newline` — `{a\<newline>b}` keeps its bytes in Jim
+  (`JimParseSubBrace`, jim.c:1444) rather than folding to a space, deliberately,
+  to preserve line numbers. Distinct from `brace_line_continuation`, which is
+  the F5 fork's next-line-`{` rule: that one decides where a *command* ends,
+  this one what a *word* contains.
+* `quote_termination` — Jim has no extra-characters-after-close-quote check
+  anywhere, so `puts "abc"def` prints `abcdef`. The brace twin still fires:
+  Jim rejects `{abc}def` exactly as C Tcl does, so that diagnostic stays
+  unconditional.
+* `var_syntax` — three `$` divergences present in every release: `$(...)` is
+  expression substitution (its own token kind, since the body is an
+  *expression* and must not be analysed as a script), index parens nest, and a
+  name may hold any byte >= 0x80.
+* `list_parse` — malformed list text never errors. All four `ListError`
+  cases become values: an unterminated `{`/`"` runs to the end of the string
+  (`llength "a {b"` is 2, and its second element is `b`), while junk after a
+  closing delimiter *begins the next element* (`a {b}c` is three elements).
+  `tcl_syntax::list::split_list_jim` implements this; it is distinct from the
+  pre-existing `split_list_lenient`, which returns only the elements before
+  the malformed tail and is a best-effort partial, not Jim's answer.
+
+`brace_backslash_newline` moves real bindings, and the two word kinds resolve
+the surviving `\<newline>` differently because only one has a `name ?default?`
+level: `proc p {a b\<newline>c}` binds three parameters under Tcl and **two**
+under Jim (the second element is the specifier `b c`, so the parameter is `b`
+defaulting to `c`), while `foreach {a b\<newline>c}` binds a variable really
+named `b c`.
 
 `escapes` is the axis that forces the 8.x grammar constant apart: 8.5 and 8.6
 agree on every other field, but TIP 388 (8.6) capped `\x` at two hex digits,
@@ -371,12 +414,203 @@ containing a `.` cannot carry a `configurationDefaults` override (issue
 #1122) — onto canonical dialect names.
 
 A string-keyed public signature is not by itself a second source of truth, as
-long as it resolves through the catalog immediately: `parse_expr(source,
-dialect: Option<&str>)` still takes a name, but its first act is
-`DialectProfile::by_opt_name(dialect)`, and it threads `profile.name`
-downwards so the expr lexer's grammar branch and the parse cache key cannot
-disagree about what a spelling means. `LexerConfig::for_dialect(name)` is the
-same shape — a thin wrapper over `LexerConfig::from_grammar(by_name(name).grammar)`.
+long as it resolves through **one** place immediately — and since the
+resolved point landed (§2.5) that place is `grammar_of_dialect_name`, not
+the catalogue. `LexerConfig::for_dialect(name)` is
+`from_grammar(grammar_of_dialect_name(Some(name)))`; `parse_expr(source,
+dialect: Option<&str>)` resolves a catalogue name to its profile and any
+other name to its grammar, and `parse_expr_for_profile` uses the profile it
+is *handed* rather than re-finding it by name. That re-find was a bypass: it
+threw away a profile projected from an environment's point (`jim`, which has
+no catalogue row) and parsed under the permissive fallback — the one way
+codegen and the lexer could still disagree about a document after everything
+else agreed.
+
+---
+
+### 2.5 One resolved point: how a name becomes a grammar
+
+The review of the Jim work found that the axes had been modelled correctly
+and then **not reached**: every production ingress resolved a dialect name
+through `DialectProfile::find` → `plain_tcl`, so a `jim` document — which by
+design has no catalogue row — was lexed, lowered, analysed and compiled as
+Tcl 9.0 end to end, and the centralised resolution was only ever asked
+`"tcl"`. Worse, the two catalogues (§2.4's `CATALOG` and the environment
+model) disagreed about `tk` (9.x vs an 8.6 core), and once codegen followed
+one while the lexer followed the other, one document had two grammars.
+
+The settlement is a single currency and a single producer.
+
+**The currency: `DialectPoint`** (`tcl-dialect/src/model/point.rs`). A
+`Release` — which already names its `Family` — plus the build profile, with
+every lexical axis a function of it (`point.grammar()` is
+`grammar(family, release)`). It exists because the two currencies layers
+actually carried could not say what they needed to:
+
+- `Option<&DialectProfile>` cannot name a dialect with no catalogue profile
+  (`jim`, `tk`), so every `of_profile` answered the fallback for them.
+- `Option<&str>` resolves only to an environment's *default* release, so it
+  cannot tell jim 0.79 from 0.80 (`0d`), tcl8.5 from 8.6 (TIP 388 widths), or
+  tcl9.0 from 9.1. `DialectPoint::of_name_and_release` keeps the release;
+  `of_dialect_name` takes the environment's default and says so.
+
+`of_dialect_name` returns `None` for an environment with no Tcl ladder at all;
+among the shipped dialects that is only `f5-bigip`, the BIG-IP *config*
+surface, whose grammar the catalogue row alone states.
+
+**The resolution: `grammar_of_dialect_name`** (`tcl-dialect/src/grammar.rs`)
+is the one place a name becomes a grammar — the point's grammar when there is
+a point, the catalogue row's for `f5-bigip`, the default otherwise. The
+per-axis constructors (`NumberSyntax` / `EscapeSyntax` / `BracedVarStyle` /
+`WordValueRules::of_dialect_name`) delegate to it, so they agree by
+construction rather than by four copies of one lookup.
+
+**The producer: the ingress.** `DocumentEnvironment::point()` reads the
+environment definition's core selector, and `DocumentEnvironment::grammar()`
+is where a document's grammar is born: the point's grammar, else the unit
+profile's. Consumers that still thread a `&'static DialectProfile` are served
+by `analyser_profile()` handing out a profile **projected from the point**
+(`DialectProfile::projected_from_point`, interned once per environment
+identity): identity fields from the environment, grammar and version bases
+from the point, every *policy* field the fallback's — so nothing downstream
+gains a new opinion, only the right grammar under the right name. That last
+part is load-bearing: lowering hands codegen `profile.name`, and codegen
+resolves *that* through `grammar_of_dialect_name`, so a unit built for
+`"jim"` now reaches Jim's grammar at the back end as well as the front.
+
+Two cored environments are deliberately **not** projected. `tk` keeps the
+anonymous fallback as its analyser profile (the cache-key and help-filter
+reasons on `analyser_profile`), and its grammar reaches the analyser through
+`State::grammar()`, which prefers the ingress-resolved grammar over
+`profile.grammar`. The lenient `tcl` sink — where the bare name, the empty
+name and every unknown name land — **is** the fallback, whose identity
+`is_fallback()` tests by pointer (§8); its point is 9.0, the fallback's own
+grammar, so a projection would change nothing but that identity.
+
+**`tk` is 8.6.** `TK_PROFILE.grammar` is now `GRAMMAR_TCL86`, matching the
+`tk` environment's core, its library pins (`LIBS_TCL86_PLUS`) and the version
+gating that already read that core. It said 9.x while everything else about
+the row said 8.6; the disagreement predates the Jim work and was exposed by
+it. Reversing the decision — a 9.0 core instead — is a one-line change to the
+environment, and the agreement tests then enforce whichever is chosen.
+
+**Codegen carries one grammar.** `CodegenCtx::expr_grammar` is the same
+`LexerGrammar` its `numbers`, `escapes`, `braced_var` and `word_rules` were
+taken from, and `parse_compile_expr` re-parses `expr` bodies under it.
+Before, a named compile emitted numerals under a grammar resolved from the
+name and re-parsed `expr` under `ctx.dialect`'s profile — for `tk`, `010` was
+8 on one path and 10 on the other inside one compile.
+
+**The word-value owner: `WordValueRules`** (`tcl-syntax/src/word_rules.rs`)
+carries the two axes every site that splits a word-shaped list needs
+(`brace_backslash_newline`, `list_parse`) with the algorithms keyed by them
+(`collapse_braced_word`, `split_list`, `split_word_names`). Lowering, codegen's
+verbatim-literal path and the taint walker ask it; none reaches for
+`split_list` or `collapse_brace_continuations_str` and decides for itself.
+
+**What enforces it.** `every_route_to_a_documents_grammar_agrees`
+(`tcl-registry/src/model/ingress.rs`) asserts, for every compiled environment
+with a ladder, that `env.grammar()`, `grammar_of_dialect_name(id)`,
+`unit_profile().grammar` and (bar `tk`) `analyser_profile().grammar` are one
+value, and that the profile carries the environment's own name.
+`a_jim_unit_is_built_as_jim_end_to_end` (`tcl-compiler/src/compilation_unit.rs`)
+builds a unit for the *string* `"jim"` and asserts the name codegen receives.
+`the_two_catalogues_agree_wherever_both_know_a_name` (`grammar.rs`) includes
+`TK_PROFILE`, the row `all()` excludes and the one that drifted.
+`from_grammar_carries_every_lexer_axis` (`tcl-lexer`) pins each `LexerConfig`
+field against a grammar in which every axis is non-default — the
+`..Self::default()` tail is where `list_parse` was once declared and carried
+by nothing.
+
+**The `dialect-drift` gate** (`rust/xtask/src/dialect_drift.rs`, in
+`make xtask-check`) keeps the settlement from being bypassed again. It bans
+the four spellings that give a document a second grammar: a
+default-grammar re-lex (`Lexer::new(`, `LexerConfig::default()`) in
+production code outside `tcl-lexer`; a grammar re-resolved from a dialect
+name *variable* (`LexerConfig::for_dialect(profile.name)`,
+`for_file_dialect(&result.dialect)`) outside the resolution owners — a
+fixed string literal such as `for_file_dialect("f5-irules")` in
+iRules-only tooling is an ingress, not a re-resolution, and passes; a bare
+list split of document text (`split_list*(`,
+`collapse_brace_continuations_str(` called as free functions, not as
+`WordValueRules` methods) in the document crates; and a **dialect-blind
+segmenter entry** (`segment_commands(source)` and its `_with_recovery` /
+`_with_offset` forms outside `segmenter.rs`), which lex under the default
+config internally — the rule that closes the hole the first three leave,
+since a caller that never spells `Lexer::new` but segments a body through a
+blind entry gets a second grammar all the same; and an **ambient
+expression parse** (`parse_expr(text, None)`, `tokenise_expr(text, None)`,
+`LexerConfig::for_profile(None)`, `LexerGrammar::default()`), because "no
+dialect" is a choice a document walk never gets to make. Text that is
+genuinely not the document's Tcl — a spec DSL, a `tclpkg` manifest, a
+BIG-IP config extraction, the dialect *detector* itself — carries
+`// dialect-drift-ok: <reason>`. The gate's test-module exemption ends the
+scan only at a `#[cfg(test)]` that annotates a `mod`; a `#[cfg(test)]` on a
+single item does not, which is how a dozen large files once went unscanned.
+The gate found ~150 re-lex sites and ~30 blind-entry callers when first
+run; every one now takes its config from the nearest context
+(`State::lexer_config()`, `LexerConfig::for_profile`, `CfgBuilder::config`,
+`FunctionBuildInputs::config`, `TaintCtx::lexer_config()`,
+`FoldPolicy::dialect` / `word_rules`, `ScanCtx::rules`, `IlxCtx::config`,
+…) or carries a reason.
+
+**The analyser's own unit agrees with the LSP's.** The CFG/SSA unit the
+diagnostics walk builds takes its grammar from `State::file_lexer_config()`
+(the ingress grammar, whole-file form) and its dialect from the ingress's
+`unit_profile()`, the same two values the LSP's unit for that document is
+built from — not from a `LexerConfig::for_dialect(name)` re-resolution and
+a `DialectProfile::find(name)` that sank `jim` and `tk` to the fallback. For
+`tk` this is also what makes the two faces agree: the unit's `FoldPolicy`
+carries `tk`'s own row and the guarded-intrinsic selection reads the
+point's 8.6, where before one face said "unknown dialect" and the other
+"8.6".
+
+**The profile currency is `Option<&'static DialectProfile>`.** Every
+profile a layer can hold is a static — a catalogue row or an interned
+projection — and saying so lets `FoldPolicy` and `PassContext` carry the
+profile a nested `[expr …]` re-parse needs without a lifetime on every
+pass. The retype to a `DialectPoint` (above) remains unnecessary.
+
+**The point is the runtime base too.** `EnvironmentDefinition::point()` is
+the one derivation of a point from an environment; the ingress delegates to
+it, and the semantic handle's `runtime_version` reads it instead of looking
+the catalogue row up by id. `DialectPoint::tcl_version` walks the family's
+fork ancestry, so the F5 trunk and the iRules offshoot answer Tcl 8.4 (what
+their rows always said) and a reimplementation (Jim) answers none.
+`the_point_names_the_catalogue_runtime_base` pins the two agree for every
+row.
+
+**`$(…)` lowers as the expression it is.** `ArgTokenKind::ExprSugar` reaches
+the `set` and `return` hooks, which lower `set x $($a*2)` to the same
+`AssignExpr` as `set x [expr {$a*2}]`, so dataflow, taint and typing see
+the operands. In any other word position the sugar is still an opaque
+dynamic word — correct, just less analysed.
+
+**The backends are Tcl 9, by decision.** The resolved point now reaches the
+front half of every backend — the VM's and CLI's ingress adapters resolve
+through `resolve_environment`, so a Jim unit is *read* as Jim all the way
+into codegen — but what codegen emits and what `tcl-vm` and `runtime/rust`
+execute is Tcl 9 semantics: a profile projected for a non-Tcl point has
+`runtime_base = None` and so `vm_runtime_version = V9_0`, and the VM's own
+pin (`Vm::set_runtime_version`) is a `TclVersion`, a closed set of Tcl
+releases with no Jim rung. Dialect-aware emission and execution — lowering
+`$(…)`, Jim's list/dict/`expr` semantics, a VM pin that is a `DialectPoint`
+rather than a `TclVersion` — is an **eventual**, recorded here and in
+`compiler/codegen-internals.md` so it is a known boundary rather than a
+surprise. What this work guarantees for that future is the shape: every
+backend consumes the point-derived grammar and profile and never a name, so
+the change is a new rung on the same ladder, not a second resolution.
+
+**Deliberately not done here.** The VM's list conversions
+(`Value::as_list`, `cmd_prefix`, `interp`, `expr`) still split strictly:
+the VM executes Tcl 9 by decision (above) and its inputs are Tcl lists.
+The `Option<&DialectProfile>` currency in taint, GVN and the optimiser
+stays: with the ingress projecting a profile for every cored environment,
+a profile *can* name `jim` (and `tk` reaches those passes through
+`unit_profile()`, its own row), so the currency now carries the right
+grammar everywhere the agreement test walks; retyping it to a
+`DialectPoint` would be churn without a behavioural gain, and the gate
+keeps a new consumer from re-resolving the name it carries.
 
 ---
 
@@ -545,7 +779,7 @@ profile *is* the table.
 | `p.expr_grammar_base` | TIP 201 (`in` / `ni`, 8.5+) and TIP 461 (`lt` / `le` / `gt` / `ge`, 9.0+) gating |
 | `p.runtime_base` | the evaluation-semantics version |
 | `p.const_fold_version()` | the version const-folding evaluates at |
-| `p.grammar` | the lexing grammar `LexerConfig::for_dialect` reads |
+| `p.grammar` | the lexing grammar — the point's, for a profile projected from one (§2.5); `LexerConfig::for_dialect` no longer reads it, resolving through `grammar_of_dialect_name` instead |
 | `p.has_fixed_ensembles` / `p.is_irules()` / `p.operators_as_commands` / `p.tcloo` | the predicates that replace open-coded `matches!(dialect, Some("irules" \| "f5-irules"))` copies and the minifier's prefix-shortening gate |
 | `p.effective_tcl_version(package_floor)` | the version the argument-DSL validators consult (§6) |
 | `p.vm_runtime_version` | the Tcl release the bytecode VM emulates; matches `runtime_base`, or `V9_0` for an inert profile |
@@ -771,7 +1005,10 @@ a selectable dialect — so a caller that must enumerate real dialects gets the
 18 catalogue entries, and a caller that must include the fallback reaches it
 through `DialectProfile::plain_tcl()`. `is_fallback()` is the predicate for
 "did this resolve to the sink", which is how `hosts_tk()` treats an unlabelled
-`wish` shell as Tk-capable.
+`wish` shell as Tk-capable — and is why the sink is one of the two cored
+environments the ingress never projects a profile for (§2.5): a projection
+would carry the same 9.0 grammar under a different pointer, and every
+`is_fallback()` reader would silently stop recognising the fallback.
 
 ---
 

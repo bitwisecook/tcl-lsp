@@ -35,7 +35,7 @@
 //! IPv4/IPv6 literal is what C-Tcl would also treat as one) carry a
 //! `// tclsh-proof:` note.
 
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::refactor::{
     DataGroupDefinition, Refactoring, data_group_tcl, extract_to_datagroup,
     extract_to_datagroup_from_if, extract_to_datagroup_from_switch,
@@ -50,24 +50,31 @@ fn reg() -> &'static CommandRegistry {
     static_context_for("f5-irules").commands()
 }
 
+/// The document's lexing grammar — this whole module is iRules-only
+/// (`class match` / `class lookup` are BIG-IP runtime constructs), matching
+/// `reg()`.
+fn config() -> LexerConfig {
+    LexerConfig::from_grammar(tcl_registry::model::resolve_environment("f5-irules").grammar())
+}
+
 fn if_dg(source: &str, name: &str) -> Option<Refactoring> {
     let li = LineIndex::new(source);
-    extract_to_datagroup_from_if(source, 0, name, reg(), &li)
+    extract_to_datagroup_from_if(source, 0, name, reg(), &li, config())
 }
 
 fn if_dg_at(source: &str, cursor: u32, name: &str) -> Option<Refactoring> {
     let li = LineIndex::new(source);
-    extract_to_datagroup_from_if(source, cursor, name, reg(), &li)
+    extract_to_datagroup_from_if(source, cursor, name, reg(), &li, config())
 }
 
 fn switch_dg(source: &str, name: &str) -> Option<Refactoring> {
     let li = LineIndex::new(source);
-    extract_to_datagroup_from_switch(source, 0, name, reg(), &li)
+    extract_to_datagroup_from_switch(source, 0, name, reg(), &li, config())
 }
 
 fn any_dg(source: &str, name: &str) -> Option<Refactoring> {
     let li = LineIndex::new(source);
-    extract_to_datagroup(source, 0, name, reg(), &li)
+    extract_to_datagroup(source, 0, name, reg(), &li, config())
 }
 
 fn dg(r: &Refactoring) -> &DataGroupDefinition {

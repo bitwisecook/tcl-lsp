@@ -1649,6 +1649,12 @@ fn refactor_engine_actions(
     };
     let mut out = Vec::new();
 
+    // The document's own lexing grammar — `analysis.dialect` carries the
+    // name the host analysed this document under (issue: dialect-drift).
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        crate::environment_for_dialect(&analysis.dialect).grammar(),
+    );
+
     let cursor = line_index.offset_at_utf16(
         range.start_line,
         Utf16Col::new(range.start_character),
@@ -1680,13 +1686,15 @@ fn refactor_engine_actions(
     if let Some(r) = refactor::inline_proc_in_program(source, cursor, analysis, resolution) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index) {
+    if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index, config) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::switch_to_dict(source, cursor, registry, line_index) {
+    if let Some(r) = refactor::switch_to_dict(source, cursor, registry, line_index, config) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::extract_to_datagroup(source, cursor, "", registry, line_index) {
+    if let Some(r) =
+        refactor::extract_to_datagroup(source, cursor, "", registry, line_index, config)
+    {
         out.push(refactoring_to_action(&r, source, line_index));
     }
     out

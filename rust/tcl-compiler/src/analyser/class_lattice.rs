@@ -525,6 +525,7 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
+    config: tcl_lexer::LexerConfig,
 ) -> HashMap<String, Vec<AssignKind>> {
     use crate::ir::Statement;
     let mut out: HashMap<String, Vec<AssignKind>> = HashMap::new();
@@ -552,7 +553,7 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
                 else {
                     continue;
                 };
-                let kind = classify_rhs(value.trim(), span.start(), index, ns);
+                let kind = classify_rhs(value.trim(), span.start(), index, ns, config);
                 out.entry(name.clone()).or_default().push(kind);
             }
         }
@@ -586,8 +587,11 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
     offset: u32,
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
+    config: tcl_lexer::LexerConfig,
 ) -> AssignKind {
-    if let Some((head, args)) = crate::value_shapes::parse_command_substitution(value) {
+    if let Some((head, args)) =
+        crate::value_shapes::parse_command_substitution_with_config(value, config)
+    {
         // Constructor: the method word is a registry-declared manufacturer.
         // This classifier has no family in hand yet, so it asks for the
         // conservative union; the resolved class and its MRO settle the
@@ -676,6 +680,7 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
     cfg: AblationConfig,
+    config: tcl_lexer::LexerConfig,
 ) -> (
     HashMap<String, ClassValue>,
     std::collections::HashSet<String>,
@@ -692,7 +697,7 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
 
     // 2. IR assignment kinds — fold in constructor bindings the type
     //    lattice missed, and attribute ⊤ reasons to everything else.
-    let kinds = collect_assign_kinds(cu, index, ns);
+    let kinds = collect_assign_kinds(cu, index, ns, config);
     for (var, ks) in &kinds {
         let has_constructor_in_index = ks
             .iter()
@@ -893,9 +898,10 @@ pub fn analyse_dispatch<S: std::hash::BuildHasher + Clone>(
     sites: &[VarCommandSite],
     ns: &NsContext,
     cfg: &AblationConfig,
+    config: tcl_lexer::LexerConfig,
 ) -> (Vec<SiteReport>, DispatchStats) {
     let hierarchy = hierarchy_for(index, *cfg);
-    let (values, assigned) = build_class_values(cu, index, ns, *cfg);
+    let (values, assigned) = build_class_values(cu, index, ns, *cfg, config);
 
     let mut reports = Vec::with_capacity(sites.len());
     let mut stats = DispatchStats::default();
@@ -936,8 +942,9 @@ pub fn class_values<S: std::hash::BuildHasher + Clone>(
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
     cfg: &AblationConfig,
+    config: tcl_lexer::LexerConfig,
 ) -> HashMap<String, ClassValue> {
-    build_class_values(cu, index, ns, *cfg).0
+    build_class_values(cu, index, ns, *cfg, config).0
 }
 
 /// Model `TclOO` `next` / `nextto`: the *next* class down `class`'s MRO that
@@ -1033,7 +1040,13 @@ mod tests {
                 ..Default::default()
             },
         );
-        let k = classify_rhs("[Foo new]", 0, &index, &NsContext::default());
+        let k = classify_rhs(
+            "[Foo new]",
+            0,
+            &index,
+            &NsContext::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             k,
             AssignKind::Constructor {
@@ -1058,7 +1071,13 @@ mod tests {
             },
         );
         let ns = ns_enclosing("::SpiceGenTcl");
-        let k = classify_rhs("[Circuit new $name]", 10, &index, &ns);
+        let k = classify_rhs(
+            "[Circuit new $name]",
+            10,
+            &index,
+            &ns,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             k,
             AssignKind::Constructor {
@@ -1082,7 +1101,13 @@ mod tests {
             },
         );
         let ns = ns_importing("::SpiceGenTcl");
-        let k = classify_rhs("[Circuit new $name]", 0, &index, &ns);
+        let k = classify_rhs(
+            "[Circuit new $name]",
+            0,
+            &index,
+            &ns,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             k,
             AssignKind::Constructor {
@@ -1107,7 +1132,13 @@ mod tests {
                 ..Default::default()
             },
         );
-        let k = classify_rhs("[Circuit new]", 0, &index, &NsContext::default());
+        let k = classify_rhs(
+            "[Circuit new]",
+            0,
+            &index,
+            &NsContext::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             k,
             AssignKind::Constructor {
@@ -1130,7 +1161,13 @@ mod tests {
             },
         );
         let ns = ns_importing("::B");
-        let k = classify_rhs("[Circuit new]", 0, &index, &ns);
+        let k = classify_rhs(
+            "[Circuit new]",
+            0,
+            &index,
+            &ns,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             k,
             AssignKind::Constructor {
@@ -1143,7 +1180,13 @@ mod tests {
     #[test]
     fn classify_constructor_cross_file_miss() {
         let index: HashMap<String, ClassDef> = HashMap::new();
-        let k = classify_rhs("[Bar create b]", 0, &index, &NsContext::default());
+        let k = classify_rhs(
+            "[Bar create b]",
+            0,
+            &index,
+            &NsContext::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             k,
             AssignKind::Constructor {
@@ -1158,15 +1201,27 @@ mod tests {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let ns = NsContext::default();
         assert_eq!(
-            classify_rhs("[info object class $x]", 0, &index, &ns),
+            classify_rhs(
+                "[info object class $x]",
+                0,
+                &index,
+                &ns,
+                tcl_lexer::LexerConfig::default()
+            ),
             AssignKind::Introspection
         );
         assert_eq!(
-            classify_rhs("[oo::copy $x]", 0, &index, &ns),
+            classify_rhs(
+                "[oo::copy $x]",
+                0,
+                &index,
+                &ns,
+                tcl_lexer::LexerConfig::default()
+            ),
             AssignKind::Introspection
         );
         assert_eq!(
-            classify_rhs("[self]", 0, &index, &ns),
+            classify_rhs("[self]", 0, &index, &ns, tcl_lexer::LexerConfig::default()),
             AssignKind::Introspection
         );
     }
@@ -1176,11 +1231,23 @@ mod tests {
         let index: HashMap<String, ClassDef> = HashMap::new();
         let ns = NsContext::default();
         assert_eq!(
-            classify_rhs("[make_widget red]", 0, &index, &ns),
+            classify_rhs(
+                "[make_widget red]",
+                0,
+                &index,
+                &ns,
+                tcl_lexer::LexerConfig::default()
+            ),
             AssignKind::Factory
         );
-        assert_eq!(classify_rhs("hello", 0, &index, &ns), AssignKind::Literal);
-        assert_eq!(classify_rhs("$other", 0, &index, &ns), AssignKind::VarCopy);
+        assert_eq!(
+            classify_rhs("hello", 0, &index, &ns, tcl_lexer::LexerConfig::default()),
+            AssignKind::Literal
+        );
+        assert_eq!(
+            classify_rhs("$other", 0, &index, &ns, tcl_lexer::LexerConfig::default()),
+            AssignKind::VarCopy
+        );
     }
 
     fn cls(qname: &str, supers: &[&str], methods: &[&str]) -> ClassDef {
