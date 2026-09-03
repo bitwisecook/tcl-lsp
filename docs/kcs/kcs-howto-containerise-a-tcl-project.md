@@ -27,7 +27,8 @@ tcl pkg discover --add
 tcl pkg install
 ```
 
-Review any dynamic or optional findings and supplement them with `tcl pkg add`.
+Review any dynamic, optional, loop-contained, or alternative findings and
+supplement them with `tcl pkg add`.
 
 ## Answer
 

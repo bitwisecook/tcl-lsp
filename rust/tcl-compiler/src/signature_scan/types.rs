@@ -113,7 +113,7 @@ pub struct SignatureClass {
 
 /// A `package require` invocation recorded by the signature scanner.
 ///
-/// `version` is `None` when the call supplied no version constraint.
+/// `version` is `None` when the call supplied no version requirement.
 /// `conditional` is `true` when the call lives inside a guarded
 /// branch (an `if`/`elseif`/`else` body, a `catch` script, or a
 /// `try`/`on`/`trap`/`finally` clause) so workspace-level Tcl-version
@@ -123,12 +123,15 @@ pub struct SignatureClass {
 pub struct SignaturePackageRequire {
     /// Package name (the `NAME` argument to `package require`).
     pub name: String,
-    /// Optional version constraint (the `VERSION` argument); `None`
-    /// when no version is supplied.
+    /// First requirement, retained as a compatibility view for existing
+    /// consumers; `None` when no requirement is supplied.
     pub version: Option<String>,
-    /// `true` when the call carried the `-exact` flag, which turns
-    /// `version` from the ranged requirement `V` (`[V, next major)`)
-    /// into the degenerate range `V-V` — see
+    /// Every alternative requirement word supplied after the package name.
+    /// Tcl 8.5+ accepts more than one and succeeds when any is satisfied.
+    pub requirements: Vec<String>,
+    /// `true` when the call carried the `-exact` flag, which turns every
+    /// ranged requirement `V` (`[V, next major)`) into the degenerate range
+    /// `V-V` — see
     /// [`tcl_dialect::exact_requirement`].  Meaningless without a
     /// `version`: `package require -exact NAME` is a syntax error in
     /// real Tcl, and consumers treat the pair as unconstrained.
@@ -137,6 +140,9 @@ pub struct SignaturePackageRequire {
     pub range: Span,
     /// `true` when the call is inside a guarded branch.
     pub conditional: bool,
+    /// `true` when the call is nested in a registry-declared control-flow
+    /// body which may run zero or multiple times.
+    pub control_flow: bool,
 }
 
 /// A `package prefer latest` invocation — the one form of `package

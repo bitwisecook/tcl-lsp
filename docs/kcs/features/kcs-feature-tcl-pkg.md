@@ -51,11 +51,13 @@ package require $dependency 1.3
 ```
 
 The default is read-only. `--add` appends only deterministic, unconditional
-requirements that the minimum-version manifest can represent. Dynamic names,
-dynamic versions, guarded optional requirements, `-exact`, and bounded ranges
-are reported for review instead of guessed. Installed and generated trees such
-as `lib/`, `vendor/`, `.venv/`, and `target/` are excluded. Add anything the
-analysis cannot prove with `tcl pkg add NAME VERSION`.
+requirements that the minimum-version manifest can represent. Dynamic names or
+versions, guarded or loop-contained requirements, `-exact`, bounded ranges, and
+multiple alternative requirements are reported for review instead of guessed.
+The JSON report preserves every original alternative and every value the
+optimiser can resolve. Installed and generated trees such as `lib/`, `vendor/`,
+`.venv/`, and `target/` are excluded. Add anything the analysis cannot prove
+with `tcl pkg add NAME VERSION`.
 
 ### VS Code
 

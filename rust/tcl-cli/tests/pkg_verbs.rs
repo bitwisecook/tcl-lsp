@@ -76,6 +76,9 @@ fn pkg_discover_uses_analysis_and_optimisation() {
              package require $dep $minimum\n\
          }\n\
          if {$optional} { package require Tk 8.6 }\n\
+         set alternative 2.0-2.5\n\
+         package require alternatives 1.0 $alternative\n\
+         package require partial 1.0 $runtime_requirement\n\
          package require $runtime_package\n",
     )
     .unwrap();
@@ -104,6 +107,22 @@ fn pkg_discover_uses_analysis_and_optimisation() {
             && requirement["status"] == "review"
     }));
     assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "alternatives"
+            && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
+            && requirement["requirement_expressions"]
+                == serde_json::json!(["1.0", "${alternative}"])
+            && requirement["resolution"] == "optimiser"
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "partial"
+            && requirement["requirements"] == serde_json::json!(["1.0", null])
+            && requirement["requirement_expressions"]
+                == serde_json::json!(["1.0", "${runtime_requirement}"])
+            && requirement["resolution"] == "unresolved"
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
         requirement["expression"] == "${runtime_package}"
             && requirement["name"].is_null()
             && requirement["status"] == "unresolved"
@@ -126,6 +145,8 @@ fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
          package require tls 1.7\n\
          package require -exact pinned 2.0\n\
          package require ranged 1.0-2.0\n\
+         package require alternatives 1.0 2.0-2.5\n\
+         while {$optional} { package require looped 3.0 }\n\
          package require Tcl 8.6\n\
          package require demo 1.0\n",
     )
@@ -150,6 +171,19 @@ fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
     assert!(requirements.iter().any(|requirement| {
         requirement["name"] == "ranged" && requirement["status"] == "review"
     }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "alternatives"
+            && requirement["requirement_expressions"] == serde_json::json!(["1.0", "2.0-2.5"])
+            && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
+            && requirement["minimum"].is_null()
+            && requirement["resolution"] == "literal"
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "looped"
+            && requirement["control_flow"] == true
+            && requirement["status"] == "review"
+    }));
     assert!(
         requirements.iter().any(|requirement| {
             requirement["name"] == "Tcl" && requirement["status"] == "runtime"
@@ -166,6 +200,8 @@ fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
     assert_eq!(manifest.matches("require tls").count(), 1);
     assert!(!manifest.contains("require pinned"));
     assert!(!manifest.contains("require ranged"));
+    assert!(!manifest.contains("require alternatives"));
+    assert!(!manifest.contains("require looped"));
     assert!(!manifest.contains("require Tcl"));
     assert!(!manifest.contains("require demo"));
     assert!(!manifest.contains("should_not_be_direct"));

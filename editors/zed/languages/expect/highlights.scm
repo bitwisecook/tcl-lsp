@@ -54,7 +54,7 @@
 (command
   name: (simple_word) @keyword.control
   (#any-of? @keyword.control
-    "case" "foreachLine" "lfilter" "lmap"))
+    "case" "foreachLine" "lfilter" "lmap" "timerate"))
 
 ; --- generated from tcl-registry: language keywords ---
 (command
@@ -95,9 +95,9 @@
     "send_user" "sleep" "socket" "spawn" "split" "strace"
     "string" "stty" "subst" "system" "tclLog" "tclPkgSetup"
     "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
-    "tcl_wordBreakBefore" "tell" "time" "timer" "timerate" "timestamp"
-    "trace" "trap" "unicode" "unknown" "unload" "unset"
-    "update" "vwait" "wait" "writeFile" "zipfs" "zlib"))
+    "tcl_wordBreakBefore" "tell" "time" "timer" "timestamp" "trace"
+    "trap" "unicode" "unknown" "unload" "unset" "update"
+    "vwait" "wait" "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

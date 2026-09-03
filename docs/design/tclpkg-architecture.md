@@ -118,7 +118,8 @@ tclpkg.tcl (manifest)
     provenance.
 25. `discover --add` changes only `tclpkg.tcl`. It adds deterministic,
     unconditional requirements which the manifest's minimum-version model can
-    represent; ambiguous, guarded, exact, and bounded requirements remain
+    represent; unresolved words, guarded or loop-contained calls, exact and
+    bounded requirements, and Tcl's alternative requirement lists remain
     review findings. Installed, vendored, virtual-environment, build, and
     generated trees are not scanned as direct project source.
 

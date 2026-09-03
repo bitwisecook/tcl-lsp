@@ -36,8 +36,8 @@ tcl pkg discover --add
 The first command is read-only. The second adds requirements whose names and
 minimum versions the analyser and optimiser can prove. It scans procedure and
 nested-script bodies, resolves constant variables, interpolations, and safe
-builtin command substitutions, and reports dynamic, conditional, `-exact`, or
-bounded requirements for review.
+builtin command substitutions, and reports dynamic, conditional,
+loop-contained, `-exact`, bounded, or alternative requirements for review.
 
 ### 3. Add or override dependencies explicitly
 

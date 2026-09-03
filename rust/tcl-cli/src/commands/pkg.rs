@@ -141,14 +141,14 @@ pub fn run(action: &PkgCommand) -> anyhow::Result<u8> {
             no_recursive,
             dialect,
             common,
-        } => super::pkg_discover::run(
+        } => super::pkg_discover::run(&super::pkg_discover::DiscoverOptions {
             inputs,
-            *add,
-            !*no_recursive,
-            dialect.as_deref(),
+            add: *add,
+            recursive: !*no_recursive,
+            dialect: dialect.as_deref(),
             common,
-            &manifest_path(common),
-        ),
+            manifest_path: &manifest_path(common),
+        }),
         PkgCommand::Install {
             common,
             no_dev,

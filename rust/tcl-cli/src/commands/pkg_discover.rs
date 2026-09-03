@@ -63,11 +63,14 @@ const SKIP_DIRECTORIES: &[&str] = &[
 struct RequirementReport {
     name: Option<String>,
     minimum: Option<String>,
+    requirements: Vec<Option<String>>,
     expression: String,
     version_expression: Option<String>,
+    requirement_expressions: Vec<String>,
     file: String,
     line: usize,
     conditional: bool,
+    control_flow: bool,
     exact: bool,
     resolution: &'static str,
     status: &'static str,
@@ -92,24 +95,38 @@ struct DiscoveryOutput {
 struct ResolvedRequirement {
     name: Option<String>,
     minimum: Option<String>,
+    requirements: Vec<Option<String>>,
     expression: String,
     version_expression: Option<String>,
+    requirement_expressions: Vec<String>,
     conditional: bool,
+    control_flow: bool,
     exact: bool,
     resolution: &'static str,
     line: usize,
 }
 
+/// Inputs for one `tcl pkg discover` invocation.
+#[derive(Clone, Copy)]
+pub struct DiscoverOptions<'a> {
+    pub inputs: &'a [PathBuf],
+    pub add: bool,
+    pub recursive: bool,
+    pub dialect: Option<&'a str>,
+    pub common: &'a PkgCommon,
+    pub manifest_path: &'a Path,
+}
+
 /// Run `tcl pkg discover`.
-#[allow(clippy::too_many_arguments)]
-pub fn run(
-    inputs: &[PathBuf],
-    add: bool,
-    recursive: bool,
-    dialect: Option<&str>,
-    common: &PkgCommon,
-    manifest_path: &Path,
-) -> anyhow::Result<u8> {
+pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
+    let DiscoverOptions {
+        inputs,
+        add,
+        recursive,
+        dialect,
+        common,
+        manifest_path,
+    } = *options;
     let manifest = match load_manifest(manifest_path) {
         Ok(manifest) => manifest,
         Err(error) => {
@@ -170,9 +187,7 @@ pub fn run(
             &registry,
             tcl_cli_support::spec_pack_key(profile.name),
         );
-        if let Some(warning) = warning {
-            warnings.push(warning);
-        }
+        warnings.extend(warning);
         for requirement in requirements {
             reports.push(classify(requirement, &file, &manifest, &declared));
         }
@@ -208,12 +223,17 @@ pub fn run(
         added,
         warnings,
     };
-    if common.json {
-        println!("{}", serde_json::to_string_pretty(&output)?);
-    } else {
-        print_text(&output, add);
-    }
+    render_output(&output, common.json, add)?;
     Ok(0)
+}
+
+fn render_output(output: &DiscoveryOutput, json: bool, add: bool) -> anyhow::Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(output)?);
+    } else {
+        print_text(output, add);
+    }
+    Ok(())
 }
 
 fn discover_document_requirements(
@@ -250,7 +270,11 @@ fn discover_document_requirements(
         .analyse(&optimised, profile.name)
         .package_requires;
 
-    let aligned = original.len() == refined.len();
+    let aligned = original.len() == refined.len()
+        && original
+            .iter()
+            .zip(&refined)
+            .all(|(raw, candidate)| raw.requirements.len() == candidate.requirements.len());
     let warning = (!aligned).then(|| {
         format!(
             "{file}: optimiser changed the package-require inventory; dynamic refinement was skipped"
@@ -268,25 +292,45 @@ fn discover_document_requirements(
                 .unwrap_or(&raw);
             let raw_name = static_word(&raw.name);
             let refined_name = static_word(&candidate.name);
-            let raw_version = raw.version.as_deref().and_then(static_word);
-            let refined_version = candidate.version.as_deref().and_then(static_word);
+            let raw_requirements = raw.requirements.clone();
+            let refined_requirements = &candidate.requirements;
+            let requirements: Vec<Option<String>> = raw_requirements
+                .iter()
+                .enumerate()
+                .map(|(requirement_index, requirement)| {
+                    static_word(requirement).or_else(|| {
+                        refined_requirements
+                            .get(requirement_index)
+                            .and_then(|requirement| static_word(requirement))
+                    })
+                })
+                .collect();
             let name = raw_name.clone().or(refined_name);
-            let version = match raw.version.as_deref() {
-                None => Some("0.0.1".to_owned()),
-                Some(_) => raw_version.clone().or(refined_version),
+            let minimum = match requirements.as_slice() {
+                [] => Some("0.0.1".to_owned()),
+                [Some(requirement)] => Some(requirement.clone()),
+                _ => None,
             };
-            let unresolved = name.is_none() || (raw.version.is_some() && version.is_none());
+            let unresolved = name.is_none() || requirements.iter().any(Option::is_none);
             let optimised_resolution = !unresolved
                 && (raw_name.is_none()
-                    || (raw.version.is_some() && raw_version.is_none())
+                    || raw_requirements
+                        .iter()
+                        .any(|requirement| static_word(requirement).is_none())
                     || name.as_deref() != raw_name.as_deref()
-                    || version.as_deref() != raw_version.as_deref());
+                    || requirements
+                        .iter()
+                        .zip(&raw_requirements)
+                        .any(|(resolved, raw)| resolved.as_deref() != Some(raw.as_str())));
             ResolvedRequirement {
                 name,
-                minimum: version,
+                minimum,
+                requirements,
                 expression: raw.name,
                 version_expression: raw.version,
+                requirement_expressions: raw_requirements,
                 conditional: raw.conditional,
+                control_flow: raw.control_flow,
                 exact: raw.exact,
                 resolution: if unresolved {
                     "unresolved"
@@ -311,11 +355,14 @@ fn classify(
     let mut report = RequirementReport {
         name: requirement.name,
         minimum: requirement.minimum,
+        requirements: requirement.requirements,
         expression: requirement.expression,
         version_expression: requirement.version_expression,
+        requirement_expressions: requirement.requirement_expressions,
         file: file.to_owned(),
         line: requirement.line,
         conditional: requirement.conditional,
+        control_flow: requirement.control_flow,
         exact: requirement.exact,
         resolution: requirement.resolution,
         status: "candidate",
@@ -355,9 +402,25 @@ fn classify(
         );
         return report;
     }
+    if report.control_flow {
+        report.status = "review";
+        report.reason = Some(
+            "requirement is inside skippable or repeatable control flow; add it explicitly if needed"
+                .to_owned(),
+        );
+        return report;
+    }
     if report.exact {
         report.status = "review";
         report.reason = Some("tclpkg.tcl requirements cannot express -exact".to_owned());
+        return report;
+    }
+    if report.requirement_expressions.len() > 1 {
+        report.status = "review";
+        report.reason = Some(
+            "multiple alternative requirements cannot be represented by one manifest minimum"
+                .to_owned(),
+        );
         return report;
     }
     let Some(requirement_text) = report.minimum.as_deref() else {
@@ -609,11 +672,14 @@ mod tests {
         RequirementReport {
             name: Some(name.to_owned()),
             minimum: Some(minimum.to_owned()),
+            requirements: vec![Some(minimum.to_owned())],
             expression: name.to_owned(),
             version_expression: Some(minimum.to_owned()),
+            requirement_expressions: vec![minimum.to_owned()],
             file: "main.tcl".to_owned(),
             line: 1,
             conditional: false,
+            control_flow: false,
             exact: false,
             resolution: "literal",
             status: "candidate",
