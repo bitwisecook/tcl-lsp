@@ -27,6 +27,7 @@ use std::process::{Command, ExitCode, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result, anyhow, bail};
+use cargo_config2::{Config as CargoConfig, PathAndArgs};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -83,8 +84,19 @@ struct ManifestRow {
     target_name: String,
 }
 
+#[derive(Clone, Debug)]
+struct CargoRuntime {
+    target: String,
+    runner: Option<PathAndArgs>,
+}
+
 type TargetKey = (String, String, PathBuf);
-type Contract = (HashMap<String, PathBuf>, Vec<Target>, Vec<ManifestRow>);
+type Contract = (
+    HashMap<String, PathBuf>,
+    Vec<Target>,
+    Vec<ManifestRow>,
+    CargoRuntime,
+);
 
 fn default_true() -> bool {
     true
@@ -113,6 +125,24 @@ fn rustc_host(root: &Path) -> Result<String> {
         .find_map(|line| line.strip_prefix("host: "))
         .map(ToOwned::to_owned)
         .ok_or_else(|| anyhow!("rustc -vV did not report a host triple"))
+}
+
+fn cargo_runtime(root: &Path) -> Result<CargoRuntime> {
+    let config = CargoConfig::load_with_cwd(root).context("loading Cargo configuration")?;
+    let mut targets = config
+        .build_target_for_config(std::iter::empty::<&str>())
+        .context("resolving Cargo build target")?;
+    if targets.len() != 1 {
+        bail!("the smoke fallback requires one Cargo build target, found {targets:?}");
+    }
+    let target = targets.pop().context("Cargo resolved no build target")?;
+    let runner = config
+        .runner(&target)
+        .context("resolving Cargo target runner")?;
+    Ok(CargoRuntime {
+        target: target.triple().to_owned(),
+        runner,
+    })
 }
 
 fn metadata(root: &Path, host: &str) -> Result<Metadata> {
@@ -221,10 +251,9 @@ fn canonical_target_kinds(raw_kinds: &[String]) -> BTreeSet<String> {
     kinds
 }
 
-fn load_targets(root: &Path) -> Result<(HashMap<String, PathBuf>, Vec<Target>)> {
-    let host = rustc_host(root)?;
-    let metadata = metadata(root, &host)?;
-    let features = workspace_target_features(&metadata, &host, root)?;
+fn load_targets(root: &Path, target: &str) -> Result<(HashMap<String, PathBuf>, Vec<Target>)> {
+    let metadata = metadata(root, target)?;
+    let features = workspace_target_features(&metadata, target, root)?;
     let members: HashSet<&str> = metadata
         .workspace_members
         .iter()
@@ -453,11 +482,18 @@ fn tracked_rust_sources(root: &Path) -> Result<Vec<String>> {
         .collect())
 }
 
-fn compile_declaration_regex() -> Result<Regex> {
-    Regex::new(
-        r#"^[ \t]*(pub(\([^)]*\))?[ \t]+)?((((const|async|unsafe)[ \t]+|extern([ \t]+\"[^\"]*\")?[ \t]+)*)fn[ \t]+smoke([_[:alnum:]]*)[ \t]*\(|mod[ \t]+smoke([_[:alnum:]]*)[ \t]*[;{])"#,
-    )
-    .context("compiling smoke declaration regex")
+fn items_contain_smoke_declaration(items: &[syn::Item]) -> bool {
+    items.iter().any(|item| match item {
+        syn::Item::Fn(function) => function.sig.ident.to_string().starts_with("smoke"),
+        syn::Item::Mod(module) => {
+            module.ident.to_string().starts_with("smoke")
+                || module
+                    .content
+                    .as_ref()
+                    .is_some_and(|(_, items)| items_contain_smoke_declaration(items))
+        }
+        _ => false,
+    })
 }
 
 fn compile_marker_regex() -> Result<Regex> {
@@ -466,17 +502,16 @@ fn compile_marker_regex() -> Result<Regex> {
 }
 
 fn scan_smoke_sources(root: &Path, targets: &[Target]) -> Result<BTreeSet<String>> {
-    let declaration = compile_declaration_regex()?;
     let marker = compile_marker_regex()?;
     let integration = Regex::new(r"/tests/(smoke\.rs|[^/]*_smoke\.rs|smoke/[^/]*_smoke\.rs)$")?;
     let mut discovered = BTreeSet::new();
     for relative in tracked_rust_sources(root)? {
         let text = fs::read_to_string(root.join(&relative))
             .with_context(|| format!("reading {relative}"))?;
+        let parsed = syn::parse_file(&text).with_context(|| format!("parsing {relative}"))?;
         if integration.is_match(&relative)
-            || text
-                .lines()
-                .any(|line| declaration.is_match(line) || marker.is_match(line))
+            || items_contain_smoke_declaration(&parsed.items)
+            || text.lines().any(|line| marker.is_match(line))
         {
             discovered.insert(relative);
         }
@@ -691,6 +726,7 @@ fn harness_command(
     executable: &Path,
     package_root: &Path,
     rust_runtime_library: &Path,
+    runner: Option<&PathAndArgs>,
 ) -> Result<Command> {
     let variable = dynamic_library_variable();
     let mut paths = vec![
@@ -708,7 +744,13 @@ fn harness_command(
         paths.extend(env::split_paths(&existing));
     }
     let joined = env::join_paths(paths).context("joining dynamic library search path")?;
-    let mut command = Command::new(executable);
+    let mut command = if let Some(runner) = runner {
+        let mut command = Command::new(&runner.path);
+        command.args(&runner.args).arg(executable);
+        command
+    } else {
+        Command::new(executable)
+    };
     command.current_dir(package_root).env(variable, joined);
     Ok(command)
 }
@@ -762,11 +804,12 @@ fn run_harness(
     executable: &Path,
     package_root: &Path,
     rust_runtime_library: &Path,
+    runner: Option<&PathAndArgs>,
     list_only: bool,
     quiet: bool,
 ) -> Result<Vec<(String, String)>> {
     let bench_mode = (target.kind == "bench").then_some("--test");
-    let mut listing = harness_command(executable, package_root, rust_runtime_library)?;
+    let mut listing = harness_command(executable, package_root, rust_runtime_library, runner)?;
     listing.args(bench_mode).arg("--list");
     let entries = test_entries(&command_output(&mut listing)?.stdout)?;
     let selected = selected_entries(&entries, target);
@@ -778,7 +821,7 @@ fn run_harness(
     }
 
     if is_smoke_named_target(target) {
-        let mut command = harness_command(executable, package_root, rust_runtime_library)?;
+        let mut command = harness_command(executable, package_root, rust_runtime_library, runner)?;
         command.args(bench_mode);
         if quiet {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -793,7 +836,7 @@ fn run_harness(
     }
 
     if let Some(skips) = substring_skips(&entries, &selected) {
-        let mut command = harness_command(executable, package_root, rust_runtime_library)?;
+        let mut command = harness_command(executable, package_root, rust_runtime_library, runner)?;
         command.args(bench_mode).arg("smoke");
         for skip in skips {
             command.args(["--skip", &skip]);
@@ -811,7 +854,7 @@ fn run_harness(
     }
 
     for (name, _) in &selected {
-        let mut command = harness_command(executable, package_root, rust_runtime_library)?;
+        let mut command = harness_command(executable, package_root, rust_runtime_library, runner)?;
         command.args(bench_mode).args([name, "--exact"]);
         if quiet {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -829,11 +872,11 @@ fn execute_manifest(
     package_roots: &HashMap<String, PathBuf>,
     rows: &[ManifestRow],
     targets: &[Target],
+    runtime: &CargoRuntime,
     list_only: bool,
 ) -> Result<()> {
     let groups = target_groups(rows, targets);
-    let host = rustc_host(root)?;
-    let rust_runtime_library = rust_runtime_library(root, &host)?;
+    let rust_runtime_library = rust_runtime_library(root, &runtime.target)?;
     let extra_env = BTreeMap::new();
     let regular_groups: Vec<&[Target]> = groups
         .iter()
@@ -884,6 +927,7 @@ fn execute_manifest(
                 executable,
                 package_root,
                 &rust_runtime_library,
+                runtime.runner.as_ref(),
                 list_only,
                 false,
             )?;
@@ -894,10 +938,11 @@ fn execute_manifest(
 
 fn check_contract(root: &Path) -> Result<Contract> {
     let manifest = root.join(MANIFEST);
-    let (package_roots, targets) = load_targets(root)?;
+    let runtime = cargo_runtime(root)?;
+    let (package_roots, targets) = load_targets(root, &runtime.target)?;
     let rows = validate_manifest(root, &manifest, &package_roots, &targets)?;
     check_source_inventory(root, &rows, &targets)?;
-    Ok((package_roots, targets, rows))
+    Ok((package_roots, targets, rows, runtime))
 }
 
 struct Fixture {
@@ -1029,7 +1074,7 @@ f = { path = "../f" }
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
@@ -1158,6 +1203,7 @@ fn verify_fixture_libraries(
     fixture: &Fixture,
     package_roots: &HashMap<String, PathBuf>,
     targets: &[Target],
+    runtime: &CargoRuntime,
     extra_env: &BTreeMap<OsString, OsString>,
     runtime_library: &Path,
 ) -> Result<()> {
@@ -1189,6 +1235,7 @@ fn verify_fixture_libraries(
         &library_executables[&target_key(e_target)],
         &package_roots["e"],
         runtime_library,
+        runtime.runner.as_ref(),
         false,
         true,
     )?;
@@ -1201,6 +1248,7 @@ fn verify_fixture_libraries(
         &library_executables[&target_key(h_target)],
         &package_roots["h"],
         runtime_library,
+        runtime.runner.as_ref(),
         false,
         true,
     )?;
@@ -1214,6 +1262,7 @@ fn verify_fixture_collision_and_bench(
     fixture: &Fixture,
     package_roots: &HashMap<String, PathBuf>,
     targets: &[Target],
+    runtime: &CargoRuntime,
     extra_env: &BTreeMap<OsString, OsString>,
     runtime_library: &Path,
 ) -> Result<()> {
@@ -1233,6 +1282,7 @@ fn verify_fixture_collision_and_bench(
         &automatic[&target_key(demo_target)],
         &package_roots["i"],
         runtime_library,
+        runtime.runner.as_ref(),
         false,
         true,
     )?;
@@ -1245,6 +1295,7 @@ fn verify_fixture_collision_and_bench(
         &benches[&target_key(bench_target)],
         &package_roots["k"],
         runtime_library,
+        runtime.runner.as_ref(),
         false,
         true,
     )?;
@@ -1256,11 +1307,28 @@ fn cargo_fixture_self_test() -> Result<()> {
     for &(relative, contents) in CARGO_FIXTURE_FILES {
         fixture.write(relative, contents)?;
     }
+    let host = rustc_host(&fixture.root)?;
+    let runner = if cfg!(windows) {
+        vec!["cmd", "/C"]
+    } else {
+        vec!["env", "TCL_LSP_SMOKE_RUNNER=used"]
+    };
+    let config = format!(
+        "[build]\ntarget = {}\n\n[target.{}]\nrunner = {}\n",
+        serde_json::to_string(&host)?,
+        serde_json::to_string(&host)?,
+        serde_json::to_string(&runner)?,
+    );
+    fixture.write(".cargo/config.toml", &config)?;
     let mut lock = Command::new("cargo");
     lock.args(["generate-lockfile", "--offline"])
         .current_dir(&fixture.root);
     command_output(&mut lock)?;
-    let (package_roots, targets) = load_targets(&fixture.root)?;
+    let runtime = cargo_runtime(&fixture.root)?;
+    if runtime.target != host || runtime.runner.is_none() {
+        bail!("Cargo target-runner resolution self-test failed");
+    }
+    let (package_roots, targets) = load_targets(&fixture.root, &runtime.target)?;
     verify_fixture_metadata(&targets)?;
     let extra_env = BTreeMap::from([
         (
@@ -1272,12 +1340,12 @@ fn cargo_fixture_self_test() -> Result<()> {
             OsString::from("-C prefer-dynamic"),
         ),
     ]);
-    let host = rustc_host(&fixture.root)?;
-    let runtime_library = rust_runtime_library(&fixture.root, &host)?;
+    let runtime_library = rust_runtime_library(&fixture.root, &runtime.target)?;
     verify_fixture_libraries(
         &fixture,
         &package_roots,
         &targets,
+        &runtime,
         &extra_env,
         &runtime_library,
     )?;
@@ -1285,6 +1353,7 @@ fn cargo_fixture_self_test() -> Result<()> {
         &fixture,
         &package_roots,
         &targets,
+        &runtime,
         &extra_env,
         &runtime_library,
     )
@@ -1342,15 +1411,16 @@ fn self_test() -> Result<()> {
     if substring_skips(&collision_entries, &collision_entries[..1]).is_some() {
         bail!("overlapping Cargo substring exclusion self-test failed");
     }
-    let declaration = compile_declaration_regex()?;
     for source in [
-        "mod smoke {",
+        "mod smoke {}",
         "pub(crate) mod smoke_tests;",
-        "extern \"C\" fn smoke_probe() {",
-        "pub unsafe extern \"C-unwind\" fn smoke_hook() {",
-        "pub(crate) const unsafe extern fn smoke_qualified() {",
+        "extern \"C\" fn smoke_probe() {}",
+        "pub unsafe extern \"C-unwind\" fn smoke_hook() {}",
+        "pub(crate) const unsafe extern fn smoke_qualified() {}",
+        "#[test]\npub(crate)\nunsafe\nextern \"C\"\nfn smoke_split() {}",
     ] {
-        if !declaration.is_match(source) {
+        let parsed = syn::parse_file(source).context("parsing smoke scanner self-test")?;
+        if !items_contain_smoke_declaration(&parsed.items) {
             bail!("smoke declaration scanner missed: {source}");
         }
     }
@@ -1373,8 +1443,15 @@ pub fn run(operation: &str) -> Result<ExitCode> {
             println!("targeted Cargo smoke ownership contract passed");
         }
         "run" | "list" => {
-            let (package_roots, targets, rows) = check_contract(&root)?;
-            execute_manifest(&root, &package_roots, &rows, &targets, operation == "list")?;
+            let (package_roots, targets, rows, runtime) = check_contract(&root)?;
+            execute_manifest(
+                &root,
+                &package_roots,
+                &rows,
+                &targets,
+                &runtime,
+                operation == "list",
+            )?;
         }
         _ => bail!("unknown smoke-targets operation '{operation}'; expected check, run, or list"),
     }
