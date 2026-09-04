@@ -61,6 +61,15 @@ struct Package {
     id: String,
     name: String,
     version: String,
+    authors: Vec<String>,
+    description: Option<String>,
+    homepage: Option<String>,
+    repository: Option<String>,
+    license: Option<String>,
+    license_file: Option<PathBuf>,
+    readme: Option<PathBuf>,
+    rust_version: Option<String>,
+    links: Option<String>,
     manifest_path: PathBuf,
     targets: Vec<RawTarget>,
 }
@@ -90,9 +99,18 @@ struct CargoRuntime {
     runner: Option<PathAndArgs>,
 }
 
+struct HarnessContext<'a> {
+    package_root: &'a Path,
+    package_environment: &'a BTreeMap<OsString, OsString>,
+    rust_runtime_library: &'a Path,
+    runner: Option<&'a PathAndArgs>,
+}
+
 type TargetKey = (String, String, PathBuf);
+type PackageEnvironments = HashMap<String, BTreeMap<OsString, OsString>>;
 type Contract = (
     HashMap<String, PathBuf>,
+    PackageEnvironments,
     Vec<Target>,
     Vec<ManifestRow>,
     CargoRuntime,
@@ -251,7 +269,96 @@ fn canonical_target_kinds(raw_kinds: &[String]) -> BTreeSet<String> {
     kinds
 }
 
-fn load_targets(root: &Path, target: &str) -> Result<(HashMap<String, PathBuf>, Vec<Target>)> {
+fn package_environment(package: &Package) -> Result<BTreeMap<OsString, OsString>> {
+    let version = package
+        .version
+        .split('+')
+        .next()
+        .unwrap_or(&package.version);
+    let (core, pre) = version.split_once('-').unwrap_or((version, ""));
+    let mut components = core.split('.');
+    let major = components.next().context("package version has no major")?;
+    let minor = components.next().context("package version has no minor")?;
+    let patch = components.next().context("package version has no patch")?;
+    if components.next().is_some() {
+        bail!("package version has more than three core components: {version}");
+    }
+    let manifest_dir = package
+        .manifest_path
+        .parent()
+        .context("package manifest has no parent")?;
+    let values = [
+        (
+            "CARGO_MANIFEST_DIR",
+            manifest_dir.as_os_str().to_os_string(),
+        ),
+        (
+            "CARGO_MANIFEST_LINKS",
+            OsString::from(package.links.as_deref().unwrap_or_default()),
+        ),
+        (
+            "CARGO_MANIFEST_PATH",
+            package.manifest_path.as_os_str().to_os_string(),
+        ),
+        (
+            "CARGO_PKG_AUTHORS",
+            OsString::from(package.authors.join(":")),
+        ),
+        (
+            "CARGO_PKG_DESCRIPTION",
+            OsString::from(package.description.as_deref().unwrap_or_default()),
+        ),
+        (
+            "CARGO_PKG_HOMEPAGE",
+            OsString::from(package.homepage.as_deref().unwrap_or_default()),
+        ),
+        (
+            "CARGO_PKG_LICENSE",
+            OsString::from(package.license.as_deref().unwrap_or_default()),
+        ),
+        (
+            "CARGO_PKG_LICENSE_FILE",
+            package
+                .license_file
+                .as_deref()
+                .unwrap_or_else(|| Path::new(""))
+                .as_os_str()
+                .to_os_string(),
+        ),
+        ("CARGO_PKG_NAME", OsString::from(&package.name)),
+        (
+            "CARGO_PKG_README",
+            package
+                .readme
+                .as_deref()
+                .unwrap_or_else(|| Path::new(""))
+                .as_os_str()
+                .to_os_string(),
+        ),
+        (
+            "CARGO_PKG_REPOSITORY",
+            OsString::from(package.repository.as_deref().unwrap_or_default()),
+        ),
+        (
+            "CARGO_PKG_RUST_VERSION",
+            OsString::from(package.rust_version.as_deref().unwrap_or_default()),
+        ),
+        ("CARGO_PKG_VERSION", OsString::from(&package.version)),
+        ("CARGO_PKG_VERSION_MAJOR", OsString::from(major)),
+        ("CARGO_PKG_VERSION_MINOR", OsString::from(minor)),
+        ("CARGO_PKG_VERSION_PATCH", OsString::from(patch)),
+        ("CARGO_PKG_VERSION_PRE", OsString::from(pre)),
+    ];
+    Ok(values
+        .into_iter()
+        .map(|(name, value)| (OsString::from(name), value))
+        .collect())
+}
+
+fn load_targets(
+    root: &Path,
+    target: &str,
+) -> Result<(HashMap<String, PathBuf>, PackageEnvironments, Vec<Target>)> {
     let metadata = metadata(root, target)?;
     let features = workspace_target_features(&metadata, target, root)?;
     let members: HashSet<&str> = metadata
@@ -260,6 +367,7 @@ fn load_targets(root: &Path, target: &str) -> Result<(HashMap<String, PathBuf>, 
         .map(String::as_str)
         .collect();
     let mut package_roots = HashMap::new();
+    let mut package_environments = HashMap::new();
     let mut targets = Vec::new();
     for package in &metadata.packages {
         if !members.contains(package.id.as_str()) {
@@ -271,6 +379,7 @@ fn load_targets(root: &Path, target: &str) -> Result<(HashMap<String, PathBuf>, 
             .context("package manifest has no parent")?
             .to_path_buf();
         package_roots.insert(package.name.clone(), package_root);
+        package_environments.insert(package.name.clone(), package_environment(package)?);
         let enabled = features
             .get(&package.name)
             .with_context(|| format!("missing feature context for {}", package.name))?;
@@ -291,7 +400,7 @@ fn load_targets(root: &Path, target: &str) -> Result<(HashMap<String, PathBuf>, 
             }
         }
     }
-    Ok((package_roots, targets))
+    Ok((package_roots, package_environments, targets))
 }
 
 fn ownership_rank(source: &Path, target: &Target) -> Option<u8> {
@@ -722,12 +831,7 @@ fn dynamic_library_variable() -> &'static str {
     }
 }
 
-fn harness_command(
-    executable: &Path,
-    package_root: &Path,
-    rust_runtime_library: &Path,
-    runner: Option<&PathAndArgs>,
-) -> Result<Command> {
+fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Command> {
     let variable = dynamic_library_variable();
     let mut paths = vec![
         executable
@@ -739,19 +843,22 @@ fn harness_command(
         paths.push(profile.to_path_buf());
         paths.push(profile.join("deps"));
     }
-    paths.push(rust_runtime_library.to_path_buf());
+    paths.push(context.rust_runtime_library.to_path_buf());
     if let Some(existing) = env::var_os(variable) {
         paths.extend(env::split_paths(&existing));
     }
     let joined = env::join_paths(paths).context("joining dynamic library search path")?;
-    let mut command = if let Some(runner) = runner {
+    let mut command = if let Some(runner) = context.runner {
         let mut command = Command::new(&runner.path);
         command.args(&runner.args).arg(executable);
         command
     } else {
         Command::new(executable)
     };
-    command.current_dir(package_root).env(variable, joined);
+    command
+        .current_dir(context.package_root)
+        .envs(context.package_environment)
+        .env(variable, joined);
     Ok(command)
 }
 
@@ -802,14 +909,12 @@ fn substring_skips(
 fn run_harness(
     target: &Target,
     executable: &Path,
-    package_root: &Path,
-    rust_runtime_library: &Path,
-    runner: Option<&PathAndArgs>,
+    context: &HarnessContext<'_>,
     list_only: bool,
     quiet: bool,
 ) -> Result<Vec<(String, String)>> {
     let bench_mode = (target.kind == "bench").then_some("--test");
-    let mut listing = harness_command(executable, package_root, rust_runtime_library, runner)?;
+    let mut listing = harness_command(executable, context)?;
     listing.args(bench_mode).arg("--list");
     let entries = test_entries(&command_output(&mut listing)?.stdout)?;
     let selected = selected_entries(&entries, target);
@@ -821,7 +926,7 @@ fn run_harness(
     }
 
     if is_smoke_named_target(target) {
-        let mut command = harness_command(executable, package_root, rust_runtime_library, runner)?;
+        let mut command = harness_command(executable, context)?;
         command.args(bench_mode);
         if quiet {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -836,7 +941,7 @@ fn run_harness(
     }
 
     if let Some(skips) = substring_skips(&entries, &selected) {
-        let mut command = harness_command(executable, package_root, rust_runtime_library, runner)?;
+        let mut command = harness_command(executable, context)?;
         command.args(bench_mode).arg("smoke");
         for skip in skips {
             command.args(["--skip", &skip]);
@@ -854,7 +959,7 @@ fn run_harness(
     }
 
     for (name, _) in &selected {
-        let mut command = harness_command(executable, package_root, rust_runtime_library, runner)?;
+        let mut command = harness_command(executable, context)?;
         command.args(bench_mode).args([name, "--exact"]);
         if quiet {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -870,6 +975,7 @@ fn run_harness(
 fn execute_manifest(
     root: &Path,
     package_roots: &HashMap<String, PathBuf>,
+    package_environments: &PackageEnvironments,
     rows: &[ManifestRow],
     targets: &[Target],
     runtime: &CargoRuntime,
@@ -922,15 +1028,16 @@ fn execute_manifest(
             let package_root = package_roots
                 .get(&target.package)
                 .with_context(|| format!("missing package root for {}", target.package))?;
-            run_harness(
-                target,
-                executable,
+            let package_environment = package_environments
+                .get(&target.package)
+                .with_context(|| format!("missing package environment for {}", target.package))?;
+            let context = HarnessContext {
                 package_root,
-                &rust_runtime_library,
-                runtime.runner.as_ref(),
-                list_only,
-                false,
-            )?;
+                package_environment,
+                rust_runtime_library: &rust_runtime_library,
+                runner: runtime.runner.as_ref(),
+            };
+            run_harness(target, executable, &context, list_only, false)?;
         }
     }
     Ok(())
@@ -939,10 +1046,10 @@ fn execute_manifest(
 fn check_contract(root: &Path) -> Result<Contract> {
     let manifest = root.join(MANIFEST);
     let runtime = cargo_runtime(root)?;
-    let (package_roots, targets) = load_targets(root, &runtime.target)?;
+    let (package_roots, package_environments, targets) = load_targets(root, &runtime.target)?;
     let rows = validate_manifest(root, &manifest, &package_roots, &targets)?;
     check_source_inventory(root, &rows, &targets)?;
-    Ok((package_roots, targets, rows, runtime))
+    Ok((package_roots, package_environments, targets, rows, runtime))
 }
 
 struct Fixture {
@@ -1074,7 +1181,7 @@ f = { path = "../f" }
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
@@ -1202,6 +1309,7 @@ fn verify_fixture_metadata(targets: &[Target]) -> Result<()> {
 fn verify_fixture_libraries(
     fixture: &Fixture,
     package_roots: &HashMap<String, PathBuf>,
+    package_environments: &PackageEnvironments,
     targets: &[Target],
     runtime: &CargoRuntime,
     extra_env: &BTreeMap<OsString, OsString>,
@@ -1230,12 +1338,16 @@ fn verify_fixture_libraries(
     let library_args = cargo_target_args("lib", "", false);
     let library_executables = cargo_test_executables(&fixture.root, &library_args, extra_env)?;
     let e_target = fixture_target(targets, "e", "e")?;
+    let e_context = HarnessContext {
+        package_root: &package_roots["e"],
+        package_environment: &package_environments["e"],
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+    };
     let e_selected = run_harness(
         e_target,
         &library_executables[&target_key(e_target)],
-        &package_roots["e"],
-        runtime_library,
-        runtime.runner.as_ref(),
+        &e_context,
         false,
         true,
     )?;
@@ -1243,12 +1355,16 @@ fn verify_fixture_libraries(
         bail!("exact nextest-name selection self-test failed");
     }
     let h_target = fixture_target(targets, "h", "library_smoke")?;
+    let h_context = HarnessContext {
+        package_root: &package_roots["h"],
+        package_environment: &package_environments["h"],
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+    };
     let h_selected = run_harness(
         h_target,
         &library_executables[&target_key(h_target)],
-        &package_roots["h"],
-        runtime_library,
-        runtime.runner.as_ref(),
+        &h_context,
         false,
         true,
     )?;
@@ -1261,6 +1377,7 @@ fn verify_fixture_libraries(
 fn verify_fixture_collision_and_bench(
     fixture: &Fixture,
     package_roots: &HashMap<String, PathBuf>,
+    package_environments: &PackageEnvironments,
     targets: &[Target],
     runtime: &CargoRuntime,
     extra_env: &BTreeMap<OsString, OsString>,
@@ -1277,12 +1394,16 @@ fn verify_fixture_collision_and_bench(
     {
         bail!("automatic Cargo target eligibility self-test failed");
     }
+    let demo_context = HarnessContext {
+        package_root: &package_roots["i"],
+        package_environment: &package_environments["i"],
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+    };
     run_harness(
         demo_target,
         &automatic[&target_key(demo_target)],
-        &package_roots["i"],
-        runtime_library,
-        runtime.runner.as_ref(),
+        &demo_context,
         false,
         true,
     )?;
@@ -1290,12 +1411,16 @@ fn verify_fixture_collision_and_bench(
     let bench_target = fixture_target(targets, "k", "bench_smoke")?;
     let bench_args = cargo_target_args("bench", "bench_smoke", false);
     let benches = cargo_test_executables(&fixture.root, &bench_args, extra_env)?;
+    let bench_context = HarnessContext {
+        package_root: &package_roots["k"],
+        package_environment: &package_environments["k"],
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+    };
     run_harness(
         bench_target,
         &benches[&target_key(bench_target)],
-        &package_roots["k"],
-        runtime_library,
-        runtime.runner.as_ref(),
+        &bench_context,
         false,
         true,
     )?;
@@ -1328,7 +1453,8 @@ fn cargo_fixture_self_test() -> Result<()> {
     if runtime.target != host || runtime.runner.is_none() {
         bail!("Cargo target-runner resolution self-test failed");
     }
-    let (package_roots, targets) = load_targets(&fixture.root, &runtime.target)?;
+    let (package_roots, package_environments, targets) =
+        load_targets(&fixture.root, &runtime.target)?;
     verify_fixture_metadata(&targets)?;
     let extra_env = BTreeMap::from([
         (
@@ -1344,6 +1470,7 @@ fn cargo_fixture_self_test() -> Result<()> {
     verify_fixture_libraries(
         &fixture,
         &package_roots,
+        &package_environments,
         &targets,
         &runtime,
         &extra_env,
@@ -1352,6 +1479,7 @@ fn cargo_fixture_self_test() -> Result<()> {
     verify_fixture_collision_and_bench(
         &fixture,
         &package_roots,
+        &package_environments,
         &targets,
         &runtime,
         &extra_env,
@@ -1443,10 +1571,12 @@ pub fn run(operation: &str) -> Result<ExitCode> {
             println!("targeted Cargo smoke ownership contract passed");
         }
         "run" | "list" => {
-            let (package_roots, targets, rows, runtime) = check_contract(&root)?;
+            let (package_roots, package_environments, targets, rows, runtime) =
+                check_contract(&root)?;
             execute_manifest(
                 &root,
                 &package_roots,
+                &package_environments,
                 &rows,
                 &targets,
                 &runtime,
