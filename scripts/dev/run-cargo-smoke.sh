@@ -57,7 +57,13 @@ run_named_target() {
     kind=$1
     package=$2
     target=$3
-    shift 3
+    features=$4
+
+    if [ "$features" = - ]; then
+        set -- cargo test -p "$package" "--$kind" "$target"
+    else
+        set -- cargo test -p "$package" --features "$features" "--$kind" "$target"
+    fi
 
     case "$target" in
         smoke|*_smoke)
@@ -65,16 +71,16 @@ run_named_target() {
             # convention-named smoke target, even when an individual
             # function does not contain the word "smoke".
             echo "==> cargo test -p $package --$kind $target"
-            run_all cargo test -p "$package" "--$kind" "$target"
+            run_all "$@"
             ;;
         *)
             echo "==> cargo test -p $package --$kind $target smoke"
-            run_smoke cargo test -p "$package" "--$kind" "$target"
+            run_smoke "$@"
             ;;
     esac
 }
 
-while IFS="$(printf '\t')" read -r source package kind target; do
+while IFS="$(printf '\t')" read -r source package kind target features; do
     case "$source" in
         ''|'#'*) continue ;;
     esac
@@ -87,19 +93,24 @@ while IFS="$(printf '\t')" read -r source package kind target; do
 
     case "$kind" in
         lib)
+            if [ "$features" = - ]; then
+                set -- cargo test -p "$package" --lib
+            else
+                set -- cargo test -p "$package" --features "$features" --lib
+            fi
             case "$target" in
                 smoke|*_smoke)
                     echo "==> cargo test -p $package --lib"
-                    run_all cargo test -p "$package" --lib
+                    run_all "$@"
                     ;;
                 *)
                     echo "==> cargo test -p $package --lib smoke"
-                    run_smoke cargo test -p "$package" --lib
+                    run_smoke "$@"
                     ;;
             esac
             ;;
         test|bin|example|bench)
-            run_named_target "$kind" "$package" "$target"
+            run_named_target "$kind" "$package" "$target" "$features"
             ;;
         *)
             echo "invalid target kind '$kind' for $source in $MANIFEST" >&2

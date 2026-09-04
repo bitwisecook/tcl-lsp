@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,8 +24,10 @@ class Target:
     kind: str
     name: str
     source: Path
-    available_by_default: bool = True
+    available_in_workspace: bool = True
     testable: bool = True
+    required_features: tuple[str, ...] = ()
+    resolved_features: tuple[str, ...] = ()
 
     @property
     def manifest_name(self) -> str:
@@ -65,50 +68,58 @@ def best_owners(source: Path, targets: list[Target]) -> list[Target]:
     return [target for rank, target in ranked if rank == best]
 
 
-def default_features(raw_package: dict[str, object]) -> set[str]:
-    """Resolve the package-local feature closure enabled by `default`."""
-    feature_map = raw_package["features"]
-    assert isinstance(feature_map, dict)
-    enabled: set[str] = set()
-    pending = ["default"]
-    while pending:
-        feature = pending.pop()
-        if feature in enabled:
-            continue
-        enabled.add(feature)
-        members = feature_map.get(feature, [])
-        assert isinstance(members, list)
-        for member in members:
-            assert isinstance(member, str)
-            # `dependency/feature` also enables an optional dependency's
-            # implicit package-local feature. The weak `?/` form deliberately
-            # does not: it only forwards the feature when that dependency was
-            # enabled by some other default member.
-            local_member = member.split("/", 1)[0]
-            if "/" in member and local_member.endswith("?"):
-                continue
-            if not member.startswith("dep:") and local_member in feature_map:
-                pending.append(local_member)
-    return enabled
+def metadata_command(host: str) -> list[str]:
+    """Build the host-filtered Cargo metadata command used by the gate."""
+    return [
+        "cargo",
+        "metadata",
+        "--locked",
+        "--format-version",
+        "1",
+        "--filter-platform",
+        host,
+    ]
+
+
+def rustc_host() -> str:
+    """Return the host triple Cargo uses for this local smoke run."""
+    result = subprocess.run(
+        ["rustc", "-vV"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        if line.startswith("host: "):
+            return line.removeprefix("host: ")
+    raise RuntimeError("rustc -vV did not report a host triple")
 
 
 def load_targets() -> tuple[dict[str, Path], list[Target]]:
     result = subprocess.run(
-        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        metadata_command(rustc_host()),
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
         text=True,
     )
     metadata = json.loads(result.stdout)
+    workspace_members = set(metadata["workspace_members"])
+    resolved_features = {
+        node["id"]: set(node["features"]) for node in metadata["resolve"]["nodes"]
+    }
     manifests: dict[str, Path] = {}
     targets: list[Target] = []
     for package in metadata["packages"]:
+        if package["id"] not in workspace_members:
+            continue
         package_name = package["name"]
-        enabled_features = default_features(package)
+        enabled_features = resolved_features[package["id"]]
         manifests[package_name] = Path(package["manifest_path"]).resolve().parent
         for raw_target in package["targets"]:
             supported = SUPPORTED_TARGET_KINDS.intersection(raw_target["kind"])
+            required_features = tuple(raw_target.get("required-features", []))
             for kind in supported:
                 targets.append(
                     Target(
@@ -116,10 +127,14 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
                         kind=kind,
                         name=raw_target["name"],
                         source=Path(raw_target["src_path"]).resolve(),
-                        available_by_default=set(
-                            raw_target.get("required-features", [])
-                        ).issubset(enabled_features),
+                        available_in_workspace=set(required_features).issubset(
+                            enabled_features
+                        ),
                         testable=bool(raw_target.get("test", True)),
+                        required_features=required_features,
+                        resolved_features=tuple(
+                            sorted(enabled_features.difference({"default"}))
+                        ),
                     )
                 )
     return manifests, targets
@@ -130,7 +145,7 @@ def smoke_named_targets(targets: list[Target]) -> set[tuple[str, str, str]]:
     return {
         (target.package, target.kind, target.manifest_name)
         for target in targets
-        if target.available_by_default
+        if target.available_in_workspace
         and target.testable
         and (target.name == "smoke" or target.name.endswith("_smoke"))
     }
@@ -141,7 +156,7 @@ def smoke_named_target_sources(targets: list[Target]) -> set[Path]:
     return {
         target.source
         for target in targets
-        if target.available_by_default
+        if target.available_in_workspace
         and target.testable
         and (target.name == "smoke" or target.name.endswith("_smoke"))
     }
@@ -222,22 +237,30 @@ def validate(manifest: Path) -> list[str]:
     return errors
 
 
-def runnable_manifest_lines(manifest: Path) -> list[str]:
-    """Return validated rows whose Cargo targets exist under default features."""
-    _package_roots, targets = load_targets()
+def runnable_manifest_lines_for_targets(
+    manifest: Path, targets: list[Target]
+) -> list[str]:
+    """Add the exact features needed to run each workspace-enabled row."""
     available = {
-        (target.package, target.kind, target.manifest_name)
+        (target.package, target.kind, target.manifest_name): target
         for target in targets
-        if target.available_by_default and target.testable
+        if target.available_in_workspace and target.testable
     }
     lines: list[str] = []
     for raw_line in manifest.read_text().splitlines():
         if not raw_line or raw_line.startswith("#"):
             continue
         source, package, kind, target_name = raw_line.split("\t")
-        if (package, kind, target_name) in available:
-            lines.append("\t".join((source, package, kind, target_name)))
+        if target := available.get((package, kind, target_name)):
+            features = ",".join(target.resolved_features) or "-"
+            lines.append("\t".join((source, package, kind, target_name, features)))
     return lines
+
+
+def runnable_manifest_lines(manifest: Path) -> list[str]:
+    """Resolve and render the Cargo invocations for a validated manifest."""
+    _package_roots, targets = load_targets()
+    return runnable_manifest_lines_for_targets(manifest, targets)
 
 
 def self_test() -> None:
@@ -282,9 +305,17 @@ def self_test() -> None:
         Target(
             "example",
             "bin",
+            "unified_smoke",
+            root / "src/bin/unified_smoke.rs",
+            required_features=("shared",),
+            resolved_features=("also_unified", "shared"),
+        ),
+        Target(
+            "example",
+            "bin",
             "feature_smoke",
             root / "src/bin/feature_smoke.rs",
-            available_by_default=False,
+            available_in_workspace=False,
         ),
         Target(
             "example",
@@ -300,6 +331,7 @@ def self_test() -> None:
         ("example", "test", "api_smoke"),
         ("example", "example", "demo_smoke"),
         ("example", "bench", "parse_smoke"),
+        ("example", "bin", "unified_smoke"),
     }
     assert smoke_named_target_sources(smoke_targets) == {
         root / "src/bin/smoke.rs",
@@ -307,28 +339,26 @@ def self_test() -> None:
         root / "integration/api.rs",
         root / "examples/demo.rs",
         root / "benches/parse.rs",
+        root / "src/bin/unified_smoke.rs",
     }
 
-    # A name match is not runnable when Cargo would skip the target because its
-    # required features are absent from the default feature closure.
+    # A name match is not runnable when Cargo's resolved workspace feature set
+    # does not satisfy the target's required features.
     assert ("example", "bin", "feature_smoke") not in smoke_named_targets(smoke_targets)
 
-    assert default_features(
-        {
-            "features": {
-                "default": [
-                    "public",
-                    "dep:optional",
-                    "helper/extra",
-                    "weak?/extra",
-                ],
-                "public": ["internal"],
-                "internal": [],
-                "helper": [],
-                "weak": [],
-            }
-        }
-    ) == {"default", "public", "internal", "helper"}
+    # A feature enabled through workspace unification must be passed explicitly
+    # when the targeted runner invokes just this package.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        manifest = Path(temp_dir) / "smoke-targets.tsv"
+        manifest.write_text("source.rs\texample\tbin\tunified_smoke\n")
+        assert runnable_manifest_lines_for_targets(manifest, smoke_targets) == [
+            "source.rs\texample\tbin\tunified_smoke\talso_unified,shared"
+        ]
+
+    assert metadata_command("x86_64-example-linux")[-2:] == [
+        "--filter-platform",
+        "x86_64-example-linux",
+    ]
 
 
 def main() -> int:
