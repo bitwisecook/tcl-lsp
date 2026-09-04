@@ -262,6 +262,9 @@ fn panel_var_for(title: &str) -> &'static str {
         "Diagnostics — Shimmer" => "diagShimmerPanel",
         "Diagnostics — Taint" => "diagTaintPanel",
         "Diagnostics — iRules" => "diagIRulePanel",
+        "Diagnostics — BIG-IP Configuration" => "diagBigIpPanel",
+        "Diagnostics — SslicTcl" => "diagSslicTclPanel",
+        "Diagnostics — Package Manager" => "diagPackagePanel",
         _ => "diagPanel",
     }
 }
@@ -454,6 +457,20 @@ mod tests {
         );
         // `$` is Kotlin-escaped.
         assert_eq!(short_label("X", "a $b"), "X: a \\$b");
+    }
+
+    #[test]
+    fn diagnostic_panel_variables_are_unique() {
+        let groups = diag_section_groups();
+        let names: std::collections::HashSet<_> = groups
+            .iter()
+            .map(|(title, _)| panel_var_for(title))
+            .collect();
+        assert_eq!(
+            names.len(),
+            groups.len(),
+            "each generated diagnostics section needs a distinct Kotlin local variable"
+        );
     }
 
     #[test]
