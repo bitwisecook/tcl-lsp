@@ -91,6 +91,17 @@ impl SemanticOptimisationPassId {
         }
     }
 
+    /// Resolve a pass from its [`Self::as_str`] spelling.
+    ///
+    /// The inverse of `as_str`, so a CLI flag, an Explorer toggle and a JSON
+    /// contract all name a pass identically. Unknown names return `None`
+    /// rather than being ignored: an optimisation the caller asked for and
+    /// did not get is a wrong answer, not a lenient one.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::all().into_iter().find(|id| id.as_str() == name)
+    }
+
     const fn bit(self) -> u16 {
         match self {
             Self::LegacyAnalysisSpecialisation => 1 << 0,
@@ -153,7 +164,94 @@ impl SemanticOptimisationConfig {
     pub const fn disable(&mut self, pass: SemanticOptimisationPassId) {
         self.enabled &= !pass.bit();
     }
+
+    /// The enabled passes, in [`SemanticOptimisationPassId::all`] order.
+    pub fn enabled_passes(self) -> impl Iterator<Item = SemanticOptimisationPassId> {
+        SemanticOptimisationPassId::all()
+            .into_iter()
+            .filter(move |pass| self.is_enabled(*pass))
+    }
+
+    /// Parse a comma-separated pass selection.
+    ///
+    /// Each element is a [`SemanticOptimisationPassId::as_str`] spelling or
+    /// one of the two group names in [`PASS_GROUPS`]; empty elements and
+    /// surrounding whitespace are ignored, so `"native-tier,"` and
+    /// `" direct-proc , frame-elision "` both parse. An unrecognised name is
+    /// an error naming the offender — silently dropping it would report an
+    /// optimised build that was never optimised.
+    ///
+    /// ```
+    /// use tcl_compiler::semantic_optimisation::{
+    ///     SemanticOptimisationConfig as Config, SemanticOptimisationPassId as Pass,
+    /// };
+    /// let config = Config::from_names("direct-proc, frame-elision").unwrap();
+    /// assert!(config.is_enabled(Pass::DirectProc));
+    /// assert!(!config.is_enabled(Pass::NativeLowering));
+    /// assert!(Config::from_names("no-such-pass").is_err());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns the unrecognised name, with the accepted spellings.
+    pub fn from_names(spec: &str) -> Result<Self, String> {
+        let mut config = Self::new();
+        for name in spec.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+            if let Some(group) = PASS_GROUPS.iter().find(|(id, _)| *id == name) {
+                for pass in group.1 {
+                    config.enable(*pass);
+                }
+            } else if let Some(pass) = SemanticOptimisationPassId::from_name(name) {
+                config.enable(pass);
+            } else {
+                return Err(format!(
+                    "unknown optimisation pass `{name}`; expected one of: {}",
+                    Self::accepted_names().join(", ")
+                ));
+            }
+        }
+        Ok(config)
+    }
+
+    /// Every name [`Self::from_names`] accepts: the group names first, then
+    /// the individual passes in declaration order.
+    #[must_use]
+    pub fn accepted_names() -> Vec<&'static str> {
+        PASS_GROUPS
+            .iter()
+            .map(|(id, _)| *id)
+            .chain(
+                SemanticOptimisationPassId::all()
+                    .into_iter()
+                    .map(Pass::as_str),
+            )
+            .collect()
+    }
 }
+
+use SemanticOptimisationPassId as Pass;
+
+/// Named sets a caller can select instead of listing passes one by one.
+///
+/// `native-tier` is the four passes
+/// [`WasmCompileOptions::native_tier`](crate::codegen::wasm::WasmCompileOptions::native_tier)
+/// enables, kept in step with it by
+/// `native_tier_group_matches_the_wasm_option`; `all` is every pass, which is
+/// what a "turn everything on and see what changes" run wants.
+pub const PASS_GROUPS: &[(&str, &[SemanticOptimisationPassId])] = &[
+    (
+        "native-tier",
+        &[
+            Pass::NativeLowering,
+            Pass::RepresentationInference,
+            Pass::TraceBarrierElision,
+            Pass::CellDemotion,
+        ],
+    ),
+    ("all", &ALL_PASSES),
+];
+
+const ALL_PASSES: [SemanticOptimisationPassId; 12] = SemanticOptimisationPassId::all();
 
 #[cfg(test)]
 mod tests {
@@ -171,5 +269,55 @@ mod tests {
             assert!(!config.is_enabled(pass));
         }
         assert!(config.is_empty());
+    }
+
+    #[test]
+    fn every_pass_name_round_trips() {
+        for pass in Pass::all() {
+            assert_eq!(Pass::from_name(pass.as_str()), Some(pass), "{pass:?}");
+        }
+        assert_eq!(
+            Pass::from_name("native-tier"),
+            None,
+            "a group is not a pass"
+        );
+        assert_eq!(Pass::from_name(""), None);
+    }
+
+    #[test]
+    fn from_names_parses_passes_groups_and_whitespace() {
+        let config = SemanticOptimisationConfig::from_names(" direct-proc , frame-elision ,")
+            .expect("a valid selection");
+        assert_eq!(
+            config.enabled_passes().collect::<Vec<_>>(),
+            vec![Pass::DirectProc, Pass::FrameElision]
+        );
+        assert!(
+            SemanticOptimisationConfig::from_names("")
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            SemanticOptimisationConfig::from_names("all")
+                .unwrap()
+                .enabled_passes()
+                .count(),
+            Pass::all().len()
+        );
+        let error = SemanticOptimisationConfig::from_names("direct-proc,nope").unwrap_err();
+        assert!(error.contains("`nope`"), "{error}");
+        assert!(error.contains("native-tier"), "{error}");
+    }
+
+    /// The `native-tier` group and `WasmCompileOptions::native_tier` are two
+    /// spellings of one set; a pass added to the option and not the group
+    /// would make the CLI and the Explorer quietly weaker than the harness.
+    #[test]
+    fn native_tier_group_matches_the_wasm_option() {
+        let group = SemanticOptimisationConfig::from_names("native-tier").unwrap();
+        let option = crate::codegen::wasm::WasmCompileOptions::hosted()
+            .native_tier()
+            .semantic_optimisations();
+        assert_eq!(group, option);
     }
 }

@@ -152,9 +152,18 @@ impl WasmCompileOptions {
 
     /// The native tier: lower every function through NLIR
     /// (`crate::native_lowering`) with representation inference,
-    /// trace-barrier elision, and cell demotion, and emit it natively. This is
-    /// what `tcl compwasm`, the Explorer, and the tier harness's native plan
-    /// use; it is shorthand for the four explicit passes it enables.
+    /// trace-barrier elision, and cell demotion, and emit it natively.
+    ///
+    /// Shorthand for the four passes it enables, and the same set the
+    /// `native-tier` group in
+    /// [`PASS_GROUPS`](crate::semantic_optimisation::PASS_GROUPS) names —
+    /// `native_tier_group_matches_the_wasm_option` keeps the two in step.
+    ///
+    /// The tier harness's native plan uses it unconditionally. `tcl compwasm`
+    /// and the Explorer reach it through `--optimise` / their pass toggles;
+    /// **both default to no optimisation at all**, so an unflagged
+    /// `tcl compwasm` and the Explorer's `wasm` view show the generic
+    /// lowering.
     #[must_use]
     pub const fn native_tier(self) -> Self {
         self.with_semantic_optimisation(SemanticOptimisationPassId::NativeLowering)

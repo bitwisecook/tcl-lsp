@@ -31,10 +31,12 @@ tcl command-info HTTP::uri --dialect f5-irules --json
 tcl find-legacy rule.irule --json
 tcl dis script.tcl
 tcl compwasm script.tcl -o out.wasm --wat-output out.wat
+tcl compwasm script.tcl --codegen-passes native-tier -o out.wasm
 tcl highlight script.tcl --force-colour
 tcl highlight script.tcl --format html -o out.html
 tcl diff old.irule new.irule --show ast,ir,cfg
 tcl explore script.tcl --show ir,cfg,opt
+tcl explore script.tcl --json --codegen-passes native-lowering,cell-demotion
 tcl help taint analysis --dialect f5-irules
 tcl help taint --json
 
@@ -96,10 +98,10 @@ tcl venv delete .venv
 - `command-info`: emits command registry metadata for a named command and dialect (`--json` supported).
 - `find-legacy`: emits diagnostics that map to known modernisation rewrites (`--json` supported, detection only — use `opt` to apply rewrites).
 - `dis`: compiles resolved source and emits bytecode disassembly.
-- `compwasm`: compiles resolved source to a WASM binary (`--wat-output` optional).
+- `compwasm`: compiles resolved source to a WASM binary (`--wat-output` optional). `--codegen-passes` selects the semantic/AOT codegen optimisation passes the emitter may use — individual pass ids, or the `native-tier` / `all` groups; omitted, no pass runs and the emitter produces the generic lowering. It is distinct from `dis --optimise`, which runs the *source-rewrite* optimiser.
 - `highlight`: emits syntax-highlighted output in ANSI or HTML (`--format`, `--no-colour`, `--force-colour`).
 - `diff`: compares two inputs at parser AST, lowered IR, and CFG layers (`--show` and `--json` supported).
-- `explore`: forwards combined source into compiler-explorer views.
+- `explore`: forwards combined source into compiler-explorer views. `--codegen-passes` applies to the `wasm` views, and the `semanticOptimisations` view lists every pass with the state the shown module was built with.
 - `help`: searches the KCS help database embedded in the binary at build time and reports KCS feature matches (`--dialect` optionally narrows matches).
 
 ## Exit-code contract

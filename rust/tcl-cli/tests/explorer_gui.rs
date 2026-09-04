@@ -186,6 +186,51 @@ fn assert_compile_triggers(report: &Value) {
     );
 }
 
+/// The codegen-pass toggles: rows built from `meta.semanticOptimisations`
+/// before any compile lands, a tick that forces a recompile, and — the part a
+/// label alone would fake — the selection actually reaching the compiler.
+fn assert_codegen_pass_toggles(report: &Value) {
+    let rows = report["passRowCount"].as_u64().expect("pass row count");
+    assert_eq!(
+        rows,
+        tcl_explorer::SemanticOptimisationPassId::all().len() as u64,
+        "the toggle panel did not render one row per pass"
+    );
+    assert_eq!(
+        report["summaryBefore"].as_str().map(str::trim),
+        Some("Codegen passes: none"),
+        "an untouched Explorer must show the generic lowering"
+    );
+
+    let before = report["compilesBeforeToggle"]
+        .as_u64()
+        .expect("compile count");
+    let after = report["compilesAfterToggle"]
+        .as_u64()
+        .expect("compile count");
+    assert_eq!(
+        after,
+        before + 1,
+        "ticking a pass did not force a recompile ({before} -> {after})"
+    );
+    assert_eq!(
+        report["passesSent"].as_str(),
+        Some(tcl_explorer::SemanticOptimisationPassId::all()[0].as_str()),
+        "the ticked pass never reached the compiler"
+    );
+    assert_ne!(
+        report["summaryAfter"].as_str().map(str::trim),
+        Some("Codegen passes: none")
+    );
+
+    // The group buttons are presets over the same checkboxes.
+    assert_eq!(
+        report["nativeTierTicked"].as_u64(),
+        Some(4),
+        "the `native-tier` preset did not tick its four passes"
+    );
+}
+
 #[test]
 fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     if Command::new("node").arg("--version").output().is_err() {
@@ -301,4 +346,5 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     );
 
     assert_compile_triggers(&report);
+    assert_codegen_pass_toggles(&report);
 }

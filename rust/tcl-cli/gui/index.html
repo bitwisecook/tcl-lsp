@@ -86,6 +86,66 @@ body {
   outline: none;
 }
 .toolbar select:focus { border-color: var(--accent); }
+/* Codegen-pass toggles: a <details> popover so the toolbar stays one row.
+   Rows are built from meta.semanticOptimisations, never from a copy of the
+   pass list in this file. */
+.opt-panel { position: relative; }
+.opt-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.opt-panel > summary::-webkit-details-marker { display: none; }
+.opt-panel[open] > summary { border-color: var(--accent); }
+.opt-panel .opt-body {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 260px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.opt-panel .opt-body label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.opt-panel .opt-groups {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.opt-panel .opt-groups button {
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+.opt-panel .opt-groups button:hover { color: var(--text); border-color: var(--accent); }
 .compile-btn {
   background: var(--bg);
   color: var(--text);
@@ -993,6 +1053,17 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
       <option value="tcl8.6" selected>Tcl 8.6</option>
     </select>
     <button id="compileBtn" class="compile-btn" type="button" title="Recompile the current source">Compile</button>
+    <!-- Codegen optimisation passes. Empty by default: the WASM views show
+         the generic lowering until a pass is ticked. Rows come from
+         meta.semanticOptimisations (filled on worker ready, like the dialect
+         dropdown), so this markup never lists passes itself. -->
+    <details class="opt-panel" id="optPanel">
+      <summary id="optSummary" title="Semantic/AOT codegen optimisation passes used by the WASM views">Codegen passes: none</summary>
+      <div class="opt-body">
+        <div class="opt-groups" id="optGroups"></div>
+        <div id="optPasses"></div>
+      </div>
+    </details>
     <div class="spinner" id="spinner"></div>
     <span class="status-msg" id="statusMsg">Loading compiler...</span>
     <div class="stats" id="stats"></div>
@@ -1194,6 +1265,7 @@ worker.onmessage = function(e) {
       // the module loads rather than leaving the hard-coded tcl8.6 fallback
       // up until a first result lands.
       populateDialectOptions(msg.meta && msg.meta.dialects);
+      populateOptimisationPanel(msg.meta && msg.meta.semanticOptimisations);
       setExplorerReferenceMeta(msg.meta);
       // Auto-compile if there's content.
       if (pendingCompile || textarea.value.trim()) {
@@ -1207,6 +1279,7 @@ worker.onmessage = function(e) {
         compiledSource = lastSource;
         compiledDialect = lastDialect;
         populateDialectOptions(data && data.meta && data.meta.dialects);
+        populateOptimisationPanel(data && data.semanticOptimisations);
         const failures = renderAll();
         if (failures && failures.length) {
           $('#statusMsg').style.display = '';
@@ -1355,11 +1428,71 @@ function populateDialectOptions(dialects) {
   }
 }
 
+// The ticked codegen-pass ids, in meta order. Empty means the generic
+// lowering, which is what an untouched Explorer shows.
+let enabledPasses = [];
+let lastPasses = null;
+
+// Build the toggle rows from the backend's own pass catalogue. Called on
+// worker `ready` (meta) and again on each result, so the panel is usable
+// before the first compile and stays in step with what the shown module was
+// actually built with.
+function populateOptimisationPanel(catalogue) {
+  if (!catalogue || !Array.isArray(catalogue.passes)) return;
+  const passBox = $('#optPasses');
+  const groupBox = $('#optGroups');
+  if (passBox.dataset.built !== 'yes') {
+    passBox.innerHTML = '';
+    catalogue.passes.forEach(pass => {
+      const label = document.createElement('label');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.value = pass.id;
+      box.addEventListener('change', () => {
+        enabledPasses = Array.from(passBox.querySelectorAll('input:checked')).map(i => i.value);
+        updateOptimisationSummary();
+        forceCompile();
+      });
+      label.appendChild(box);
+      label.appendChild(document.createTextNode(pass.id));
+      passBox.appendChild(label);
+    });
+    groupBox.innerHTML = '';
+    (catalogue.groups || []).concat([{ id: 'none', passes: [] }]).forEach(group => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = group.id;
+      button.addEventListener('click', () => {
+        setEnabledPasses(group.passes || []);
+        forceCompile();
+      });
+      groupBox.appendChild(button);
+    });
+    passBox.dataset.built = 'yes';
+  }
+  updateOptimisationSummary();
+}
+
+function setEnabledPasses(ids) {
+  enabledPasses = ids.slice();
+  $('#optPasses').querySelectorAll('input').forEach(box => {
+    box.checked = enabledPasses.indexOf(box.value) !== -1;
+  });
+  updateOptimisationSummary();
+}
+
+function updateOptimisationSummary() {
+  const n = enabledPasses.length;
+  $('#optSummary').textContent =
+    'Codegen passes: ' + (n === 0 ? 'none' : n === 1 ? enabledPasses[0] : n + ' on');
+}
+
 function compile() {
   const source = textarea.value;
   const dialect = $('#dialect').value;
+  const passes = enabledPasses.join(',');
   if (!source.trim()) return;
-  if (source === lastSource && dialect === lastDialect) return;
+  if (source === lastSource && dialect === lastDialect && passes === lastPasses) return;
 
   if (!workerReady) {
     // Remember that work is owed, but do NOT record this as the compiled
@@ -1372,15 +1505,18 @@ function compile() {
 
   lastSource = source;
   lastDialect = dialect;
+  lastPasses = passes;
   $('#spinner').style.display = 'block';
   setStatus('compiling');
-  worker.postMessage({ type: 'compile', source, dialect });
+  worker.postMessage({ type: 'compile', source, dialect, optimisations: passes });
 }
 
-// Force a compile even when the source and dialect are unchanged.
+// Force a compile even when the source, dialect and pass selection are
+// unchanged.
 function forceCompile() {
   lastSource = '';
   lastDialect = '';
+  lastPasses = null;
   clearTimeout(compileTimer);
   compile();
 }

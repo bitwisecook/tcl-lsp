@@ -150,6 +150,71 @@ fn compwasm_emits_valid_module_header() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// `--codegen-passes` is what turns the semantic/AOT passes on; without it
+/// `compwasm` emits the generic lowering. The two modules must differ, or the
+/// flag is decorative.
+#[test]
+fn compwasm_codegen_passes_change_the_emitted_module() {
+    let dir = std::env::temp_dir().join("tcl_compwasm_passes_test");
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let source = "set a 1\nincr a\nputs $a\n";
+
+    let emit = |name: &str, passes: Option<&str>| {
+        let wasm_path = dir.join(format!("{name}.wasm"));
+        let mut args = vec![
+            "compwasm".to_owned(),
+            "--source".to_owned(),
+            source.to_owned(),
+            "-o".to_owned(),
+            wasm_path.to_str().unwrap().to_owned(),
+        ];
+        if let Some(passes) = passes {
+            args.push("--codegen-passes".to_owned());
+            args.push(passes.to_owned());
+        }
+        let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args(&args)
+            .output()
+            .expect("spawn tcl");
+        assert!(
+            out.status.success(),
+            "compwasm {passes:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        std::fs::read(&wasm_path).expect("read wasm")
+    };
+
+    let generic = emit("generic", None);
+    let native = emit("native", Some("native-tier"));
+    assert_eq!(&generic[0..4], b"\0asm");
+    assert_eq!(&native[0..4], b"\0asm");
+    assert_ne!(
+        generic, native,
+        "--codegen-passes native-tier emitted the generic lowering"
+    );
+
+    // A misspelled pass fails loudly and names the offender, rather than
+    // quietly producing an unoptimised module.
+    let bad = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args([
+            "compwasm",
+            "--source",
+            source,
+            "--codegen-passes",
+            "no-such-pass",
+            "-o",
+            dir.join("bad.wasm").to_str().unwrap(),
+        ])
+        .output()
+        .expect("spawn tcl");
+    assert!(!bad.status.success());
+    let stderr = String::from_utf8_lossy(&bad.stderr);
+    assert!(stderr.contains("no-such-pass"), "{stderr}");
+    assert!(stderr.contains("native-tier"), "{stderr}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn compwasm_rejects_removed_backend_selection() {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))

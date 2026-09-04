@@ -43,7 +43,16 @@ pub mod view_tree;
 pub mod views;
 pub mod wasm_explorer;
 
-pub use serialise::{serialise_meta, serialise_result};
+pub use serialise::{
+    serialise_meta, serialise_result, serialise_result_with_optimisations,
+    serialise_semantic_optimisations,
+};
+/// The semantic/AOT optimisation configuration the `wasm` views are built
+/// with, re-exported so a front end names passes through the explorer
+/// contract rather than reaching past it into `tcl-compiler`.
+pub use tcl_compiler::semantic_optimisation::{
+    PASS_GROUPS, SemanticOptimisationConfig, SemanticOptimisationPassId,
+};
 pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};

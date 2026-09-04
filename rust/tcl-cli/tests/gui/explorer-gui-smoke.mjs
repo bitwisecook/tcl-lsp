@@ -65,7 +65,14 @@ await writeFile(
     'self.__initGate = new Promise(function (resolve) { self.__finishInit = resolve; });\n' +
     'self.wasm_bindgen = function () { return self.__initGate; };\n' +
     'self.wasm_bindgen.meta = function () { return self.__META; };\n' +
-    'self.wasm_bindgen.compile = function () { self.__COMPILES += 1; return self.__PAYLOAD; };\n',
+    'self.wasm_bindgen.compile = function () { self.__COMPILES += 1; return self.__PAYLOAD; };\n' +
+    // The toggle panel's entry point. Record the selection so the driver can
+    // assert the ticked passes actually reach the compiler rather than just
+    // changing a label.
+    'self.__LAST_PASSES = null;\n' +
+    'self.wasm_bindgen.compile_with_optimisations = function (source, dialect, passes) {\n' +
+    '  self.__COMPILES += 1; self.__LAST_PASSES = passes; return self.__PAYLOAD;\n' +
+    '};\n',
 );
 await writeFile(join(root, 'tcl_explorer_wasm_bg.wasm'), '');
 // Mermaid is vendored by `make explorer-wasm` and not checked in; the GUI
@@ -220,9 +227,40 @@ try {
     afterEdit = await compileCount(page);
   }
 
+  // The codegen-pass toggles: rows come from `meta.semanticOptimisations`, so
+  // the panel must be populated before any compile lands, ticking one must
+  // force a recompile, and the selection must reach the compiler.
+  // The panel is a closed <details> until the user opens it, so click the
+  // summary the way they would — the rows exist but are not clickable before.
+  await page.click('#optSummary');
+  const passRowCount = await page.locator('#optPasses input[type=checkbox]').count();
+  const summaryBefore = await page.locator('#optSummary').innerText();
+  const beforeToggle = await compileCount(page);
+  await page.locator('#optPasses input[type=checkbox]').first().check();
+  let afterToggle = beforeToggle;
+  for (let i = 0; i < 100 && afterToggle === beforeToggle; i += 1) {
+    await page.waitForTimeout(100);
+    afterToggle = await compileCount(page);
+  }
+  const passesSent = await lastPasses(page);
+  const summaryAfter = await page.locator('#optSummary').innerText();
+  // The group buttons are presets over the same checkboxes.
+  await page.locator('#optGroups button', { hasText: 'native-tier' }).first().click();
+  await page.waitForTimeout(300);
+  const nativeTierTicked = await page
+    .locator('#optPasses input[type=checkbox]:checked')
+    .count();
+
   report = {
     ok: true,
     first: afterFirst,
+    passRowCount,
+    summaryBefore,
+    summaryAfter,
+    compilesBeforeToggle: beforeToggle,
+    compilesAfterToggle: afterToggle,
+    nativeTierTicked,
+    passesSent,
     traitRowsBeforeCompile,
     queuedDuringLoad,
     compilesDuringLoad,
@@ -278,6 +316,15 @@ async function compileCount(page) {
   const workers = page.workers();
   if (!workers.length) return null;
   return workers[0].evaluate(() => self.__COMPILES);
+}
+
+// The pass selection the last compile actually carried into the compiler,
+// read from the worker the same way as the compile count. A label that
+// updates while the worker still gets "" is exactly the failure this catches.
+async function lastPasses(page) {
+  const workers = page.workers();
+  if (!workers.length) return null;
+  return workers[0].evaluate(() => self.__LAST_PASSES);
 }
 
 // Put source into the page the only way the shipped UI offers: through the

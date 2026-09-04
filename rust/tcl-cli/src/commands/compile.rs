@@ -98,14 +98,23 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
 /// `tcl compwasm` — compile source through the canonical analysis-aware WASM
 /// pipeline. Unsupported specialisations retain exact source-span runtime
 /// fallback inside the generated module.
-pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> anyhow::Result<u8> {
+///
+/// `optimisations` is the `--codegen-passes` selection. It defaults to empty:
+/// an unflagged `tcl compwasm` emits the generic lowering, with every
+/// semantic/AOT pass off.
+pub fn run_compwasm(
+    input: &InputArgs,
+    wat_output: Option<&std::path::Path>,
+    optimisations: tcl_explorer::SemanticOptimisationConfig,
+) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let registry = registry_for_dialect(dialect.name);
     let source = combine_sources(&documents);
 
     let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect.name);
-    let mut wasm = compile_wasm(&unit, &registry, WasmCompileOptions::hosted());
+    let options = WasmCompileOptions::hosted().with_semantic_optimisations(optimisations);
+    let mut wasm = compile_wasm(&unit, &registry, options);
     let bytes = wasm.to_bytes();
 
     // Unlike the other verbs, `compwasm` defaults to a file, not stdout: a bare
