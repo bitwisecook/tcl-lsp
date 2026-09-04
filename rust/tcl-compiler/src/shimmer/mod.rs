@@ -39,6 +39,7 @@ pub mod commit;
 pub mod expr;
 pub mod graph;
 pub mod hints;
+mod nested;
 pub mod phi;
 pub mod sharing;
 pub mod span;

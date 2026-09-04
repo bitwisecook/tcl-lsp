@@ -498,17 +498,37 @@ fn transfer_block(
                 apply_read(ctx, &mut state, read, Some(use_commit_types));
             }
         }
-        // Branch-condition reads live on the terminator, evaluated after the
-        // block's statements with its exit versions.
-        if let Some(block) = cfg.blocks.get(&block_id)
-            && let Some(Terminator::Branch {
-                condition, span, ..
-            }) = &block.terminator
+        // Branch-condition and return-expression reads live on the
+        // terminator, evaluated after the block's statements with its exit
+        // versions. Both must move the state for the same reason: the runtime
+        // converts there, so a later read in a successor block sees the
+        // converted representation.
+        match cfg
+            .blocks
+            .get(&block_id)
+            .and_then(|b| b.terminator.as_ref())
         {
-            let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
-            for read in typed_reads_of_expr(ctx, condition, &ssa_block.exit_versions, branch_span) {
-                apply_read(ctx, &mut state, read, Some(use_commit_types));
+            Some(Terminator::Branch {
+                condition, span, ..
+            }) => {
+                let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
+                for read in
+                    typed_reads_of_expr(ctx, condition, &ssa_block.exit_versions, branch_span)
+                {
+                    apply_read(ctx, &mut state, read, Some(use_commit_types));
+                }
             }
+            Some(Terminator::Return {
+                expr: Some(expr),
+                span,
+                ..
+            }) => {
+                let return_span = span.unwrap_or_else(|| Span::new(0, 0));
+                for read in typed_reads_of_expr(ctx, expr, &ssa_block.exit_versions, return_span) {
+                    apply_read(ctx, &mut state, read, Some(use_commit_types));
+                }
+            }
+            _ => {}
         }
     }
     state
@@ -529,8 +549,16 @@ fn typed_reads_of_statement(
         Statement::Call {
             args,
             foreach_groups,
+            tokens,
             ..
         } => {
+            // Tcl evaluates the words — running any `[cmd …]` in them — before
+            // it invokes the outer command, so those reads land first. Without
+            // them the state is stale for every later read of the same
+            // variable: `puts [lindex $x 0]` converts `x` to a list just as
+            // surely as a bare `lindex $x 0` does (issue #1814 follow-up).
+            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
+
             let lookup = stmt.canonical_command_or_source();
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             for (i, word) in args.iter().enumerate() {
@@ -580,6 +608,63 @@ fn typed_reads_of_statement(
         _ => {}
     }
     out
+}
+
+/// Push the typed reads of every `[cmd …]` nested in `tokens`' words.
+///
+/// Each substitution reads its arguments exactly as the same command written
+/// on its own line would, so this mirrors the direct-call arm — with one extra
+/// case: a nested `[expr …]` carries its reads in an expression, not in
+/// registry argument roles, so its operands are extracted through
+/// [`typed_reads_of_expr`] instead.
+///
+/// The reads are appended innermost-first, which is the order Tcl evaluates
+/// them in.
+fn push_lifted_reads(
+    ctx: &CommitCtx<'_>,
+    out: &mut Vec<TypedRead>,
+    tokens: Option<&crate::ir::CommandTokens>,
+    span: Span,
+    uses: &HashMap<Symbol, u32>,
+) {
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    for lifted in super::nested::lifted_calls(tokens, config) {
+        if let Some(expr_text) = expr_substitution_body(&lifted) {
+            let expr = tcl_syntax::expr::parser::parse_expr_for_profile(
+                &expr_text,
+                ctx.registry.profile(),
+            );
+            out.extend(typed_reads_of_expr(ctx, &expr, uses, span));
+            continue;
+        }
+        let arg_refs: Vec<&str> = lifted.args.iter().map(String::as_str).collect();
+        for (i, word) in lifted.args.iter().enumerate() {
+            if let Some(expected) = arg_shimmer_type(ctx.registry, &lifted.command, &arg_refs, i) {
+                push_var_read(ctx, out, word, expected, span, uses);
+            }
+        }
+    }
+}
+
+/// The expression text of a lifted `[expr …]`, or `None` for any other
+/// command. `expr` concatenates its arguments, and the single-argument braced
+/// form is the only one whose text is a verbatim source slice, so a
+/// multi-argument `expr` is left alone rather than guessed at.
+fn expr_substitution_body(lifted: &super::nested::LiftedCall) -> Option<String> {
+    if lifted.command != "expr" && lifted.command != "::expr" {
+        return None;
+    }
+    let [only] = lifted.args.as_slice() else {
+        return None;
+    };
+    let trimmed = only.trim();
+    Some(
+        trimmed
+            .strip_prefix('{')
+            .and_then(|t| t.strip_suffix('}'))
+            .unwrap_or(trimmed)
+            .to_owned(),
+    )
 }
 
 /// Extract the typed operand reads of one expression AST: arithmetic /

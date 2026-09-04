@@ -95,6 +95,14 @@ pub(crate) fn find_expr_shimmers(
         // The committed-intrep walker replays the commit transfer in step with
         // this walk, so each expr's operands see the state just before it.
         let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
+        // Versions live *at* each statement, advanced with its defs as the
+        // walk proceeds. A nested `[expr …]` needs these: its operands never
+        // reach `SsaStatement::uses`, because `$d` inside `[expr {$d % 2}]`
+        // sits in a braced word the *command* parser does not substitute —
+        // only `expr` itself does, when it evaluates. Reading the running map
+        // resolves the operand to the version in scope where the substitution
+        // runs, rather than the block's entry or exit.
+        let mut live_versions: HashMap<Symbol, u32> = ssa_block.entry_versions.clone();
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -125,40 +133,128 @@ pub(crate) fn find_expr_shimmers(
                     };
                     collect_expr_shimmers(&mut ctx, expr, 0);
                 }
+                // An `[expr …]` written inside another command's word — the
+                // `puts [expr {$d % 2}]` half of the asymmetry issue #1814
+                // reported. The lowerer turns a *statement* `expr` into the
+                // node above, but leaves a nested one as opaque argument text,
+                // so it is lifted and parsed here (see [`super::nested`]).
+                Statement::Call { tokens, .. } => {
+                    for (expr, span) in
+                        super::nested::lifted_exprs(tokens.as_ref(), registry.profile())
+                    {
+                        let mut ctx = ExprShimmerCtx {
+                            uses: &live_versions,
+                            types,
+                            values,
+                            ssa,
+                            commit: &commit_walker,
+                            // The substitution's own extent, so the report
+                            // points at `[expr …]` rather than the whole
+                            // enclosing command.
+                            stmt_span: span,
+                            expr_base: None,
+                            in_loop,
+                            seen: &mut seen,
+                            out: &mut out,
+                        };
+                        collect_expr_shimmers(&mut ctx, &expr, 0);
+                    }
+                }
                 _ => {}
             }
             commit_walker.step(&ss.statement, &ss.uses);
+            // The command's own writes land after its words are evaluated.
+            live_versions.extend(ss.defs.iter().map(|(sym, v)| (*sym, *v)));
         }
 
-        // 2. Branch terminator condition (if/while/for predicate).
-        if let Some(block) = cfg.blocks.get(&block_id)
-            && let Some(Terminator::Branch {
-                condition,
-                span,
-                condition_base,
-                ..
-            }) = &block.terminator
-        {
-            let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
-            // Use exit_versions: those are the variable versions in scope
-            // when the condition is evaluated.
-            let mut ctx = ExprShimmerCtx {
-                uses: &ssa_block.exit_versions,
+        // 2. Terminator expressions: an `if`/`while`/`for` predicate, and a
+        //    `return [expr {…}]` value.
+        collect_terminator_shimmers(
+            &mut TerminatorWalk {
+                cfg,
+                ssa,
                 types,
                 values,
-                ssa,
+                block_id,
+                exit_versions: &ssa_block.exit_versions,
                 commit: &commit_walker,
-                stmt_span: branch_span,
-                expr_base: *condition_base,
                 in_loop,
-                seen: &mut seen,
-                out: &mut out,
-            };
-            collect_expr_shimmers(&mut ctx, condition, 0);
-        }
+            },
+            &mut seen,
+            &mut out,
+        );
     }
 
     out
+}
+
+/// Everything one block's terminator walk needs that is constant across it.
+struct TerminatorWalk<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    block_id: BlockId,
+    /// The versions in scope when a terminator is evaluated — after every
+    /// statement of its block has run.
+    exit_versions: &'a HashMap<Symbol, u32>,
+    commit: &'a super::commit::CommitWalker<'a>,
+    in_loop: bool,
+}
+
+/// Walk the expression a block's terminator evaluates, if it has one.
+///
+/// Both arms are expressions Tcl evaluates in this frame, so both are walked
+/// on the same terms as a statement `expr`. The `return` arm closes the
+/// asymmetry issue #1814 reported — `expr {$u0 * $dx}` as a statement was
+/// walked while `return [expr {$u0 * $dx}]` was not, so the same expression
+/// reported differently depending only on its position. The lowerer already
+/// parses it onto `Terminator::Return::expr`, and leaves that `None` for the
+/// braced `return {[expr …]}` that Tcl never evaluates, so reading it is both
+/// free and exact.
+fn collect_terminator_shimmers(
+    walk: &mut TerminatorWalk<'_>,
+    seen: &mut HashSet<(Span, String)>,
+    out: &mut Vec<ShimmerWarning>,
+) {
+    let Some(terminator) = walk
+        .cfg
+        .blocks
+        .get(&walk.block_id)
+        .and_then(|b| b.terminator.as_ref())
+    else {
+        return;
+    };
+    // `Terminator::Return` carries no `expr_base`, so its operand spans fall
+    // back to the statement span — the documented fallback for expression
+    // interiors.
+    let (expr, span, expr_base) = match terminator {
+        Terminator::Branch {
+            condition,
+            span,
+            condition_base,
+            ..
+        } => (condition, *span, *condition_base),
+        Terminator::Return {
+            expr: Some(expr),
+            span,
+            ..
+        } => (expr, *span, None),
+        _ => return,
+    };
+    let mut ctx = ExprShimmerCtx {
+        uses: walk.exit_versions,
+        types: walk.types,
+        values: walk.values,
+        ssa: walk.ssa,
+        commit: walk.commit,
+        stmt_span: span.unwrap_or_else(|| Span::new(0, 0)),
+        expr_base,
+        in_loop: walk.in_loop,
+        seen,
+        out,
+    };
+    collect_expr_shimmers(&mut ctx, expr, 0);
 }
 
 /// Read-only context + warning sinks threaded through one expr walk.
@@ -767,6 +863,60 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+    }
+
+    /// Issue #1814 reported the same expression reporting differently
+    /// depending only on where it sat: `expr {$u0 * $dx}` was walked,
+    /// `return [expr {$u0 * $dx}]` was not. The return value is an
+    /// `ExprNode` the lowerer already parsed onto the terminator, so the
+    /// walker simply had to read it.
+    #[test]
+    fn expr_shimmer_fires_in_a_return_expression() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return [expr {$d % 2}]\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert!(
+            w.iter()
+                .any(|sw| sw.variable == "d" && sw.to_type == TclType::Int),
+            "a double in a returned integer-only expression is still a mismatch: {w:?}"
+        );
+    }
+
+    /// `return {[expr {…}]}` is a literal string — Tcl never evaluates it, so
+    /// the lowerer leaves the terminator's `expr` `None` and nothing fires.
+    #[test]
+    fn no_expr_shimmer_in_a_braced_return_value() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return {[expr {$d % 2}]}\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        assert!(expr_shimmers(fu, &registry()).is_empty());
+    }
+
+    /// The other half of the same asymmetry: an `[expr …]` in a call
+    /// argument. Its operands never reach `SsaStatement::uses` (the body is a
+    /// braced word the *command* parser does not substitute), so the walk
+    /// resolves them against the versions live at the statement.
+    #[test]
+    fn expr_shimmer_fires_in_a_nested_call_argument() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n puts [expr {$d % 2}]\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert!(
+            w.iter()
+                .any(|sw| sw.variable == "d" && sw.to_type == TclType::Int),
+            "nested `[expr …]` is evaluated just like a statement one: {w:?}"
+        );
+    }
+
+    /// …and the braced spelling of that same word is not.
+    #[test]
+    fn no_expr_shimmer_in_a_braced_call_argument() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n puts {[expr {$d % 2}]}\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        assert!(expr_shimmers(fu, &registry()).is_empty());
     }
 
     /// Review follow-up on #1814: `%`, the shifts and the bitwise operators
