@@ -17,13 +17,30 @@ EXPECTED=$(mktemp)
 ACTUAL=$(mktemp)
 trap 'rm -f "$EXPECTED" "$ACTUAL"' EXIT HUP INT TERM
 
+SMOKE_DECL_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|mod[[:space:]]+smoke[[:space:]]*[;{])'
+
+# Keep the declaration scanner broad enough for Rust's visibility-qualified
+# module forms. A missed declaration would let the fallback consume a
+# manifest that silently omits the owning Cargo target.
+for declaration in \
+    'mod smoke {' \
+    'pub mod smoke;' \
+    'pub(crate) mod smoke {' \
+    'pub(super) mod smoke;' \
+    'pub(in crate::tests) mod smoke {'
+do
+    if ! printf '%s\n' "$declaration" | grep -E -q "$SMOKE_DECL_RE"; then
+        echo "smoke declaration scanner missed: $declaration" >&2
+        exit 1
+    fi
+done
+
 cd "$REPO_ROOT"
 
 awk -F '\t' '!/^#/ && NF { print $1 }' "$MANIFEST" | sort -u > "$EXPECTED"
 
 {
-    git grep -l -E \
-        '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|^[[:space:]]*mod[[:space:]]+smoke[[:space:]]*[;{]' \
+    git grep -l -E "$SMOKE_DECL_RE" \
         -- ':(glob)rust/**/*.rs' || true
     git ls-files ':(glob)rust/**/*.rs' | awk '
         /\/tests\/smoke\.rs$/ || /\/tests\/[^/]*_smoke\.rs$/ || /\/tests\/smoke\/[^/]*_smoke\.rs$/ { print }
