@@ -82,6 +82,7 @@ pub struct LiftedCall {
 ///
 /// Returns an empty vector for a statement whose words hold no substitution —
 /// the overwhelming majority — without allocating beyond the empty `Vec`.
+#[must_use]
 pub fn lifted_calls(
     tokens: Option<&CommandTokens>,
     config: tcl_lexer::LexerConfig,
@@ -185,6 +186,7 @@ fn push_substitution(
 /// verbatim source slice, so any other spelling is skipped rather than guessed
 /// at — the same abstention the lowerer makes when it cannot anchor an
 /// expression's text.
+#[must_use]
 pub fn lifted_exprs(
     tokens: Option<&CommandTokens>,
     profile: Option<&tcl_dialect::DialectProfile>,
