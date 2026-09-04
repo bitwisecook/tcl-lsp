@@ -5945,6 +5945,19 @@ impl Interp {
 
     /// Substitute each word of a command (with `{*}` expansion), then dispatch.
     fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
+        // C parses a command WHOLE before it substitutes any of it
+        // (`Tcl_EvalEx` → `Tcl_ParseCommand` → `TclEvalObjvInternal`), so a
+        // parse failure in a later word — or inside a later word's `[…]` —
+        // stops an earlier word's command substitution from ever running.
+        // Measured on 8.6.16 and 9.0.4: `list [sfx inner] {a}b` raises `extra
+        // characters after close-brace` with `sfx` never called. Walking the
+        // words in order and raising at the first `WordPart::ParseError` (this
+        // engine's carrier for those failures — the scanner stays infallible so
+        // the LSP can keep tokenizing) substituted word by word instead, which
+        // ran `sfx`. Issue #1787; the gap #1818's header recorded as pending.
+        if let Some(msg) = parse::first_parse_error(words, self.lexer_config()) {
+            return self.error(msg.as_bytes());
+        }
         // The command's reported line + source file (for TIP 280 argument-line
         // tracking and the LABC literal-location table), and the first word's
         // offset (to measure each word's line within the command).

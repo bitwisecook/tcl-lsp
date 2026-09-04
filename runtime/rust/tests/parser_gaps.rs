@@ -330,14 +330,10 @@ fn regsub_writes_its_target_variable_as_an_array_element() {
 // already run, since `Tcl_EvalEx` parses one command at a time — pinned below
 // by `sfx pre`.
 //
-// One ordering nuance is deliberately NOT pinned, because this engine does not
-// yet match it: C parses every word of a command before substituting any, so
-// `list [side] {a}b` — side effect in an *earlier* word than the welded one —
-// never runs `side`, while this engine substitutes word by word and does. That
-// gap predates #1786 and is shared by every `WordPart::ParseError` (`list
-// [side] "unterminated` behaves the same way); closing it means pre-scanning a
-// command's words in `Interp::eval_words`, which is the `word_parts` module
-// doc's "C's script-parsing order" consumer note, not this lane's change.
+// The ordering nuance this header once recorded as pending — C parses every
+// word of a command before substituting any, so `list [side] {a}b` never runs
+// `side` — is closed by #1787 and pinned below by
+// `a_command_parses_whole_before_any_of_its_words_substitute`.
 //
 // Not welded, and still accepted (measured the same on 8.6.16 / 9.0.4):
 // `a{b}c`, `x{a}y`, `$a{b}c`, `[b]{c}d` — a `{` away from word start is an
@@ -413,4 +409,94 @@ fn a_brace_away_from_word_start_or_after_a_separator_is_not_a_weld() {
         assert_eq!(code, Code::Ok, "{sheet}: {result}");
         assert_eq!(result, want, "{sheet}");
     }
+}
+
+// ---------------------------------------------------------------------------
+// #1787 — C's script-parsing ORDER. `Tcl_EvalEx` parses one whole command
+// (`Tcl_ParseCommand`, every word of it) and only then substitutes and
+// dispatches, so a parse failure anywhere in a command is the *command's*
+// failure: nothing that command would have substituted runs, however early in
+// the command it sits. And `Tcl_ParseCommand`'s `ParseTokens` recurses into a
+// `[…]`, parsing the substituted script's own commands, so an error nested
+// inside a later bracket also stops an earlier bracket — and stops the earlier
+// commands *inside* the failing bracket too.
+//
+// Property (1) of the same issue — earlier commands of the script have already
+// run — this engine has had since it was written (`parse.rs`'s `next`-offset
+// `Command` and the per-command loop in `interp.rs`); every row below pins it
+// as well, through the `sfx pre` that always shows up in `ran`.
+//
+// Oracle: `PARSE_ORDER_SHEET` below, saved to a file and run as
+// `tclsh sheet.tcl` (FROM A FILE — a stdin-fed tclsh swallows the error text)
+// on tclsh 8.6.16 and tclsh 9.0.4. Both shells produced `PARSE_ORDER_ORACLE`
+// byte for byte; paste the sheet into either shell to re-derive it without this
+// harness. The sheet builds its `${abc` rows with `format` because a sheet that
+// spelled `${` inside a braced `catch`/`probe` word would itself be an
+// unbalanced brace group.
+// ---------------------------------------------------------------------------
+
+/// The oracle sheet, verbatim. `$ob` is a literal `{`.
+const PARSE_ORDER_SHEET: &str = r#"set ob "\173"
+set ::out {}
+proc sfx {t} { lappend ::ran $t; return S$t }
+proc probe {name script} {
+    set ::ran {}
+    set verb [expr {[catch {uplevel 1 $script} e] ? "error" : "ok"}]
+    lappend ::out "$name -> $verb {$e} ran {$::ran}"
+}
+probe welded        {sfx pre; list [sfx inner] {a}b}
+probe quote         {sfx pre; list [sfx inner] "unterminated}
+probe bracket       {sfx pre; list [sfx inner] [sfx two}
+probe braced-var    [format {sfx pre; list [sfx inner]pre$%sabc} $ob]
+probe nested-quote  {sfx pre; list [sfx inner] [list "oops]}
+probe nested-var    [format {sfx pre; list [sfx inner] [set y "a$%sbcd"]} $ob]
+probe nested-weld   {sfx pre; list [sfx inner] [set y {a}b]}
+probe two-cmd-brkt  [format {sfx pre; list [sfx one; set y "a$%sbcd"]} $ob]
+probe var-first     [format {sfx pre; list $nosuchvar [set y "a$%sbcd"]} $ob]
+probe runtime-err   {sfx pre; list [sfx inner] [set y $nosuchvar]}
+probe all-well      {sfx pre; list [sfx inner] [list ok]}
+join $::out \n"#;
+
+/// tclsh 8.6.16 and tclsh 9.0.4, identical.
+const PARSE_ORDER_ORACLE: &str = r#"welded -> error {extra characters after close-brace} ran {pre}
+quote -> error {missing "} ran {pre}
+bracket -> error {missing close-bracket} ran {pre}
+braced-var -> error {missing close-brace for variable name} ran {pre}
+nested-quote -> error {missing "} ran {pre}
+nested-var -> error {missing close-brace for variable name} ran {pre}
+nested-weld -> error {extra characters after close-brace} ran {pre}
+two-cmd-brkt -> error {missing close-brace for variable name} ran {pre}
+var-first -> error {missing close-brace for variable name} ran {pre}
+runtime-err -> error {can't read "nosuchvar": no such variable} ran {pre inner}
+all-well -> ok {Sinner ok} ran {pre inner}"#;
+
+/// Every row of the sheet, against the recorded shells.
+///
+/// The two rows that are *not* parse failures are the guard against
+/// over-rejecting: `runtime-err` (a well-formed later bracket that fails at run
+/// time) and `all-well` both still run the earlier `[sfx inner]`, so the
+/// pre-scan may not turn a runtime error — or a healthy command — into a
+/// parse-time abort.
+#[test]
+fn a_command_parses_whole_before_any_of_its_words_substitute() {
+    let (code, result, _) = run(PARSE_ORDER_SHEET);
+    assert_eq!(code, Code::Ok, "{result}");
+    assert_eq!(result, PARSE_ORDER_ORACLE);
+}
+
+/// `subst` is the deliberate non-consumer: it is not a command parse, so C
+/// substitutes its template left to right and keeps the side effects of every
+/// `[…]` that ran before the failure. Pinned separately above by
+/// `subst_reports_the_missing_bracket_after_running_the_earlier_one`; repeated
+/// here next to its opposite so the pair cannot drift apart.
+///
+/// Oracle (8.6.16 / 9.0.4): `1 {missing close-bracket}` — `side` ran.
+#[test]
+fn subst_is_not_a_command_parse_and_still_runs_the_earlier_bracket() {
+    let (code, result, _) = run("set ::ran 0\n\
+         proc side {} {set ::ran 1; return S}\n\
+         catch {subst {[side][b}} e\n\
+         list $::ran $e");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "1 {missing close-bracket}");
 }
