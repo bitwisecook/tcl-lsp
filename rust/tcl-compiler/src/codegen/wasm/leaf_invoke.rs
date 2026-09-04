@@ -58,7 +58,7 @@ use crate::backend_registry::{
     SelectorPriority, SelectorRequest,
 };
 use crate::codegen::values::whole_var_reference;
-use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
+use crate::ir::{Provenance, SourceSite, WordExpr, WordPart};
 use crate::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
 };
@@ -532,49 +532,32 @@ fn split_element(name: &str) -> Option<(&str, &str)> {
 
 /// The structured words of a `[…]` command substitution.
 ///
-/// The word snapshot keeps a command substitution as one opaque spelling, so
-/// its inner words are recovered by running the canonical segmenter over the
-/// recorded lexical extent — the same segmentation the outer command's words
-/// came from, not a bespoke parser. Anything other than exactly one complete
-/// command declines.
+/// [`crate::word_subst::nested_command_words`] owns the recovery: the word
+/// snapshot keeps a command substitution as one opaque spelling, and running
+/// the canonical segmenter over its recorded lexical extent is what turns it
+/// back into the words this tier plans — the same words the analysis tier
+/// lifts, so the two can never disagree about what a substitution runs.
 fn nested_words(
     spelling: &str,
     source: &SourceSite,
     config: tcl_lexer::LexerConfig,
 ) -> Result<Vec<WordExpr>, WasmLeafInvokeDecline> {
-    let inner = spelling
-        .strip_prefix('[')
-        .and_then(|text| text.strip_suffix(']'))
-        .ok_or(WasmLeafInvokeDecline::UnmodelledCommandSubstitution)?;
-    if inner.trim().is_empty() {
-        return Err(WasmLeafInvokeDecline::UnmodelledCommandSubstitution);
-    }
-    let base = if source.provenance == Provenance::Source {
-        source.span.start().saturating_add(1)
-    } else {
-        0
-    };
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
-    let [segment] = segments.as_slice() else {
-        return Err(WasmLeafInvokeDecline::UnmodelledCommandSubstitution);
-    };
-    if segment.is_partial {
-        return Err(WasmLeafInvokeDecline::UnmodelledCommandSubstitution);
-    }
-    // The nested script is a sub-lex: its own text, segmented at the document
-    // offset it sits at, so the word model reads `inner` and still reports
-    // document spans (`SourceMap::with_base` is that sub-lexing contract).
-    let sm = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
-    let tokens = CommandTokens::from_segmented(&sm, config, segment);
-    if tokens.word_exprs.is_empty() {
-        return Err(WasmLeafInvokeDecline::MissingCommandHead);
-    }
-    Ok(tokens.word_exprs)
+    crate::word_subst::nested_command_words(spelling, source, config)
+        .map(|tokens| tokens.word_exprs)
+        .map_err(|decline| match decline {
+            crate::word_subst::NestedWordsDecline::Unmodelled => {
+                WasmLeafInvokeDecline::UnmodelledCommandSubstitution
+            }
+            crate::word_subst::NestedWordsDecline::NoWords => {
+                WasmLeafInvokeDecline::MissingCommandHead
+            }
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::CommandTokens;
     use crate::segmenter::segment_commands;
 
     /// The structured words of the first command in `source`.

@@ -55,7 +55,7 @@
 
 use tcl_lexer::Span;
 
-use crate::ir::{CommandTokens, WordExpr, WordPart};
+use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
 
 /// How deep a nest of `[cmd [cmd …]]` this walks before giving up. Tcl's own
 /// parser caps nesting far above anything hand-written; this only has to stop
@@ -74,6 +74,14 @@ pub struct LiftedCall {
     pub args: Vec<String>,
     /// Absolute source span of each argument word.
     pub arg_spans: Vec<Span>,
+    /// The structured syntax of each argument word, index-aligned with
+    /// [`Self::args`] — so a consumer can tell a braced literal from a word
+    /// that substitutes without re-deciding it from the text.
+    ///
+    /// Empty when [`nested_command_words`] declined the substitution, or when
+    /// its word count disagreed with the argument split; a consumer that reads
+    /// this must keep working without it.
+    pub arg_words: Vec<WordExpr>,
     /// Absolute source span of the whole `[…]`.
     pub span: Span,
 }
@@ -110,14 +118,14 @@ fn collect_word(
     match word {
         // The whole word is `[cmd …]`.
         WordExpr::CommandSubstitution { spelling, source } => {
-            push_substitution(spelling, source.span.start(), config, depth, out);
+            push_substitution(spelling, source, config, depth, out);
         }
         // A compound word — `"[cmd …]"`, `a[cmd …]b`, `$v[cmd …]` — whose
         // parts evaluate left to right.
         WordExpr::Template { parts, .. } => {
             for part in parts {
                 if let WordPart::CommandSubstitution { spelling, source } = part {
-                    push_substitution(spelling, source.span.start(), config, depth, out);
+                    push_substitution(spelling, source, config, depth, out);
                 }
             }
         }
@@ -137,7 +145,7 @@ fn collect_word(
 /// nested in its own arguments.
 fn push_substitution(
     spelling: &str,
-    base: u32,
+    source: &SourceSite,
     config: tcl_lexer::LexerConfig,
     depth: u32,
     out: &mut Vec<LiftedCall>,
@@ -150,33 +158,117 @@ fn push_substitution(
     else {
         return;
     };
+    let base = source.span.start();
     let leading = u32::try_from(spelling.len() - spelling.trim_start().len()).unwrap_or(0);
     let span = Span::new(
         base + leading,
         base + leading + u32::try_from(spelling.trim().len()).unwrap_or(0),
     );
 
+    // The substitution's own words, recovered by the canonical segmenter. Its
+    // structure is what decides which of them evaluate a further substitution
+    // — `[list "[a]"]` and `[list b[c]d]` run one, `[list {[a]}]` does not —
+    // and no test over the flat argument text can tell those apart.
+    let nested = nested_command_words(spelling, source, config).ok();
+    if let Some(tokens) = nested.as_ref() {
+        for word in &tokens.word_exprs {
+            collect_word(word, config, depth + 1, out);
+        }
+    }
+    // Index-aligned with `args` (which start at word 1) or empty: the two
+    // recoveries split words under the same `LexerConfig`, so a disagreement
+    // means one of them declined the shape and the structure is not safe to
+    // pair up positionally.
+    let arg_words = nested
+        .as_ref()
+        .and_then(|tokens| tokens.word_exprs.get(1..))
+        .filter(|words| words.len() == args_with_spans.len())
+        .map(<[WordExpr]>::to_vec)
+        .unwrap_or_default();
+
     let mut args = Vec::with_capacity(args_with_spans.len());
     let mut arg_spans = Vec::with_capacity(args_with_spans.len());
     for (text, rel) in &args_with_spans {
-        let abs = Span::new(base + rel.start(), base + rel.end());
-        // An argument that is itself a substitution is evaluated first, so it
-        // is pushed first. A braced word starts with `{`, so this `[` test
-        // keeps a literal `{[cmd …]}` argument out, exactly as the whole-word
-        // `BracedLiteral` arm does one level up.
-        let trimmed = text.trim();
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            push_substitution(text, abs.start(), config, depth + 1, out);
-        }
         args.push(text.clone());
-        arg_spans.push(abs);
+        arg_spans.push(Span::new(base + rel.start(), base + rel.end()));
     }
     out.push(LiftedCall {
         command,
         args,
         arg_spans,
+        arg_words,
         span,
     });
+}
+
+/// Why the words of a `[…]` command substitution could not be recovered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NestedWordsDecline {
+    /// The spelling is not one complete, non-empty `[…]` command.
+    Unmodelled,
+    /// It segmented, but carried no words.
+    NoWords,
+}
+
+/// The structured words of a `[…]` command substitution.
+///
+/// The word snapshot keeps a command substitution as one opaque spelling, so
+/// its inner words are recovered by running the canonical segmenter over the
+/// recorded lexical extent — the same segmentation the outer command's words
+/// came from, not a bespoke parser. Anything other than exactly one complete
+/// command declines.
+///
+/// The one owner for this: the native and WASM lowerings plan a nested
+/// invocation from the same words this module lifts for analysis, and a second
+/// recovery that split a word differently would let the two tiers disagree
+/// about what a substitution runs.
+///
+/// # Errors
+///
+/// Returns [`NestedWordsDecline`] when the spelling is not a single complete
+/// `[…]` command, or when it carries no words at all.
+pub fn nested_command_words(
+    spelling: &str,
+    source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
+) -> Result<CommandTokens, NestedWordsDecline> {
+    // Word spellings arrive exact, but a substitution recovered from argument
+    // text can carry the whitespace that separated it; the offset the trim
+    // drops is added back so spans stay anchored where the word really sits.
+    let leading = u32::try_from(spelling.len() - spelling.trim_start().len()).unwrap_or(0);
+    let inner = spelling
+        .trim()
+        .strip_prefix('[')
+        .and_then(|text| text.strip_suffix(']'))
+        .ok_or(NestedWordsDecline::Unmodelled)?;
+    if inner.trim().is_empty() {
+        return Err(NestedWordsDecline::Unmodelled);
+    }
+    let base = if source.provenance == Provenance::Source {
+        source
+            .span
+            .start()
+            .saturating_add(leading)
+            .saturating_add(1)
+    } else {
+        0
+    };
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
+    let [segment] = segments.as_slice() else {
+        return Err(NestedWordsDecline::Unmodelled);
+    };
+    if segment.is_partial {
+        return Err(NestedWordsDecline::Unmodelled);
+    }
+    // The nested script is a sub-lex: its own text, segmented at the document
+    // offset it sits at, so the word model reads `inner` and still reports
+    // document spans (`SourceMap::with_base` is that sub-lexing contract).
+    let sm = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
+    let tokens = CommandTokens::from_segmented(&sm, config, segment);
+    if tokens.word_exprs.is_empty() {
+        return Err(NestedWordsDecline::NoWords);
+    }
+    Ok(tokens)
 }
 
 /// Every nested `[expr …]` in `tokens`' words, parsed, with the absolute span
@@ -224,8 +316,8 @@ mod tests {
         tcl_registry::CommandRegistry::build_default()
     }
 
-    /// Lift the substitutions of the single `Call` in a one-statement proc.
-    fn lift(body: &str) -> Vec<(String, Vec<String>)> {
+    /// Every substitution lifted from the single `Call` in a one-statement proc.
+    fn lift_calls(body: &str) -> Vec<LiftedCall> {
         let reg = registry();
         let src = format!("proc f {{x}} {{\n {body}\n}}");
         let cu = CompilationUnit::build_for(&src, &reg, false);
@@ -235,15 +327,19 @@ mod tests {
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 if let Statement::Call { tokens, .. } = stmt {
-                    out.extend(
-                        lifted_calls(tokens.as_ref(), config)
-                            .into_iter()
-                            .map(|c| (c.command, c.args)),
-                    );
+                    out.extend(lifted_calls(tokens.as_ref(), config));
                 }
             }
         }
         out
+    }
+
+    /// Lift the substitutions of the single `Call` in a one-statement proc.
+    fn lift(body: &str) -> Vec<(String, Vec<String>)> {
+        lift_calls(body)
+            .into_iter()
+            .map(|c| (c.command, c.args))
+            .collect()
     }
 
     /// The whole point of reading `word_exprs` rather than the argument text:
@@ -296,5 +392,81 @@ mod tests {
     fn words_without_substitutions_lift_nothing() {
         assert!(lift("puts $x").is_empty());
         assert!(lift("puts plain").is_empty());
+    }
+
+    /// A substitution nested in a *quoted* word of another substitution still
+    /// runs — Tcl substitutes inside `"…"`. Recovering the nested command's
+    /// own words is what sees it; the argument text `"[lindex $x 0]"` starts
+    /// with a quote, so no `[`-prefix test over that text ever could.
+    ///
+    /// Asserted on the commands and the inner call's own arguments: the outer
+    /// `list`'s argument *text* is the compatibility spelling, which this
+    /// change does not touch.
+    #[test]
+    fn substitution_inside_a_quoted_nested_word_is_lifted() {
+        let calls = lift_calls("puts [list \"[lindex $x 0]\"]");
+        assert_eq!(
+            calls.iter().map(|c| c.command.as_str()).collect::<Vec<_>>(),
+            vec!["lindex", "list"]
+        );
+        assert_eq!(calls[0].args, vec!["$x".to_owned(), "0".to_owned()]);
+    }
+
+    /// The same for a substitution welded into a larger nested word.
+    #[test]
+    fn substitution_welded_into_a_nested_word_is_lifted() {
+        assert_eq!(
+            lift("puts [list a[lindex $x 0]b]"),
+            vec![
+                ("lindex".to_owned(), vec!["$x".to_owned(), "0".to_owned()]),
+                ("list".to_owned(), vec!["a[lindex $x 0]b".to_owned()]),
+            ]
+        );
+    }
+
+    /// …and the brace rule holds one level down too: a braced argument of a
+    /// nested command is literal text, not a command to run.
+    #[test]
+    fn braced_word_of_a_nested_substitution_is_not_run() {
+        assert_eq!(
+            lift("puts [list {[lindex $x 0]}]"),
+            vec![("list".to_owned(), vec!["{[lindex $x 0]}".to_owned()])]
+        );
+    }
+
+    /// A substitution in the *command* position runs before the command it
+    /// spells is looked up.
+    #[test]
+    fn substitution_in_the_command_word_is_lifted() {
+        assert_eq!(
+            lift("puts [[lindex $x 0] 1]"),
+            vec![
+                ("lindex".to_owned(), vec!["$x".to_owned(), "0".to_owned()]),
+                ("[lindex $x 0]".to_owned(), vec!["1".to_owned()]),
+            ]
+        );
+    }
+
+    /// `arg_words` is the segmenter's structure for the same words `args`
+    /// spells, index-aligned, so a consumer can tell a braced literal from a
+    /// word that substitutes without re-deciding it from the text.
+    #[test]
+    fn arg_words_align_with_args() {
+        let calls = lift_calls("puts [list {a b} $x [set y] plain]");
+        // `[set y]` is evaluated first, so the outer `list` is lifted last.
+        let [_, lifted] = calls.as_slice() else {
+            panic!("expected the inner `set` then the outer `list`, got {calls:?}");
+        };
+        assert_eq!(lifted.command, "list");
+        assert_eq!(lifted.arg_words.len(), lifted.args.len());
+        assert!(matches!(
+            lifted.arg_words.as_slice(),
+            [
+                WordExpr::BracedLiteral { .. },
+                WordExpr::Variable { .. },
+                WordExpr::CommandSubstitution { .. },
+                WordExpr::Literal { .. },
+            ]
+        ));
     }
 }

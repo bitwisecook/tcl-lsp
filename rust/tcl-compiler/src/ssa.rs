@@ -2027,18 +2027,19 @@ fn scan_nested_substitution_words(
             .flat_map(|&role| registry.arg_indices_for_role(&lifted.command, &arg_strs, role))
             .collect();
         for idx in in_frame {
-            let Some(word) = lifted.args.get(idx) else {
-                continue;
-            };
             // Only a braced word needs recovering. An unbraced one already
             // substitutes at the command level, so the enclosing word's own
-            // scan has seen it.
-            let trimmed = word.trim();
-            if !(trimmed.starts_with('{') && trimmed.ends_with('}')) {
-                continue;
-            }
-            out.substituted
-                .extend(scanner.scan_word(trimmed.trim_matches(['{', '}']), registry));
+            // scan has seen it. Which word is braced is the segmenter's
+            // answer, not a `{`/`}` test over the argument text: `{a}{b}` and
+            // a word merely *containing* braces are not brace-quoted literals.
+            let braced = match lifted.arg_words.get(idx) {
+                Some(WordExpr::BracedLiteral { text, .. }) => text.as_str(),
+                // The structure is only absent when the word recovery
+                // declined the substitution's shape, and then there is
+                // nothing to recover from it either.
+                _ => continue,
+            };
+            out.substituted.extend(scanner.scan_word(braced, registry));
         }
     }
 }
@@ -4703,5 +4704,51 @@ mod tests {
         // the assertion is that this returns at all without overflowing the
         // stack, not what it returns.
         let _ = extra;
+    }
+
+    /// The classified uses of every `Call` in a one-statement proc, lowered
+    /// from source so the statement carries the real word snapshot.
+    fn classified_call_uses(body: &str) -> Vec<(String, UseClass)> {
+        let reg = CommandRegistry::build_default();
+        let src = format!("proc f {{tainted}} {{\n {body}\n}}");
+        let cu = crate::compilation_unit::CompilationUnit::build_for(&src, &reg, false);
+        let fu = cu.function("::f").expect("proc lowered");
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let mut out = Vec::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                if matches!(stmt, Statement::Call { .. }) {
+                    out.extend(uses_of_classified(stmt, &mut scanner, &reg));
+                }
+            }
+        }
+        out
+    }
+
+    /// A braced word of a *nested* command is read exactly as the same word of
+    /// a direct call is, when the registry says the callee evaluates it in
+    /// this frame. Only a pair of braces separated `[expr $tainted]` (whose
+    /// read the enclosing word's own scan already saw) from
+    /// `[expr {$tainted}]` (invisible to every consumer of the use map)
+    /// before the def-use hole was closed — issue #1814.
+    #[test]
+    fn braced_word_of_a_nested_substitution_is_read_in_an_evaluated_role() {
+        let uses = classified_call_uses("puts [expr {$tainted}]");
+        assert!(
+            uses.contains(&("tainted".to_owned(), UseClass::Substituted)),
+            "an `Expr` role's braced word substitutes in this frame: {uses:?}"
+        );
+    }
+
+    /// …and a braced word in a role the callee does *not* evaluate stays the
+    /// literal it is. `list` builds a value; `{$tainted}` is one of its
+    /// elements, not a script.
+    #[test]
+    fn braced_word_of_a_nested_substitution_stays_literal_in_a_data_role() {
+        let uses = classified_call_uses("puts [list {$tainted}]");
+        assert!(
+            !uses.contains(&("tainted".to_owned(), UseClass::Substituted)),
+            "`list` does not evaluate its arguments in the calling frame: {uses:?}"
+        );
     }
 }

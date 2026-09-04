@@ -192,8 +192,8 @@ variable* was judged against a stale representation: `set x [llength $l]` then
 `puts [lindex $x 0]` then `incr x` reported nothing at all, while the identical
 code with `lindex $x 0` on its own line reported both halves.
 
-`shimmer::nested` lifts those substitutions, and `commit`, `use_site` and
-`expr` each consume them. Three properties matter:
+`word_subst` lifts those substitutions, and `commit`, `use_site` and `expr`
+each consume them. Four properties matter:
 
 - **It reads `word_exprs`, never the argument text.** Tcl substitutes `[…]` in
   bare and `"…"`-quoted words but not in braced ones, and
@@ -202,6 +202,12 @@ code with `lindex $x 0` on its own line reported both halves.
   `WordExpr` already models the braced word as `BracedLiteral` and the
   substituted one as `CommandSubstitution`, so the distinction is free and
   exact.
+- **That holds at every depth.** A substitution's own words are recovered by
+  the same segmenter (`word_subst::nested_command_words`, the one owner the
+  native and WASM lowerings also plan from), so `[list "[lindex $x 0]"]` and
+  `[list a[lindex $x 0]b]` run their `lindex` and `[list {[lindex $x 0]}]` does
+  not. A `[`-prefix test over the argument text missed the first two and the
+  structure decides all three.
 - **Order is innermost-first**, Tcl's own evaluation order, so the commit state
   moves exactly as the runtime converts.
 - **`return [expr …]` needs no lifting at all**: the lowerer already parses it
@@ -253,8 +259,8 @@ dedicated `Statement::Incr` node.
 
 ## Coverage
 
-- Nested-substitution coverage: `shimmer::nested` (lifting and the braced-word
-  distinction), `shimmer::expr` (`expr_shimmer_fires_in_a_return_expression`,
+- Nested-substitution coverage: `word_subst` (lifting, the braced-word
+  distinction at every depth, and `arg_words` alignment), `shimmer::expr` (`expr_shimmer_fires_in_a_return_expression`,
   `expr_shimmer_fires_in_a_nested_call_argument` and their braced twins),
   `shimmer::use_site` (`use_site_shimmer_fires_in_a_nested_call_argument`,
   `a_nested_conversion_is_visible_to_later_reads`).

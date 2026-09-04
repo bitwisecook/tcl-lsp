@@ -50,6 +50,7 @@ entry point, or gate moves without this contract being updated.
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
+| nested command-substitution words | `rust/tcl-compiler/src/word_subst.rs` | `nested_command_words`; `NestedWordsDecline`; `lifted_calls`; `lifted_exprs`; `LiftedCall` | `LexerConfig` per document dialect, inherited from the segmentation owner it runs | none |
 | parse-error cut | `rust/tcl-lexer/src/parse_cut.rs` | `first_parse_cut`; `first_parse_cut_in`; `ParseCut`; `EXTRA_AFTER_CLOSE_QUOTE` | `LexerConfig` per emulated release, inherited from the segmentation and word-component owners it walks | `xtask-segmentation-drift` |
 | script completeness / reparse windows | `rust/tcl-lexer/src/structural_index.rs` | `script_is_complete`; `command_boundaries`; `reparse_window`; `BracketIndex`; `BraceIndex`; `ExprParenIndex`; `ParenBalance` | dialect-blind by construction: one byte scan of stock 8.6/9.x brace, quote, `${…}`-nesting, comment and terminator structure, so an editor keystroke costs no tokenise. The two grammar axes that really do move a command boundary — the F5 `BraceLineContinuation::Continues` next-line-`{` rule and the 8.x `BracedVarStyle::FirstClose` name rule — are pinned as measured divergences by `differential_boundaries`, never silently absorbed | `xtask-segmentation-drift` |
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
@@ -548,6 +549,23 @@ entry point, or gate moves without this contract being updated.
   (`wrong_args`, `bad_choice`, …). The runtimes' arity helpers are
   thin adapters: `runtime/rust`'s single `Interp::wrong_args` method
   and the VM's `interp::err_wrong_args`.
+
+### `tcl-compiler` — nested command-substitution words
+
+- `word_subst::nested_command_words` is the one recovery of the words
+  inside a `[cmd …]`. The word snapshot keeps a substitution as a
+  single opaque spelling, so the words are recovered by running the
+  canonical segmenter over its recorded lexical extent — never a
+  bespoke bracket scan — and anything but exactly one complete command
+  declines. Consumers: the shimmer and SSA lifts
+  (`word_subst::lifted_calls` / `lifted_exprs`), the native lowering's
+  `nested_words`, and the WASM leaf-invoke planner's. Analysis and the
+  two AOT tiers therefore cannot disagree about what a substitution
+  runs, which they could while each kept its own copy.
+- `LiftedCall` carries that structure to consumers in `arg_words`, so a
+  braced literal is told from a word that substitutes by the
+  segmenter's `WordExpr`, not by a `{`/`[` test over argument text —
+  the distinction `Statement::Call::args` cannot make.
 
 ### `tcl-compiler` — text similarity
 
