@@ -64,15 +64,15 @@ jobs:
   #                        pure repetition (measured: v2.1.18 re-ran the
   #                        identical 20-job surface on the same SHA 74 minutes
   #                        after it went green);
-  #                      * a push to rust of a merge commit whose tree is
-  #                        byte-identical to a PR head with a green PR run —
-  #                        what the merge button produces when the PR was up to
-  #                        date with the base.  Tree equality is the guarantee
-  #                        that matters: identical tree ⇒ identical inputs ⇒
-  #                        identical verdict, and a merge that DID pick up new
-  #                        base-branch commits gets a different tree and a full
-  #                        re-test — exactly the case where re-testing has
-  #                        value.
+  #                      * a push to rust of a merge or squash commit whose
+  #                        tree is byte-identical to the associated PR head
+  #                        with a green PR run — what the merge button produces
+  #                        when the PR was up to date with the base.  Tree
+  #                        equality is the guarantee that matters: identical
+  #                        tree ⇒ identical inputs ⇒ identical verdict, and a
+  #                        merge that DID pick up new base-branch commits gets
+  #                        a different tree and a full re-test — exactly the
+  #                        case where re-testing has value.
   #                    The 24 h bound stops the skip compounding into stale
   #                    territory: the floating `stable` toolchain and the
   #                    advisory database both move under an unchanged tree, so
@@ -122,6 +122,7 @@ jobs:
     permissions:
       contents: read
       actions: read # query prior workflow runs for already_green
+      pull-requests: read # resolve a squash commit back to its PR head
     outputs:
       prerelease: ${{ steps.detect.outputs.prerelease }}
       already_green: ${{ steps.green.outputs.already_green }}
@@ -136,8 +137,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Depth 2 so a merge commit's parents resolve for the tree
-          # comparison in the already-green check.
+          # Depth 2 so a two-parent merge commit's PR parent resolves locally.
+          # Squash PR heads are resolved through the API below.
           fetch-depth: 2
       - name: Detect release channel from the ref
         id: detect
@@ -166,17 +167,32 @@ jobs:
                   2>/dev/null || echo 0)"
             [ "${n:-0}" -gt 0 ] && already=true
           elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            # Merge push: does a PR head with the identical tree have a green
-            # PR run?  HEAD^2 only exists on a 2-parent merge commit; squash
-            # and direct pushes fall through to a full run.
-            pr_head="$(git rev-parse -q --verify HEAD^2 || true)"
-            if [ -n "$pr_head" ] &&
-              [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$pr_head^{tree}")" ]; then
+            # Merge push: find the PR head, then require exact tree equality
+            # before carrying its green result forward. A two-parent merge has
+            # the head locally as HEAD^2. For a squash merge, GitHub records
+            # the association even though the PR head is not an ancestor.
+            pr_heads="$(git rev-parse -q --verify HEAD^2 || true)"
+            if [ -z "$pr_heads" ]; then
+              pr_heads="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+                --jq ".[] | select(.merged_at != null and .merge_commit_sha == \"$GITHUB_SHA\" and .base.ref == \"rust\") | .head.sha" \
+                2>/dev/null)" || pr_heads=""
+            fi
+            current_tree="$(git rev-parse 'HEAD^{tree}')"
+            for pr_head in $pr_heads; do
+              pr_tree="$(git rev-parse "$pr_head^{tree}" 2>/dev/null || true)"
+              if [ -z "$pr_tree" ]; then
+                pr_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$pr_head" \
+                  --jq '.tree.sha' 2>/dev/null)" || pr_tree=""
+              fi
+              [ -n "$pr_tree" ] && [ "$current_tree" = "$pr_tree" ] || continue
               n="$(gh api "$api?head_sha=$pr_head&event=pull_request&status=success&per_page=20" \
                     --jq "[.workflow_runs[] | select(.updated_at > \"$cutoff\")] | length" \
                     2>/dev/null || echo 0)"
-              [ "${n:-0}" -gt 0 ] && already=true
-            fi
+              if [ "${n:-0}" -gt 0 ]; then
+                already=true
+                break
+              fi
+            done
           fi
           echo "already_green=$already" >> "$GITHUB_OUTPUT"
           echo "already_green=$already (ref=$GITHUB_REF sha=$GITHUB_SHA)"
