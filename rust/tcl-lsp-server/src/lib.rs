@@ -14475,31 +14475,38 @@ impl Backend {
     /// Preserve the primary project's signature exclusion when a scoped
     /// configuration pull fails, without replacing any last-known sibling
     /// folder settings.
+    ///
+    /// Re-applying that last-known chain is also what refreshes everything
+    /// those folders *inherit*. A folder handle snapshots each global it does
+    /// not override, and the unscoped pull that just succeeded may have moved
+    /// them; a chain left untouched here would keep answering
+    /// `resolved_db_config` with the old non-ASCII mode, extra commands,
+    /// package-provides map, BIG-IP version or declared targets while the
+    /// global handle already carries the new ones. So the re-apply is
+    /// unconditional — the folder configs themselves go back unchanged, and
+    /// `apply_folder_configs` re-reads the globals live.
     async fn apply_primary_project_signature_fallback(
         &self,
         primary_folder: Option<&Uri>,
         primary_project: &serde_json::Value,
     ) {
-        let Some(primary_folder) = primary_folder else {
-            return;
-        };
-        let project_override = signature_help_disabled_commands(primary_project);
         let mut parsed = self.folder_configs.lock().await.clone();
-        if let Some((_, config)) = parsed
-            .iter_mut()
-            .find(|(folder, _)| folder == primary_folder)
-        {
-            config.signature_help_disabled_commands = project_override;
-        } else if let Some(commands) = project_override {
-            parsed.push((
-                primary_folder.clone(),
-                FolderConfig {
-                    signature_help_disabled_commands: Some(commands),
-                    ..FolderConfig::default()
-                },
-            ));
-        } else {
-            return;
+        if let Some(primary_folder) = primary_folder {
+            let project_override = signature_help_disabled_commands(primary_project);
+            if let Some((_, config)) = parsed
+                .iter_mut()
+                .find(|(folder, _)| folder == primary_folder)
+            {
+                config.signature_help_disabled_commands = project_override;
+            } else if let Some(commands) = project_override {
+                parsed.push((
+                    primary_folder.clone(),
+                    FolderConfig {
+                        signature_help_disabled_commands: Some(commands),
+                        ..FolderConfig::default()
+                    },
+                ));
+            }
         }
         self.apply_folder_configs(parsed).await;
     }
@@ -33188,6 +33195,7 @@ proc p {} {
     /// holes: no folder override at all, and the folder handle constructed
     /// with `None` / `Vec::new()` so *any* folder override of an unrelated
     /// knob dropped the global value.
+
     #[tokio::test]
     async fn resource_scoped_analyser_inputs_resolve_per_folder() {
         let backend = test_backend();
@@ -33268,6 +33276,61 @@ proc p {} {
         // No document in hand answers with the globals.
         let global = backend.resource_analyser_inputs(None).await;
         assert_eq!(global.bigip_version.as_deref(), Some("17.1.0"));
+    }
+
+    /// A failed scoped configuration pull must not freeze what a folder
+    /// *inherits*. The unscoped pull that preceded it may have moved a global,
+    /// and a folder handle snapshots every input it does not itself override —
+    /// so the fallback re-applies the last-known chain and the handle picks the
+    /// new global up, instead of answering `resolved_db_config` with the old
+    /// one while the global handle already carries the new.
+    #[tokio::test]
+    async fn a_failed_scoped_pull_refreshes_what_a_folder_inherits() {
+        async fn inherited_bigip(backend: &Backend, uri: &Uri) -> Option<String> {
+            let config = backend.resolved_db_config(uri).await;
+            let db = backend.db.lock().await;
+            ResourceAnalyserInputs::from_db_config(config, &*db).bigip_version
+        }
+
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "bigipVersion": "17.1.0" }))
+            .await;
+
+        let folder = Uri::from_str("file:///w/").unwrap();
+        backend
+            .apply_folder_configs(vec![(
+                folder,
+                // Overrides an unrelated knob, so it gets its own handle and
+                // inherits `bigipVersion` by snapshot.
+                parse_folder_config(&serde_json::json!({ "extraCommands": ["zzz"] }))
+                    .expect("folder config parses"),
+            )])
+            .await;
+
+        let uri = Uri::from_str("file:///w/a.tcl").unwrap();
+        assert_eq!(
+            inherited_bigip(&backend, &uri).await.as_deref(),
+            Some("17.1.0")
+        );
+
+        // The unscoped pull lands a new global, then the scoped one fails. The
+        // primary root carries no folder settings of its own, so it has no
+        // entry to patch and no signature override — the shape that used to
+        // return without touching the chain at all.
+        backend
+            .apply_global_config(&serde_json::json!({ "bigipVersion": "16.1.0" }))
+            .await;
+        let primary = Uri::from_str("file:///primary/").unwrap();
+        backend
+            .apply_primary_project_signature_fallback(Some(&primary), &serde_json::json!({}))
+            .await;
+
+        assert_eq!(
+            inherited_bigip(&backend, &uri).await.as_deref(),
+            Some("16.1.0"),
+            "an inherited input follows the global it inherits"
+        );
     }
 
     /// `apply` is the single place a resource-scoped input reaches an
