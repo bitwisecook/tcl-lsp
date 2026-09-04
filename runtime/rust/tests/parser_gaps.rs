@@ -441,7 +441,12 @@ set ::out {}
 proc sfx {t} { lappend ::ran $t; return S$t }
 proc probe {name script} {
     set ::ran {}
-    set verb [expr {[catch {uplevel 1 $script} e] ? "error" : "ok"}]
+    # `lindex` rather than `expr`/`if`: without libtommath there is no
+    # bignum tower, so neither command is registered, and this sheet has
+    # nothing to do with arithmetic. `catch` answers 0 or 1 here, and any
+    # other completion code would surface as an empty verb rather than
+    # being silently folded into "error".
+    set verb [lindex {ok error} [catch {uplevel 1 $script} e]]
     lappend ::out "$name -> $verb {$e} ran {$::ran}"
 }
 probe welded        {sfx pre; list [sfx inner] {a}b}
