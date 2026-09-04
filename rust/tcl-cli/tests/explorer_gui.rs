@@ -253,28 +253,17 @@ fn assert_codegen_pass_toggles(report: &Value) {
     );
 }
 
-#[test]
-fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
-    if Command::new("node").arg("--version").output().is_err() {
-        skip("`node` is not on PATH");
-        return;
-    }
-    let Some(playwright) = playwright_specifier() else {
-        skip("playwright is not installed (npm i -g playwright)");
-        return;
-    };
-
-    // The payload the WASM facade would return for this source.
-    let source = "proc add {a b} {\n    return [expr {$a + $b}]\n}\nputs [add 1 2]\n";
+/// Write the two contract payloads the driver stubs the WASM facade with.
+///
+/// The first is what `compile` returns; the second is the same source with
+/// every codegen pass on, which the stub returns whenever a pass selection is
+/// sent. Without a *second* payload the WASM pane would look identical however
+/// the toggles were set, and the repaint assertion would pass on a page that
+/// never rendered.
+fn write_driver_payloads(source: &str) -> (PathBuf, PathBuf) {
     let result = tcl_explorer::run_pipeline(source, "tcl8.6");
     let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
         .expect("explorer payload serialises");
-
-    // The payload the same source produces with the codegen passes on. The
-    // stub returns this one whenever a pass selection is sent, so the driver
-    // can tell a re-*render* from a mere re-compile: without it the WASM pane
-    // would look identical however the toggles were set and the test would
-    // pass on a page that never repainted.
     let optimised = serde_json::to_string(&tcl_explorer::serialise_result_with_optimisations(
         &result,
         tcl_explorer::SemanticOptimisationConfig::from_names("all").expect("a valid group"),
@@ -291,6 +280,22 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     std::fs::write(&payload_path, &payload).expect("write payload");
     let optimised_path = out_dir.join("explorer-gui-payload-optimised.json");
     std::fs::write(&optimised_path, &optimised).expect("write optimised payload");
+    (payload_path, optimised_path)
+}
+
+#[test]
+fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let Some(playwright) = playwright_specifier() else {
+        skip("playwright is not installed (npm i -g playwright)");
+        return;
+    };
+
+    let source = "proc add {a b} {\n    return [expr {$a + $b}]\n}\nputs [add 1 2]\n";
+    let (payload_path, optimised_path) = write_driver_payloads(source);
 
     let driver = manifest_dir().join("tests/gui/explorer-gui-smoke.mjs");
     let gui = manifest_dir().join("gui");

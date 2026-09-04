@@ -151,22 +151,47 @@ fn compwasm_emits_valid_module_header() {
 }
 
 /// `--codegen-passes` is what turns the semantic/AOT passes on; without it
-/// `compwasm` emits the generic lowering. The two modules must differ, or the
-/// flag is decorative.
+/// `compwasm` emits the generic lowering.
+///
+/// Asserting only that the two modules *differ* would pass on a flag that
+/// merely perturbed the output, so this checks what actually changes. The
+/// generic lowering for a hot integer loop is a source-eval fallback — it
+/// pushes the command text and calls `tcl_eval_code`, with no arithmetic of
+/// its own. The native tier replaces that with real instructions: the `<`
+/// and the `+` become `i64` operations and not one `tcl_eval_code` call
+/// survives.
+///
+/// The pass set itself is execution-verified elsewhere:
+/// `tcl-compiler`'s `wasm_tiers::native_plan_samples_reproduce_the_tclsh_oracles`
+/// links the same `native_tier()` options against the real runtime, runs
+/// every `samples/wasm` script under wasmtime, and diffs stdout against the
+/// committed `tclsh9.0` oracles.
 #[test]
-fn compwasm_codegen_passes_change_the_emitted_module() {
+fn compwasm_codegen_passes_natively_lower_a_hot_loop() {
     let dir = std::env::temp_dir().join("tcl_compwasm_passes_test");
     std::fs::create_dir_all(&dir).expect("mkdir");
-    let source = "set a 1\nincr a\nputs $a\n";
+    // An integer loop: a `<` guard and a `+` the representation lattice can
+    // keep native. Nothing here needs a string.
+    let source = "proc sum {n} {\n\
+                  set total 0\n\
+                  for {set i 0} {$i < $n} {incr i} {\n\
+                  set total [expr {$total + $i}]\n\
+                  }\n\
+                  return $total\n\
+                  }\n\
+                  puts [sum 10]\n";
 
     let emit = |name: &str, passes: Option<&str>| {
         let wasm_path = dir.join(format!("{name}.wasm"));
+        let wat_path = dir.join(format!("{name}.wat"));
         let mut args = vec![
             "compwasm".to_owned(),
             "--source".to_owned(),
             source.to_owned(),
             "-o".to_owned(),
             wasm_path.to_str().unwrap().to_owned(),
+            "--wat-output".to_owned(),
+            wat_path.to_str().unwrap().to_owned(),
         ];
         if let Some(passes) = passes {
             args.push("--codegen-passes".to_owned());
@@ -181,16 +206,39 @@ fn compwasm_codegen_passes_change_the_emitted_module() {
             "compwasm {passes:?} failed: {}",
             String::from_utf8_lossy(&out.stderr)
         );
-        std::fs::read(&wasm_path).expect("read wasm")
+        let bytes = std::fs::read(&wasm_path).expect("read wasm");
+        assert_eq!(&bytes[0..4], b"\0asm", "{name}: missing wasm magic");
+        std::fs::read_to_string(&wat_path).expect("read wat")
     };
 
     let generic = emit("generic", None);
     let native = emit("native", Some("native-tier"));
-    assert_eq!(&generic[0..4], b"\0asm");
-    assert_eq!(&native[0..4], b"\0asm");
-    assert_ne!(
-        generic, native,
-        "--codegen-passes native-tier emitted the generic lowering"
+
+    // The generic lowering hands the source back to the interpreter.
+    assert!(
+        generic.contains("tcl_eval_code"),
+        "the unflagged lowering was expected to import the source-eval \
+         fallback:\n{generic}"
+    );
+    assert!(
+        !generic.contains("i64.add"),
+        "the unflagged lowering must not emit native arithmetic:\n{generic}"
+    );
+
+    // The native tier compiles it instead.
+    let native_ops = ["i64.add", "i64.lt_s"];
+    for op in native_ops {
+        assert!(
+            native.contains(op),
+            "--codegen-passes native-tier emitted no `{op}`:\n{native}"
+        );
+    }
+    assert!(
+        !native
+            .lines()
+            .any(|line| line.trim_start().starts_with("call ")
+                && eval_code_index(&native).is_some_and(|i| line.trim() == format!("call {i}"))),
+        "a source-eval call survived the native tier:\n{native}"
     );
 
     // A misspelled pass fails loudly and names the offender, rather than
@@ -213,6 +261,14 @@ fn compwasm_codegen_passes_change_the_emitted_module() {
     assert!(stderr.contains("native-tier"), "{stderr}");
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The import index `tcl_eval_code` was given, so a `call N` can be read as a
+/// source-eval fallback. Imports are numbered in declaration order.
+fn eval_code_index(wat: &str) -> Option<usize> {
+    wat.lines()
+        .filter(|line| line.trim_start().starts_with("(import "))
+        .position(|line| line.contains("\"tcl_eval_code\""))
 }
 
 #[test]
