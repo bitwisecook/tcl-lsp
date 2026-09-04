@@ -50,6 +50,7 @@ require_text "two-parent merge-head resolution" 'git rev-parse -q --verify HEAD^
 require_text "squash-to-PR resolution" 'commits/$GITHUB_SHA/pulls'
 require_text "the exact merged-commit association" '.merge_commit_sha == \"$GITHUB_SHA\"'
 require_text "the protected base-branch restriction" '.base.ref == \"rust\"'
+require_text "fail-closed ambiguous association handling" "awk 'NF { n += NF } END { print n + 0 }')\" -eq 1"
 require_text "the PR-head tree lookup" 'git/commits/$pr_head'
 require_text "local current-tree identity" "git rev-parse 'HEAD^{tree}'"
 require_text "exact tree equality" '[ "$current_tree" = "$pr_tree" ]'

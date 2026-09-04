@@ -177,22 +177,23 @@ jobs:
                 --jq ".[] | select(.merged_at != null and .merge_commit_sha == \"$GITHUB_SHA\" and .base.ref == \"rust\") | .head.sha" \
                 2>/dev/null)" || pr_heads=""
             fi
-            current_tree="$(git rev-parse 'HEAD^{tree}')"
-            for pr_head in $pr_heads; do
+            # More than one association is ambiguous even if one candidate
+            # happens to share the tree. Ambiguity must run the complete suite.
+            if [ "$(printf '%s\n' "$pr_heads" | awk 'NF { n += NF } END { print n + 0 }')" -eq 1 ]; then
+              pr_head="$pr_heads"
+              current_tree="$(git rev-parse 'HEAD^{tree}')"
               pr_tree="$(git rev-parse "$pr_head^{tree}" 2>/dev/null || true)"
               if [ -z "$pr_tree" ]; then
                 pr_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$pr_head" \
                   --jq '.tree.sha' 2>/dev/null)" || pr_tree=""
               fi
-              [ -n "$pr_tree" ] && [ "$current_tree" = "$pr_tree" ] || continue
-              n="$(gh api "$api?head_sha=$pr_head&event=pull_request&status=success&per_page=20" \
-                    --jq "[.workflow_runs[] | select(.updated_at > \"$cutoff\")] | length" \
-                    2>/dev/null || echo 0)"
-              if [ "${n:-0}" -gt 0 ]; then
-                already=true
-                break
+              if [ -n "$pr_tree" ] && [ "$current_tree" = "$pr_tree" ]; then
+                n="$(gh api "$api?head_sha=$pr_head&event=pull_request&status=success&per_page=20" \
+                      --jq "[.workflow_runs[] | select(.updated_at > \"$cutoff\")] | length" \
+                      2>/dev/null || echo 0)"
+                [ "${n:-0}" -gt 0 ] && already=true
               fi
-            done
+            fi
           fi
           echo "already_green=$already" >> "$GITHUB_OUTPUT"
           echo "already_green=$already (ref=$GITHUB_REF sha=$GITHUB_SHA)"
