@@ -45,6 +45,10 @@ awk -F '\t' '!/^#/ && NF { print $1 }' "$MANIFEST" | sort -u > "$EXPECTED"
     git ls-files ':(glob)rust/**/*.rs' | awk '
         /\/tests\/smoke\.rs$/ || /\/tests\/[^/]*_smoke\.rs$/ || /\/tests\/smoke\/[^/]*_smoke\.rs$/ { print }
     '
+    # Nextest's binary-name filter selects the entire target even when its
+    # unit-test functions have ordinary names, so Cargo's source roots belong
+    # in the same discovered path set as declaration-named smoke tests.
+    python3 "$SCRIPT_DIR/check_smoke_targets.py" --smoke-bin-sources
 } | sort -u > "$ACTUAL"
 
 if ! diff -u "$EXPECTED" "$ACTUAL"; then

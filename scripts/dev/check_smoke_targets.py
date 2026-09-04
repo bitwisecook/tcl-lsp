@@ -100,6 +100,16 @@ def smoke_named_binary_targets(targets: list[Target]) -> set[tuple[str, str, str
     }
 
 
+def smoke_named_binary_sources(targets: list[Target]) -> set[Path]:
+    """Source roots selected wholesale by nextest's smoke binary filter."""
+    return {
+        target.source
+        for target in targets
+        if target.kind == "bin"
+        and (target.name == "smoke" or target.name.endswith("_smoke"))
+    }
+
+
 def validate(manifest: Path) -> list[str]:
     package_roots, all_targets = load_targets()
     errors: list[str] = []
@@ -215,11 +225,20 @@ def self_test() -> None:
         ("example", "bin", "smoke"),
         ("example", "bin", "worker_smoke"),
     }
+    assert smoke_named_binary_sources(smoke_targets) == {
+        root / "src/bin/smoke.rs",
+        root / "src/bin/worker_smoke.rs",
+    }
 
 
 def main() -> int:
     if sys.argv[1:] == ["--self-test"]:
         self_test()
+        return 0
+    if sys.argv[1:] == ["--smoke-bin-sources"]:
+        _package_roots, targets = load_targets()
+        for source in sorted(smoke_named_binary_sources(targets)):
+            print(source.relative_to(REPO_ROOT).as_posix())
         return 0
     if len(sys.argv) != 2:
         print(
