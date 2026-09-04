@@ -50,6 +50,7 @@ entry point, or gate moves without this contract being updated.
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
+| parse-error cut | `rust/tcl-lexer/src/parse_cut.rs` | `first_parse_cut`; `first_parse_cut_in`; `ParseCut`; `EXTRA_AFTER_CLOSE_QUOTE` | `LexerConfig` per emulated release, inherited from the segmentation and word-component owners it walks | `xtask-segmentation-drift` |
 | script completeness / reparse windows | `rust/tcl-lexer/src/structural_index.rs` | `script_is_complete`; `command_boundaries`; `reparse_window`; `BracketIndex`; `BraceIndex`; `ExprParenIndex`; `ParenBalance` | dialect-blind by construction: one byte scan of stock 8.6/9.x brace, quote, `${…}`-nesting, comment and terminator structure, so an editor keystroke costs no tokenise. The two grammar axes that really do move a command boundary — the F5 `BraceLineContinuation::Continues` next-line-`{` rule and the 8.x `BracedVarStyle::FirstClose` name rule — are pinned as measured divergences by `differential_boundaries`, never silently absorbed | `xtask-segmentation-drift` |
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
@@ -314,6 +315,17 @@ entry point, or gate moves without this contract being updated.
   rather than answering wrongly. Do not read this entry as claiming the
   codebase has one `${...}` decoder — it has one *for the surfaces named
   above*.
+
+- `parse_cut::first_parse_cut` — the one answer to *where a script stops
+  parsing*: which command C rejects, at what offset, with which message.
+  It walks `group_commands` and `word_parts` in C's own order — commands,
+  then words, then components, descending into `[…]` bodies and
+  `$arr(index)` — rather than filtering the lexer's flat warning stream,
+  which is what made `list [sfx one] [list "oops]` answer
+  `missing close-bracket` where C says `missing "`. The command index is
+  the part a message alone cannot carry, and it is what a bytecode
+  front-end needs to compile the prefix that runs before the raise
+  (#1603).
 
 - `word_parts::decompose` — the one splitter of a Tcl word (or a `subst`
   template) into its substitution components: C's `ParseTokens` breakdown
@@ -861,7 +873,21 @@ helper without reading the rationale:
   `dialect_divergences_are_pinned` for the two axes the byte scanner is
   deliberately blind to. `make xtask-segmentation-drift` is the
   banned-spelling gate that keeps a *new* consumer from re-deriving
-  either boundary privately.
+  either boundary privately — including, since #1787, by collecting C's
+  parse-error messages into a private list instead of asking
+  `tcl_lexer::first_parse_cut`.
+- `runtime/rust/tests/parse_cut_agreement.rs` — the parse-error cut gate.
+  The cut is applied twice on purpose: `first_parse_cut` answers it from
+  source, for a compile front-end that needs the index of the command the
+  clean prefix ends at, and `runtime/rust` answers it per command from the
+  borrowed tree it has already built, for an evaluator that must not
+  substitute a word of a command that does not parse. One shared driver
+  was considered and rejected — it would make `runtime/rust` re-lex every
+  command it evaluates, and its parse is infallible by design where the
+  owner's returns an `Option`. This differential is what keeps the two
+  applications one policy; it runs under `make runtime-rust-test`, and it
+  pins the close-quote weld (`"a"b`) as the one shape they still answer
+  differently.
 
 ## Discoverability
 

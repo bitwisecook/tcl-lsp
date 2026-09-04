@@ -62,6 +62,7 @@ mod expr_lexer;
 mod highlight;
 mod lexer;
 mod line_index;
+pub mod parse_cut;
 mod ranges;
 pub mod script;
 mod source_map;
@@ -83,6 +84,7 @@ pub use highlight::{
 };
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
+pub use parse_cut::{EXTRA_AFTER_CLOSE_QUOTE, ParseCut, first_parse_cut, first_parse_cut_in};
 pub use ranges::{
     ArrayIndexEnd, ArrayIndexScan, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX,
     MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset, command_substitution_end,

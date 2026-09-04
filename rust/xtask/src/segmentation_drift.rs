@@ -83,19 +83,24 @@
 //! flagged line or in the comment block directly above it.
 
 use std::fmt::Write as _;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-/// The files allowed to derive a command or word boundary from raw bytes
-/// or from a `Sep`/`Eol` state machine: the tokeniser that defines the
-/// terminator grammar, the boundary owner, the two registered
-/// `tcl-lexer` scanners, and the compiler's segmentation owners — i.e.
-/// exactly the source paths the two owner-manifest rows name.
+/// The files allowed to derive a command or word boundary from raw bytes,
+/// from a `Sep`/`Eol` state machine, or from a list of C's parse failures:
+/// the tokeniser that defines the terminator grammar, the boundary and cut
+/// owners, the two registered `tcl-lexer` scanners, and the compiler's
+/// segmentation owners — i.e. exactly the source paths the three
+/// owner-manifest rows name.
 const SANCTIONED_FILES: &[&str] = &[
     // The tokeniser: `\n` / `;` *are* its grammar.
     "rust/tcl-lexer/src/lexer.rs",
     // The boundary owner (#1786).
     "rust/tcl-lexer/src/script.rs",
+    // The parse-error cut owner (#1787), which classifies the failures
+    // rule 4 bans a private list of.
+    "rust/tcl-lexer/src/parse_cut.rs",
     // The registered `Tcl_CommandComplete` port + reparse split points.
     "rust/tcl-lexer/src/structural_index.rs",
     // The registered word-span / delimiter-close scanners the two above
@@ -149,6 +154,33 @@ const WORD_START_WHY: &str = "carries a previous-token kind across a token loop 
      tcl_lexer::script::group_commands (or the compiler's segment_commands) and read \
      WordSpan";
 
+/// C's hard `Tcl_ParseCommand` failures, in the spelling a Rust string
+/// literal uses.  A *list* of two or more of these is a private fatal-parse
+/// classifier — the shape `tcl-compiler` carried as `FATAL_PARSE_MESSAGES`
+/// until the cut owner replaced it, and the shape that made
+/// `list [sfx one] [list "oops]` answer `missing close-bracket` where C says
+/// `missing "` (#1787).  A single message is not flagged: raising one, or
+/// asserting one, is ordinary.
+const PARSE_MESSAGE_NEEDLES: &[&str] = &[
+    "extra characters after close-quote",
+    "extra characters after close-brace",
+    "missing close-brace for variable name",
+    "missing close-brace",
+    "invalid character in array index",
+    "missing \\\"",
+    "missing )",
+    "missing close-bracket",
+];
+
+/// How many lines after an array opener the messages may be spread over.
+const MESSAGE_LIST_LOOKAHEAD: usize = 12;
+
+const PARSE_MESSAGE_WHY: &str = "collects C's parse-error messages into a private list — \
+     that is the parse-error cut classifier reimplemented, and a flat list cannot see that C \
+     parses a bracket's own script during the enclosing command's parse (#1787). Ask \
+     tcl_lexer::first_parse_cut, which walks the boundary and word-component owners in C's \
+     order and answers with the command index as well as the message";
+
 /// How many lines after (and before, for the `prev` binding) a needle may
 /// be split across by rustfmt.
 const LOOKAHEAD: usize = 8;
@@ -190,18 +222,20 @@ pub fn run(_check: bool) -> ExitCode {
 
     if hits == 0 {
         println!(
-            "segmentation-drift: OK (no private command-terminator scan or word-start state \
-             machine outside the boundary owners; the owner/scanner corpus differential is wired)"
+            "segmentation-drift: OK (no private command-terminator scan, word-start state \
+             machine, or parse-failure classifier outside the boundary and cut owners; the \
+             owner/scanner corpus differential is wired)"
         );
         return ExitCode::SUCCESS;
     }
     eprintln!(
-        "segmentation-drift: {hits} site(s) derive Tcl command or word boundaries outside the \
-         owner. Where a command ends and where a word begins is answered once, by \
-         tcl_lexer::script::group_commands over a dialect-configured token stream \
-         (shared-utility-contracts-rust.md, issue #1786); a reparse split point comes from \
-         tcl_lexer::command_boundaries. If a site genuinely is not segmenting Tcl script text, \
-         mark it `// {WAIVER} <reason>`:\n{report}"
+        "segmentation-drift: {hits} site(s) derive Tcl command or word boundaries, or classify \
+         a Tcl parse failure, outside the owners. Where a command ends and where a word begins \
+         is answered once, by tcl_lexer::script::group_commands over a dialect-configured token \
+         stream (shared-utility-contracts-rust.md, issue #1786); a reparse split point comes \
+         from tcl_lexer::command_boundaries; where a script stops parsing comes from \
+         tcl_lexer::first_parse_cut (#1787). If a site genuinely is not segmenting Tcl script \
+         text, mark it `// {WAIVER} <reason>`:\n{report}"
     );
     ExitCode::FAILURE
 }
@@ -244,15 +278,18 @@ fn is_exempt_path(rel: &str) -> bool {
 /// Every offending `(line_number, trimmed_line, why)` in `text`.
 fn scan(text: &str) -> Vec<(usize, &str, &'static str)> {
     let lines: Vec<&str> = text.lines().collect();
-    let test_tail = test_module_start(&lines).unwrap_or(lines.len());
+    let tests = test_module_ranges(&lines);
     let mut out = Vec::new();
-    for (idx, line) in lines.iter().enumerate().take(test_tail) {
+    for (idx, line) in lines.iter().enumerate() {
+        if tests.iter().any(|range| range.contains(&idx)) {
+            continue;
+        }
         let trimmed = line.trim();
         if trimmed.starts_with("//") {
             continue;
         }
         let code = code_only(trimmed);
-        let Some(why) = rule_for(&lines, idx, test_tail, &code) else {
+        let Some(why) = rule_for(&lines, idx, lines.len(), &code) else {
             continue;
         };
         if !is_waived(&lines, idx) {
@@ -269,6 +306,9 @@ fn rule_for(lines: &[&str], idx: usize, limit: usize, code: &str) -> Option<&'st
     if TERMINATOR_NEEDLES.iter().any(|n| code.contains(n)) {
         return Some(TERMINATOR_WHY);
     }
+    if let Some(why) = message_list_rule(lines, idx, limit, code) {
+        return Some(why);
+    }
     // Rule 2 needs a window: rustfmt splits a long `matches!` across lines,
     // and the `prev` scrutinee sits *before* the alternation.
     if !code.contains("Sep") {
@@ -284,6 +324,39 @@ fn rule_for(lines: &[&str], idx: usize, limit: usize, code: &str) -> Option<&'st
         .filter_map(|n| exact_alternation(&window, n))
         .any(|at| scrutinee_is_previous_token(&window[..at]))
         .then_some(WORD_START_WHY)
+}
+
+/// Rule 4: an array or slice literal that names two or more of C's parse
+/// failures.
+///
+/// Keyed on the opener rather than on the strings so that the messages a
+/// module raises one at a time — the owner's own constants, a lexer warning
+/// site, an analyser's diagnostic mapping — stay untouched; only a
+/// *classifier* trips it.
+fn message_list_rule(lines: &[&str], idx: usize, limit: usize, code: &str) -> Option<&'static str> {
+    if !code.contains("&[") && !code.contains("= [") {
+        return None;
+    }
+    let window = joined_literals(lines, idx, (idx + MESSAGE_LIST_LOOKAHEAD).min(limit));
+    let distinct = PARSE_MESSAGE_NEEDLES
+        .iter()
+        .filter(|needle| window.contains(&format!("\"{needle}\"")))
+        .count();
+    (distinct >= 2).then_some(PARSE_MESSAGE_WHY)
+}
+
+/// `lines[from..to]` joined with **string contents kept** — the opposite of
+/// [`joined`], which blanks them so a match pattern is never found inside a
+/// string.  Rule 4 is about the strings themselves, so it needs them; line
+/// comments are still dropped, which is what keeps a doc comment that
+/// *names* the messages (this module's own, and the cut owner's) from
+/// reading as a classifier.
+fn joined_literals(lines: &[&str], from: usize, to: usize) -> String {
+    lines[from..to.min(lines.len())]
+        .iter()
+        .map(|line| line.split("//").next().unwrap_or(line).trim())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Where `needle` appears in `window` as a **complete** alternation — the
@@ -353,19 +426,36 @@ fn joined(lines: &[&str], from: usize, to: usize) -> String {
 /// The line of the `#[cfg(test)]` that annotates a **module**, after which
 /// nothing is production code. (Verbatim from `dialect_drift`: a
 /// `#[cfg(test)]` on a single `use` near the top must not end the scan.)
-fn test_module_start(lines: &[&str]) -> Option<usize> {
-    lines.iter().enumerate().find_map(|(i, l)| {
-        if !l.trim_start().starts_with("#[cfg(test)]") {
-            return None;
+fn test_module_ranges(lines: &[&str]) -> Vec<Range<usize>> {
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if !line.trim_start().starts_with("#[cfg(test)]") {
+            continue;
         }
-        let next = lines[i + 1..]
-            .iter()
-            .map(|l| l.trim_start())
-            .find(|l| !l.is_empty() && !l.starts_with("#["))?;
-        let item = next.strip_prefix("pub ").unwrap_or(next);
+        let Some((at, decl)) = lines[i + 1..].iter().enumerate().find_map(|(n, l)| {
+            let t = l.trim_start();
+            (!t.is_empty() && !t.starts_with("#[")).then_some((i + 1 + n, *l))
+        }) else {
+            continue;
+        };
+        let trimmed = decl.trim_start();
+        let item = trimmed.strip_prefix("pub ").unwrap_or(trimmed);
         let item = item.strip_prefix("(crate) ").unwrap_or(item);
-        (item.starts_with("mod ")).then_some(i)
-    })
+        if !item.starts_with("mod ") {
+            continue;
+        }
+        // A module's closer is a `}` at the module keyword's own
+        // indentation.  Every test module in this workspace is rustfmt'd,
+        // so that is exact; an unclosed one exempts the rest of the file,
+        // which is the pre-#1787 behaviour and the safe direction.
+        let indent = decl.len() - trimmed.len();
+        let end = lines[at + 1..]
+            .iter()
+            .position(|l| l.trim_end() == format!("{}}}", " ".repeat(indent)))
+            .map_or(lines.len(), |n| at + n + 2);
+        out.push(i..end);
+    }
+    out
 }
 
 /// The code part of a line: everything before a `//` that is not inside a
@@ -555,9 +645,37 @@ mod tests {
         assert!(scan(src).is_empty());
     }
 
+    /// The exemption follows the module's own extent, not "everything after
+    /// the first `#[cfg(test)]`".  `tcl-compiler`'s `lowering/mod.rs` opens a
+    /// test module 500 lines before the end of its production code; under the
+    /// old cutoff the private classifier rule 4 bans was invisible there.
+    #[test]
+    fn production_code_after_a_test_module_is_still_scanned() {
+        let src = "#[cfg(test)]\nmod tests {\n    fn g(c: u8) { \
+                   let _ = matches!(c, b'\\n' | b';'); }\n}\n\n\
+                   fn later(c: u8) { let _ = matches!(c, b'\\n' | b';'); }\n";
+        let hits = scan(src);
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!(hits[0].0, 6, "the hit is the one outside the test module");
+    }
+
+    #[test]
+    fn a_list_of_parse_failures_is_a_hit_but_a_single_message_is_not() {
+        let list = "const M: &[&str] = &[\n    \"missing close-bracket\",\n\
+                    \"extra characters after close-quote\",\n];\n";
+        assert_eq!(scan(list).len(), 1, "{:?}", scan(list));
+        // One message, raised rather than classified.
+        assert!(scan("return Err(\"missing close-bracket\");\n").is_empty());
+        // Two messages that are not collected into a list.
+        let prose = "fn a() { raise(\"missing close-bracket\"); }\n\
+                     fn b() { raise(\"missing )\"); }\n";
+        assert!(scan(prose).is_empty(), "{:?}", scan(prose));
+    }
+
     #[test]
     fn owner_and_test_paths_are_exempt() {
         assert!(is_exempt_path("rust/tcl-lexer/src/script.rs"));
+        assert!(is_exempt_path("rust/tcl-lexer/src/parse_cut.rs"));
         assert!(is_exempt_path("rust/tcl-lexer/src/structural_index.rs"));
         assert!(is_exempt_path("rust/tcl-compiler/src/segmenter.rs"));
         assert!(is_exempt_path("rust/tcl-lexer/tests/lexer_depth.rs"));
