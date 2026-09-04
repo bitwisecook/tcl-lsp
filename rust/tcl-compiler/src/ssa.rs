@@ -1848,9 +1848,18 @@ fn uses_in_assignment(
             name,
             name_braced,
             value,
+            tokens,
             ..
         } => {
             vars_found.extend(scanner.scan_word(value, registry));
+            // `scan_word` declines to substitute inside braces, exactly as the
+            // *word* parser does — but a nested `[expr {$x + 1}]` substitutes
+            // its own braced body, and that read is real. The call path has
+            // recovered it since #1826; an assignment value substitutes by the
+            // same rules, so `set r [list [expr {0 in $x}]]` reads `x` just as
+            // `puts [list [expr {0 in $x}]]` does (issue #1844 review). Same
+            // owner, one more statement kind — not a second recovery.
+            scan_nested_substitution_words(tokens.as_ref(), scanner, registry, vars_found);
             if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
@@ -1979,7 +1988,7 @@ fn scan_command_words(
             };
         }
     }
-    scan_nested_substitution_words(tokens, scanner, registry, out);
+    scan_nested_substitution_words(tokens, scanner, registry, &mut out.substituted);
 }
 
 /// Record the reads inside a nested `[cmd …]`'s brace-quoted words that the
@@ -2008,24 +2017,48 @@ fn scan_command_words(
 /// ```
 ///
 /// So this applies the same registry-driven rule at the nested positions,
-/// rather than teaching any consumer about substitutions. Only the words the
-/// nested command evaluates in this frame are scanned here; a braced word it
-/// merely carries as data is left to the conservative `Quoted` handling the
-/// enclosing word already got.
+/// rather than teaching any consumer about substitutions. A braced word the
+/// nested command merely carries as data is left to the conservative `Quoted`
+/// handling the enclosing word already got.
+///
+/// Writes only substituted names — a word the nested command evaluates in this
+/// frame is a genuine read — so it takes that half directly rather than the
+/// whole [`ClassifiedUses`], which lets the assignment path (whose collector
+/// *is* the substituted set) share the one owner.
+///
+/// # Why `Expr` only, and not every in-frame role
+///
+/// [`ArgRole::braced_word_evaluated_in_frame`](tcl_registry::ArgRole::braced_word_evaluated_in_frame)
+/// answers for `Body` as well as `Expr`, and for a **statement** that is right:
+/// `foreach x $l {…}` runs its body in this frame, and the lowerer gives that
+/// body its own CFG block, so the loop variable is *defined* where the body's
+/// reads are seen.
+///
+/// A nested substitution gets no such block — that is the representational gap
+/// this whole module works around — so a nested body's reads would arrive with
+/// none of its own definitions:
+///
+/// ```tcl
+/// set r [join [lmap x $lines {string toupper $x}] ","]
+/// ```
+///
+/// scanning the `lmap` body records a read of `x` that nothing in the frame
+/// ever writes, and `W210 read before it is set` fires on the loop variable.
+/// `Expr` is the role that both substitutes here *and* binds nothing of its
+/// own, which is exactly what the `[expr {$x + 1}]` case this exists for
+/// needs; `Body` is left to the conservative handling until a nested
+/// substitution is lowered as a command.
 fn scan_nested_substitution_words(
     tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
-    out: &mut ClassifiedUses,
+    substituted: &mut BTreeSet<String>,
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
         let arg_strs: Vec<&str> = lifted.args.iter().map(String::as_str).collect();
-        let in_frame: std::collections::HashSet<usize> = tcl_registry::ArgRole::ALL
-            .iter()
-            .filter(|role| role.braced_word_evaluated_in_frame())
-            .flat_map(|&role| registry.arg_indices_for_role(&lifted.command, &arg_strs, role))
-            .collect();
+        let in_frame =
+            registry.arg_indices_for_role(&lifted.command, &arg_strs, tcl_registry::ArgRole::Expr);
         for idx in in_frame {
             // Only a braced word needs recovering. An unbraced one already
             // substitutes at the command level, so the enclosing word's own
@@ -2039,7 +2072,7 @@ fn scan_nested_substitution_words(
                 // nothing to recover from it either.
                 _ => continue,
             };
-            out.substituted.extend(scanner.scan_word(braced, registry));
+            substituted.extend(scanner.scan_word(braced, registry));
         }
     }
 }
@@ -4749,6 +4782,77 @@ mod tests {
         assert!(
             !uses.contains(&("tainted".to_owned(), UseClass::Substituted)),
             "`list` does not evaluate its arguments in the calling frame: {uses:?}"
+        );
+    }
+
+    /// A nested command's **body** must not be read as a frame use, even
+    /// though a body written on a *statement* is. The difference is the
+    /// lowering: a statement's body becomes its own CFG block, so `lmap`'s
+    /// loop variable is defined where the body's reads are seen, while a
+    /// nested substitution gets no block at all — so its body's reads arrive
+    /// with none of its own definitions and `x` looks read-before-set
+    /// (issue #1844 review).
+    #[test]
+    fn body_word_of_a_nested_substitution_is_not_a_frame_read() {
+        let uses = classified_call_uses("puts [join [lmap x $tainted {string toupper $x}] ,]");
+        assert!(
+            !uses.iter().any(|(name, _)| name == "x"),
+            "`lmap` binds its own loop variable; the frame never reads it: {uses:?}"
+        );
+    }
+
+    /// The same for a body whose locals are set inside it — `catch`'s script
+    /// declares `inner`, so the enclosing frame neither reads nor defines it.
+    #[test]
+    fn body_locals_of_a_nested_substitution_are_not_frame_reads() {
+        let uses = classified_call_uses("puts [catch {set inner 1; expr {$inner + 1}}]");
+        assert!(
+            !uses.iter().any(|(name, _)| name == "inner"),
+            "a nested body's own local is not a read of this frame: {uses:?}"
+        );
+    }
+
+    /// The classified uses of every `AssignValue` in a one-statement proc —
+    /// the assignment twin of [`classified_call_uses`].
+    fn classified_assign_uses(body: &str) -> Vec<(String, UseClass)> {
+        let reg = CommandRegistry::build_default();
+        let src = format!("proc f {{tainted}} {{\n {body}\n}}");
+        let cu = crate::compilation_unit::CompilationUnit::build_for(&src, &reg, false);
+        let fu = cu.function("::f").expect("proc lowered");
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let mut out = Vec::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                if matches!(stmt, Statement::AssignValue { .. }) {
+                    out.extend(uses_of_classified(stmt, &mut scanner, &reg));
+                }
+            }
+        }
+        out
+    }
+
+    /// Issue #1844 review: an assignment's value word substitutes by exactly
+    /// the rules a call's word does, so the braced body of a nested `[expr …]`
+    /// is a read there too. Without it the expression's operands were absent
+    /// from `uses` and every consumer of that map — the expr shimmer detector
+    /// included — was blind to `set r [list [expr {$tainted + 1}]]`.
+    #[test]
+    fn braced_word_of_a_nested_substitution_is_read_in_an_assignment_value() {
+        let uses = classified_assign_uses("set r [list [expr {$tainted + 1}]]");
+        assert!(
+            uses.contains(&("tainted".to_owned(), UseClass::Substituted)),
+            "an `Expr` role's braced word substitutes in this frame: {uses:?}"
+        );
+    }
+
+    /// …and the body exclusion holds on the assignment path too — this is the
+    /// spelling the repository's own corpus actually contains.
+    #[test]
+    fn body_word_of_a_nested_substitution_in_an_assignment_is_not_a_frame_read() {
+        let uses = classified_assign_uses("set r [join [lmap x $tainted {string toupper $x}] ,]");
+        assert!(
+            !uses.iter().any(|(name, _)| name == "x"),
+            "`lmap` binds its own loop variable; the frame never reads it: {uses:?}"
         );
     }
 }

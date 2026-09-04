@@ -214,14 +214,29 @@ each consume them. Five properties matter:
   onto `Terminator::Return::expr`, and leaves it `None` for the braced
   `return {[expr …]}`. The walker just reads it, as it already did for
   `Terminator::Branch`.
-- **Every statement that carries substitutable words is lifted the same way.**
-  Both `Statement::Call` and `Statement::AssignValue` hold `CommandTokens`, and
-  the outer command changes nothing about what Tcl evaluates inside a word — so
-  `set r [list [lindex $x 0]]` reports exactly what `puts [list [lindex $x 0]]`
-  does. `AssignValue` used to parse only its outermost `[cmd …]` and go silent
-  below depth one (issue #1844); the outermost substitution is now simply the
-  depth-zero case of the same walk, not a shape the arm re-derives — the lift
-  is the single owner of "which commands does this statement run".
+- **Every statement that carries substitutable words is lifted the same way,
+  in every consumer.** Both `Statement::Call` and `Statement::AssignValue` hold
+  `CommandTokens`, and the outer command changes nothing about what Tcl
+  evaluates inside a word — so `set r <word>` reports exactly what
+  `puts <word>` does. `AssignValue` used to parse only its outermost `[cmd …]`
+  and go silent below depth one (issue #1844); the outermost substitution is
+  now simply the depth-zero case of the same walk, not a shape the arm
+  re-derives. The symmetry has to hold in all four places that read the lift,
+  or it holds nowhere: `use_site` (what reports), `commit` (what moves the
+  state), `expr` (nested `[expr …]`, which carries its reads in an expression
+  rather than in registry roles), and `ssa::scan_nested_substitution_words`
+  (which puts a nested expression's operands into `SsaStatement::uses` at all —
+  without it the `expr` detector has nothing to resolve against).
+- **A nested command's `Body` is not lifted into the enclosing frame, though a
+  statement's is.** `ArgRole::braced_word_evaluated_in_frame` answers for
+  `Body` as well as `Expr`, and for a statement that is right: the lowerer
+  gives `foreach x $l {…}` its own CFG block, so the loop variable is *defined*
+  where the body's reads are seen. A nested substitution gets no block — that
+  is the representational gap below — so lifting `[lmap x $l {… $x …}]`'s body
+  recorded a read of `x` that nothing in the frame writes, and `W210 read
+  before it is set` fired on the loop variable itself. `Expr` is the role that
+  substitutes here *and* binds nothing of its own, so it is the only one the
+  nested scan takes.
 
 ### Known limitation — the underlying representational gap
 
@@ -276,7 +291,13 @@ dedicated `Statement::Incr` node.
   statement kinds against each other so they cannot drift apart again,
   alongside `assign_value_substitution_is_reported_once`,
   `assign_value_nested_substitution_span_is_tight` and
-  `a_nested_conversion_in_an_assignment_is_visible_to_later_reads`).
+  `a_nested_conversion_in_an_assignment_is_visible_to_later_reads`), and
+  `shimmer::expr` again for the expression half of that symmetry
+  (`assign_value_lifts_the_same_nested_expr_a_call_does`,
+  `a_bare_expr_assignment_is_reported_once`).
+- The use-map half, in `ssa`: `braced_word_of_a_nested_substitution_is_read_in_an_assignment_value`
+  for what must be recorded, and `body_word_of_a_nested_substitution_is_not_a_frame_read`
+  (plus its assignment and `catch`-local twins) for what must not.
 - Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
 - Native `lsp_e2e` coverage in `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` and `rust/tcl-lsp-server/tests/e2e/code_actions.rs` (the noqa suppress quick fix).
