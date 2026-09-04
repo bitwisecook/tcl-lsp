@@ -116,7 +116,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
@@ -379,6 +379,12 @@ impl Patch {
 pub struct PackStore {
     source: String,
     pack: Pack,
+    /// Lazily built CST index for this exact `source`. A store's source is
+    /// immutable in place — every edit constructs a replacement store — so
+    /// the index never needs invalidating. Keeping it lazy avoids charging
+    /// callers that only browse the evaluated snapshot for CST work they do
+    /// not need.
+    source_index: OnceLock<SourceIndex>,
     /// The provenance tier the document is *evaluated* under (E-R2).
     tier: Tier,
     /// One draft per declared command, in declaration order — derived, and the
@@ -445,10 +451,16 @@ impl PackStore {
         Self {
             source,
             pack,
+            source_index: OnceLock::new(),
             tier,
             drafts,
             patch: None,
         }
+    }
+
+    fn source_index(&self) -> &SourceIndex {
+        self.source_index
+            .get_or_init(|| SourceIndex::new(&self.source))
     }
 
     /// [`PackStore::from_source`] with a patch pack already standing over it.
@@ -516,7 +528,7 @@ impl PackStore {
         Some(DeclarationSite {
             line: command.line,
             file: (!command.file.as_os_str().is_empty()).then(|| command.file.clone()),
-            expanded: command_span(&self.source, name).is_none(),
+            expanded: self.source_index().command(name).is_none(),
         })
     }
 
@@ -551,7 +563,7 @@ impl PackStore {
         if self
             .drafts
             .iter()
-            .any(|(name, _)| command_span(&self.source, name).is_none())
+            .any(|(name, _)| self.source_index().command(name).is_none())
         {
             return Some(Programmed::Expanded);
         }
@@ -565,12 +577,12 @@ impl PackStore {
     /// statements — and false the moment a statement runs rather than
     /// registers.
     fn straight_line(&self) -> bool {
-        if pack_body(&self.source).is_none() {
+        if self.source_index().pack_body.is_none() {
             // Not a pack at all: nothing was registered, and there is nothing
             // programmed about a document that declares nothing.
             return self.pack.registrations.is_empty();
         }
-        let statements = self.document_statements();
+        let statements = &self.source_index().document_statements;
         statements.len() == self.pack.registrations.len()
             && statements
                 .iter()
@@ -603,27 +615,6 @@ impl PackStore {
     /// is held to [`stated_verbatim`] as well, because outside is exactly
     /// where the head-and-first-argument comparison is too weak to tell a
     /// declaration from the program that computed it.
-    fn document_statements(&self) -> Vec<Segmented> {
-        let body = pack_body(&self.source);
-        let mut seen_pack = false;
-        let mut out = Vec::new();
-        for mut statement in segments(&self.source) {
-            if !seen_pack && statement.words.first().map(String::as_str) == Some("speclib") {
-                seen_pack = true;
-                if let Some(body) = body.clone() {
-                    out.extend(segments(&self.source[body]).into_iter().map(|mut inner| {
-                        inner.inside_pack = true;
-                        inner
-                    }));
-                }
-            } else {
-                statement.inside_pack = false;
-                out.push(statement);
-            }
-        }
-        out
-    }
-
     /// The canonical patch pack standing over this document, when form edits
     /// have landed against a programmed one.
     #[must_use]
@@ -1083,7 +1074,11 @@ impl PackStore {
         if self.draft(name).is_none() {
             return false;
         }
-        if let Some(span) = command_span(&self.source, name) {
+        if let Some(span) = self
+            .source_index()
+            .command(name)
+            .map(|command| command.statement.clone())
+        {
             let mut text = self.source.clone();
             text.replace_range(trimmed_span(&text, span), "");
             let candidate = Self::from_source(text);
@@ -1218,7 +1213,11 @@ impl PackStore {
     /// beyond this pass, and is reported through [`Write::dropped`] instead of
     /// being lost in silence.
     fn carry_forward(&self, name: &str, block: &str) -> String {
-        let Some((_, old_body)) = find_command(&self.source, pack_body(&self.source), name) else {
+        let Some(old_body) = self
+            .source_index()
+            .command(name)
+            .map(|command| command.body.clone())
+        else {
             return block.to_owned();
         };
         let old = &self.source[old_body];
@@ -1288,7 +1287,11 @@ impl PackStore {
     /// are both losses and both have to be reported.
     fn declared_properties(&self, name: &str) -> BTreeMap<String, bool> {
         let mut out = BTreeMap::new();
-        let Some((_, body)) = find_command(&self.source, pack_body(&self.source), name) else {
+        let Some(body) = self
+            .source_index()
+            .command(name)
+            .map(|command| command.body.clone())
+        else {
             return out;
         };
         for statement in segments(&self.source[body.clone()]) {
@@ -1321,10 +1324,10 @@ impl PackStore {
     fn write_attempt(&self, name: &str, block: &str, existed: bool) -> Option<String> {
         let mut text = self.source.clone();
         if existed {
-            let span = command_span(&self.source, name)?;
+            let span = self.source_index().command(name)?.statement.clone();
             text.replace_range(span, block);
         } else {
-            let body = pack_body(&self.source)?;
+            let body = self.source_index().pack_body.clone()?;
             let at = self.source[..body.end].trim_end().len();
             text.insert_str(at, &format!("\n\n{block}\n"));
         }
@@ -2012,6 +2015,86 @@ fn find_command(
     None
 }
 
+/// The literal command declaration ranges and top-level statements derived
+/// from one exact store source.
+///
+/// Building this takes two CST passes: one over the document and one over its
+/// `speclib` body.  Keeping the result on [`PackStore`] makes command lookup
+/// constant-time and, critically, prevents [`PackStore::programmed`] from
+/// repeating both passes once for every command in a pack.
+struct SourceIndex {
+    pack_body: Option<std::ops::Range<usize>>,
+    commands: BTreeMap<String, CommandLocation>,
+    document_statements: Vec<Segmented>,
+}
+
+struct CommandLocation {
+    statement: std::ops::Range<usize>,
+    body: std::ops::Range<usize>,
+}
+
+impl SourceIndex {
+    fn new(source: &str) -> Self {
+        let mut top_level = segments(source);
+        let pack_body = top_level
+            .iter()
+            .find(|statement| statement.words.first().map(String::as_str) == Some("speclib"))
+            .and_then(|statement| statement.spans.get(3))
+            .map(|word| word.inner.clone());
+
+        let mut commands = BTreeMap::new();
+        let mut body_statements = pack_body
+            .clone()
+            .map(|body| {
+                let base = body.start;
+                segments(&source[body])
+                    .into_iter()
+                    .map(|mut statement| {
+                        if statement.words.first().map(String::as_str) == Some("command")
+                            && statement.words.len() >= 3
+                            && let (Some(name), Some(word)) =
+                                (statement.words.get(1), statement.spans.last())
+                            && source.as_bytes().get(base + word.outer.start) == Some(&b'{')
+                        {
+                            commands
+                                .entry(name.clone())
+                                .or_insert_with(|| CommandLocation {
+                                    statement: base + statement.span.start
+                                        ..base + statement.span.end,
+                                    body: base + word.inner.start..base + word.inner.end,
+                                });
+                        }
+                        statement.inside_pack = true;
+                        statement
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let mut seen_pack = false;
+        let mut document_statements = Vec::with_capacity(top_level.len() + body_statements.len());
+        for mut statement in top_level.drain(..) {
+            if !seen_pack && statement.words.first().map(String::as_str) == Some("speclib") {
+                seen_pack = true;
+                document_statements.append(&mut body_statements);
+            } else {
+                statement.inside_pack = false;
+                document_statements.push(statement);
+            }
+        }
+
+        Self {
+            pack_body,
+            commands,
+            document_statements,
+        }
+    }
+
+    fn command(&self, name: &str) -> Option<&CommandLocation> {
+        self.commands.get(name)
+    }
+}
+
 /// One statement, with the byte ranges a splice needs.
 struct Segmented {
     words: Vec<String>,
@@ -2228,6 +2311,20 @@ command add_parameter {\narity 1..\n}\n}\n";
     fn a_command_span_covers_exactly_its_statement() {
         let span = command_span(PACK, "farewell").expect("farewell is declared");
         assert_eq!(&PACK[span], "command farewell {\n    arity 1\n}");
+    }
+
+    #[test]
+    fn the_store_index_matches_the_public_source_queries() {
+        let store = PackStore::from_source(PACK);
+        assert_eq!(store.source_index().pack_body, pack_body(PACK));
+        for (name, _) in store.commands() {
+            let indexed = store
+                .source_index()
+                .command(name)
+                .map(|command| command.statement.clone());
+            assert_eq!(indexed, command_span(PACK, name), "{name}");
+        }
+        assert!(store.source_index().command("not-declared").is_none());
     }
 
     #[test]
