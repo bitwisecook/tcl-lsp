@@ -500,23 +500,23 @@ class TclLspSettingsPanel {
         builder.addComponent(diagIRulePanel)
 
         builder.addComponent(TitledSeparator("Diagnostics — BIG-IP Configuration"))
-        val diagPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        val diagBigIpPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
             diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
             diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
             diagIAPP7003,
-        ).forEach { diagPanel.add(it) }
-        builder.addComponent(diagPanel)
+        ).forEach { diagBigIpPanel.add(it) }
+        builder.addComponent(diagBigIpPanel)
 
         builder.addComponent(TitledSeparator("Diagnostics — SslicTcl"))
-        val diagPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        val diagSslicTclPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
             diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
             diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
-        ).forEach { diagPanel.add(it) }
-        builder.addComponent(diagPanel)
+        ).forEach { diagSslicTclPanel.add(it) }
+        builder.addComponent(diagSslicTclPanel)
         // @generated:diag-ui:end
 
         // Style section
