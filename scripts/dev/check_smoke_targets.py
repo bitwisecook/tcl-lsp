@@ -90,9 +90,20 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
     return manifests, targets
 
 
+def smoke_named_binary_targets(targets: list[Target]) -> set[tuple[str, str, str]]:
+    """Cargo binary targets selected wholesale by nextest's smoke profile."""
+    return {
+        (target.package, target.kind, target.manifest_name)
+        for target in targets
+        if target.kind == "bin"
+        and (target.name == "smoke" or target.name.endswith("_smoke"))
+    }
+
+
 def validate(manifest: Path) -> list[str]:
     package_roots, all_targets = load_targets()
     errors: list[str] = []
+    declared_targets: set[tuple[str, str, str]] = set()
     for line_number, raw_line in enumerate(manifest.read_text().splitlines(), 1):
         if not raw_line or raw_line.startswith("#"):
             continue
@@ -103,6 +114,7 @@ def validate(manifest: Path) -> list[str]:
             )
             continue
         source_text, package, kind, target_name = fields
+        declared_targets.add((package, kind, target_name))
         source = (REPO_ROOT / source_text).resolve()
         if not source.is_file():
             errors.append(f"missing smoke source: {source_text}")
@@ -151,6 +163,14 @@ def validate(manifest: Path) -> list[str]:
                 f"smoke source {source_text} belongs to "
                 f"{owner.kind}:{owner.manifest_name}, not {kind}:{target_name}"
             )
+
+    for package, kind, target_name in sorted(
+        smoke_named_binary_targets(all_targets) - declared_targets
+    ):
+        errors.append(
+            f"smoke-named Cargo target {package} {kind}:{target_name} has no "
+            "smoke-targets.tsv row"
+        )
     return errors
 
 
@@ -182,6 +202,18 @@ def self_test() -> None:
     assert {(owner.kind, owner.name) for owner in owners} == {
         ("lib", "example"),
         ("bin", "example"),
+    }
+
+    # Nextest's binary selector runs every unit test in a smoke-named Cargo
+    # binary, even when none of its functions has a smoke-shaped name.
+    smoke_targets = targets + [
+        Target("example", "bin", "smoke", root / "src/bin/smoke.rs"),
+        Target("example", "bin", "worker_smoke", root / "src/bin/worker_smoke.rs"),
+        Target("example", "bin", "smokeless", root / "src/bin/smokeless.rs"),
+    ]
+    assert smoke_named_binary_targets(smoke_targets) == {
+        ("example", "bin", "smoke"),
+        ("example", "bin", "worker_smoke"),
     }
 
 
