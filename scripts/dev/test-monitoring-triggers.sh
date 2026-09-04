@@ -4,10 +4,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Fail closed if a future cadence edit removes a release benchmark or narrows
-# the repository-wide Scorecard push scan. Binary-Artifacts examines file
-# content, including extensionless executables, so filename filters are not a
-# complete representation of its input surface.
+# Fail closed if a future cadence edit removes a release benchmark, narrows the
+# repository-wide Scorecard push scan, or makes cache retention unbounded.
+# Binary-Artifacts examines file content, including extensionless executables,
+# so filename filters are not a complete representation of its input surface.
 
 set -eu
 
@@ -15,6 +15,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 PERF=$REPO_ROOT/.github/workflows/perf.yml
 SCORECARD=$REPO_ROOT/.github/workflows/scorecard.yml
+CACHE_CLEANUP=$REPO_ROOT/.github/workflows/cache-cleanup.yml
 
 perf_push=$(awk '
     /^  push:/ { in_push = 1 }
@@ -52,6 +53,23 @@ grep -Fq 'branch_protection_rule:' "$SCORECARD" || {
 }
 grep -Fq 'cron: "23 4 * * 2"' "$SCORECARD" || {
     echo "Scorecard must retain its weekly ecosystem-drift scan" >&2
+    exit 1
+}
+
+[ "$(grep -c -- '--paginate' "$CACHE_CLEANUP")" -eq 2 ] || {
+    echo "cache cleanup must paginate both PR-close and weekly inventories" >&2
+    exit 1
+}
+grep -Fq 'SCCACHE_MAX_IDLE_DAYS: 7' "$CACHE_CLEANUP" || {
+    echo "default-branch sccache retention must stay bounded" >&2
+    exit 1
+}
+grep -Fq '(.key | startswith(\"sccache/\"))' "$CACHE_CLEANUP" || {
+    echo "weekly cleanup must identify content-addressed sccache objects" >&2
+    exit 1
+}
+grep -Fq '.last_accessed_at < \"$cutoff\"' "$CACHE_CLEANUP" || {
+    echo "weekly sccache retention must use last-access time" >&2
     exit 1
 }
 

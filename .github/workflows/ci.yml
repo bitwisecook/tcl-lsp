@@ -835,6 +835,11 @@ jobs:
     # branches in this repo, which only collaborators can create) goes to `tank`.
     needs: [channel]
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && 'ubuntu-26.04' || 'tank' }}
+    # The action starts the sccache server during setup, so the backend must be
+    # configured at job scope rather than only on the later Cargo steps.
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     concurrency:
       group: rust-tests-${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && format('hosted-{0}', github.run_id) || 'tank' }}
       queue: max
@@ -898,8 +903,6 @@ jobs:
         if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
-          RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
         run: |
           extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
@@ -913,9 +916,6 @@ jobs:
       # not duplicate them.  Deps are already built, so this is compile + run.
       - name: cargo test --doc
         if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
-        env:
-          RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
         run: cargo test --workspace --all-features --doc --no-fail-fast
 
   # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
@@ -1329,6 +1329,9 @@ jobs:
     # Deliberately hosted -- see `rust-tests-heavy`.
     needs: [channel]
     runs-on: ubuntu-26.04
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1359,8 +1362,6 @@ jobs:
         if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
-          RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
         run: |
           extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
