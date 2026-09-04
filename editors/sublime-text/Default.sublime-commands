@@ -1,50 +1,10 @@
 [
     {
-        "caption": "Tcl: Select Dialect",
-        "command": "tcl_select_dialect"
-    },
-    {
-        "caption": "Tcl: Restart Language Server",
-        "command": "tcl_restart_server"
-    },
-    {
-        "caption": "Tcl: Format Document",
-        "command": "tcl_format_document"
-    },
-    {
-        "caption": "Tcl: Minify Document",
-        "command": "tcl_minify_document"
-    },
-    {
-        "caption": "Tcl: Unminify Error",
-        "command": "tcl_unminify_error"
-    },
-    {
-        "caption": "Tcl: Apply Safe Quick Fixes",
-        "command": "tcl_fix_all_safe_issues"
-    },
-    {
-        "caption": "Tcl: Apply All Optimisations",
-        "command": "tcl_optimise_document"
-    },
-    {
-        "caption": "Tcl: Recommended Setup",
-        "command": "tcl_recommended_setup"
-    },
-    {
-        "caption": "Preferences: Tcl LSP Settings",
+        "caption": "Preferences: LSP-Tcl Settings",
         "command": "edit_settings",
         "args": {
-            "base_file": "${packages}/TclLsp/LSP-Tcl.sublime-settings",
-            "default": "// Tcl LSP Settings\n// See the default settings for available options.\n{\n\t$0\n}\n"
-        }
-    },
-    {
-        "caption": "Preferences: Tcl Editor Settings",
-        "command": "edit_settings",
-        "args": {
-            "base_file": "${packages}/TclLsp/Tcl.sublime-settings",
-            "default": "// Tcl Editor Settings\n{\n\t$0\n}\n"
+            "base_file": "${packages}/LSP-Tcl/LSP-Tcl.sublime-settings",
+            "default": "// Settings here override LSP-Tcl/LSP-Tcl.sublime-settings\n\n{\n\t$0\n}\n"
         }
     }
 ]

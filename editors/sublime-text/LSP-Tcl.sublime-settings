@@ -3,16 +3,11 @@
     // See https://github.com/bitwisecook/tcl-lsp for documentation.
 
     "command": ["${server_path}"],
-    "selector": "source.tcl | source.irule | source.tcl-apl | source.tcl-bigip",
+    // Sublime's built-in TCL package uses source.tcl. LSP-Tcl also assigns
+    // that built-in syntax to Tcl-family extensions that would otherwise be
+    // opened as plain text.
+    "selector": "source.tcl",
     "schemes": ["file", "buffer"],
-
-    // The `.tclspec` packs (EDA vendor command libraries) shipped with this
-    // package, staged beside the managed server binary.  Empty when the
-    // server comes from "server_path" below — that build keeps whatever
-    // packs sit beside it.
-    "env": {
-        "TCL_LSP_SPEC_PACK_DIR": "${spec_pack_dir}"
-    },
 
     // Server settings — passed as workspace/didChangeConfiguration.
     // All keys live under "tclLsp" to match the server's expected format.

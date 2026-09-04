@@ -103,7 +103,7 @@
                         "server_path": {
                             "type": "string",
                             "default": "",
-                            "markdownDescription": "Override path to the `tcl-lsp-server` binary.  Leave empty to use the bundled server."
+                            "markdownDescription": "Override path to the `tcl-lsp-server` binary. Leave empty to let LSP-Tcl download and verify the matching release binary."
                         }
                     }
                 }

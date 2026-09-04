@@ -1,219 +1,114 @@
 #!/usr/bin/env bash
 # tcl-lsp — a language server and toolchain for Tcl
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# publish_zed.sh — prepare a local checkout of zed-industries/extensions
-# with the tcl submodule advanced to the current tag and the
-# extensions.toml version bumped, ready for you to review, push, and
-# open a PR yourself.
-#
-# This script never pushes to your fork and never opens a PR — it stops
-# at "branch is ready in <path>; review it, then push and open the PR
-# manually" so you can sanity-check the change first.
-#
-# Zed distributes extensions via the central
-# https://github.com/zed-industries/extensions repo, where each
-# extension is a git submodule pinned to a specific commit. Every
-# release of a published extension is its own PR that:
-#
-#   1. Advances the submodule pointer at extensions/tcl to the new tag.
-#   2. Bumps the corresponding `version = "..."` entry in extensions.toml.
-#
-# Prerequisites
-# -------------
-#   - You have a local fork of zed-industries/extensions cloned (or you
-#     let this script clone one for you on first run).
-#   - Optional env vars:
-#       ZED_EXTENSIONS_FORK       owner/repo of your fork (used only for
-#                                  the suggested `git push` command in
-#                                  the final summary)
-#       ZED_EXTENSIONS_CHECKOUT   path to your local clone (default:
-#                                  $HOME/.cache/tcl-lsp/zed-extensions)
-#
-# First-time publish
-# ------------------
-# Before this script can run, the extension must already be REGISTERED
-# in zed-industries/extensions via a one-off PR (raised by you) that
-# adds the submodule and the `[tcl]` block in extensions.toml.
+# Prepare, but do not push, the Zed registry PR for the current tcl-lsp tag.
+# Handles both the first registration and later version bumps.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UPSTREAM="zed-industries/extensions"
-EXT_NAME="tcl"
+EXT_NAME="tcl-lsp"
 EXT_PATH="extensions/${EXT_NAME}"
+EXT_SOURCE_PATH="editors/zed"
+REPO_URL="https://github.com/bitwisecook/tcl-lsp.git"
+WORK_DIR="${ZED_EXTENSIONS_CHECKOUT:-${TMPDIR:-/tmp}/tcl-lsp-zed-extensions}"
+FORK="${ZED_EXTENSIONS_FORK:-<your-fork>/extensions}"
 
-WORK_DIR="${ZED_EXTENSIONS_CHECKOUT:-$HOME/.cache/tcl-lsp/zed-extensions}"
-
-# Resolve the tag we are publishing.
 TAG="$(git -C "$ROOT" describe --tags --exact-match 2>/dev/null || true)"
 if [ -z "$TAG" ]; then
-    echo "error: HEAD is not a tagged commit — run 'make release-tag V=X.Y.Z' first."
+    echo "error: HEAD is not a tag; publish Zed after the vX.Y.Z release tag exists."
     exit 1
 fi
 VERSION="${TAG#v}"
 
-FORK="${ZED_EXTENSIONS_FORK:-<your-fork>/extensions}"
+MANIFEST_VERSION="$({
+    sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT/$EXT_SOURCE_PATH/extension.toml"
+} | head -n 1)"
+if [ "$MANIFEST_VERSION" != "$VERSION" ]; then
+    echo "error: $EXT_SOURCE_PATH/extension.toml is $MANIFEST_VERSION, but HEAD is $TAG."
+    echo "       Set the extension version before creating the release tag."
+    exit 1
+fi
 
-echo "==> Preparing local PR contents for $EXT_NAME $VERSION → $UPSTREAM"
-echo
-
-# 1. Clone the upstream into the checkout (or refresh it). We pull from
-# upstream directly — you swap in your fork's remote at push time.
-mkdir -p "$(dirname "$WORK_DIR")"
 if [ ! -d "$WORK_DIR/.git" ]; then
-    echo "==> Cloning $UPSTREAM into $WORK_DIR"
-    git clone --recurse-submodules "https://github.com/${UPSTREAM}.git" "$WORK_DIR"
+    mkdir -p "$(dirname "$WORK_DIR")"
+    git clone "https://github.com/${UPSTREAM}.git" "$WORK_DIR"
 else
-    echo "==> Refreshing $WORK_DIR against upstream/main"
-
-    # The reset-to-origin/main below is destructive — any uncommitted
-    # changes or local-only commits would be silently discarded. Refuse
-    # to run unless the tree is clean and main is no further ahead of
-    # origin/main than the staged bump branches we may have created on
-    # previous runs. Set TCL_LSP_ZED_FORCE=1 to override.
-    if [ "${TCL_LSP_ZED_FORCE:-0}" != "1" ]; then
-        if [ -n "$(git -C "$WORK_DIR" status --porcelain 2>/dev/null)" ]; then
-            cat <<EOF
-error: $WORK_DIR has uncommitted changes.
-       Stash or commit them, or remove the checkout to start fresh:
-         rm -rf "$WORK_DIR"
-       Override (discards local work) with:
-         TCL_LSP_ZED_FORCE=1 make publish-zed
-EOF
-            exit 1
-        fi
-        git -C "$WORK_DIR" fetch origin main
-        LOCAL_AHEAD="$(git -C "$WORK_DIR" rev-list --count origin/main..main 2>/dev/null || echo 0)"
-        if [ "$LOCAL_AHEAD" -gt 0 ]; then
-            cat <<EOF
-error: $WORK_DIR has $LOCAL_AHEAD local commit(s) on 'main' not in origin/main.
-       Push them first, or override (discards local commits) with:
-         TCL_LSP_ZED_FORCE=1 make publish-zed
-EOF
-            exit 1
-        fi
-    else
-        git -C "$WORK_DIR" fetch origin main
+    if [ -n "$(git -C "$WORK_DIR" status --porcelain)" ]; then
+        echo "error: $WORK_DIR has uncommitted changes; choose a clean checkout."
+        exit 1
     fi
-
-    git -C "$WORK_DIR" checkout main
-    git -C "$WORK_DIR" reset --hard origin/main
-    git -C "$WORK_DIR" submodule update --init --recursive
+    git -C "$WORK_DIR" fetch origin main
+    git -C "$WORK_DIR" switch --detach origin/main
 fi
 
-# 2. Verify the submodule is registered.
-if [ ! -d "$WORK_DIR/$EXT_PATH" ]; then
-    echo
-    echo "error: $UPSTREAM does not yet carry an extensions/$EXT_NAME submodule."
-    echo "       The extension has not been registered yet — raise the"
-    echo "       one-time submission PR against $UPSTREAM first."
-    exit 1
+BRANCH="${EXT_NAME}-${VERSION}"
+git -C "$WORK_DIR" switch -c "$BRANCH"
+
+if git -C "$WORK_DIR" config --file .gitmodules --get-regexp \
+    "submodule\.${EXT_PATH}\.path" >/dev/null 2>&1; then
+    ACTION="Update"
+    git -C "$WORK_DIR" submodule update --init "$EXT_PATH"
+    git -C "$WORK_DIR/$EXT_PATH" fetch origin tag "$TAG"
+    git -C "$WORK_DIR/$EXT_PATH" checkout "$TAG"
+else
+    ACTION="Add"
+    git -C "$WORK_DIR" submodule add "$REPO_URL" "$EXT_PATH"
+    git -C "$WORK_DIR/$EXT_PATH" checkout "$TAG"
 fi
 
-# 3. Advance the submodule pointer to our tag.
-echo "==> Advancing $EXT_PATH to $TAG"
-git -C "$WORK_DIR/$EXT_PATH" fetch origin --tags
-git -C "$WORK_DIR/$EXT_PATH" checkout "$TAG"
-
-# 4. Bump the version in extensions.toml. Surgical rewrite of just the
-# [tcl] block's version field.
 TOML="$WORK_DIR/extensions.toml"
-if [ ! -f "$TOML" ]; then
-    echo "error: $TOML not found in checkout — repo layout has changed."
-    exit 1
-fi
+python3 - "$TOML" "$EXT_NAME" "$EXT_PATH" "$EXT_SOURCE_PATH" "$VERSION" <<'PY'
+import pathlib
+import re
+import sys
 
-python3 - "$TOML" "$EXT_NAME" "$VERSION" <<'PY'
-import pathlib, re, sys
-path, name, version = sys.argv[1], sys.argv[2], sys.argv[3]
-src = pathlib.Path(path).read_text()
-header = f"[{name}]"
-idx = src.find(header)
-if idx < 0:
-    sys.exit(f"error: [{name}] block not found in {path}")
-next_section = re.search(r"\n\[[^\]]+\]", src[idx + len(header):])
-end = idx + len(header) + (next_section.start() if next_section else len(src))
-block = src[idx:end]
-new_block, count = re.subn(
-    r'^(version\s*=\s*")[^"]*(")',
-    rf'\g<1>{version}\g<2>',
-    block,
-    count=1,
-    flags=re.MULTILINE,
+path, name, submodule, source_path, version = sys.argv[1:]
+toml = pathlib.Path(path)
+text = toml.read_text()
+block = (
+    f"[{name}]\n"
+    f'submodule = "{submodule}"\n'
+    f'path = "{source_path}"\n'
+    f'version = "{version}"\n'
 )
-if count != 1:
-    sys.exit(f"error: could not rewrite version line in [{name}] block")
-pathlib.Path(path).write_text(src[:idx] + new_block + src[end:])
+pattern = re.compile(rf"(?ms)^\[{re.escape(name)}\]\n.*?(?=^\[|\Z)")
+if pattern.search(text):
+    text = pattern.sub(block + "\n", text, count=1)
+else:
+    text = text.rstrip() + "\n\n" + block
+toml.write_text(text)
 PY
 
-# 5. Stage the changes on a new branch so they are ready to review.
-BRANCH="bump-${EXT_NAME}-${VERSION}"
-git -C "$WORK_DIR" checkout -B "$BRANCH"
-git -C "$WORK_DIR" add "$EXT_PATH" extensions.toml
-
-if git -C "$WORK_DIR" diff --cached --quiet; then
-    echo
-    echo "    Nothing to commit — $UPSTREAM already references $TAG with version $VERSION."
-    echo "    (No PR needed.)"
-    exit 0
+if command -v pnpm >/dev/null 2>&1; then
+    pnpm --dir "$WORK_DIR" install --frozen-lockfile
+    pnpm --dir "$WORK_DIR" sort-extensions
+elif command -v corepack >/dev/null 2>&1; then
+    corepack pnpm --dir "$WORK_DIR" install --frozen-lockfile
+    corepack pnpm --dir "$WORK_DIR" sort-extensions
+else
+    echo "error: pnpm (or corepack) is required by zed-industries/extensions."
+    exit 1
 fi
 
+git -C "$WORK_DIR" add .gitmodules "$EXT_PATH" extensions.toml
+
+TITLE="$ACTION $EXT_NAME extension v$VERSION"
+BODY_FILE="$WORK_DIR/.tcl-lsp-pr-body.md"
+printf '%s\n' \
+    "$ACTION the Tcl LSP extension at v$VERSION." \
+    "" \
+    "Release: https://github.com/bitwisecook/tcl-lsp/releases/tag/$TAG" \
+    >"$BODY_FILE"
+
 echo
-echo "==> Pending changes:"
-git -C "$WORK_DIR" diff --cached --stat
+echo "Prepared the Zed registry change; nothing was pushed."
+echo "  checkout: $WORK_DIR"
+echo "  branch:   $BRANCH"
+echo "  title:    $TITLE"
+echo "  body:     $BODY_FILE"
 echo
-
-# 6. Print a manual follow-up plan. We deliberately do NOT push or open a
-# PR — those steps belong to you.
-PR_TITLE="Bump ${EXT_NAME} to v${VERSION}"
-PR_BODY_FILE="$WORK_DIR/.tcl-pr-body.md"
-cat > "$PR_BODY_FILE" <<EOF
-Bumps the \`${EXT_NAME}\` extension to v${VERSION}.
-
-Release notes:
-https://github.com/bitwisecook/tcl-lsp/releases/tag/${TAG}
-
-Submodule advanced and \`extensions.toml\` version field updated to
-\`${VERSION}\`.
-EOF
-
-cat <<EOF
-==> Ready to commit + push from your fork.
-
-    Workdir:  $WORK_DIR
-    Branch:   $BRANCH
-    Title:    $PR_TITLE
-    Body:     $PR_BODY_FILE
-
-    Suggested commands (run these yourself after reviewing the diff):
-
-      cd "$WORK_DIR"
-      git diff --cached
-      git commit -m "$PR_TITLE"
-      git remote add fork git@github.com:${FORK}.git    # one-time
-      git push -u fork "$BRANCH"
-      gh pr create \\
-          --repo $UPSTREAM \\
-          --head "${FORK%%/*}:$BRANCH" \\
-          --base main \\
-          --title "$PR_TITLE" \\
-          --body-file "$PR_BODY_FILE"
-
-    The script has NOT pushed anything and has NOT opened a PR — those
-    steps are yours to run after you have inspected the staged change.
-EOF
+echo "Review with: git -C \"$WORK_DIR\" diff --cached"
+echo "Then commit, push to $FORK, and open the PR against $UPSTREAM:main."

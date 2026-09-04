@@ -74,10 +74,10 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/in
 |--------|------|-------|---------------|
 | [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
 | [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/server/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
-| [Zed](editors/zed/) | Full extension (TOML + Rust) | Install from Zed extension registry | 16 built-in snippets, MCP context server, `/tcl-doc` and `/irule-event` slash commands |
+| [Zed](editors/zed/) | LSP extension (TOML + Rust) | Install from Zed extension registry | Downloads the matching native server for macOS, Linux, or Windows |
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
-| [Sublime Text](editors/sublime-text/) | Full package (.sublime-package) | Package Control or manual install | Works standalone (syntax + snippets) without LSP; enhanced with LSP package |
+| [Sublime Text](editors/sublime-text/) | LSP helper package (.sublime-package) | Install LSP and LSP-Tcl from Package Control | Uses Sublime's built-in Tcl syntax and snippets; downloads the matching native server |
 | [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA 2024.1+ |
 
 All editors connect to the native Rust binary `tcl-lsp-server` over stdio
@@ -189,9 +189,9 @@ Add a `[language-server.tcl-lsp]` block naming the `tcl-lsp-server` binary to
 
 ### Sublime Text
 
-Install **TclLsp** from Package Control, or drop `TclLsp.sublime-package`
-into `Installed Packages/`. Install the **LSP** package too for
-language-server features — the matching native server is then downloaded
+Install **LSP** and **LSP-Tcl** from Package Control, or drop
+`LSP-Tcl.sublime-package` into `Installed Packages/`. Sublime's built-in TCL
+package supplies syntax and snippets; the matching native server is downloaded
 on first use.
 
 ### JetBrains
@@ -2071,7 +2071,11 @@ This project used AI very heavily.
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](LICENSE)
-(AGPL-3.0-or-later).
+(AGPL-3.0-or-later), except for the Zed extension code under `editors/zed`,
+which is separately licensed under the
+[GNU General Public License v3.0 or later](editors/zed/LICENSE) to satisfy
+Zed's extension-distribution requirements. The server downloaded by that
+extension remains AGPL-3.0-or-later.
 
 You are free to use this tool as-is. If you modify the code or incorporate
 portions of it into another project, the AGPL requires that the complete

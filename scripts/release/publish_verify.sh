@@ -178,7 +178,7 @@ ok "plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support
 hdr "Sublime Text (Package Control)"
 
 # Nothing to publish by hand: Package Control's channel entry points at the
-# `TclLsp.sublime-package` asset on each GitHub Release, so a tagged CI run
+# `LSP-Tcl.sublime-package` asset on each GitHub Release, so a tagged CI run
 # is the whole publish step.  What is worth checking is that the asset the
 # channel resolves actually exists on the most recent stable release.
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
@@ -187,10 +187,10 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
         --jq 'map(select(.isPrerelease | not)) | .[0].tagName' 2>/dev/null || true)"
     if [ -n "$LATEST_STABLE" ] && [ "$LATEST_STABLE" != "null" ]; then
         if gh release view "$LATEST_STABLE" --repo "$REPO" --json assets \
-            --jq '.assets[].name' 2>/dev/null | grep -qx "TclLsp.sublime-package"; then
-            ok "release $LATEST_STABLE carries TclLsp.sublime-package (what Package Control fetches)"
+            --jq '.assets[].name' 2>/dev/null | grep -qx "LSP-Tcl.sublime-package"; then
+            ok "release $LATEST_STABLE carries LSP-Tcl.sublime-package (what Package Control fetches)"
         else
-            warn "release $LATEST_STABLE has no TclLsp.sublime-package asset."
+            warn "release $LATEST_STABLE has no LSP-Tcl.sublime-package asset."
             warn "  Package Control serves the newest stable release that has one;"
             warn "  check the build-sublime job on that tag."
         fi
@@ -201,7 +201,7 @@ else
     warn "gh CLI missing or unauthenticated — skipping the Package Control asset check."
 fi
 
-ok "channel entry: editors/sublime-text/SUBMITTING.md"
+ok "SublimeLSP repository entry: editors/sublime-text/SUBMITTING.md"
 
 # ----------------------------------------------------------------- Zed
 

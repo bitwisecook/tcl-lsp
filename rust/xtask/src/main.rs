@@ -46,8 +46,8 @@
 //!   documents exactly the builtins `tcl-bigip-query` registers (issue #1404).
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
 //!   is internally consistent (issue #1404).
-//! - `gen-editor-catalogs` — generate the Zed/VS Code command & iRules-event
-//!   catalog JSON from the registry (`--check` to verify instead of write).
+//! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
+//!   from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
 //!   `tcl_syntax::number`, and verify expression boundaries use
 //!   `tcl_dialect::scan_expr_number`.
@@ -197,7 +197,7 @@ enum Command {
     #[command(name = "diag-emission-check")]
     DiagEmissionCheck,
 
-    /// Generate the Zed/VS Code editor catalog JSON from the command registry.
+    /// Generate the VS Code iRules-event catalog JSON from the command registry.
     GenEditorCatalogs {
         /// Verify the committed catalogs are in sync instead of rewriting them;
         /// exit non-zero on drift.
@@ -248,8 +248,8 @@ enum Command {
         check: bool,
     },
 
-    /// Generate the VS Code / `JetBrains` / Sublime Text `TextMate` grammars'
-    /// command-name keyword lists from the command registry.
+    /// Generate the VS Code / `JetBrains` `TextMate` grammars' command-name
+    /// keyword lists from the command registry.
     GenTmlanguageKeywords {
         /// Verify the committed grammars are in sync instead of rewriting
         /// them; exit non-zero on drift.

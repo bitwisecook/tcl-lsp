@@ -78,6 +78,8 @@ allow = [
     "Unlicense",
     # The workspace itself is AGPL — internal crates land here.
     "AGPL-3.0-or-later",
+    # The Zed marketplace extension is distributed separately under GPLv3.
+    "GPL-3.0-or-later",
     # OpenSSL is sometimes pulled in transitively (LibreSSL flavour ok).
     "OpenSSL",
     # `tower-lsp-server`'s `ls-types` pulls `borrow-or-share` under MIT-0

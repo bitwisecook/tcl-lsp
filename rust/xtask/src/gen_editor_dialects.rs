@@ -27,7 +27,8 @@
 //! chosen, rather than silently dropping the new selectable value.
 //!
 //! Run `cargo xtask gen-editor-dialects`; `--check` makes the committed VS
-//! Code, `JetBrains`, and Sublime projections a drift gate (issue #1394).
+//! Code, `JetBrains`, and Sublime settings-schema projections a drift gate
+//! (issue #1394).
 
 use std::fmt::Write as _;
 use std::fs;
@@ -44,8 +45,6 @@ const VSCODE_RUNTIME: &str = "editors/vscode/src/extension.ts";
 const VSCODE_EXPLORER: &str = "editors/vscode/src/compilerExplorerHtml.ts";
 const JETBRAINS_SETTINGS: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt";
-const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
-const SUBLIME_README: &str = "editors/sublime-text/README.md";
 const SUBLIME_PACKAGE: &str = "editors/sublime-text/sublime-package.json";
 
 #[derive(Clone, Copy)]
@@ -178,34 +177,6 @@ fn render_jetbrains(original: &str, ds: &[EditorDialect]) -> Result<String> {
     )
 }
 
-fn render_sublime_plugin(original: &str, ds: &[EditorDialect]) -> Result<String> {
-    let mut rows = String::new();
-    for d in ds {
-        let default = if d.name == "tcl8.6" { " (default)" } else { "" };
-        let _ = writeln!(rows, "    (\"{}\", \"{}{}\"),", d.name, d.label, default);
-    }
-    replace_marked_block(
-        original,
-        "# @generated:dialects:begin",
-        "# @generated:dialects:end",
-        &rows,
-    )
-}
-
-fn render_sublime_readme(original: &str, ds: &[EditorDialect]) -> Result<String> {
-    let mut rows = String::new();
-    for d in ds {
-        let default = if d.name == "tcl8.6" { " (default)" } else { "" };
-        let _ = writeln!(rows, "| `{}` | {}{} |", d.name, d.label, default);
-    }
-    replace_marked_block(
-        original,
-        "<!-- @generated:dialects:begin -->",
-        "<!-- @generated:dialects:end -->",
-        &rows,
-    )
-}
-
 /// Replace one JSON string array without reserialising the whole Sublime
 /// schema.  The schema intentionally keeps a few compact one-item arrays, so
 /// a full `serde_json` round trip would create unrelated formatting drift.
@@ -276,8 +247,6 @@ pub fn run(check: bool) -> Result<ExitCode> {
         (VSCODE_RUNTIME, render_vscode_runtime),
         (VSCODE_EXPLORER, render_compiler_explorer),
         (JETBRAINS_SETTINGS, render_jetbrains),
-        (SUBLIME_PLUGIN, render_sublime_plugin),
-        (SUBLIME_README, render_sublime_readme),
         (SUBLIME_PACKAGE, render_sublime_package),
     ];
     let mut drift = Vec::new();
@@ -333,8 +302,6 @@ mod tests {
             (VSCODE_RUNTIME, render_vscode_runtime),
             (VSCODE_EXPLORER, render_compiler_explorer),
             (JETBRAINS_SETTINGS, render_jetbrains),
-            (SUBLIME_PLUGIN, render_sublime_plugin),
-            (SUBLIME_README, render_sublime_readme),
             (SUBLIME_PACKAGE, render_sublime_package),
         ] {
             let path = root.join(rel);
@@ -377,8 +344,6 @@ mod tests {
             (VSCODE_RUNTIME, render_vscode_runtime),
             (VSCODE_EXPLORER, render_compiler_explorer),
             (JETBRAINS_SETTINGS, render_jetbrains),
-            (SUBLIME_PLUGIN, render_sublime_plugin),
-            (SUBLIME_README, render_sublime_readme),
             (SUBLIME_PACKAGE, render_sublime_package),
         ] {
             let original = fs::read_to_string(root.join(rel)).unwrap();

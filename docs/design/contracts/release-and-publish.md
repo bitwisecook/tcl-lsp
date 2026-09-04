@@ -13,7 +13,7 @@ repo/org secret available to every workflow run.**
 VS Code, Open VSX, and JetBrains publish *from CI*; Zed publishes from
 the maintainer's laptop (no token — it opens a PR).  Sublime Text has no
 publish step at all: Package Control's channel entry resolves the
-`TclLsp.sublime-package` asset attached to each stable GitHub Release,
+`LSP-Tcl.sublime-package` asset attached to each stable GitHub Release,
 so the tagged CI run *is* the publish.  A marketplace token may live
 in CI only when, stored as an Environment secret, it is reachable solely
 by the one job that targets that Environment — which has a required
@@ -105,14 +105,16 @@ from the laptop:
 
 ```
 1. make publish-verify          # checks that local credentials + tools are ready
-2. make release-tag V=X.Y.Z     # creates + pushes the annotated tag
-                                # (no source-file edits, no commit — hatch-vcs reads the tag)
-3. wait for ci.yml on refs/tags/vX.Y.Z; it builds + signs + attaches every
+2. make release-zed-version V=X.Y.Z
+                                # commit extension.toml before a stable release;
+                                # pre-release preparation does this automatically
+3. make release-tag V=X.Y.Z     # validates the Zed version, then creates + pushes the tag
+4. wait for ci.yml on refs/tags/vX.Y.Z; it builds + signs + attaches every
    artefact to the GitHub Release, then PAUSES the publish-vsix-marketplace,
    publish-vsix-openvsx, and publish-jetbrains-marketplace jobs for approval
    — approve the marketplace-vscode, marketplace-openvsx, and
    marketplace-jetbrains deployments when prompted
-4. make publish-zed             # local; Zed only (no token)
+5. make publish-zed             # local; Zed only (no token)
    # Sublime needs nothing: Package Control serves the release asset
 ```
 
@@ -272,8 +274,13 @@ no token.  The laptop publish targets remain as fallbacks.
 | VS Code Marketplace | CI job `publish-vsix-marketplace` | `secrets.VSCE_PAT` (Environment secret on `marketplace-vscode`) | `make publish-vsix` (keyless `az login`, or local `VSCE_PAT`) |
 | Open VSX | CI job `publish-vsix-openvsx` | `secrets.OVSX_PAT` (Environment secret on `marketplace-openvsx`) | `make publish-openvsx` (local `OVSX_PAT` — no keyless path) |
 | JetBrains Marketplace | CI job `publish-jetbrains-marketplace` | `secrets.JETBRAINS_TOKEN` (Environment secret on `marketplace-jetbrains`) | `make publish-jetbrains` (token via Keychain / `jetbrains_token.sh`) |
-| Package Control (Sublime) | the tagged CI run — `build-sublime` attaches `TclLsp.sublime-package` to the Release, which the channel entry resolves | none | — |
+| Package Control (Sublime) | the tagged CI run — `build-sublime` attaches `LSP-Tcl.sublime-package` to the Release, which the SublimeLSP repository entry resolves | none | — |
 | Zed Extensions | `make publish-zed` (laptop) | none — opens a local PR branch | — |
+
+Zed validates an accepted license at the extension path named by the central
+registry entry. Accordingly, `editors/zed/LICENSE` licenses only the Zed
+extension under GPL-3.0-or-later; the downloaded language server and the rest
+of this repository remain AGPL-3.0-or-later.
 
 All three CI publish jobs target a protected Environment (required reviewer +
 `v*`-tag-only deployment policy), so they pause for manual approval and
@@ -334,11 +341,14 @@ stored, is a design conversation: it requires updating this contract and
   `publish-openvsx`, `publish-openvsx-targets`, `publish-jetbrains`,
   `publish-zed`, `publish-all`, `publish-verify`,
   `publish-flow`, `release-tag`, and the pre-release sequence
-  `release-perf`, `release-notes-perf`, `release-verify`,
+  `release-zed-version`, `release-perf`, `release-notes-perf`, `release-verify`,
   `release-prepare`, `release-rust-tag`.
 - [`scripts/release/rust_release.sh`](../../../scripts/release/rust_release.sh) —
   the 2.1.x pre-release driver (`next` / `preflight` / `perf` / `notes` /
   `verify` / `prepare` / `tag`).
+- [`scripts/release/zed_version.sh`](../../../scripts/release/zed_version.sh) —
+  the shared Zed manifest setter/checker used by preparation, builds, and the
+  final tag guard.
 - [`scripts/release/perf_release.sh`](../../../scripts/release/perf_release.sh)
   and [`scripts/release/perf_notes.py`](../../../scripts/release/perf_notes.py) —
   the release-notes performance graphs and the section that embeds them.
@@ -387,7 +397,7 @@ done
 
 # The Sublime package Package Control resolves must stay binary-free and
 # platform-independent: one asset serves every platform.
-! unzip -Z1 build/TclLsp.sublime-package | grep -q "^server/" \
+! unzip -Z1 build/LSP-Tcl.sublime-package | grep -q "^server/" \
   || (echo "FAIL: Sublime package must not bundle a server" && exit 1)
 ```
 
