@@ -24,6 +24,7 @@ class Target:
     name: str
     source: Path
     available_by_default: bool = True
+    testable: bool = True
 
     @property
     def manifest_name(self) -> str:
@@ -79,12 +80,15 @@ def default_features(raw_package: dict[str, object]) -> set[str]:
         assert isinstance(members, list)
         for member in members:
             assert isinstance(member, str)
-            if (
-                "/" not in member
-                and not member.startswith("dep:")
-                and member in feature_map
-            ):
-                pending.append(member)
+            # `dependency/feature` also enables an optional dependency's
+            # implicit package-local feature. The weak `?/` form deliberately
+            # does not: it only forwards the feature when that dependency was
+            # enabled by some other default member.
+            local_member = member.split("/", 1)[0]
+            if "/" in member and local_member.endswith("?"):
+                continue
+            if not member.startswith("dep:") and local_member in feature_map:
+                pending.append(local_member)
     return enabled
 
 
@@ -115,6 +119,7 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
                         available_by_default=set(
                             raw_target.get("required-features", [])
                         ).issubset(enabled_features),
+                        testable=bool(raw_target.get("test", True)),
                     )
                 )
     return manifests, targets
@@ -126,6 +131,7 @@ def smoke_named_targets(targets: list[Target]) -> set[tuple[str, str, str]]:
         (target.package, target.kind, target.manifest_name)
         for target in targets
         if target.available_by_default
+        and target.testable
         and (target.name == "smoke" or target.name.endswith("_smoke"))
     }
 
@@ -136,6 +142,7 @@ def smoke_named_target_sources(targets: list[Target]) -> set[Path]:
         target.source
         for target in targets
         if target.available_by_default
+        and target.testable
         and (target.name == "smoke" or target.name.endswith("_smoke"))
     }
 
@@ -183,6 +190,11 @@ def validate(manifest: Path) -> list[str]:
             if owner.kind == kind and owner.manifest_name == target_name
         ]
         if len(declared) == 1 and len(owners) == 1:
+            if not declared[0].testable:
+                errors.append(
+                    f"smoke source {source_text} belongs to Cargo target "
+                    f"{kind}:{target_name} with test = false"
+                )
             continue
 
         if not owners:
@@ -216,7 +228,7 @@ def runnable_manifest_lines(manifest: Path) -> list[str]:
     available = {
         (target.package, target.kind, target.manifest_name)
         for target in targets
-        if target.available_by_default
+        if target.available_by_default and target.testable
     }
     lines: list[str] = []
     for raw_line in manifest.read_text().splitlines():
@@ -274,6 +286,13 @@ def self_test() -> None:
             root / "src/bin/feature_smoke.rs",
             available_by_default=False,
         ),
+        Target(
+            "example",
+            "example",
+            "disabled_smoke",
+            root / "examples/disabled.rs",
+            testable=False,
+        ),
     ]
     assert smoke_named_targets(smoke_targets) == {
         ("example", "bin", "smoke"),
@@ -297,12 +316,19 @@ def self_test() -> None:
     assert default_features(
         {
             "features": {
-                "default": ["public", "dep:optional", "weak?/extra"],
+                "default": [
+                    "public",
+                    "dep:optional",
+                    "helper/extra",
+                    "weak?/extra",
+                ],
                 "public": ["internal"],
                 "internal": [],
+                "helper": [],
+                "weak": [],
             }
         }
-    ) == {"default", "public", "internal"}
+    ) == {"default", "public", "internal", "helper"}
 
 
 def main() -> int:
