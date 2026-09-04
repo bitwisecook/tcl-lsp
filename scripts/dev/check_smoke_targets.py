@@ -17,6 +17,14 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUPPORTED_TARGET_KINDS = {"lib", "bin", "test", "example", "bench"}
+LIBRARY_TARGET_KINDS = {
+    "lib",
+    "rlib",
+    "dylib",
+    "cdylib",
+    "staticlib",
+    "proc-macro",
+}
 
 
 @dataclass(frozen=True)
@@ -152,6 +160,14 @@ def workspace_target_features(
     return features
 
 
+def canonical_target_kinds(raw_kinds: list[str]) -> set[str]:
+    """Map every Cargo library crate type to the `cargo test --lib` selector."""
+    kinds = SUPPORTED_TARGET_KINDS.intersection(raw_kinds)
+    if LIBRARY_TARGET_KINDS.intersection(raw_kinds):
+        kinds.add("lib")
+    return kinds
+
+
 def load_targets(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Path], list[Target]]:
     host = rustc_host(repo_root)
     result = subprocess.run(
@@ -173,7 +189,7 @@ def load_targets(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Path], list[Tar
         enabled_features = resolved_features[package_name]
         manifests[package_name] = Path(package["manifest_path"]).resolve().parent
         for raw_target in package["targets"]:
-            supported = SUPPORTED_TARGET_KINDS.intersection(raw_target["kind"])
+            supported = canonical_target_kinds(raw_target["kind"])
             required_features = tuple(raw_target.get("required-features", []))
             for kind in supported:
                 targets.append(
@@ -419,6 +435,9 @@ def self_test() -> None:
     assert feature_command[edges + 1] == "normal,dev,no-proc-macro"
     depth = feature_command.index("--depth")
     assert feature_command[depth + 1] == "0"
+    assert canonical_target_kinds(["cdylib", "rlib"]) == {"lib"}
+    assert canonical_target_kinds(["proc-macro"]) == {"lib"}
+    assert canonical_target_kinds(["bin"]) == {"bin"}
 
     # Resolver v2 keeps build/proc-macro feature contexts separate from the
     # normal target and test context. Cargo metadata reports their union, so
@@ -429,7 +448,7 @@ def self_test() -> None:
         files = {
             "Cargo.toml": """\
 [workspace]
-members = ["a", "b", "c"]
+members = ["a", "b", "c", "d"]
 resolver = "2"
 """,
             "a/Cargo.toml": """\
@@ -437,6 +456,9 @@ resolver = "2"
 name = "a"
 version = "0.1.0"
 edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 build_only = []
@@ -476,6 +498,16 @@ edition = "2024"
 a = { path = "../a", features = ["normal"] }
 """,
             "c/src/lib.rs": "pub fn value() -> bool { a::value() }\n",
+            "d/Cargo.toml": """\
+[package]
+name = "d"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+""",
+            "d/src/lib.rs": "",
         }
         for relative_path, contents in files.items():
             path = fixture / relative_path
@@ -490,6 +522,11 @@ a = { path = "../a", features = ["normal"] }
         )
         _fixture_roots, fixture_targets = load_targets(fixture)
         fixture_by_name = {target.name: target for target in fixture_targets}
+        fixture_by_package = {
+            (target.package, target.name): target for target in fixture_targets
+        }
+        assert fixture_by_package[("a", "a")].kind == "lib"
+        assert fixture_by_package[("d", "d")].kind == "lib"
         assert not fixture_by_name["build_smoke"].available_in_workspace
         assert fixture_by_name["normal_smoke"].available_in_workspace
         assert fixture_by_name["normal_smoke"].resolved_features == ("normal",)
