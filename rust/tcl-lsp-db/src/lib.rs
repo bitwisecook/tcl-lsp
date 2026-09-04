@@ -482,6 +482,14 @@ pub struct AnalyserConfig {
     /// overrides the configured pair for the same provider.
     #[returns(ref)]
     pub targets: Vec<(String, String)>,
+    /// Declared "requiring this package also loads these" edges
+    /// (`tclLsp.packages.provides` / `.tcl-lsp.ini` `[packages.provides]`),
+    /// feeding `Analyser::with_package_provides`. A binary extension whose
+    /// `Init` calls `Tcl_PkgRequire` / `Tk_InitStubs` leaves nothing in any
+    /// Tcl source to scan for, so the dependency can only be declared
+    /// (issue #1813). Empty — the default — changes nothing.
+    #[returns(ref)]
+    pub package_provides: Vec<(String, Vec<String>)>,
 }
 
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
@@ -517,6 +525,7 @@ pub fn file_analysis(
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_declared_targets(config.targets(db).clone())
+        .with_package_provides(config.package_provides(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_class_factories(file.workspace_class_factories(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
@@ -3156,6 +3165,7 @@ pub fn file_analysis_incremental(
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_declared_targets(config.targets(db).clone())
+        .with_package_provides(config.package_provides(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_class_factories(workspace_class_factories.clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
@@ -3633,6 +3643,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         )
     }
 
@@ -3909,6 +3920,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
@@ -4701,6 +4713,7 @@ mod tests {
             Some("21.1.0".to_owned()),
             0,
             Vec::new(),
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4735,6 +4748,7 @@ mod tests {
             None,
             0,
             vec![("tcl".to_owned(), "8.5-9.0".to_owned())],
+            Vec::new(),
         );
         let bare = AnalyserConfig::new(
             &db,
@@ -4744,6 +4758,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let file = SourceFile::new(
@@ -4799,6 +4814,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let file = SourceFile::new(
@@ -4860,6 +4876,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let file = SourceFile::new(
@@ -4923,6 +4940,7 @@ mod tests {
                     None,
                     None,
                     0,
+                    Vec::new(),
                     Vec::new(),
                 ),
             );
@@ -5183,6 +5201,7 @@ mod tests {
                     None,
                     0,
                     Vec::new(),
+                    Vec::new(),
                 ),
             );
             let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
@@ -5339,6 +5358,7 @@ mod tests {
                 None,
                 0,
                 Vec::new(),
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5364,6 +5384,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
                 Vec::new(),
             ),
         );
@@ -5552,6 +5573,7 @@ mod tests {
                 None,
                 0,
                 Vec::new(),
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5577,6 +5599,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
                 Vec::new(),
             ),
         );
@@ -5779,6 +5802,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         // `a` defines `foo` (1 param) and an unrelated `bar`.
         let a = SourceFile::new(
@@ -5864,6 +5888,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let a = SourceFile::new(
             &db,
@@ -5934,6 +5959,7 @@ mod tests {
                 None,
                 0,
                 Vec::new(),
+                Vec::new(),
             );
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -5950,6 +5976,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -6010,6 +6037,7 @@ mod tests {
                 None,
                 0,
                 Vec::new(),
+                Vec::new(),
             );
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -6026,6 +6054,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned(), None);
@@ -6074,6 +6103,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         // B defines `proc helper {x y}` — arity exactly 2.
@@ -6132,6 +6162,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         // B: a class `Widget` AND a proc whose tail is also `Widget` (arity 1).
@@ -6193,6 +6224,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         // B defines onNode with 2 params; `graph walk -command` appends 3.
@@ -6275,6 +6307,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let d_on = project_diagnostics(&db, a, cfg_on, proj);
         assert!(has(&d_on, "E003"), "baseline: E003 present when enabled");
@@ -6290,6 +6323,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let d_off = project_diagnostics(&db, a, cfg_off, proj);
@@ -6330,6 +6364,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
 
@@ -6384,6 +6419,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         assert!(has_w123(base), "baseline W123 expected");
         // With the command declared extra → suppressed.
@@ -6395,6 +6431,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         assert!(!has_w123(cfg), "extraCommands should suppress W123");
@@ -6414,6 +6451,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         // B defines a TclOO class `Widget`.
@@ -6455,6 +6493,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let b = SourceFile::new(
@@ -6534,6 +6573,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6597,6 +6637,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6646,6 +6687,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6690,6 +6732,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6730,6 +6773,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
@@ -7104,6 +7148,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file, cfg);
@@ -7149,6 +7194,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let file = SourceFile::new(
@@ -7212,6 +7258,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         // Four independent procedures; we edit `b`'s body and leave a, c, d alone.
@@ -7300,6 +7347,7 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
         );
         // `other` first so editing it shifts the two below; `target` takes a
         // param `caller` always passes the literal `42` for -> param_constants.
@@ -7377,6 +7425,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
         let src = "proc a {x} { return $x }\nproc b {} { a 1 }\n";

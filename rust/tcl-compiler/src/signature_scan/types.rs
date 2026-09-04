@@ -143,6 +143,31 @@ pub struct SignaturePackageRequire {
     /// `true` when the call is nested in a registry-declared control-flow
     /// body which may run zero or multiple times.
     pub control_flow: bool,
+    /// Where this requirement came from — a `package require` in the source,
+    /// or one of the two ways a package that loads another is declared.
+    pub origin: PackageRequireOrigin,
+}
+
+/// How a [`SignaturePackageRequire`] came to be recorded.
+///
+/// A binary extension makes a package available with nothing in any Tcl
+/// source to say so: its C `Init` calls `Tcl_PkgRequire`, or it links Tk
+/// through `Tk_InitStubs`. Neither leaves anything for the `pkgIndex.tcl`
+/// scan to read, so the dependency is **declared** rather than discovered
+/// (issue #1813), and a declared entry is recorded here exactly like a
+/// written one — carrying the span of whatever made the package available,
+/// because that is the position from which it is available.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum PackageRequireOrigin {
+    /// A `package require` written in the source.
+    #[default]
+    Source,
+    /// A configured `[packages.provides]` / `tclLsp.packages.provides` edge.
+    /// Carries the package whose loader brings this one in.
+    Provides(String),
+    /// A `# tcl-lsp: package NAME provides …` comment in the source,
+    /// declaring the same edge for one file. Carries the loading package.
+    Directive(String),
 }
 
 /// A `package prefer latest` invocation — the one form of `package

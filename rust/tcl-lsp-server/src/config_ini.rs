@@ -221,16 +221,7 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         }
     }
 
-    // [packages]: `preferLatest` → the interpreter's starting `package prefer`
-    // mode (issue #1253).  A config-file key rather than an inference: the
-    // real inputs — `TCL_PKG_PREFER_LATEST` in the environment, or an unstable
-    // 9.0+ build of Tcl — belong to the interpreter the user runs, not to the
-    // server's own process or to the source tree.
-    if let Some(b) = section_value(&sections, "packages", "preferLatest").and_then(parse_bool) {
-        let mut packages = Map::new();
-        packages.insert("preferLatest".to_owned(), Value::Bool(b));
-        out.insert("packages".to_owned(), Value::Object(packages));
-    }
+    insert_packages(&sections, &mut out);
 
     // [features]: every key → bool.
     if let Some(section) = sections.iter().find(|s| s.name == "features") {
@@ -283,6 +274,53 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
     insert_iruleslx(&sections, &mut out);
 
     Value::Object(out)
+}
+
+/// `[packages]` / `[packages.provides]` — how the modelled interpreter loads
+/// packages.
+///
+/// `preferLatest` is the interpreter's starting `package prefer` mode: a
+/// config-file key rather than an inference, because the real inputs —
+/// `TCL_PKG_PREFER_LATEST` in the environment, or an unstable 9.0+ build of
+/// Tcl — belong to the interpreter the user runs, not to the server's own
+/// process or to the source tree (issue #1253).
+///
+/// `[packages.provides]` declares what loading one package also loads:
+///
+/// ```ini
+/// [packages.provides]
+/// myExtension = Tk
+/// bigWrapper = Tk, Img
+/// ```
+///
+/// Every key is a package name, so the section is read key-by-key like
+/// `[features]` rather than through a fixed key list. It exists for a
+/// **binary** extension whose C `Init` calls `Tcl_PkgRequire` or
+/// `Tk_InitStubs`: that leaves no `package require Tk` anywhere for the
+/// `pkgIndex.tcl` scan to read, so the edge can only be declared (#1813).
+fn insert_packages(sections: &[Section], out: &mut Map<String, Value>) {
+    let mut packages = Map::new();
+    if let Some(b) = section_value(sections, "packages", "preferLatest").and_then(parse_bool) {
+        packages.insert("preferLatest".to_owned(), Value::Bool(b));
+    }
+    if let Some(section) = sections.iter().find(|s| s.name == "packages.provides") {
+        let mut provides = Map::new();
+        for (package, raw) in &section.entries {
+            let loaded = parse_comma_list(raw);
+            if !package.is_empty() && !loaded.is_empty() {
+                provides.insert(
+                    package.clone(),
+                    Value::Array(loaded.into_iter().map(Value::String).collect()),
+                );
+            }
+        }
+        if !provides.is_empty() {
+            packages.insert("provides".to_owned(), Value::Object(provides));
+        }
+    }
+    if !packages.is_empty() {
+        out.insert("packages".to_owned(), Value::Object(packages));
+    }
 }
 
 /// `[iruleslx.plugins]` / `[iruleslx.rules]` — the iRulesLX plugin ↔ workspace

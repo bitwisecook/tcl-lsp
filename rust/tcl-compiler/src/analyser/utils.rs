@@ -819,6 +819,89 @@ fn matches_marker(body: &str, marker: &str) -> bool {
     head.eq_ignore_ascii_case(marker)
 }
 
+/// Scan `source` for ``# tcl-lsp: package NAME provides PKG …`` directives,
+/// returning each declared edge as `(loading package, packages it also
+/// loads)` in source order.
+///
+/// The directive states what a package's loader pulls in behind the
+/// analyser's back — a binary extension whose C `Init` calls
+/// `Tcl_PkgRequire` or `Tk_InitStubs` (issue #1813). It declares the same
+/// edge `[packages.provides]` configures, for one file, and it names the
+/// loading package rather than relying on where it sits: a document gains
+/// the packages only once it actually requires the one named, and the
+/// directive may live anywhere, including the top-of-file comment block.
+///
+/// `package` is the keyword, as in every other member of the family
+/// (`supports`, `stub`, `disable`), and it deliberately echoes the Tcl
+/// commands the line is about.
+///
+/// The scan covers the whole file on the same terms as
+/// [`scan_source_for_stubs`] — any line whose first non-whitespace character
+/// is `#`. One directive may name several loaded packages, and several
+/// directives may name the same loader; the edges merge, keeping
+/// first-declaration order.
+#[must_use]
+pub fn parse_provides_directives(source: &str) -> Vec<(String, Vec<String>)> {
+    let mut out: Vec<(String, Vec<String>)> = Vec::new();
+    for line in source.lines() {
+        let stripped = line.trim();
+        if !stripped.starts_with('#') {
+            continue;
+        }
+        let body = stripped.trim_start_matches('#').trim_start();
+        if !matches_marker(body, "package") {
+            continue;
+        }
+        let Some((from, loaded)) = parse_provides_directive(body) else {
+            continue;
+        };
+        let position = out.iter().position(|(existing, _)| existing == from);
+        let index = position.unwrap_or_else(|| {
+            out.push((from.to_owned(), Vec::new()));
+            out.len() - 1
+        });
+        for name in loaded.split_whitespace() {
+            if !out[index].1.iter().any(|existing| existing == name) {
+                out[index].1.push(name.to_owned());
+            }
+        }
+    }
+    out.retain(|(_, loaded)| !loaded.is_empty());
+    out
+}
+
+/// Match ``# tcl-lsp: package NAME provides PKG …`` on a comment body whose
+/// `package` marker [`matches_marker`] already confirmed, returning the
+/// loading package and the raw list of packages it loads.
+///
+/// `None` when the line is not that shape — a `package` with no name, no
+/// `provides`, or nothing after it declares no edge.
+fn parse_provides_directive(body: &str) -> Option<(&str, &str)> {
+    let s = body.trim_start();
+    let rest = s
+        .get("tcl-lsp".len()..)?
+        .trim_start()
+        .strip_prefix(':')?
+        .trim_start();
+    let after_kw = rest.get("package".len()..)?;
+    // The keyword must end at a word boundary (`packages` is not it).
+    if !after_kw.starts_with([' ', '\t']) {
+        return None;
+    }
+    let (from, rest) = after_kw.trim_start().split_once([' ', '\t'])?;
+    let rest = rest.trim_start();
+    let verb = "provides";
+    if !rest.get(..verb.len())?.eq_ignore_ascii_case(verb) {
+        return None;
+    }
+    let loaded = rest.get(verb.len()..)?;
+    if !loaded.starts_with([' ', '\t']) {
+        return None;
+    }
+    let loaded = loaded.trim();
+    (!from.is_empty() && !loaded.is_empty()).then_some((from, loaded))
+}
+
 /// Extract the command name from a ``# tcl-lsp: stub NAME …``
 /// line.  Returns the raw name as a borrowed slice or `None`
 /// when the line doesn't match the stub shape.
@@ -1747,6 +1830,54 @@ mod tests {
         let src = "# Just a comment\nproc foo {} {}\n";
         let codes = parse_file_suppression(src);
         assert!(codes.is_empty());
+    }
+
+    /// Issue #1813: the `package … provides …` directive is read anywhere in
+    /// the file and names the loading package, so it does not depend on where
+    /// it sits.
+    #[test]
+    fn parse_provides_directives_read_edges_from_the_whole_file() {
+        let src = "# tcl-lsp: package myExtension provides Tk\n\
+                   package require myExtension\n\
+                   proc build {} {\n\
+                   \x20   # TCL-LSP: Package bigWrapper Provides Img snit\n\
+                   }\n\
+                   # tcl-lsp: package myExtension provides Tk Img\n";
+        assert_eq!(
+            parse_provides_directives(src),
+            vec![
+                (
+                    "myExtension".to_owned(),
+                    vec!["Tk".to_owned(), "Img".to_owned()],
+                ),
+                (
+                    "bigWrapper".to_owned(),
+                    vec!["Img".to_owned(), "snit".to_owned()],
+                ),
+            ],
+            "edges merge per loader, in first-declaration order",
+        );
+    }
+
+    /// A directive that declares no edge, and the neighbouring members of the
+    /// `# tcl-lsp:` family, are not this one.
+    #[test]
+    fn parse_provides_directives_ignore_other_shapes() {
+        for src in [
+            "# tcl-lsp: package myExtension provides\n",
+            "# tcl-lsp: package myExtension\n",
+            "# tcl-lsp: package provides Tk\n",
+            "# tcl-lsp: packages myExtension provides Tk\n",
+            "# tcl-lsp: supports Tk 8.5-8.6\n",
+            "# tcl-lsp: disable=W120\n",
+            "# tcl-lsp: stub myproc {a b}\n",
+            "set x {package require Tk}\n",
+        ] {
+            assert!(
+                parse_provides_directives(src).is_empty(),
+                "must declare no edge: {src:?}"
+            );
+        }
     }
 
     #[test]

@@ -281,6 +281,7 @@ fn make_inputs(db: &TclDatabase, durability: InputDurability) -> (SourceFile, An
                 None,
                 0,
                 Vec::new(),
+                Vec::new(),
             ),
         ),
         InputDurability::RaisedToHigh => (
@@ -294,6 +295,7 @@ fn make_inputs(db: &TclDatabase, durability: InputDurability) -> (SourceFile, An
                 None,
                 None,
                 0,
+                Vec::new(),
                 Vec::new(),
             )
             .durability(salsa::Durability::HIGH)

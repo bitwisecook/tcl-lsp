@@ -5946,6 +5946,7 @@ impl Analyser {
                 range: cmd_tok.span,
                 conditional: self.conditional_depth > 0,
                 control_flow: self.control_flow_body_depth > 0,
+                origin: crate::signature_scan::types::PackageRequireOrigin::Source,
             });
     }
 

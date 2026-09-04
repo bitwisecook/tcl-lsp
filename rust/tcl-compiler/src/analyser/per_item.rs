@@ -486,6 +486,13 @@ impl Analyser {
         // flush.  Pinned explicitly rather than left to the constructor for
         // exactly that reason.
         self.tk_accumulation_enabled = false;
+        // The `# tcl-lsp: package NAME provides …` edges, scanned here for the
+        // same reason the whole-file ingresses scan them (issue #1813): the
+        // Tk hand-off below reads them *during* the walk, through
+        // `has_tk_require`, to decide whether this document needs a full
+        // analysis at all. Without this the two strategies disagree — the
+        // whole-file walk sees a declared Tk and the per-item one does not.
+        self.directive_provides = super::utils::parse_provides_directives(source);
         let file_codes = super::utils::parse_file_suppression(source);
         for code in &file_codes {
             self.disabled_diagnostics.insert(code.clone());

@@ -443,6 +443,7 @@ pub(super) fn handle_package_require(
         range: argv[idx].span,
         conditional,
         control_flow: conditional,
+        origin: crate::signature_scan::types::PackageRequireOrigin::Source,
     });
 }
 

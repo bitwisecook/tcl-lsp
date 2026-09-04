@@ -55,6 +55,30 @@ fn project_entry_points_list() {
     assert!(none.get("entryPoints").is_none());
 }
 
+/// Issue #1813: `[packages.provides]` declares what loading a package also
+/// loads, key by key, with a comma list for several.
+#[test]
+fn packages_provides_section() {
+    let ini = "[project]\n\
+               [packages]\n\
+               preferLatest = true\n\
+               [packages.provides]\n\
+               myExtension = Tk\n\
+               bigWrapper = Tk, Img\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(s["packages"]["preferLatest"], json!(true));
+    assert_eq!(s["packages"]["provides"]["myExtension"], json!(["Tk"]));
+    assert_eq!(
+        s["packages"]["provides"]["bigWrapper"],
+        json!(["Tk", "Img"])
+    );
+    // Absent section ⇒ nothing emitted, and `preferLatest` still stands alone.
+    let only_prefer = settings_from_ini("[packages]\npreferLatest = true\n", Layer::Project);
+    assert!(only_prefer["packages"].get("provides").is_none());
+    let neither = settings_from_ini("[project]\ndialect = tcl9.0\n", Layer::Project);
+    assert!(neither.get("packages").is_none());
+}
+
 #[test]
 fn project_layer_reads_project_section_only() {
     let ini = "[global]\ndialect = tcl8.6\n[project]\ndialect = tcl9.0\n";
