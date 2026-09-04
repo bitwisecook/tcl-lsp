@@ -19,11 +19,11 @@ name: Performance
 
 on:
   push:
-    # `rust` gives the running trend — every merge is a data point,
-    # which is what makes a release number interpretable rather than a lone
-    # figure. `v*` gives the release record: those runs publish the graphs
-    # that go into the release notes and READMEs.
-    branches: [rust]
+    # `v*` gives the release record: those runs publish the graphs that go into
+    # the release notes and READMEs.  The nightly schedule below supplies the
+    # running trend.  Do not benchmark every merge as well: the suite is
+    # informational, so a merge-time result gates nothing and duplicates the
+    # next nightly sample on the same branch.
     tags: ["v*"]
   pull_request:
     branches: [rust]
@@ -39,8 +39,9 @@ on:
   # file sitting in the diff under review. Catching that after merge, or at
   # tag time, is catching it too late.
   schedule:
-    # Nightly on the default line, so the trend keeps accumulating even
-    # through weeks where nothing touches `rust/`.
+    # Nightly on the default line is the one regular trend sample.  This keeps
+    # accumulating even through weeks where nothing touches `rust/`, while
+    # avoiding one additional non-gating benchmark for every merge.
     - cron: "17 4 * * *"
   workflow_dispatch:
 
