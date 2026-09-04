@@ -271,6 +271,12 @@ pub fn parse_command_substitution_with_spans_and_config(
             (word_text, tok_end)
         };
         let abs_span = Span::new(base + tok.span.start(), base + tok_end);
+        // segmentation-drift-ok: known #1786 debt — a private word grouper over
+        // the `[...]` interior, kept because it also recovers the two orphaned
+        // closers documented above, which `WordSpan` does not yet carry. Folding
+        // it onto `group_commands` is its own change, tracked with the other
+        // `value_shapes` sweeps in the tcl-lexer owner section of
+        // shared-utility-contracts-rust.md.
         if matches!(prev_kind, TokenType::Sep | TokenType::Eol) || words.is_empty() {
             words.push((word_text, abs_span));
         } else {

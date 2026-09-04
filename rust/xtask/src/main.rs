@@ -53,6 +53,10 @@
 //!   `tcl_dialect::scan_expr_number`.
 //! - `owner-resolution` — verify that the shared semantic-owner contract
 //!   resolves to live source files and drift gates.
+//! - `segmentation-drift` — flag a hand-rolled Tcl command-terminator scan
+//!   or a private `Sep`/`Eol` word-start state machine outside the command /
+//!   word boundary owners, and verify the owner/scanner corpus differential
+//!   is still wired (issue #1786).
 
 #![forbid(unsafe_code)]
 
@@ -91,6 +95,7 @@ mod registry_oracle;
 mod resolution_drift;
 mod retired_api_gate;
 mod runtime_stdlib;
+mod segmentation_drift;
 mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -319,6 +324,17 @@ enum Command {
         check: bool,
     },
 
+    /// Flag a private Tcl command-terminator scan or a private word-start
+    /// state machine outside the boundary owners, and verify the
+    /// owner/scanner corpus differential is wired (segmentation-drift gate).
+    #[command(name = "segmentation-drift")]
+    SegmentationDrift {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Flag any code use of the dialect/registry APIs retired in P1-G
     /// (`DialectProfile::by_name` and kin, the string-keyed registry
     /// doors, external `ProfileQueries`) — the zero-reference gate of the
@@ -455,6 +471,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::DialectDrift { check } => Ok(dialect_drift::run(check)),
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
+        Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::OwnerResolution => owner_resolution::run(),

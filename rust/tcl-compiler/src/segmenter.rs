@@ -1227,9 +1227,10 @@ mod tests {
 
     #[test]
     #[ignore = "seeded edit-storm oracle (3000 edit/segment pairs); the deterministic \
-                incremental gates stay in CI — segment_commands_incremental_pins, \
-                command_boundaries_agree_with_segmenter, and the \
-                *_incremental_matches_fresh* family; run explicitly with --ignored"]
+                incremental gates stay in CI — segment_commands_incremental_pins and the \
+                *_incremental_matches_fresh* family here, and tcl-lexer's \
+                differential_boundaries for the reparse split points; run explicitly \
+                with --ignored"]
     fn segment_commands_incremental_matches_full_under_fuzz() {
         // Differential acceptance gate: a random edit applied to a base
         // document, then incremental re-segmentation must byte-for-byte
@@ -1277,40 +1278,6 @@ mod tests {
             }
         }
         assert!(checked > 2000, "fuzz corpus too small: {checked}");
-    }
-
-    /// Cross-check the cheap incremental-reparse boundary scanner
-    /// (`tcl_lexer::command_boundaries`) against the production
-    /// segmenter: no segmented command may straddle a top-level
-    /// boundary, so the cheap byte-scan agrees with the full tokeniser
-    /// on where commands split.
-    #[test]
-    fn command_boundaries_agree_with_segmenter() {
-        let cases = [
-            "set x 1\nputs hi\n",
-            "if {1} {\n  puts a\n  puts b\n}\nputs done\n",
-            "set y [a; b]\nputs \"a;b\"\n",
-            "proc p {} {\n  return [expr {1 + 2}]\n}\np\n",
-            "namespace eval n {\n  variable v 1\n}\n",
-            "a; b; c\nd\n",
-            "set s {a\nb\nc}\nputs $s\n",
-        ];
-        for src in cases {
-            let bounds = tcl_lexer::command_boundaries(src);
-            for cmd in segment_commands(src) {
-                if cmd.argv.is_empty() {
-                    continue;
-                }
-                let (s, e) = (cmd.span.start(), cmd.span.end());
-                // The command must lie within a single boundary interval
-                // [prev, next): no boundary may fall strictly inside it.
-                let straddles = bounds.iter().any(|&b| b > s && b < e);
-                assert!(
-                    !straddles,
-                    "command {s}..{e} straddles a boundary in {bounds:?} for {src:?}",
-                );
-            }
-        }
     }
 
     #[test]

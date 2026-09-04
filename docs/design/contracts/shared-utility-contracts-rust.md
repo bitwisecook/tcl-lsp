@@ -49,7 +49,8 @@ entry point, or gate moves without this contract being updated.
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
-| command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
+| command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
+| script completeness / reparse windows | `rust/tcl-lexer/src/structural_index.rs` | `script_is_complete`; `command_boundaries`; `reparse_window`; `BracketIndex`; `BraceIndex`; `ExprParenIndex`; `ParenBalance` | dialect-blind by construction: one byte scan of stock 8.6/9.x brace, quote, `${…}`-nesting, comment and terminator structure, so an editor keystroke costs no tokenise. The two grammar axes that really do move a command boundary — the F5 `BraceLineContinuation::Continues` next-line-`{` rule and the 8.x `BracedVarStyle::FirstClose` name rule — are pinned as measured divergences by `differential_boundaries`, never silently absorbed | `xtask-segmentation-drift` |
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
@@ -385,6 +386,65 @@ entry point, or gate moves without this contract being updated.
   part. The segmenter keeps owning *command* and *word* boundaries; only
   the within-word breakdown moves. Tracked in
   `docs/design/lanes/wasm-native-lowering.md` § `r10-word-parts`.
+
+- `structural_index::command_boundaries` — the byte-scanned **reparse
+  split points**, and, with `script_is_complete` and `reparse_window`, its
+  own surface rather than a fourth grouper folded onto
+  `script::group_commands` (issue #1786 item 1).
+
+  The three share one scanner family. `script_is_complete` is the
+  crate's `Tcl_CommandComplete` port — called on raw document text by
+  `tcl-lsp-server::compute_base_analysis`, `codegen::structured`, the
+  analyser's incremental gate and `tcl-vm-cli`'s REPL —
+  `command_boundaries` answers "where may an incremental reparser cut this
+  document into whole commands", and `reparse_window` snaps an edit range
+  outward to those cuts. Every boundary satisfies
+  `script_is_complete(&source[..b])`; that invariant is *why* the two
+  cannot be separated.
+
+  Folding the boundary half onto the owner was considered and rejected on
+  three measurements. **One**, it would split that family: the
+  completeness oracle is not a grouper and cannot move, so the invariant
+  above would become unprovable and the two halves free to disagree.
+  **Two**, the contracts differ — the scanner reports *terminator*
+  offsets, the owner reports command spans and discards empty,
+  comment-only and dangling-`{*}` commands, so `a\n\n\nb\n` is `[2,3,4,6]`
+  against the owner's two commands, and `reparse_window`'s minimality
+  rests on those blank-line cuts. **Three**, cost and totality: the
+  scanner is a single allocation-free pass over bytes, deliberately *not*
+  a `Vec<Token>` per keystroke, and it is total on malformed input where
+  `tokenise_all` returns a `Result`.
+
+  What the fold *would* have bought — dialect correctness — is instead
+  paid for honestly. The scanner takes no `LexerConfig`, and two grammar
+  axes really do move a command boundary: under the F5 trunk a newline
+  whose next line opens with `{` does not terminate the command
+  (`BraceLineContinuation::Continues`), and under the 8.x family
+  `${a{b}` ends at the first `}` (`BracedVarStyle::FirstClose`), so
+  `set v ${a{b}<newline>puts hi` is two commands there and one under 9.x.
+  Both are pinned with their measured answers by `tcl-lexer`'s
+  `differential_boundaries`, which also asserts containment, coverage and
+  termination against `group_commands` over `samples/` and the Tcl 9.0.4
+  library at three dialects and three nesting levels — 21.5k regions,
+  39.9k commands — with tcllib behind `--ignored`. It replaced a
+  seven-string non-straddling assertion in `tcl-compiler`'s segmenter that
+  a `command_boundaries` returning nothing but `source.len()` would have
+  passed; the coverage invariant it could not express found two live
+  defects, one per tier. Both were the same shape — a nested `[…]` whose
+  interior C rejects (`{a}$b`) makes the completeness scanner report
+  `Terminal` with its offset collapsed to end-of-input, so every later
+  boundary in the document is lost. The CI tier caught it on
+  `[a [b {*}$c]]`, written in 9.0.4's `auto.tcl`; the tcllib tier caught
+  it behind a quoted word, in `page/util_quote.tcl`. Fixed by taking the
+  lenient closes — `ranges::command_substitution_end` and, on `Terminal`
+  only, `ranges::close_quote_offset` — instead of the completeness
+  oracle's error path. Coverage is asserted only where the region is a
+  complete script, which is the scanner's documented precondition; those
+  regions are tallied and reported.
+
+  Agreement with the *compiler* segmenter follows transitively:
+  `differential_group` proves `group_commands == segment_commands`
+  command for command over the same corpora.
 
 ### `tcl-cmd-core` — portable command logic
 
@@ -790,6 +850,18 @@ helper without reading the rationale:
   the max, then the reporting tie-break), with
   `no_pack_overlay_leaves_every_floor_where_it_was` as the FN guard for
   a session that loads no packs.
+- `rust/tcl-compiler/tests/differential_group.rs` — the command / word
+  segmentation gate: `group_commands` against the shipping segmenter,
+  command for command and word for word, over `samples/` and the Tcl
+  9.0.4 library at three dialects and three nesting levels
+  (`owner_matches_segmenter_over_corpora`), with tcllib behind
+  `--ignored`. `rust/tcl-lexer/tests/differential_boundaries.rs` — the
+  other half: `command_boundaries` against that owner
+  (`scanner_agrees_with_owner_over_corpora`), plus
+  `dialect_divergences_are_pinned` for the two axes the byte scanner is
+  deliberately blind to. `make xtask-segmentation-drift` is the
+  banned-spelling gate that keeps a *new* consumer from re-deriving
+  either boundary privately.
 
 ## Discoverability
 
