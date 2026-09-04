@@ -229,19 +229,29 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, depth: u
                 // the numeric intrep in place (clobbering String/List/Dict/
                 // ByteArray) and on failure raises — so on any path that
                 // executes without error, the shimmer really happened.
-                BinOp::Add
-                | BinOp::Sub
-                | BinOp::Mul
-                | BinOp::Div
-                | BinOp::Mod
-                | BinOp::Pow
+                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Pow => {
+                    check_numeric_operand(ctx, left, *op, NumericContext::Arithmetic);
+                    check_numeric_operand(ctx, right, *op, NumericContext::Arithmetic);
+                }
+
+                // The integer-only half of that set. `%`, the shifts and the
+                // bitwise operators read their operands the same way but then
+                // reject a `TCL_NUMBER_DOUBLE` outright, so their expectation
+                // is `Int`, not the `Numeric` join — tclsh 8.6.16 / 9.0.4
+                // verified for all six: `set d [expr {1.0 + 1.5}]` then
+                // `expr {$d % 2}` raises `can't use floating-point value as
+                // operand of "%"`, and likewise for `<<`, `>>`, `&`, `|`, `^`.
+                // Lumping them in with the arithmetic operators made a
+                // double operand look compatible once `Double` joined the
+                // numeric class.
+                BinOp::Mod
                 | BinOp::LShift
                 | BinOp::RShift
                 | BinOp::BitAnd
                 | BinOp::BitOr
                 | BinOp::BitXor => {
-                    check_numeric_operand(ctx, left, *op, NumericContext::Arithmetic);
-                    check_numeric_operand(ctx, right, *op, NumericContext::Arithmetic);
+                    check_numeric_operand(ctx, left, *op, NumericContext::Integer);
+                    check_numeric_operand(ctx, right, *op, NumericContext::Integer);
                 }
 
                 // `&&`/`||` are a boolean context, not arithmetic
@@ -325,8 +335,12 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, depth: u
 /// the diagnostic's wording and target type, not whether it fires.
 #[derive(Clone, Copy)]
 enum NumericContext {
-    /// `+`/`-`/`*`/… — `Tcl_GetNumberFromObj`, intrep becomes Int/Double.
+    /// `+`/`-`/`*`/`/`/`**` — `Tcl_GetNumberFromObj`, intrep becomes
+    /// Int/Double.
     Arithmetic,
+    /// `%`/`<<`/`>>`/`&`/`|`/`^` — read the same way, but a double is then
+    /// rejected rather than accepted, so the expectation is `Int`.
+    Integer,
     /// `&&`/`||` — `TclGetBooleanFromObj`, intrep becomes Boolean (or numeric).
     Boolean,
 }
@@ -366,6 +380,7 @@ fn check_numeric_operand(
     };
     let (to_type, context_name) = match context {
         NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
+        NumericContext::Integer => (TclType::Int, "integer-only expression"),
         NumericContext::Boolean => (TclType::Boolean, "boolean context"),
     };
     // A prior use that committed a non-numeric intrep on every path makes this
@@ -752,6 +767,43 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+    }
+
+    /// Review follow-up on #1814: `%`, the shifts and the bitwise operators
+    /// are integer-only, so a committed double is still a mismatch there even
+    /// though `Double` is now numeric-compatible. tclsh 8.6.16 / 9.0.4:
+    /// `expr {$d % 2}` on a double raises `can't use floating-point value as
+    /// operand of "%"`, and the same for `<<`, `>>`, `&`, `|`, `^`.
+    #[test]
+    fn expr_shimmer_double_still_fires_for_integer_only_operators() {
+        for op in ["%", "<<", ">>", "&", "|", "^"] {
+            let src =
+                format!("proc f {{x}} {{\n set d [expr {{sqrt($x)}}]\n expr {{$d {op} 2}}\n}}");
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::f").unwrap();
+            let w = expr_shimmers(fu, &registry());
+            assert!(
+                w.iter()
+                    .any(|sw| sw.variable == "d" && sw.to_type == TclType::Int),
+                "a double operand of '{op}' must still be reported: {w:?}"
+            );
+        }
+    }
+
+    /// The arithmetic operators keep accepting it, which is the #1814 fix.
+    #[test]
+    fn no_expr_shimmer_double_for_true_arithmetic_operators() {
+        for op in ["+", "-", "*", "/", "**"] {
+            let src =
+                format!("proc f {{x}} {{\n set d [expr {{sqrt($x)}}]\n expr {{$d {op} 2}}\n}}");
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::f").unwrap();
+            let w = expr_shimmers(fu, &registry());
+            assert!(
+                !w.iter().any(|sw| sw.variable == "d"),
+                "a double operand of '{op}' is a free numeric read: {w:?}"
+            );
+        }
     }
 
     /// A String variable used in arithmetic should produce S100.

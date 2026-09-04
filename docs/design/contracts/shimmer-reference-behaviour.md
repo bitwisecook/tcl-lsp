@@ -68,6 +68,27 @@ intact (`incr`, `string index`) or re-represents on the way to the error
 (`lindex {a b c d} $d` with `$d` = 2.0 replaces the double intrep), so it is
 not a free numeric read either way.
 
+That exclusion only bites where the expectation really is `Int`, so the
+`expr` operators are split accordingly. `+`, `-`, `*`, `/` and `**` expect
+`Numeric`; `%`, `<<`, `>>`, `&`, `|` and `^` are **integer-only** and expect
+`Int` — `Tcl_GetNumberFromObj` reads the operand either way, but
+`tclExecute.c` then rejects a `TCL_NUMBER_DOUBLE` outright for the second
+group (`can't use floating-point value as operand of "%"`, verified for all
+six on tclsh 8.6.16 and 9.0.4). Classifying all eleven as `Numeric` would
+have let a committed double pass silently through the integer-only half.
+
+### A compatible read preserves the representation
+
+`CommitState::commit` records what a typed read leaves behind, not what it
+asked for. A read the value's current intrep already satisfies installs
+nothing, so the committed representation survives it: after
+`set d [expr {sqrt($x)}]`, `expr {$d && 1}` leaves `d` a double (tclsh
+8.6.16, `::tcl::unsupported::representation`), and a later `incr d` still
+raises `expected integer but got "2.5"`. Overwriting the state with the
+*expectation* would record `Boolean` there, which `must_pay(Int)` finds
+integer-compatible, and the genuine `Double` → `Int` mismatch would go
+unreported. An *incompatible* read re-represents as it always did.
+
 ### When shimmering does NOT occur
 
 - Same-type access (fast path in all `Tcl_Get*FromObj` functions)

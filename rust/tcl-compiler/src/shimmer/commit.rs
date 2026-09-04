@@ -103,14 +103,45 @@ impl CommitState {
     /// Record a read of this value at a position requiring intrep `t`: the
     /// runtime converts (or the command errors and execution stops), so the
     /// post-state is committed to exactly `t` on the paths through here.
+    ///
+    /// **Unless the value already satisfies the read.** A numeric-family
+    /// intrep is read in place by the whole `Tcl_Get*FromObj` family, so a
+    /// compatible read installs nothing and the cached representation
+    /// survives it — oracle-verified on tclsh 8.6.16: after
+    /// `set d [expr {1.0 + 1.5}]`, `expr {$d && 1}` leaves `d` holding the
+    /// very same `tclDoubleType` intrep, and a later `incr d` therefore still
+    /// raises `expected integer but got "2.5"`. Overwriting the state with
+    /// the *expectation* rather than keeping the *representation* lost that:
+    /// the pair was recorded as Boolean, which `must_pay(Int)` then found
+    /// integer-compatible, and the genuine `Double` → `Int` mismatch went
+    /// unreported.
     pub fn commit(&mut self, t: TclType, span: Span) {
         if self.first_span.is_none() {
             self.first_span = Some(span);
+        }
+        if self.satisfies(t) {
+            return;
         }
         self.may.clear();
         self.may.push(t);
         self.all_committed = true;
         self.overflowed = false;
+    }
+
+    /// Whether every intrep this value may hold already answers a read
+    /// requiring `t` without converting — the condition under which
+    /// [`Self::commit`] leaves the state alone. The inverse of
+    /// [`Self::must_pay`] over the *whole* may-set rather than its negation:
+    /// `must_pay` asks "does every path pay?", this asks "does no path pay?",
+    /// and a mixed state answers neither.
+    fn satisfies(&self, t: TclType) -> bool {
+        self.all_committed
+            && !self.overflowed
+            && !self.may.is_empty()
+            && self
+                .may
+                .iter()
+                .all(|&c| c == t || is_numeric_compatible(c, t))
     }
 
     /// Whether **every** executable path to this point pays a conversion for a
@@ -750,6 +781,34 @@ mod tests {
         }
         let uses: HashMap<Symbol, u32> = HashMap::new();
         let _ = typed_reads_of_expr(&ctx, &node, &uses, Span::new(0, 1));
+    }
+
+    /// Review follow-up on #1814: a read the committed representation already
+    /// satisfies must not replace it. `set d [expr {sqrt($x)}]; expr {$d && 1}`
+    /// leaves `d` a double on tclsh (the boolean read installs nothing), so a
+    /// later `incr d` is still the `Double` -> `Int` mismatch it was — which
+    /// recording the *expectation* instead of the *representation* hid.
+    #[test]
+    fn a_compatible_read_keeps_the_committed_representation() {
+        let span = Span::new(0, 1);
+        let mut state = CommitState::committed(TclType::Double, Some(span));
+
+        state.commit(TclType::Boolean, span);
+        assert_eq!(
+            state.single_committed(),
+            Some(TclType::Double),
+            "a boolean read of a double installs nothing, so the double stands"
+        );
+        state.commit(TclType::Numeric, span);
+        assert_eq!(state.single_committed(), Some(TclType::Double));
+        assert!(
+            state.must_pay(TclType::Int),
+            "`incr` on that double is still a genuine mismatch"
+        );
+
+        // An incompatible read still re-represents, as before.
+        state.commit(TclType::List, span);
+        assert_eq!(state.single_committed(), Some(TclType::List));
     }
 
     /// Straight-line: `expr` commits Numeric; the state at the following
