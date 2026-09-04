@@ -4,8 +4,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Fail closed if a future cadence edit removes a release benchmark or an
-# immediate Scorecard scan for a repository input that affects the score.
+# Fail closed if a future cadence edit removes a release benchmark or narrows
+# the repository-wide Scorecard push scan. Binary-Artifacts examines file
+# content, including extensionless executables, so filename filters are not a
+# complete representation of its input surface.
 
 set -eu
 
@@ -35,31 +37,14 @@ scorecard_push=$(awk '
     in_push { print }
 ' "$SCORECARD")
 
-for required in \
-    'branches: [rust]' \
-    'paths:' \
-    '".github/**"' \
-    '"**/Cargo.toml"' \
-    '"**/Cargo.lock"' \
-    '"**/package.json"' \
-    '"**/package-lock.json"' \
-    '"**/pyproject.toml"' \
-    '"**/build.gradle*"' \
-    '"**/settings.gradle*"' \
-    '"editors/jetbrains/gradle/**"' \
-    '"editors/jetbrains/gradle.properties"' \
-    '"editors/jetbrains/gradlew*"' \
-    '"rust-toolchain.toml"' \
-    '"deny.toml"' \
-    '"LICENSE"' \
-    '"SECURITY.md"' \
-    '"rust/tcl-fuzz/**"'
-do
-    printf '%s\n' "$scorecard_push" | grep -Fq -- "$required" || {
-        echo "Scorecard push filter lost required input: $required" >&2
-        exit 1
-    }
-done
+printf '%s\n' "$scorecard_push" | grep -Fq 'branches: [rust]' || {
+    echo "Scorecard must scan every rust push" >&2
+    exit 1
+}
+if printf '%s\n' "$scorecard_push" | grep -Eq '^[[:space:]]+paths(-ignore)?:'; then
+    echo "Scorecard push scan must not use an incomplete filename filter" >&2
+    exit 1
+fi
 
 grep -Fq 'branch_protection_rule:' "$SCORECARD" || {
     echo "Scorecard must rescan branch-protection changes" >&2
