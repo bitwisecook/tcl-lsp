@@ -229,6 +229,28 @@ fn assert_codegen_pass_toggles(report: &Value) {
         Some(4),
         "the `native-tier` preset did not tick its four passes"
     );
+
+    // And the answer to "does it live-update": the WASM pane must repaint
+    // from the new result. A recompile the page never renders would satisfy
+    // every assertion above and leave the user looking at the old module.
+    let before = &report["wasmBeforeToggle"];
+    let after = &report["wasmAfterToggle"];
+    assert_ne!(
+        before["wasmText"], after["wasmText"],
+        "the WASM pane did not repaint after a pass was ticked"
+    );
+    assert!(
+        after["wasmInstructions"].as_u64().unwrap_or(0) > 0,
+        "the repainted WASM pane rendered no instructions: {after}"
+    );
+    assert_eq!(
+        after["spinnerDisplay"], "none",
+        "the spinner never settled after the toggle recompile"
+    );
+    assert!(
+        after["errorBoxes"].as_array().is_some_and(Vec::is_empty),
+        "the toggle recompile surfaced an error box: {after}"
+    );
 }
 
 #[test]
@@ -248,10 +270,27 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
         .expect("explorer payload serialises");
 
+    // The payload the same source produces with the codegen passes on. The
+    // stub returns this one whenever a pass selection is sent, so the driver
+    // can tell a re-*render* from a mere re-compile: without it the WASM pane
+    // would look identical however the toggles were set and the test would
+    // pass on a page that never repainted.
+    let optimised = serde_json::to_string(&tcl_explorer::serialise_result_with_optimisations(
+        &result,
+        tcl_explorer::SemanticOptimisationConfig::from_names("all").expect("a valid group"),
+    ))
+    .expect("optimised explorer payload serialises");
+    assert_ne!(
+        payload, optimised,
+        "the two payloads must differ or the render assertion proves nothing"
+    );
+
     let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
     std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
     let payload_path = out_dir.join("explorer-gui-payload.json");
     std::fs::write(&payload_path, &payload).expect("write payload");
+    let optimised_path = out_dir.join("explorer-gui-payload-optimised.json");
+    std::fs::write(&optimised_path, &optimised).expect("write optimised payload");
 
     let driver = manifest_dir().join("tests/gui/explorer-gui-smoke.mjs");
     let gui = manifest_dir().join("gui");
@@ -259,6 +298,7 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     cmd.arg(&driver)
         .arg(&gui)
         .arg(&payload_path)
+        .arg(&optimised_path)
         .env("TCL_EXPLORER_PLAYWRIGHT", playwright);
     if let Ok(chromium) = std::env::var("TCL_EXPLORER_CHROMIUM") {
         cmd.env("TCL_EXPLORER_CHROMIUM", chromium);
