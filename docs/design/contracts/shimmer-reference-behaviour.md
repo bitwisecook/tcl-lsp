@@ -193,7 +193,7 @@ variable* was judged against a stale representation: `set x [llength $l]` then
 code with `lindex $x 0` on its own line reported both halves.
 
 `word_subst` lifts those substitutions, and `commit`, `use_site` and `expr`
-each consume them. Four properties matter:
+each consume them. Five properties matter:
 
 - **It reads `word_exprs`, never the argument text.** Tcl substitutes `[…]` in
   bare and `"…"`-quoted words but not in braced ones, and
@@ -214,6 +214,29 @@ each consume them. Four properties matter:
   onto `Terminator::Return::expr`, and leaves it `None` for the braced
   `return {[expr …]}`. The walker just reads it, as it already did for
   `Terminator::Branch`.
+- **Every statement that carries substitutable words is lifted the same way,
+  in every consumer.** Both `Statement::Call` and `Statement::AssignValue` hold
+  `CommandTokens`, and the outer command changes nothing about what Tcl
+  evaluates inside a word — so `set r <word>` reports exactly what
+  `puts <word>` does. `AssignValue` used to parse only its outermost `[cmd …]`
+  and go silent below depth one (issue #1844); the outermost substitution is
+  now simply the depth-zero case of the same walk, not a shape the arm
+  re-derives. The symmetry has to hold in all four places that read the lift,
+  or it holds nowhere: `use_site` (what reports), `commit` (what moves the
+  state), `expr` (nested `[expr …]`, which carries its reads in an expression
+  rather than in registry roles), and `ssa::scan_nested_substitution_words`
+  (which puts a nested expression's operands into `SsaStatement::uses` at all —
+  without it the `expr` detector has nothing to resolve against).
+- **A nested command's `Body` is not lifted into the enclosing frame, though a
+  statement's is.** `ArgRole::braced_word_evaluated_in_frame` answers for
+  `Body` as well as `Expr`, and for a statement that is right: the lowerer
+  gives `foreach x $l {…}` its own CFG block, so the loop variable is *defined*
+  where the body's reads are seen. A nested substitution gets no block — that
+  is the representational gap below — so lifting `[lmap x $l {… $x …}]`'s body
+  recorded a read of `x` that nothing in the frame writes, and `W210 read
+  before it is set` fired on the loop variable itself. `Expr` is the role that
+  substitutes here *and* binds nothing of its own, so it is the only one the
+  nested scan takes.
 
 ### A braced argument word substitutes nothing
 
@@ -239,10 +262,11 @@ the committed-intrep state and emits nothing, so gating solely the emitting
 pass still recorded a conversion at the braced word and made the *next*,
 genuine read report a shimmer against an intrep the runtime never installed.
 
-The substitution paths need no gate: a `[cmd …]` lifted out of a word and the
-command substitution inside a `Statement::AssignValue` both carry their
-argument words as raw source text with the braces still on, which
-`is_pure_var_ref` already declines.
+The lift needs no gate, and gets none: a lifted `[cmd …]` carries its argument
+words as raw source text with the braces still on, so `is_pure_var_ref`
+already declines a `{$x}` there — which is why `set r [lindex {$x} 0]` was
+correct even before this, and stays correct now that an assignment's words go
+through the same lift as a call's.
 
 ### Known limitation — the underlying representational gap
 
@@ -292,7 +316,18 @@ dedicated `Statement::Incr` node.
   distinction at every depth, and `arg_words` alignment), `shimmer::expr` (`expr_shimmer_fires_in_a_return_expression`,
   `expr_shimmer_fires_in_a_nested_call_argument` and their braced twins),
   `shimmer::use_site` (`use_site_shimmer_fires_in_a_nested_call_argument`,
-  `a_nested_conversion_is_visible_to_later_reads`).
+  `a_nested_conversion_is_visible_to_later_reads`, and their `AssignValue`
+  twins — `assign_value_lifts_the_same_substitutions_a_call_does` pins the two
+  statement kinds against each other so they cannot drift apart again,
+  alongside `assign_value_substitution_is_reported_once`,
+  `assign_value_nested_substitution_span_is_tight` and
+  `a_nested_conversion_in_an_assignment_is_visible_to_later_reads`), and
+  `shimmer::expr` again for the expression half of that symmetry
+  (`assign_value_lifts_the_same_nested_expr_a_call_does`,
+  `a_bare_expr_assignment_is_reported_once`).
+- The use-map half, in `ssa`: `braced_word_of_a_nested_substitution_is_read_in_an_assignment_value`
+  for what must be recorded, and `body_word_of_a_nested_substitution_is_not_a_frame_read`
+  (plus its assignment and `catch`-local twins) for what must not.
 - Braced-argument coverage: `shimmer::use_site`
   (`a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame` pins
   the braced / quoted / bare triple for both a non-evaluating and an

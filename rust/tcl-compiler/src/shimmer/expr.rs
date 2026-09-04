@@ -133,7 +133,18 @@ pub(crate) fn find_expr_shimmers(
                 // Its operands resolve through the statement's own `uses`,
                 // which `ssa::scan_nested_substitution_words` now populates
                 // for a nested command's in-frame braced words.
-                Statement::Call { tokens, .. } => {
+                //
+                // Both statement kinds that carry substitutable words are
+                // lifted, for the reason the arm exists at all: the outer
+                // command decides nothing about what Tcl evaluates inside a
+                // word, so `set r [list [expr {0 in $x}]]` runs the same
+                // expression as `puts [list [expr {0 in $x}]]`. Only the
+                // `Call` half was lifted, so the assignment spelling reported
+                // nothing (issue #1844 review). A `set x [expr {…}]` whose
+                // value word *is* the substitution never reaches here — the
+                // lowerer already made it the `AssignExpr` above — so the two
+                // arms cannot both report the same expression.
+                Statement::Call { tokens, .. } | Statement::AssignValue { tokens, .. } => {
                     for (expr, span) in
                         crate::word_subst::lifted_exprs(tokens.as_ref(), registry.profile())
                     {
@@ -910,6 +921,64 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
         assert!(expr_shimmers(fu, &registry()).is_empty());
+    }
+
+    /// Issue #1844 review: a nested `[expr …]` must be lifted out of an
+    /// assignment value exactly as it is out of a call argument. The outer
+    /// command decides nothing about what Tcl evaluates inside the word, so
+    /// `set r <word>` and `puts <word>` run the same expression — but only the
+    /// `Call` arm was lifted here, so the assignment spelling reported nothing
+    /// even while `commit` recorded the conversion for later reads.
+    ///
+    /// Paired against the call spelling rather than asserted on its own: it is
+    /// the symmetry that is the contract, and only a comparison catches the
+    /// two arms drifting apart again. The braced row is the control — Tcl
+    /// never substitutes it, at either spelling.
+    #[test]
+    fn assign_value_lifts_the_same_nested_expr_a_call_does() {
+        for (word, runs) in [
+            ("[expr {0 in $x}]", true),
+            ("[list [expr {0 in $x}]]", true),
+            ("[list \"[expr {0 in $x}]\"]", true),
+            ("[list {[expr {0 in $x}]}]", false),
+        ] {
+            let mut verdicts = Vec::new();
+            for stmt in [format!("puts {word}"), format!("set r {word}")] {
+                let src = format!("proc f {{lst}} {{\n set x [llength $lst]\n {stmt}\n}}");
+                let cu = CompilationUnit::build_for(&src, &registry(), false);
+                let fu = cu.function("::f").unwrap();
+                let w = expr_shimmers(fu, &registry());
+                let hit = w.iter().find(|sw| sw.variable == "x").cloned();
+                if let Some(hit) = hit.as_ref() {
+                    assert_eq!(hit.to_type, TclType::List, "in {stmt:?}");
+                }
+                verdicts.push((stmt, hit.is_some()));
+            }
+            let [(call, call_fired), (assign, assign_fired)] = verdicts.as_slice() else {
+                unreachable!("one verdict per spelling")
+            };
+            assert_eq!(
+                call_fired, assign_fired,
+                "{call:?} and {assign:?} evaluate the same expression and must report alike"
+            );
+            assert_eq!(*call_fired, runs, "wrong verdict for {call:?}");
+        }
+    }
+
+    /// A `set x [expr {…}]` whose value word *is* the substitution is lowered
+    /// to `AssignExpr`, so widening the lift to `AssignValue` must not make
+    /// the two arms report the same expression twice.
+    #[test]
+    fn a_bare_expr_assignment_is_reported_once() {
+        let src = "proc f {lst} {\n set x [llength $lst]\n set r [expr {0 in $x}]\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert_eq!(
+            w.iter().filter(|sw| sw.variable == "x").count(),
+            1,
+            "one expression, one report: {w:?}"
+        );
     }
 
     /// Review follow-up on #1814: `%`, the shifts and the bitwise operators

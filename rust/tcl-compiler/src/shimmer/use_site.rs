@@ -302,8 +302,8 @@ struct InvocationSite<'a> {
     /// The statement's word snapshot, when this site is a whole statement.
     /// `args` is de-braced, so only these token kinds can tell a
     /// brace-quoted literal from a live substitution — see
-    /// [`inert_braced_args`]. `None` for the two substitution sites, whose
-    /// argument words are raw source text with the braces still on.
+    /// [`inert_braced_args`]. `None` for a lifted `[cmd …]`, whose argument
+    /// words are raw source text with the braces still on.
     tokens: Option<&'a crate::ir::CommandTokens>,
     /// True for the synthetic loop-header shape [`foreach_header_expected_type`]
     /// covers (`foreach` / `lmap` / `dict for` / `dict map`) — every
@@ -680,71 +680,15 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             );
         }
 
-        // A command substitution lifted into an assignment value
-        // (`set b [lindex $x 0]`) reads its arguments just like a direct
-        // call. The substitution's own command word is re-parsed from raw
-        // text (no lowering pass resolves it), so no `interp alias`
-        // resolution is available here — the lookup key is the source
-        // spelling itself.
-        Statement::AssignValue { value, tokens, .. } => {
-            // The value word's own absolute span (`argv`'s last entry —
-            // `set name value` is always two args) anchors the re-lexed
-            // substitution's relative spans; falls back to the
-            // whole-statement span when tokens aren't available (some test
-            // fixtures build `AssignValue` without them).
-            let value_base = tokens
-                .as_ref()
-                .and_then(|t| t.argv.last())
-                .map(|sp| sp.start());
-            if let (Some(base), Some((command, args_with_spans))) = (
-                value_base,
-                crate::value_shapes::parse_command_substitution_with_spans_and_config(
-                    value,
-                    tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
-                ),
-            ) {
-                let args: Vec<String> = args_with_spans.iter().map(|(a, _)| a.clone()).collect();
-                let arg_spans: Vec<Span> = args_with_spans
-                    .iter()
-                    .map(|(_, rel)| Span::new(base + rel.start(), base + rel.end()))
-                    .collect();
-                check_invocation(
-                    ctx,
-                    &InvocationSite {
-                        command: &command,
-                        lookup_command: &command,
-                        args: &args,
-                        arg_spans: &arg_spans,
-                        tokens: None,
-                        is_foreach_header: false,
-                        fallback_span: stmt.span(),
-                    },
-                    uses,
-                );
-            } else if let Some((command, args)) =
-                crate::value_shapes::parse_command_substitution_with_config(
-                    value.trim(),
-                    tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
-                )
-            {
-                // Fallback for shapes the span-aware lexer-based parser
-                // rejects (no `tokens`, or an embedded `;`/newline second
-                // command) but the older bracket-counting parser still
-                // accepts — whole-statement span, same as before this fix.
-                check_invocation(
-                    ctx,
-                    &InvocationSite {
-                        command: &command,
-                        lookup_command: &command,
-                        args: &args,
-                        arg_spans: &[],
-                        tokens: None,
-                        is_foreach_header: false,
-                        fallback_span: stmt.span(),
-                    },
-                    uses,
-                );
-            }
+        // The words of an assignment substitute exactly as a call's do —
+        // `set b [lindex $x 0]` runs `lindex` before it stores anything, and
+        // `set b [list [lindex $x 0]]` runs it just the same, one level down.
+        // So the value word goes through the same lift as a call's words
+        // (issue #1844): one owner decides which substitutions a statement
+        // runs, and the outermost `[cmd …]` is simply its depth-zero case
+        // rather than a shape this arm re-derives for itself.
+        Statement::AssignValue { tokens, .. } => {
+            check_lifted_calls(ctx, tokens.as_ref(), stmt.span(), uses);
         }
 
         Statement::Incr { name, amount, .. } => {
@@ -1084,6 +1028,91 @@ mod tests {
         );
     }
 
+    /// Issue #1844: the two statement kinds that carry substitutable words
+    /// must agree about which commands a word runs. `puts <word>` and
+    /// `set r <word>` differ only in the outer command, and neither outer
+    /// command changes what Tcl evaluates inside the word — so any word that
+    /// shimmers in a call argument shimmers identically in an assignment
+    /// value, and any word that does not, does not.
+    ///
+    /// Written as a paired assertion rather than two independent expectations
+    /// on purpose: it is the *symmetry* that regressed (the `AssignValue` arm
+    /// parsed only its outermost `[cmd …]` and so went silent below depth
+    /// one), and only a test that compares the paths can catch them drifting
+    /// apart again.
+    #[test]
+    fn assign_value_lifts_the_same_substitutions_a_call_does() {
+        // (word, does its `lindex` run?) — a bare substitution, then the
+        // nesting depths the `AssignValue` arm used to lose, then the braced
+        // spelling Tcl never substitutes.
+        for (word, runs) in [
+            ("[lindex $x 0]", true),
+            ("[list [lindex $x 0]]", true),
+            ("[list \"[lindex $x 0]\"]", true),
+            ("[list a[lindex $x 0]b]", true),
+            ("[list {[lindex $x 0]}]", false),
+        ] {
+            let mut verdicts = Vec::new();
+            for stmt in [format!("puts {word}"), format!("set r {word}")] {
+                let src = format!("proc f {{lst}} {{\n set x [llength $lst]\n {stmt}\n}}");
+                let cu = CompilationUnit::build_for(&src, &registry(), false);
+                let fu = cu.function("::f").unwrap();
+                let w = use_site_shimmers(fu, &registry());
+                let hit = w.iter().find(|w| w.command == "lindex").cloned();
+                if let Some(hit) = hit.as_ref() {
+                    assert_eq!(hit.from_type, TclType::Int, "in {stmt:?}");
+                    assert_eq!(hit.to_type, TclType::List, "in {stmt:?}");
+                }
+                verdicts.push((stmt, hit.is_some()));
+            }
+            let [(call, call_fired), (assign, assign_fired)] = verdicts.as_slice() else {
+                unreachable!("one verdict per spelling")
+            };
+            assert_eq!(
+                call_fired, assign_fired,
+                "{call:?} and {assign:?} run the same commands and must report alike"
+            );
+            assert_eq!(*call_fired, runs, "wrong verdict for {call:?}");
+        }
+    }
+
+    /// The lift is the *only* path into the `AssignValue` arm, so the
+    /// depth-zero substitution it used to special-case must still be reported
+    /// exactly once — a second, arm-local parse of the outermost `[cmd …]`
+    /// would double every `set b [lindex $x 0]` diagnostic.
+    #[test]
+    fn assign_value_substitution_is_reported_once() {
+        let cu = CompilationUnit::build_for(
+            "proc f {lst} {\n set x [llength $lst]\n set b [lindex $x 0]\n}",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = use_site_shimmers(fu, &registry());
+        assert_eq!(
+            w.iter().filter(|w| w.command == "lindex").count(),
+            1,
+            "one substitution, one report: {w:?}"
+        );
+    }
+
+    /// The span stays tight around the `$x` of the *nested* command, not the
+    /// outer `[list …]` and not the whole `set` — the developer's eye has to
+    /// land on the read that actually converts.
+    #[test]
+    fn assign_value_nested_substitution_span_is_tight() {
+        let src = "proc f {lst} {\n set x [llength $lst]\n set r [list [lindex $x 0]]\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = use_site_shimmers(fu, &registry());
+        let w = warnings
+            .iter()
+            .find(|w| w.command == "lindex")
+            .unwrap_or_else(|| panic!("expected nested lindex shimmer, got: {warnings:?}"));
+        let text = &src[w.span.start() as usize..w.span.end() as usize];
+        assert_eq!(text, "$x", "got {text:?} from {w:?}");
+    }
+
     /// The conversion a nested substitution performs must also reach the
     /// commit state, or every later read of the same variable is judged
     /// against a stale representation. Before this, the `incr` here reported
@@ -1093,6 +1122,29 @@ mod tests {
     fn a_nested_conversion_is_visible_to_later_reads() {
         let cu = CompilationUnit::build_for(
             "proc f {lst} {\n set x [llength $lst]\n puts [lindex $x 0]\n incr x\n}",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = use_site_shimmers(fu, &registry());
+        let incr = w.iter().find(|w| w.command == "incr");
+        assert!(incr.is_some(), "the incr after a nested list read: {w:?}");
+        assert_eq!(
+            incr.unwrap().from_type,
+            TclType::List,
+            "it converted back from the list the nested `lindex` installed"
+        );
+    }
+
+    /// Issue #1844, the commit half: the same must hold when the nested
+    /// substitution sits in an assignment value. The `AssignValue` transfer
+    /// function used to walk only the outermost `[cmd …]`, so `[list […]]`
+    /// moved no state and the following `incr` was judged against the stale
+    /// `Int` — reporting nothing.
+    #[test]
+    fn a_nested_conversion_in_an_assignment_is_visible_to_later_reads() {
+        let cu = CompilationUnit::build_for(
+            "proc f {lst} {\n set x [llength $lst]\n set r [list [lindex $x 0]]\n incr x\n}",
             &registry(),
             false,
         );

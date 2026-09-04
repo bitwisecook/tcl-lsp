@@ -583,20 +583,13 @@ fn typed_reads_of_statement(
                 }
             }
         }
-        Statement::AssignValue { value, .. } => {
-            if let Some((command, args)) =
-                crate::value_shapes::parse_command_substitution_with_config(
-                    value.trim(),
-                    tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
-                )
-            {
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                for (i, word) in args.iter().enumerate() {
-                    if let Some(expected) = arg_shimmer_type(ctx.registry, &command, &arg_refs, i) {
-                        push_var_read(ctx, &mut out, word, expected, stmt.span(), uses);
-                    }
-                }
-            }
+        Statement::AssignValue { tokens, .. } => {
+            // An assignment's value word substitutes exactly as a call's
+            // words do, so its reads land the same way and through the same
+            // lift — `set r [list [lindex $x 0]]` converts `x` to a list just
+            // as `set r [lindex $x 0]` does, and the outermost `[cmd …]` is
+            // only the depth-zero case of that walk (issue #1844).
+            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
         }
         Statement::Incr { name, amount, .. } => {
             push_var_read(
