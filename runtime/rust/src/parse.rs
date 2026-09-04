@@ -418,12 +418,32 @@ fn script_parse_error(
 /// (issues #1576, #1586).
 use tcl_lexer::word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE};
 
-/// Whether a `Str` (brace-delimited) token never found its closing `}` before
-/// end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the one
-/// owner of "does this delimited word's span actually reach its closer" —
+/// Whether a `Str` token that **opens a brace** never found its closing `}`
+/// before end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the
+/// one owner of "does this delimited word's span actually reach its closer" —
 /// rather than re-deriving the answer from span arithmetic here.
+///
+/// The opening-byte test is load-bearing, not defensive. `Str` is the lexer's
+/// *literal-fragment* class, not its brace class: a `$` that starts no
+/// variable reference is one too. Without the test, `word_closer_offset`
+/// answers "no closer" for that `$` and every one of these — all accepted by
+/// 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0 — raised `missing close-brace`:
+///
+/// ```text
+/// puts "$"           -> $
+/// puts "50% of $"    -> 50% of $
+/// puts "a$ b"        -> a$ b
+/// puts a$%b          -> a$%b
+/// ```
+///
+/// C reads a `$` that no name follows as the text `$` and keeps parsing
+/// (`Tcl_ParseVarName` form 3, `justADollarSign`,
+/// tmp/tcl9.0.4/generic/tclParse.c:1454). Found by
+/// `tests/parse_cut_agreement.rs` against `tcl_lexer::first_parse_cut`, on
+/// tcllib's `markdown.test`.
 fn brace_token_unterminated(sm: &SourceMap<'_>, tok: Token) -> bool {
-    tcl_lexer::word_closer_offset(sm, tok).is_none()
+    sm.source().as_bytes().get(tok.span.start() as usize) == Some(&b'{')
+        && tcl_lexer::word_closer_offset(sm, tok).is_none()
 }
 
 fn build_word<'s>(
