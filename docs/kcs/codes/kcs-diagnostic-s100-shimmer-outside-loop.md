@@ -84,6 +84,31 @@ lassign $point x y z
 set offset [expr {$x + $y + $z}]   ;# no S100 — x/y/z are elements, not lists
 ```
 
+### A variable named inside a brace-quoted word
+
+Tcl substitutes nothing inside `{…}`, so a `$name` written there is just the
+characters `$name` and the variable is never read:
+
+```tcl
+set x [llength $l]
+lindex {$x} 0        ;# no S100 — the word is the two characters "$x"
+lindex "$x" 0        ;# S100 — the quoted word does substitute
+lindex $x 0          ;# S100 — so does the bare one
+```
+
+The exceptions are the commands that evaluate their braced word as code where
+your own variables are in scope — `expr`, `if`, `while`, and the other
+expression and body positions. There the names really are read, so the warning
+still fires:
+
+```tcl
+set x [lrange $l 0 1]
+expr {$x + 1}        ;# S100 — expr evaluates the word here and now
+```
+
+`apply` is not one of them: its lambda runs in a fresh frame, so it never reads
+the caller's variables.
+
 ## Fix
 
 Use separate variables for numeric and string use:

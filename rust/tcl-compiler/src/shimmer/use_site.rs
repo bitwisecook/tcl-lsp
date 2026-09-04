@@ -49,8 +49,8 @@ use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
 use super::hints::{
-    ShimmerExpectation, arg_shimmer_expectation, arg_shimmer_type, is_numeric_compatible,
-    is_uncommitted_first_conversion,
+    ShimmerExpectation, arg_shimmer_expectation, arg_shimmer_type, inert_braced_args,
+    is_numeric_compatible, is_uncommitted_first_conversion,
 };
 use super::span::def_range_map;
 use super::{ShimmerWarning, type_name};
@@ -299,6 +299,12 @@ struct InvocationSite<'a> {
     /// Per-argument absolute spans, index-aligned with `args`, when
     /// available (see `fallback_span`).
     arg_spans: &'a [Span],
+    /// The statement's word snapshot, when this site is a whole statement.
+    /// `args` is de-braced, so only these token kinds can tell a
+    /// brace-quoted literal from a live substitution — see
+    /// [`inert_braced_args`]. `None` for a lifted `[cmd …]`, whose argument
+    /// words are raw source text with the braces still on.
+    tokens: Option<&'a crate::ir::CommandTokens>,
     /// True for the synthetic loop-header shape [`foreach_header_expected_type`]
     /// covers (`foreach` / `lmap` / `dict for` / `dict map`) — every
     /// argument shares one expected type instead of a per-index one.
@@ -333,7 +339,13 @@ fn check_invocation(
     uses: &HashMap<Symbol, u32>,
 ) {
     let arg_refs: Vec<&str> = site.args.iter().map(String::as_str).collect();
+    // Positions whose brace-quoted word Tcl never substitutes: their
+    // de-braced `args` text spells a live `$x` that is not one (issue #1845).
+    let inert = inert_braced_args(ctx.registry, site.lookup_command, &arg_refs, site.tokens);
     for (i, word) in site.args.iter().enumerate() {
+        if inert.contains(&i) {
+            continue;
+        }
         check_argument(ctx, site, i, word, &arg_refs, uses);
     }
 }
@@ -620,6 +632,7 @@ fn check_lifted_calls(
                 lookup_command: &lifted.command,
                 args: &lifted.args,
                 arg_spans: &lifted.arg_spans,
+                tokens: None,
                 is_foreach_header: false,
                 fallback_span,
             },
@@ -659,6 +672,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
                     lookup_command: lookup,
                     args,
                     arg_spans: &arg_spans,
+                    tokens: tokens.as_ref(),
                     is_foreach_header: foreach_groups.is_some(),
                     fallback_span: stmt.span(),
                 },
@@ -960,6 +974,57 @@ mod tests {
         assert!(
             !w.iter().any(|w| w.command == "lindex"),
             "a braced word is data, not a call: {w:?}"
+        );
+    }
+
+    /// Issue #1845: the braced / quoted / bare spellings of one argument
+    /// word, pinned against each other for a command that consumes its word
+    /// as **data** (`lindex`) and one that re-evaluates it **in the caller's
+    /// frame** (`expr`) — the two halves of the rule, so neither can drift.
+    ///
+    /// tclsh 9.0.4, `set x 5`: `lindex {$x} 0` yields the two characters
+    /// `$x` (no read at all) while `lindex "$x" 0` and `lindex $x 0` both
+    /// yield `5`; `expr {$x} + 1` yields `6`, so every `expr` spelling reads
+    /// `x`. A statement's IR `args` hold the *de-braced* word, so all six
+    /// spellings look alike there — the answer comes from the segmenter's
+    /// token kinds plus the registry's argument role.
+    #[test]
+    fn a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame() {
+        for (body, reads) in [
+            ("set x [llength $lst]\n lindex {$x} 0", false),
+            ("set x [llength $lst]\n lindex \"$x\" 0", true),
+            ("set x [llength $lst]\n lindex $x 0", true),
+            ("set x [lrange $lst 0 1]\n expr {$x} + 1", true),
+            ("set x [lrange $lst 0 1]\n expr \"$x\" + 1", true),
+            ("set x [lrange $lst 0 1]\n expr $x + 1", true),
+        ] {
+            let src = format!("proc f {{lst}} {{\n {body}\n}}");
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let w = super::super::find_shimmer_warnings_for_cu(&cu, &registry());
+            assert_eq!(
+                !w.is_empty(),
+                reads,
+                "expected reads={reads} for {src:?}, got: {w:?}"
+            );
+        }
+    }
+
+    /// The same braced word must not move the **committed-intrep state**
+    /// either. `commit.rs` emits nothing itself, so a gate only in the
+    /// emitting pass left `lindex {$x} 0` recording a list commitment that
+    /// made the genuine read on the next line report a conversion the
+    /// runtime never performs.
+    #[test]
+    fn a_braced_argument_commits_no_intrep_for_later_reads() {
+        let cu = CompilationUnit::build_for(
+            "proc f {lst} {\n set x [llength $lst]\n lindex {$x} 0\n expr {$x + 1}\n}",
+            &registry(),
+            false,
+        );
+        let w = super::super::find_shimmer_warnings_for_cu(&cu, &registry());
+        assert!(
+            w.is_empty(),
+            "the int `x` is only ever read as a number here: {w:?}"
         );
     }
 

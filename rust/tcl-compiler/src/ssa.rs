@@ -1953,15 +1953,13 @@ fn scan_command_words(
                 .collect()
         });
     // Positions whose brace-quoted word the callee still evaluates in *this*
-    // frame — `expr {$a + $b}`, `if {$c} …`. Registry-driven: the set is
-    // every `ArgRole` that answers `braced_word_evaluated_in_frame`, never a
-    // command name.
+    // frame — `expr {$a + $b}`, `if {$c} …`. Registry-driven, and asked of
+    // the registry's own owner for the question, never of a command name.
     let in_frame_braced: std::collections::HashSet<usize> = {
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        tcl_registry::ArgRole::ALL
-            .iter()
-            .filter(|role| role.braced_word_evaluated_in_frame())
-            .flat_map(|&role| registry.arg_indices_for_role(lookup, &arg_strs, role))
+        registry
+            .arg_indices_evaluated_in_frame(lookup, &arg_strs)
+            .into_iter()
             .collect()
     };
     // Whether the registry describes this command at all — the difference
