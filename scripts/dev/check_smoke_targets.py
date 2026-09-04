@@ -336,9 +336,13 @@ def runnable_manifest_lines(manifest: Path) -> list[str]:
     return runnable_manifest_lines_for_targets(manifest, targets)
 
 
-def cargo_target_command(kind: str, target_name: str) -> list[str]:
-    """Select one Cargo target shape without narrowing the workspace graph."""
+def cargo_target_command(
+    kind: str, target_name: str, *, full_workspace: bool = False
+) -> list[str]:
+    """Build one target shape, or the automatic workspace test set."""
     command = ["cargo", "test", "--workspace", "--locked"]
+    if full_workspace:
+        return command
     if kind == "lib":
         command.append("--lib")
     else:
@@ -378,47 +382,120 @@ def cargo_substring_skips(
     return skips if effective == selected_names else None
 
 
-def manifest_selectors(lines: list[str]) -> list[tuple[str, str]]:
-    """Deduplicate manifest rows into workspace Cargo target selectors."""
-    selectors: list[tuple[str, str]] = []
-    seen: set[tuple[str, str]] = set()
+def target_selector(target: Target) -> tuple[str, str]:
+    """Return the Cargo selector shared by equivalent workspace targets."""
+    return (target.kind, "") if target.kind == "lib" else (target.kind, target.name)
+
+
+def manifest_target_groups(
+    lines: list[str], targets: list[Target]
+) -> list[list[Target]]:
+    """Group manifest targets by the workspace Cargo selector that builds them."""
+    available = {
+        (target.package, target.kind, target.manifest_name): target
+        for target in targets
+        if target.available_in_workspace and target.testable
+    }
+    groups: list[list[Target]] = []
+    group_indexes: dict[tuple[str, str], int] = {}
+    seen_targets: set[tuple[str, str, str]] = set()
     for line in lines:
-        _source, _package, kind, target_name = line.split("\t")
-        selector = (kind, "") if kind == "lib" else (kind, target_name)
-        if selector not in seen:
-            seen.add(selector)
-            selectors.append(selector)
-    return selectors
+        _source, package, kind, target_name = line.split("\t")
+        identity = (package, kind, target_name)
+        target = available[identity]
+        if identity in seen_targets:
+            continue
+        seen_targets.add(identity)
+        selector = target_selector(target)
+        if selector not in group_indexes:
+            group_indexes[selector] = len(groups)
+            groups.append([])
+        groups[group_indexes[selector]].append(target)
+    return groups
 
 
-def run_cargo_target(
-    kind: str,
-    target_name: str,
+def has_ineligible_selector_collision(
+    group: list[Target], all_targets: list[Target]
+) -> bool:
+    """Whether an explicit workspace selector would force an excluded target."""
+    selector = target_selector(group[0])
+    return any(
+        target_selector(target) == selector
+        and (not target.available_in_workspace or not target.testable)
+        for target in all_targets
+    )
+
+
+def cargo_test_executables(
+    command: list[str],
+    *,
+    repo_root: Path,
+    env: dict[str, str] | None,
+) -> dict[tuple[str, str, Path], Path]:
+    """Build a Cargo selection and return its test executables by target."""
+    result = subprocess.run(
+        [*command, "--no-run", "--message-format=json"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+        result.check_returncode()
+    executables: dict[tuple[str, str, Path], Path] = {}
+    for line in result.stdout.splitlines():
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            message.get("reason") != "compiler-artifact"
+            or not message.get("profile", {}).get("test")
+            or not message.get("executable")
+        ):
+            continue
+        raw_target = message["target"]
+        for kind in canonical_target_kinds(raw_target["kind"]):
+            executables[
+                (kind, raw_target["name"], Path(raw_target["src_path"]).resolve())
+            ] = Path(message["executable"])
+    return executables
+
+
+def target_artifact_key(target: Target) -> tuple[str, str, Path]:
+    """Return the Cargo artifact identity for a manifest target."""
+    return target.kind, target.name, target.source
+
+
+def run_test_executable(
+    target: Target,
+    executable: Path,
     *,
     list_only: bool,
     repo_root: Path = REPO_ROOT,
     env: dict[str, str] | None = None,
     quiet: bool = False,
 ) -> list[tuple[str, str]]:
-    """List or run the exact smoke selection in one workspace feature graph."""
-    command = cargo_target_command(kind, target_name)
+    """List or run the exact nextest smoke selection in one test executable."""
     listing = subprocess.run(
-        [*command, "--", "--list"],
+        [executable, "--list"],
         cwd=repo_root,
         env=env,
         check=True,
         capture_output=True,
         text=True,
     )
-    selected = selected_smoke_entries(cargo_test_entries(listing.stdout), target_name)
+    selected = selected_smoke_entries(cargo_test_entries(listing.stdout), target.name)
     if list_only:
         for name, entry_kind in selected:
             print(f"{name}: {entry_kind}")
         return selected
 
-    if target_name == "smoke" or target_name.endswith("_smoke"):
+    if target.name == "smoke" or target.name.endswith("_smoke"):
         subprocess.run(
-            command,
+            [executable],
             cwd=repo_root,
             env=env,
             check=True,
@@ -429,11 +506,9 @@ def run_cargo_target(
 
     skips = cargo_substring_skips(cargo_test_entries(listing.stdout), selected)
     if skips is not None:
-        arguments = [*command, "smoke"]
-        if skips:
-            arguments.append("--")
-            for name in skips:
-                arguments.extend(("--skip", name))
+        arguments = [executable, "smoke"]
+        for name in skips:
+            arguments.extend(("--skip", name))
         subprocess.run(
             arguments,
             cwd=repo_root,
@@ -449,7 +524,7 @@ def run_cargo_target(
     # with exact positive runs in that rare case.
     for name, _entry_kind in selected:
         result = subprocess.run(
-            [*command, name, "--", "--exact"],
+            [executable, name, "--exact"],
             cwd=repo_root,
             env=env,
             capture_output=True,
@@ -469,10 +544,36 @@ def run_manifest(manifest: Path, *, list_only: bool) -> None:
     errors = validate(manifest)
     if errors:
         raise RuntimeError("\n".join(errors))
-    for kind, target_name in manifest_selectors(runnable_manifest_lines(manifest)):
+    _package_roots, all_targets = load_targets()
+    groups = manifest_target_groups(
+        runnable_manifest_lines_for_targets(manifest, all_targets), all_targets
+    )
+    build_cache: dict[tuple[str, ...], dict[tuple[str, str, Path], Path]] = {}
+    for group in groups:
+        kind, target_name = target_selector(group[0])
         selector = "--lib" if kind == "lib" else f"--{kind} {target_name}"
-        print(f"==> cargo test --workspace {selector}")
-        run_cargo_target(kind, target_name, list_only=list_only)
+        full_workspace = has_ineligible_selector_collision(group, all_targets)
+        command = cargo_target_command(kind, target_name, full_workspace=full_workspace)
+        rendered_selector = "automatic targets" if full_workspace else selector
+        print(f"==> cargo test --workspace {rendered_selector} --no-run")
+        cache_key = tuple(command)
+        if cache_key not in build_cache:
+            build_cache[cache_key] = cargo_test_executables(
+                command, repo_root=REPO_ROOT, env=None
+            )
+        executables = build_cache[cache_key]
+        for target in group:
+            artifact_key = target_artifact_key(target)
+            if artifact_key not in executables:
+                raise RuntimeError(
+                    f"Cargo did not produce a test executable for "
+                    f"{target.package} {target.kind}:{target.name}"
+                )
+            run_test_executable(
+                target,
+                executables[artifact_key],
+                list_only=list_only,
+            )
 
 
 def self_test() -> None:
@@ -589,14 +690,25 @@ def self_test() -> None:
     )
     assert cargo_target_command("lib", "example")[-1] == "--lib"
     assert cargo_target_command("test", "api")[-2:] == ["--test", "api"]
-    assert manifest_selectors(
+    grouping_targets = [
+        Target("a", "lib", "a", root / "a.rs"),
+        Target("b", "lib", "b", root / "b.rs"),
+        Target("a", "test", "api", root / "one.rs"),
+        Target("b", "test", "api", root / "two.rs"),
+    ]
+    assert manifest_target_groups(
         [
             "a.rs\ta\tlib\ta",
             "b.rs\tb\tlib\tb",
             "one.rs\ta\ttest\tapi",
             "two.rs\tb\ttest\tapi",
-        ]
-    ) == [("lib", ""), ("test", "api")]
+        ],
+        grouping_targets,
+    ) == [grouping_targets[:2], grouping_targets[2:]]
+    collision_target = Target("c", "test", "api", root / "three.rs", testable=False)
+    assert has_ineligible_selector_collision(
+        grouping_targets[2:], [*grouping_targets, collision_target]
+    )
 
     assert metadata_command("x86_64-example-linux")[-2:] == [
         "--filter-platform",
@@ -620,7 +732,7 @@ def self_test() -> None:
         files = {
             "Cargo.toml": """\
 [workspace]
-members = ["a", "b", "c", "d", "e", "f", "g"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 resolver = "2"
 """,
             "a/Cargo.toml": """\
@@ -722,6 +834,42 @@ edition = "2024"
 crate-type = ["cdylib"]
 """,
             "g/src/lib.rs": "pub fn value() -> bool { true }\n",
+            "h/Cargo.toml": """\
+[package]
+name = "h"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "library_smoke"
+""",
+            "h/src/lib.rs": "#[test]\nfn ordinary_library_test() {}\n",
+            "i/Cargo.toml": """\
+[package]
+name = "i"
+version = "0.1.0"
+edition = "2024"
+
+[[example]]
+name = "demo_smoke"
+path = "examples/demo.rs"
+test = true
+""",
+            "i/src/lib.rs": "",
+            "i/examples/demo.rs": "#[test]\nfn ordinary_example_test() {}\nfn main() {}\n",
+            "j/Cargo.toml": """\
+[package]
+name = "j"
+version = "0.1.0"
+edition = "2024"
+
+[[example]]
+name = "demo_smoke"
+path = "examples/demo.rs"
+test = false
+""",
+            "j/src/lib.rs": "",
+            "j/examples/demo.rs": "#[test]\nfn must_not_run() { panic!(); }\nfn main() {}\n",
         }
         for relative_path, contents in files.items():
             path = fixture / relative_path
@@ -742,6 +890,7 @@ crate-type = ["cdylib"]
         assert fixture_by_package[("a", "a")].kind == "lib"
         assert fixture_by_package[("d", "d")].kind == "lib"
         assert fixture_by_package[("g", "g")].kind == "lib"
+        assert fixture_by_package[("h", "library_smoke")].kind == "lib"
         assert not fixture_by_name["build_smoke"].available_in_workspace
         assert fixture_by_name["normal_smoke"].available_in_workspace
         assert fixture_by_name["normal_smoke"].resolved_features == ("normal",)
@@ -770,9 +919,16 @@ crate-type = ["cdylib"]
             text=True,
         )
         assert targeted.returncode != 0
-        selected = run_cargo_target(
-            "lib",
-            "e",
+        library_command = cargo_target_command("lib", "")
+        library_executables = cargo_test_executables(
+            library_command,
+            repo_root=fixture,
+            env=fixture_env,
+        )
+        e_target = fixture_by_package[("e", "e")]
+        selected = run_test_executable(
+            e_target,
+            library_executables[target_artifact_key(e_target)],
             list_only=False,
             repo_root=fixture,
             env=fixture_env,
@@ -780,6 +936,44 @@ crate-type = ["cdylib"]
         )
         assert ("smoke_dependency", "test") in selected
         assert ("long_smoke_dependency", "test") not in selected
+
+        # The workspace library build must retain the actual library target
+        # name so binary-filtered libraries execute ordinary test names.
+        smoke_library = fixture_by_package[("h", "library_smoke")]
+        assert run_test_executable(
+            smoke_library,
+            library_executables[target_artifact_key(smoke_library)],
+            list_only=False,
+            repo_root=fixture,
+            env=fixture_env,
+            quiet=True,
+        ) == [("ordinary_library_test", "test")]
+
+        # An explicit workspace selector would force j's test-disabled example.
+        # The automatic workspace build omits it and produces only i's harness.
+        demo_targets = [
+            target
+            for target in fixture_targets
+            if target.kind == "example" and target.name == "demo_smoke"
+        ]
+        demo_target = next(target for target in demo_targets if target.package == "i")
+        assert has_ineligible_selector_collision([demo_target], fixture_targets)
+        automatic_executables = cargo_test_executables(
+            cargo_target_command("example", "demo_smoke", full_workspace=True),
+            repo_root=fixture,
+            env=fixture_env,
+        )
+        assert target_artifact_key(demo_target) in automatic_executables
+        disabled_demo = next(target for target in demo_targets if target.package == "j")
+        assert target_artifact_key(disabled_demo) not in automatic_executables
+        assert run_test_executable(
+            demo_target,
+            automatic_executables[target_artifact_key(demo_target)],
+            list_only=False,
+            repo_root=fixture,
+            env=fixture_env,
+            quiet=True,
+        ) == [("ordinary_example_test", "test")]
 
 
 def main() -> int:
