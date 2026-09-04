@@ -23,10 +23,11 @@ class Target:
     kind: str
     name: str
     source: Path
+    available_by_default: bool = True
 
     @property
     def manifest_name(self) -> str:
-        return "-" if self.kind == "lib" else self.name
+        return self.name
 
 
 def ownership_rank(source: Path, target: Target) -> int | None:
@@ -63,6 +64,30 @@ def best_owners(source: Path, targets: list[Target]) -> list[Target]:
     return [target for rank, target in ranked if rank == best]
 
 
+def default_features(raw_package: dict[str, object]) -> set[str]:
+    """Resolve the package-local feature closure enabled by `default`."""
+    feature_map = raw_package["features"]
+    assert isinstance(feature_map, dict)
+    enabled: set[str] = set()
+    pending = ["default"]
+    while pending:
+        feature = pending.pop()
+        if feature in enabled:
+            continue
+        enabled.add(feature)
+        members = feature_map.get(feature, [])
+        assert isinstance(members, list)
+        for member in members:
+            assert isinstance(member, str)
+            if (
+                "/" not in member
+                and not member.startswith("dep:")
+                and member in feature_map
+            ):
+                pending.append(member)
+    return enabled
+
+
 def load_targets() -> tuple[dict[str, Path], list[Target]]:
     result = subprocess.run(
         ["cargo", "metadata", "--no-deps", "--format-version", "1"],
@@ -76,6 +101,7 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
     targets: list[Target] = []
     for package in metadata["packages"]:
         package_name = package["name"]
+        enabled_features = default_features(package)
         manifests[package_name] = Path(package["manifest_path"]).resolve().parent
         for raw_target in package["targets"]:
             supported = SUPPORTED_TARGET_KINDS.intersection(raw_target["kind"])
@@ -86,6 +112,9 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
                         kind=kind,
                         name=raw_target["name"],
                         source=Path(raw_target["src_path"]).resolve(),
+                        available_by_default=set(
+                            raw_target.get("required-features", [])
+                        ).issubset(enabled_features),
                     )
                 )
     return manifests, targets
@@ -96,7 +125,8 @@ def smoke_named_targets(targets: list[Target]) -> set[tuple[str, str, str]]:
     return {
         (target.package, target.kind, target.manifest_name)
         for target in targets
-        if target.name == "smoke" or target.name.endswith("_smoke")
+        if target.available_by_default
+        and (target.name == "smoke" or target.name.endswith("_smoke"))
     }
 
 
@@ -105,7 +135,8 @@ def smoke_named_target_sources(targets: list[Target]) -> set[Path]:
     return {
         target.source
         for target in targets
-        if target.name == "smoke" or target.name.endswith("_smoke")
+        if target.available_by_default
+        and (target.name == "smoke" or target.name.endswith("_smoke"))
     }
 
 
@@ -140,10 +171,6 @@ def validate(manifest: Path) -> list[str]:
         if kind not in SUPPORTED_TARGET_KINDS:
             errors.append(f"invalid smoke target kind '{kind}' for {source_text}")
             continue
-        if kind == "lib" and target_name != "-":
-            errors.append(f"library smoke row must use '-' target: {source_text}")
-            continue
-
         package_targets = [
             target
             for target in all_targets
@@ -181,6 +208,24 @@ def validate(manifest: Path) -> list[str]:
             "smoke-targets.tsv row"
         )
     return errors
+
+
+def runnable_manifest_lines(manifest: Path) -> list[str]:
+    """Return validated rows whose Cargo targets exist under default features."""
+    _package_roots, targets = load_targets()
+    available = {
+        (target.package, target.kind, target.manifest_name)
+        for target in targets
+        if target.available_by_default
+    }
+    lines: list[str] = []
+    for raw_line in manifest.read_text().splitlines():
+        if not raw_line or raw_line.startswith("#"):
+            continue
+        source, package, kind, target_name = raw_line.split("\t")
+        if (package, kind, target_name) in available:
+            lines.append("\t".join((source, package, kind, target_name)))
+    return lines
 
 
 def self_test() -> None:
@@ -222,6 +267,13 @@ def self_test() -> None:
         Target("example", "test", "api_smoke", root / "integration/api.rs"),
         Target("example", "example", "demo_smoke", root / "examples/demo.rs"),
         Target("example", "bench", "parse_smoke", root / "benches/parse.rs"),
+        Target(
+            "example",
+            "bin",
+            "feature_smoke",
+            root / "src/bin/feature_smoke.rs",
+            available_by_default=False,
+        ),
     ]
     assert smoke_named_targets(smoke_targets) == {
         ("example", "bin", "smoke"),
@@ -238,6 +290,20 @@ def self_test() -> None:
         root / "benches/parse.rs",
     }
 
+    # A name match is not runnable when Cargo would skip the target because its
+    # required features are absent from the default feature closure.
+    assert ("example", "bin", "feature_smoke") not in smoke_named_targets(smoke_targets)
+
+    assert default_features(
+        {
+            "features": {
+                "default": ["public", "dep:optional", "weak?/extra"],
+                "public": ["internal"],
+                "internal": [],
+            }
+        }
+    ) == {"default", "public", "internal"}
+
 
 def main() -> int:
     if sys.argv[1:] == ["--self-test"]:
@@ -248,10 +314,18 @@ def main() -> int:
         for source in sorted(smoke_named_target_sources(targets)):
             print(source.relative_to(REPO_ROOT).as_posix())
         return 0
+    if len(sys.argv) == 3 and sys.argv[1] == "--runnable-manifest":
+        manifest = Path(sys.argv[2])
+        errors = validate(manifest)
+        if errors:
+            print("\n".join(errors), file=sys.stderr)
+            return 1
+        print("\n".join(runnable_manifest_lines(manifest)))
+        return 0
     if len(sys.argv) != 2:
         print(
             f"usage: {Path(sys.argv[0]).name} MANIFEST | --self-test | "
-            "--smoke-target-sources",
+            "--smoke-target-sources | --runnable-manifest MANIFEST",
             file=sys.stderr,
         )
         return 2

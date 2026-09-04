@@ -14,6 +14,8 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 MANIFEST=$SCRIPT_DIR/smoke-targets.tsv
+RUNNABLE_MANIFEST=$(mktemp)
+trap 'rm -f "$RUNNABLE_MANIFEST"' EXIT HUP INT TERM
 LIST_ONLY=false
 
 case "${1:-}" in
@@ -32,12 +34,22 @@ seen='|'
 # `make smoke` / `make prep-pr`. The rust-check gate also runs this contract,
 # but the fallback must be safe on its own.
 sh "$SCRIPT_DIR/test-smoke-targets.sh"
+python3 "$SCRIPT_DIR/check_smoke_targets.py" --runnable-manifest "$MANIFEST" \
+    > "$RUNNABLE_MANIFEST"
 
 run_smoke() {
     if [ "$LIST_ONLY" = true ]; then
         "$@" smoke -- --list
     else
         "$@" smoke
+    fi
+}
+
+run_all() {
+    if [ "$LIST_ONLY" = true ]; then
+        "$@" -- --list
+    else
+        "$@"
     fi
 }
 
@@ -53,11 +65,7 @@ run_named_target() {
             # convention-named smoke target, even when an individual
             # function does not contain the word "smoke".
             echo "==> cargo test -p $package --$kind $target"
-            if [ "$LIST_ONLY" = true ]; then
-                cargo test -p "$package" "--$kind" "$target" -- --list
-            else
-                cargo test -p "$package" "--$kind" "$target"
-            fi
+            run_all cargo test -p "$package" "--$kind" "$target"
             ;;
         *)
             echo "==> cargo test -p $package --$kind $target smoke"
@@ -79,8 +87,16 @@ while IFS="$(printf '\t')" read -r source package kind target; do
 
     case "$kind" in
         lib)
-            echo "==> cargo test -p $package --lib smoke"
-            run_smoke cargo test -p "$package" --lib
+            case "$target" in
+                smoke|*_smoke)
+                    echo "==> cargo test -p $package --lib"
+                    run_all cargo test -p "$package" --lib
+                    ;;
+                *)
+                    echo "==> cargo test -p $package --lib smoke"
+                    run_smoke cargo test -p "$package" --lib
+                    ;;
+            esac
             ;;
         test|bin|example|bench)
             run_named_target "$kind" "$package" "$target"
@@ -90,4 +106,4 @@ while IFS="$(printf '\t')" read -r source package kind target; do
             exit 1
             ;;
     esac
-done < "$MANIFEST"
+done < "$RUNNABLE_MANIFEST"
