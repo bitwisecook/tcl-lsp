@@ -15,7 +15,7 @@ does each section accept, and what values are valid?
 ## Answer
 
 Both the global `config.ini` and the project `.tcl-lsp.ini` use the
-same INI schema. Eleven sections are recognised in total — nine of
+same INI schema. Twelve sections are recognised in total — ten of
 them work in either file, plus one location-specific section for each
 file (`[global]` and `[project]`). Any section or key the parser does
 not know is silently ignored, so a typo turns into a no-op rather
@@ -160,6 +160,35 @@ The complete list, with defaults and ranges, is in the
 Style settings that affect linting but not formatting.
 
 - `line_length` — integer.
+
+### `[packages]` and `[packages.provides]`
+
+How the modelled interpreter loads packages.
+
+- `preferLatest` — boolean. Start the interpreter with `package prefer
+  latest` already in force, as `TCL_PKG_PREFER_LATEST` in the environment
+  (or, on Tcl 9.0+, an unstable build of Tcl) does. Decides which release
+  a `package require` navigates into when a prerelease and a stable
+  version both satisfy it.
+
+`[packages.provides]` says what loading one package also loads. Every
+key is a **package name**, so there is no fixed key list:
+
+```ini
+[packages.provides]
+myExtension = Tk
+bigWrapper = Tk, Img
+```
+
+Use it for a **compiled** extension — a `.dll` / `.so` whose C `Init`
+calls `Tcl_PkgRequire` or `Tk_InitStubs`. A Tcl wrapper package is found
+on its own, because the server reads the `package require`s in the files
+its `pkgIndex.tcl` loads; a binary one has no Tcl text to read, so the
+link has to be declared. Declarations chain, so `a = b` plus `b = Tk`
+means requiring `a` gets you Tk. The per-file equivalent is a
+`# tcl-lsp: package myExtension provides Tk` comment, which is also the
+only form the `tcl` CLI reads. See
+[how do I tell tcl-lsp that a binary extension also loads Tk?](kcs-howto-declare-a-package-a-binary-extension-loads.md).
 
 ### `[iruleslx.plugins]` and `[iruleslx.rules]`
 

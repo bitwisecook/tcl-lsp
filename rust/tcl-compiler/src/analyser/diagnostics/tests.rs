@@ -10315,6 +10315,7 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
         range: Span::new(0, 24),
         conditional: false,
         control_flow: false,
+        origin: crate::signature_scan::types::PackageRequireOrigin::Source,
     });
     // Seed an invocation that would otherwise trip W123.
     a.result

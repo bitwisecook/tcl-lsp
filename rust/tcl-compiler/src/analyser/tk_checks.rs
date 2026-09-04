@@ -178,17 +178,28 @@ pub(super) const TK_PACKAGE: &str = "Tk";
 /// Cheap **necessary** condition for the per-command Tk accumulation to be
 /// worth running at all — *not* the activation decision (see the module docs).
 ///
-/// Activation requires either an ambient `Tk` placement or a
-/// statically-resolvable `package require Tk`, and the latter cannot exist in
-/// a source that never contains the literal package name.  So this is sound:
+/// Activation requires an ambient `Tk` placement, a statically-resolvable
+/// `package require Tk`, a `# tcl-lsp: provides Tk` directive, or a configured
+/// `[packages.provides]` edge that puts `Tk` behind another package (issue
+/// #1813).  The first three cannot exist in a source that never contains the
+/// literal package name; the last is visible in the declaration itself rather
+/// than in the text.  So this is sound:
 /// it never returns `false` for a document that goes on to activate.  It over-approximates
 /// freely — a `Tk` inside a comment, a string, or generated data trips it —
 /// which costs only a registry lookup per command, because
 /// [`Analyser::flush_tk_geometry_diagnostics`] discards everything the walk
 /// buffered unless the exact activation fact holds.
 #[must_use]
-pub(super) fn tk_checks_could_apply(source: &str, tk_ambient: bool) -> bool {
-    tk_ambient || source.contains(TK_PACKAGE)
+pub(super) fn tk_checks_could_apply(
+    source: &str,
+    tk_ambient: bool,
+    package_provides: &[(String, Vec<String>)],
+) -> bool {
+    tk_ambient
+        || source.contains(TK_PACKAGE)
+        || package_provides
+            .iter()
+            .any(|(_, provided)| provided.iter().any(|p| p == TK_PACKAGE))
 }
 
 /// Compiler-facing wrapper around the registry-owned Tk widget-path grammar.
@@ -891,11 +902,29 @@ impl Analyser {
     /// `pub(super)`: [`Analyser::analyse_per_item_with`](super::state::Analyser)
     /// consults the same fact post-walk to decide whether the incremental path
     /// must hand off to a full analysis (issue #1188).
+    /// Whether a declaration makes `Tk` available — a `# tcl-lsp: provides
+    /// Tk` comment, or a configured `[packages.provides]` edge behind a
+    /// package the document requires (issue #1813).
+    ///
+    /// The activation gate has to see this **during** the walk, not only
+    /// after `expand_implied_package_requires` has recorded the declared
+    /// entries in the tail: `analyse_per_item`'s
+    /// [`tk_activation_fallback`](super::state::Analyser) decides mid-walk
+    /// whether to hand off to a full analysis, and Tk's whole-file
+    /// accumulators are exactly what an isolated body cannot see. Costs two
+    /// `is_empty`s for every document that declares nothing.
+    fn tk_is_declared_available(&self) -> bool {
+        self.implied_package_requires()
+            .iter()
+            .any(|pr| pr.name == TK_PACKAGE)
+    }
+
     pub(super) fn has_tk_require(&self) -> bool {
         self.result
             .package_requires
             .iter()
             .any(|pr| pr.name == TK_PACKAGE)
+            || self.tk_is_declared_available()
     }
 
     /// Post-walk flush of all TK diagnostics.  Emits the buffered TK1002 /
@@ -933,6 +962,236 @@ mod tests {
 
     fn has(source: &str, dialect: &str, code: &str) -> bool {
         codes(source, dialect).iter().any(|(c, _)| c == code)
+    }
+
+    /// Issue #1813: a binary extension that loads Tk itself leaves no
+    /// `package require Tk` to find, so a declared `[packages.provides]` edge
+    /// is the only way the analyser can know. With one, the document is Tk —
+    /// the TK checks activate and the W120 "requires `package require Tk`"
+    /// nag goes away.
+    #[test]
+    fn declared_package_provides_activates_tk() {
+        let src = "package require myExtension
+frame .outer.inner
+";
+        let provides = vec![("myExtension".to_owned(), vec!["Tk".to_owned()])];
+
+        let mut bare = Analyser::new();
+        let without = bare.analyse(src, "tcl8.6");
+        assert!(
+            !without
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "TK1002"),
+            "no declaration ⇒ not a Tk document: {:?}",
+            without.diagnostics
+        );
+        assert!(
+            without
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "W120"),
+            "no declaration ⇒ the Tk widget still wants a require: {:?}",
+            without.diagnostics
+        );
+
+        let mut declared = Analyser::new().with_package_provides(provides);
+        let with = declared.analyse(src, "tcl8.6");
+        assert!(
+            with.diagnostics.iter().any(|d| d.code.as_str() == "TK1002"),
+            "declared ⇒ the TK checks run: {:?}",
+            with.diagnostics
+        );
+        assert!(
+            !with.diagnostics.iter().any(|d| d.code.as_str() == "W120"),
+            "declared ⇒ Tk is available, no missing-require warning: {:?}",
+            with.diagnostics
+        );
+        let tk = with
+            .package_requires
+            .iter()
+            .find(|pr| pr.name == "Tk")
+            .expect("Tk recorded as available");
+        assert_eq!(
+            tk.origin,
+            crate::signature_scan::types::PackageRequireOrigin::Provides("myExtension".to_owned())
+        );
+    }
+
+    /// Issue #1813: the same edge declared as a source comment, which travels
+    /// with the file and needs no workspace configuration.
+    #[test]
+    fn provides_directive_activates_tk() {
+        let src = "# tcl-lsp: package myExtension provides Tk\n\
+                   package require myExtension\n\
+                   frame .outer.inner\n";
+        let res = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            res.diagnostics.iter().any(|d| d.code.as_str() == "TK1002"),
+            "declared ⇒ the TK checks run: {:?}",
+            res.diagnostics
+        );
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code.as_str() == "W120"),
+            "declared ⇒ no missing-require warning: {:?}",
+            res.diagnostics
+        );
+        let tk = res
+            .package_requires
+            .iter()
+            .find(|pr| pr.name == "Tk")
+            .expect("Tk recorded as available");
+        assert_eq!(
+            tk.origin,
+            crate::signature_scan::types::PackageRequireOrigin::Directive("myExtension".to_owned())
+        );
+        // The edge names its loader, so Tk is anchored at the `package
+        // require` that loads it — not at the comment, wherever that sits.
+        let require = res
+            .package_requires
+            .iter()
+            .find(|pr| pr.name == "myExtension")
+            .expect("the require itself");
+        assert_eq!(tk.range, require.range);
+    }
+
+    /// An edge whose loader the document never requires declares nothing —
+    /// which is what makes the directive the same fact as the configured
+    /// entry rather than a second mechanism.
+    #[test]
+    fn provides_directive_without_the_require_is_inert() {
+        let src = "# tcl-lsp: package myExtension provides Tk\nframe .outer.inner\n";
+        let res = Analyser::new().analyse(src, "tcl8.6");
+        assert!(!res.package_requires.iter().any(|pr| pr.name == "Tk"));
+        assert!(!res.diagnostics.iter().any(|d| d.code.as_str() == "TK1002"));
+    }
+
+    /// A directive edge and a configured edge chain into one another.
+    #[test]
+    fn provides_directive_and_configured_edge_compose() {
+        let src = "# tcl-lsp: package myExtension provides myWidgets\n\
+                   package require myExtension\n\
+                   frame .outer.inner\n";
+        let res = Analyser::new()
+            .with_package_provides(vec![("myWidgets".to_owned(), vec!["Tk".to_owned()])])
+            .analyse(src, "tcl8.6");
+        assert!(res.diagnostics.iter().any(|d| d.code.as_str() == "TK1002"));
+        let tk = res
+            .package_requires
+            .iter()
+            .find(|pr| pr.name == "Tk")
+            .expect("Tk reached through the two edges");
+        assert_eq!(
+            tk.origin,
+            crate::signature_scan::types::PackageRequireOrigin::Provides("myWidgets".to_owned())
+        );
+    }
+
+    /// The directive reaches the per-item walk's mid-walk Tk hand-off too.
+    #[test]
+    fn provides_directive_agrees_across_walk_strategies() {
+        let src = "# tcl-lsp: package myExtension provides Tk\n\
+                   package require myExtension\n\
+                   proc build {} {\n\
+                   \x20   frame .outer.inner\n\
+                   }\n";
+        let codes = |r: &crate::analyser::types::AnalysisResult| {
+            let mut c: Vec<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+            c.sort();
+            c
+        };
+        let whole = Analyser::new().analyse(src, "tcl8.6");
+        let per_item = Analyser::new().analyse_per_item(src, "tcl8.6");
+        assert_eq!(codes(&whole), codes(&per_item));
+        assert!(codes(&whole).iter().any(|c| c == "TK1002"));
+    }
+
+    /// Review follow-up: a declared edge makes a package available at the
+    /// require that loads it, and an *explicit* require for the same package
+    /// further down must not erase that earlier anchor. H301 takes the
+    /// minimum start per package, so losing it reports the command between
+    /// the two as used-before-available — a hint that appears only because
+    /// the file also requires the package explicitly.
+    #[test]
+    fn a_later_explicit_require_keeps_the_earlier_declared_anchor() {
+        let src = "package require myExtension\n\
+                   frame .outer.inner\n\
+                   package require Tk\n";
+        let res = Analyser::new()
+            .with_package_provides(vec![("myExtension".to_owned(), vec!["Tk".to_owned()])])
+            .analyse(src, "tcl8.6");
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code.as_str() == "H301"),
+            "Tk is available from the `package require myExtension` above the \
+             widget, so nothing is used before its package: {:?}",
+            res.diagnostics
+        );
+        // The implied entry survives alongside the explicit one, anchored
+        // earlier than it.
+        let implied_start = res
+            .package_requires
+            .iter()
+            .filter(|pr| pr.name == "Tk")
+            .map(|pr| pr.range.start())
+            .min()
+            .expect("Tk recorded");
+        let ext_start = res
+            .package_requires
+            .iter()
+            .find(|pr| pr.name == "myExtension")
+            .expect("the loader")
+            .range
+            .start();
+        assert_eq!(implied_start, ext_start);
+    }
+
+    /// The closure is transitive and terminates on a cycle.
+    #[test]
+    fn declared_package_provides_is_transitive_and_cycle_safe() {
+        let provides = vec![
+            ("a".to_owned(), vec!["b".to_owned()]),
+            ("b".to_owned(), vec!["Tk".to_owned(), "a".to_owned()]),
+        ];
+        let mut a = Analyser::new().with_package_provides(provides);
+        let res = a.analyse(
+            "package require a
+frame .outer.inner
+",
+            "tcl8.6",
+        );
+        let mut names: Vec<&str> = res
+            .package_requires
+            .iter()
+            .map(|pr| pr.name.as_str())
+            .collect();
+        names.sort_unstable();
+        assert_eq!(names, ["Tk", "a", "b"]);
+        assert!(res.diagnostics.iter().any(|d| d.code.as_str() == "TK1002"));
+    }
+
+    /// The per-item walk must reach the same verdict as the whole-file one —
+    /// its mid-walk Tk hand-off reads the declaration too.
+    #[test]
+    fn declared_package_provides_agrees_across_walk_strategies() {
+        let src = "package require myExtension
+proc build {} {
+    frame .outer.inner
+}
+";
+        let provides = vec![("myExtension".to_owned(), vec!["Tk".to_owned()])];
+        let whole = Analyser::new()
+            .with_package_provides(provides.clone())
+            .analyse(src, "tcl8.6");
+        let per_item = Analyser::new()
+            .with_package_provides(provides)
+            .analyse_per_item(src, "tcl8.6");
+        let codes = |r: &crate::analyser::types::AnalysisResult| {
+            let mut c: Vec<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+            c.sort();
+            c
+        };
+        assert_eq!(codes(&whole), codes(&per_item));
+        assert!(codes(&whole).iter().any(|c| c == "TK1002"));
     }
 
     #[test]

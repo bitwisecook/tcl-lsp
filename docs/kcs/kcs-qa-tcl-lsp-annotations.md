@@ -14,7 +14,7 @@ does each one do?
 
 ## Answer
 
-tcl-lsp reads four kinds of structured comment from your Tcl source.
+tcl-lsp reads five kinds of structured comment from your Tcl source.
 They all live in plain Tcl comments — no separate config file is required,
 and they have no effect on the running interpreter.
 
@@ -120,6 +120,33 @@ declared inside the same stub block:
 The trailing number is the arity (1 for unary functions, 2 for binary
 operators, and so on).
 
+### 5. Packages another package loads
+
+`# tcl-lsp: package NAME provides PKG …` says that loading `NAME` also
+loads the packages listed. It exists for a compiled extension — a `.dll` /
+`.so` whose C `Init` calls `Tcl_PkgRequire` or `Tk_InitStubs` — which
+loads a package with nothing in any Tcl source to say so, so nothing the
+analyser can read would ever reveal it.
+
+```tcl
+# tcl-lsp: package myExtension provides Tk
+package require myExtension
+
+ttk::frame .f
+pack .f
+```
+
+Tk's completions, hover and checks now switch on, and the "requires
+`package require Tk`" warning (W120) goes quiet — exactly as if the file
+had said `package require Tk` alongside the extension. Name several
+packages on one line, and put the comment anywhere in the file: it names
+the extension, so it does not depend on where it sits, and it does nothing
+in a file that never requires that extension.
+
+The same fact can be declared once for a whole project instead, under
+`[packages.provides]` in `.tcl-lsp.ini` — see
+[how do I tell tcl-lsp that a binary extension also loads Tk?](kcs-howto-declare-a-package-a-binary-extension-loads.md).
+
 ### What annotations do *not* do
 
 - They do not change runtime Tcl behaviour — they are plain `#` comments.
@@ -131,6 +158,7 @@ operators, and so on).
 ## Related
 
 - [How to annotate an external Tcl command with a stub](kcs-howto-annotate-commands-with-stubs.md)
+- [How do I tell tcl-lsp that a binary extension also loads Tk?](kcs-howto-declare-a-package-a-binary-extension-loads.md)
 - [How to suppress diagnostics inline](kcs-howto-suppress-diagnostics.md)
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)

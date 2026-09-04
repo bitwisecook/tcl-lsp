@@ -3461,6 +3461,19 @@
             "default": false,
             "description": "Start the modelled interpreter with ``package prefer latest`` already in force, as TCL_PKG_PREFER_LATEST in the environment (or, on Tcl 9.0+, an unstable build of Tcl itself) does. Neither is visible in the source tree, so it is a setting rather than an inference. Affects which release a ``package require`` navigates into when a prerelease and a stable version both satisfy it.",
             "order": 7
+          },
+          "tclLsp.packages.provides": {
+            "scope": "resource",
+            "type": "object",
+            "default": {},
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "markdownDescription": "Packages that loading another package also makes available — `{ \"myExtension\": [\"Tk\"] }` says a file with `package require myExtension` may use Tk commands. A binary extension whose C `Init` calls `Tcl_PkgRequire` or `Tk_InitStubs` loads Tk with nothing in any Tcl source to say so, so the workspace `pkgIndex.tcl` scan (which reads a Tcl wrapper's own `package require`s) cannot find it. Declared edges are followed transitively, and each implied package counts as required from the `package require` that loads it — activating the Tk checks, completions and hover, and silencing the \"requires `package require Tk`\" warning. To declare the same edge in one file rather than project-wide, put a `# tcl-lsp: package myExtension provides Tk` comment in it.",
+            "order": 8
           }
         }
       },

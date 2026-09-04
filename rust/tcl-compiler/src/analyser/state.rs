@@ -547,6 +547,23 @@ pub struct Analyser {
     /// [`Self::resolve_declared_targets`]. Empty — the default — leaves
     /// range mode off and every answer byte-identical to today.
     pub declared_targets: Vec<(String, String)>,
+    /// Configured "requiring this package also loads these" edges
+    /// (`tclLsp.packages.provides` / `.tcl-lsp.ini` `[packages.provides]`),
+    /// in configuration order. Each pair is a package name and the packages
+    /// its loader brings in behind the analyser's back — the binary
+    /// extension whose `Init` calls `Tcl_PkgRequire` / `Tk_InitStubs`, where
+    /// no Tcl source anywhere states the dependency, so it can only be
+    /// declared (issue #1813). Applied to the walk's own
+    /// `package require`s by [`Self::expand_implied_package_requires`].
+    /// Empty — the default — leaves every answer as before.
+    pub package_provides: Vec<(String, Vec<String>)>,
+    /// The `# tcl-lsp: package NAME provides …` edges declared in this walk's
+    /// source —
+    /// the same `(package, packages it also loads)` edges
+    /// [`Self::package_provides`] carries for the whole workspace, declared
+    /// for one file (issue #1813). Re-scanned at every walk ingress, so it is
+    /// a pure function of the source and cannot go stale.
+    pub(super) directive_provides: Vec<(String, Vec<String>)>,
     /// The resolved range-mode context: the walk generation's
     /// [`tcl_registry::model::ResolvedContext`] with the merged target
     /// declarations recorded on it (§5.4). `None` whenever nothing is
@@ -1516,6 +1533,8 @@ impl Analyser {
             pending_gated_bare_ensemble: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             declared_targets: Vec::new(),
+            package_provides: Vec::new(),
+            directive_provides: Vec::new(),
             range_context: None,
             range_numeral_grammars: Vec::new(),
             range_gate_sites: Vec::new(),
@@ -1690,6 +1709,15 @@ impl Analyser {
     #[must_use]
     pub fn with_declared_targets(mut self, targets: Vec<(String, String)>) -> Self {
         self.declared_targets = targets;
+        self
+    }
+
+    /// Declare what a `package require` additionally loads
+    /// ([`Self::package_provides`]) — `("myExtension", ["Tk"])` says a
+    /// document that requires `myExtension` has `Tk` available too.
+    #[must_use]
+    pub fn with_package_provides(mut self, provides: Vec<(String, Vec<String>)>) -> Self {
+        self.package_provides = provides;
         self
     }
 
@@ -1956,7 +1984,9 @@ impl Analyser {
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_accumulation_enabled =
+            super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
+        self.directive_provides = super::utils::parse_provides_directives(source);
         self.tk_ambient = tk_ambient;
         // §5.4 range targeting: resolve configured + directive-declared
         // version targets for this walk (a no-op for the undeclared
@@ -2363,7 +2393,9 @@ impl Analyser {
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_accumulation_enabled =
+            super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
+        self.directive_provides = super::utils::parse_provides_directives(source);
         self.tk_ambient = tk_ambient;
         // §5.4 range targeting — same resolution as `analyse`.
         self.resolve_declared_targets(source);
@@ -2457,7 +2489,9 @@ impl Analyser {
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_accumulation_enabled =
+            super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
+        self.directive_provides = super::utils::parse_provides_directives(source);
         self.tk_ambient = tk_ambient;
         // §5.4 range targeting — same resolution as `analyse`.
         self.resolve_declared_targets(source);
@@ -2624,7 +2658,8 @@ impl Analyser {
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_non_ascii_mode(self.non_ascii_mode)
-            .with_shared_extra_commands(Arc::clone(&self.extra_commands));
+            .with_shared_extra_commands(Arc::clone(&self.extra_commands))
+            .with_package_provides(self.package_provides.clone());
         fresh.analyse(new_text, dialect)
     }
 
@@ -2798,7 +2833,135 @@ impl Analyser {
             .collect();
     }
 
+    /// Record the packages a declared edge says the document's own `package
+    /// require`s also load (issue #1813).
+    ///
+    /// A binary extension whose `Init` calls `Tcl_PkgRequire` — or links Tk
+    /// through `Tk_InitStubs` — makes a package available with nothing in any
+    /// Tcl source to say so, so no amount of workspace scanning can find it
+    /// (the `pkgIndex.tcl` route [`transitive_available_packages`] follows
+    /// reads the *Tcl* files an `ifneeded` script sources, and a `load`-only
+    /// extension has none). It can only be declared, and both places it can
+    /// be declared state the same edge:
+    ///
+    /// - `# tcl-lsp: package myExtension provides Tk` in the file
+    ///   ([`Self::directive_provides`]), which travels with it; or
+    /// - a `[packages.provides]` / `tclLsp.packages.provides` entry
+    ///   ([`Self::package_provides`]), which states it once for the project.
+    ///
+    /// Each package the edges reach becomes an ordinary
+    /// [`SignaturePackageRequire`](crate::signature_scan::types::SignaturePackageRequire)
+    /// carrying the span of the `package require` that loaded it — the point
+    /// at which it really does become available, so the order-sensitive H301
+    /// stays right — plus a
+    /// [`PackageRequireOrigin`](crate::signature_scan::types::PackageRequireOrigin)
+    /// naming the loader, for the consumers that want what the source
+    /// literally says.
+    ///
+    /// Called from the head of [`Self::run_diagnostic_emitters`], the one
+    /// tail both the whole-file and the per-item walk reach with their
+    /// `package_requires` already merged — so the two strategies cannot
+    /// disagree about what a declaration made available.
+    fn expand_implied_package_requires(&mut self) {
+        let implied = self.implied_package_requires();
+        self.result.package_requires.extend(implied);
+    }
+
+    /// Every package the declared edges reach from this document's own
+    /// `package require`s, minus everything it already requires, as
+    /// ready-to-record synthetic requires.
+    ///
+    /// Breadth-first, so each package is anchored at the earliest require
+    /// that reaches it and the result is independent of hash iteration order;
+    /// each name is visited once, so a cyclic declaration terminates. The
+    /// file's own directives are searched before the configured edges, and a
+    /// package reached through either can carry the closure onward. Empty —
+    /// the fast path for every document — whenever nothing is declared or
+    /// nothing is required.
+    pub(super) fn implied_package_requires(
+        &self,
+    ) -> Vec<crate::signature_scan::types::SignaturePackageRequire> {
+        use crate::signature_scan::types::{PackageRequireOrigin, SignaturePackageRequire};
+
+        if (self.directive_provides.is_empty() && self.package_provides.is_empty())
+            || self.result.package_requires.is_empty()
+        {
+            return Vec::new();
+        }
+        // The earliest offset each package is already available from — not a
+        // visited *set*. Seeding with the source requires keeps a redundant
+        // entry out, but comparing offsets keeps the earlier anchor when a
+        // declared edge makes a package available *above* the explicit
+        // require for it. A set would discard the edge's entry outright and
+        // leave only the later span, and H301 takes the **minimum** start per
+        // package (`unresolved.rs`), so the command between the two would be
+        // reported as used-before-available — a hint that appears only
+        // because the file *also* requires the package explicitly.
+        let mut earliest: HashMap<String, u32> = HashMap::new();
+        for pr in &self.result.package_requires {
+            earliest
+                .entry(pr.name.clone())
+                .and_modify(|at| *at = (*at).min(pr.range.start()))
+                .or_insert_with(|| pr.range.start());
+        }
+        // `(package name, span, conditional, control_flow)` — the anchor an
+        // edge's target inherits from whatever made its source available.
+        let mut queue: Vec<(String, tcl_lexer::Span, bool, bool)> = self
+            .result
+            .package_requires
+            .iter()
+            .map(|pr| (pr.name.clone(), pr.range, pr.conditional, pr.control_flow))
+            .collect();
+        let mut out: Vec<SignaturePackageRequire> = Vec::new();
+        let mut head = 0;
+        while head < queue.len() {
+            let (name, range, conditional, control_flow) = queue[head].clone();
+            head += 1;
+            let edges = self
+                .directive_provides
+                .iter()
+                .map(|edge| (edge, true))
+                .chain(self.package_provides.iter().map(|edge| (edge, false)));
+            for ((from, to), from_directive) in edges.filter(|((from, _), _)| *from == name) {
+                for loaded in to {
+                    // `<=` rather than `<` is what keeps a cyclic declaration
+                    // terminating: re-reaching a package with the identical
+                    // anchor stops. Every anchor is one of the finitely many
+                    // require starts, and a name is only re-enqueued when its
+                    // anchor strictly decreases.
+                    let start = range.start();
+                    if earliest.get(loaded).is_some_and(|&at| at <= start) {
+                        continue;
+                    }
+                    earliest.insert(loaded.clone(), start);
+                    let origin = if from_directive {
+                        PackageRequireOrigin::Directive(from.clone())
+                    } else {
+                        PackageRequireOrigin::Provides(from.clone())
+                    };
+                    out.push(SignaturePackageRequire {
+                        name: loaded.clone(),
+                        version: None,
+                        requirements: Vec::new(),
+                        exact: false,
+                        range,
+                        conditional,
+                        control_flow,
+                        origin,
+                    });
+                    queue.push((loaded.clone(), range, conditional, control_flow));
+                }
+            }
+        }
+        out
+    }
+
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        // Declared package availability first: every emitter below that asks
+        // "is this package available here?" — W120, H301, the W123 widening,
+        // the Tk activation gate — reads `package_requires`, so the declared
+        // entries have to be in it before any of them run.
+        self.expand_implied_package_requires();
         // Whole-source security checks belong in the analyser result so direct
         // consumers receive the same verdict as the LSP and CLI adapters. The
         // pure producer is also reused by non-Tcl F5 document adapters.

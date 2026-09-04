@@ -60,6 +60,7 @@ fn default_config(db: &TclDatabase) -> AnalyserConfig {
         None,
         0,
         Vec::new(),
+        Vec::new(),
     )
 }
 

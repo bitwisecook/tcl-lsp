@@ -172,22 +172,116 @@ per-dialect spec packs, never as name-matching in a consumer (see
     own `package require`s — which is how a wrapper package that internally
     `package require Tk` makes `Tk` available (#723).
 
+### Declared package provides (#1813)
+
+15. A **binary** extension can load another package with nothing in any Tcl
+    source to say so: its C `Init` calls `Tcl_PkgRequire`, or it links Tk
+    through `Tk_InitStubs`. Rule 14 has nothing to read there — a `load`-only
+    `ifneeded` script sources no Tcl file — so the dependency is not
+    discoverable by any scan, by us or by anything else. It is **declared**,
+    in either of two places, because the two answer different questions.
+
+16. **The directive** — `# tcl-lsp: package NAME provides PKG …` — states
+    the edge for one file:
+
+    ```tcl
+    # tcl-lsp: package myExtension provides Tk
+    package require myExtension
+    ```
+
+    `package` occupies the keyword slot, as in every other member of the
+    family (`supports`, `stub`, `disable`), so `matches_marker` handles it and
+    no future keyword can be confused with a package name; the wording
+    deliberately echoes the Tcl commands the line is about.
+    `parse_provides_directives` reads it from **anywhere** in the file (any
+    line whose first non-whitespace character is `#`, the same terms
+    `scan_source_for_stubs` reads a stub block on), because the line names
+    its loader rather than relying on where it sits. It travels with the file
+    and needs no configuration, so it is also the only form the CLI honours
+    (`tcl diag` / `lint` read no `.tcl-lsp.ini`).
+
+17. **The configured edge** — `[packages.provides]` in `.tcl-lsp.ini`, or
+    `tclLsp.packages.provides` — says "requiring *this* package loads
+    *those*", once for the whole project:
+
+    ```ini
+    [packages.provides]
+    myExtension = Tk
+    bigWrapper = Tk, Img
+    ```
+
+    equivalently `{ "myExtension": ["Tk"] }` (a bare string is accepted for
+    one name).
+
+18. Both reach the analyser as `Analyser::with_package_provides` /
+    `directive_provides` and are applied by
+    `expand_implied_package_requires` at the head of the shared diagnostic
+    tail. Each package the edges reach becomes an ordinary
+    `SignaturePackageRequire` on `AnalysisResult.package_requires`, carrying
+    **the span of the `package require` that loaded it** — the position from
+    which it is genuinely available, which is what keeps H301's ordering
+    claim honest — and a `PackageRequireOrigin` (`Directive(pkg)` or
+    `Provides(pkg)`, naming the loader) for the consumers that want what the
+    source literally says. Every consumer that asks "is this package
+    available here?" — W120, H301, the W123 widening, the Tk activation gate,
+    completion's `tk_loaded`, hover's package annotation — therefore answers
+    exactly as it would for a written `package require`, with no consumer
+    taught about the mechanism.
+
+    An edge is inert until the document requires its loader: a
+    `# tcl-lsp: package myExtension provides Tk` in a file that never says
+    `package require myExtension` declares nothing, which is what makes the
+    two surfaces the same fact rather than two mechanisms.
+
+19. The closure searches the file's own directives before the configured
+    edges, and a package reached through either carries it onward, so the two
+    surfaces chain. It is breadth-first over the **earliest anchor** each
+    package has so far, not a visited set: a package the source *also*
+    requires explicitly further down keeps the earlier, declared anchor,
+    because H301 takes the minimum start per package and a set would leave
+    only the later span — reporting the command between the two as
+    used-before-available purely because the file names the package twice.
+    Re-reaching a package at an anchor no earlier than the one it has stops,
+    so a cyclic declaration still terminates. A declared entry carries no
+    version requirement, so it contributes no version floor: a declaration
+    says a package is *there*, never which release.
+
+20. Every analyser that produces a **published or indexed** result carries
+    the edges — the interactive path, the recovery path taken while a buffer
+    has an unclosed delimiter, the disk scanner and the startup workspace
+    scan. `workspace_index` harvests `package_requires`, and a `source`
+    descendant inherits those names, so an analyser that omits the edges does
+    not merely under-report its own file: it writes an index entry that
+    under-reports for every file downstream of it. The edges are also
+    resolved **per folder** (`tclLsp.packages.provides` is `scope: resource`
+    and a `.tcl-lsp.ini` belongs to its own project), so a secondary root
+    declares its own and never inherits a sibling's.
+
+21. The tail is the one point both the whole-file walk and the per-item
+    (incremental) walk reach with their `package_requires` merged, so the two
+    strategies cannot disagree. The per-item path's mid-walk Tk hand-off runs
+    *before* the tail, so `has_tk_require` consults the declarations directly
+    (`tk_is_declared_available`), and `fresh_full_analyse` carries the
+    configured edges into the full re-analysis it falls back to — the
+    directives need no carrying, being a pure function of the source it
+    re-scans.
+
 ### Workspace index integration
 
-15. `WorkspaceIndex::add_document(uri, analysis)` records a document's procs,
+22. `WorkspaceIndex::add_document(uri, analysis)` records a document's procs,
     classes, invocation sites, `source` targets, and `package require`s;
     `remove_document(uri)` drops every entry from that document before a
     re-index or on close.
-16. The server seeds the index from both editor-opened documents (via the
+23. The server seeds the index from both editor-opened documents (via the
     diagnostics path) and an on-disk scan of the workspace folders
     (`scan_workspace_folders`), so unopened `.tcl` / `.tm` files are covered.
-17. Open buffers win over disk-scanned copies: `merge_workspace_scan_results`
+24. Open buffers win over disk-scanned copies: `merge_workspace_scan_results`
     re-checks the live open set at publication time and never overwrites an
     open document's entry with a stale on-disk analysis.
 
 ### Missing-`package require` refinement (W120)
 
-18. The analyser's single-file W120 knows only the requires in the current
+25. The analyser's single-file W120 knows only the requires in the current
     document. Two workspace-level refinements are layered on top, both in the
     server's `refine_w120_diagnostics`:
     - **#723 transitive resolution** — a required package is resolved through
@@ -199,9 +293,9 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
 ### Cross-file `package require` inheritance (W120, #804)
 
-19. A file need not carry its own `package require` for a command whose package
+26. A file need not carry its own `package require` for a command whose package
     was required by an **entry** file that `source`s it.
-20. **Automatic (default).** The workspace index's `source` targets and
+27. **Automatic (default).** The workspace index's `source` targets and
     `package require`s feed a reverse-reachability walk
     (`tcl-lsp-core::source_graph::ancestor_requires`): a module inherits the
     requires of every file that transitively `source`s it. Only **literal**
@@ -209,30 +303,30 @@ per-dialect spec packs, never as name-matching in a consumer (see
     yields no static edge. Path resolution is
     `source_graph::resolve_source_target` (lexical, no filesystem access); the
     server supplies the URI ↔ path conversion.
-21. **Explicit.** `.tcl-lsp.ini [project] entryPoints` lists the entry files
+28. **Explicit.** `.tcl-lsp.ini [project] entryPoints` lists the entry files
     (relative to the folder root, or absolute). When set, the union of those
     files' requires is treated as available for W120 across the whole folder,
     and the automatic `source`-graph inheritance is **disabled** for that
     folder.
-22. The inherited requires are merged with the document's own before the #723
+29. The inherited requires are merged with the document's own before the #723
     transitive resolution runs, so an inherited `package require myWrapper`
     still (transitively) pulls in whatever `myWrapper` provides.
 
 ### iRules cross-file equivalent
 
-23. iRules do not support `package require` on BIG-IP, so W120 never applies
+30. iRules do not support `package require` on BIG-IP, so W120 never applies
     to the `f5-irules` dialect (the refinement early-returns when the registry
     has no `package` command).
-24. iRules procs are instead globally visible across files through the same
+31. iRules procs are instead globally visible across files through the same
     workspace index proc aggregation the LSP cross-document features use.
 
 ### Split packages
 
-25. A single `package ifneeded` script may `source` multiple files
+32. A single `package ifneeded` script may `source` multiple files
     (`source [file join $dir a.tcl]; source [file join $dir b.tcl]`); each is
     extracted independently by the lexer-driven parser, so no regex
     semicolon-capture limitation applies.
-26. A single `pkgIndex.tcl` may declare multiple unrelated packages — each
+33. A single `pkgIndex.tcl` may declare multiple unrelated packages — each
     `package ifneeded` line is parsed independently.
 
 ## File-path anchors
@@ -259,12 +353,18 @@ per-dialect spec packs, never as name-matching in a consumer (see
   `w120_inheritance_config`, `scan_workspace_folders`,
   `build_package_resolver`.
 - `tcl-lsp-server/src/config_ini.rs` — `settings_from_ini` (`entryPoints`,
-  `libraryPaths`).
+  `libraryPaths`, `[packages.provides]`).
+- `tcl-compiler/src/analyser/state.rs` — `Analyser::with_package_provides`,
+  `expand_implied_package_requires`, `implied_package_requires`.
+- `tcl-compiler/src/analyser/utils.rs` — `parse_provides_directives`.
+- `tcl-compiler/src/signature_scan/types.rs` — `PackageRequireOrigin`.
 
 ## Failure modes
 
 - **Missing completions**: a `package require` not detected → the package's
-  gated commands stay hidden.
+  gated commands stay hidden. A **binary** extension that loads a package from
+  its C `Init` is never detected by design; declare it with a
+  `# tcl-lsp: provides` comment or under `[packages.provides]`.
 - **False W120 diagnostics**: a require not recorded, or the workspace not yet
   scanned, → W120 fires for a command that is actually imported (directly, via
   a wrapper package, or via an entry file that sources the module).
@@ -285,7 +385,19 @@ per-dialect spec packs, never as name-matching in a consumer (see
   `source`-graph walk, and `package require` recording.
 - `tcl-lsp-core/src/source_graph.rs` (tests) — path resolution and ancestor
   reachability.
+- `tcl-compiler/src/analyser/tk_checks.rs` (tests) —
+  `declared_package_provides_activates_tk`,
+  `declared_package_provides_is_transitive_and_cycle_safe`,
+  `declared_package_provides_agrees_across_walk_strategies`,
+  `provides_directive_activates_tk`,
+  `provides_directive_without_the_require_is_inert`,
+  `provides_directive_and_configured_edge_compose`,
+  `provides_directive_agrees_across_walk_strategies`.
+- `tcl-compiler/src/analyser/utils.rs` (tests) —
+  `parse_provides_directives_read_edges_from_the_whole_file`,
+  `parse_provides_directives_ignore_other_shapes`.
 - `tcl-lsp-server/src/lib.rs` (tests) — `refine_w120_*`,
+  `declared_package_provides_makes_tk_available_to_diagnostics`,
   `compute_inherited_requires`, and the push/pull integration
   (`source_graph_inheritance_suppresses_w120_in_sourced_module`,
   `explicit_entry_point_config_suppresses_w120_project_wide`,
