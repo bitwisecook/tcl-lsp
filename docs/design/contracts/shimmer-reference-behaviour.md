@@ -215,6 +215,35 @@ each consume them. Four properties matter:
   `return {[expr …]}`. The walker just reads it, as it already did for
   `Terminator::Branch`.
 
+### A braced argument word substitutes nothing
+
+The same distinction applies to a statement's **own** words, and for the same
+reason: `Statement::Call::args` holds the *de-braced* text, so `lindex {$x} 0`
+and `lindex $x 0` both arrive as the argument `$x`. Only the second is a read
+— tclsh 9.0.4 answers `$x` (two characters) for the braced form and `5` for
+the bare and `"…"`-quoted ones — so `commit` and `use_site` gate the argument
+loop of their `Statement::Call` arm on `hints::inert_braced_args`, which pairs
+the segmenter's `CommandTokens::arg_is_braced_literal` with the registry's
+`CommandRegistry::arg_indices_evaluated_in_frame` (issue #1845).
+
+That second half makes the rule role-aware rather than "skip every braced
+argument": `expr` and `if` re-evaluate their braced word where the caller's
+variables are in scope, so `expr {$x} + 1` really is `6` for `x` = 5 and its
+operand stays a read, while `apply {{} {puts $x}}` runs in a fresh frame and
+does not. The authority is `ArgRole::braced_word_evaluated_in_frame`, the same
+one `ssa::braced_word_class` consults for the identical question — the
+detectors ask it, they do not restate it.
+
+Both passes need the gate because they have separate jobs: `commit` only moves
+the committed-intrep state and emits nothing, so gating solely the emitting
+pass still recorded a conversion at the braced word and made the *next*,
+genuine read report a shimmer against an intrep the runtime never installed.
+
+The substitution paths need no gate: a `[cmd …]` lifted out of a word and the
+command substitution inside a `Statement::AssignValue` both carry their
+argument words as raw source text with the braces still on, which
+`is_pure_var_ref` already declines.
+
 ### Known limitation — the underlying representational gap
 
 The lift above is a *shimmer-side* repair of a defect that is not
@@ -264,6 +293,11 @@ dedicated `Statement::Incr` node.
   `expr_shimmer_fires_in_a_nested_call_argument` and their braced twins),
   `shimmer::use_site` (`use_site_shimmer_fires_in_a_nested_call_argument`,
   `a_nested_conversion_is_visible_to_later_reads`).
+- Braced-argument coverage: `shimmer::use_site`
+  (`a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame` pins
+  the braced / quoted / bare triple for both a non-evaluating and an
+  evaluating command, `a_braced_argument_commits_no_intrep_for_later_reads`
+  the commit half) and the `FP-SH-24` fixtures.
 - Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
 - Native `lsp_e2e` coverage in `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` and `rust/tcl-lsp-server/tests/e2e/code_actions.rs` (the noqa suppress quick fix).

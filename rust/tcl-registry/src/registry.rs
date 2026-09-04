@@ -3723,6 +3723,29 @@ impl CommandRegistry {
         out
     }
 
+    /// Resolve the argument indices whose **brace-quoted** word this command
+    /// nonetheless evaluates in the *calling* frame — `expr {$a} + 1`,
+    /// `if {$c} …` — so a `$name` written inside one is a genuine read at
+    /// the call site.
+    ///
+    /// Tcl substitutes nothing inside `{…}`; whether the callee then
+    /// evaluates that text, and in whose frame, is the per-role fact
+    /// [`ArgRole::braced_word_evaluated_in_frame`] owns. This is the one
+    /// place that asks it over a call's argument words, so the SSA use
+    /// classifier and the shimmer detectors share a single answer instead of
+    /// each rebuilding the set (issue #1845).
+    #[must_use]
+    pub fn arg_indices_evaluated_in_frame(&self, name: &str, args: &[&str]) -> Vec<usize> {
+        let mut out: Vec<usize> = ArgRole::ALL
+            .iter()
+            .filter(|role| role.braced_word_evaluated_in_frame())
+            .flat_map(|&role| self.arg_indices_for_role(name, args, role))
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
     /// Whether source words prove the option-dependent descriptor layout of
     /// `spec` (or its selected subcommand).  This is deliberately shared by
     /// pattern and format queries: both families otherwise risk interpreting
@@ -8095,6 +8118,29 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let vars = reg.arg_indices_for_role("unset", &["x", "y", "z"], ArgRole::VarWrite);
         assert_eq!(vars, vec![0, 1, 2]);
+    }
+
+    /// `arg_indices_evaluated_in_frame` is the call-site half of
+    /// `ArgRole::braced_word_evaluated_in_frame`: it names the positions whose
+    /// brace-quoted word the callee still substitutes against the *caller's*
+    /// variables. tclsh 9.0.4: `set x 5; expr {$x} + 1` → `6`, while
+    /// `lindex {$x} 0` → the two characters `$x` and
+    /// `apply {{} {puts $x}}` errors with `can't read "x"` (a fresh frame).
+    #[test]
+    fn arg_indices_evaluated_in_frame_names_only_caller_frame_code_words() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_evaluated_in_frame("expr", &["$x", "+", "1"]),
+            vec![0],
+        );
+        assert!(
+            reg.arg_indices_evaluated_in_frame("lindex", &["$x", "0"])
+                .is_empty()
+        );
+        assert!(
+            reg.arg_indices_evaluated_in_frame("apply", &["{{} {puts $x}}"])
+                .is_empty()
+        );
     }
 
     /// `unset -nocomplain -- a b` skips the leading options and names only the

@@ -1613,3 +1613,49 @@ fn fp_sh_23_bignum_folds_are_exact() {
         "the chained bignum fold must land the exact decimal"
     );
 }
+
+// FP-SH-24 — a braced argument word substitutes nothing (issue #1845)
+
+/// FP-SH-24: `lindex {$x} 0` reads nothing. Tcl performs no substitution
+/// inside `{…}` — tclsh 9.0.4: `set x 5; lindex {$x} 0` yields the two
+/// characters `$x` — but a statement's IR `args` hold the *de-braced* word,
+/// so the detectors saw a live `$x` and reported a conversion that never
+/// happens.
+#[test]
+fn fp_sh_24_braced_list_argument_silent() {
+    let src = "proc f {l} {\n set x [llength $l]\n lindex {$x} 0\n}\n";
+    assert!(
+        !fires(src, D, "S100") && !fires(src, D, "S101"),
+        "FP-SH-24: a braced word is two literal characters, not a read; got {:?}",
+        codes(src, D),
+    );
+}
+
+/// FP-SH-24 TP control: the substituting spellings of the same word are
+/// genuine reads and must still fire — the braced gate is not a blanket
+/// silencing of the argument position.
+#[test]
+fn fp_sh_24_substituting_list_argument_spellings_still_fire() {
+    for word in ["\"$x\"", "$x"] {
+        let src = format!("proc f {{l}} {{\n set x [llength $l]\n lindex {word} 0\n}}\n");
+        assert!(
+            fires(&src, D, "S100"),
+            "FP-SH-24 TP: {word} is a real list read; got {:?}",
+            codes(&src, D),
+        );
+    }
+}
+
+/// FP-SH-24 TP control: `expr` re-evaluates its braced word where the
+/// caller's variables are in scope (tclsh 9.0.4: `set x 5; expr {$x} + 1`
+/// yields `6`), so that spelling stays a read — the gate is role-aware, not
+/// a "skip every braced argument" rule.
+#[test]
+fn fp_sh_24_braced_expr_operand_still_fires() {
+    let src = "proc f {l} {\n set x [lrange $l 0 1]\n expr {$x} + 1\n}\n";
+    assert!(
+        fires(src, D, "S100"),
+        "FP-SH-24 TP: an expr operand is evaluated in this frame; got {:?}",
+        codes(src, D),
+    );
+}

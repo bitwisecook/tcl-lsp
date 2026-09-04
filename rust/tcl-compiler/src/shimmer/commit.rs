@@ -59,7 +59,7 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
-use super::hints::{arg_shimmer_type, is_numeric_compatible, is_pure_intrep};
+use super::hints::{arg_shimmer_type, inert_braced_args, is_numeric_compatible, is_pure_intrep};
 use super::use_site::foreach_header_expected_type;
 
 /// Upper bound on the tracked may-set — a value committed to more than this
@@ -561,7 +561,18 @@ fn typed_reads_of_statement(
 
             let lookup = stmt.canonical_command_or_source();
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            // `args` holds the *de-braced* word text, so a brace-quoted
+            // literal arrives spelled exactly like a live substitution.  Tcl
+            // converts nothing at such a position — `lindex {$x} 0` reads the
+            // two characters `$x` — so no commitment happens there either,
+            // and moving the state would make every later read of the same
+            // variable judge itself against an intrep the runtime never
+            // installed (issue #1845).
+            let inert = inert_braced_args(ctx.registry, lookup, &arg_refs, tokens.as_ref());
             for (i, word) in args.iter().enumerate() {
+                if inert.contains(&i) {
+                    continue;
+                }
                 let expected = if foreach_groups.is_some() {
                     foreach_header_expected_type(ctx.registry, lookup)
                 } else {

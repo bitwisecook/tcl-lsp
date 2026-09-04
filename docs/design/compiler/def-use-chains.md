@@ -81,7 +81,7 @@ class, and the answer is registry data rather than a command list
 
 | Kind | Test | Example | Class |
 |---|---|---|---|
-| script, this frame | the position's `ArgRole` answers `braced_word_evaluated_in_frame` (`Body` / `Expr`) | `expr {$a + $b}`, `if {$c} …` | `Substituted` |
+| script, this frame | the position's `ArgRole` answers `braced_word_evaluated_in_frame` (`Body` / `Expr`), resolved per call site by `CommandRegistry::arg_indices_evaluated_in_frame` | `expr {$a + $b}`, `if {$c} …` | `Substituted` |
 | data | the registry **describes** the command, and the role is not one of those | `puts {$y}`, `string match {$pat*} …`, `lsort -command {cmp $x}` | `Quoted` |
 | unclassified | the registry does **not** describe the command | `mywrapper {puts $myf}` | `Substituted`, unless the word `set`s the name itself → `Quoted` |
 
