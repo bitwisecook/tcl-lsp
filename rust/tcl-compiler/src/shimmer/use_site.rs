@@ -604,7 +604,7 @@ fn emit_use_site_warning(
 /// argument text, because the two are indistinguishable there: `puts [lindex $x 0]`
 /// and `puts {[lindex $x 0]}` both arrive as the argument text `[lindex $x 0]`,
 /// and only the braced one is a literal Tcl never runs. See
-/// [`super::nested`].
+/// [`crate::word_subst`].
 fn check_lifted_calls(
     ctx: &mut UseSiteCtx<'_>,
     tokens: Option<&crate::ir::CommandTokens>,
@@ -612,7 +612,7 @@ fn check_lifted_calls(
     uses: &HashMap<Symbol, u32>,
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
-    for lifted in super::nested::lifted_calls(tokens, config) {
+    for lifted in crate::word_subst::lifted_calls(tokens, config) {
         check_invocation(
             ctx,
             &InvocationSite {

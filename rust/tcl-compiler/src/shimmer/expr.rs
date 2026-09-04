@@ -95,14 +95,6 @@ pub(crate) fn find_expr_shimmers(
         // The committed-intrep walker replays the commit transfer in step with
         // this walk, so each expr's operands see the state just before it.
         let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
-        // Versions live *at* each statement, advanced with its defs as the
-        // walk proceeds. A nested `[expr …]` needs these: its operands never
-        // reach `SsaStatement::uses`, because `$d` inside `[expr {$d % 2}]`
-        // sits in a braced word the *command* parser does not substitute —
-        // only `expr` itself does, when it evaluates. Reading the running map
-        // resolves the operand to the version in scope where the substitution
-        // runs, rather than the block's entry or exit.
-        let mut live_versions: HashMap<Symbol, u32> = ssa_block.entry_versions.clone();
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -136,14 +128,17 @@ pub(crate) fn find_expr_shimmers(
                 // An `[expr …]` written inside another command's word — the
                 // `puts [expr {$d % 2}]` half of the asymmetry issue #1814
                 // reported. The lowerer turns a *statement* `expr` into the
-                // node above, but leaves a nested one as opaque argument text,
-                // so it is lifted and parsed here (see [`super::nested`]).
+                // node above but leaves a nested one as opaque argument text,
+                // so it is lifted and parsed here (see [`crate::word_subst`]).
+                // Its operands resolve through the statement's own `uses`,
+                // which `ssa::scan_nested_substitution_words` now populates
+                // for a nested command's in-frame braced words.
                 Statement::Call { tokens, .. } => {
                     for (expr, span) in
-                        super::nested::lifted_exprs(tokens.as_ref(), registry.profile())
+                        crate::word_subst::lifted_exprs(tokens.as_ref(), registry.profile())
                     {
                         let mut ctx = ExprShimmerCtx {
-                            uses: &live_versions,
+                            uses: &ss.uses,
                             types,
                             values,
                             ssa,
@@ -163,8 +158,6 @@ pub(crate) fn find_expr_shimmers(
                 _ => {}
             }
             commit_walker.step(&ss.statement, &ss.uses);
-            // The command's own writes land after its words are evaluated.
-            live_versions.extend(ss.defs.iter().map(|(sym, v)| (*sym, *v)));
         }
 
         // 2. Terminator expressions: an `if`/`while`/`for` predicate, and a

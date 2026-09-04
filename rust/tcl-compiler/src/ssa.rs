@@ -1979,6 +1979,68 @@ fn scan_command_words(
             };
         }
     }
+    scan_nested_substitution_words(tokens, scanner, registry, out);
+}
+
+/// Record the reads inside a nested `[cmd …]`'s brace-quoted words that the
+/// nested command evaluates in *this* frame.
+///
+/// The loop above applies exactly this rule to a **statement's** words: a
+/// braced word in an [`ArgRole`](tcl_registry::ArgRole) position whose
+/// `braced_word_evaluated_in_frame` holds is [`UseClass::Substituted`] — "a
+/// genuine read, here and now" — which is why `expr {$x + 1}` written as a
+/// statement records `x`.
+///
+/// A nested substitution never becomes a statement, so its words never
+/// reached that rule, and `$x` in `puts [expr {$x + 1}]` was recorded
+/// nowhere: [`VarReferenceScanner::scan_word`] correctly declines to
+/// substitute inside the braces (the *command* parser does not), and nothing
+/// then asked `expr` whether it substitutes them itself (it does). The read
+/// vanished from `SsaStatement::uses`, and with it from every consumer of
+/// that map — SCCP, taint, type inference, def-use, GVN, interval bounds and
+/// the shimmer detectors. It was observable in taint, where only a pair of
+/// braces separated the two spellings:
+///
+/// ```tcl
+/// eval [expr $tainted]      ;# T100
+/// eval [expr {$tainted}]    ;# nothing, before this
+/// expr {$tainted}           ;# T100 again, once it is a statement
+/// ```
+///
+/// So this applies the same registry-driven rule at the nested positions,
+/// rather than teaching any consumer about substitutions. Only the words the
+/// nested command evaluates in this frame are scanned here; a braced word it
+/// merely carries as data is left to the conservative `Quoted` handling the
+/// enclosing word already got.
+fn scan_nested_substitution_words(
+    tokens: Option<&CommandTokens>,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+    out: &mut ClassifiedUses,
+) {
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    for lifted in crate::word_subst::lifted_calls(tokens, config) {
+        let arg_strs: Vec<&str> = lifted.args.iter().map(String::as_str).collect();
+        let in_frame: std::collections::HashSet<usize> = tcl_registry::ArgRole::ALL
+            .iter()
+            .filter(|role| role.braced_word_evaluated_in_frame())
+            .flat_map(|&role| registry.arg_indices_for_role(&lifted.command, &arg_strs, role))
+            .collect();
+        for idx in in_frame {
+            let Some(word) = lifted.args.get(idx) else {
+                continue;
+            };
+            // Only a braced word needs recovering. An unbraced one already
+            // substitutes at the command level, so the enclosing word's own
+            // scan has seen it.
+            let trimmed = word.trim();
+            if !(trimmed.starts_with('{') && trimmed.ends_with('}')) {
+                continue;
+            }
+            out.substituted
+                .extend(scanner.scan_word(trimmed.trim_matches(['{', '}']), registry));
+        }
+    }
 }
 
 /// Whether the registry describes `name` — accepting a space-joined

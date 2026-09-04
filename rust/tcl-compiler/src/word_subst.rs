@@ -31,6 +31,10 @@
 //!    then `puts [lindex $x 0]` then `incr x` reported nothing at all, where
 //!    the same code with `lindex $x 0` on its own line reports both halves.
 //!
+//! Builds on [`crate::word_expr`], which owns splitting one word into its
+//! substitution components; this module is the statement-level view of that —
+//! which *commands* a statement's words run, and in what order.
+//!
 //! ## Why this reads `word_exprs` and not the argument text
 //!
 //! Tcl substitutes `[…]` in bare and `"…"`-quoted words but **not** in braced
@@ -61,7 +65,7 @@ const MAX_SUBSTITUTION_DEPTH: u32 = 8;
 /// One `[cmd …]` substitution lifted out of a word, shaped like the direct
 /// invocation it behaves as.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct LiftedCall {
+pub struct LiftedCall {
     /// The substitution's command word, as spelled. No lowering pass resolves
     /// a nested substitution, so there is no `interp alias` canonicalisation
     /// available here and the spelling is also the registry lookup key.
@@ -78,7 +82,7 @@ pub(super) struct LiftedCall {
 ///
 /// Returns an empty vector for a statement whose words hold no substitution —
 /// the overwhelming majority — without allocating beyond the empty `Vec`.
-pub(super) fn lifted_calls(
+pub fn lifted_calls(
     tokens: Option<&CommandTokens>,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<LiftedCall> {
@@ -181,7 +185,7 @@ fn push_substitution(
 /// verbatim source slice, so any other spelling is skipped rather than guessed
 /// at — the same abstention the lowerer makes when it cannot anchor an
 /// expression's text.
-pub(super) fn lifted_exprs(
+pub fn lifted_exprs(
     tokens: Option<&CommandTokens>,
     profile: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<(crate::expr_ast::ExprNode, Span)> {

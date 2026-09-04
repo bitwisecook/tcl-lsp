@@ -628,7 +628,7 @@ fn push_lifted_reads(
     uses: &HashMap<Symbol, u32>,
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
-    for lifted in super::nested::lifted_calls(tokens, config) {
+    for lifted in crate::word_subst::lifted_calls(tokens, config) {
         if let Some(expr_text) = expr_substitution_body(&lifted) {
             let expr = tcl_syntax::expr::parser::parse_expr_for_profile(
                 &expr_text,
@@ -650,7 +650,7 @@ fn push_lifted_reads(
 /// command. `expr` concatenates its arguments, and the single-argument braced
 /// form is the only one whose text is a verbatim source slice, so a
 /// multi-argument `expr` is left alone rather than guessed at.
-fn expr_substitution_body(lifted: &super::nested::LiftedCall) -> Option<String> {
+fn expr_substitution_body(lifted: &crate::word_subst::LiftedCall) -> Option<String> {
     if lifted.command != "expr" && lifted.command != "::expr" {
         return None;
     }

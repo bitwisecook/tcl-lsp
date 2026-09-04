@@ -178,6 +178,7 @@ pub mod var_refs;
 pub mod var_resolve;
 pub mod var_scoping;
 pub mod word_expr;
+pub mod word_subst;
 pub mod world_state_ssa;
 
 // Re-export key types for convenience.
