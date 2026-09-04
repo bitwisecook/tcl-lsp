@@ -4521,7 +4521,6 @@ dependencies = [
  "tcl-sandbox",
  "tcl-syntax",
  "tcl-userdirs",
- "tcl-version",
  "toml",
  "ureq",
  "zip",

@@ -32,7 +32,6 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-sandbox = { path = "../tcl-sandbox" }
 tcl-userdirs = { path = "../tcl-userdirs" }
-tcl-version = { path = "../tcl-version" }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
