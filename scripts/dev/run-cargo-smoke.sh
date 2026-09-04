@@ -28,6 +28,11 @@ esac
 cd "$REPO_ROOT"
 seen='|'
 
+# Do not consume a stale manifest when this runner is invoked directly from
+# `make smoke` / `make prep-pr`. The rust-check gate also runs this contract,
+# but the fallback must be safe on its own.
+sh "$SCRIPT_DIR/test-smoke-targets.sh"
+
 run_smoke() {
     if [ "$LIST_ONLY" = true ]; then
         "$@" smoke -- --list

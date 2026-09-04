@@ -22,10 +22,10 @@ cd "$REPO_ROOT"
 awk -F '\t' '!/^#/ && NF { print $1 }' "$MANIFEST" | sort -u > "$EXPECTED"
 
 {
-    rg -l --glob '*.rs' \
+    git grep -l -E \
         '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|^[[:space:]]*mod[[:space:]]+smoke[[:space:]]*[;{]' \
-        rust || true
-    rg --files rust | awk '
+        -- ':(glob)rust/**/*.rs' || true
+    git ls-files ':(glob)rust/**/*.rs' | awk '
         /\/tests\/smoke\.rs$/ || /\/tests\/[^/]*_smoke\.rs$/ || /\/tests\/smoke\/[^/]*_smoke\.rs$/ { print }
     '
 } | sort -u > "$ACTUAL"
