@@ -505,3 +505,93 @@ fn subst_is_not_a_command_parse_and_still_runs_the_earlier_bracket() {
     assert_eq!(code, Code::Ok);
     assert_eq!(result, "1 {missing close-bracket}");
 }
+
+// ---------------------------------------------------------------------------
+// A `$` that starts no variable reference is the text `$`, not an unterminated
+// brace (#1787). C reads it as `justADollarSign` and keeps parsing
+// (`Tcl_ParseVarName` form 3, tmp/tcl9.0.4/generic/tclParse.c:1454); this
+// parser classified it as a brace-delimited fragment, because `Str` is the
+// lexer's literal-fragment class and not its brace class, and raised `missing
+// close-brace` for ordinary source. Oracle: every row below is the plain text
+// on 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0.
+// ---------------------------------------------------------------------------
+
+/// `$` alone, `$` before punctuation, `$` before a space, `$` at end of a
+/// word — bare and quoted, since the two take different paths through
+/// `build_word`.
+const BARE_DOLLAR_SHEET: &str = r#"
+set out {}
+lappend out [string cat "$"]
+lappend out [string cat "50% of $"]
+lappend out [string cat "a$ b"]
+lappend out [string cat a$%b]
+lappend out [string cat "a$%^&b"]
+lappend out [string cat {a$%b}]
+lappend out [llength [list $ x]]
+join $out |
+"#;
+
+#[test]
+fn a_dollar_that_starts_no_reference_is_literal_text() {
+    let (code, result, _) = run(BARE_DOLLAR_SHEET);
+    assert_eq!(code, Code::Ok, "{result}");
+    assert_eq!(result, "$|50% of $|a$ b|a$%b|a$%^&b|a$%b|2");
+}
+
+/// An unterminated quoted word reports what failed *inside* it first.
+///
+/// `quoted_word_close` steps over complete `[…]` substitutions to find the
+/// closer, so an incomplete one makes it give up — but C, parsing the word's
+/// tokens left to right, has already failed in the bracket. Oracle, one
+/// script per `tclsh` run on 8.6.16 and 9.0.4:
+///
+/// ```text
+/// puts "[foo"        -> missing close-bracket
+/// puts "a[foo b"     -> missing close-bracket
+/// puts "unterminated -> missing "
+/// list a "b          -> missing "
+/// ```
+#[test]
+fn an_unterminated_quote_reports_the_failure_inside_it_first() {
+    for (script, want) in [
+        ("puts \"[foo\"", "missing close-bracket"),
+        ("puts \"a[foo b\"", "missing close-bracket"),
+        ("puts \"unterminated", "missing \""),
+        ("list a \"b", "missing \""),
+    ] {
+        let (code, result, _) = run(script);
+        assert_eq!((code, result.as_str()), (Code::Error, want), "{script}");
+    }
+    // A *complete* bracket in an unterminated quote still reaches evaluation
+    // before the quote's own error, exactly as C does.
+    let (code, result, _) = run("puts \"a[nosuchcmd]b\"");
+    assert_eq!(code, Code::Error);
+    assert!(result.contains("nosuchcmd"), "{result}");
+}
+
+/// The fix must not blunt the real one. Oracle, measured one script per
+/// `tclsh` run on 8.6.16 and 9.0.4:
+///
+/// ```text
+/// set y {unclosed  -> missing close-brace
+/// list a {b {c     -> missing close-brace
+/// set y {a}b       -> extra characters after close-brace
+/// set y x{a}{b     -> ok, y is x{a}{b
+/// ```
+///
+/// The last row is the one the opening-byte test has to keep right: a `{`
+/// that is not at word start is ordinary data, so `x{a}{b` has nothing to
+/// close and must not be read as a brace-delimited fragment at all.
+#[test]
+fn a_brace_that_really_is_one_still_raises() {
+    for (script, want) in [
+        ("set y {unclosed", "missing close-brace"),
+        ("list a {b {c", "missing close-brace"),
+        ("set y {a}b", "extra characters after close-brace"),
+    ] {
+        let (code, result, _) = run(script);
+        assert_eq!((code, result.as_str()), (Code::Error, want), "{script}");
+    }
+    let (code, result, _) = run("set y x{a}{b");
+    assert_eq!((code, result.as_str()), (Code::Ok, "x{a}{b"));
+}

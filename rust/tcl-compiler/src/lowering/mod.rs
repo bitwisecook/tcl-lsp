@@ -3983,27 +3983,6 @@ pub fn lower_to_ir_traced_with_dialect(
     )
 }
 
-/// Lexer warning messages that correspond to a hard `Tcl_ParseCommand`
-/// failure in C Tcl — i.e. a malformed word that C Tcl reports as a parse
-/// error rather than tokenising leniently.
-///
-/// The lexer detects these but only *raises* them under `strict_quoting`
-/// (off by default); in the VM compile path it records them as warnings and
-/// recovers. C Tcl, however, aborts compilation of the script and defers the
-/// error to a bytecode instruction that raises it at runtime — so a parse
-/// error inside a `catch {…}` body (re-compiled at runtime) is catchable. See
-/// [`first_fatal_parse_error`].
-const FATAL_PARSE_MESSAGES: &[&str] = &[
-    "extra characters after close-quote",
-    "extra characters after close-brace",
-    "missing close-brace",
-    "missing close-brace for variable name",
-    "invalid character in array index",
-    "missing \"",
-    "missing )",
-    "missing close-bracket",
-];
-
 /// Return the first hard parse-error message in `source`, in source order, or
 /// `None` if `source` parses cleanly.
 ///
@@ -4015,8 +3994,7 @@ const FATAL_PARSE_MESSAGES: &[&str] = &[
 /// IR / bytecode never sees them.
 ///
 /// Lexes with the default (Tcl-8.5+) dialect config — the same one
-/// [`lower_to_ir_for_bytecode`] uses. Only the messages in
-/// [`FATAL_PARSE_MESSAGES`] count; benign warnings are ignored.
+/// [`lower_to_ir_for_bytecode`] uses.
 #[must_use]
 pub fn first_fatal_parse_error(source: &str) -> Option<String> {
     first_fatal_parse_error_with_config(source, tcl_lexer::LexerConfig::default())
@@ -4032,13 +4010,33 @@ pub fn first_fatal_parse_error_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    let lexer = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(source), config);
-    let (_tokens, warnings) = lexer.tokenise_all_with_warnings().ok()?;
-    warnings
-        .into_iter()
-        .filter(|w| FATAL_PARSE_MESSAGES.contains(&w.message.as_str()))
-        .min_by_key(|w| w.offset)
-        .map(|w| w.message)
+    first_fatal_parse_cut(source, config).map(|cut| cut.message.to_owned())
+}
+
+/// The full [`tcl_lexer::ParseCut`] for `source` — the message *and* the
+/// index of the top-level command it was found under.
+///
+/// The command index is what separates this from
+/// [`first_fatal_parse_error_with_config`]: C runs every command before the
+/// cut and only then raises, so a front-end that wants C's behaviour has to
+/// know where the clean prefix ends (issue #1603). The message alone cannot
+/// say.
+///
+/// This is a thin re-export of [`tcl_lexer::first_parse_cut`] — the shared
+/// owner — and exists so `tcl-compiler`'s consumers have one import for the
+/// whole parse-error question rather than reaching past it into the lexer.
+/// Until #1810 this crate filtered the lexer's flat **warning stream**
+/// against a private list of eight message strings and took the
+/// lowest-offset hit, which disagreed with C whenever the failure was
+/// nested: `list [sfx one] [list "oops]` warned `missing close-bracket`
+/// where C reports `missing "`, and a welded close-brace (`set y {a}b`)
+/// was invisible to a warning stream entirely.
+#[must_use]
+pub fn first_fatal_parse_cut(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::ParseCut> {
+    tcl_lexer::first_parse_cut(source, config)
 }
 
 /// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of
