@@ -166,6 +166,11 @@ pub struct CodegenPassArgs {
     /// the four the native tier enables, `all` for every pass. Omitted, no
     /// pass runs and the emitter produces the generic lowering.
     /// `tcl explore --json` lists them all under `semanticOptimisations`.
+    ///
+    /// Not accepted with `explore --serve`: the served GUI carries its own
+    /// per-pass toggles, and the serve path never reaches the compile this
+    /// would configure — so silently ignoring it (including an unrecognised
+    /// pass name) would report an optimised build that never happened.
     #[arg(long = "codegen-passes", value_name = "PASS[,PASS...]")]
     pub codegen_passes: Option<String>,
 }
@@ -183,6 +188,28 @@ impl CodegenPassArgs {
             Some(spec) => tcl_explorer::SemanticOptimisationConfig::from_names(spec)
                 .map_err(|message| anyhow::anyhow!("--codegen-passes: {message}")),
         }
+    }
+
+    /// Reject the flag on a path that never compiles, naming what to use
+    /// instead.
+    ///
+    /// Checked here rather than with clap's `conflicts_with`, because this
+    /// struct is flattened into `compwasm` too and that verb has no `--serve`
+    /// to conflict with — clap's builder asserts on a conflict target the
+    /// command does not define.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a selection was given.
+    pub fn reject_for_serve(&self) -> anyhow::Result<()> {
+        if self.codegen_passes.is_some() {
+            anyhow::bail!(
+                "--codegen-passes cannot be used with --serve: the served compiler explorer \
+                 carries its own per-pass toggles, and the serve path never reaches the compile \
+                 this would configure"
+            );
+        }
+        Ok(())
     }
 }
 

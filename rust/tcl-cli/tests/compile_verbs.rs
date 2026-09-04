@@ -271,6 +271,68 @@ fn eval_code_index(wat: &str) -> Option<usize> {
         .position(|line| line.contains("\"tcl_eval_code\""))
 }
 
+/// `--codegen-passes` is rejected with `explore --serve`.
+///
+/// The serve path never reaches the compile the flag would configure, so
+/// accepting it would start the server having silently ignored the
+/// selection — including an unrecognised pass name, which would otherwise
+/// have been an error. The served GUI carries its own per-pass toggles.
+#[test]
+fn explore_rejects_codegen_passes_with_serve() {
+    for passes in ["native-tier", "no-such-pass"] {
+        let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args([
+                "explore",
+                "--serve",
+                "--codegen-passes",
+                passes,
+                "--source",
+                "set x 1",
+            ])
+            .output()
+            .expect("spawn tcl");
+        assert!(!out.status.success(), "{passes}: --serve accepted the flag");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains("--codegen-passes"), "{passes}: {stderr}");
+        assert!(stderr.contains("--serve"), "{passes}: {stderr}");
+    }
+    // Without `--serve` the flag still works.
+    let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args([
+            "explore",
+            "--json",
+            "--codegen-passes",
+            "native-tier",
+            "--source",
+            "set a 1\nincr a\n",
+        ])
+        .output()
+        .expect("spawn tcl");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("explorer contract JSON");
+    let enabled: Vec<&str> = value["semanticOptimisations"]["passes"]
+        .as_array()
+        .expect("pass rows")
+        .iter()
+        .filter(|row| row["enabled"] == true)
+        .map(|row| row["id"].as_str().expect("a pass id"))
+        .collect();
+    assert_eq!(
+        enabled,
+        vec![
+            "native-lowering",
+            "representation-inference",
+            "trace-barrier-elision",
+            "cell-demotion"
+        ]
+    );
+}
+
 #[test]
 fn compwasm_rejects_removed_backend_selection() {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))

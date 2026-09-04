@@ -235,6 +235,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             colour,
         } => {
             if *serve {
+                codegen.reject_for_serve()?;
                 commands::gui::run_serve(bind, *port, *open)
             } else {
                 commands::explore::run_explore(

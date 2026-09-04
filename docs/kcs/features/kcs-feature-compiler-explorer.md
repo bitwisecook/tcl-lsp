@@ -55,6 +55,18 @@ The **WASM** and **WASM (Opt)** tabs show a structured per-instruction disassemb
 - A label on `block` / `loop` / `if` opens identifying the Tcl construct that produced them (`foreach`, `while`, `for`, `if`, `catch body`, `switch arm`).
 - Orthogonal control-flow arrows in the left gutter showing every branch target, with forward edges drawn solid-blue and back-edges drawn dashed-yellow.
 
+### Codegen passes
+
+Every semantic/AOT codegen optimisation pass is **off by default**, so an untouched explorer shows the *generic lowering* — a module that hands each command back to the interpreter through `tcl_eval_code` rather than compiling it. `nativeLowering.enabled: false` in the plan means the passes were never asked for, not that they found nothing.
+
+The toolbar's **Codegen passes** control opens a checkbox per pass, plus the `native-tier` and `all` presets. Ticking one recompiles and repaints the WASM disassembly. On a hot integer loop the difference is visible immediately: the generic lowering emits `tcl_eval_code` calls and no arithmetic, while `native-tier` emits `i64.add` and `i64.lt_s` and no source-eval call at all.
+
+The rows come from `meta.semanticOptimisations`, so the panel is populated before the first compile.
+
+The CLI takes the same selection as `tcl explore --codegen-passes PASS[,PASS...]` (and `tcl compwasm --codegen-passes`), naming pass ids or a group. It is rejected together with `--serve`, because the served GUI has its own toggles and the serve path never reaches the compile the flag would configure.
+
+This is a different axis from the optimiser lens below: the lens shows what the **source-rewrite** optimiser (the `O1xx` codes) would change, while a codegen pass changes what the compiler emits for unchanged source.
+
 ### Optimiser lens (off / on / diff)
 
 The IR, CFG, SSA, bytecode, and WASM tabs each carry an optimiser lens with three modes:
