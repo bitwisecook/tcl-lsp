@@ -50,7 +50,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;
 
-use crate::util::{self, repo_root};
+use crate::util::{self, repo_root, write_if_changed};
 
 /// A language directory we emit a query for, and the dialect profile whose
 /// static-grammar surface it covers.
@@ -457,8 +457,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).ok();
             }
-            fs::write(&path, &content).with_context(|| format!("writing {}", path.display()))?;
-            eprintln!("wrote {rel}");
+            if write_if_changed(&path, &content)? {
+                eprintln!("wrote {rel}");
+            }
         }
     }
 
