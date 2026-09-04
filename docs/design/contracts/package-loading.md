@@ -257,6 +257,16 @@ per-dialect spec packs, never as name-matching in a consumer (see
     and a `.tcl-lsp.ini` belongs to its own project), so a secondary root
     declares its own and never inherits a sibling's.
 
+    The edges are one of the `"scope": "resource"` analyser inputs, and they
+    all travel together in `ResourceAnalyserInputs` — `packages.provides`,
+    `bigipVersion` and `targets`. Each was, at some point, wired to only a
+    subset of the construction sites, so the bundle exists to make the *next*
+    one a single edit rather than an audit: resolve with
+    `Backend::resource_analyser_inputs` (a folder override wins field by
+    field, else the global) or `ResourceAnalyserInputs::from_db_config` where
+    a resolved salsa handle is already in hand, and hand it over with
+    `apply`.
+
 21. The tail is the one point both the whole-file walk and the per-item
     (incremental) walk reach with their `package_requires` merged, so the two
     strategies cannot disagree. The per-item path's mid-walk Tk hand-off runs

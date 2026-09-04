@@ -2963,16 +2963,16 @@ async fn compute_base_analysis(
         let widened = widen_recovery_extra_commands(recovery, extra_commands, text, dialect).await;
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
-        let (a_packs, a_provides) = {
+        let (a_packs, a_resource) = {
             let db = db.lock().await;
             (
                 config.spec_pack_key(&*db),
-                config.package_provides(&*db).clone(),
+                ResourceAnalyserInputs::from_db_config(config, &*db),
             )
         };
         return match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
-                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs, a_provides)
+                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs, a_resource)
                     .analyse(&a_text, a_dialect.name)
                     .clone()
             })
@@ -3028,12 +3028,11 @@ async fn compute_base_analysis(
         // the **closed-file** tier since #1144, not just a rare fallback, so a
         // closed file's badge must not lose them.
         let a_path = uri.to_file_path().map(|p| p.display().to_string());
-        let (a_bigip, a_packs, a_provides) = {
+        let (a_packs, a_resource) = {
             let db = db.lock().await;
             (
-                config.bigip_version(&*db).clone(),
                 config.spec_pack_key(&*db),
-                config.package_provides(&*db).clone(),
+                ResourceAnalyserInputs::from_db_config(config, &*db),
             )
         };
         let analysis = crate::rt::spawn_blocking(move || {
@@ -3044,10 +3043,9 @@ async fn compute_base_analysis(
                         non_ascii_mode,
                         a_extra,
                         a_packs,
-                        a_provides,
+                        a_resource,
                     )
                     .with_file_path(a_path)
-                    .with_bigip_version(a_bigip)
                     .analyse(&a_text, a_dialect.name)
                     .clone(),
                 )
@@ -6816,6 +6814,58 @@ enum FolderGenericPatterns {
 /// value.  In a multi-root workspace each root can
 /// carry its own diagnostics, optimiser, formatting, dialect, and feature
 /// settings.  The other source of a per-folder dialect —
+/// The analyser inputs VS Code declares `"scope": "resource"` — settings whose
+/// value belongs to the document rather than the session.
+///
+/// Bundled rather than passed as three more positional arguments because each
+/// of the three was, at some point, added to only a subset of the analyser
+/// construction sites: `package_provides` reached one of six, `bigip_version`
+/// one of the direct paths, and `declared_targets` none of them — so §5.4
+/// range targeting was silently off for every analysis that did not go through
+/// salsa. A single value that every site applies makes the *next*
+/// resource-scoped input a one-line change here instead of an audit.
+///
+/// Resolve with [`Backend::resource_analyser_inputs`], which answers per
+/// document: a folder override wins, else the process-global value.
+#[derive(Debug, Clone, Default)]
+struct ResourceAnalyserInputs {
+    /// `tclLsp.packages.provides` / `[packages.provides]` — what a package's
+    /// loader additionally brings up (issue #1813).
+    package_provides: Vec<(String, Vec<String>)>,
+    /// `tclLsp.bigipVersion` — the keyed library-version axis; `None` is the
+    /// oldest-supported default.
+    bigip_version: Option<String>,
+    /// `tclLsp.targets` — declared version-target ranges as
+    /// `(provider, range)`. Empty leaves range mode off.
+    declared_targets: Vec<(String, String)>,
+}
+
+impl ResourceAnalyserInputs {
+    /// Read every input off a salsa [`AnalyserConfig`](tcl_lsp_db::AnalyserConfig)
+    /// handle.
+    ///
+    /// The handle a document resolves to is already folder-scoped
+    /// (`Backend::resolved_db_config`), so a branch that has one needs no
+    /// further resolution — and reading all three here keeps it from carrying
+    /// some and dropping others.
+    fn from_db_config(config: tcl_lsp_db::AnalyserConfig, db: &dyn salsa::Database) -> Self {
+        Self {
+            package_provides: config.package_provides(db).clone(),
+            bigip_version: config.bigip_version(db).clone(),
+            declared_targets: config.targets(db).clone(),
+        }
+    }
+
+    /// Hand every input to `analyser`. The one place a new resource-scoped
+    /// input has to be wired for all construction sites to carry it.
+    fn apply(self, analyser: Analyser) -> Analyser {
+        analyser
+            .with_package_provides(self.package_provides)
+            .with_bigip_version(self.bigip_version)
+            .with_declared_targets(self.declared_targets)
+    }
+}
+
 /// `initializationOptions.folderDialects` — lives in
 /// [`Backend::folder_dialects`]; [`Backend::folder_dialect_overrides`] merges
 /// the two.
@@ -6853,6 +6903,14 @@ struct FolderConfig {
     /// `.tcl-lsp.ini` belongs to its own project, so a secondary root's
     /// declarations must not be answered with the primary root's.
     package_provides: Option<Vec<(String, Vec<String>)>>,
+    /// `tclLsp.bigipVersion` override; `Absent` inherits the global pin. Also
+    /// `"scope": "resource"` — one root may target a different BIG-IP release
+    /// from its sibling.
+    bigip_version: BigipVersionSetting,
+    /// `tclLsp.targets` override; `None` inherits the global ranges. Also
+    /// `"scope": "resource"`, and a `.tcl-lsp.ini` states the project's own
+    /// supported range.
+    declared_targets: Option<Vec<(String, String)>>,
     /// `tclLsp.signatureHelp.disabledCommands` override; `None` inherits the
     /// global list. `Some([])` explicitly enables every built-in signature.
     signature_help_disabled_commands: Option<Vec<String>>,
@@ -8124,19 +8182,19 @@ impl Backend {
         // fresh with the same per-folder config the cached path would have used,
         // so the on-demand result still honours folder-scoped suppression.
         let config = self.resolved_db_config(uri).await;
-        let (disabled, na_mode, extra, pack_key, provides) = {
+        let (disabled, na_mode, extra, pack_key, resource) = {
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).iter().cloned().collect(),
                 config.non_ascii_mode(&*db),
                 config.extra_commands(&*db).iter().cloned().collect(),
                 config.spec_pack_key(&*db),
-                config.package_provides(&*db).clone(),
+                ResourceAnalyserInputs::from_db_config(config, &*db),
             )
         };
         crate::rt::spawn_blocking(move || {
             let mut analyser =
-                Self::configured_analyser(disabled, na_mode, extra, pack_key, provides);
+                Self::configured_analyser(disabled, na_mode, extra, pack_key, resource);
             Arc::new(analyser.analyse(&text, &dialect))
         })
         .await
@@ -9235,7 +9293,7 @@ impl Backend {
         uri: Uri,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
-        package_provides: Arc<Vec<(String, Vec<String>)>>,
+        resource: Arc<ResourceAnalyserInputs>,
     ) -> Option<(Uri, String, String, AnalysisResult)> {
         let store = Arc::clone(store);
         crate::rt::spawn_blocking(move || {
@@ -9262,8 +9320,10 @@ impl Backend {
             // reached through this path or the closed-file branch of
             // `compute_base_analysis`, which does carry them (issue #1813
             // review).
-            let analysis = Analyser::new()
-                .with_package_provides(package_provides.as_ref().clone())
+            let analysis = resource
+                .as_ref()
+                .clone()
+                .apply(Analyser::new())
                 .analyse(&text, &dialect);
             Some((uri, text, dialect, analysis))
         })
@@ -9294,7 +9354,9 @@ impl Backend {
         }
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let package_provides = Arc::new(self.package_provides.lock().await.clone());
+        // No document in hand: this batch spans folders, so the global values
+        // are the only coherent answer.
+        let resource = Arc::new(self.resource_analyser_inputs(None).await);
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let futures: Vec<_> = uris
@@ -9304,14 +9366,14 @@ impl Backend {
                 let folder_dialects = Arc::clone(&folder_dialects);
                 let default_dialect = Arc::clone(&default_dialect);
                 let store = Arc::clone(&self.store);
-                let package_provides = Arc::clone(&package_provides);
+                let resource = Arc::clone(&resource);
                 async move {
                     let scanned = Self::scan_disk_file(
                         &store,
                         uri.clone(),
                         folder_dialects,
                         default_dialect,
-                        package_provides,
+                        resource,
                     )
                     .await;
                     Some((uri, scanned))
@@ -9348,13 +9410,13 @@ impl Backend {
         // error in its siblings.
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let package_provides = Arc::new(self.package_provides.lock().await.clone());
+        let resource = Arc::new(self.resource_analyser_inputs(Some(uri)).await);
         let scanned = Self::scan_disk_file(
             &self.store,
             uri.clone(),
             folder_dialects,
             default_dialect,
-            package_provides,
+            resource,
         )
         .await;
         match scanned {
@@ -13945,7 +14007,7 @@ impl Backend {
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let pack_key = self.spec_packs().await.key;
-        let provides = self.resolved_package_provides(&uri).await;
+        let resource = self.resource_analyser_inputs(Some(&uri)).await;
         let dialect = doc.dialect.clone();
         // The one place that legitimately owns a copy: fix-all *rewrites* the
         // source in a loop, so it needs a mutable buffer of its own rather than
@@ -13964,7 +14026,7 @@ impl Backend {
                     na_mode,
                     extra.clone(),
                     pack_key,
-                    provides.clone(),
+                    resource.clone(),
                 );
                 let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
                 let chosen = Self::bulk_applicable_fixes(&analysis);
@@ -14527,31 +14589,38 @@ impl Backend {
     /// Preserve the primary project's signature exclusion when a scoped
     /// configuration pull fails, without replacing any last-known sibling
     /// folder settings.
+    ///
+    /// Re-applying that last-known chain is also what refreshes everything
+    /// those folders *inherit*. A folder handle snapshots each global it does
+    /// not override, and the unscoped pull that just succeeded may have moved
+    /// them; a chain left untouched here would keep answering
+    /// `resolved_db_config` with the old non-ASCII mode, extra commands,
+    /// package-provides map, BIG-IP version or declared targets while the
+    /// global handle already carries the new ones. So the re-apply is
+    /// unconditional — the folder configs themselves go back unchanged, and
+    /// `apply_folder_configs` re-reads the globals live.
     async fn apply_primary_project_signature_fallback(
         &self,
         primary_folder: Option<&Uri>,
         primary_project: &serde_json::Value,
     ) {
-        let Some(primary_folder) = primary_folder else {
-            return;
-        };
-        let project_override = signature_help_disabled_commands(primary_project);
         let mut parsed = self.folder_configs.lock().await.clone();
-        if let Some((_, config)) = parsed
-            .iter_mut()
-            .find(|(folder, _)| folder == primary_folder)
-        {
-            config.signature_help_disabled_commands = project_override;
-        } else if let Some(commands) = project_override {
-            parsed.push((
-                primary_folder.clone(),
-                FolderConfig {
-                    signature_help_disabled_commands: Some(commands),
-                    ..FolderConfig::default()
-                },
-            ));
-        } else {
-            return;
+        if let Some(primary_folder) = primary_folder {
+            let project_override = signature_help_disabled_commands(primary_project);
+            if let Some((_, config)) = parsed
+                .iter_mut()
+                .find(|(folder, _)| folder == primary_folder)
+            {
+                config.signature_help_disabled_commands = project_override;
+            } else if let Some(commands) = project_override {
+                parsed.push((
+                    primary_folder.clone(),
+                    FolderConfig {
+                        signature_help_disabled_commands: Some(commands),
+                        ..FolderConfig::default()
+                    },
+                ));
+            }
         }
         self.apply_folder_configs(parsed).await;
     }
@@ -14909,26 +14978,18 @@ impl Backend {
         // `tclLsp.bigipVersion` — the target BIG-IP release for the keyed
         // library-version axis (an empty string clears the pin back to the
         // oldest-supported default).
-        if let Some(version) = cfg.get("bigipVersion").and_then(serde_json::Value::as_str) {
-            let version = version.trim();
-            *self.bigip_version.lock().await = (!version.is_empty()).then(|| version.to_owned());
+        if let BigipVersionSetting::Present(version) = parse_bigip_version(cfg) {
+            *self.bigip_version.lock().await = version;
         }
         // `tclLsp.targets` — declared version-target ranges (redesign §5.4
         // range targeting): an object of provider → range, e.g.
         // `{ "tcl": "8.5-9.0", "Tk": "8.5-8.6" }`. Reset unconditionally so
         // removing the setting switches range mode back off.
         {
-            let mut targets: Vec<(String, String)> = Vec::new();
-            if let Some(map) = cfg.get("targets").and_then(serde_json::Value::as_object) {
-                for (name, range) in map {
-                    if let Some(range) = range.as_str() {
-                        let range = range.trim();
-                        if !range.is_empty() {
-                            targets.push((name.clone(), range.to_owned()));
-                        }
-                    }
-                }
-            }
+            let targets = cfg
+                .get("targets")
+                .and_then(serde_json::Value::as_object)
+                .map_or_else(Vec::new, parse_declared_targets);
             *self.declared_targets.lock().await = targets;
         }
         // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
@@ -15013,6 +15074,8 @@ impl Backend {
             let global_extra = self.extra_commands.lock().await.clone();
             let global_generic = self.generic_variable_patterns.lock().await.clone();
             let global_provides = self.package_provides.lock().await.clone();
+            let global_bigip = self.bigip_version.lock().await.clone();
+            let global_targets = self.declared_targets.lock().await.clone();
             // Packs are a workspace fact, never a per-folder one, so every
             // folder handle carries the same key the global config does.
             let pack_key = self.spec_packs().await.key;
@@ -15032,6 +15095,8 @@ impl Backend {
                     && fc.non_ascii_mode.is_none()
                     && fc.extra_commands.is_none()
                     && fc.package_provides.is_none()
+                    && fc.bigip_version == BigipVersionSetting::Absent
+                    && fc.declared_targets.is_none()
                     && matches!(fc.generic_variable_patterns, FolderGenericPatterns::Inherit)
                 {
                     continue;
@@ -15055,6 +15120,14 @@ impl Backend {
                     .package_provides
                     .clone()
                     .unwrap_or_else(|| global_provides.clone());
+                let bigip = match &fc.bigip_version {
+                    BigipVersionSetting::Present(v) => v.clone(),
+                    BigipVersionSetting::Absent => global_bigip.clone(),
+                };
+                let targets = fc
+                    .declared_targets
+                    .clone()
+                    .unwrap_or_else(|| global_targets.clone());
                 // The folder's own live handle first, then its retired one, and
                 // only then a fresh input.
                 if let Some(handle) = reclaimable
@@ -15067,18 +15140,12 @@ impl Backend {
                     handle.set_generic_variable_patterns(&mut *db).to(generic);
                     handle.set_spec_pack_key(&mut *db).to(pack_key);
                     handle.set_package_provides(&mut *db).to(provides);
+                    handle.set_bigip_version(&mut *db).to(bigip);
+                    handle.set_targets(&mut *db).to(targets);
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(
-                        &*db,
-                        disabled,
-                        mode,
-                        extra,
-                        generic,
-                        None,
-                        pack_key,
-                        Vec::new(),
-                        provides,
+                        &*db, disabled, mode, extra, generic, bigip, pack_key, targets, provides,
                     );
                     next.push((folder.clone(), handle));
                 }
@@ -15091,6 +15158,7 @@ impl Backend {
                 handle.set_extra_commands(&mut *db).to(Vec::new());
                 handle.set_generic_variable_patterns(&mut *db).to(None);
                 handle.set_package_provides(&mut *db).to(Vec::new());
+                handle.set_targets(&mut *db).to(Vec::new());
                 handle.set_bigip_version(&mut *db).to(None);
                 handle.set_targets(&mut *db).to(Vec::new());
                 tombstones.insert(folder, handle);
@@ -15486,16 +15554,33 @@ impl Backend {
         }
     }
 
-    /// The resolved declared package edges for `uri`: a folder override wins,
-    /// else the process-global map.
-    async fn resolved_package_provides(&self, uri: &Uri) -> Vec<(String, Vec<String>)> {
-        let folder = {
-            let configs = self.folder_configs.lock().await;
-            longest_folder_match(&configs, uri).and_then(|f| f.package_provides.clone())
+    /// Every `"scope": "resource"` analyser input, resolved for `uri` — a
+    /// folder override wins over the process-global value, field by field.
+    ///
+    /// `None` for `uri` answers with the global values alone, for the paths
+    /// that analyse without a document in hand (the workspace scan, which
+    /// reaches files across every folder, and the disk scanner's batch).
+    async fn resource_analyser_inputs(&self, uri: Option<&Uri>) -> ResourceAnalyserInputs {
+        let folder = match uri {
+            Some(uri) => {
+                let configs = self.folder_configs.lock().await;
+                longest_folder_match(&configs, uri).cloned()
+            }
+            None => None,
         };
-        match folder {
-            Some(v) => v,
-            None => self.package_provides.lock().await.clone(),
+        ResourceAnalyserInputs {
+            package_provides: match folder.as_ref().and_then(|f| f.package_provides.clone()) {
+                Some(v) => v,
+                None => self.package_provides.lock().await.clone(),
+            },
+            bigip_version: match folder.as_ref().map(|f| f.bigip_version.clone()) {
+                Some(BigipVersionSetting::Present(v)) => v,
+                _ => self.bigip_version.lock().await.clone(),
+            },
+            declared_targets: match folder.as_ref().and_then(|f| f.declared_targets.clone()) {
+                Some(v) => v,
+                None => self.declared_targets.lock().await.clone(),
+            },
         }
     }
 
@@ -15610,13 +15695,14 @@ impl Backend {
         mode: NonAsciiMode,
         extra_commands: HashSet<String>,
         pack_key: u64,
-        package_provides: Vec<(String, Vec<String>)>,
+        resource: ResourceAnalyserInputs,
     ) -> Analyser {
-        Analyser::with_disabled_diagnostics(disabled)
-            .with_non_ascii_mode(mode)
-            .with_extra_commands(extra_commands)
-            .with_pack_overlay(pack_key)
-            .with_package_provides(package_provides)
+        resource.apply(
+            Analyser::with_disabled_diagnostics(disabled)
+                .with_non_ascii_mode(mode)
+                .with_extra_commands(extra_commands)
+                .with_pack_overlay(pack_key),
+        )
     }
 
     /// [`Self::configured_analyser`] taking the recovery path's **shared**
@@ -15628,20 +15714,20 @@ impl Backend {
         mode: NonAsciiMode,
         extra_commands: Arc<HashSet<String>>,
         pack_key: u64,
-        package_provides: Vec<(String, Vec<String>)>,
+        resource: ResourceAnalyserInputs,
     ) -> Analyser {
-        Analyser::with_disabled_diagnostics(disabled)
-            .with_non_ascii_mode(mode)
-            .with_shared_extra_commands(extra_commands)
-            .with_pack_overlay(pack_key)
-            // Declared package edges must survive an incomplete buffer. They
-            // decide Tk activation and what `package_requires` contains, and
-            // this analysis is *published* — and indexed — so dropping them
-            // for the keystrokes between an opening brace and its match makes
-            // the TK checks and W120/H301 flicker, and republishes an index
-            // entry without the implied requires, which reschedules every
-            // peer document (issue #1813 review).
-            .with_package_provides(package_provides)
+        // The resource-scoped inputs must survive an incomplete buffer. They
+        // decide Tk activation, what `package_requires` contains and which
+        // release the version gate reads against, and this analysis is
+        // *published* — and indexed — so dropping them for the keystrokes
+        // between an opening brace and its match makes those diagnostics
+        // flicker and republishes a degraded index entry.
+        resource.apply(
+            Analyser::with_disabled_diagnostics(disabled)
+                .with_non_ascii_mode(mode)
+                .with_shared_extra_commands(extra_commands)
+                .with_pack_overlay(pack_key),
+        )
     }
 
     /// Return the command registry with `dialect` loaded on top of the
@@ -17582,7 +17668,7 @@ impl Backend {
                     .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
             };
             let recorded = self.rehomed_source_seeds.lock().await.clone();
-            let package_provides = self.package_provides.lock().await.clone();
+            let resource = self.resource_analyser_inputs(None).await;
             let mut work: Vec<(String, Vec<String>)> = Vec::new();
             for (uri, seeds) in &desired {
                 let seeds: Vec<String> = seeds.iter().cloned().collect();
@@ -17613,7 +17699,7 @@ impl Backend {
                 let text = doc.text.clone();
                 let dialect = doc.dialect.clone();
                 let seeds_for_worker = seeds.clone();
-                let provides_for_worker = package_provides.clone();
+                let resource_for_worker = resource.clone();
                 let Ok(analyses) = crate::rt::spawn_blocking(move || {
                     seeds_for_worker
                         .iter()
@@ -17621,8 +17707,7 @@ impl Backend {
                             // Re-homing overwrites the document's index entry,
                             // so it must not re-drop the implied requires the
                             // scan put there (issue #1813 review).
-                            let mut analyser =
-                                Analyser::new().with_package_provides(provides_for_worker.clone());
+                            let mut analyser = resource_for_worker.clone().apply(Analyser::new());
                             if seed == Self::STANDALONE_SEED {
                                 analyser.analyse(&text, &dialect)
                             } else {
@@ -17997,7 +18082,9 @@ impl Backend {
     ) -> (PackageResolver, usize) {
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
-        let package_provides = Arc::new(self.package_provides.lock().await.clone());
+        // The scan reaches files across every folder, so the global values are
+        // the only coherent answer here.
+        let resource = Arc::new(self.resource_analyser_inputs(None).await);
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
@@ -18009,7 +18096,7 @@ impl Backend {
             let open = Arc::clone(&open);
             let folder_dialects = Arc::clone(&folder_dialects);
             let default_dialect = default_dialect.clone();
-            let package_provides = Arc::clone(&package_provides);
+            let resource = Arc::clone(&resource);
             let store = Arc::clone(&self.store);
             tasks.spawn(async move {
                 let _permit = permit;
@@ -18030,8 +18117,7 @@ impl Backend {
                     // the file's index entry, and `package_requires` is
                     // harvested from it, so a `source` descendant inherits
                     // whatever the edges imply here (issue #1813 review).
-                    let mut analyser =
-                        Analyser::new().with_package_provides(package_provides.as_ref().clone());
+                    let mut analyser = resource.as_ref().clone().apply(Analyser::new());
                     let analysis = analyser.analyse(&text, &dialect);
                     Some((uri, text, dialect, analysis))
                 })
@@ -23166,16 +23252,20 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
-    // `tclLsp.packages.provides` per-folder override. The setting is
-    // resource-scoped and a `.tcl-lsp.ini` belongs to its own project, so a
-    // secondary root declares its own edges (issue #1813 review). Parsed
-    // through the same normaliser the global path uses.
+    // The `"scope": "resource"` analyser inputs, each parsed through the same
+    // normaliser the global path uses so the two cannot disagree.
     if let Some(map) = obj
         .get("packages")
         .and_then(|p| p.get("provides"))
         .and_then(serde_json::Value::as_object)
     {
         fc.package_provides = Some(parse_package_provides(map));
+    }
+    // `Present(None)` — an explicit empty string — clears the pin for this
+    // folder rather than inheriting the global one, so it is a real override.
+    fc.bigip_version = parse_bigip_version(cfg);
+    if let Some(map) = obj.get("targets").and_then(serde_json::Value::as_object) {
+        fc.declared_targets = Some(parse_declared_targets(map));
     }
     fc.signature_help_disabled_commands = signature_help_disabled_commands(cfg);
     parse_folder_diagnostics(obj, &mut fc);
@@ -23847,6 +23937,49 @@ fn refine_w120_diagnostics(
 /// either a JSON array (`"myExtension": ["Tk", "Img"]`) or a single string
 /// (`"myExtension": "Tk"`) — the same one-or-many latitude the `.tcl-lsp.ini`
 /// `[packages.provides]` comma list has. Blank names are dropped.
+/// How one configuration layer answers `tclLsp.bigipVersion`.
+///
+/// Three states, not two: an *absent* key inherits the layer below, while an
+/// explicit empty string clears the pin back to the oldest-supported default.
+/// Collapsing them would leave a folder unable to say "no pin here" distinctly
+/// from "whatever the workspace says".
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum BigipVersionSetting {
+    /// Not stated at this layer.
+    #[default]
+    Absent,
+    /// Stated. `None` is the explicit empty string.
+    Present(Option<String>),
+}
+
+/// Read `tclLsp.bigipVersion` from one configuration layer.
+fn parse_bigip_version(cfg: &serde_json::Value) -> BigipVersionSetting {
+    let Some(version) = cfg.get("bigipVersion").and_then(serde_json::Value::as_str) else {
+        return BigipVersionSetting::Absent;
+    };
+    let version = version.trim();
+    BigipVersionSetting::Present((!version.is_empty()).then(|| version.to_owned()))
+}
+
+/// `tclLsp.targets` as `(provider, range)` pairs, e.g. `("tcl", "8.5-9.0")`.
+///
+/// Shared by the global and per-folder parses. Sorted for the same reason as
+/// [`parse_package_provides`]: it feeds a salsa input where a map-iteration
+/// order change must not look like an edit.
+fn parse_declared_targets(
+    map: &serde_json::Map<String, serde_json::Value>,
+) -> Vec<(String, String)> {
+    let mut targets: Vec<(String, String)> = map
+        .iter()
+        .filter_map(|(name, range)| {
+            let range = range.as_str()?.trim();
+            (!range.is_empty()).then(|| (name.clone(), range.to_owned()))
+        })
+        .collect();
+    targets.sort();
+    targets
+}
+
 /// `tclLsp.packages.provides` / `[packages.provides]` as edges.
 ///
 /// Shared by the global and per-folder parses so the two cannot disagree
@@ -28969,7 +29102,7 @@ mod tests {
             NonAsciiMode::Off,
             HashSet::new(),
             0,
-            Vec::new(),
+            ResourceAnalyserInputs::default(),
         );
         let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
@@ -28981,7 +29114,7 @@ mod tests {
             NonAsciiMode::Strict,
             HashSet::new(),
             0,
-            Vec::new(),
+            ResourceAnalyserInputs::default(),
         );
         let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
@@ -33188,6 +33321,176 @@ proc p {} {
         );
     }
 
+    /// Every `"scope": "resource"` analyser input resolves per folder, not
+    /// just `packages.provides`. `bigipVersion` and `targets` had the same two
+    /// holes: no folder override at all, and the folder handle constructed
+    /// with `None` / `Vec::new()` so *any* folder override of an unrelated
+    /// knob dropped the global value.
+
+    #[tokio::test]
+    async fn resource_scoped_analyser_inputs_resolve_per_folder() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "bigipVersion": "17.1.0",
+                "targets": { "tcl": "8.5-9.0" },
+                "packages": { "provides": { "globalExt": ["Tk"] } },
+            }))
+            .await;
+
+        let root = Uri::from_str("file:///w/").unwrap();
+        let other = Uri::from_str("file:///other/").unwrap();
+        backend
+            .apply_folder_configs(vec![
+                (
+                    root.clone(),
+                    parse_folder_config(&serde_json::json!({
+                        "bigipVersion": "16.1.0",
+                        "targets": { "tcl": "8.6-8.6" },
+                    }))
+                    .expect("folder config parses"),
+                ),
+                (
+                    other.clone(),
+                    // Overrides an unrelated knob only: must still inherit
+                    // every global resource-scoped input.
+                    parse_folder_config(&serde_json::json!({ "extraCommands": ["zzz"] }))
+                        .expect("folder config parses"),
+                ),
+            ])
+            .await;
+
+        let in_root = backend
+            .resource_analyser_inputs(Some(&Uri::from_str("file:///w/a.tcl").unwrap()))
+            .await;
+        assert_eq!(in_root.bigip_version.as_deref(), Some("16.1.0"));
+        // An explicit empty string at folder scope *clears* the pin rather
+        // than inheriting the global one — the three-state distinction
+        // `BigipVersionSetting` exists for.
+        assert_eq!(
+            parse_bigip_version(&serde_json::json!({ "bigipVersion": "" })),
+            BigipVersionSetting::Present(None)
+        );
+        assert_eq!(
+            parse_bigip_version(&serde_json::json!({})),
+            BigipVersionSetting::Absent
+        );
+        assert_eq!(
+            in_root.declared_targets,
+            vec![("tcl".to_owned(), "8.6-8.6".to_owned())]
+        );
+        assert_eq!(
+            in_root.package_provides,
+            vec![("globalExt".to_owned(), vec!["Tk".to_owned()])],
+            "a field the folder does not override still inherits"
+        );
+
+        let in_other = backend
+            .resource_analyser_inputs(Some(&Uri::from_str("file:///other/a.tcl").unwrap()))
+            .await;
+        assert_eq!(in_other.bigip_version.as_deref(), Some("17.1.0"));
+        assert_eq!(
+            in_other.declared_targets,
+            vec![("tcl".to_owned(), "8.5-9.0".to_owned())],
+            "a folder overriding something else keeps every global input"
+        );
+
+        let nowhere = backend
+            .resource_analyser_inputs(Some(&Uri::from_str("file:///nowhere/a.tcl").unwrap()))
+            .await;
+        assert_eq!(nowhere.bigip_version.as_deref(), Some("17.1.0"));
+        assert_eq!(
+            nowhere.declared_targets,
+            vec![("tcl".to_owned(), "8.5-9.0".to_owned())]
+        );
+
+        // No document in hand answers with the globals.
+        let global = backend.resource_analyser_inputs(None).await;
+        assert_eq!(global.bigip_version.as_deref(), Some("17.1.0"));
+    }
+
+    /// A failed scoped configuration pull must not freeze what a folder
+    /// *inherits*. The unscoped pull that preceded it may have moved a global,
+    /// and a folder handle snapshots every input it does not itself override —
+    /// so the fallback re-applies the last-known chain and the handle picks the
+    /// new global up, instead of answering `resolved_db_config` with the old
+    /// one while the global handle already carries the new.
+    #[tokio::test]
+    async fn a_failed_scoped_pull_refreshes_what_a_folder_inherits() {
+        async fn inherited_bigip(backend: &Backend, uri: &Uri) -> Option<String> {
+            let config = backend.resolved_db_config(uri).await;
+            let db = backend.db.lock().await;
+            ResourceAnalyserInputs::from_db_config(config, &*db).bigip_version
+        }
+
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "bigipVersion": "17.1.0" }))
+            .await;
+
+        let folder = Uri::from_str("file:///w/").unwrap();
+        backend
+            .apply_folder_configs(vec![(
+                folder,
+                // Overrides an unrelated knob, so it gets its own handle and
+                // inherits `bigipVersion` by snapshot.
+                parse_folder_config(&serde_json::json!({ "extraCommands": ["zzz"] }))
+                    .expect("folder config parses"),
+            )])
+            .await;
+
+        let uri = Uri::from_str("file:///w/a.tcl").unwrap();
+        assert_eq!(
+            inherited_bigip(&backend, &uri).await.as_deref(),
+            Some("17.1.0")
+        );
+
+        // The unscoped pull lands a new global, then the scoped one fails. The
+        // primary root carries no folder settings of its own, so it has no
+        // entry to patch and no signature override — the shape that used to
+        // return without touching the chain at all.
+        backend
+            .apply_global_config(&serde_json::json!({ "bigipVersion": "16.1.0" }))
+            .await;
+        let primary = Uri::from_str("file:///primary/").unwrap();
+        backend
+            .apply_primary_project_signature_fallback(Some(&primary), &serde_json::json!({}))
+            .await;
+
+        assert_eq!(
+            inherited_bigip(&backend, &uri).await.as_deref(),
+            Some("16.1.0"),
+            "an inherited input follows the global it inherits"
+        );
+    }
+
+    /// `apply` is the single place a resource-scoped input reaches an
+    /// `Analyser`, so every construction site carries all of them. Pins that
+    /// the bundle is applied whole rather than field by field.
+    #[test]
+    fn resource_analyser_inputs_apply_every_field() {
+        let inputs = ResourceAnalyserInputs {
+            package_provides: vec![("ext".to_owned(), vec!["Tk".to_owned()])],
+            bigip_version: Some("17.1.0".to_owned()),
+            declared_targets: vec![("tcl".to_owned(), "8.6-9.0".to_owned())],
+        };
+        let analyser = inputs.apply(Analyser::new());
+        // `package_provides` and `declared_targets` are public on the analyser
+        // and asserted directly. `bigip_version` is private, so the field that
+        // feeds it is pinned instead by
+        // `resource_scoped_analyser_inputs_resolve_per_folder`, which asserts
+        // the resolved bundle carries it; `apply` hands over all three
+        // together or none.
+        assert_eq!(
+            analyser.package_provides,
+            vec![("ext".to_owned(), vec!["Tk".to_owned()])]
+        );
+        assert_eq!(
+            analyser.declared_targets,
+            vec![("tcl".to_owned(), "8.6-9.0".to_owned())]
+        );
+    }
+
     /// Review follow-up on #1813: `tclLsp.packages.provides` is
     /// `"scope": "resource"`, so a folder override must win for documents
     /// under it — and, just as importantly, a folder that overrides some
@@ -33225,21 +33528,30 @@ proc p {} {
 
         let in_root = Uri::from_str("file:///w/a.tcl").unwrap();
         assert_eq!(
-            backend.resolved_package_provides(&in_root).await,
+            backend
+                .resource_analyser_inputs(Some(&in_root))
+                .await
+                .package_provides,
             vec![("rootExt".to_owned(), vec!["Tk".to_owned()])],
             "a folder override wins for documents under it"
         );
 
         let in_other = Uri::from_str("file:///other/a.tcl").unwrap();
         assert_eq!(
-            backend.resolved_package_provides(&in_other).await,
+            backend
+                .resource_analyser_inputs(Some(&in_other))
+                .await
+                .package_provides,
             vec![("globalExt".to_owned(), vec!["Tk".to_owned()])],
             "a folder overriding something else still inherits the global edges"
         );
 
         let elsewhere = Uri::from_str("file:///nowhere/a.tcl").unwrap();
         assert_eq!(
-            backend.resolved_package_provides(&elsewhere).await,
+            backend
+                .resource_analyser_inputs(Some(&elsewhere))
+                .await
+                .package_provides,
             vec![("globalExt".to_owned(), vec!["Tk".to_owned()])],
             "no folder match falls back to the global map"
         );
