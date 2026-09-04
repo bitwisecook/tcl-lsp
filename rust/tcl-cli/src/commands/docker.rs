@@ -84,7 +84,9 @@ fn run_create(action: &DockerCommand) -> anyhow::Result<u8> {
         install_packages: !*no_packages,
         create_venv: *venv,
         entrypoint: entrypoint.clone(),
-        cli_version: cli_version.clone(),
+        cli_version: cli_version
+            .clone()
+            .or_else(|| default_cli_version(tcl_version::VERSION)),
         extra_packages: extra_package.clone(),
         ..Default::default()
     };
@@ -160,9 +162,15 @@ fn run_recipe(
 ) -> anyhow::Result<u8> {
     // `--cli` prints what installs the tcl CLI itself (prerequisites plus the
     // verified release-asset fetch); the default prints what installs Tcl.
+    let defaulted_cli_version = cli_version
+        .map(str::to_owned)
+        .or_else(|| default_cli_version(tcl_version::VERSION));
     let recipe = if cli {
         match cli_prereq_recipe(image) {
-            Ok(prereq) => format!("{prereq}\n\n{}", tcl_cli_install_recipe(cli_version)),
+            Ok(prereq) => format!(
+                "{prereq}\n\n{}",
+                tcl_cli_install_recipe(defaulted_cli_version.as_deref())
+            ),
             Err(e) => {
                 eprintln!("error: {e}");
                 return Ok(1);
@@ -195,7 +203,7 @@ fn run_recipe(
 
 fn run_info(json: bool) -> anyhow::Result<u8> {
     let recipes = available_recipes();
-    let cli_version = default_cli_version();
+    let cli_version = default_cli_version(tcl_version::VERSION);
     let triples: Vec<&str> = RELEASE_TRIPLES.iter().map(|(_, _, t)| *t).collect();
     let cli_families = cli_capable_families();
     if json {

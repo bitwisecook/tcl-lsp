@@ -203,10 +203,11 @@ pub fn cli_capable_families() -> Vec<String> {
     CLI_PREREQS.iter().map(|(f, _)| (*f).to_string()).collect()
 }
 
-/// The release version a generated Dockerfile pins by default.
+/// Reduce an application's stamped version to the release a Dockerfile should
+/// pin by default.
 ///
-/// Derived from the version stamped into this binary, so a generated image
-/// installs the CLI line that generated it. Build metadata (`+g<hash>`,
+/// The application supplies its own version so this reusable package library
+/// does not depend on the build-provenance crate. Build metadata (`+g<hash>`,
 /// `.dirty`) and the `git describe` distance (`-<n>`) are stripped, leaving the
 /// tag the build descends from: `2.2.1-7+gc1a17793` pins `2.2.1`.
 ///
@@ -215,8 +216,8 @@ pub fn cli_capable_families() -> Vec<String> {
 /// generated Dockerfile then resolves the newest release at build time instead
 /// of pinning a tag that was never published.
 #[must_use]
-pub fn default_cli_version() -> Option<String> {
-    release_base(tcl_version::VERSION)
+pub fn default_cli_version(application_version: &str) -> Option<String> {
+    release_base(application_version)
 }
 
 /// Reduce a stamped version to the release tag it descends from.
@@ -245,10 +246,11 @@ fn normalise_cli_version(version: &str) -> String {
 /// build's target architecture and verifies it against the release's
 /// `SHA256SUMS` before installing it at `/usr/local/bin/tcl`.
 ///
-/// `cli_version` pins a release; `None` defers to [`default_cli_version`], and
-/// when that is also `None` the emitted `TCL_LSP_VERSION` build argument is
-/// empty and the snippet resolves the newest release itself. Either way the
-/// version stays overridable at build time with
+/// `cli_version` pins a release. With `None`, the emitted `TCL_LSP_VERSION`
+/// build argument is empty and the snippet resolves the newest release itself.
+/// Applications that want to default to their own release should pass
+/// [`default_cli_version`] as the explicit value. Either way the version stays
+/// overridable at build time with
 /// `docker build --build-arg TCL_LSP_VERSION=…`.
 ///
 /// The trust model mirrors `scripts/tcl-mcp`: an asset missing from
@@ -256,10 +258,7 @@ fn normalise_cli_version(version: &str) -> String {
 /// landing an unverified binary in the image.
 #[must_use]
 pub fn tcl_cli_install_recipe(cli_version: Option<&str>) -> String {
-    let pinned = cli_version
-        .map(normalise_cli_version)
-        .or_else(default_cli_version)
-        .unwrap_or_default();
+    let pinned = cli_version.map(normalise_cli_version).unwrap_or_default();
 
     let arch_cases = RELEASE_TRIPLES
         .iter()
@@ -548,17 +547,26 @@ mod tests {
 
     #[test]
     fn default_version_strips_describe_and_build_metadata() {
-        assert_eq!(release_base("2.2.1+gc1a17793").as_deref(), Some("2.2.1"));
-        assert_eq!(release_base("2.2.1-7+gc1a17793").as_deref(), Some("2.2.1"));
         assert_eq!(
-            release_base("2.2.1+gc1a17793.dirty").as_deref(),
+            default_cli_version("2.2.1+gc1a17793").as_deref(),
             Some("2.2.1")
         );
-        assert_eq!(release_base("2.2.1-dirty").as_deref(), Some("2.2.1"));
+        assert_eq!(
+            default_cli_version("2.2.1-7+gc1a17793").as_deref(),
+            Some("2.2.1")
+        );
+        assert_eq!(
+            default_cli_version("2.2.1+gc1a17793.dirty").as_deref(),
+            Some("2.2.1")
+        );
+        assert_eq!(default_cli_version("2.2.1-dirty").as_deref(), Some("2.2.1"));
         // A real pre-release segment is part of the tag, not a describe count.
-        assert_eq!(release_base("2.3.0-rc1").as_deref(), Some("2.3.0-rc1"));
+        assert_eq!(
+            default_cli_version("2.3.0-rc1").as_deref(),
+            Some("2.3.0-rc1")
+        );
         // The manifest placeholder names no release, so nothing is pinned.
-        assert_eq!(release_base("0.1.0+gc1a17793"), None);
+        assert_eq!(default_cli_version("0.1.0+gc1a17793"), None);
     }
 
     #[test]
@@ -587,9 +595,7 @@ mod tests {
 
     #[test]
     fn cli_install_recipe_without_a_pin_resolves_the_latest_release() {
-        // `tcl_cli_install_recipe(None)` follows the build's own version, which
-        // varies; drive the empty-pin shape through the shared formatter.
-        let recipe = tcl_cli_install_recipe(Some(""));
+        let recipe = tcl_cli_install_recipe(None);
         assert!(recipe.starts_with("ARG TCL_LSP_VERSION=\n"));
         assert!(recipe.contains("api.github.com/repos/bitwisecook/tcl-lsp/releases?per_page=1"));
     }

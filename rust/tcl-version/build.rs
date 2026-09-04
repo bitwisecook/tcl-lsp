@@ -32,18 +32,36 @@
 //! Releases are tag-only: no version literal is bumped in the tree, so the tag
 //! is the single source of truth. See `scripts/release/tag.sh`.
 
+#[path = "src/git_inputs.rs"]
+mod git_inputs;
+
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() {
+    let stamped = env_version();
+
     // A change to either input must re-run this script, or the binary keeps a
     // stale version baked in from a previous build.
     println!("cargo:rerun-if-env-changed=TCL_LSP_VERSION");
     println!("cargo:rerun-if-env-changed=GIT_HASH");
-    for p in [".git/HEAD", ".git/refs/tags", ".git/packed-refs"] {
-        println!("cargo:rerun-if-changed=../../{p}");
+    for path in git_inputs::dependency_paths(Path::new(env!("CARGO_MANIFEST_DIR"))) {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+    if stamped.is_none() {
+        // There is no complete, portable set of filesystem mtimes that models
+        // `git status`: an unstaged root-level deletion has no existing child
+        // to watch, and a chmod-only change alters neither size nor mtime.
+        // Re-run this tiny stamp crate on every unstamped binary build instead.
+        // It is intentionally absent from the xtask dependency graph, so the
+        // repeated code-generation commands this repository runs stay fresh.
+        let out_dir = PathBuf::from(
+            std::env::var_os("OUT_DIR").expect("Cargo always supplies a build-script OUT_DIR"),
+        );
+        let probe = git_inputs::worktree_probe_path(&out_dir);
+        println!("cargo:rerun-if-changed={}", probe.display());
     }
 
-    let stamped = env_version();
     let base = stamped
         .clone()
         .or_else(git_describe)
