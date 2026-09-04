@@ -23,7 +23,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::events::{EventRegistry, FlowChain, OrderEntry};
 use tcl_registry::model::ResolvedContext;
 
-use crate::util::{DISABLED_SENTINEL, license_banner, repo_root};
+use crate::util::{DISABLED_SENTINEL, license_banner, repo_root, write_if_changed};
 
 const EVENT_DATA_PATH: &str = "rust/tcl-irule-test/tcl/_event_data.tcl";
 const MOCK_STUBS_PATH: &str = "rust/tcl-irule-test/tcl/_mock_stubs.tcl";
@@ -270,8 +270,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
             if current != content {
                 drift.push(rel);
             }
-        } else {
-            fs::write(&path, content).with_context(|| format!("writing {}", path.display()))?;
+        } else if write_if_changed(&path, content)? {
             eprintln!("wrote {rel}");
         }
     }

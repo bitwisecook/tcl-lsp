@@ -38,7 +38,7 @@ use anyhow::{Context, Result};
 use serde_json::{Map, Value, json};
 use tcl_core_types::{DiagCode, DocRow};
 
-use crate::util::repo_root;
+use crate::util::{repo_root, write_if_changed};
 
 const PACKAGE_JSON: &str = "editors/vscode/package.json";
 
@@ -521,8 +521,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
             return Ok(ExitCode::from(1));
         }
         eprintln!("OK: {PACKAGE_JSON} generated sections are in sync with the registries.");
-    } else {
-        std::fs::write(&path, &content)?;
+    } else if write_if_changed(&path, &content)? {
         eprintln!("wrote {PACKAGE_JSON}");
     }
     Ok(ExitCode::SUCCESS)

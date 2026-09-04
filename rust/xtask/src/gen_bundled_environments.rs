@@ -37,7 +37,7 @@ use anyhow::{Context, Result, bail};
 use tcl_dialect::model::Placement;
 use tcl_spectcl::PackEnvironment;
 
-use crate::util::repo_root;
+use crate::util::{repo_root, write_if_changed};
 
 const OUTPUT: &str = "rust/tcl-dialect/src/model/bundled_environments.rs";
 
@@ -209,7 +209,8 @@ pub fn run(check: bool) -> Result<ExitCode> {
         );
         return Ok(ExitCode::from(1));
     }
-    fs::write(&path, rendered).with_context(|| format!("writing {}", path.display()))?;
-    eprintln!("wrote {OUTPUT}");
+    if write_if_changed(&path, rendered)? {
+        eprintln!("wrote {OUTPUT}");
+    }
     Ok(ExitCode::SUCCESS)
 }

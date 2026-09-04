@@ -32,7 +32,7 @@ use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use tcl_core_types::{DiagCode, DocRow, OptCategory};
 
-use crate::util::repo_root;
+use crate::util::{repo_root, write_if_changed};
 
 const DIAGNOSTICS_JSON: &str = "ai/shared/diagnostics.json";
 /// The native MCP binary packages the same catalogue inside its crate. It is
@@ -546,9 +546,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
             if current != content {
                 drift.push(rel);
             }
-        } else {
-            std::fs::write(&path, &content)
-                .with_context(|| format!("writing {}", path.display()))?;
+        } else if write_if_changed(&path, &content)? {
             eprintln!("wrote {rel}");
         }
     }

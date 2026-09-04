@@ -30,7 +30,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use tcl_core_types::{DiagCode, DocRow};
 
-use crate::util::repo_root;
+use crate::util::{repo_root, write_if_changed};
 
 const CATALOG_PATH: &str = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/DiagnosticCatalog.kt";
 
@@ -414,9 +414,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
             if current != content {
                 drift.push(rel);
             }
-        } else {
-            std::fs::write(&path, &content)
-                .with_context(|| format!("writing {}", path.display()))?;
+        } else if write_if_changed(&path, &content)? {
             eprintln!("wrote {rel}");
         }
     }
