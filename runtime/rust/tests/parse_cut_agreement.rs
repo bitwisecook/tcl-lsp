@@ -60,6 +60,10 @@ const SHEET: &[&str] = &[
     "puts pre; puts $a(",
     "puts pre; puts \"a\"b",
     "puts pre; set y {unclosed",
+    // An unterminated quote whose word already failed inside a bracket:
+    // C reports the bracket, not the quote.
+    "puts pre; puts \"[foo\"",
+    "puts pre; puts \"a[foo b\"",
     // The two the flat warning stream got wrong.
     "puts pre; list [sfx one] [list \"oops]",
     "puts pre; puts $a([set q \"x)",

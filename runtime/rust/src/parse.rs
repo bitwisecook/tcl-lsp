@@ -511,17 +511,18 @@ fn build_word<'s>(
     // raises on 8.6.16 and 9.0.4 rather than reading `b` as the word. The
     // lexer's recovery reads to end of input instead, so the close is
     // re-derived from the shared owner, exactly as the braced word above does.
+    //
+    // It is a *fallback*, not a verdict: `quoted_word_close` steps over
+    // complete `[…]` substitutions to find the closer, so an **incomplete**
+    // one makes it give up here while C, parsing the word's tokens left to
+    // right, has already failed inside the bracket. Measured on 8.6.16 and
+    // 9.0.4, `puts "[foo"` is `missing close-bracket`, not `missing "`. So
+    // the word's parts are still built below and this error is appended
+    // after them, where the first-error rule reaches it only if nothing
+    // inside the word failed first.
     let unterminated_quote = kind == WordKind::Quoted
         && core::str::from_utf8(src)
             .is_ok_and(|text| tcl_lexer::word_parts::quoted_word_close(text, start).is_err());
-    if unterminated_quote {
-        return Word {
-            kind,
-            expand,
-            body: WordBody::Parts(vec![WordPart::ParseError(MISSING_QUOTE)]),
-            start,
-        };
-    }
     let mut parts: Vec<WordPart> = Vec::new();
     for &t in toks {
         let bytes = token_content(sm, src, t);
@@ -599,6 +600,9 @@ fn build_word<'s>(
             }
             _ => {}
         }
+    }
+    if unterminated_quote {
+        parts.push(WordPart::ParseError(MISSING_QUOTE));
     }
     // SIMPLE_WORD fast path: an empty word, or a lone *borrowed* `Text` (its run
     // had no escapes to decode — `plainword` / the no-subst quoted `"hi there"`),

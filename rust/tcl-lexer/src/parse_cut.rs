@@ -87,16 +87,6 @@ use crate::{Lexer, LexerConfig, SourceMap, Token, word_closer_offset_at, word_sp
 /// name.
 pub const EXTRA_AFTER_CLOSE_QUOTE: &str = "extra characters after close-quote";
 
-/// How deep a `[…]` chain is followed before the walk gives up and reports
-/// no cut for the remainder.
-///
-/// Mirrors `runtime/rust`'s `MAX_PARSE_ERROR_SCAN_DEPTH` and for the same
-/// reason: each level is one `eval_command_subst` when the script actually
-/// runs, so a script nested deeper than an interpreter's own eval-depth
-/// limit could never have evaluated anyway.  Capping keeps this walk's
-/// native recursion bounded by a constant instead of by the input.
-const MAX_CUT_SCAN_DEPTH: u32 = 128;
-
 /// Where a script stops parsing, in C's order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseCut {
@@ -157,7 +147,7 @@ pub fn first_parse_cut_in(
     config: LexerConfig,
 ) -> Option<ParseCut> {
     commands.iter().enumerate().find_map(|(index, command)| {
-        command_cut(command, tokens, src, config, 0).map(|(offset, message)| ParseCut {
+        command_cut(command, tokens, src, config).map(|(offset, message)| ParseCut {
             command: index,
             offset,
             message,
@@ -178,37 +168,119 @@ fn lex_and_group(src: &str, config: LexerConfig) -> Option<(Vec<Token>, Vec<Comm
     Some((tokens, commands))
 }
 
+/// One level of the walk's explicit stack.
+///
+/// The descent is iterative, and deliberately **unbounded**: C's parser has
+/// no nesting limit of its own.  Measured on 8.6.16 and 9.0.4,
+/// `puts [list [list … set y {a}b …]]` nested 5000 deep still reports
+/// `extra characters after close-brace`, while the *well-formed* script at
+/// the same depth gets that far and fails only later, at evaluation, with
+/// `too many nested evaluations`.  A parse-depth cap here would answer
+/// `None` — "the whole script parses" — for a script C rejects, which is the
+/// one answer this owner must never give.  Depth costs heap frames rather
+/// than native stack, so the walk is O(input) like the parse it mirrors and
+/// needs no limit of its own; the lexer's source-size limit bounds it.
+enum Frame<'s> {
+    /// A grouped script's words, flattened in document order.
+    Words {
+        jobs: Vec<WordJob<'s>>,
+        next: usize,
+        report_at: Option<u32>,
+    },
+    /// A decomposed word's components.
+    Parts {
+        parts: Vec<SpannedPart<'s>>,
+        base: u32,
+        next: usize,
+        report_at: Option<u32>,
+        /// The word's own delimiter failure, reported if — and only if —
+        /// nothing *inside* the word fails first.  This is how an
+        /// unterminated quoted word yields C's answer: `puts "[foo"` is
+        /// `missing close-bracket`, not `missing "`.
+        fallback: Option<(u32, &'static str)>,
+    },
+    /// A `$arr(index)`'s components, which carry no extents of their own, so
+    /// everything found inside one reports at the reference's `$`.
+    Index {
+        parts: Vec<WordPart<'s>>,
+        at: u32,
+        next: usize,
+    },
+}
+
+/// One word of a script, resolved to what the walk must do with it.
+///
+/// Resolving every word of a body up front keeps a [`Frame`] free of borrows
+/// into the token stream it was grouped from, which is what lets a nested
+/// body be pushed without the enclosing frame still holding it.
+enum WordJob<'s> {
+    /// The word fails here, whatever its content holds.
+    Cut(u32, &'static str),
+    /// Walk this content; if nothing in it fails, report `fallback`.
+    Content {
+        content: &'s [u8],
+        base: u32,
+        fallback: Option<(u32, &'static str)>,
+    },
+    /// A braced word: C does not parse its content as anything.
+    Literal,
+}
+
 /// The first cut among one command's words, in source order.
 fn command_cut(
     command: &CommandSpan,
     tokens: &[Token],
     src: &str,
     config: LexerConfig,
-    depth: u32,
 ) -> Option<(u32, &'static str)> {
-    command
-        .words
-        .iter()
-        .find_map(|word| word_cut(word, tokens, src, config, depth))
+    let jobs = word_jobs(&command.words, tokens, src, 0);
+    let mut stack = vec![Frame::Words {
+        jobs,
+        next: 0,
+        report_at: None,
+    }];
+    drain(&mut stack, config)
 }
 
-/// The first cut in one word: its own delimiters first, then its
-/// components in source order.
-fn word_cut(
+/// Resolve every word of a grouped script into its [`WordJob`], with offsets
+/// already rebased onto the enclosing source.
+fn word_jobs<'s>(
+    words: &[crate::script::WordSpan],
+    tokens: &[Token],
+    src: &'s str,
+    base: u32,
+) -> Vec<WordJob<'s>> {
+    words
+        .iter()
+        .map(|word| word_job(word, tokens, src, base))
+        .collect()
+}
+
+/// Check one word's own delimiters.
+fn word_job<'s>(
     word: &crate::script::WordSpan,
     tokens: &[Token],
-    src: &str,
-    config: LexerConfig,
-    depth: u32,
-) -> Option<(u32, &'static str)> {
+    src: &'s str,
+    base: u32,
+) -> WordJob<'s> {
+    let at = |offset: u32| offset.saturating_add(base);
     // A brace group that closed but has content welded to it — `{a}b`,
-    // `{a}{b}`, `{a}{*}$b` — is C's first complaint about the word, and
-    // the grouping owner is the only thing that can see it.
+    // `{a}{b}`, `{a}{*}$b` — is C's first complaint about the word, and the
+    // grouping owner is the only thing that can see it.
     if word.welded_after_close {
-        return Some((weld_offset(word, tokens, src), EXTRA_AFTER_CLOSE_BRACE));
+        return WordJob::Cut(at(weld_offset(word, tokens, src)), EXTRA_AFTER_CLOSE_BRACE);
     }
     let written = written_span(word, tokens, src);
     let (start, end) = (written.start() as usize, written.end() as usize);
+    let content =
+        |from: usize, to: usize, fallback: Option<(u32, &'static str)>| match src.get(from..to) {
+            Some(text) => WordJob::Content {
+                content: text.as_bytes(),
+                base: at(offset_of(from)),
+                fallback,
+            },
+            None => WordJob::Literal,
+        };
     match word.kind {
         // A braced word is C's `TCL_TOKEN_SIMPLE_WORD`: its content is not
         // parsed as anything, so the only thing that can fail is the brace
@@ -222,18 +294,163 @@ fn word_cut(
         // widening already consumed the `}`, so asking
         // [`word_closer_offset_at`](crate::word_closer_offset_at) about the
         // widened span asks whether the byte *after* the `}` is a `}`.
-        WordKind::Braced => (src.as_bytes().get(start) == Some(&b'{')
-            && word_closer_offset_at(src, word.span).is_none())
-        .then(|| (written.end(), MISSING_CLOSE_BRACE)),
+        WordKind::Braced => {
+            if src.as_bytes().get(start) == Some(&b'{')
+                && word_closer_offset_at(src, word.span).is_none()
+            {
+                WordJob::Cut(at(written.end()), MISSING_CLOSE_BRACE)
+            } else {
+                WordJob::Literal
+            }
+        }
         WordKind::Quoted => match quoted_word_close(src, start) {
-            Err(message) => Some((written.end(), message)),
+            // The quote never closed — but that is not necessarily why C
+            // stopped.  `quoted_word_close` steps over complete `[…]`
+            // substitutions to find the closer, so an *incomplete* one makes
+            // it give up here while C, parsing the word's tokens left to
+            // right, has already failed inside the bracket:
+            // `puts "[foo"` is `missing close-bracket` on 8.6.16 and 9.0.4.
+            // Walk the content first and keep `missing "` as the fallback.
+            Err(message) => content(start + 1, end, Some((at(written.end()), message))),
             // Anything written between the closing `"` and the end of the
             // word is C's `extra characters after close-quote`.
-            Ok(close) if end > close + 1 => Some((offset_of(close + 1), EXTRA_AFTER_CLOSE_QUOTE)),
-            Ok(close) => content_cut(src, start + 1, close, config, depth),
+            Ok(close) if end > close + 1 => {
+                WordJob::Cut(at(offset_of(close + 1)), EXTRA_AFTER_CLOSE_QUOTE)
+            }
+            Ok(close) => content(start + 1, close, None),
         },
-        WordKind::Bare => content_cut(src, start, end, config, depth),
+        WordKind::Bare => content(start, end, None),
     }
+}
+
+/// Run the stack down to empty, or to the first cut.
+fn drain(stack: &mut Vec<Frame<'_>>, config: LexerConfig) -> Option<(u32, &'static str)> {
+    while let Some(frame) = stack.last_mut() {
+        match frame {
+            Frame::Words {
+                jobs,
+                next,
+                report_at,
+            } => {
+                let report_at = *report_at;
+                let Some(job) = jobs.get(*next) else {
+                    stack.pop();
+                    continue;
+                };
+                *next += 1;
+                match job {
+                    WordJob::Literal => {}
+                    WordJob::Cut(offset, message) => {
+                        return Some((report_at.unwrap_or(*offset), message));
+                    }
+                    WordJob::Content {
+                        content,
+                        base,
+                        fallback,
+                    } => {
+                        let pushed = Frame::Parts {
+                            parts: decompose_spanned(content, SubstFlags::default(), config),
+                            base: *base,
+                            next: 0,
+                            report_at,
+                            fallback: fallback
+                                .map(|(offset, message)| (report_at.unwrap_or(offset), message)),
+                        };
+                        stack.push(pushed);
+                    }
+                }
+            }
+            Frame::Parts {
+                parts,
+                base,
+                next,
+                report_at,
+                fallback,
+            } => {
+                let (base, report_at) = (*base, *report_at);
+                let Some(part) = parts.get(*next) else {
+                    let fallback = *fallback;
+                    stack.pop();
+                    if let Some(found) = fallback {
+                        return Some(found);
+                    }
+                    continue;
+                };
+                *next += 1;
+                let at = report_at.unwrap_or(base.saturating_add(offset_of(part.start)));
+                match &part.part {
+                    WordPart::Text(_) => {}
+                    WordPart::ParseError(message) => return Some((at, message)),
+                    WordPart::Variable(var) => {
+                        if let Some(index) = var.index.clone() {
+                            stack.push(Frame::Index {
+                                parts: index,
+                                at,
+                                next: 0,
+                            });
+                        }
+                    }
+                    // The `[` is one byte, so the body begins one past the part.
+                    WordPart::Command(body) => {
+                        let pushed = body_frame(body, at.saturating_add(1), report_at, config);
+                        stack.extend(pushed);
+                    }
+                }
+            }
+            Frame::Index { parts, at, next } => {
+                let at = *at;
+                let Some(part) = parts.get(*next) else {
+                    stack.pop();
+                    continue;
+                };
+                *next += 1;
+                match part {
+                    WordPart::Text(_) => {}
+                    WordPart::ParseError(message) => return Some((at, message)),
+                    WordPart::Variable(var) => {
+                        if let Some(index) = var.index.clone() {
+                            stack.push(Frame::Index {
+                                parts: index,
+                                at,
+                                next: 0,
+                            });
+                        }
+                    }
+                    WordPart::Command(body) => {
+                        let pushed = body_frame(body, at, Some(at), config);
+                        stack.extend(pushed);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// A complete `[…]` body as a script frame to walk.
+///
+/// A body that failed to *close* never reaches here — [`decompose_spanned`]
+/// reports that as a [`WordPart::ParseError`] on the enclosing word — so this
+/// is the descent C performs while parsing an outer command whose bracket is
+/// well-formed but whose inner script is not: `list [set y {a}b]` is
+/// `extra characters after close-brace`, found one level down.
+fn body_frame(
+    body: &[u8],
+    base: u32,
+    report_at: Option<u32>,
+    config: LexerConfig,
+) -> Option<Frame<'_>> {
+    let body = std::str::from_utf8(body).ok()?;
+    let (tokens, commands) = lex_and_group(body, config)?;
+    let jobs = commands
+        .iter()
+        .flat_map(|command| word_jobs(&command.words, &tokens, body, base))
+        .collect();
+    Some(Frame::Words {
+        jobs,
+        next: 0,
+        report_at,
+    })
 }
 
 /// The whole written word, closing delimiter included.
@@ -275,88 +492,6 @@ fn weld_offset(word: &crate::script::WordSpan, tokens: &[Token], src: &str) -> u
         .and_then(|i| tokens.get(i))
         .map(|t| t.span.start());
     after_first.unwrap_or_else(|| word_span_at(src, word.span).end())
-}
-
-/// The first cut among the substitution components of `src[start..end]`.
-fn content_cut(
-    src: &str,
-    start: usize,
-    end: usize,
-    config: LexerConfig,
-    depth: u32,
-) -> Option<(u32, &'static str)> {
-    let content = src.get(start..end)?;
-    let parts = decompose_spanned(content.as_bytes(), SubstFlags::default(), config);
-    parts_cut(&parts, start, config, depth)
-}
-
-/// The first cut among `parts`, whose extents are relative to `base`.
-fn parts_cut(
-    parts: &[SpannedPart<'_>],
-    base: usize,
-    config: LexerConfig,
-    depth: u32,
-) -> Option<(u32, &'static str)> {
-    parts.iter().find_map(|spanned| {
-        let at = offset_of(base + spanned.start);
-        match &spanned.part {
-            WordPart::Text(_) => None,
-            WordPart::ParseError(message) => Some((at, *message)),
-            // The `[` is one byte, so the body begins one past the part.
-            WordPart::Command(body) => body_cut(body, config, depth + 1)
-                .map(|(inner, message)| (at.saturating_add(inner).saturating_add(1), message)),
-            // Index components carry no extents of their own, so anything
-            // found inside one is reported at the reference's `$`.
-            WordPart::Variable(var) => var
-                .index
-                .as_deref()
-                .and_then(|index| index_cut(index, at, config, depth + 1)),
-        }
-    })
-}
-
-/// The first cut inside a complete `[…]` body, relative to the body.
-///
-/// A body that failed to *close* never reaches here — [`decompose_spanned`]
-/// reports that as a [`WordPart::ParseError`] on the enclosing word — so
-/// this is the descent C performs while parsing an outer command whose
-/// bracket is well-formed but whose inner script is not: `list [set y {a}b]`
-/// is `extra characters after close-brace`, found one level down.
-fn body_cut(body: &[u8], config: LexerConfig, depth: u32) -> Option<(u32, &'static str)> {
-    if depth >= MAX_CUT_SCAN_DEPTH {
-        return None;
-    }
-    let body = std::str::from_utf8(body).ok()?;
-    let (tokens, commands) = lex_and_group(body, config)?;
-    commands
-        .iter()
-        .find_map(|command| command_cut(command, &tokens, body, config, depth))
-}
-
-/// The first cut among a `$arr(index)` reference's own components, reported
-/// at `at` (the reference's `$`).
-///
-/// [`decompose`](crate::word_parts::decompose) nests index components
-/// without extents, so every position inside one collapses to the
-/// reference's own — see [`ParseCut::offset`].
-fn index_cut(
-    parts: &[WordPart<'_>],
-    at: u32,
-    config: LexerConfig,
-    depth: u32,
-) -> Option<(u32, &'static str)> {
-    if depth >= MAX_CUT_SCAN_DEPTH {
-        return None;
-    }
-    parts.iter().find_map(|part| match part {
-        WordPart::Text(_) => None,
-        WordPart::ParseError(message) => Some((at, *message)),
-        WordPart::Variable(var) => var
-            .index
-            .as_deref()
-            .and_then(|index| index_cut(index, at, config, depth + 1)),
-        WordPart::Command(body) => body_cut(body, config, depth + 1).map(|(_, m)| (at, m)),
-    })
 }
 
 /// A source offset as the `u32` every span in this crate uses.
@@ -599,8 +734,69 @@ mod tests {
         );
     }
 
-    /// Deep `[…]` nesting terminates instead of overflowing the stack, and
-    /// still finds a cut that sits above the cap.
+    /// An unterminated quoted word is not automatically `missing "`.
+    ///
+    /// `quoted_word_close` steps over *complete* `[…]` substitutions to find
+    /// the closer, so an incomplete one makes it give up — but C, parsing the
+    /// word's tokens left to right, has already failed inside the bracket.
+    /// Measured one script per `tclsh` run on 8.6.16 and 9.0.4, identical:
+    ///
+    /// ```text
+    /// puts "[foo"        -> missing close-bracket
+    /// puts "a[foo b"     -> missing close-bracket
+    /// list "[foo"        -> missing close-bracket
+    /// puts "unterminated -> missing "
+    /// ```
+    #[test]
+    fn an_unterminated_quote_yields_the_error_inside_it_first() {
+        for (script, want) in [
+            ("puts \"[foo\"", crate::word_parts::MISSING_CLOSE_BRACKET),
+            ("puts \"a[foo b\"", crate::word_parts::MISSING_CLOSE_BRACKET),
+            ("list \"[foo\"", crate::word_parts::MISSING_CLOSE_BRACKET),
+            ("puts \"unterminated", crate::word_parts::MISSING_QUOTE),
+            // The quote's own error still wins when the word holds nothing
+            // that failed earlier.
+            ("puts \"a${b}c", crate::word_parts::MISSING_QUOTE),
+        ] {
+            assert_eq!(
+                first_parse_cut(script, LexerConfig::default()).map(|c| c.message),
+                Some(want),
+                "{script:?}"
+            );
+        }
+    }
+
+    /// C's parser has no nesting limit, so neither can this one.
+    ///
+    /// Measured on 8.6.16 and 9.0.4: `puts [list [list … set y {a}b …]]`
+    /// nested 1000 and 5000 deep both report `extra characters after
+    /// close-brace`, while the *well-formed* script at the same depth parses
+    /// and fails only at evaluation (`too many nested evaluations`). A
+    /// depth-capped walk answered `None` for the malformed one — "the whole
+    /// script parses" — which is the one answer this owner must never give.
+    #[test]
+    fn nesting_past_any_cap_still_finds_the_cut() {
+        for depth in [64usize, 129, 400] {
+            let malformed = format!(
+                "puts {}set y {{a}}b{}",
+                "[list ".repeat(depth),
+                "]".repeat(depth)
+            );
+            assert_eq!(
+                first_parse_cut(&malformed, LexerConfig::default()).map(|c| c.message),
+                Some(crate::word_parts::EXTRA_AFTER_CLOSE_BRACE),
+                "depth {depth}"
+            );
+            let well_formed = format!("puts {}ok{}", "[list ".repeat(depth), "]".repeat(depth));
+            assert_eq!(
+                first_parse_cut(&well_formed, LexerConfig::default()),
+                None,
+                "depth {depth}"
+            );
+        }
+    }
+
+    /// Deep `[…]` nesting terminates instead of overflowing the stack.
     #[test]
     fn deep_bracket_nesting_is_bounded() {
         let deep = format!("puts {}x{}", "[foo ".repeat(400), "]".repeat(400));

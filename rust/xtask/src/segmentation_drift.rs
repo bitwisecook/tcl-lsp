@@ -441,7 +441,14 @@ fn test_module_ranges(lines: &[&str]) -> Vec<Range<usize>> {
         let trimmed = decl.trim_start();
         let item = trimmed.strip_prefix("pub ").unwrap_or(trimmed);
         let item = item.strip_prefix("(crate) ").unwrap_or(item);
-        if !item.starts_with("mod ") {
+        // Only an *inline* module has an extent to skip. A `#[cfg(test)] mod
+        // tests;` declaration names an external file — eight of them in this
+        // workspace, `tcl-compiler/src/native_lowering/mod.rs` among them —
+        // and has no `}` of its own, so treating it as a range blanks out
+        // every line after it and silently drops the rest of the file from
+        // the lint. The external file is exempt by path anyway
+        // (`is_exempt_path` covers `**/tests.rs`).
+        if !item.starts_with("mod ") || !item.contains('{') {
             continue;
         }
         // A module's closer is a `}` at the module keyword's own
@@ -657,6 +664,24 @@ mod tests {
         let hits = scan(src);
         assert_eq!(hits.len(), 1, "{hits:?}");
         assert_eq!(hits[0].0, 6, "the hit is the one outside the test module");
+    }
+
+    /// A `#[cfg(test)] mod tests;` declaration names an *external* file and
+    /// has no `}` of its own. Treating it as a module range blanks out every
+    /// line after it — which is what happened in
+    /// `tcl-compiler/src/native_lowering/mod.rs`, where the declaration sits
+    /// 500 lines above the end of the production code.
+    #[test]
+    fn an_external_test_module_declaration_does_not_exempt_the_file() {
+        let src = "#[cfg(test)]\nmod tests;\n\n\
+                   fn later(c: u8) { let _ = matches!(c, b'\\n' | b';'); }\n";
+        let hits = scan(src);
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!(hits[0].0, 4);
+        // The external file itself is exempt by path, so nothing is lost.
+        assert!(is_exempt_path(
+            "rust/tcl-compiler/src/native_lowering/tests.rs"
+        ));
     }
 
     #[test]

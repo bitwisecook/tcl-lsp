@@ -538,6 +538,37 @@ fn a_dollar_that_starts_no_reference_is_literal_text() {
     assert_eq!(result, "$|50% of $|a$ b|a$%b|a$%^&b|a$%b|2");
 }
 
+/// An unterminated quoted word reports what failed *inside* it first.
+///
+/// `quoted_word_close` steps over complete `[…]` substitutions to find the
+/// closer, so an incomplete one makes it give up — but C, parsing the word's
+/// tokens left to right, has already failed in the bracket. Oracle, one
+/// script per `tclsh` run on 8.6.16 and 9.0.4:
+///
+/// ```text
+/// puts "[foo"        -> missing close-bracket
+/// puts "a[foo b"     -> missing close-bracket
+/// puts "unterminated -> missing "
+/// list a "b          -> missing "
+/// ```
+#[test]
+fn an_unterminated_quote_reports_the_failure_inside_it_first() {
+    for (script, want) in [
+        ("puts \"[foo\"", "missing close-bracket"),
+        ("puts \"a[foo b\"", "missing close-bracket"),
+        ("puts \"unterminated", "missing \""),
+        ("list a \"b", "missing \""),
+    ] {
+        let (code, result, _) = run(script);
+        assert_eq!((code, result.as_str()), (Code::Error, want), "{script}");
+    }
+    // A *complete* bracket in an unterminated quote still reaches evaluation
+    // before the quote's own error, exactly as C does.
+    let (code, result, _) = run("puts \"a[nosuchcmd]b\"");
+    assert_eq!(code, Code::Error);
+    assert!(result.contains("nosuchcmd"), "{result}");
+}
+
 /// The fix must not blunt the real one. Oracle, measured one script per
 /// `tclsh` run on 8.6.16 and 9.0.4:
 ///
