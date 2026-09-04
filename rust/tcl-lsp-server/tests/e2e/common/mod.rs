@@ -488,6 +488,11 @@ impl Lsp {
         Self::with_config(json!({ "features": { "linkedEditingRange": true } }))
     }
 
+    /// [`Lsp::tcl`] with test-only environment seams installed on the child.
+    pub fn tcl_with_env(env: &[(&str, &str)]) -> Self {
+        Self::with_config_env(json!({ "features": { "linkedEditingRange": true } }), env)
+    }
+
     /// A server dedicated to iRules-dialect documents (dialect switch is
     /// process-global, so those tests use their own server). Same config as
     /// [`Lsp::tcl`].
@@ -534,7 +539,13 @@ impl Lsp {
     /// `with_config` caller is now guaranteed that its config is in effect
     /// before it opens anything.
     pub fn with_config(config: Value) -> Self {
-        let mut lsp = Self::spawn(config);
+        Self::with_config_env(config, &[])
+    }
+
+    /// [`Lsp::with_config`] with test-only environment seams installed on the
+    /// child process.
+    pub fn with_config_env(config: Value, env: &[(&str, &str)]) -> Self {
+        let mut lsp = Self::spawn_with_env(config, env);
         lsp.initialize();
         // Settle on exactly what this client will reply to
         // `workspace/configuration` with, read back from the shared slot.

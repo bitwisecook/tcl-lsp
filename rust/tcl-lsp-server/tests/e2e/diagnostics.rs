@@ -3312,8 +3312,7 @@ fn autoload_library_command_references_and_rename_m8() {
 
 // -- #844 progressive (two-tier) diagnostics -----------------------------
 
-/// Build a large Tcl document (~`n` procs, ~10×`n` lines) whose deep
-/// diagnostics pass reliably overruns `DIAGNOSTICS_FAST_TIER_BUDGET`, plus one
+/// Build a large Tcl document (~`n` procs, ~10×`n` lines), plus one
 /// proc whose unbraced `expr` yields a fast-tier **W100** (an analyser code) and
 /// a deep-tier-only **O111** (the optimiser hint paired with W100) — so the two
 /// progressive publishes are distinguishable regardless of package-database
@@ -3350,14 +3349,21 @@ fn big_tcl_with_split_markers(n: usize) -> String {
 ///
 /// A small / warm file settles inside `DIAGNOSTICS_FAST_TIER_BUDGET` and skips
 /// the fast tier entirely (a single publish — the debounce-skip guarded by the
-/// existing `diagnostics_delivery_smoke` single-publish tests); this test
-/// deliberately uses a large file so the deep pass overruns the budget and the
-/// fast tier fires.
+/// existing `diagnostics_delivery_smoke` single-publish tests). This test uses
+/// a one-shot child-process seam to choose the same fast-tier branch without
+/// making its coverage depend on host speed; other tests retain the actual
+/// 40 ms budget race.
 #[test]
 fn large_file_publishes_fast_tier_before_deep_tier() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl_with_env(&[("TCL_LSP_TEST_FORCE_DIAGNOSTICS_FAST_TIER", "1")]);
     let uri = unique_uri("tcl");
-    let big = big_tcl_with_split_markers(600);
+    // 70 procs remain above the production 500-line progressive-tier floor,
+    // while avoiding the unrelated scaling cost of the former 600-proc input.
+    let big = big_tcl_with_split_markers(70);
+    assert!(
+        big.lines().count() >= 500,
+        "fixture must enter the fast tier"
+    );
 
     let since = lsp.notification_cursor();
     lsp.open_document_lang(&uri, &big, "tcl", 1);
@@ -3399,18 +3405,6 @@ fn large_file_publishes_fast_tier_before_deep_tier() {
             "no deep-tier publish (carrying the optimiser O111) arrived; publishes: {all_codes:?}"
         );
     };
-    if deep_idx == 0 {
-        // Coalesced into a single publish on an unexpectedly fast host (the deep
-        // pass landed inside the 40 ms budget). The two sibling
-        // progressive/convergence tests carry the same escape hatch; the fast→deep
-        // split is not observable this run, but completeness still is.
-        let only = codes(&pubs[0]);
-        assert!(
-            only.contains("W100") && only.contains("O111"),
-            "a coalesced single publish must still carry the complete set: {only:?}",
-        );
-        return;
-    }
     assert!(
         deep_idx >= 1,
         "the fast tier must be published before the deep tier on a large file, \
