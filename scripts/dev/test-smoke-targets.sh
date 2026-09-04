@@ -35,58 +35,10 @@ if ! diff -u "$EXPECTED" "$ACTUAL"; then
     exit 1
 fi
 
-while IFS="$(printf '\t')" read -r source package kind target; do
-    case "$source" in
-        ''|'#'*) continue ;;
-    esac
-
-    test -f "$source" || {
-        echo "missing smoke source: $source" >&2
-        exit 1
-    }
-
-    case "$source" in
-        */src/*) crate_root=${source%%/src/*} ;;
-        */tests/*) crate_root=${source%%/tests/*} ;;
-        *)
-            echo "cannot resolve crate root for smoke source: $source" >&2
-            exit 1
-            ;;
-    esac
-
-    test -f "$crate_root/Cargo.toml" || {
-        echo "missing Cargo.toml for smoke source: $source" >&2
-        exit 1
-    }
-
-    declared_package=$(awk -F '"' '
-        /^\[package\]$/ { in_package = 1; next }
-        in_package && /^\[/ { exit }
-        in_package && /^name = "/ { print $2; exit }
-    ' "$crate_root/Cargo.toml")
-    test "$package" = "$declared_package" || {
-        echo "smoke source $source belongs to '$declared_package', not '$package'" >&2
-        exit 1
-    }
-
-    case "$kind" in
-        lib)
-            test "$target" = '-' || {
-                echo "library smoke row must use '-' target: $source" >&2
-                exit 1
-            }
-            ;;
-        test)
-            test -f "$crate_root/tests/$target.rs" || {
-                echo "missing integration target '$target' for $source" >&2
-                exit 1
-            }
-            ;;
-        *)
-            echo "invalid smoke target kind '$kind' for $source" >&2
-            exit 1
-            ;;
-    esac
-done < "$MANIFEST"
+# Cargo metadata is the authority for target names and source roots. The
+# helper rejects a source associated with the wrong integration target and
+# rejects ambiguous library/binary module ownership instead of guessing.
+python3 "$SCRIPT_DIR/check_smoke_targets.py" --self-test
+python3 "$SCRIPT_DIR/check_smoke_targets.py" "$MANIFEST"
 
 echo "targeted Cargo smoke ownership contract passed"

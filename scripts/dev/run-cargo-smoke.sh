@@ -36,6 +36,31 @@ run_smoke() {
     fi
 }
 
+run_named_target() {
+    kind=$1
+    package=$2
+    target=$3
+    shift 3
+
+    case "$target" in
+        smoke|*_smoke)
+            # Nextest's binary selector includes every test in a
+            # convention-named smoke target, even when an individual
+            # function does not contain the word "smoke".
+            echo "==> cargo test -p $package --$kind $target"
+            if [ "$LIST_ONLY" = true ]; then
+                cargo test -p "$package" "--$kind" "$target" -- --list
+            else
+                cargo test -p "$package" "--$kind" "$target"
+            fi
+            ;;
+        *)
+            echo "==> cargo test -p $package --$kind $target smoke"
+            run_smoke cargo test -p "$package" "--$kind" "$target"
+            ;;
+    esac
+}
+
 while IFS="$(printf '\t')" read -r source package kind target; do
     case "$source" in
         ''|'#'*) continue ;;
@@ -53,23 +78,10 @@ while IFS="$(printf '\t')" read -r source package kind target; do
             run_smoke cargo test -p "$package" --lib
             ;;
         test)
-            case "$target" in
-                smoke|*_smoke)
-                    # Nextest's binary selector includes every test in a
-                    # convention-named smoke integration target, even when an
-                    # individual function does not contain the word "smoke".
-                    echo "==> cargo test -p $package --test $target"
-                    if [ "$LIST_ONLY" = true ]; then
-                        cargo test -p "$package" --test "$target" -- --list
-                    else
-                        cargo test -p "$package" --test "$target"
-                    fi
-                    ;;
-                *)
-                    echo "==> cargo test -p $package --test $target smoke"
-                    run_smoke cargo test -p "$package" --test "$target"
-                    ;;
-            esac
+            run_named_target test "$package" "$target"
+            ;;
+        bin)
+            run_named_target bin "$package" "$target"
             ;;
         *)
             echo "invalid target kind '$kind' for $source in $MANIFEST" >&2

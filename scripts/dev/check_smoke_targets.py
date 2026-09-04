@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Validate the Cargo target ownership declared by smoke-targets.tsv."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@dataclass(frozen=True)
+class Target:
+    package: str
+    kind: str
+    name: str
+    source: Path
+
+    @property
+    def manifest_name(self) -> str:
+        return "-" if self.kind == "lib" else self.name
+
+
+def ownership_rank(source: Path, target: Target) -> int | None:
+    """Return how specifically *target* owns *source*, or None if it cannot."""
+    root = target.source
+    if source == root:
+        return 3
+
+    # Rust's conventional sibling module tree for `foo.rs` is `foo/`.
+    if root.suffix == ".rs" and source.is_relative_to(root.with_suffix("")):
+        return 2
+
+    if target.kind == "test":
+        return None
+
+    # A `src/bin/foo/main.rs` binary owns the rest of its directory. A
+    # top-level lib.rs/main.rs can include sibling modules, but that ownership
+    # is deliberately low priority because a package containing both targets
+    # is ambiguous without following the Rust module graph.
+    if root.name == "main.rs" and root.parent.parent.name == "bin":
+        return 2 if source.is_relative_to(root.parent) else None
+    if root.name in {"lib.rs", "main.rs"} and source.is_relative_to(root.parent):
+        return 1
+    return None
+
+
+def best_owners(source: Path, targets: list[Target]) -> list[Target]:
+    ranked = [
+        (rank, target) for target in targets if (rank := ownership_rank(source, target))
+    ]
+    if not ranked:
+        return []
+    best = max(rank for rank, _target in ranked)
+    return [target for rank, target in ranked if rank == best]
+
+
+def load_targets() -> tuple[dict[str, Path], list[Target]]:
+    result = subprocess.run(
+        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    metadata = json.loads(result.stdout)
+    manifests: dict[str, Path] = {}
+    targets: list[Target] = []
+    for package in metadata["packages"]:
+        package_name = package["name"]
+        manifests[package_name] = Path(package["manifest_path"]).resolve().parent
+        for raw_target in package["targets"]:
+            supported = {"lib", "bin", "test"}.intersection(raw_target["kind"])
+            for kind in supported:
+                targets.append(
+                    Target(
+                        package=package_name,
+                        kind=kind,
+                        name=raw_target["name"],
+                        source=Path(raw_target["src_path"]).resolve(),
+                    )
+                )
+    return manifests, targets
+
+
+def validate(manifest: Path) -> list[str]:
+    package_roots, all_targets = load_targets()
+    errors: list[str] = []
+    for line_number, raw_line in enumerate(manifest.read_text().splitlines(), 1):
+        if not raw_line or raw_line.startswith("#"):
+            continue
+        fields = raw_line.split("\t")
+        if len(fields) != 4:
+            errors.append(
+                f"{manifest}:{line_number}: expected four tab-separated fields"
+            )
+            continue
+        source_text, package, kind, target_name = fields
+        source = (REPO_ROOT / source_text).resolve()
+        if not source.is_file():
+            errors.append(f"missing smoke source: {source_text}")
+            continue
+        package_root = package_roots.get(package)
+        if package_root is None:
+            errors.append(f"unknown Cargo package '{package}' for {source_text}")
+            continue
+        if not source.is_relative_to(package_root):
+            errors.append(
+                f"smoke source {source_text} does not belong to package '{package}'"
+            )
+            continue
+        if kind not in {"lib", "bin", "test"}:
+            errors.append(f"invalid smoke target kind '{kind}' for {source_text}")
+            continue
+        if kind == "lib" and target_name != "-":
+            errors.append(f"library smoke row must use '-' target: {source_text}")
+            continue
+
+        package_targets = [
+            target
+            for target in all_targets
+            if target.package == package and target.kind in {"lib", "bin", "test"}
+        ]
+        owners = best_owners(source, package_targets)
+        declared = [
+            owner
+            for owner in owners
+            if owner.kind == kind and owner.manifest_name == target_name
+        ]
+        if len(declared) == 1 and len(owners) == 1:
+            continue
+
+        if not owners:
+            errors.append(f"no Cargo target owns smoke source {source_text}")
+        elif len(owners) > 1:
+            names = ", ".join(f"{owner.kind}:{owner.manifest_name}" for owner in owners)
+            errors.append(
+                f"ambiguous Cargo target ownership for {source_text}: {names}; "
+                "move the smoke test to a target root or integration test"
+            )
+        else:
+            owner = owners[0]
+            errors.append(
+                f"smoke source {source_text} belongs to "
+                f"{owner.kind}:{owner.manifest_name}, not {kind}:{target_name}"
+            )
+    return errors
+
+
+def self_test() -> None:
+    root = Path("/repo/example")
+    targets = [
+        Target("example", "lib", "example", root / "src/lib.rs"),
+        Target("example", "bin", "example", root / "src/main.rs"),
+        Target("example", "bin", "worker", root / "src/bin/worker.rs"),
+        Target("example", "test", "cli", root / "tests/cli.rs"),
+        Target("example", "test", "new", root / "tests/new.rs"),
+    ]
+
+    # A source must map to its own integration target, not merely to any
+    # existing target in the package.
+    owners = best_owners(root / "tests/new.rs", targets)
+    assert [(owner.kind, owner.name) for owner in owners] == [("test", "new")]
+
+    # Binary roots and their conventional module directories must never be
+    # accepted as library-owned smoke sources.
+    owners = best_owners(root / "src/main.rs", targets)
+    assert [(owner.kind, owner.name) for owner in owners] == [("bin", "example")]
+    owners = best_owners(root / "src/bin/worker/helper.rs", targets)
+    assert [(owner.kind, owner.name) for owner in owners] == [("bin", "worker")]
+
+    # A sibling module shared by lib.rs and main.rs is intentionally rejected
+    # as ambiguous rather than letting the fallback silently choose --lib.
+    owners = best_owners(root / "src/shared.rs", targets)
+    assert {(owner.kind, owner.name) for owner in owners} == {
+        ("lib", "example"),
+        ("bin", "example"),
+    }
+
+
+def main() -> int:
+    if sys.argv[1:] == ["--self-test"]:
+        self_test()
+        return 0
+    if len(sys.argv) != 2:
+        print(
+            f"usage: {Path(sys.argv[0]).name} MANIFEST | --self-test",
+            file=sys.stderr,
+        )
+        return 2
+    errors = validate(Path(sys.argv[1]))
+    if errors:
+        print("\n".join(errors), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
