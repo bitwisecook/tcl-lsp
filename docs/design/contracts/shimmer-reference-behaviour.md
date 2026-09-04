@@ -193,7 +193,7 @@ variable* was judged against a stale representation: `set x [llength $l]` then
 code with `lindex $x 0` on its own line reported both halves.
 
 `word_subst` lifts those substitutions, and `commit`, `use_site` and `expr`
-each consume them. Four properties matter:
+each consume them. Five properties matter:
 
 - **It reads `word_exprs`, never the argument text.** Tcl substitutes `[…]` in
   bare and `"…"`-quoted words but not in braced ones, and
@@ -214,6 +214,14 @@ each consume them. Four properties matter:
   onto `Terminator::Return::expr`, and leaves it `None` for the braced
   `return {[expr …]}`. The walker just reads it, as it already did for
   `Terminator::Branch`.
+- **Every statement that carries substitutable words is lifted the same way.**
+  Both `Statement::Call` and `Statement::AssignValue` hold `CommandTokens`, and
+  the outer command changes nothing about what Tcl evaluates inside a word — so
+  `set r [list [lindex $x 0]]` reports exactly what `puts [list [lindex $x 0]]`
+  does. `AssignValue` used to parse only its outermost `[cmd …]` and go silent
+  below depth one (issue #1844); the outermost substitution is now simply the
+  depth-zero case of the same walk, not a shape the arm re-derives — the lift
+  is the single owner of "which commands does this statement run".
 
 ### Known limitation — the underlying representational gap
 
@@ -263,7 +271,12 @@ dedicated `Statement::Incr` node.
   distinction at every depth, and `arg_words` alignment), `shimmer::expr` (`expr_shimmer_fires_in_a_return_expression`,
   `expr_shimmer_fires_in_a_nested_call_argument` and their braced twins),
   `shimmer::use_site` (`use_site_shimmer_fires_in_a_nested_call_argument`,
-  `a_nested_conversion_is_visible_to_later_reads`).
+  `a_nested_conversion_is_visible_to_later_reads`, and their `AssignValue`
+  twins — `assign_value_lifts_the_same_substitutions_a_call_does` pins the two
+  statement kinds against each other so they cannot drift apart again,
+  alongside `assign_value_substitution_is_reported_once`,
+  `assign_value_nested_substitution_span_is_tight` and
+  `a_nested_conversion_in_an_assignment_is_visible_to_later_reads`).
 - Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
 - Native `lsp_e2e` coverage in `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` and `rust/tcl-lsp-server/tests/e2e/code_actions.rs` (the noqa suppress quick fix).
