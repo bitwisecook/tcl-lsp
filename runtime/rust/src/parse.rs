@@ -249,6 +249,165 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
         .collect()
 }
 
+// ---------------------------------------------------------------------------
+// C's script-parsing order: a command parses whole, THEN evaluates.
+// ---------------------------------------------------------------------------
+
+/// How deep a command's `[…]` nesting is pre-scanned before the scan gives up
+/// and lets the error surface the old way (during substitution).
+///
+/// Each `[…]` level of a command is one `eval_command_subst` — i.e. one
+/// `Interp::eval_depth` step — when the command actually runs, so a script
+/// nested deeper than the interpreter's own `NATIVE_EVAL_DEPTH_LIMIT` could
+/// never have evaluated anyway. Capping at the same budget keeps the scan's
+/// native recursion bounded by a constant instead of by the input.
+const MAX_PARSE_ERROR_SCAN_DEPTH: u32 = 128;
+
+/// The first parse error anywhere in `words`, in source order — `None` if the
+/// whole command parses.
+///
+/// C's `Tcl_EvalEx` calls `Tcl_ParseCommand` for **one whole command** and only
+/// then substitutes and dispatches its words, so a parse failure in *any* word
+/// is the command's failure and nothing the command would have substituted
+/// runs. Measured on tclsh 8.6.16 and 9.0.4, both identical:
+///
+/// ```text
+/// proc sfx {t} { lappend ::ran $t; return S$t }
+/// list [sfx inner] {a}b            -> extra characters after close-brace, ::ran empty
+/// list [sfx inner] "unterminated   -> missing "                          , ::ran empty
+/// list [sfx inner] [sfx two        -> missing close-bracket              , ::ran empty
+/// puts "[sfx inner]pre${abc"       -> missing close-brace for variable name, ::ran empty
+/// ```
+///
+/// The scan descends into `[…]` bodies and `$arr(index)` components because
+/// C's parse does: `Tcl_ParseCommand`'s `ParseTokens` recurses into a bracket,
+/// parsing the substituted script's own commands, so an error *inside* a later
+/// bracket also stops an earlier bracket from running —
+/// `list [sfx inner] [list "oops]` raises `missing "` with `::ran` empty on
+/// both shells. A `{braced}` word is a [`WordBody::Literal`] and holds no
+/// components, so it is not descended into — matching C, which does not parse
+/// a braced word's contents as a script either.
+///
+/// Note the deliberate non-consumer: `subst` does **not** get this treatment.
+/// It is not a command parse — C substitutes its template left to right and
+/// keeps the side effects of every `[…]` that ran before the failure
+/// (`subst {[side][b}` prints `side`'s output, then raises), which is exactly
+/// what walking [`WordPart`]s in order already does.
+#[must_use]
+pub fn first_parse_error(words: &[Word<'_>], config: LexerConfig) -> Option<&'static str> {
+    SCAN_MEMO.with(|memo| {
+        let memo = &mut *memo.borrow_mut();
+        memo.truncated = false;
+        words_parse_error(words, config, 0, memo)
+    })
+}
+
+/// The `[…]` recursion's memo, and how big it is allowed to get before it is
+/// dropped wholesale.
+///
+/// The scan's answer is a pure function of (script bytes, [`LexerConfig`]), so
+/// memoizing it is sound — and it has to be memoized, because this crate has no
+/// parse cache by design (the borrow-based tree makes one a lifetime hazard,
+/// memory-management.md MM-B.6). Without it, every execution of a command
+/// re-parses each of its `[…]` bodies once for the scan on top of the parse the
+/// substitution itself does, which on a bracket-dense loop measured ~40% slower.
+///
+/// The memo owns its keys and stores a `&'static str`, so nothing here can
+/// dangle; it is per-thread rather than per-[`crate::interp::Interp`] precisely
+/// because the function is pure — two interpreters on one thread asking the same
+/// question deserve the same answer. The cap bounds the memory an adversarial
+/// script (a fresh `[…]` body per iteration) can pin.
+const SCAN_MEMO_CAP: usize = 4096;
+
+thread_local! {
+    static SCAN_MEMO: std::cell::RefCell<ScanMemo> = std::cell::RefCell::new(ScanMemo::default());
+}
+
+#[derive(Default)]
+struct ScanMemo {
+    /// The config every entry was computed under; a different one clears it
+    /// (a version-pinned interpreter changes the grammar, issue #1462).
+    config: Option<LexerConfig>,
+    entries: std::collections::HashMap<Vec<u8>, Option<&'static str>>,
+    /// Set while a subtree's scan was cut short by
+    /// [`MAX_PARSE_ERROR_SCAN_DEPTH`]. A truncated answer is only valid at the
+    /// depth it was computed at, so it must not be memoized — the same script
+    /// reached at a shallower depth would scan further and could find an error
+    /// this run did not.
+    truncated: bool,
+}
+
+impl ScanMemo {
+    fn get(&mut self, script: &[u8], config: LexerConfig) -> Option<Option<&'static str>> {
+        if self.config != Some(config) {
+            self.config = Some(config);
+            self.entries.clear();
+            return None;
+        }
+        self.entries.get(script).copied()
+    }
+
+    fn put(&mut self, script: &[u8], answer: Option<&'static str>) {
+        if self.entries.len() >= SCAN_MEMO_CAP {
+            self.entries.clear();
+        }
+        self.entries.insert(script.to_vec(), answer);
+    }
+}
+
+fn words_parse_error(
+    words: &[Word<'_>],
+    config: LexerConfig,
+    depth: u32,
+    memo: &mut ScanMemo,
+) -> Option<&'static str> {
+    words.iter().find_map(|w| match &w.body {
+        WordBody::Literal(_) => None,
+        WordBody::Parts(parts) => parts_parse_error(parts, config, depth, memo),
+    })
+}
+
+fn parts_parse_error(
+    parts: &[WordPart<'_>],
+    config: LexerConfig,
+    depth: u32,
+    memo: &mut ScanMemo,
+) -> Option<&'static str> {
+    if depth >= MAX_PARSE_ERROR_SCAN_DEPTH {
+        memo.truncated = true;
+        return None;
+    }
+    parts.iter().find_map(|part| match part {
+        WordPart::ParseError(msg) => Some(*msg),
+        WordPart::Text(_) => None,
+        WordPart::Variable(v) => v
+            .index
+            .as_deref()
+            .and_then(|idx| parts_parse_error(idx, config, depth + 1, memo)),
+        WordPart::Command(script) => script_parse_error(script, config, depth + 1, memo),
+    })
+}
+
+fn script_parse_error(
+    script: &[u8],
+    config: LexerConfig,
+    depth: u32,
+    memo: &mut ScanMemo,
+) -> Option<&'static str> {
+    if let Some(hit) = memo.get(script, config) {
+        return hit;
+    }
+    let enclosing_truncated = std::mem::replace(&mut memo.truncated, false);
+    let answer = parse_script_with_config(script, config)
+        .iter()
+        .find_map(|cmd| words_parse_error(&cmd.words, config, depth, memo));
+    if !memo.truncated {
+        memo.put(script, answer);
+    }
+    memo.truncated |= enclosing_truncated;
+    answer
+}
+
 /// C's parse errors for the word delimiters this module owns — spelled by
 /// the shared owner, not re-typed here.
 ///
