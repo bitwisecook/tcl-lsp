@@ -210,7 +210,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-already-green check-monitoring-triggers check-wasm-cc-env check-homebrew-ci check-sign-and-upload xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -760,7 +760,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-already-green check-monitoring-triggers check-wasm-cc-env check-homebrew-ci check-sign-and-upload xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
@@ -786,6 +786,10 @@ check-already-green: ## Verify exact-tree green-result reuse stays fail-closed f
 check-monitoring-triggers: ## Verify monitoring cadence retains every score- and release-relevant trigger
 	@echo "==> Checking monitoring workflow triggers"
 	@sh scripts/dev/test-monitoring-triggers.sh
+
+check-smoke-targets: ## Verify every convention-named smoke source is owned by the targeted Cargo fallback
+	@echo "==> Checking targeted Cargo smoke ownership"
+	@sh scripts/dev/test-smoke-targets.sh
 
 check-wasm-cc-env: ## Verify wasm32 C-compiler selection and dependency diagnostics
 	@echo "==> Checking wasm32 C compiler bootstrap"
@@ -987,11 +991,11 @@ test-installer: ## Test installer platform, UI, and legacy-migration decisions (
 # Whole-workspace smoke tier: the fastest meaningful per-module subset, run
 # locally right after `cargo build`/`cargo check` — seconds warm, NOT a
 # substitute for CI's deep suites.  A test is "smoke" by naming convention: a
-# unit test fn named `smoke_*` (or nested under `mod smoke`), or an
-# integration-test file named `*_smoke.rs` (see .config/nextest.toml's
-# [profile.smoke]).  Reuses whatever build already exists (default features,
-# dev profile) — deliberately NOT --all-features, so it never forces a
-# recompile after a normal `cargo build`.
+# unit test fn named `smoke_*` (or nested under `mod smoke`), or an integration
+# binary named `smoke` / `*_smoke` (see .config/nextest.toml's [profile.smoke]).
+# Reuses whatever build already exists (default features, dev profile) —
+# deliberately NOT --all-features, so it never forces a feature recompile
+# after a normal `cargo build`.
 smoke: ## Fast per-module smoke tier (seconds; run after compile, before push)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
@@ -1002,9 +1006,9 @@ smoke: ## Fast per-module smoke tier (seconds; run after compile, before push)
 		echo "==> cargo nextest run --profile smoke"; \
 		cargo nextest run --profile smoke --workspace; \
 	else \
-		echo "==> cargo-nextest not found; falling back to 'cargo test smoke'"; \
+		echo "==> cargo-nextest not found; running the targeted Cargo smoke manifest"; \
 		echo "    (install: cargo install cargo-nextest --locked)"; \
-		cargo test --workspace smoke; \
+		sh scripts/dev/run-cargo-smoke.sh; \
 	fi
 
 # Single-crate smoke: make smoke-p P=tcl-compiler
