@@ -353,8 +353,9 @@ stored, is a design conversation: it requires updating this contract and
   and [`scripts/release/perf_notes.py`](../../../scripts/release/perf_notes.py) —
   the release-notes performance graphs and the section that embeds them.
 - [`.github/workflows/perf.yml`](../../../.github/workflows/perf.yml) —
-  benchmarks every push and tag; attaches `perf-*.svg` / `perf-summary.md`
-  to the GitHub Release, which is what the notes link to.
+  benchmarks nightly, on release tags, and on manual dispatch; verifies graph
+  drift on pull requests; attaches `perf-*.svg` / `perf-summary.md` to the
+  GitHub Release, which is what the notes link to.
 - [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) —
   builds artefacts, attests them, attaches them to the Release, and runs
   the three marketplace publish jobs.  Every `secrets.*` reference sits in a

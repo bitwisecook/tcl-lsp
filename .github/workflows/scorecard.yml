@@ -1,16 +1,16 @@
 name: OpenSSF Scorecard
 
-# Weekly OpenSSF Scorecard scan.  Produces SARIF findings against
+# Weekly and branch-protection-change OpenSSF Scorecard scan. Produces SARIF findings against
 # supply-chain best practices (token permissions, pinned actions,
 # branch protection, signed releases, dependency-update tools, etc.) and
-# uploads them to the Security tab.  This is monitoring, not gating —
-# we'll see score drift over time but it doesn't block PRs.
+# uploads them to the Security tab. This is monitoring, not gating: the
+# scheduled run catches dependency and ecosystem drift, while a protection
+# change triggers an immediate rescan. Ordinary source pushes cannot change
+# either input and therefore do not need a duplicate scan.
 on:
   branch_protection_rule:
   schedule:
     - cron: "23 4 * * 2"
-  push:
-    branches: [rust]
 
 permissions:
   contents: read
