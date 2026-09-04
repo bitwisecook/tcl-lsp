@@ -125,40 +125,129 @@ pub(crate) fn find_expr_shimmers(
                     };
                     collect_expr_shimmers(&mut ctx, expr, 0);
                 }
+                // An `[expr …]` written inside another command's word — the
+                // `puts [expr {$d % 2}]` half of the asymmetry issue #1814
+                // reported. The lowerer turns a *statement* `expr` into the
+                // node above but leaves a nested one as opaque argument text,
+                // so it is lifted and parsed here (see [`crate::word_subst`]).
+                // Its operands resolve through the statement's own `uses`,
+                // which `ssa::scan_nested_substitution_words` now populates
+                // for a nested command's in-frame braced words.
+                Statement::Call { tokens, .. } => {
+                    for (expr, span) in
+                        crate::word_subst::lifted_exprs(tokens.as_ref(), registry.profile())
+                    {
+                        let mut ctx = ExprShimmerCtx {
+                            uses: &ss.uses,
+                            types,
+                            values,
+                            ssa,
+                            commit: &commit_walker,
+                            // The substitution's own extent, so the report
+                            // points at `[expr …]` rather than the whole
+                            // enclosing command.
+                            stmt_span: span,
+                            expr_base: None,
+                            in_loop,
+                            seen: &mut seen,
+                            out: &mut out,
+                        };
+                        collect_expr_shimmers(&mut ctx, &expr, 0);
+                    }
+                }
                 _ => {}
             }
             commit_walker.step(&ss.statement, &ss.uses);
         }
 
-        // 2. Branch terminator condition (if/while/for predicate).
-        if let Some(block) = cfg.blocks.get(&block_id)
-            && let Some(Terminator::Branch {
-                condition,
-                span,
-                condition_base,
-                ..
-            }) = &block.terminator
-        {
-            let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
-            // Use exit_versions: those are the variable versions in scope
-            // when the condition is evaluated.
-            let mut ctx = ExprShimmerCtx {
-                uses: &ssa_block.exit_versions,
+        // 2. Terminator expressions: an `if`/`while`/`for` predicate, and a
+        //    `return [expr {…}]` value.
+        collect_terminator_shimmers(
+            &mut TerminatorWalk {
+                cfg,
+                ssa,
                 types,
                 values,
-                ssa,
+                block_id,
+                exit_versions: &ssa_block.exit_versions,
                 commit: &commit_walker,
-                stmt_span: branch_span,
-                expr_base: *condition_base,
                 in_loop,
-                seen: &mut seen,
-                out: &mut out,
-            };
-            collect_expr_shimmers(&mut ctx, condition, 0);
-        }
+            },
+            &mut seen,
+            &mut out,
+        );
     }
 
     out
+}
+
+/// Everything one block's terminator walk needs that is constant across it.
+struct TerminatorWalk<'a> {
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    types: &'a HashMap<ValueKey, TypeLattice>,
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    block_id: BlockId,
+    /// The versions in scope when a terminator is evaluated — after every
+    /// statement of its block has run.
+    exit_versions: &'a HashMap<Symbol, u32>,
+    commit: &'a super::commit::CommitWalker<'a>,
+    in_loop: bool,
+}
+
+/// Walk the expression a block's terminator evaluates, if it has one.
+///
+/// Both arms are expressions Tcl evaluates in this frame, so both are walked
+/// on the same terms as a statement `expr`. The `return` arm closes the
+/// asymmetry issue #1814 reported — `expr {$u0 * $dx}` as a statement was
+/// walked while `return [expr {$u0 * $dx}]` was not, so the same expression
+/// reported differently depending only on its position. The lowerer already
+/// parses it onto `Terminator::Return::expr`, and leaves that `None` for the
+/// braced `return {[expr …]}` that Tcl never evaluates, so reading it is both
+/// free and exact.
+fn collect_terminator_shimmers(
+    walk: &mut TerminatorWalk<'_>,
+    seen: &mut HashSet<(Span, String)>,
+    out: &mut Vec<ShimmerWarning>,
+) {
+    let Some(terminator) = walk
+        .cfg
+        .blocks
+        .get(&walk.block_id)
+        .and_then(|b| b.terminator.as_ref())
+    else {
+        return;
+    };
+    // `Terminator::Return` carries no `expr_base`, so its operand spans fall
+    // back to the statement span — the documented fallback for expression
+    // interiors.
+    let (expr, span, expr_base) = match terminator {
+        Terminator::Branch {
+            condition,
+            span,
+            condition_base,
+            ..
+        } => (condition, *span, *condition_base),
+        Terminator::Return {
+            expr: Some(expr),
+            span,
+            ..
+        } => (expr, *span, None),
+        _ => return,
+    };
+    let mut ctx = ExprShimmerCtx {
+        uses: walk.exit_versions,
+        types: walk.types,
+        values: walk.values,
+        ssa: walk.ssa,
+        commit: walk.commit,
+        stmt_span: span.unwrap_or_else(|| Span::new(0, 0)),
+        expr_base,
+        in_loop: walk.in_loop,
+        seen,
+        out,
+    };
+    collect_expr_shimmers(&mut ctx, expr, 0);
 }
 
 /// Read-only context + warning sinks threaded through one expr walk.
@@ -229,19 +318,29 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, depth: u
                 // the numeric intrep in place (clobbering String/List/Dict/
                 // ByteArray) and on failure raises — so on any path that
                 // executes without error, the shimmer really happened.
-                BinOp::Add
-                | BinOp::Sub
-                | BinOp::Mul
-                | BinOp::Div
-                | BinOp::Mod
-                | BinOp::Pow
+                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Pow => {
+                    check_numeric_operand(ctx, left, *op, NumericContext::Arithmetic);
+                    check_numeric_operand(ctx, right, *op, NumericContext::Arithmetic);
+                }
+
+                // The integer-only half of that set. `%`, the shifts and the
+                // bitwise operators read their operands the same way but then
+                // reject a `TCL_NUMBER_DOUBLE` outright, so their expectation
+                // is `Int`, not the `Numeric` join — tclsh 8.6.16 / 9.0.4
+                // verified for all six: `set d [expr {1.0 + 1.5}]` then
+                // `expr {$d % 2}` raises `can't use floating-point value as
+                // operand of "%"`, and likewise for `<<`, `>>`, `&`, `|`, `^`.
+                // Lumping them in with the arithmetic operators made a
+                // double operand look compatible once `Double` joined the
+                // numeric class.
+                BinOp::Mod
                 | BinOp::LShift
                 | BinOp::RShift
                 | BinOp::BitAnd
                 | BinOp::BitOr
                 | BinOp::BitXor => {
-                    check_numeric_operand(ctx, left, *op, NumericContext::Arithmetic);
-                    check_numeric_operand(ctx, right, *op, NumericContext::Arithmetic);
+                    check_numeric_operand(ctx, left, *op, NumericContext::Integer);
+                    check_numeric_operand(ctx, right, *op, NumericContext::Integer);
                 }
 
                 // `&&`/`||` are a boolean context, not arithmetic
@@ -325,8 +424,12 @@ fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, depth: u
 /// the diagnostic's wording and target type, not whether it fires.
 #[derive(Clone, Copy)]
 enum NumericContext {
-    /// `+`/`-`/`*`/… — `Tcl_GetNumberFromObj`, intrep becomes Int/Double.
+    /// `+`/`-`/`*`/`/`/`**` — `Tcl_GetNumberFromObj`, intrep becomes
+    /// Int/Double.
     Arithmetic,
+    /// `%`/`<<`/`>>`/`&`/`|`/`^` — read the same way, but a double is then
+    /// rejected rather than accepted, so the expectation is `Int`.
+    Integer,
     /// `&&`/`||` — `TclGetBooleanFromObj`, intrep becomes Boolean (or numeric).
     Boolean,
 }
@@ -366,6 +469,7 @@ fn check_numeric_operand(
     };
     let (to_type, context_name) = match context {
         NumericContext::Arithmetic => (TclType::Numeric, "arithmetic expression"),
+        NumericContext::Integer => (TclType::Int, "integer-only expression"),
         NumericContext::Boolean => (TclType::Boolean, "boolean context"),
     };
     // A prior use that committed a non-numeric intrep on every path makes this
@@ -711,6 +815,138 @@ mod tests {
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+    }
+
+    /// Issue #1814: a double accumulator narrowed through a loop keeps a
+    /// double intrep, and a later arithmetic use reads it in place — no
+    /// shimmer, whatever the surrounding statement shape. `expr` as a bare
+    /// statement and `set z [expr …]` both lower to an expr statement the
+    /// detector walks, so both were reported before this fix.
+    #[test]
+    fn no_expr_shimmer_double_accumulator_in_arithmetic() {
+        for tail in ["expr {$u0 * $dx}", "set z [expr {$u0 * $dx}]"] {
+            let src = format!(
+                "proc clip {{q dx}} {{\n\
+                 set u0 0.0\n\
+                 foreach qi $q {{\n\
+                 set r [expr {{$qi / 2.0}}]\n\
+                 if {{$r > $u0}} {{ set u0 $r }}\n\
+                 }}\n\
+                 {tail}\n\
+                 }}"
+            );
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::clip").unwrap();
+            let w = expr_shimmers(fu, &registry());
+            assert!(
+                !w.iter().any(|sw| sw.variable == "u0"),
+                "double operand of '*' must not shimmer ({tail}): {w:?}"
+            );
+        }
+    }
+
+    /// A double read in a boolean context is the same free numeric read.
+    #[test]
+    fn no_expr_shimmer_double_in_boolean_context() {
+        let cu = CompilationUnit::build_for(
+            "set x [expr {1.0 + 1.5}]\nset y [expr {$x && 1}]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+    }
+
+    /// Issue #1814 reported the same expression reporting differently
+    /// depending only on where it sat: `expr {$u0 * $dx}` was walked,
+    /// `return [expr {$u0 * $dx}]` was not. The return value is an
+    /// `ExprNode` the lowerer already parsed onto the terminator, so the
+    /// walker simply had to read it.
+    #[test]
+    fn expr_shimmer_fires_in_a_return_expression() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return [expr {$d % 2}]\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert!(
+            w.iter()
+                .any(|sw| sw.variable == "d" && sw.to_type == TclType::Int),
+            "a double in a returned integer-only expression is still a mismatch: {w:?}"
+        );
+    }
+
+    /// `return {[expr {…}]}` is a literal string — Tcl never evaluates it, so
+    /// the lowerer leaves the terminator's `expr` `None` and nothing fires.
+    #[test]
+    fn no_expr_shimmer_in_a_braced_return_value() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return {[expr {$d % 2}]}\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        assert!(expr_shimmers(fu, &registry()).is_empty());
+    }
+
+    /// The other half of the same asymmetry: an `[expr …]` in a call
+    /// argument. Its operands never reach `SsaStatement::uses` (the body is a
+    /// braced word the *command* parser does not substitute), so the walk
+    /// resolves them against the versions live at the statement.
+    #[test]
+    fn expr_shimmer_fires_in_a_nested_call_argument() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n puts [expr {$d % 2}]\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert!(
+            w.iter()
+                .any(|sw| sw.variable == "d" && sw.to_type == TclType::Int),
+            "nested `[expr …]` is evaluated just like a statement one: {w:?}"
+        );
+    }
+
+    /// …and the braced spelling of that same word is not.
+    #[test]
+    fn no_expr_shimmer_in_a_braced_call_argument() {
+        let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n puts {[expr {$d % 2}]}\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        assert!(expr_shimmers(fu, &registry()).is_empty());
+    }
+
+    /// Review follow-up on #1814: `%`, the shifts and the bitwise operators
+    /// are integer-only, so a committed double is still a mismatch there even
+    /// though `Double` is now numeric-compatible. tclsh 8.6.16 / 9.0.4:
+    /// `expr {$d % 2}` on a double raises `can't use floating-point value as
+    /// operand of "%"`, and the same for `<<`, `>>`, `&`, `|`, `^`.
+    #[test]
+    fn expr_shimmer_double_still_fires_for_integer_only_operators() {
+        for op in ["%", "<<", ">>", "&", "|", "^"] {
+            let src =
+                format!("proc f {{x}} {{\n set d [expr {{sqrt($x)}}]\n expr {{$d {op} 2}}\n}}");
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::f").unwrap();
+            let w = expr_shimmers(fu, &registry());
+            assert!(
+                w.iter()
+                    .any(|sw| sw.variable == "d" && sw.to_type == TclType::Int),
+                "a double operand of '{op}' must still be reported: {w:?}"
+            );
+        }
+    }
+
+    /// The arithmetic operators keep accepting it, which is the #1814 fix.
+    #[test]
+    fn no_expr_shimmer_double_for_true_arithmetic_operators() {
+        for op in ["+", "-", "*", "/", "**"] {
+            let src =
+                format!("proc f {{x}} {{\n set d [expr {{sqrt($x)}}]\n expr {{$d {op} 2}}\n}}");
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::f").unwrap();
+            let w = expr_shimmers(fu, &registry());
+            assert!(
+                !w.iter().any(|sw| sw.variable == "d"),
+                "a double operand of '{op}' is a free numeric read: {w:?}"
+            );
+        }
     }
 
     /// A String variable used in arithmetic should produce S100.

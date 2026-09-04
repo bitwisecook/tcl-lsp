@@ -103,14 +103,45 @@ impl CommitState {
     /// Record a read of this value at a position requiring intrep `t`: the
     /// runtime converts (or the command errors and execution stops), so the
     /// post-state is committed to exactly `t` on the paths through here.
+    ///
+    /// **Unless the value already satisfies the read.** A numeric-family
+    /// intrep is read in place by the whole `Tcl_Get*FromObj` family, so a
+    /// compatible read installs nothing and the cached representation
+    /// survives it — oracle-verified on tclsh 8.6.16: after
+    /// `set d [expr {1.0 + 1.5}]`, `expr {$d && 1}` leaves `d` holding the
+    /// very same `tclDoubleType` intrep, and a later `incr d` therefore still
+    /// raises `expected integer but got "2.5"`. Overwriting the state with
+    /// the *expectation* rather than keeping the *representation* lost that:
+    /// the pair was recorded as Boolean, which `must_pay(Int)` then found
+    /// integer-compatible, and the genuine `Double` → `Int` mismatch went
+    /// unreported.
     pub fn commit(&mut self, t: TclType, span: Span) {
         if self.first_span.is_none() {
             self.first_span = Some(span);
+        }
+        if self.satisfies(t) {
+            return;
         }
         self.may.clear();
         self.may.push(t);
         self.all_committed = true;
         self.overflowed = false;
+    }
+
+    /// Whether every intrep this value may hold already answers a read
+    /// requiring `t` without converting — the condition under which
+    /// [`Self::commit`] leaves the state alone. The inverse of
+    /// [`Self::must_pay`] over the *whole* may-set rather than its negation:
+    /// `must_pay` asks "does every path pay?", this asks "does no path pay?",
+    /// and a mixed state answers neither.
+    fn satisfies(&self, t: TclType) -> bool {
+        self.all_committed
+            && !self.overflowed
+            && !self.may.is_empty()
+            && self
+                .may
+                .iter()
+                .all(|&c| c == t || is_numeric_compatible(c, t))
     }
 
     /// Whether **every** executable path to this point pays a conversion for a
@@ -467,17 +498,37 @@ fn transfer_block(
                 apply_read(ctx, &mut state, read, Some(use_commit_types));
             }
         }
-        // Branch-condition reads live on the terminator, evaluated after the
-        // block's statements with its exit versions.
-        if let Some(block) = cfg.blocks.get(&block_id)
-            && let Some(Terminator::Branch {
-                condition, span, ..
-            }) = &block.terminator
+        // Branch-condition and return-expression reads live on the
+        // terminator, evaluated after the block's statements with its exit
+        // versions. Both must move the state for the same reason: the runtime
+        // converts there, so a later read in a successor block sees the
+        // converted representation.
+        match cfg
+            .blocks
+            .get(&block_id)
+            .and_then(|b| b.terminator.as_ref())
         {
-            let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
-            for read in typed_reads_of_expr(ctx, condition, &ssa_block.exit_versions, branch_span) {
-                apply_read(ctx, &mut state, read, Some(use_commit_types));
+            Some(Terminator::Branch {
+                condition, span, ..
+            }) => {
+                let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
+                for read in
+                    typed_reads_of_expr(ctx, condition, &ssa_block.exit_versions, branch_span)
+                {
+                    apply_read(ctx, &mut state, read, Some(use_commit_types));
+                }
             }
+            Some(Terminator::Return {
+                expr: Some(expr),
+                span,
+                ..
+            }) => {
+                let return_span = span.unwrap_or_else(|| Span::new(0, 0));
+                for read in typed_reads_of_expr(ctx, expr, &ssa_block.exit_versions, return_span) {
+                    apply_read(ctx, &mut state, read, Some(use_commit_types));
+                }
+            }
+            _ => {}
         }
     }
     state
@@ -498,8 +549,16 @@ fn typed_reads_of_statement(
         Statement::Call {
             args,
             foreach_groups,
+            tokens,
             ..
         } => {
+            // Tcl evaluates the words — running any `[cmd …]` in them — before
+            // it invokes the outer command, so those reads land first. Without
+            // them the state is stale for every later read of the same
+            // variable: `puts [lindex $x 0]` converts `x` to a list just as
+            // surely as a bare `lindex $x 0` does (issue #1814 follow-up).
+            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
+
             let lookup = stmt.canonical_command_or_source();
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             for (i, word) in args.iter().enumerate() {
@@ -549,6 +608,63 @@ fn typed_reads_of_statement(
         _ => {}
     }
     out
+}
+
+/// Push the typed reads of every `[cmd …]` nested in `tokens`' words.
+///
+/// Each substitution reads its arguments exactly as the same command written
+/// on its own line would, so this mirrors the direct-call arm — with one extra
+/// case: a nested `[expr …]` carries its reads in an expression, not in
+/// registry argument roles, so its operands are extracted through
+/// [`typed_reads_of_expr`] instead.
+///
+/// The reads are appended innermost-first, which is the order Tcl evaluates
+/// them in.
+fn push_lifted_reads(
+    ctx: &CommitCtx<'_>,
+    out: &mut Vec<TypedRead>,
+    tokens: Option<&crate::ir::CommandTokens>,
+    span: Span,
+    uses: &HashMap<Symbol, u32>,
+) {
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    for lifted in crate::word_subst::lifted_calls(tokens, config) {
+        if let Some(expr_text) = expr_substitution_body(&lifted) {
+            let expr = tcl_syntax::expr::parser::parse_expr_for_profile(
+                &expr_text,
+                ctx.registry.profile(),
+            );
+            out.extend(typed_reads_of_expr(ctx, &expr, uses, span));
+            continue;
+        }
+        let arg_refs: Vec<&str> = lifted.args.iter().map(String::as_str).collect();
+        for (i, word) in lifted.args.iter().enumerate() {
+            if let Some(expected) = arg_shimmer_type(ctx.registry, &lifted.command, &arg_refs, i) {
+                push_var_read(ctx, out, word, expected, span, uses);
+            }
+        }
+    }
+}
+
+/// The expression text of a lifted `[expr …]`, or `None` for any other
+/// command. `expr` concatenates its arguments, and the single-argument braced
+/// form is the only one whose text is a verbatim source slice, so a
+/// multi-argument `expr` is left alone rather than guessed at.
+fn expr_substitution_body(lifted: &crate::word_subst::LiftedCall) -> Option<String> {
+    if lifted.command != "expr" && lifted.command != "::expr" {
+        return None;
+    }
+    let [only] = lifted.args.as_slice() else {
+        return None;
+    };
+    let trimmed = only.trim();
+    Some(
+        trimmed
+            .strip_prefix('{')
+            .and_then(|t| t.strip_suffix('}'))
+            .unwrap_or(trimmed)
+            .to_owned(),
+    )
 }
 
 /// Extract the typed operand reads of one expression AST: arithmetic /
@@ -750,6 +866,34 @@ mod tests {
         }
         let uses: HashMap<Symbol, u32> = HashMap::new();
         let _ = typed_reads_of_expr(&ctx, &node, &uses, Span::new(0, 1));
+    }
+
+    /// Review follow-up on #1814: a read the committed representation already
+    /// satisfies must not replace it. `set d [expr {sqrt($x)}]; expr {$d && 1}`
+    /// leaves `d` a double on tclsh (the boolean read installs nothing), so a
+    /// later `incr d` is still the `Double` -> `Int` mismatch it was — which
+    /// recording the *expectation* instead of the *representation* hid.
+    #[test]
+    fn a_compatible_read_keeps_the_committed_representation() {
+        let span = Span::new(0, 1);
+        let mut state = CommitState::committed(TclType::Double, Some(span));
+
+        state.commit(TclType::Boolean, span);
+        assert_eq!(
+            state.single_committed(),
+            Some(TclType::Double),
+            "a boolean read of a double installs nothing, so the double stands"
+        );
+        state.commit(TclType::Numeric, span);
+        assert_eq!(state.single_committed(), Some(TclType::Double));
+        assert!(
+            state.must_pay(TclType::Int),
+            "`incr` on that double is still a genuine mismatch"
+        );
+
+        // An incompatible read still re-represents, as before.
+        state.commit(TclType::List, span);
+        assert_eq!(state.single_committed(), Some(TclType::List));
     }
 
     /// Straight-line: `expr` commits Numeric; the state at the following

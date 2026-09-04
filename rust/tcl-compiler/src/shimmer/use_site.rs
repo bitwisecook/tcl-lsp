@@ -597,6 +597,37 @@ fn emit_use_site_warning(
     });
 }
 
+/// Check every `[cmd …]` nested in `tokens`' words as its own invocation.
+///
+/// Reads the segmenter's structured
+/// [`word_exprs`](crate::ir::CommandTokens::word_exprs) rather than the flat
+/// argument text, because the two are indistinguishable there: `puts [lindex $x 0]`
+/// and `puts {[lindex $x 0]}` both arrive as the argument text `[lindex $x 0]`,
+/// and only the braced one is a literal Tcl never runs. See
+/// [`crate::word_subst`].
+fn check_lifted_calls(
+    ctx: &mut UseSiteCtx<'_>,
+    tokens: Option<&crate::ir::CommandTokens>,
+    fallback_span: Span,
+    uses: &HashMap<Symbol, u32>,
+) {
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    for lifted in crate::word_subst::lifted_calls(tokens, config) {
+        check_invocation(
+            ctx,
+            &InvocationSite {
+                command: &lifted.command,
+                lookup_command: &lifted.command,
+                args: &lifted.args,
+                arg_spans: &lifted.arg_spans,
+                is_foreach_header: false,
+                fallback_span,
+            },
+            uses,
+        );
+    }
+}
+
 fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
     match stmt {
         Statement::Call {
@@ -606,6 +637,12 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             foreach_groups,
             ..
         } => {
+            // A `[cmd …]` in one of this call's words reads its arguments
+            // exactly as the same command on its own line would — Tcl runs it
+            // before the outer command either way — so check it as the
+            // invocation it is (issue #1814 follow-up).
+            check_lifted_calls(ctx, tokens.as_ref(), stmt.span(), uses);
+
             let lookup = stmt.canonical_command_or_source();
             // `tokens.argv[0]` is the command word; `argv[1..]` are the
             // per-argument spans, index-aligned with `args` (both are the
@@ -942,6 +979,64 @@ mod tests {
         assert_eq!(
             text, "$x",
             "span should cover only the '$x' argument, got {text:?} from {w:?}"
+        );
+    }
+
+    /// Issue #1814 follow-up: a `[cmd …]` in a call argument reads its
+    /// arguments exactly as the same command on its own line does — Tcl runs
+    /// it either way.
+    #[test]
+    fn use_site_shimmer_fires_in_a_nested_call_argument() {
+        let cu = CompilationUnit::build_for(
+            "proc f {lst} {\n set x [llength $lst]\n puts [lindex $x 0]\n}",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = use_site_shimmers(fu, &registry());
+        let hit = w.iter().find(|w| w.command == "lindex");
+        assert!(hit.is_some(), "nested lindex is still a list read: {w:?}");
+        assert_eq!(hit.unwrap().from_type, TclType::Int);
+        assert_eq!(hit.unwrap().to_type, TclType::List);
+    }
+
+    /// The braced spelling of that word is a literal Tcl never runs, and the
+    /// flat argument text cannot tell the two apart — only `word_exprs` can.
+    #[test]
+    fn no_use_site_shimmer_in_a_braced_call_argument() {
+        let cu = CompilationUnit::build_for(
+            "proc f {lst} {\n set x [llength $lst]\n puts {[lindex $x 0]}\n}",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = use_site_shimmers(fu, &registry());
+        assert!(
+            !w.iter().any(|w| w.command == "lindex"),
+            "a braced word is data, not a call: {w:?}"
+        );
+    }
+
+    /// The conversion a nested substitution performs must also reach the
+    /// commit state, or every later read of the same variable is judged
+    /// against a stale representation. Before this, the `incr` here reported
+    /// nothing at all — while the identical code with `lindex $x 0` on its own
+    /// line reported it.
+    #[test]
+    fn a_nested_conversion_is_visible_to_later_reads() {
+        let cu = CompilationUnit::build_for(
+            "proc f {lst} {\n set x [llength $lst]\n puts [lindex $x 0]\n incr x\n}",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let w = use_site_shimmers(fu, &registry());
+        let incr = w.iter().find(|w| w.command == "incr");
+        assert!(incr.is_some(), "the incr after a nested list read: {w:?}");
+        assert_eq!(
+            incr.unwrap().from_type,
+            TclType::List,
+            "it converted back from the list the nested `lindex` installed"
         );
     }
 

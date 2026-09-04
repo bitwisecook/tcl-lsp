@@ -46,14 +46,48 @@ Each detector diagnostic maps to specific C functions that trigger `FreeInternal
 
 BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1)
 conversion path. `shimmer::hints::is_numeric_compatible(current, expected)`
-implements this as a **symmetric equivalence class**, not a subtype
-hierarchy: `Boolean`, `Int`, and `Numeric` are mutually interchangeable in
+implements this as an **equivalence class**, not a subtype hierarchy:
+`Boolean`, `Int`, `Double`, and `Numeric` are mutually interchangeable in
 arithmetic and boolean contexts, in either direction, and no intrep
 conversion is needed between any pair of them.
 
-`Double` is deliberately **not** in that class. A `Double` is compatible only
-with itself, so reading a double-typed value where an int is expected (or
-vice versa) is still a shimmer.
+`Double` belongs in that class because `Tcl_GetNumberFromObj` and
+`Tcl_GetBooleanFromObj` read a cached `tclDoubleType` intrep in place, and
+`Tcl_GetDoubleFromObj` widens a cached int / boolean intrep without replacing
+it. Verified on tclsh 8.6 and 9.0 with
+`::tcl::unsupported::representation`: after `set u [expr {1.0 + 1.5}]`, both
+`expr {$u * 2}` and `expr {$u && 1}` leave `u` holding the same double
+intrep, and after `set n [expr {1 + 2}]`, `expr {$n * 1.5}` leaves `n`
+holding the same int intrep. Excluding it was the S100 false positive in
+issue #1814 — a double accumulator (`set u0 0.0` … `expr {$u0 * $dx}`)
+reported as "has double intrep used in arithmetic expression".
+
+`Double` → `Int` is the one direction left out. Tcl never reads a double
+where an integer is required: the read either errors with the double intrep
+intact (`incr`, `string index`) or re-represents on the way to the error
+(`lindex {a b c d} $d` with `$d` = 2.0 replaces the double intrep), so it is
+not a free numeric read either way.
+
+That exclusion only bites where the expectation really is `Int`, so the
+`expr` operators are split accordingly. `+`, `-`, `*`, `/` and `**` expect
+`Numeric`; `%`, `<<`, `>>`, `&`, `|` and `^` are **integer-only** and expect
+`Int` — `Tcl_GetNumberFromObj` reads the operand either way, but
+`tclExecute.c` then rejects a `TCL_NUMBER_DOUBLE` outright for the second
+group (`can't use floating-point value as operand of "%"`, verified for all
+six on tclsh 8.6.16 and 9.0.4). Classifying all eleven as `Numeric` would
+have let a committed double pass silently through the integer-only half.
+
+### A compatible read preserves the representation
+
+`CommitState::commit` records what a typed read leaves behind, not what it
+asked for. A read the value's current intrep already satisfies installs
+nothing, so the committed representation survives it: after
+`set d [expr {sqrt($x)}]`, `expr {$d && 1}` leaves `d` a double (tclsh
+8.6.16, `::tcl::unsupported::representation`), and a later `incr d` still
+raises `expected integer but got "2.5"`. Overwriting the state with the
+*expectation* would record `Boolean` there, which `must_pay(Int)` finds
+integer-compatible, and the genuine `Double` → `Int` mismatch would go
+unreported. An *incompatible* read re-represents as it always did.
 
 ### When shimmering does NOT occur
 
@@ -144,6 +178,70 @@ documented exception is `expr {...}` bodies: `ExprNode` offsets have no
 absolute-position anchor without a larger IR change, so shimmer inside an
 expression string still spans the whole statement.
 
+## Nested command substitutions
+
+A `[cmd …]` written as a statement is an IR statement the detectors walk. The
+same `[cmd …]` written inside another command's word is not — `Statement::Call`
+keeps its arguments as flat text — so before this was closed the detectors saw
+`lindex $x 0` but not `puts [lindex $x 0]`, and the same expression reported
+differently depending only on its position (issue #1814).
+
+That cost twice over. The conversion at the nested site went unreported, and,
+worse, it never reached the commit state, so *every later read of the same
+variable* was judged against a stale representation: `set x [llength $l]` then
+`puts [lindex $x 0]` then `incr x` reported nothing at all, while the identical
+code with `lindex $x 0` on its own line reported both halves.
+
+`shimmer::nested` lifts those substitutions, and `commit`, `use_site` and
+`expr` each consume them. Three properties matter:
+
+- **It reads `word_exprs`, never the argument text.** Tcl substitutes `[…]` in
+  bare and `"…"`-quoted words but not in braced ones, and
+  `Statement::Call::args` renders all three identically as `[lindex $x 0]` —
+  lifting from that text would report a command Tcl never runs. The segmenter's
+  `WordExpr` already models the braced word as `BracedLiteral` and the
+  substituted one as `CommandSubstitution`, so the distinction is free and
+  exact.
+- **Order is innermost-first**, Tcl's own evaluation order, so the commit state
+  moves exactly as the runtime converts.
+- **`return [expr …]` needs no lifting at all**: the lowerer already parses it
+  onto `Terminator::Return::expr`, and leaves it `None` for the braced
+  `return {[expr …]}`. The walker just reads it, as it already did for
+  `Terminator::Branch`.
+
+### Known limitation — the underlying representational gap
+
+The lift above is a *shimmer-side* repair of a defect that is not
+shimmer-specific. A nested substitution is not a command in the IR, so its
+words never receive the registry-role classification that
+`ssa::braced_word_class` applies to a statement's words. That classification is
+what makes an `ArgRole::Expr` word's variables `UseClass::Substituted` — "a
+genuine read, here and now" — and without it the operands of a nested
+`[expr {…}]` are absent from `SsaStatement::uses` entirely.
+
+`uses` feeds SCCP, taint, type inference, def-use, GVN and interval bounds, so
+the hole is not confined to shimmer. It is observable in taint, where the only
+difference between the two lines is a pair of braces:
+
+```tcl
+eval [expr $tainted]      ;# T100
+eval [expr {$tainted}]    ;# nothing — the read is never recorded
+expr {$tainted}           ;# T100 again, once it is a statement
+```
+
+Nothing is mis-compiled — dead-store and unused-variable elimination use a
+separate textual use analysis — but the analysis stack is reading a def-use
+graph with holes. Because the operands never reach `uses`, `find_expr_shimmers`
+resolves a nested expression's variables against the versions live at the
+statement rather than through that map; that reconstruction is a workaround for
+the gap, not a design.
+
+The correct fix is to lower a nested substitution as a command, so its words
+receive the same role-driven classification every statement's words already
+get, and every consumer of `uses` becomes correct with no per-consumer code.
+That change reaches lowering, SSA, codegen and the optimiser, so it is tracked
+separately.
+
 Two narrower residual gaps remain in the interp-alias handling (see the
 doc comment on `shimmer::use_site::check_invocation`): an alias that
 prepends fixed arguments (`interp alias {} foo {} ::bar prefix`) does not
@@ -155,6 +253,11 @@ dedicated `Statement::Incr` node.
 
 ## Coverage
 
+- Nested-substitution coverage: `shimmer::nested` (lifting and the braced-word
+  distinction), `shimmer::expr` (`expr_shimmer_fires_in_a_return_expression`,
+  `expr_shimmer_fires_in_a_nested_call_argument` and their braced twins),
+  `shimmer::use_site` (`use_site_shimmer_fires_in_a_nested_call_argument`,
+  `a_nested_conversion_is_visible_to_later_reads`).
 - Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
 - Native `lsp_e2e` coverage in `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` and `rust/tcl-lsp-server/tests/e2e/code_actions.rs` (the noqa suppress quick fix).
