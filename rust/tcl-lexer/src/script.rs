@@ -73,11 +73,12 @@
 //! New here, and advisory only: [`WordSpan::welded_after_close`] records
 //! that a content token followed a braced (`Str`) token with **no
 //! intervening separator** — the `{a}b`, `{a}{b}`, `{a}$b`, `{a}{*}$b`
-//! shapes that C rejects outright with `extra characters after
-//! close-brace`.  Nothing in this module or its current consumers acts on
-//! it: it is carried so each consumer can pick its own severity (the
-//! analyser stays lenient and diagnoses, since it must keep tokenising
-//! broken source; the eval-facing `runtime/rust` can raise C's error).
+//! shapes that C rejects outright with
+//! [`EXTRA_AFTER_CLOSE_BRACE`](crate::EXTRA_AFTER_CLOSE_BRACE).  Nothing in
+//! this module acts on it: it is carried so each consumer can pick its own
+//! severity.  The analyser stays lenient and diagnoses, since it must keep
+//! tokenising broken source; the eval-facing `runtime/rust` raises C's error
+//! from it (`parse.rs` `build_word`).
 //! It is deliberately brace-only — the analogous close-quote weld (`"a"b`)
 //! is a different C error and is not reported here.
 
@@ -134,9 +135,11 @@ pub struct WordSpan {
     /// A content token followed a braced (`Str`) fragment of this word with
     /// no separator between them — `{a}b`, `{a}{b}`, `{a}$b`, `{a}{*}$b`.
     ///
-    /// C rejects every one of those with `extra characters after
-    /// close-brace`; both Rust groupers accepted them, differently.  This
-    /// flag is advisory: no consumer acts on it yet.
+    /// C rejects every one of those with
+    /// [`EXTRA_AFTER_CLOSE_BRACE`](crate::EXTRA_AFTER_CLOSE_BRACE); both Rust
+    /// groupers accepted them, differently.  The flag itself is advisory —
+    /// this module never acts on it — but `runtime/rust`'s eval-facing parser
+    /// does, raising C's error for the word that carries it.
     pub welded_after_close: bool,
 }
 

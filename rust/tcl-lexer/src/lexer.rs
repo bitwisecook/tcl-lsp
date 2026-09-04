@@ -1366,7 +1366,11 @@ impl<'src> Lexer<'src> {
                         let sep_span = Span::empty(self.pos);
                         self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
                     } else {
-                        self.warn_or_error("extra characters after close-brace")?;
+                        // One spelling, shared with the eval-facing consumer
+                        // that turns this recoverable warning into C's hard
+                        // error (`runtime/rust`, via
+                        // `script::WordSpan::welded_after_close`).
+                        self.warn_or_error(crate::word_parts::EXTRA_AFTER_CLOSE_BRACE)?;
                     }
                 }
             }

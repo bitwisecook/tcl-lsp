@@ -47,35 +47,41 @@
 //!
 //! ## Where the pieces live
 //!
-//! The **within-word** decomposition is not implemented here. [`WordPart`],
-//! [`VarRef`], [`WordBody`] and the scan that produces them are re-exports of
-//! [`tcl_lexer::word_parts`], the one owner shared with `tcl-vm` and (next
-//! lane) the compiler's segmenter. This module owns only the *script* level:
-//! splitting a script into commands and their words, via the canonical
-//! `tcl-lexer` token stream, and applying the word-delimiter rules
-//! (`{braced}` is literal, `"quoted"` must close) before handing each word's
-//! content to the owner.
+//! Nothing here scans source any more. The **within-word** decomposition is
+//! [`tcl_lexer::word_parts`]' — [`WordPart`], [`VarRef`], [`WordBody`] and the
+//! scan that produces them are re-exports of it, the one owner shared with
+//! `tcl-vm` and the compiler's segmenter. The **command and word boundaries**
+//! are [`tcl_lexer::script::group_commands`]' (issue #1786), the same grouping
+//! the compiler's CST builder consumes. What is left in this module is the
+//! *lowering*: turning the owner's borrow-free spans into this crate's
+//! borrow-based `Command`/`Word` tree, and applying the eval-facing
+//! word-delimiter rules on the way (`{braced}` is literal; `"quoted"` must
+//! close; text welded onto a close-brace is C's `extra characters after
+//! close-brace`).
 //!
 //! This crate used to carry its own copy of the decomposer (`scan_parts`,
 //! `scan_var_name`, `skip_command_subst`, `parse_var_ref`) with `subst.rs`
-//! mirroring it — two of the four copies bucket R10 found. They are gone.
+//! mirroring it — two of the four copies bucket R10 found — and its own copy
+//! of the boundary loop, which disagreed with the compiler's segmenter about
+//! `{*}` after a close-brace (`{a}{*}$b`: one welded `Bare` word here, two
+//! words there, and an error in C). They are gone.
 
 #![forbid(unsafe_code)]
 
 use std::borrow::Cow;
 
+use tcl_lexer::script::{group_commands, WordSpan};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 
-/// How a word was delimited in the source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WordKind {
-    /// Unquoted: `foo`, `$x`, `a[b]c`.
-    Bare,
-    /// Double-quoted: `"a $b"` — substitutions active, quotes stripped.
-    Quoted,
-    /// Braced: `{a $b}` — pure literal, braces stripped, no substitution.
-    Braced,
-}
+/// How a word was delimited in the source: `Bare` (`foo`, `$x`, `a[b]c`),
+/// `Quoted` (`"a $b"` — substitutions active, quotes stripped), or `Braced`
+/// (`{a $b}` — pure literal, braces stripped, no substitution).
+///
+/// This crate's own copy of the enum is gone: the rule that decides the kind
+/// moved to the boundary owner along with the grouping loop, and this is a
+/// re-export of [`tcl_lexer::script::WordKind`] (which was lifted from here,
+/// so the variants and their meaning are unchanged).
+pub use tcl_lexer::script::WordKind;
 
 // The word-component model is the shared owner's — re-exported under the
 // names this crate's evaluator (`interp.rs`) and `subst` already use, so the
@@ -151,12 +157,13 @@ pub fn scan_parts(
 
 // ---------------------------------------------------------------------------
 // Command/word parsing — LOWERED from the canonical `tcl-lexer` token stream
-// (the "parse once" convergence: one scanner shared with the LSP/compiler). The
-// hard edges (`{*}` prefix, `#`-comment-in-command-position, brace/quote/bracket
-// nesting, `$arr(idx)`, line continuation) live in `tcl-lexer`; here we only map
-// its tokens into the eval `Command`/`WordPart` model. `scan_parts` remains for
-// `subst` (converged next); `split_list` now delegates to the shared
-// `tcl_syntax::list` crate.
+// and the canonical `tcl_lexer::script` grouping of it (the "parse once"
+// convergence: one scanner and one boundary rule shared with the
+// LSP/compiler). The hard edges (`{*}` prefix, `#`-comment-in-command-position,
+// brace/quote/bracket nesting, `$arr(idx)`, line continuation) live in
+// `tcl-lexer`; here we only map its commands/words into the eval
+// `Command`/`WordPart` model. `scan_parts` remains for `subst`; `split_list`
+// delegates to the shared `tcl_syntax::list` crate.
 // ---------------------------------------------------------------------------
 
 /// Byte slice of a token's *content* in the source, delimiter-stripped.
@@ -206,94 +213,51 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
         Err(_) => return Vec::new(),
     };
     let sm = SourceMap::new(s);
-    let mut cmds = Vec::new();
-    let mut words: Vec<Word> = Vec::new();
-    let mut word_toks: Vec<Token> = Vec::new();
-    let mut expand = false;
-    // The command's first-word offset (`commandStart`), set at the first
-    // non-whitespace token of each command; `None` between commands.
-    let mut cmd_start: Option<usize> = None;
-    for t in toks {
-        match t.kind {
-            TokenType::Sep => flush_word(&sm, src, &mut words, &mut word_toks, &mut expand, config),
-            TokenType::Comment => {} // a comment is an empty command
-            TokenType::Expand => {
-                expand = true; // the next word is expanded
-                cmd_start.get_or_insert(t.span.start() as usize);
+    // The boundary question — where each command and each word begins and
+    // ends — is the owner's (issue #1786); this crate used to answer it with
+    // its own copy of the loop, which disagreed with the compiler's segmenter
+    // on `{*}` welded to a close-brace. `group_commands` is borrow-free
+    // (spans + token indices), so lowering its answer into `Command`/`Word`
+    // keeps this crate's zero-copy contract (memory-management.md MM-B.6):
+    // the words below still borrow `src`.
+    group_commands(&toks, s, config)
+        .into_iter()
+        .map(|cmd| {
+            // C's `commandStart`: the first content token, leading whitespace
+            // and any preceding comment already skipped.
+            let start = cmd.span.start() as usize;
+            // The terminator (`\n`/`;`) — its span *start* is the first byte
+            // past the command's content, so `src[start..end]` keeps trailing
+            // whitespace but drops the terminator, and its span *end* is where
+            // the next command resumes. The lexer always closes a stream with
+            // a zero-width `Eol`, so `None` only reaches here from a
+            // hand-built token slice; end of source is then both answers.
+            let (end, next) = cmd.terminator.map_or((src.len(), src.len()), |i| {
+                (toks[i].span.start() as usize, toks[i].span.end() as usize)
+            });
+            Command {
+                words: cmd
+                    .words
+                    .iter()
+                    .map(|w| build_word(&sm, src, &toks[w.tokens.clone()], w, config))
+                    .collect(),
+                next,
+                start,
+                end,
             }
-            TokenType::Eol | TokenType::Eof => {
-                flush_word(&sm, src, &mut words, &mut word_toks, &mut expand, config);
-                if !words.is_empty() {
-                    cmds.push(Command {
-                        words: core::mem::take(&mut words),
-                        next: t.span.end() as usize,
-                        start: cmd_start.take().unwrap_or(t.span.start() as usize),
-                        // The terminator (`\n`/`;`) or EOF position — its span
-                        // start is the first byte past the command's content, so
-                        // `src[start..end]` keeps trailing whitespace but drops
-                        // the terminator.
-                        end: t.span.start() as usize,
-                    });
-                } else {
-                    cmd_start = None;
-                }
-            }
-            // Esc / Str / Cmd / Var → part of the word.
-            _ => {
-                cmd_start.get_or_insert(t.span.start() as usize);
-                word_toks.push(t);
-            }
-        }
-    }
-    cmds
+        })
+        .collect()
 }
 
-/// Parse the first non-empty command at/after `pos` (for callers that resume by
-/// offset; the eval loop uses [`parse_script`]).
-pub fn parse_command(src: &[u8], pos: usize) -> Command<'_> {
-    let mut cmds = parse_script(&src[pos..]);
-    if cmds.is_empty() {
-        return Command {
-            words: Vec::new(),
-            next: src.len(),
-            start: src.len(),
-            end: src.len(),
-        };
-    }
-    let mut c = cmds.remove(0);
-    // Make the offsets absolute (they were computed against `src[pos..]`).
-    c.next += pos;
-    c.start += pos;
-    c.end += pos;
-    c
-}
-
-fn flush_word<'s>(
-    sm: &SourceMap<'s>,
-    src: &'s [u8],
-    words: &mut Vec<Word<'s>>,
-    word_toks: &mut Vec<Token>,
-    expand: &mut bool,
-    config: LexerConfig,
-) {
-    if word_toks.is_empty() {
-        *expand = false; // a stray `{*}` with no following word (shouldn't happen)
-        return;
-    }
-    words.push(build_word(sm, src, word_toks, *expand, config));
-    word_toks.clear();
-    *expand = false;
-}
-
-/// C's parse errors for the two word delimiters this module owns — spelled by
+/// C's parse errors for the word delimiters this module owns — spelled by
 /// the shared owner, not re-typed here.
 ///
-/// The lexer itself stays lenient about both — it is shared with the LSP,
+/// The lexer itself stays lenient about all three — it is shared with the LSP,
 /// which must keep tokenizing broken source — so this eval-facing parser is
 /// the one that fails closed, carrying the failure as a
 /// [`WordPart::ParseError`] the evaluator raises when it reaches the word
 /// (issues #1576, #1586).
-use tcl_lexer::word_parts::{MISSING_CLOSE_BRACE, MISSING_QUOTE};
+use tcl_lexer::word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE};
 
 /// Whether a `Str` (brace-delimited) token never found its closing `}` before
 /// end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the one
@@ -307,26 +271,48 @@ fn build_word<'s>(
     sm: &SourceMap<'s>,
     src: &'s [u8],
     toks: &[Token],
-    expand: bool,
+    word: &WordSpan,
     config: LexerConfig,
 ) -> Word<'s> {
     let escapes = config.escapes;
+    let expand = word.expand;
+    let kind = word.kind;
+    let start = toks[0].span.start() as usize;
+    // Text welded straight onto a close-brace (`{a}b`, `{a}$b`, `{a}[b]`,
+    // `{}x`, `{a}{b}`, `{a}{*}$b`) is C's `extra characters after
+    // close-brace`, raised while the *command* is parsed: measured on 8.6.16
+    // and 9.0.4, `list [side] {a}b` reports it without running `side`. Both
+    // Rust groupers used to accept the shape instead — and disagreed on what
+    // it meant (this crate welded `{a}` and `$b` into one `Bare` word; the
+    // compiler's segmenter split them) — so the boundary owner records the
+    // weld in `WordSpan::welded_after_close` and the eval-facing parser is
+    // the one that fails closed on it. Checked before anything else in the
+    // word, because C stops at the close-brace: the fragments after it are
+    // never parsed, so their own errors (and side effects) never surface.
+    if word.welded_after_close {
+        return Word {
+            kind,
+            expand,
+            body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_BRACE)]),
+            start,
+        };
+    }
     // A single braced token is a literal word (no substitution) — except a
     // backslash-newline line continuation, the one backslash sequence a braced
     // word collapses (to a single space, swallowing following spaces/tabs), as
     // C does in its pre-parse pass. A word with no continuation borrows the
     // source unchanged; one with a continuation owns the collapsed bytes.
-    if toks.len() == 1 && toks[0].kind == TokenType::Str {
+    if kind == WordKind::Braced {
         if brace_token_unterminated(sm, toks[0]) {
             // C aborts parsing outright here (`missing close-brace`); this
             // scanner stays infallible by carrying the failure as a
             // `ParseError` part for the evaluator to raise when it reaches
             // this word — the same convention `${…}` uses (issue #1586).
             return Word {
-                kind: WordKind::Braced,
+                kind,
                 expand,
                 body: WordBody::Parts(vec![WordPart::ParseError(MISSING_CLOSE_BRACE)]),
-                start: toks[0].span.start() as usize,
+                start,
             };
         }
         let content = token_content(sm, src, toks[0]);
@@ -335,22 +321,12 @@ fn build_word<'s>(
             Cow::Owned(o) => WordBody::Parts(vec![WordPart::Text(Cow::Owned(o))]),
         };
         return Word {
-            kind: WordKind::Braced,
+            kind,
             expand,
             body,
-            start: toks[0].span.start() as usize,
+            start,
         };
     }
-    // Quoted iff the word opens with `"`. `in_quote` is unreliable for this (the
-    // scanner clears it on the *last* token of a quoted word and never sets it on
-    // a single-token quoted word), so key off the opening source byte instead —
-    // for a quoted word the first token's span always starts at the `"`.
-    let start = toks[0].span.start() as usize;
-    let kind = if src.get(start) == Some(&b'"') {
-        WordKind::Quoted
-    } else {
-        WordKind::Bare
-    };
     // A `"`-delimited word that never closes is C's `missing "`
     // (`Tcl_ParseQuotedString`), and it aborts the parse — `eval {list a "b}`
     // raises on 8.6.16 and 9.0.4 rather than reading `b` as the word. The
@@ -591,6 +567,13 @@ mod tests {
         }
     }
 
+    /// The `n`th command of `src`. Replaces the old `parse_command(src, pos)`
+    /// resume-by-offset entry point, which had no non-test caller once the
+    /// boundary loop moved to `tcl_lexer::script` and was deleted with it.
+    fn nth(src: &[u8], n: usize) -> Command<'_> {
+        parse_script(src).into_iter().nth(n).expect("command")
+    }
+
     #[test]
     fn array_index_source_mask_follows_the_release() {
         for (dialect, malformed) in [
@@ -626,11 +609,11 @@ mod tests {
         }
     }
 
-    // ---- parse_command ----
+    // ---- command / word boundaries ----
 
     #[test]
     fn two_word_command() {
-        let c = parse_command(b"puts hello", 0);
+        let c = nth(b"puts hello", 0);
         assert_eq!(c.words.len(), 2);
         assert_eq!(lit(&c.words[0]), b"puts");
         assert_eq!(lit(&c.words[1]), b"hello");
@@ -678,7 +661,7 @@ mod tests {
 
     #[test]
     fn braced_word_is_literal() {
-        let c = parse_command(b"set x {hello world}", 0);
+        let c = nth(b"set x {hello world}", 0);
         assert_eq!(c.words.len(), 3);
         assert_eq!(c.words[2].kind, WordKind::Braced);
         assert_eq!(lit(&c.words[2]), b"hello world");
@@ -686,7 +669,7 @@ mod tests {
 
     #[test]
     fn quoted_word_strips_quotes() {
-        let c = parse_command(b"puts \"hi there\"", 0);
+        let c = nth(b"puts \"hi there\"", 0);
         assert_eq!(c.words.len(), 2);
         assert_eq!(c.words[1].kind, WordKind::Quoted);
         assert_eq!(lit(&c.words[1]), b"hi there");
@@ -694,20 +677,25 @@ mod tests {
 
     #[test]
     fn semicolon_ends_command() {
-        let c = parse_command(b"a b ; c d", 0);
+        let c = nth(b"a b ; c d", 0);
         assert_eq!(c.words.len(), 2);
         assert_eq!(lit(&c.words[0]), b"a");
         assert_eq!(lit(&c.words[1]), b"b");
-        // resume past the `;` and parse the next command
-        let c2 = parse_command(b"a b ; c d", c.next);
+        // the `;` terminator ends the command and the next one resumes past
+        // it: `end` is the terminator's span *start* (so `src[start..end]` is
+        // `"a b "`, trailing space kept), `next` its span *end* (past the
+        // `"; "` the lexer folds into one `Eol`).
+        assert_eq!(&b"a b ; c d"[c.start..c.end], b"a b ");
+        assert_eq!(c.next, 6);
+        let c2 = nth(b"a b ; c d", 1);
+        assert_eq!(c2.start, c.next);
         assert_eq!(lit(&c2.words[0]), b"c");
         assert_eq!(lit(&c2.words[1]), b"d");
     }
 
     #[test]
-    fn comment_is_empty_command() {
-        let c = parse_command(b"# this is a comment\n", 0);
-        assert!(c.words.is_empty());
+    fn comment_is_not_a_command() {
+        assert!(parse_script(b"# this is a comment\n").is_empty());
     }
 
     #[test]
@@ -749,7 +737,7 @@ mod tests {
 
     #[test]
     fn expand_marker_sets_flag_and_strips() {
-        let c = parse_command(b"foo {*}$args bar", 0);
+        let c = nth(b"foo {*}$args bar", 0);
         assert_eq!(c.words.len(), 3);
         assert_eq!(lit(&c.words[0]), b"foo");
         assert!(c.words[1].expand);
@@ -769,20 +757,20 @@ mod tests {
         // `{*}` is a prefix only when immediately (no space) followed by a
         // non-blank, non-terminator char. Otherwise it is the literal word `*`.
         // standalone `{*}` → literal braced word "*", not an empty expansion
-        let c = parse_command(b"foo {*}", 0);
+        let c = nth(b"foo {*}", 0);
         assert_eq!(c.words.len(), 2);
         assert!(!c.words[1].expand);
         assert_eq!(c.words[1].kind, WordKind::Braced);
         assert_eq!(lit(&c.words[1]), b"*");
         // `{*} x` (space after) → literal `{*}` then `x`, NOT expansion
-        let c = parse_command(b"foo {*} x", 0);
+        let c = nth(b"foo {*} x", 0);
         assert_eq!(c.words.len(), 3);
         assert!(!c.words[1].expand);
         assert_eq!(lit(&c.words[1]), b"*");
         assert!(!c.words[2].expand);
         assert_eq!(lit(&c.words[2]), b"x");
         // `{*}{a b}` → expansion of the braced word `a b`
-        let c = parse_command(b"foo {*}{a b}", 0);
+        let c = nth(b"foo {*}{a b}", 0);
         assert_eq!(c.words.len(), 2);
         assert!(c.words[1].expand);
         assert_eq!(lit(&c.words[1]), b"a b");
@@ -790,7 +778,7 @@ mod tests {
 
     #[test]
     fn line_continuation_joins_logical_line() {
-        let c = parse_command(b"cmd a \\\n   b c", 0);
+        let c = nth(b"cmd a \\\n   b c", 0);
         let got: Vec<&[u8]> = c.words.iter().map(lit).collect();
         assert_eq!(got, vec![&b"cmd"[..], b"a", b"b", b"c"]);
     }
@@ -799,14 +787,14 @@ mod tests {
 
     #[test]
     fn bracket_subst_decomposes_in_one_word() {
-        let c = parse_command(b"set x [clock seconds]", 0);
+        let c = nth(b"set x [clock seconds]", 0);
         assert_eq!(c.words.len(), 3);
         assert_eq!(parts(&c.words[2]), &[WordPart::Command(b"clock seconds")]);
     }
 
     #[test]
     fn mixed_text_and_variable() {
-        let c = parse_command(b"puts x${name}y", 0);
+        let c = nth(b"puts x${name}y", 0);
         assert_eq!(
             parts(&c.words[1]),
             &[
@@ -822,7 +810,7 @@ mod tests {
 
     #[test]
     fn array_ref_index_components() {
-        let c = parse_command(b"puts $arr($i)", 0);
+        let c = nth(b"puts $arr($i)", 0);
         match &c.words[1].body {
             WordBody::Parts(p) => match &p[0] {
                 WordPart::Variable(v) => {
@@ -900,7 +888,7 @@ mod tests {
     fn literal_word_is_zero_copy() {
         // A word with no $ [ \ is a borrow of the source, not a Vec.
         let src = b"plainword rest";
-        let c = parse_command(src, 0);
+        let c = nth(src, 0);
         match c.words[0].body {
             WordBody::Literal(b) => assert!(std::ptr::eq(b.as_ptr(), src.as_ptr())),
             _ => panic!("expected zero-copy Literal"),
