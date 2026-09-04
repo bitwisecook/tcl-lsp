@@ -369,7 +369,7 @@ higher-level guard ever runs.
 | Walker | Cap | Notes |
 |---|---|---|
 | `Lexer::scan_array_index_body`/`skip_var_in_index` (nested `$a($b($c(...)))`) | `MAX_ARRAY_INDEX_DEPTH` = 64 | Empirically: SIGABRT depth 20,000-25,000 on a 2 MiB thread. Past the cap, a nested `$` is scanned as an ordinary character. |
-| `structural_index.rs`'s three scanners (`BracketIndex::scan_cmd_sub`; `BraceIndex`'s `scan_script`/`scan_quoted`; `scan_complete`/`scan_complete_quoted` behind `script_is_complete`/`command_boundaries`) | `MAX_NESTED_BRACKET_DEPTH` = 128 | The last of these backs `script_is_complete`, called directly on raw document text from `tcl-lsp-server::compute_base_analysis`. Empirically: SIGABRT depth 10,000-50,000 depending on the scanner. |
+| `structural_index.rs`'s three scanners (`BracketIndex::scan_cmd_sub`; `BraceIndex`'s `scan_script`/`scan_quoted`; `scan_complete`/`scan_complete_quoted` behind `script_is_complete`) | `MAX_NESTED_BRACKET_DEPTH` = 128 | The last of these backs `script_is_complete`, called directly on raw document text from `tcl-lsp-server::compute_base_analysis`. Empirically: SIGABRT depth 10,000-50,000 depending on the scanner. `command_boundaries` needs no cap of its own: its `[…]` skip goes through `ranges::command_substitution_end`, which is iterative. |
 | `expr_lexer.rs`'s `Inner::scan_array_index` (nested array index inside an `expr`) | `MAX_EXPR_ARRAY_INDEX_DEPTH` = 64 | Bypassed `tcl-syntax`'s already-capped Pratt parser entirely — the whole nested chain is swallowed into one `Variable` token during lexing, before the parser ever sees per-level tokens to count. Empirically: SIGABRT depth 100,000-200,000. |
 
 **`tcl-lsp-core`** — seven Scope-tree/word-nesting walkers, all sharing

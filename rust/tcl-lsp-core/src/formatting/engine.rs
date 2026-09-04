@@ -338,6 +338,9 @@ fn parse_commands(
             _ => {}
         }
 
+        // segmentation-drift-ok: known #1786 debt — the formatter's own
+        // `parse_commands` is a word grouper that must also keep the trivia
+        // (comments, blank-line runs) `WordSpan` deliberately does not carry.
         let is_start_of_new_arg = matches!(prev_type, TokenType::Sep | TokenType::Eol);
         let detected_quoted =
             is_start_of_new_arg && source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
@@ -949,6 +952,9 @@ fn count_body_commands(body_text: &str) -> usize {
                 depth = depth.saturating_sub(1);
                 in_statement = true;
             }
+            // segmentation-drift-ok: known #1786 debt — `count_body_commands` is a
+            // private top-level command counter over a body it only needs a count
+            // for, with its own brace/bracket depth and escape tracking.
             '\n' | ';' if depth == 0 => {
                 if in_statement {
                     count += 1;

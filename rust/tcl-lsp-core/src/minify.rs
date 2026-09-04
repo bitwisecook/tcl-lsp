@@ -2788,6 +2788,9 @@ fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
             _ => {}
         }
 
+        // segmentation-drift-ok: known #1786 debt — the minifier's own
+        // `parse_commands` is a word grouper, kept alongside the formatter's
+        // until both fold onto the owner together.
         let is_start = matches!(prev_type, TokenType::Sep | TokenType::Eol);
         let detected_quoted =
             is_start && source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');

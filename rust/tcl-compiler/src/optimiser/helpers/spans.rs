@@ -135,6 +135,9 @@ pub fn statement_delete_rewrite_range(
     while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
         cursor += 1;
     }
+    // segmentation-drift-ok: this does not find a boundary — both ends are
+    // already the segmenter's (`cmd_span`, and the next command's start). It
+    // only decides whether the delete may swallow the terminator between them.
     if cursor < next && matches!(bytes[cursor], b'\n' | b';') {
         cursor += 1;
         while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {

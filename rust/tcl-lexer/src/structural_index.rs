@@ -1408,10 +1408,18 @@ fn scan_var_brace(b: &[u8], brace: usize) -> (usize, bool) {
 // Incremental-reparse primitives. A cheap single byte-scan finds the top-level
 // command boundaries (the stable split points an incremental reparser snaps
 // edits to); `reparse_window` snaps a changed byte range outward to whole
-// commands so only those need re-segmenting / re-analysing. Nesting (`[…]`,
-// `"…"`, `{…}`, `${…}`, comments, escapes) is skipped via the same recursive
-// scanner that backs `script_is_complete`, so the boundaries agree with the
-// segmenter without tokenising the whole document.
+// commands so only those need re-segmenting / re-analysing. Nesting (`{…}`,
+// `${…}`, `"…"`, comments, escapes) is skipped by the same scanner that backs
+// `script_is_complete`, and `[…]` by `ranges::command_substitution_end`, so
+// the boundaries agree with the boundary owner without tokenising the whole
+// document.
+//
+// Where the two differ is *leniency*: `script_is_complete` is an oracle and
+// reports a terminal parse error, while boundary scanning must keep going the
+// way the lexer does. Each arm below says which it takes and why. Registered
+// as its own surface in `shared-utility-contracts-rust.md` (dialect-blind by
+// construction) and pinned to `script::group_commands` over the corpora by
+// `tcl-lexer`'s `differential_boundaries`.
 
 /// The byte offsets that split `source` into top-level commands — each is
 /// the position immediately after a top-level command terminator (`\n` or
@@ -1476,7 +1484,24 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
                 command_start = false;
             }
             b'"' if newword => {
-                i = scan_complete_quoted(source, b, i + 1, 0).0;
+                i = match scan_complete_quoted(source, b, i + 1, 0) {
+                    // Same leniency as the `[` arm below: a nested `[…]`
+                    // holding a weld C rejects makes the completeness
+                    // scanner report `Terminal` with its offset collapsed
+                    // to end-of-input, which would lose every later
+                    // boundary. The quote's own delimiters are fine in
+                    // that case, so take the close from the shared
+                    // close-quote owner. Caught in tcllib's
+                    // `page/util_quote.tcl` by `differential_boundaries`.
+                    (_, Completeness::Terminal) => {
+                        crate::ranges::close_quote_offset(source, i).map_or(n, |q| q + 1)
+                    }
+                    // `Closed` is past the `"`; `Incomplete` is `n`, which
+                    // is right — an unterminated quote runs to EOF, and
+                    // `scan_complete_quoted` (unlike the close-quote
+                    // owner) knows the release's `${…}` nesting rule.
+                    (end, _) => end,
+                };
                 newword = false;
                 command_start = false;
             }
@@ -1486,8 +1511,18 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
                 i += 2;
                 command_start = false;
             }
+            // The `[…]` skip goes through the shared close-bracket owner
+            // rather than `scan_complete`: the completeness scanner reports
+            // `Terminal` for a weld C rejects (`{a}$b`), and its `[` arm
+            // collapses that verdict's offset to end-of-input — so a nested
+            // `[a [b {*}$c]]` (Tcl 9.0.4's `auto.tcl` writes exactly that)
+            // used to swallow every later boundary in the document. Boundary
+            // scanning is lenient by contract, so it wants the lenient,
+            // comment-aware, iterative closer instead of the completeness
+            // oracle's error path. Caught by `differential_boundaries`'
+            // coverage invariant.
             b'[' => {
-                i = scan_complete(source, b, i + 1, true, 0).0;
+                i = crate::ranges::command_substitution_end(source, i).unwrap_or(n);
                 newword = false;
                 command_start = false;
             }

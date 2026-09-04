@@ -353,6 +353,7 @@ fn entry_is_declared(source: &str, entry: &str) -> bool {
 fn xtask_dispatches(main: &str, command: &str) -> bool {
     let variant = match command {
         "resolution-drift" => "ResolutionDrift",
+        "segmentation-drift" => "SegmentationDrift",
         "number-drift" => "NumberDrift",
         "audit-option-dialects" => "AuditOptionDialects",
         "command-backing" => "WasmBacking",

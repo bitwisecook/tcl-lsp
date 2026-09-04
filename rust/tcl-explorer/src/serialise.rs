@@ -2653,6 +2653,13 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
 /// bracket/brace balance, and the inert spans where `[`/`]`/`{`/`}` are
 /// *literal* (brace words, comments, `${…}`, escapes). This acceleration
 /// layer drives incremental reparse.
+///
+/// `commandBoundaries` here is the **reparse split points**, not the
+/// segmentation view: `command_boundaries` is registered in
+/// `shared-utility-contracts-rust.md` as a dialect-blind byte scan of
+/// stock 9.x structure, so on an F5 or 8.x document it can differ from
+/// the dialect-resolved answer — which is what the `segments` and `cst`
+/// views beside it show.
 #[must_use]
 pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
     use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_is_complete};

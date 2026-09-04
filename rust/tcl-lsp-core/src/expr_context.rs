@@ -222,6 +222,9 @@ pub(crate) fn word_end(source: &str, start: usize, limit: usize) -> usize {
         }
         return limit;
     }
+    // segmentation-drift-ok: known #1786 debt — a bare-word end scan inside the
+    // `expr`-context probe, which runs on half-typed source at a cursor where a
+    // full tokenise is not affordable and often not possible.
     while pos < limit && !matches!(bytes[pos], b' ' | b'\t' | b'\r' | b'\n' | b';') {
         pos += 1;
     }
@@ -240,6 +243,9 @@ fn command_start_in_region(text: &str) -> usize {
             b'\\' => idx += 1,
             b'{' | b'[' => depth += 1,
             b'}' | b']' => depth -= 1,
+            // segmentation-drift-ok: known #1786 debt — `command_start_in_region`
+            // is a private last-command splitter for the same half-typed-source
+            // probe; it is depth-tracked but dialect-blind.
             b'\n' | b';' if depth <= 0 => start = idx + 1,
             _ => {}
         }
