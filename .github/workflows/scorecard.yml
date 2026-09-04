@@ -1,16 +1,40 @@
 name: OpenSSF Scorecard
 
-# Weekly and branch-protection-change OpenSSF Scorecard scan. Produces SARIF findings against
+# Weekly, score-input-change, and branch-protection-change OpenSSF Scorecard
+# scan. Produces SARIF findings against
 # supply-chain best practices (token permissions, pinned actions,
 # branch protection, signed releases, dependency-update tools, etc.) and
 # uploads them to the Security tab. This is monitoring, not gating: the
 # scheduled run catches dependency and ecosystem drift, while a protection
-# change triggers an immediate rescan. Ordinary source pushes cannot change
-# either input and therefore do not need a duplicate scan.
+# change or a change to repository inputs the score consumes triggers an
+# immediate rescan. Unrelated product-source pushes do not need a duplicate
+# scan.
 on:
   branch_protection_rule:
   schedule:
     - cron: "23 4 * * 2"
+  push:
+    branches: [rust]
+    paths:
+      # Scorecard reads workflow/action pins, token permissions, dependency
+      # update configuration, SAST/fuzzing setup, dependency manifests, the
+      # toolchain policy, and the repository licence/security policy.
+      - ".github/**"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "**/pyproject.toml"
+      - "**/build.gradle*"
+      - "**/settings.gradle*"
+      - "editors/jetbrains/gradle/**"
+      - "editors/jetbrains/gradle.properties"
+      - "editors/jetbrains/gradlew*"
+      - "rust-toolchain.toml"
+      - "deny.toml"
+      - "LICENSE"
+      - "SECURITY.md"
+      - "rust/tcl-fuzz/**"
 
 permissions:
   contents: read
