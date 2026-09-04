@@ -1942,40 +1942,24 @@ fn extent(span: Span) -> usize {
 }
 
 /// The structured words of a `[…]` command substitution, recovered by the
-/// canonical segmenter over the recorded lexical extent.
+/// canonical segmenter over the recorded lexical extent
+/// ([`crate::word_subst::nested_command_words`] owns that recovery, so this
+/// tier plans the same words the analysis tier lifts).
 fn nested_words(
     spelling: &str,
     source: &SourceSite,
     config: tcl_lexer::LexerConfig,
 ) -> Result<Vec<WordExpr>, NativeLoweringDecline> {
-    let inner = spelling
-        .strip_prefix('[')
-        .and_then(|text| text.strip_suffix(']'))
-        .ok_or(NativeLoweringDecline::UnmodelledCommandSubstitution)?;
-    if inner.trim().is_empty() {
-        return Err(NativeLoweringDecline::UnmodelledCommandSubstitution);
-    }
-    let base = if source.provenance == Provenance::Source {
-        source.span.start().saturating_add(1)
-    } else {
-        0
-    };
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
-    let [segment] = segments.as_slice() else {
-        return Err(NativeLoweringDecline::UnmodelledCommandSubstitution);
-    };
-    if segment.is_partial {
-        return Err(NativeLoweringDecline::UnmodelledCommandSubstitution);
-    }
-    // The nested script is a sub-lex: its own text, segmented at the document
-    // offset it sits at, so the word model reads `inner` and still reports
-    // document spans (`SourceMap::with_base` is that sub-lexing contract).
-    let sm = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
-    let tokens = CommandTokens::from_segmented(&sm, config, segment);
-    if tokens.word_exprs.is_empty() {
-        return Err(NativeLoweringDecline::MissingCommandTokens);
-    }
-    Ok(tokens.word_exprs)
+    crate::word_subst::nested_command_words(spelling, source, config)
+        .map(|tokens| tokens.word_exprs)
+        .map_err(|decline| match decline {
+            crate::word_subst::NestedWordsDecline::Unmodelled => {
+                NativeLoweringDecline::UnmodelledCommandSubstitution
+            }
+            crate::word_subst::NestedWordsDecline::NoWords => {
+                NativeLoweringDecline::MissingCommandTokens
+            }
+        })
 }
 
 /// Reverse post-order over the executable CFG, the loop headers (targets of
