@@ -300,6 +300,20 @@ fn first_divergence(server: &[SemToken], truth: &[SemToken]) -> String {
 /// [`LatencyBudget`], which is a separate, measured thing.
 const BIG_DOC_SETTLE: Duration = Duration::from_mins(3);
 
+/// Compact but still realistically large (~600-line) fixture used by tests
+/// that exercise convergence mechanics rather than large-file latency. Their
+/// one-shot server seam chooses the coarse branch deterministically; the
+/// 600-proc prompt-response fixtures above retain the real latency/race
+/// coverage.
+const CONVERGENCE_FIXTURE_PROCS: usize = 60;
+
+/// A child whose one-shot environment seam selects the real coarse
+/// continuation deterministically, even when diagnostics have already warmed
+/// the memoised enriched analysis.
+fn convergence_lsp() -> Lsp {
+    Lsp::tcl_with_env(&[("TCL_LSP_TEST_FORCE_SEMANTIC_TOKENS_COARSE", "1")])
+}
+
 /// How long one [`converge_via_refresh`] round may wait for its settled marker
 /// before the loop gives up on *that round* and re-requests.
 ///
@@ -321,7 +335,7 @@ const REFRESH_ARRIVAL: Duration = Duration::from_secs(20);
 fn cold_tokens(lsp: &mut Lsp, text: &str) -> Vec<SemToken> {
     let uri = unique_uri("tcl");
     lsp.open_ready_timeout(&uri, text, BIG_DOC_SETTLE);
-    let raw = lsp.semantic_tokens(&uri);
+    let raw = lsp.semantic_tokens_settled(&uri);
     lsp.close_document(&uri);
     decode_semantic_tokens(&raw)
 }
@@ -338,6 +352,11 @@ fn cold_range_tokens(
 ) -> Vec<SemToken> {
     let uri = unique_uri("tcl");
     lsp.open_ready_timeout(&uri, text, BIG_DOC_SETTLE);
+    // Settle the shared CU/analysis explicitly before sampling the range. A
+    // diagnostics publish can complete while the independent semantic-token
+    // query is still cold, so readiness alone does not make a bare range call
+    // an enriched oracle.
+    let _ = lsp.semantic_tokens_settled(&uri);
     let raw = lsp.semantic_tokens_range(&uri, start, end);
     lsp.close_document(&uri);
     decode_semantic_tokens(&raw)
@@ -938,25 +957,23 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
 /// editor re-requests and converges on the fully enriched tokens — "do the
 /// bulk of the semantic tokens first, then update the ones resolved in
 /// deeper analysis."
-// Deliberately NOT #[ignore]d: the coarse-vs-enriched decision is a wall-clock
-// budget (SEMANTIC_TOKENS_FAST_PATH_BUDGET), so only a document big enough to
-// overrun it ever serves the coarse tier and converges via refresh — a
-// small-document test cannot reach this branch, making this the sole automated
-// cover for the stale-token convergence contract (PR #1476 review).
+// Deliberately NOT #[ignore]d: this is the automated stale-token convergence
+// contract (PR #1476 review). A one-shot child-process seam chooses the same
+// coarse branch the 40 ms budget selects, while the prompt-response tests above
+// retain large cold documents and cover the real wall-clock race.
 #[test]
 fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
-    let mut lsp = Lsp::tcl();
     // `generate_big_tcl` alone uses no construct the enriched tier treats
     // differently from the coarse one (no `regexp`, no object dispatch), so
     // the coarse and enriched streams would be byte-identical regardless of
     // which one served the request — useless for detecting which tier
-    // actually won. Append one proc with a provably-constant regex source
+    // actually won. Append a provably-constant regex source
     // (the same shape `semantic_tokens_retags_constant_regex_source_true_positive`
     // in tcl-lsp-db proves the enriched tier retags) so `same_tokens` below
     // can actually tell the two tiers apart.
     let big = format!(
         "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
-        generate_big_tcl(600)
+        generate_big_tcl(CONVERGENCE_FIXTURE_PROCS)
     );
 
     // Compute the enriched truth from a settled separate document *before* the
@@ -967,10 +984,19 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     // waited fifteen seconds for. That window widens with machine load, which
     // is exactly the shape of the flake in issue #1082. Done up front it cannot
     // interfere. (The range twin below has always done it this way.)
-    let truth = cold_tokens(&mut lsp, &big);
+    let truth = {
+        let mut oracle = Lsp::tcl();
+        cold_tokens(&mut oracle, &big)
+    };
+
+    // Choose the real coarse branch once, independent of host timing. The
+    // continuation still computes and compares the real enriched result; the
+    // separate prompt-response tests cover the production 40 ms race.
+    let mut lsp = convergence_lsp();
 
     let uri = unique_uri("tcl");
-    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    // Settle didOpen/project indexing before exercising the continuation.
+    let _ = lsp.open_ready_timeout(&uri, &big, BIG_DOC_SETTLE);
 
     let converged = converge_via_refresh(
         &mut lsp,
@@ -992,18 +1018,13 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
          fully enriched tokens — {}",
         first_divergence(&converged.tokens, &truth)
     );
-    if converged.refreshes == 0 {
-        // The race was won this run (fast machine / the debounced diagnostics
-        // worker happened to prime the analysis first): the first response was
-        // already fully enriched, so there was nothing to refresh. The tiering
-        // mechanism itself is covered deterministically by tcl-lsp-db's
-        // `semantic_tokens_retags_constant_regex_source_true_positive` and
-        // `semantic_tokens_shares_incremental_analysis_with_diagnostics`.
-        eprintln!(
-            "large_file_semantic_tokens_refresh_delivers_enriched_result: \
-             fast path won the race, refresh not exercised this run"
-        );
-    }
+    assert_eq!(
+        converged.rounds,
+        converged.no_refresh_decisions + 2,
+        "apart from cancelled retries: one coarse request, one enriched re-request"
+    );
+    assert_eq!(converged.refresh_decisions, 1);
+    assert_eq!(converged.refreshes, 1);
     eprintln!(
         "large_file_semantic_tokens_refresh_delivers_enriched_result: converged in {} rounds \
          ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
@@ -1018,23 +1039,21 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
 /// differs, so a static cold viewport converges on the enriched tier instead of
 /// staying coarse until the next scroll or edit (the gap `semantic_tokens_range`
 /// had that `_full` did not).
-// Deliberately NOT #[ignore]d: same budget-gated branch as the `_full`
-// convergence test, for the range path specifically (#844 Gap 4 — a skipped
-// viewport staying coarse until the next scroll).  Small-document range tests
-// never overrun the budget, so they cannot cover this.
+// Deliberately NOT #[ignore]d: same deterministically-selected production
+// branch as the `_full` convergence test, for the range path specifically
+// (#844 Gap 4 — a skipped viewport staying coarse until the next scroll).
 #[test]
 fn large_file_range_semantic_tokens_converges_via_refresh() {
-    let mut lsp = Lsp::tcl();
     // The same provably-constant regex source the `_full` test uses, so the
     // enriched tier (which retags it) differs from the coarse tier — otherwise
     // the two are byte-identical and no refresh is warranted.
     let big = format!(
         "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
-        generate_big_tcl(600)
+        generate_big_tcl(CONVERGENCE_FIXTURE_PROCS)
     );
     let line_count = u32::try_from(big.lines().count()).unwrap();
 
-    // A viewport over the appended regexp proc (the last few lines), where the
+    // A viewport over the appended regexp commands (the last few lines), where the
     // coarse and enriched tiers provably differ.
     let start = (line_count.saturating_sub(6), 0);
     let end = (line_count, 0);
@@ -1044,10 +1063,17 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
     // `Project` (`set_files`), which cancels an in-flight convergence
     // continuation — so doing it mid-test would suppress the very refresh under
     // test.  Done up front, it cannot interfere.
-    let truth = cold_range_tokens(&mut lsp, &big, start, end);
+    let truth = {
+        let mut oracle = Lsp::tcl();
+        cold_range_tokens(&mut oracle, &big, start, end)
+    };
+
+    // See the full-token twin: force the real coarse continuation once,
+    // independent of whether diagnostics happened to warm this document.
+    let mut lsp = convergence_lsp();
 
     let uri = unique_uri("tcl");
-    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    let _ = lsp.open_ready_timeout(&uri, &big, BIG_DOC_SETTLE);
 
     let converged = converge_via_refresh(
         &mut lsp,
@@ -1071,15 +1097,13 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
          the enriched tier — {}",
         first_divergence(&converged.tokens, &truth)
     );
-    if converged.refreshes == 0 {
-        // The race was won this run — the cold viewport was already enriched, so
-        // there was nothing to converge. The tiering itself is covered
-        // deterministically in tcl-lsp-db.
-        eprintln!(
-            "large_file_range_semantic_tokens_converges_via_refresh: \
-             fast path won the race, refresh not exercised this run"
-        );
-    }
+    assert_eq!(
+        converged.rounds,
+        converged.no_refresh_decisions + 2,
+        "apart from cancelled retries: one coarse request, one enriched re-request"
+    );
+    assert_eq!(converged.refresh_decisions, 1);
+    assert_eq!(converged.refreshes, 1);
     eprintln!(
         "large_file_range_semantic_tokens_converges_via_refresh: converged in {} rounds \
          ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
@@ -1098,20 +1122,19 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
 /// document — a visible flicker of already-correct tokens.
 #[test]
 fn range_semantic_tokens_no_spurious_refresh_when_converged() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = convergence_lsp();
     // Plain `generate_big_tcl` (no regex / object-dispatch construct): the coarse
     // (segmenter + registry) and enriched (CU + analysis) tiers are identical —
     // that is exactly why the convergence tests above have to *append* a regex
-    // proc to force a difference. The file is still large/cold enough that the
-    // CU/analysis reads overrun `SEMANTIC_TOKENS_FAST_PATH_BUDGET`, so `pending`
-    // is `Some` and the continuation actually runs the coarse-vs-enriched compare.
-    let big = generate_big_tcl(600);
+    // construct to force a difference. The one-shot seam makes `pending` some
+    // and runs the real coarse-vs-enriched comparison without a timing race.
+    let big = generate_big_tcl(CONVERGENCE_FIXTURE_PROCS);
     let line_count = u32::try_from(big.lines().count()).unwrap();
     let start = (line_count.saturating_sub(6), 0);
     let end = (line_count, 0);
 
     let uri = unique_uri("tcl");
-    lsp.open_document_lang(&uri, &big, "tcl", 1);
+    let _ = lsp.open_ready_timeout(&uri, &big, BIG_DOC_SETTLE);
     let req_since = lsp.server_request_cursor();
     let log_since = lsp.notification_cursor();
     let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
@@ -1128,26 +1151,21 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
     // not been made yet".  The timeout is only a backstop against a total hang,
     // never the synchronisation.
     //
-    // `outcome` says which shape the run took.  The one under test is
-    // `compared`: the cold 600-proc file overran the 40ms fast-path budget, the
-    // coarse tier was served, and the detached continuation (#844 Gap 4) diffed
-    // it against the recomputed enriched viewport.  A loaded machine can instead
-    // reach `no-analysis` (the document is not yet in the salsa db when the
-    // request lands) or `cancelled`, and a very quick one `served-enriched` —
-    // none of which run the compare.  `coalesced` (#1147) is a fourth: a
-    // continuation for this document was already in flight, so this request rode
-    // along with it.  The refresh assertion below is asserted in
-    // *every* case, because "no spurious refresh" must hold on all of them; the
-    // outcome is reported so a run that did not exercise the compare is visible
-    // rather than silently vacuous. This wait observes the detached deep-tier
-    // comparison; first-response latency is asserted separately, so it needs
-    // enough headroom for a debug server on a loaded CI runner.
+    // `outcome=compared` proves the one-shot seam served the coarse tier and the
+    // detached continuation (#844 Gap 4) compared it with the recomputed
+    // enriched viewport. This wait observes that real deep-tier comparison;
+    // first-response latency is asserted separately, so the timeout is only a
+    // hang guard for a loaded debug runner.
     let settled = lsp.await_log(
         &["semantic_tokens.range_convergence.settled", uri.as_str()],
         Duration::from_mins(1),
         log_since,
     );
     eprintln!("range_semantic_tokens_no_spurious_refresh_when_converged: {settled}");
+    assert!(
+        settled.contains("outcome=compared"),
+        "the forced coarse branch must execute its equality comparison: {settled:?}"
+    );
     // The decision is recorded in the marker itself: `refresh=false` means
     // `request_refresh_coalesced` was not called, so no debounced
     // `workspace/semanticTokens/refresh` can ever fire for this request.  This is

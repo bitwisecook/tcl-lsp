@@ -1484,6 +1484,63 @@ const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duratio
 /// half that keeps trivial files a single publish regardless of cold-start.
 const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
 
+/// One-shot test seam that chooses the semantic-token coarse branch without a
+/// timing race. Integration tests use it to exercise the real continuation on
+/// a compact document, then make the refresh-driven re-request await the real
+/// enriched arm; separate latency tests still cover the 40 ms race.
+/// Unset or any value other than `1` is a no-op in every real session.
+const FORCE_SEMANTIC_TOKENS_COARSE_ENV: &str = "TCL_LSP_TEST_FORCE_SEMANTIC_TOKENS_COARSE";
+
+/// One-shot test seam that chooses the progressive diagnostics fast branch.
+/// See [`FORCE_SEMANTIC_TOKENS_COARSE_ENV`].
+const FORCE_DIAGNOSTICS_FAST_TIER_ENV: &str = "TCL_LSP_TEST_FORCE_DIAGNOSTICS_FAST_TIER";
+
+// Process-wide state for the one-shot semantic-token override. A convergence
+// re-request must observe the now-memoised enriched result normally rather
+// than being forced through the coarse path forever.
+static FORCE_SEMANTIC_TOKENS_COARSE_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+static FORCE_SEMANTIC_TOKENS_COARSE_TAKEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+fn semantic_tokens_test_seam_enabled() -> bool {
+    *FORCE_SEMANTIC_TOKENS_COARSE_ENABLED
+        .get_or_init(|| std::env::var(FORCE_SEMANTIC_TOKENS_COARSE_ENV).as_deref() == Ok("1"))
+}
+
+/// Take the configured semantic-token branch override once per process.
+fn take_force_semantic_tokens_coarse() -> bool {
+    semantic_tokens_test_seam_enabled()
+        && !FORCE_SEMANTIC_TOKENS_COARSE_TAKEN.swap(true, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Let a test retry the forced branch when a normal salsa cancellation meant
+/// its first continuation never reached the comparison.
+fn rearm_semantic_tokens_test_seam() {
+    if semantic_tokens_test_seam_enabled() {
+        FORCE_SEMANTIC_TOKENS_COARSE_TAKEN.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+// Process-wide state for the one-shot diagnostics override.
+static FORCE_DIAGNOSTICS_FAST_TIER_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+static FORCE_DIAGNOSTICS_FAST_TIER_TAKEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the diagnostics override is still available. It is consumed only
+/// after the shared base analysis succeeds, so a normal salsa cancellation and
+/// retry cannot spend the one shot without publishing the fast tier.
+fn diagnostics_fast_tier_force_pending() -> bool {
+    *FORCE_DIAGNOSTICS_FAST_TIER_ENABLED
+        .get_or_init(|| std::env::var(FORCE_DIAGNOSTICS_FAST_TIER_ENV).as_deref() == Ok("1"))
+        && !FORCE_DIAGNOSTICS_FAST_TIER_TAKEN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Consume the diagnostics override after the base analysis has succeeded.
+fn take_force_diagnostics_fast_tier() -> bool {
+    diagnostics_fast_tier_force_pending()
+        && !FORCE_DIAGNOSTICS_FAST_TIER_TAKEN.swap(true, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// How long [`Backend::report_edit_barrier_stall`] waits between its two
 /// [`DocumentStore::contention`] samples.
 ///
@@ -2648,21 +2705,23 @@ impl DeliveryCtx<'_> {
     async fn deliver_fast_tier_if_current(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
-    ) {
+    ) -> Option<tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome>> {
         if self.client_supports_pull {
-            return;
+            return None;
         }
         let docs = self.documents.lock("deliver_fast_tier_if_current").await;
         if self.is_current(&docs).await {
             // Do not wait: the deep future is pinned in this same task and must
             // keep progressing so its authoritative set can replace this one.
-            drop(self.diagnostic_publisher.enqueue(
+            Some(self.diagnostic_publisher.enqueue(
                 self.uri.clone(),
                 diags,
                 self.version,
                 false,
                 false,
-            ));
+            ))
+        } else {
+            None
         }
     }
 
@@ -4511,15 +4570,18 @@ async fn run_diagnostics_analyser_path(
     );
     tokio::pin!(deep);
 
-    tokio::select! {
-        biased;
-        // The whole pipeline finished inside the budget: the deep publish is the
-        // one and only publish, so the fast tier is never sent (no redundant
-        // round-trip on small / warm files — the debounce-skip trap #844 calls
-        // out).  `biased` prefers this arm so a deep pass that lands right on the
-        // deadline still skips the fast tier.
-        settled = &mut deep => return settled,
-        () = crate::rt::sleep_until(fast_tier_deadline) => {}
+    let force_fast_tier = diagnostics_fast_tier_force_pending();
+    if !force_fast_tier {
+        tokio::select! {
+            biased;
+            // The whole pipeline finished inside the budget: the deep publish is the
+            // one and only publish, so the fast tier is never sent (no redundant
+            // round-trip on small / warm files — the debounce-skip trap #844 calls
+            // out).  `biased` prefers this arm so a deep pass that lands right on the
+            // deadline still skips the fast tier.
+            settled = &mut deep => return settled,
+            () = crate::rt::sleep_until(fast_tier_deadline) => {}
+        }
     }
 
     // Budget elapsed with the deep pass still running: publish the flicker-safe
@@ -4527,7 +4589,20 @@ async fn run_diagnostics_analyser_path(
     // — one in-flight read, never a second whole-file walk. A cancellation here is
     // harmless: the deep pass observes the same edit and settles it.
     if let ControlFlow::Continue(analysis) = base.await {
-        publish_fast_tier(delivery, &analysis, lift_inputs).await;
+        // Spend the one shot only once there is a real fast tier to publish. A
+        // cancelled base analysis returns below with it still available for
+        // the scheduler's retry.
+        if force_fast_tier && !take_force_diagnostics_fast_tier() {
+            return deep.await;
+        }
+        let fast_receipt = publish_fast_tier(delivery, &analysis, lift_inputs).await;
+        // The test seam waits until the actual push reaches the reference
+        // client before allowing the deep future to replace it. Production
+        // drops this receipt immediately and retains the fully concurrent
+        // progressive path above.
+        if force_fast_tier && let Some(receipt) = fast_receipt {
+            let _ = receipt.await;
+        }
     }
     deep.await
 }
@@ -4709,7 +4784,7 @@ async fn publish_fast_tier(
     delivery: &DeliveryCtx<'_>,
     analysis: &Arc<AnalysisResult>,
     lift_inputs: &LiftInputs<'_>,
-) {
+) -> Option<tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome>> {
     let fast: Vec<tcl_compiler::analyser::Diagnostic> = analysis
         .diagnostics
         .iter()
@@ -4742,7 +4817,9 @@ async fn publish_fast_tier(
     })
     .await;
     if let Ok(diagnostics) = lifted {
-        delivery.deliver_fast_tier_if_current(diagnostics).await;
+        delivery.deliver_fast_tier_if_current(diagnostics).await
+    } else {
+        None
     }
 }
 
@@ -8907,46 +8984,52 @@ impl Backend {
             return Ok(data);
         };
 
-        tokio::select! {
-            biased;
-            result = &mut enriched => {
-                if let Ok(Some(tokens)) = result {
-                    // The enriched tier won the race and is being served as-is:
-                    // settled, nothing to converge to.
+        if semantic_tokens_test_seam_enabled() {
+            if let Some(tokens) = self.semantic_tokens_test_override(uri, enriched).await {
+                return Ok(tokens);
+            }
+        } else {
+            tokio::select! {
+                biased;
+                result = &mut enriched => {
+                    if let Ok(Some(tokens)) = result {
+                        // The enriched tier won the race and is being served as-is:
+                        // settled, nothing to converge to.
+                        log_full_convergence_settled(
+                            &self.client,
+                            uri,
+                            false,
+                            FullSettleOutcome::ServedEnriched,
+                        )
+                        .await;
+                        return Ok(tokens.data);
+                    }
+                    // A genuine salsa cancellation (a concurrent edit landed) or a
+                    // worker panic — either way, don't retry inline or surface an
+                    // error: fall through to the cheap coarse tier below so the
+                    // caller still gets a prompt result. The edit that cancelled
+                    // this read has already scheduled its own diagnostics run,
+                    // which will prime a fresh enriched result for the next
+                    // request.
+                    //
+                    // Settle explicitly: the coarse tier is about to be served and
+                    // *no* continuation is detached on this path, so without the
+                    // marker an observer waiting for the convergence decision would
+                    // wait for something that is never coming.
                     log_full_convergence_settled(
                         &self.client,
                         uri,
                         false,
-                        FullSettleOutcome::ServedEnriched,
+                        FullSettleOutcome::Cancelled,
                     )
                     .await;
-                    return Ok(tokens.data);
                 }
-                // A genuine salsa cancellation (a concurrent edit landed) or a
-                // worker panic — either way, don't retry inline or surface an
-                // error: fall through to the cheap coarse tier below so the
-                // caller still gets a prompt result. The edit that cancelled
-                // this read has already scheduled its own diagnostics run,
-                // which will prime a fresh enriched result for the next
-                // request.
-                //
-                // Settle explicitly: the coarse tier is about to be served and
-                // *no* continuation is detached on this path, so without the
-                // marker an observer waiting for the convergence decision would
-                // wait for something that is never coming.
-                log_full_convergence_settled(
-                    &self.client,
-                    uri,
-                    false,
-                    FullSettleOutcome::Cancelled,
-                )
-                .await;
-            }
-            () = crate::rt::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
-                // Too slow for a synchronous first paint: hand the still-running
-                // enriched read to a detached continuation rather than blocking
-                // this response on it, and serve the coarse tier below.
-                self.spawn_full_convergence(uri, enriched).await;
+                () = crate::rt::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
+                    // Too slow for a synchronous first paint: hand the still-running
+                    // enriched read to a detached continuation rather than blocking
+                    // this response on it, and serve the coarse tier below.
+                    self.spawn_full_convergence(uri, enriched).await;
+                }
             }
         }
 
@@ -8966,6 +9049,34 @@ impl Backend {
             message: format!("semantic_tokens worker panicked: {err}").into(),
             data: None,
         })
+    }
+
+    /// Deterministically select both sides of the semantic-token budget race
+    /// for an integration-test child process.
+    async fn semantic_tokens_test_override(
+        &self,
+        uri: &Uri,
+        enriched: crate::rt::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>,
+    ) -> Option<Vec<u32>> {
+        if take_force_semantic_tokens_coarse() {
+            self.spawn_full_convergence(uri, enriched).await;
+            return None;
+        }
+
+        // After the first forced-coarse response, make the refresh-driven
+        // re-request await the genuine enriched arm without a timing race.
+        if let Ok(Some(tokens)) = enriched.await {
+            log_full_convergence_settled(
+                &self.client,
+                uri,
+                false,
+                FullSettleOutcome::ServedEnriched,
+            )
+            .await;
+            return Some(tokens.data);
+        }
+        log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::Cancelled).await;
+        None
     }
 
     /// Detach the `semanticTokens/full` convergence continuation for a request
@@ -9011,6 +9122,9 @@ impl Backend {
                 }
                 _ => FullSettleOutcome::Cancelled,
             };
+            if matches!(outcome, FullSettleOutcome::Cancelled) {
+                rearm_semantic_tokens_test_seam();
+            }
             // Release the per-URI claim only now the decision is made, so every
             // request that arrived while this ran rode along with it — and honour
             // what rode along: a request skipped as `coalesced` has no refresh of
@@ -18173,17 +18287,31 @@ impl Backend {
                 > = None;
                 let mut analysis_slot: Option<Option<Arc<tcl_compiler::analyser::AnalysisResult>>> =
                     None;
-                let both_ready = tokio::select! {
-                    biased;
-                    () = async {
-                        tokio::join!(
-                            async { cu_slot = Some((&mut cu_handle).await.ok().flatten()) },
-                            async {
-                                analysis_slot = Some((&mut analysis_handle).await.ok().flatten());
-                            },
-                        );
-                    } => true,
-                    () = crate::rt::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => false,
+                let both_ready = if take_force_semantic_tokens_coarse() {
+                    false
+                } else if semantic_tokens_test_seam_enabled() {
+                    // The refresh-driven re-request takes the real enriched
+                    // arm deterministically; see the full-token twin above.
+                    tokio::join!(
+                        async { cu_slot = Some((&mut cu_handle).await.ok().flatten()) },
+                        async {
+                            analysis_slot = Some((&mut analysis_handle).await.ok().flatten());
+                        },
+                    );
+                    true
+                } else {
+                    tokio::select! {
+                        biased;
+                        () = async {
+                            tokio::join!(
+                                async { cu_slot = Some((&mut cu_handle).await.ok().flatten()) },
+                                async {
+                                    analysis_slot = Some((&mut analysis_handle).await.ok().flatten());
+                                },
+                            );
+                        } => true,
+                        () = crate::rt::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => false,
+                    }
                 };
                 if both_ready {
                     // Both landed inside the budget — serve the enriched viewport.
@@ -18296,6 +18424,9 @@ impl Backend {
             } else {
                 RangeSettleOutcome::Compared
             };
+            if cancelled {
+                rearm_semantic_tokens_test_seam();
+            }
             // Release the per-URI claim only now the decision is made, so every
             // viewport request that arrived while this ran rode along with it —
             // and honour what rode along: a viewport skipped as `coalesced` has
@@ -41507,14 +41638,41 @@ proc p {} {
     #[tokio::test]
     async fn workspace_symbol_caps_its_answer() {
         let backend = test_backend();
-        let uri = Uri::from_str("file:///w/many.tcl").unwrap();
         let over_the_cap = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS + 25;
-        let src = (0..over_the_cap).fold(String::new(), |mut src, n| {
+        // The cap is a workspace-wide response contract, not a large-file
+        // analyser test. Reuse one small, real analysis across enough indexed
+        // documents to exceed the cap; a single 1,025-proc fixture made this
+        // otherwise constant-time assertion pay the analyser's large-document
+        // scaling cost on every CI run.
+        let symbols_per_document = 41;
+        let document_count = over_the_cap.div_ceil(symbols_per_document);
+        let src = (0..symbols_per_document).fold(String::new(), |mut src, n| {
             use std::fmt::Write;
             let _ = writeln!(src, "proc capped_{n} {{}} {{}}");
             src
         });
-        register(&backend, &uri, &src).await;
+        let analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(&src, "tcl8.6").clone()
+        };
+        let uris: Vec<Uri> = (0..document_count)
+            .map(|n| Uri::from_str(&format!("file:///w/many-{n}.tcl")).unwrap())
+            .collect();
+        {
+            let mut documents = backend.documents.lock("test").await;
+            for uri in &uris {
+                documents.insert(
+                    uri.clone(),
+                    DocumentState::new(src.clone(), "tcl8.6".to_owned()),
+                );
+            }
+        }
+        {
+            let mut index = backend.workspace_index.write().await;
+            for uri in &uris {
+                index.add_document(uri.as_str(), &analysis);
+            }
+        }
 
         let found = backend
             .symbol(WorkspaceSymbolParams {
