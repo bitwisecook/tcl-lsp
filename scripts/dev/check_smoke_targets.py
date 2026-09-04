@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SUPPORTED_TARGET_KINDS = {"lib", "bin", "test", "example", "bench"}
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,7 @@ def ownership_rank(source: Path, target: Target) -> int | None:
     if root.suffix == ".rs" and source.is_relative_to(root.with_suffix("")):
         return 2
 
-    if target.kind == "test":
+    if target.kind in {"test", "example", "bench"}:
         return None
 
     # A `src/bin/foo/main.rs` binary owns the rest of its directory. A
@@ -77,7 +78,7 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
         package_name = package["name"]
         manifests[package_name] = Path(package["manifest_path"]).resolve().parent
         for raw_target in package["targets"]:
-            supported = {"lib", "bin", "test"}.intersection(raw_target["kind"])
+            supported = SUPPORTED_TARGET_KINDS.intersection(raw_target["kind"])
             for kind in supported:
                 targets.append(
                     Target(
@@ -90,23 +91,21 @@ def load_targets() -> tuple[dict[str, Path], list[Target]]:
     return manifests, targets
 
 
-def smoke_named_binary_targets(targets: list[Target]) -> set[tuple[str, str, str]]:
-    """Cargo binary targets selected wholesale by nextest's smoke profile."""
+def smoke_named_targets(targets: list[Target]) -> set[tuple[str, str, str]]:
+    """Cargo test targets selected wholesale by nextest's binary filter."""
     return {
         (target.package, target.kind, target.manifest_name)
         for target in targets
-        if target.kind == "bin"
-        and (target.name == "smoke" or target.name.endswith("_smoke"))
+        if target.name == "smoke" or target.name.endswith("_smoke")
     }
 
 
-def smoke_named_binary_sources(targets: list[Target]) -> set[Path]:
+def smoke_named_target_sources(targets: list[Target]) -> set[Path]:
     """Source roots selected wholesale by nextest's smoke binary filter."""
     return {
         target.source
         for target in targets
-        if target.kind == "bin"
-        and (target.name == "smoke" or target.name.endswith("_smoke"))
+        if target.name == "smoke" or target.name.endswith("_smoke")
     }
 
 
@@ -138,7 +137,7 @@ def validate(manifest: Path) -> list[str]:
                 f"smoke source {source_text} does not belong to package '{package}'"
             )
             continue
-        if kind not in {"lib", "bin", "test"}:
+        if kind not in SUPPORTED_TARGET_KINDS:
             errors.append(f"invalid smoke target kind '{kind}' for {source_text}")
             continue
         if kind == "lib" and target_name != "-":
@@ -148,7 +147,7 @@ def validate(manifest: Path) -> list[str]:
         package_targets = [
             target
             for target in all_targets
-            if target.package == package and target.kind in {"lib", "bin", "test"}
+            if target.package == package and target.kind in SUPPORTED_TARGET_KINDS
         ]
         owners = best_owners(source, package_targets)
         declared = [
@@ -175,7 +174,7 @@ def validate(manifest: Path) -> list[str]:
             )
 
     for package, kind, target_name in sorted(
-        smoke_named_binary_targets(all_targets) - declared_targets
+        smoke_named_targets(all_targets) - declared_targets
     ):
         errors.append(
             f"smoke-named Cargo target {package} {kind}:{target_name} has no "
@@ -220,14 +219,23 @@ def self_test() -> None:
         Target("example", "bin", "smoke", root / "src/bin/smoke.rs"),
         Target("example", "bin", "worker_smoke", root / "src/bin/worker_smoke.rs"),
         Target("example", "bin", "smokeless", root / "src/bin/smokeless.rs"),
+        Target("example", "test", "api_smoke", root / "integration/api.rs"),
+        Target("example", "example", "demo_smoke", root / "examples/demo.rs"),
+        Target("example", "bench", "parse_smoke", root / "benches/parse.rs"),
     ]
-    assert smoke_named_binary_targets(smoke_targets) == {
+    assert smoke_named_targets(smoke_targets) == {
         ("example", "bin", "smoke"),
         ("example", "bin", "worker_smoke"),
+        ("example", "test", "api_smoke"),
+        ("example", "example", "demo_smoke"),
+        ("example", "bench", "parse_smoke"),
     }
-    assert smoke_named_binary_sources(smoke_targets) == {
+    assert smoke_named_target_sources(smoke_targets) == {
         root / "src/bin/smoke.rs",
         root / "src/bin/worker_smoke.rs",
+        root / "integration/api.rs",
+        root / "examples/demo.rs",
+        root / "benches/parse.rs",
     }
 
 
@@ -235,14 +243,15 @@ def main() -> int:
     if sys.argv[1:] == ["--self-test"]:
         self_test()
         return 0
-    if sys.argv[1:] == ["--smoke-bin-sources"]:
+    if sys.argv[1:] == ["--smoke-target-sources"]:
         _package_roots, targets = load_targets()
-        for source in sorted(smoke_named_binary_sources(targets)):
+        for source in sorted(smoke_named_target_sources(targets)):
             print(source.relative_to(REPO_ROOT).as_posix())
         return 0
     if len(sys.argv) != 2:
         print(
-            f"usage: {Path(sys.argv[0]).name} MANIFEST | --self-test",
+            f"usage: {Path(sys.argv[0]).name} MANIFEST | --self-test | "
+            "--smoke-target-sources",
             file=sys.stderr,
         )
         return 2

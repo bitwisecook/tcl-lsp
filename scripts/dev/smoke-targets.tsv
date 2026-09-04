@@ -1,4 +1,4 @@
-# Source file<TAB>Cargo package<TAB>target kind (lib/test/bin)<TAB>target name (`-` for lib)
+# Source file<TAB>Cargo package<TAB>target kind (lib/bin/test/example/bench)<TAB>target name (`-` for lib)
 rust/tcl-cli/tests/cli.rs	tcl-cli	test	cli
 rust/tcl-compiler/src/compilation_unit.rs	tcl-compiler	lib	-
 rust/tcl-compiler/tests/differential_segment.rs	tcl-compiler	test	differential_segment

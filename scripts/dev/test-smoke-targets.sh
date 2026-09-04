@@ -17,13 +17,14 @@ EXPECTED=$(mktemp)
 ACTUAL=$(mktemp)
 trap 'rm -f "$EXPECTED" "$ACTUAL"' EXIT HUP INT TERM
 
-SMOKE_DECL_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|mod[[:space:]]+smoke[[:space:]]*[;{])'
+SMOKE_DECL_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|mod[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*[;{])'
 
 # Keep the declaration scanner broad enough for Rust's visibility-qualified
 # module forms. A missed declaration would let the fallback consume a
 # manifest that silently omits the owning Cargo target.
 for declaration in \
     'mod smoke {' \
+    'mod smoke_tests {' \
     'pub mod smoke;' \
     'pub(crate) mod smoke {' \
     'pub(super) mod smoke;' \
@@ -48,7 +49,7 @@ awk -F '\t' '!/^#/ && NF { print $1 }' "$MANIFEST" | sort -u > "$EXPECTED"
     # Nextest's binary-name filter selects the entire target even when its
     # unit-test functions have ordinary names, so Cargo's source roots belong
     # in the same discovered path set as declaration-named smoke tests.
-    python3 "$SCRIPT_DIR/check_smoke_targets.py" --smoke-bin-sources
+    python3 "$SCRIPT_DIR/check_smoke_targets.py" --smoke-target-sources
 } | sort -u > "$ACTUAL"
 
 if ! diff -u "$EXPECTED" "$ACTUAL"; then

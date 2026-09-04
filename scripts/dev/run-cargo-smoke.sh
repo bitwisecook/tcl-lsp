@@ -82,11 +82,8 @@ while IFS="$(printf '\t')" read -r source package kind target; do
             echo "==> cargo test -p $package --lib smoke"
             run_smoke cargo test -p "$package" --lib
             ;;
-        test)
-            run_named_target test "$package" "$target"
-            ;;
-        bin)
-            run_named_target bin "$package" "$target"
+        test|bin|example|bench)
+            run_named_target "$kind" "$package" "$target"
             ;;
         *)
             echo "invalid target kind '$kind' for $source in $MANIFEST" >&2
