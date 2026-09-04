@@ -17,7 +17,7 @@ EXPECTED=$(mktemp)
 ACTUAL=$(mktemp)
 trap 'rm -f "$EXPECTED" "$ACTUAL"' EXIT HUP INT TERM
 
-SMOKE_DECL_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|mod[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*[;{])'
+SMOKE_DECL_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((((const|async|unsafe)[[:space:]]+|extern([[:space:]]+"[^"]*")?[[:space:]]+)*)fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|mod[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*[;{])'
 SMOKE_MARKER_RE='^[[:space:]]*//[[:space:]]*tcl-lsp-smoke-target[[:space:]]*$'
 
 # Keep the declaration scanner broad enough for Rust's visibility-qualified
@@ -29,7 +29,10 @@ for declaration in \
     'pub mod smoke;' \
     'pub(crate) mod smoke {' \
     'pub(super) mod smoke;' \
-    'pub(in crate::tests) mod smoke {'
+    'pub(in crate::tests) mod smoke {' \
+    'extern "C" fn smoke_probe() {' \
+    'pub unsafe extern "C-unwind" fn smoke_hook() {' \
+    'pub(crate) const unsafe extern fn smoke_qualified() {'
 do
     if ! printf '%s\n' "$declaration" | grep -E -q "$SMOKE_DECL_RE"; then
         echo "smoke declaration scanner missed: $declaration" >&2
