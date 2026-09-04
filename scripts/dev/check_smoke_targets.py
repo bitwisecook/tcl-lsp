@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -25,6 +27,7 @@ LIBRARY_TARGET_KINDS = {
     "staticlib",
     "proc-macro",
 }
+SMOKE_TEST_RE = re.compile(r"(?:^|::)smoke")
 
 
 @dataclass(frozen=True)
@@ -311,7 +314,7 @@ def validate(manifest: Path) -> list[str]:
 def runnable_manifest_lines_for_targets(
     manifest: Path, targets: list[Target]
 ) -> list[str]:
-    """Add the exact features needed to run each workspace-enabled row."""
+    """Return rows whose targets are testable in the workspace feature graph."""
     available = {
         (target.package, target.kind, target.manifest_name): target
         for target in targets
@@ -322,9 +325,8 @@ def runnable_manifest_lines_for_targets(
         if not raw_line or raw_line.startswith("#"):
             continue
         source, package, kind, target_name = raw_line.split("\t")
-        if target := available.get((package, kind, target_name)):
-            features = ",".join(target.resolved_features) or "-"
-            lines.append("\t".join((source, package, kind, target_name, features)))
+        if available.get((package, kind, target_name)):
+            lines.append("\t".join((source, package, kind, target_name)))
     return lines
 
 
@@ -332,6 +334,145 @@ def runnable_manifest_lines(manifest: Path) -> list[str]:
     """Resolve and render the Cargo invocations for a validated manifest."""
     _package_roots, targets = load_targets()
     return runnable_manifest_lines_for_targets(manifest, targets)
+
+
+def cargo_target_command(kind: str, target_name: str) -> list[str]:
+    """Select one Cargo target shape without narrowing the workspace graph."""
+    command = ["cargo", "test", "--workspace", "--locked"]
+    if kind == "lib":
+        command.append("--lib")
+    else:
+        command.extend((f"--{kind}", target_name))
+    return command
+
+
+def cargo_test_entries(output: str) -> list[tuple[str, str]]:
+    """Parse stable libtest `--list` output into (name, kind) pairs."""
+    entries: list[tuple[str, str]] = []
+    for line in output.splitlines():
+        name, separator, entry_kind = line.rpartition(": ")
+        if separator and entry_kind in {"test", "benchmark"}:
+            entries.append((name, entry_kind))
+    return entries
+
+
+def selected_smoke_entries(
+    entries: list[tuple[str, str]], target_name: str
+) -> list[tuple[str, str]]:
+    """Apply the nextest smoke profile's test/binary union exactly."""
+    if target_name == "smoke" or target_name.endswith("_smoke"):
+        return entries
+    return [(name, kind) for name, kind in entries if SMOKE_TEST_RE.search(name)]
+
+
+def cargo_substring_skips(
+    entries: list[tuple[str, str]], selected: list[tuple[str, str]]
+) -> list[str] | None:
+    """Exclude Cargo substring false positives, or report exact runs are needed."""
+    selected_names = {name for name, _kind in selected}
+    candidates = {name for name, _kind in entries if "smoke" in name}
+    skips = sorted(candidates.difference(selected_names))
+    effective = {
+        name for name in candidates if not any(skip_name in name for skip_name in skips)
+    }
+    return skips if effective == selected_names else None
+
+
+def manifest_selectors(lines: list[str]) -> list[tuple[str, str]]:
+    """Deduplicate manifest rows into workspace Cargo target selectors."""
+    selectors: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for line in lines:
+        _source, _package, kind, target_name = line.split("\t")
+        selector = (kind, "") if kind == "lib" else (kind, target_name)
+        if selector not in seen:
+            seen.add(selector)
+            selectors.append(selector)
+    return selectors
+
+
+def run_cargo_target(
+    kind: str,
+    target_name: str,
+    *,
+    list_only: bool,
+    repo_root: Path = REPO_ROOT,
+    env: dict[str, str] | None = None,
+    quiet: bool = False,
+) -> list[tuple[str, str]]:
+    """List or run the exact smoke selection in one workspace feature graph."""
+    command = cargo_target_command(kind, target_name)
+    listing = subprocess.run(
+        [*command, "--", "--list"],
+        cwd=repo_root,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    selected = selected_smoke_entries(cargo_test_entries(listing.stdout), target_name)
+    if list_only:
+        for name, entry_kind in selected:
+            print(f"{name}: {entry_kind}")
+        return selected
+
+    if target_name == "smoke" or target_name.endswith("_smoke"):
+        subprocess.run(
+            command,
+            cwd=repo_root,
+            env=env,
+            check=True,
+            capture_output=quiet,
+            text=quiet,
+        )
+        return selected
+
+    skips = cargo_substring_skips(cargo_test_entries(listing.stdout), selected)
+    if skips is not None:
+        arguments = [*command, "smoke"]
+        if skips:
+            arguments.append("--")
+            for name in skips:
+                arguments.extend(("--skip", name))
+        subprocess.run(
+            arguments,
+            cwd=repo_root,
+            env=env,
+            check=True,
+            capture_output=quiet,
+            text=quiet,
+        )
+        return selected
+
+    # A pathological non-smoke name can itself be a substring of a selected
+    # name, making libtest's substring-only --skip unsafe. Preserve coverage
+    # with exact positive runs in that rare case.
+    for name, _entry_kind in selected:
+        result = subprocess.run(
+            [*command, name, "--", "--exact"],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            sys.stdout.write(result.stdout)
+            sys.stderr.write(result.stderr)
+            result.check_returncode()
+        if not quiet:
+            print(f"PASS {name}")
+    return selected
+
+
+def run_manifest(manifest: Path, *, list_only: bool) -> None:
+    """Run each distinct manifest target with workspace feature unification."""
+    errors = validate(manifest)
+    if errors:
+        raise RuntimeError("\n".join(errors))
+    for kind, target_name in manifest_selectors(runnable_manifest_lines(manifest)):
+        selector = "--lib" if kind == "lib" else f"--{kind} {target_name}"
+        print(f"==> cargo test --workspace {selector}")
+        run_cargo_target(kind, target_name, list_only=list_only)
 
 
 def self_test() -> None:
@@ -423,8 +564,39 @@ def self_test() -> None:
         manifest = Path(temp_dir) / "smoke-targets.tsv"
         manifest.write_text("source.rs\texample\tbin\tunified_smoke\n")
         assert runnable_manifest_lines_for_targets(manifest, smoke_targets) == [
-            "source.rs\texample\tbin\tunified_smoke\talso_unified,shared"
+            "source.rs\texample\tbin\tunified_smoke"
         ]
+
+    entries = [
+        ("smoke_fast", "test"),
+        ("nested::smoke_nested", "test"),
+        ("long_smoke_corpus", "test"),
+        ("deep", "test"),
+    ]
+    assert selected_smoke_entries(entries, "example") == entries[:2]
+    assert selected_smoke_entries(entries, "api_smoke") == entries
+    assert cargo_substring_skips(entries, entries[:2]) == ["long_smoke_corpus"]
+    collision_entries = [
+        ("outer::smoke_long_smoke", "test"),
+        ("long_smoke", "test"),
+    ]
+    assert cargo_substring_skips(collision_entries, collision_entries[:1]) is None
+    assert (
+        cargo_test_entries(
+            "smoke_fast: test\nlong_smoke_corpus: test\n2 tests, 0 benchmarks\n"
+        )
+        == entries[:1] + entries[2:3]
+    )
+    assert cargo_target_command("lib", "example")[-1] == "--lib"
+    assert cargo_target_command("test", "api")[-2:] == ["--test", "api"]
+    assert manifest_selectors(
+        [
+            "a.rs\ta\tlib\ta",
+            "b.rs\tb\tlib\tb",
+            "one.rs\ta\ttest\tapi",
+            "two.rs\tb\ttest\tapi",
+        ]
+    ) == [("lib", ""), ("test", "api")]
 
     assert metadata_command("x86_64-example-linux")[-2:] == [
         "--filter-platform",
@@ -448,7 +620,7 @@ def self_test() -> None:
         files = {
             "Cargo.toml": """\
 [workspace]
-members = ["a", "b", "c", "d"]
+members = ["a", "b", "c", "d", "e", "f", "g"]
 resolver = "2"
 """,
             "a/Cargo.toml": """\
@@ -458,7 +630,7 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [features]
 build_only = []
@@ -474,7 +646,10 @@ name = "normal_smoke"
 path = "src/normal.rs"
 required-features = ["normal"]
 """,
-            "a/src/lib.rs": "pub fn value() -> bool { true }\n",
+            "a/src/lib.rs": """\
+pub fn value() -> bool { true }
+pub fn normal_is_enabled() -> bool { cfg!(feature = "normal") }
+""",
             "a/src/build.rs": "fn main() {}\n",
             "a/src/normal.rs": "fn main() {}\n",
             "b/Cargo.toml": """\
@@ -508,6 +683,45 @@ edition = "2024"
 proc-macro = true
 """,
             "d/src/lib.rs": "",
+            "e/Cargo.toml": """\
+[package]
+name = "e"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+f = { path = "../f" }
+""",
+            "e/src/lib.rs": """\
+#[test]
+fn smoke_dependency() { assert!(f::normal_is_enabled()); }
+
+#[test]
+fn long_smoke_dependency() { panic!("deep test must not run"); }
+
+#[test]
+fn deep() { panic!("deep test must not run"); }
+""",
+            "f/Cargo.toml": """\
+[package]
+name = "f"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a = { path = "../a" }
+""",
+            "f/src/lib.rs": "pub fn normal_is_enabled() -> bool { a::normal_is_enabled() }\n",
+            "g/Cargo.toml": """\
+[package]
+name = "g"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+""",
+            "g/src/lib.rs": "pub fn value() -> bool { true }\n",
         }
         for relative_path, contents in files.items():
             path = fixture / relative_path
@@ -527,9 +741,45 @@ proc-macro = true
         }
         assert fixture_by_package[("a", "a")].kind == "lib"
         assert fixture_by_package[("d", "d")].kind == "lib"
+        assert fixture_by_package[("g", "g")].kind == "lib"
         assert not fixture_by_name["build_smoke"].available_in_workspace
         assert fixture_by_name["normal_smoke"].available_in_workspace
         assert fixture_by_name["normal_smoke"].resolved_features == ("normal",)
+
+        # `-p e` loses the `normal` feature enabled for dependency `a` by
+        # workspace member `c`. The fallback must keep the workspace graph,
+        # while its exact test selection must exclude the substring-only
+        # `long_smoke_dependency` and the unrelated failing test.
+        fixture_env = os.environ.copy()
+        fixture_env["CARGO_TARGET_DIR"] = str(fixture / "target")
+        targeted = subprocess.run(
+            [
+                "cargo",
+                "test",
+                "--locked",
+                "-p",
+                "e",
+                "--lib",
+                "smoke_dependency",
+                "--",
+                "--exact",
+            ],
+            cwd=fixture,
+            env=fixture_env,
+            capture_output=True,
+            text=True,
+        )
+        assert targeted.returncode != 0
+        selected = run_cargo_target(
+            "lib",
+            "e",
+            list_only=False,
+            repo_root=fixture,
+            env=fixture_env,
+            quiet=True,
+        )
+        assert ("smoke_dependency", "test") in selected
+        assert ("long_smoke_dependency", "test") not in selected
 
 
 def main() -> int:
@@ -549,10 +799,18 @@ def main() -> int:
             return 1
         print("\n".join(runnable_manifest_lines(manifest)))
         return 0
+    if len(sys.argv) == 3 and sys.argv[1] in {"--run-manifest", "--list-manifest"}:
+        try:
+            run_manifest(Path(sys.argv[2]), list_only=sys.argv[1] == "--list-manifest")
+        except (RuntimeError, subprocess.CalledProcessError) as error:
+            print(error, file=sys.stderr)
+            return 1
+        return 0
     if len(sys.argv) != 2:
         print(
             f"usage: {Path(sys.argv[0]).name} MANIFEST | --self-test | "
-            "--smoke-target-sources | --runnable-manifest MANIFEST",
+            "--smoke-target-sources | --runnable-manifest MANIFEST | "
+            "--run-manifest MANIFEST | --list-manifest MANIFEST",
             file=sys.stderr,
         )
         return 2

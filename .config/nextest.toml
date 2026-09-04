@@ -69,8 +69,9 @@ test-group = 'manual-corpus'
 # A test is "smoke" by naming convention, not by crate: a unit-test fn named
 # `smoke_*` (or nested under `mod smoke`), or an integration binary named
 # `smoke` / `*_smoke` (tcl-lsp-server's existing convention). Toolchains
-# without nextest use scripts/dev/smoke-targets.tsv to invoke only the owning
-# Cargo targets; scripts/dev/test-smoke-targets.sh prevents that list drifting.
+# without nextest use scripts/dev/smoke-targets.tsv to identify the required
+# Cargo target shapes while preserving the workspace feature graph;
+# scripts/dev/test-smoke-targets.sh prevents that list drifting.
 # A macro-generated smoke test must put the exact marker
 # `// tcl-lsp-smoke-target` in its source and add that source's target row to
 # smoke-targets.tsv, because the fallback cannot inspect expanded test names.
