@@ -57,14 +57,69 @@ pub fn meta() -> String {
 #[wasm_bindgen]
 #[must_use]
 pub fn compile(source: &str, dialect: &str) -> String {
+    compile_with_optimisations(source, dialect, "")
+}
+
+/// [`compile`] with a comma-separated semantic/AOT optimisation selection —
+/// the GUI's per-pass toggles.
+///
+/// `optimisations` takes the pass ids the `semanticOptimisations` view lists
+/// (`native-lowering`, `representation-inference`, …) or one of its group
+/// names (`native-tier`, `all`); empty means the generic lowering, which is
+/// what [`compile`] asks for. An unknown name comes back as a JSON `error`
+/// object rather than being dropped: a toggle the user set and did not get is
+/// a wrong answer, and the GUI would otherwise show an unoptimised module as
+/// though it were optimised.
+#[wasm_bindgen]
+#[must_use]
+pub fn compile_with_optimisations(source: &str, dialect: &str, optimisations: &str) -> String {
+    let config = match tcl_explorer::SemanticOptimisationConfig::from_names(optimisations) {
+        Ok(config) => config,
+        Err(message) => {
+            return serde_json::json!({ "error": message }).to_string();
+        }
+    };
     let result = tcl_explorer::run_pipeline(source, dialect);
-    serde_json::to_string(&tcl_explorer::serialise_result(&result))
-        .unwrap_or_else(|e| format!(r#"{{"error":"serialise failed: {e}"}}"#))
+    serde_json::to_string(&tcl_explorer::serialise_result_with_optimisations(
+        &result, config,
+    ))
+    .unwrap_or_else(|e| format!(r#"{{"error":"serialise failed: {e}"}}"#))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The GUI's toggle path: a pass selection reaches the emitter, and an
+    /// unrecognised name comes back as an `error` object rather than being
+    /// silently dropped — a toggle that does nothing would show an
+    /// unoptimised module as though it were optimised.
+    #[test]
+    fn compile_with_optimisations_applies_the_selection_and_rejects_a_bad_name() {
+        let source = "set a 1\nincr a\n";
+        let off: serde_json::Value =
+            serde_json::from_str(&compile(source, "tcl9.0")).expect("result JSON");
+        assert_eq!(
+            off["wasm"][0]["codegenPlan"]["nativeLowering"]["enabled"],
+            false
+        );
+
+        let on: serde_json::Value =
+            serde_json::from_str(&compile_with_optimisations(source, "tcl9.0", "native-tier"))
+                .expect("result JSON");
+        assert_eq!(
+            on["wasm"][0]["codegenPlan"]["nativeLowering"]["enabled"],
+            true
+        );
+
+        let bad: serde_json::Value =
+            serde_json::from_str(&compile_with_optimisations(source, "tcl9.0", "nope"))
+                .expect("error JSON");
+        assert!(
+            bad["error"].as_str().is_some_and(|e| e.contains("`nope`")),
+            "{bad}"
+        );
+    }
 
     #[test]
     fn wasm_contract_exposes_the_descriptor_and_world_ssa_payload() {

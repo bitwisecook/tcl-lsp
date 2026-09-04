@@ -1341,6 +1341,32 @@ See also: [Codegen internals](design/compiler/codegen-internals.md)
 and [Codegen module map](design/compiler/codegen-module-map.md).
 KCS tag: `codegen`.
 
+### Codegen optimisation pass
+
+One of the twelve individually selectable semantic/AOT transformations the
+WASM emitter may use — `native-lowering`, `representation-inference`,
+`trace-barrier-elision`, `cell-demotion`, `direct-proc`, `frame-elision`,
+`native-integer` and the rest, enumerated by
+`tcl_compiler::semantic_optimisation::SemanticOptimisationPassId`. A pass
+authorises a *semantic* specialisation, not a target instruction sequence; a
+backend consumes an enabled pass only once its own requirements are met.
+
+Distinct from an optimisation *code* (`O1xx`), which is a **source-rewrite**
+the analyser suggests and `tcl opt` applies — see
+[Optimisation passes](design/compiler/optimisation-passes.md). A codegen pass
+changes what the compiler emits, never the source.
+
+**Every pass is off by default**, so an unflagged `tcl compwasm` and an
+untouched compiler explorer show the *generic lowering* — a module that hands
+each command back to the interpreter through `tcl_eval_code` rather than
+compiling it. Select them with `--codegen-passes` on `tcl compwasm` /
+`tcl explore`, or the explorer's *Codegen passes* toggles; `native-tier` is
+the group name for the four the native tier enables.
+
+See also: [WASM explorer view](design/contracts/wasm-explorer-view.md)
+§ *Optimisation passes*.
+KCS tag: `codegen-passes`.
+
 ### LVT
 
 Local Variable Table — maps variable names to integer slot indices for

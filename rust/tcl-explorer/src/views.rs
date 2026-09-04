@@ -307,6 +307,17 @@ pub const VIEW_META: &[ViewDescriptor] = &[
         group: "codegen",
         render_kind: ViewRenderKind::Frontend,
     },
+    // The toggle surface for the two views above: one row per semantic/AOT
+    // optimisation pass with the state the shown module was built with. A
+    // front end renders its checkboxes from this payload rather than from a
+    // copy of the pass list — which is the point of shipping it as a view.
+    ViewDescriptor {
+        id: "semanticOptimisations",
+        label: "Optimisation Passes",
+        payload: "semanticOptimisations",
+        group: "codegen",
+        render_kind: ViewRenderKind::Frontend,
+    },
 ];
 
 /// IDs handled by the shared Explorer tree model, in tab-table order.

@@ -186,6 +186,103 @@ fn assert_compile_triggers(report: &Value) {
     );
 }
 
+/// The codegen-pass toggles: rows built from `meta.semanticOptimisations`
+/// before any compile lands, a tick that forces a recompile, and — the part a
+/// label alone would fake — the selection actually reaching the compiler.
+fn assert_codegen_pass_toggles(report: &Value) {
+    let rows = report["passRowCount"].as_u64().expect("pass row count");
+    assert_eq!(
+        rows,
+        tcl_explorer::SemanticOptimisationPassId::all().len() as u64,
+        "the toggle panel did not render one row per pass"
+    );
+    assert_eq!(
+        report["summaryBefore"].as_str().map(str::trim),
+        Some("Codegen passes: none"),
+        "an untouched Explorer must show the generic lowering"
+    );
+
+    let before = report["compilesBeforeToggle"]
+        .as_u64()
+        .expect("compile count");
+    let after = report["compilesAfterToggle"]
+        .as_u64()
+        .expect("compile count");
+    assert_eq!(
+        after,
+        before + 1,
+        "ticking a pass did not force a recompile ({before} -> {after})"
+    );
+    assert_eq!(
+        report["passesSent"].as_str(),
+        Some(tcl_explorer::SemanticOptimisationPassId::all()[0].as_str()),
+        "the ticked pass never reached the compiler"
+    );
+    assert_ne!(
+        report["summaryAfter"].as_str().map(str::trim),
+        Some("Codegen passes: none")
+    );
+
+    // The group buttons are presets over the same checkboxes.
+    assert_eq!(
+        report["nativeTierTicked"].as_u64(),
+        Some(4),
+        "the `native-tier` preset did not tick its four passes"
+    );
+
+    // And the answer to "does it live-update": the WASM pane must repaint
+    // from the new result. A recompile the page never renders would satisfy
+    // every assertion above and leave the user looking at the old module.
+    let before = &report["wasmBeforeToggle"];
+    let after = &report["wasmAfterToggle"];
+    assert_ne!(
+        before["wasmText"], after["wasmText"],
+        "the WASM pane did not repaint after a pass was ticked"
+    );
+    assert!(
+        after["wasmInstructions"].as_u64().unwrap_or(0) > 0,
+        "the repainted WASM pane rendered no instructions: {after}"
+    );
+    assert_eq!(
+        after["spinnerDisplay"], "none",
+        "the spinner never settled after the toggle recompile"
+    );
+    assert!(
+        after["errorBoxes"].as_array().is_some_and(Vec::is_empty),
+        "the toggle recompile surfaced an error box: {after}"
+    );
+}
+
+/// Write the two contract payloads the driver stubs the WASM facade with.
+///
+/// The first is what `compile` returns; the second is the same source with
+/// every codegen pass on, which the stub returns whenever a pass selection is
+/// sent. Without a *second* payload the WASM pane would look identical however
+/// the toggles were set, and the repaint assertion would pass on a page that
+/// never rendered.
+fn write_driver_payloads(source: &str) -> (PathBuf, PathBuf) {
+    let result = tcl_explorer::run_pipeline(source, "tcl8.6");
+    let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
+        .expect("explorer payload serialises");
+    let optimised = serde_json::to_string(&tcl_explorer::serialise_result_with_optimisations(
+        &result,
+        tcl_explorer::SemanticOptimisationConfig::from_names("all").expect("a valid group"),
+    ))
+    .expect("optimised explorer payload serialises");
+    assert_ne!(
+        payload, optimised,
+        "the two payloads must differ or the render assertion proves nothing"
+    );
+
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let payload_path = out_dir.join("explorer-gui-payload.json");
+    std::fs::write(&payload_path, &payload).expect("write payload");
+    let optimised_path = out_dir.join("explorer-gui-payload-optimised.json");
+    std::fs::write(&optimised_path, &optimised).expect("write optimised payload");
+    (payload_path, optimised_path)
+}
+
 #[test]
 fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     if Command::new("node").arg("--version").output().is_err() {
@@ -197,16 +294,8 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
         return;
     };
 
-    // The payload the WASM facade would return for this source.
     let source = "proc add {a b} {\n    return [expr {$a + $b}]\n}\nputs [add 1 2]\n";
-    let result = tcl_explorer::run_pipeline(source, "tcl8.6");
-    let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
-        .expect("explorer payload serialises");
-
-    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
-    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
-    let payload_path = out_dir.join("explorer-gui-payload.json");
-    std::fs::write(&payload_path, &payload).expect("write payload");
+    let (payload_path, optimised_path) = write_driver_payloads(source);
 
     let driver = manifest_dir().join("tests/gui/explorer-gui-smoke.mjs");
     let gui = manifest_dir().join("gui");
@@ -214,6 +303,7 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     cmd.arg(&driver)
         .arg(&gui)
         .arg(&payload_path)
+        .arg(&optimised_path)
         .env("TCL_EXPLORER_PLAYWRIGHT", playwright);
     if let Ok(chromium) = std::env::var("TCL_EXPLORER_CHROMIUM") {
         cmd.env("TCL_EXPLORER_CHROMIUM", chromium);
@@ -301,4 +391,5 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     );
 
     assert_compile_triggers(&report);
+    assert_codegen_pass_toggles(&report);
 }

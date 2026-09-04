@@ -1255,6 +1255,12 @@ to "why didn't it?".  It is the first place to look when a constant fold — or
 its absence — is a surprise; the same data is the `unitScope` view in the
 `tcl explore` CLI and TUI.
 
+The WASM tab additionally carries a **Codegen passes** control: a checkbox
+per semantic/AOT optimisation pass, plus the `native-tier` and `all` presets.
+Every pass is off by default, so an untouched explorer shows the generic
+lowering; ticking one recompiles and repaints the disassembly.  The same
+selection is available to the CLI as `tcl explore --codegen-passes`.
+
 The IR, CFG, SSA, bytecode, and WASM tabs each carry an **optimiser lens**
 (`off` / `on` / `diff`).  The `diff` mode compares the relevant node — IR
 statement, CFG block, or bytecode instruction — rather than raw text, so
@@ -1413,7 +1419,18 @@ tcl compwasm script.tcl -o out.wasm --wat-output out.wat
 
 # Compile inline source
 tcl compwasm --source 'set x [expr {1+2}]' -o out.wasm
+
+# Enable codegen optimisation passes (default: none, the generic lowering)
+tcl compwasm script.tcl --codegen-passes native-tier -o out.wasm
+tcl compwasm script.tcl --codegen-passes native-lowering,cell-demotion -o out.wasm
 ```
+
+`--codegen-passes` selects the semantic/AOT passes the emitter may use —
+individual pass ids, or the `native-tier` / `all` groups.  Omitted, no pass
+runs and the emitter produces the generic lowering, which hands each command
+back to the interpreter rather than compiling it.  `tcl explore --json` lists
+every pass under `semanticOptimisations`.  It is a different axis from
+`tcl dis --optimise`, which runs the source-rewrite optimiser.
 
 #### Tcl VM
 

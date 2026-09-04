@@ -56,6 +56,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::semantic_analysis::{
     ExecutableAnalysisAvailability, MixedRegionPlanAvailability,
 };
+use tcl_compiler::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use tcl_compiler::shimmer::{
     find_byte_array_warnings_for_cu, find_sharing_warnings_for_cu, find_shimmer_warnings_for_cu,
     find_thunking_warnings_for_cu, type_name,
@@ -133,6 +134,13 @@ pub fn serialise_meta() -> Value {
         "views": views,
         "severities": severities,
         "traits": traits,
+        // The codegen-pass catalogue, so a front end can render its toggles
+        // before the first compile — the same reason `dialects` is here
+        // (issue #1183). The per-result `semanticOptimisations` view carries
+        // the same rows plus the state the shown module was built with.
+        "semanticOptimisations": serialise_semantic_optimisations(
+            SemanticOptimisationConfig::new(),
+        ),
     })
 }
 
@@ -251,21 +259,49 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
     }
 }
 
+/// Serialise the `semanticOptimisations` view: one row per pass, in
+/// [`SemanticOptimisationPassId::all`] order, with the state the shown
+/// `wasm` module was built with.
+///
+/// This is the toggle surface. A front-end renders a checkbox per row from
+/// `id` and `enabled` and sends the ids it wants back — it never needs its
+/// own copy of the pass list, which is the drift this view exists to
+/// prevent. `groups` names the presets `from_names` also accepts.
+#[must_use]
+pub fn serialise_semantic_optimisations(config: SemanticOptimisationConfig) -> Value {
+    let passes: Vec<Value> = SemanticOptimisationPassId::all()
+        .into_iter()
+        .map(|pass| {
+            serde_json::json!({
+                "id": pass.as_str(),
+                "enabled": config.is_enabled(pass),
+            })
+        })
+        .collect();
+    let groups: Vec<Value> = tcl_compiler::semantic_optimisation::PASS_GROUPS
+        .iter()
+        .map(|(id, members)| {
+            serde_json::json!({
+                "id": *id,
+                "passes": members.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    serde_json::json!({ "passes": passes, "groups": groups })
+}
+
 /// Serialise the `wasm` view: drive the analysis-aware WASM emitter used by
-/// `tcl compwasm` and emit the rich per-instruction
-/// explorer shape (`wasm_explorer::wasm_to_explorer_json` — resolved `call`
-/// targets, paired `br`/`br_if` targets, block-pairing indices, per-instruction
+/// `tcl compwasm` under `options` and emit the rich per-instruction explorer
+/// shape (`wasm_explorer::wasm_to_explorer_json` — resolved `call` targets,
+/// paired `br`/`br_if` targets, block-pairing indices, per-instruction
 /// ranges). The synthetic `(module)` entry additionally carries the full WAT
 /// `text`, so both the text renderer and the web GUI read one shape; the
 /// module-wide counts (`functionCount` / `totalInstrCount`) and the type
 /// section come from `wasm_to_explorer_json` itself.
-fn serialise_wasm(result: &ExplorerResult) -> Value {
-    serialise_wasm_with_options(
-        result,
-        tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
-    )
-}
-
+///
+/// `options` carries the semantic/AOT optimisation configuration, so the same
+/// source can be shown as the generic lowering or as any pass selection —
+/// which is what the Explorer's per-pass toggles change.
 fn serialise_wasm_with_options(
     result: &ExplorerResult,
     options: tcl_compiler::codegen::wasm::WasmCompileOptions,
@@ -3081,12 +3117,33 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     (Value::Array(dicts), Value::Object(by_line))
 }
 
-/// Serialise a full pipeline result to the explorer contract JSON.
+/// Serialise a full pipeline result to the explorer contract JSON, with
+/// every semantic/AOT optimisation pass **off** — the generic lowering.
+///
+/// Use [`serialise_result_with_optimisations`] to see what a pass changes.
+#[must_use]
+pub fn serialise_result(result: &ExplorerResult) -> Value {
+    serialise_result_with_optimisations(result, SemanticOptimisationConfig::new())
+}
+
+/// [`serialise_result`] with a chosen semantic/AOT optimisation
+/// configuration.
+///
+/// The configuration reaches the `wasm` and `wasmOptimised` views (the
+/// emitter's `WasmCompileOptions`) and is echoed in the
+/// `semanticOptimisations` view, so a front-end can render a toggle per pass
+/// and read back which ones the shown module was built with. Every other
+/// view is target-neutral and unaffected.
 // Assembles the whole explorer JSON contract field-by-field in one place;
 // each stage adds one top-level key, so the length is inherent to the schema.
 #[must_use]
 #[allow(clippy::too_many_lines)]
-pub fn serialise_result(result: &ExplorerResult) -> Value {
+pub fn serialise_result_with_optimisations(
+    result: &ExplorerResult,
+    optimisations: SemanticOptimisationConfig,
+) -> Value {
+    let options = tcl_compiler::codegen::wasm::WasmCompileOptions::hosted()
+        .with_semantic_optimisations(optimisations);
     let li = LineIndex::new(&result.source);
     let mut out = Map::new();
     out.insert("meta".to_owned(), serialise_meta());
@@ -3231,10 +3288,19 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     // and surface its WAT plus the rich per-instruction
     // explorer shape (resolved `call`/branch targets, per-instruction ranges)
     // alongside per-function headers, which the text/`wasm` view renders.
-    out.insert("wasm".to_owned(), serialise_wasm(result));
+    out.insert(
+        "wasm".to_owned(),
+        serialise_wasm_with_options(result, options),
+    );
     out.insert(
         "wasmOptimised".to_owned(),
-        opt.as_ref().map_or(Value::Null, |(r, _)| serialise_wasm(r)),
+        opt.as_ref().map_or(Value::Null, |(r, _)| {
+            serialise_wasm_with_options(r, options)
+        }),
+    );
+    out.insert(
+        "semanticOptimisations".to_owned(),
+        serialise_semantic_optimisations(optimisations),
     );
 
     let (annotations, by_line) = serialise_annotations(result, &li, &result.source);
@@ -3269,9 +3335,9 @@ mod tests {
             assert!(entry["displayName"].as_str().is_some_and(|s| !s.is_empty()));
             assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));
         }
-        // The original 27 views, plus World SSA and six durable compiler
-        // artefact views.
-        assert_eq!(meta["views"].as_array().unwrap().len(), 34);
+        // The original 27 views, plus World SSA, six durable compiler
+        // artefact views, and the optimisation-pass toggle surface.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 35);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         let traits = meta["traits"]
             .as_array()
@@ -3380,6 +3446,81 @@ mod tests {
         );
         assert_eq!(plan["nativeI64Add"]["frameElided"], true);
         assert_eq!(plan["nativeI64Add"]["closedProgramStatements"], 4);
+    }
+
+    /// The toggle surface a front end renders from: every pass, in a stable
+    /// order, with the state the shown module was built with — and the same
+    /// catalogue in `meta`, so the panel can be drawn before the first
+    /// compile.
+    #[test]
+    fn semantic_optimisations_view_carries_every_pass_and_its_state() {
+        let result = run_pipeline("set a 1\nincr a\n", "tcl9.0");
+        let off = serialise_result(&result);
+        let ids: Vec<&str> = off["semanticOptimisations"]["passes"]
+            .as_array()
+            .expect("pass rows")
+            .iter()
+            .map(|row| row["id"].as_str().expect("a pass id"))
+            .collect();
+        assert_eq!(
+            ids,
+            SemanticOptimisationPassId::all()
+                .iter()
+                .map(|p| p.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            off["semanticOptimisations"]["passes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["enabled"] == false),
+            "the default is the generic lowering"
+        );
+
+        let on = serialise_result_with_optimisations(
+            &result,
+            SemanticOptimisationConfig::from_names("native-tier").expect("a valid group"),
+        );
+        let enabled: Vec<&str> = on["semanticOptimisations"]["passes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| row["enabled"] == true)
+            .map(|row| row["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            enabled,
+            vec![
+                "native-lowering",
+                "representation-inference",
+                "trace-barrier-elision",
+                "cell-demotion"
+            ]
+        );
+        // The selection reaches the emitter, not just the echo.
+        assert_eq!(
+            on["wasm"].as_array().expect("WASM entries")[0]["codegenPlan"]["nativeLowering"]["enabled"],
+            true
+        );
+
+        // `meta` carries the catalogue with nothing enabled, so the panel can
+        // be built before a compile lands (issue #1183's rule for dialects).
+        let meta = serialise_meta();
+        assert_eq!(
+            meta["semanticOptimisations"]["passes"]
+                .as_array()
+                .unwrap()
+                .len(),
+            SemanticOptimisationPassId::all().len()
+        );
+        let groups: Vec<&str> = meta["semanticOptimisations"]["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| g["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(groups, vec!["native-tier", "all"]);
     }
 
     #[test]

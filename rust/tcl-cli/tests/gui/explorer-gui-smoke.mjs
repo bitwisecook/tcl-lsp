@@ -35,9 +35,11 @@ import { readFile, mkdtemp, cp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const [guiDir, payloadPath] = process.argv.slice(2);
-if (!guiDir || !payloadPath) {
-  console.error('usage: explorer-gui-smoke.mjs <gui-dir> <payload.json>');
+const [guiDir, payloadPath, optimisedPayloadPath] = process.argv.slice(2);
+if (!guiDir || !payloadPath || !optimisedPayloadPath) {
+  console.error(
+    'usage: explorer-gui-smoke.mjs <gui-dir> <payload.json> <payload-optimised.json>',
+  );
   process.exit(2);
 }
 
@@ -48,6 +50,10 @@ const launchOptions = process.env.TCL_EXPLORER_CHROMIUM
   : {};
 
 const payload = await readFile(payloadPath, 'utf8');
+// The same source compiled with every codegen pass on. The stub hands this
+// back whenever the page sends a pass selection, so a toggle changing the
+// rendered WASM can be told apart from a toggle that only recompiles.
+const optimisedPayload = await readFile(optimisedPayloadPath, 'utf8');
 const root = await mkdtemp(join(tmpdir(), 'explorer-gui-smoke-'));
 await cp(guiDir, root, { recursive: true });
 
@@ -65,7 +71,16 @@ await writeFile(
     'self.__initGate = new Promise(function (resolve) { self.__finishInit = resolve; });\n' +
     'self.wasm_bindgen = function () { return self.__initGate; };\n' +
     'self.wasm_bindgen.meta = function () { return self.__META; };\n' +
-    'self.wasm_bindgen.compile = function () { self.__COMPILES += 1; return self.__PAYLOAD; };\n',
+    'self.wasm_bindgen.compile = function () { self.__COMPILES += 1; return self.__PAYLOAD; };\n' +
+    // The toggle panel's entry point. Record the selection so the driver can
+    // assert the ticked passes actually reach the compiler rather than just
+    // changing a label.
+    'self.__LAST_PASSES = null;\n' +
+    `self.__OPTIMISED_PAYLOAD = ${JSON.stringify(optimisedPayload)};\n` +
+    'self.wasm_bindgen.compile_with_optimisations = function (source, dialect, passes) {\n' +
+    '  self.__COMPILES += 1; self.__LAST_PASSES = passes;\n' +
+    '  return passes ? self.__OPTIMISED_PAYLOAD : self.__PAYLOAD;\n' +
+    '};\n',
 );
 await writeFile(join(root, 'tcl_explorer_wasm_bg.wasm'), '');
 // Mermaid is vendored by `make explorer-wasm` and not checked in; the GUI
@@ -220,9 +235,56 @@ try {
     afterEdit = await compileCount(page);
   }
 
+  // The codegen-pass toggles: rows come from `meta.semanticOptimisations`, so
+  // the panel must be populated before any compile lands, ticking one must
+  // force a recompile, and the selection must reach the compiler.
+  // The panel is a closed <details> until the user opens it, so click the
+  // summary the way they would — the rows exist but are not clickable before.
+  await page.click('#optSummary');
+  const passRowCount = await page.locator('#optPasses input[type=checkbox]').count();
+  const beforeToggleSnapshot = await snapshot(page);
+  const wasmTextBeforeToggle = beforeToggleSnapshot.wasmText;
+  const summaryBefore = await page.locator('#optSummary').innerText();
+  const beforeToggle = await compileCount(page);
+  await page.locator('#optPasses input[type=checkbox]').first().check();
+  let afterToggle = beforeToggle;
+  for (let i = 0; i < 100 && afterToggle === beforeToggle; i += 1) {
+    await page.waitForTimeout(100);
+    afterToggle = await compileCount(page);
+  }
+  const passesSent = await lastPasses(page);
+  const summaryAfter = await page.locator('#optSummary').innerText();
+  // The point of the toggle: the WASM view must repaint from the new result,
+  // not merely have been recompiled behind it. Wait for the render rather
+  // than sampling immediately — `renderAll` runs on the result message.
+  await page.waitForFunction(
+    (before) => {
+      const pane = document.querySelector('#pane-wasm');
+      return pane && pane.textContent.replace(/\s+/g, ' ').trim().slice(0, 400) !== before;
+    },
+    wasmTextBeforeToggle,
+    { timeout: 30_000 },
+  );
+  const afterToggleSnapshot = await snapshot(page);
+  // The group buttons are presets over the same checkboxes.
+  await page.locator('#optGroups button', { hasText: 'native-tier' }).first().click();
+  await page.waitForTimeout(300);
+  const nativeTierTicked = await page
+    .locator('#optPasses input[type=checkbox]:checked')
+    .count();
+
   report = {
     ok: true,
     first: afterFirst,
+    passRowCount,
+    summaryBefore,
+    summaryAfter,
+    compilesBeforeToggle: beforeToggle,
+    compilesAfterToggle: afterToggle,
+    wasmBeforeToggle: beforeToggleSnapshot,
+    wasmAfterToggle: afterToggleSnapshot,
+    nativeTierTicked,
+    passesSent,
     traitRowsBeforeCompile,
     queuedDuringLoad,
     compilesDuringLoad,
@@ -278,6 +340,15 @@ async function compileCount(page) {
   const workers = page.workers();
   if (!workers.length) return null;
   return workers[0].evaluate(() => self.__COMPILES);
+}
+
+// The pass selection the last compile actually carried into the compiler,
+// read from the worker the same way as the compile count. A label that
+// updates while the worker still gets "" is exactly the failure this catches.
+async function lastPasses(page) {
+  const workers = page.workers();
+  if (!workers.length) return null;
+  return workers[0].evaluate(() => self.__LAST_PASSES);
 }
 
 // Put source into the page the only way the shipped UI offers: through the

@@ -29,7 +29,8 @@
  * unchanged.
  *
  * Protocol (unchanged from the Pyodide worker, plus `ready.meta`):
- *   main → worker:  { type: "compile", source: string, dialect: string }
+ *   main → worker:  { type: "compile", source: string, dialect: string,
+ *                     optimisations?: string }
  *   worker → main:  { type: "result", data: <serialised JSON> }
  *   worker → main:  { type: "error", error: string, traceback?: string }
  *   worker → main:  { type: "ready", meta?: <serialised meta JSON> }
@@ -71,14 +72,21 @@ function readMeta() {
   }
 }
 
-function compile(source, dialect) {
+// `optimisations` is the comma-separated codegen-pass selection from the
+// toggle panel — "" for the generic lowering. `compile_with_optimisations`
+// arrived after `compile`, so a module built before it falls back to the
+// unoptimised entry point rather than failing to compile at all.
+function compile(source, dialect, optimisations) {
   if (!ready) {
     postMessage({ type: "error", error: "Compiler not ready yet" });
     return;
   }
 
   try {
-    const resultJson = wasm_bindgen.compile(source, dialect);
+    const resultJson =
+      optimisations && typeof wasm_bindgen.compile_with_optimisations === "function"
+        ? wasm_bindgen.compile_with_optimisations(source, dialect, optimisations)
+        : wasm_bindgen.compile(source, dialect);
     const data = JSON.parse(resultJson);
     // `compile` returns a JSON {error: ...} object on a pipeline failure
     // rather than throwing.
@@ -99,7 +107,7 @@ function compile(source, dialect) {
 onmessage = function (e) {
   const msg = e.data;
   if (msg.type === "compile") {
-    compile(msg.source, msg.dialect);
+    compile(msg.source, msg.dialect, msg.optimisations || "");
   }
 };
 

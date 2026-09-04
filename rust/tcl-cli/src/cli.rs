@@ -149,6 +149,70 @@ pub struct ColourArgs {
     pub no_colour: bool,
 }
 
+/// Which semantic/AOT codegen optimisation passes the WASM emitter may use.
+///
+/// Deliberately **not** spelled `--optimise`: that flag already exists on
+/// `tcl dis` and means the *source-rewrite* optimiser
+/// (`tcl_compiler::optimiser`), which is a different thing from the
+/// target-neutral semantic passes
+/// (`tcl_compiler::semantic_optimisation`) this selects.
+#[derive(Debug, Args)]
+pub struct CodegenPassArgs {
+    /// Codegen optimisation passes to enable, comma-separated.
+    ///
+    /// Individual passes (`native-lowering`, `representation-inference`,
+    /// `trace-barrier-elision`, `cell-demotion`, `direct-proc`,
+    /// `frame-elision`, `native-integer`, …) or a group: `native-tier` for
+    /// the four the native tier enables, `all` for every pass. Omitted, no
+    /// pass runs and the emitter produces the generic lowering.
+    /// `tcl explore --json` lists them all under `semanticOptimisations`.
+    ///
+    /// Not accepted with `explore --serve`: the served GUI carries its own
+    /// per-pass toggles, and the serve path never reaches the compile this
+    /// would configure — so silently ignoring it (including an unrecognised
+    /// pass name) would report an optimised build that never happened.
+    #[arg(long = "codegen-passes", value_name = "PASS[,PASS...]")]
+    pub codegen_passes: Option<String>,
+}
+
+impl CodegenPassArgs {
+    /// Resolve the selection, or an error naming the unrecognised pass.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the parse failure from
+    /// [`SemanticOptimisationConfig::from_names`](tcl_explorer::SemanticOptimisationConfig::from_names).
+    pub fn config(&self) -> anyhow::Result<tcl_explorer::SemanticOptimisationConfig> {
+        match self.codegen_passes.as_deref() {
+            None => Ok(tcl_explorer::SemanticOptimisationConfig::new()),
+            Some(spec) => tcl_explorer::SemanticOptimisationConfig::from_names(spec)
+                .map_err(|message| anyhow::anyhow!("--codegen-passes: {message}")),
+        }
+    }
+
+    /// Reject the flag on a path that never compiles, naming what to use
+    /// instead.
+    ///
+    /// Checked here rather than with clap's `conflicts_with`, because this
+    /// struct is flattened into `compwasm` too and that verb has no `--serve`
+    /// to conflict with — clap's builder asserts on a conflict target the
+    /// command does not define.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a selection was given.
+    pub fn reject_for_serve(&self) -> anyhow::Result<()> {
+        if self.codegen_passes.is_some() {
+            anyhow::bail!(
+                "--codegen-passes cannot be used with --serve: the served compiler explorer \
+                 carries its own per-pass toggles, and the serve path never reaches the compile \
+                 this would configure"
+            );
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Compile source and emit human-readable bytecode disassembly.
@@ -171,6 +235,8 @@ pub enum Command {
         /// Also write the textual WAT form to this path.
         #[arg(long = "wat-output", value_name = "FILE")]
         wat_output: Option<PathBuf>,
+        #[command(flatten)]
+        codegen: CodegenPassArgs,
     },
 
     /// Run diagnostics across all resolved inputs.
@@ -366,6 +432,8 @@ pub enum Command {
         /// Open the GUI in the default browser after `--serve` starts.
         #[arg(long)]
         open: bool,
+        #[command(flatten)]
+        codegen: CodegenPassArgs,
         #[command(flatten)]
         colour: ColourArgs,
     },

@@ -105,9 +105,11 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         }
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
         Command::Dis { input, optimise } => commands::compile::run_dis(input, *optimise),
-        Command::Compwasm { input, wat_output } => {
-            commands::compile::run_compwasm(input, wat_output.as_deref())
-        }
+        Command::Compwasm {
+            input,
+            wat_output,
+            codegen,
+        } => commands::compile::run_compwasm(input, wat_output.as_deref(), codegen.config()?),
         Command::Diagram { input, json } => commands::diagram::run_diagram(input, *json),
         Command::Symbols { input, json } => commands::graphs::run_symbols(input, *json),
         Command::Symbolgraph { input, json } => commands::graphs::run_symbolgraph(input, *json),
@@ -229,12 +231,22 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             bind,
             port,
             open,
+            codegen,
             colour,
         } => {
             if *serve {
+                codegen.reject_for_serve()?;
                 commands::gui::run_serve(bind, *port, *open)
             } else {
-                commands::explore::run_explore(input, show, *json, *text, *tui, colour)
+                commands::explore::run_explore(
+                    input,
+                    show,
+                    *json,
+                    *text,
+                    *tui,
+                    codegen.config()?,
+                    colour,
+                )
             }
         }
         Command::Help {

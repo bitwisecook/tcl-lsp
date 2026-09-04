@@ -39,6 +39,7 @@ pub fn run_explore(
     json: bool,
     text: bool,
     tui: bool,
+    optimisations: tcl_explorer::SemanticOptimisationConfig,
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
@@ -51,11 +52,11 @@ pub fn run_explore(
     let _registry = tcl_cli_support::registry_for_dialect(dialect.name);
 
     if tui {
-        return run_tui(&source, dialect);
+        return run_tui(&source, dialect, optimisations);
     }
 
     let result = tcl_explorer::run_pipeline(&source, dialect.name);
-    let value = tcl_explorer::serialise_result(&result);
+    let value = tcl_explorer::serialise_result_with_optimisations(&result, optimisations);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let output = if json {
@@ -72,13 +73,21 @@ pub fn run_explore(
 
 /// Launch the interactive TUI (feature `tui`), or explain how to enable it.
 #[cfg(feature = "tui")]
-fn run_tui(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> anyhow::Result<u8> {
-    crate::tui::run(source, dialect)?;
+fn run_tui(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    optimisations: tcl_explorer::SemanticOptimisationConfig,
+) -> anyhow::Result<u8> {
+    crate::tui::run(source, dialect, optimisations)?;
     Ok(0)
 }
 
 #[cfg(not(feature = "tui"))]
-fn run_tui(_source: &str, _dialect: &'static tcl_dialect::DialectProfile) -> anyhow::Result<u8> {
+fn run_tui(
+    _source: &str,
+    _dialect: &'static tcl_dialect::DialectProfile,
+    _optimisations: tcl_explorer::SemanticOptimisationConfig,
+) -> anyhow::Result<u8> {
     anyhow::bail!("the TUI is not compiled in — rebuild with `--features tui`");
 }
 

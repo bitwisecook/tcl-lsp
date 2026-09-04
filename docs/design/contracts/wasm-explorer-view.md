@@ -22,13 +22,15 @@ read the same shape.
   structural open/close), a source range, an indent level, and an explorer
   label.
 - [`rust/tcl-explorer/src/serialise.rs`](../../../rust/tcl-explorer/src/serialise.rs)
-  — `serialise_wasm` calls the canonical compiler, attaches the typed
-  `codegenPlan` evidence and full WAT `text` on the module header, and returns
-  the list as
-  `data.wasm` / `data.wasmOptimised`.
+  — `serialise_result_with_optimisations` calls the canonical compiler under a
+  chosen `SemanticOptimisationConfig`, attaches the typed `codegenPlan`
+  evidence and full WAT `text` on the module header, and returns the list as
+  `data.wasm` / `data.wasmOptimised`.  `serialise_result` is the same call
+  with every pass off.
 - [`rust/tcl-explorer-wasm`](../../../rust/tcl-explorer-wasm) — the
-  `wasm-bindgen` facade the browser worker calls (`compile`, plus `meta` for
-  the dialect list, which needs no compile).
+  `wasm-bindgen` facade the browser worker calls (`compile`,
+  `compile_with_optimisations` for a pass selection, plus `meta` for the
+  dialect list and the pass catalogue, which need no compile).
 
 ## Module header entry
 
@@ -106,10 +108,11 @@ plan's `semanticDecline` carries stable `kind` and `detailKind` fields
 explaining why narrower executable semantic selection declined. It never
 contains Rust `Debug` output.
 
-The current Explorer UI compiles with its default hosted, default-off options,
-so it does not select `native-i64-add`. The `nativeI64Add` record is retained
-for API/options-aware callers and for the future Explorer configuration that
-can explicitly request sealed-program semantic/AOT passes.
+The Explorer compiles with its default hosted, default-off options unless
+passes are selected, so an untouched Explorer does not select
+`native-i64-add`. The passes are selectable — see *Optimisation passes*
+below — and the `nativeI64Add` record is what an options-aware caller reads
+back once the sealed-program passes are explicitly requested.
 
 `regions` is the retained target-neutral `MixedRegionPlan`, not a plan rebuilt
 by Explorer. Entries are ordered by structural `NodeId`. An invocation's
@@ -132,6 +135,51 @@ only when all five required semantic passes are explicitly enabled and exact
 four-statement coverage succeeds; a missing pass, hosted environment, extra
 statement, mutation, trace, unsupported formal list, or non-i64 range returns
 the ordinary generic/general evidence instead.
+
+## Optimisation passes
+
+`data.semanticOptimisations` is the toggle surface for the two WASM views:
+
+```json
+{
+  "passes": [
+    { "id": "legacy-analysis-specialisation", "enabled": false },
+    { "id": "native-lowering",                "enabled": true  }
+  ],
+  "groups": [
+    { "id": "native-tier", "passes": ["native-lowering", "representation-inference",
+                                      "trace-barrier-elision", "cell-demotion"] },
+    { "id": "all",         "passes": ["..."] }
+  ]
+}
+```
+
+One row per `SemanticOptimisationPassId`, in `all()` order, with the state
+the shown module was built with; `groups` names the presets
+`SemanticOptimisationConfig::from_names` also accepts. A front end renders
+its checkboxes from these rows rather than from its own copy of the pass
+list — that duplication is what the view exists to prevent, and
+`native_tier_group_matches_the_wasm_option` pins the `native-tier` group to
+`WasmCompileOptions::native_tier` so the two cannot drift.
+
+The same catalogue, with nothing enabled, is in `meta.semanticOptimisations`,
+so a panel can be drawn before the first compile lands — the rule
+`meta.dialects` already follows (issue #1183).
+
+**Every pass is off by default.** `nativeLowering.enabled: false` on an
+untouched Explorer means the passes were never asked for, not that they found
+nothing. Selecting them:
+
+- browser — the toolbar's *Codegen passes* popover, which posts the selection
+  to `compile_with_optimisations`;
+- CLI — `tcl explore --codegen-passes PASS[,PASS...]` (and the same flag on
+  `tcl compwasm`), taking pass ids or a group name. It is rejected with
+  `--serve`: the served GUI carries its own toggles and the serve path never
+  reaches the compile the flag would configure.
+
+`--codegen-passes` is not `tcl dis --optimise`: that flag runs the
+*source-rewrite* optimiser (`tcl_compiler::optimiser`, the `O1xx` codes),
+which is a different axis from these target-neutral semantic/AOT passes.
 
 ## Function entry
 
