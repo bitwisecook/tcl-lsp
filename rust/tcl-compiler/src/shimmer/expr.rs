@@ -713,6 +713,47 @@ mod tests {
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
+    /// Issue #1814: a double accumulator narrowed through a loop keeps a
+    /// double intrep, and a later arithmetic use reads it in place — no
+    /// shimmer, whatever the surrounding statement shape. `expr` as a bare
+    /// statement and `set z [expr …]` both lower to an expr statement the
+    /// detector walks, so both were reported before this fix.
+    #[test]
+    fn no_expr_shimmer_double_accumulator_in_arithmetic() {
+        for tail in ["expr {$u0 * $dx}", "set z [expr {$u0 * $dx}]"] {
+            let src = format!(
+                "proc clip {{q dx}} {{\n\
+                 set u0 0.0\n\
+                 foreach qi $q {{\n\
+                 set r [expr {{$qi / 2.0}}]\n\
+                 if {{$r > $u0}} {{ set u0 $r }}\n\
+                 }}\n\
+                 {tail}\n\
+                 }}"
+            );
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::clip").unwrap();
+            let w = expr_shimmers(fu, &registry());
+            assert!(
+                !w.iter().any(|sw| sw.variable == "u0"),
+                "double operand of '*' must not shimmer ({tail}): {w:?}"
+            );
+        }
+    }
+
+    /// A double read in a boolean context is the same free numeric read.
+    #[test]
+    fn no_expr_shimmer_double_in_boolean_context() {
+        let cu = CompilationUnit::build_for(
+            "set x [expr {1.0 + 1.5}]\nset y [expr {$x && 1}]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = expr_shimmers(fu, &registry());
+        assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+    }
+
     /// A String variable used in arithmetic should produce S100.
     #[test]
     fn expr_shimmer_string_in_arithmetic() {

@@ -46,14 +46,27 @@ Each detector diagnostic maps to specific C functions that trigger `FreeInternal
 
 BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1)
 conversion path. `shimmer::hints::is_numeric_compatible(current, expected)`
-implements this as a **symmetric equivalence class**, not a subtype
-hierarchy: `Boolean`, `Int`, and `Numeric` are mutually interchangeable in
+implements this as an **equivalence class**, not a subtype hierarchy:
+`Boolean`, `Int`, `Double`, and `Numeric` are mutually interchangeable in
 arithmetic and boolean contexts, in either direction, and no intrep
 conversion is needed between any pair of them.
 
-`Double` is deliberately **not** in that class. A `Double` is compatible only
-with itself, so reading a double-typed value where an int is expected (or
-vice versa) is still a shimmer.
+`Double` belongs in that class because `Tcl_GetNumberFromObj` and
+`Tcl_GetBooleanFromObj` read a cached `tclDoubleType` intrep in place, and
+`Tcl_GetDoubleFromObj` widens a cached int / boolean intrep without replacing
+it. Verified on tclsh 8.6 and 9.0 with
+`::tcl::unsupported::representation`: after `set u [expr {1.0 + 1.5}]`, both
+`expr {$u * 2}` and `expr {$u && 1}` leave `u` holding the same double
+intrep, and after `set n [expr {1 + 2}]`, `expr {$n * 1.5}` leaves `n`
+holding the same int intrep. Excluding it was the S100 false positive in
+issue #1814 — a double accumulator (`set u0 0.0` … `expr {$u0 * $dx}`)
+reported as "has double intrep used in arithmetic expression".
+
+`Double` → `Int` is the one direction left out. Tcl never reads a double
+where an integer is required: the read either errors with the double intrep
+intact (`incr`, `string index`) or re-represents on the way to the error
+(`lindex {a b c d} $d` with `$d` = 2.0 replaces the double intrep), so it is
+not a free numeric read either way.
 
 ### When shimmering does NOT occur
 

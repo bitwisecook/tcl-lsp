@@ -132,17 +132,32 @@ pub fn arg_shimmer_expectation(
 /// value of type `current` used in a context expecting `expected` would
 /// not cause a shimmer.
 ///
-/// Tcl's runtime treats `Int`, `Boolean`, and `Numeric` as interchangeable
-/// in arithmetic and boolean contexts; no intrep conversion is needed.
+/// Tcl's runtime treats `Int`, `Double`, `Boolean`, and `Numeric` as
+/// interchangeable in arithmetic and boolean contexts; no intrep conversion
+/// is needed. `Tcl_GetNumberFromObj` and `Tcl_GetBooleanFromObj` both read a
+/// cached `tclDoubleType` intrep in place, and `Tcl_GetDoubleFromObj` widens
+/// a cached int / boolean intrep without replacing it (tclsh 8.6 / 9.0
+/// verified: `set u [expr {1.0 + 1.5}]; expr {$u * 2}` and `expr {$u && 1}`
+/// both leave `u` a double; `set n [expr {1 + 2}]; expr {$n * 1.5}` leaves
+/// `n` an int).
+///
+/// The one direction left out is `Double` → `Int`. Tcl never accepts a
+/// double where an integer is required, so the read either errors (`incr`,
+/// `string index`) or genuinely re-represents on the way to the error
+/// (`lindex {a b c d} $d` with `$d` = 2.0 replaces the double intrep) — in
+/// neither case is it a free numeric read.
 #[must_use]
 pub fn is_numeric_compatible(current: TclType, expected: TclType) -> bool {
-    use TclType::{Boolean, Int, Numeric};
+    use TclType::{Boolean, Double, Int, Numeric};
     if current == expected {
         return true;
     }
     matches!(
         (current, expected),
-        (Int | Numeric, Boolean) | (Boolean | Numeric, Int) | (Int | Boolean, Numeric)
+        (Int | Double | Numeric, Boolean)
+            | (Boolean | Numeric, Int)
+            | (Int | Boolean | Double, Numeric)
+            | (Int | Boolean | Numeric, Double)
     )
 }
 
@@ -566,6 +581,30 @@ mod tests {
     fn is_numeric_compatible_int_numeric() {
         assert!(is_numeric_compatible(TclType::Int, TclType::Numeric));
         assert!(is_numeric_compatible(TclType::Numeric, TclType::Int));
+    }
+
+    /// Issue #1814: a `Double` intrep read in an arithmetic or boolean
+    /// context is a free numeric read — `Tcl_GetNumberFromObj` /
+    /// `Tcl_GetBooleanFromObj` use the cached double in place.
+    #[test]
+    fn is_numeric_compatible_double_in_numeric_and_boolean_contexts() {
+        assert!(is_numeric_compatible(TclType::Double, TclType::Numeric));
+        assert!(is_numeric_compatible(TclType::Double, TclType::Boolean));
+    }
+
+    /// The other numeric intreps widen to a double without being replaced.
+    #[test]
+    fn is_numeric_compatible_into_double() {
+        assert!(is_numeric_compatible(TclType::Int, TclType::Double));
+        assert!(is_numeric_compatible(TclType::Boolean, TclType::Double));
+        assert!(is_numeric_compatible(TclType::Numeric, TclType::Double));
+    }
+
+    /// `Double` → `Int` stays out of the class: Tcl never reads a double
+    /// where an integer is required, it errors or re-represents first.
+    #[test]
+    fn is_numeric_compatible_double_int_is_false() {
+        assert!(!is_numeric_compatible(TclType::Double, TclType::Int));
     }
 
     #[test]
