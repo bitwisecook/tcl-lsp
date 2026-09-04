@@ -514,7 +514,14 @@ jobs:
 
       - name: Install npm dependencies
         if: env.RUN_EXT == 'true'
-        run: cd editors/vscode && npm ci
+        run: |
+          cd editors/vscode
+          npm ci
+          # `make test-ext` calls the ordinary compile target later. Record
+          # that this exact package/lock pair is already installed so it does
+          # not immediately run a second `npm install` in the same job.
+          mkdir -p ../../build/stamps
+          touch ../../build/stamps/npm-install
 
       # `@vscode/test-electron` downloads a full VS Code build on every run and
       # nothing cached it, so the extension-test step paid that download each
@@ -1953,7 +1960,12 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install npm dependencies
-        run: cd editors/vscode && npm ci
+        run: |
+          cd editors/vscode
+          npm ci
+          # The packaging targets use the same Makefile dependency stamp.
+          mkdir -p ../../build/stamps
+          touch ../../build/stamps/npm-install
 
       # Bundle all seven native binaries into one untargeted "universal"
       # VSIX — the Marketplace's fallback for any client with no dedicated

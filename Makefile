@@ -1484,19 +1484,19 @@ smoke-vsix: compile ## Build and verify the VSIX packages without error
 
 npm-env: $(NPM_STAMP) ## Install/update npm dependencies
 
-$(NPM_STAMP): $(EXT_DIR)/package.json
+$(NPM_STAMP): $(EXT_DIR)/package.json $(EXT_DIR)/package-lock.json
 	@echo "==> Installing npm dependencies"
 	cd $(EXT_DIR) && $(NPM) install
 	@mkdir -p $(STAMP_DIR)
 	@touch $@
 
-$(REPORT_NPM_STAMP): $(REPORT_SHARED_DIR)/package.json
+$(REPORT_NPM_STAMP): $(REPORT_SHARED_DIR)/package.json $(REPORT_SHARED_DIR)/package-lock.json
 	@echo "==> Installing shared report front-end npm dependencies"
 	cd $(REPORT_SHARED_DIR) && $(NPM) install
 	@mkdir -p $(STAMP_DIR)
 	@touch $@
 
-$(SPEC_STUDIO_NPM_STAMP): $(SPEC_STUDIO_WEB)/package.json
+$(SPEC_STUDIO_NPM_STAMP): $(SPEC_STUDIO_WEB)/package.json $(SPEC_STUDIO_WEB)/package-lock.json
 	@echo "==> Installing spec studio front-end npm dependencies"
 	cd $(SPEC_STUDIO_WEB) && $(NPM) install
 	@mkdir -p $(STAMP_DIR)
