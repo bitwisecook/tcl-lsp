@@ -479,8 +479,9 @@ def run_test_executable(
     quiet: bool = False,
 ) -> list[tuple[str, str]]:
     """List or run the exact nextest smoke selection in one test executable."""
+    harness_arguments = ["--test"] if target.kind == "bench" else []
     listing = subprocess.run(
-        [executable, "--list"],
+        [executable, *harness_arguments, "--list"],
         cwd=repo_root,
         env=env,
         check=True,
@@ -495,7 +496,7 @@ def run_test_executable(
 
     if target.name == "smoke" or target.name.endswith("_smoke"):
         subprocess.run(
-            [executable],
+            [executable, *harness_arguments],
             cwd=repo_root,
             env=env,
             check=True,
@@ -506,7 +507,7 @@ def run_test_executable(
 
     skips = cargo_substring_skips(cargo_test_entries(listing.stdout), selected)
     if skips is not None:
-        arguments = [executable, "smoke"]
+        arguments = [executable, *harness_arguments, "smoke"]
         for name in skips:
             arguments.extend(("--skip", name))
         subprocess.run(
@@ -524,7 +525,7 @@ def run_test_executable(
     # with exact positive runs in that rare case.
     for name, _entry_kind in selected:
         result = subprocess.run(
-            [executable, name, "--exact"],
+            [executable, *harness_arguments, name, "--exact"],
             cwd=repo_root,
             env=env,
             capture_output=True,
@@ -544,7 +545,7 @@ def run_manifest(manifest: Path, *, list_only: bool) -> None:
     errors = validate(manifest)
     if errors:
         raise RuntimeError("\n".join(errors))
-    _package_roots, all_targets = load_targets()
+    package_roots, all_targets = load_targets()
     groups = manifest_target_groups(
         runnable_manifest_lines_for_targets(manifest, all_targets), all_targets
     )
@@ -573,6 +574,7 @@ def run_manifest(manifest: Path, *, list_only: bool) -> None:
                 target,
                 executables[artifact_key],
                 list_only=list_only,
+                repo_root=package_roots[target.package],
             )
 
 
@@ -732,7 +734,7 @@ def self_test() -> None:
         files = {
             "Cargo.toml": """\
 [workspace]
-members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
 resolver = "2"
 """,
             "a/Cargo.toml": """\
@@ -843,7 +845,12 @@ edition = "2024"
 [lib]
 name = "library_smoke"
 """,
-            "h/src/lib.rs": "#[test]\nfn ordinary_library_test() {}\n",
+            "h/src/lib.rs": """\
+#[test]
+fn ordinary_library_test() {
+    assert!(std::env::current_dir().unwrap().ends_with("h"));
+}
+""",
             "i/Cargo.toml": """\
 [package]
 name = "i"
@@ -856,7 +863,13 @@ path = "examples/demo.rs"
 test = true
 """,
             "i/src/lib.rs": "",
-            "i/examples/demo.rs": "#[test]\nfn ordinary_example_test() {}\nfn main() {}\n",
+            "i/examples/demo.rs": """\
+#[test]
+fn ordinary_example_test() {
+    assert!(std::env::current_dir().unwrap().ends_with("i"));
+}
+fn main() {}
+""",
             "j/Cargo.toml": """\
 [package]
 name = "j"
@@ -870,6 +883,18 @@ test = false
 """,
             "j/src/lib.rs": "",
             "j/examples/demo.rs": "#[test]\nfn must_not_run() { panic!(); }\nfn main() {}\n",
+            "k/Cargo.toml": """\
+[package]
+name = "k"
+version = "0.1.0"
+edition = "2024"
+
+[[bench]]
+name = "bench_smoke"
+path = "benches/bench.rs"
+""",
+            "k/src/lib.rs": "",
+            "k/benches/bench.rs": "#[test]\nfn ordinary_bench_test() {}\n",
         }
         for relative_path, contents in files.items():
             path = fixture / relative_path
@@ -930,7 +955,7 @@ test = false
             e_target,
             library_executables[target_artifact_key(e_target)],
             list_only=False,
-            repo_root=fixture,
+            repo_root=fixture / "e",
             env=fixture_env,
             quiet=True,
         )
@@ -944,7 +969,7 @@ test = false
             smoke_library,
             library_executables[target_artifact_key(smoke_library)],
             list_only=False,
-            repo_root=fixture,
+            repo_root=fixture / "h",
             env=fixture_env,
             quiet=True,
         ) == [("ordinary_library_test", "test")]
@@ -970,10 +995,25 @@ test = false
             demo_target,
             automatic_executables[target_artifact_key(demo_target)],
             list_only=False,
-            repo_root=fixture,
+            repo_root=fixture / "i",
             env=fixture_env,
             quiet=True,
         ) == [("ordinary_example_test", "test")]
+
+        bench_target = fixture_by_package[("k", "bench_smoke")]
+        bench_executables = cargo_test_executables(
+            cargo_target_command("bench", "bench_smoke"),
+            repo_root=fixture,
+            env=fixture_env,
+        )
+        assert run_test_executable(
+            bench_target,
+            bench_executables[target_artifact_key(bench_target)],
+            list_only=False,
+            repo_root=fixture / "k",
+            env=fixture_env,
+            quiet=True,
+        ) == [("ordinary_bench_test", "test")]
 
 
 def main() -> int:
