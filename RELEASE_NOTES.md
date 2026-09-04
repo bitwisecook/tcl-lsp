@@ -1,3 +1,77 @@
+# v2.2.2
+
+This stable update adds first-class SslicTcl authoring, restores the native
+container workflow, advances Tcl-to-WASM execution, and fixes parser,
+analysis, runtime, and editor integration defects found after 2.2.1.
+
+## New features
+
+- `.sslictcl` TLS declarations are now a first-class authoring format. The
+  server detects the extension or header and provides vocabulary-aware
+  completion, hover, signature help, semantic tokens, folding, document
+  symbols, and ranged `SSLIC*` diagnostics in editors and `tcl diag`. The
+  loader supports the complete version 1 vocabulary, deterministic round
+  trips, and separate policy evaluation without executing declaration files
+  or retained predicate scripts.
+- `tcl pkg discover` finds statically resolvable `package require` calls,
+  reports dynamic and conditional cases for review, and can add proven
+  dependencies to `tclpkg.tcl` with `--add`.
+- `tcl docker` now generates Debian-based Dockerfiles that install Tcl, the
+  native `tcl` CLI, and locked packages without Python. Release binaries are
+  selected by architecture and verified against `SHA256SUMS`; Alpine is
+  rejected when the generated image would require an unavailable musl build.
+- The compiler and Rust WASM runtime gain runtime ABI v2 and proof-driven
+  native lowering for the straight-line and expression/control-flow tiers.
+  The `compwasm` and `explore` commands expose semantic code-generation
+  passes through `--codegen-passes`, and Compiler Explorer can toggle and
+  display the same registry-backed pass set.
+- A C Tcl extension shim lets trusted host code run commands written against
+  the supported object, result, conversion, and command-registration subset
+  of the C Tcl API on the project engines without rewriting those commands.
+
+## Improvements
+
+- JimTcl is represented as a resolved dialect profile with its own command,
+  expression, number, escape, and release surfaces instead of being treated
+  as an alias for a Tcl release.
+- SpecTcl 2.0 `environment` bodies are evaluated as scripts, so variables and
+  loops can generate rows. Bundled EDA packs now own their environment
+  declarations, and restyle directives resolve those environments through
+  the same central profile catalogue.
+- Binary extensions can declare packages they load implicitly, such as Tk,
+  through `# tcl-lsp: package … provides …`, `[packages.provides]`, or the
+  matching VS Code setting. Package availability, completion, hover, version
+  checks, and diagnostics all consume the declared dependency graph.
+- Resource-scoped package, BIG-IP version, and target settings now resolve
+  field by field for each workspace folder and reach every analysis path,
+  including recovery, disk indexing, re-indexing, fix-all, and unindexed
+  buffers.
+- VS Code and JetBrains can associate file extensions declared by loaded
+  SpecTcl packs at runtime. JetBrains also supports the 2026.2 JCEF layout.
+- Sublime is now a lightweight Package Control LSP helper using Sublime's
+  built-in Tcl syntax, while Zed is an LSP-only extension that finds or
+  downloads the matching native server.
+- Disk re-indexing no longer holds the document lock. Spec Studio reuses one
+  source index, generated files retain their timestamps when unchanged, and
+  build and CI caches track the source inputs that actually affect outputs.
+
+## Bug fixes
+
+- Command and word boundaries, word substitutions, parse-error cuts, and
+  incremental reparse decisions now come from shared lexer/segmenter owners.
+  This fixes welded close-braces, stray closers, incomplete input, quoted and
+  braced word distinctions, and substitutions nested at arbitrary depth.
+- The Rust runtime parses all words in a command before substituting any of
+  them, matching Tcl evaluation order, and improves numeric-tower, variable,
+  trace, rename, interpreter, namespace, array, and completion-code behaviour.
+- SSA, taint, and shimmer analysis now see reads inside nested command
+  substitutions, preserve compatible numeric representations, and distinguish
+  integer-only operators from general arithmetic. This closes diagnostics
+  gaps where bracing or another substitution level previously hid a real
+  read.
+- Spec Studio no longer treats a word left outside a declaration block as an
+  executable program.
+
 # v2.2.1
 
 This stable update broadens Linux compatibility and hardens the Rust runtime,
