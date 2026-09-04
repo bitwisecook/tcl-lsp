@@ -2888,12 +2888,22 @@ impl Analyser {
         {
             return Vec::new();
         }
-        let mut seen: HashSet<String> = self
-            .result
-            .package_requires
-            .iter()
-            .map(|pr| pr.name.clone())
-            .collect();
+        // The earliest offset each package is already available from — not a
+        // visited *set*. Seeding with the source requires keeps a redundant
+        // entry out, but comparing offsets keeps the earlier anchor when a
+        // declared edge makes a package available *above* the explicit
+        // require for it. A set would discard the edge's entry outright and
+        // leave only the later span, and H301 takes the **minimum** start per
+        // package (`unresolved.rs`), so the command between the two would be
+        // reported as used-before-available — a hint that appears only
+        // because the file *also* requires the package explicitly.
+        let mut earliest: HashMap<String, u32> = HashMap::new();
+        for pr in &self.result.package_requires {
+            earliest
+                .entry(pr.name.clone())
+                .and_modify(|at| *at = (*at).min(pr.range.start()))
+                .or_insert_with(|| pr.range.start());
+        }
         // `(package name, span, conditional, control_flow)` — the anchor an
         // edge's target inherits from whatever made its source available.
         let mut queue: Vec<(String, tcl_lexer::Span, bool, bool)> = self
@@ -2914,9 +2924,16 @@ impl Analyser {
                 .chain(self.package_provides.iter().map(|edge| (edge, false)));
             for ((from, to), from_directive) in edges.filter(|((from, _), _)| *from == name) {
                 for loaded in to {
-                    if !seen.insert(loaded.clone()) {
+                    // `<=` rather than `<` is what keeps a cyclic declaration
+                    // terminating: re-reaching a package with the identical
+                    // anchor stops. Every anchor is one of the finitely many
+                    // require starts, and a name is only re-enqueued when its
+                    // anchor strictly decreases.
+                    let start = range.start();
+                    if earliest.get(loaded).is_some_and(|&at| at <= start) {
                         continue;
                     }
+                    earliest.insert(loaded.clone(), start);
                     let origin = if from_directive {
                         PackageRequireOrigin::Directive(from.clone())
                     } else {

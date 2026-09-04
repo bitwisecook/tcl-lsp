@@ -235,13 +235,29 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
 19. The closure searches the file's own directives before the configured
     edges, and a package reached through either carries it onward, so the two
-    surfaces chain. It is breadth-first and visits each name once, so each
-    package is anchored at the earliest require reaching it and a cyclic
-    declaration terminates. A declared entry carries no version requirement,
-    so it contributes no version floor: a declaration says a package is
-    *there*, never which release.
+    surfaces chain. It is breadth-first over the **earliest anchor** each
+    package has so far, not a visited set: a package the source *also*
+    requires explicitly further down keeps the earlier, declared anchor,
+    because H301 takes the minimum start per package and a set would leave
+    only the later span — reporting the command between the two as
+    used-before-available purely because the file names the package twice.
+    Re-reaching a package at an anchor no earlier than the one it has stops,
+    so a cyclic declaration still terminates. A declared entry carries no
+    version requirement, so it contributes no version floor: a declaration
+    says a package is *there*, never which release.
 
-20. The tail is the one point both the whole-file walk and the per-item
+20. Every analyser that produces a **published or indexed** result carries
+    the edges — the interactive path, the recovery path taken while a buffer
+    has an unclosed delimiter, the disk scanner and the startup workspace
+    scan. `workspace_index` harvests `package_requires`, and a `source`
+    descendant inherits those names, so an analyser that omits the edges does
+    not merely under-report its own file: it writes an index entry that
+    under-reports for every file downstream of it. The edges are also
+    resolved **per folder** (`tclLsp.packages.provides` is `scope: resource`
+    and a `.tcl-lsp.ini` belongs to its own project), so a secondary root
+    declares its own and never inherits a sibling's.
+
+21. The tail is the one point both the whole-file walk and the per-item
     (incremental) walk reach with their `package_requires` merged, so the two
     strategies cannot disagree. The per-item path's mid-walk Tk hand-off runs
     *before* the tail, so `has_tk_require` consults the declarations directly
@@ -252,20 +268,20 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
 ### Workspace index integration
 
-21. `WorkspaceIndex::add_document(uri, analysis)` records a document's procs,
+22. `WorkspaceIndex::add_document(uri, analysis)` records a document's procs,
     classes, invocation sites, `source` targets, and `package require`s;
     `remove_document(uri)` drops every entry from that document before a
     re-index or on close.
-22. The server seeds the index from both editor-opened documents (via the
+23. The server seeds the index from both editor-opened documents (via the
     diagnostics path) and an on-disk scan of the workspace folders
     (`scan_workspace_folders`), so unopened `.tcl` / `.tm` files are covered.
-23. Open buffers win over disk-scanned copies: `merge_workspace_scan_results`
+24. Open buffers win over disk-scanned copies: `merge_workspace_scan_results`
     re-checks the live open set at publication time and never overwrites an
     open document's entry with a stale on-disk analysis.
 
 ### Missing-`package require` refinement (W120)
 
-24. The analyser's single-file W120 knows only the requires in the current
+25. The analyser's single-file W120 knows only the requires in the current
     document. Two workspace-level refinements are layered on top, both in the
     server's `refine_w120_diagnostics`:
     - **#723 transitive resolution** — a required package is resolved through
@@ -277,9 +293,9 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
 ### Cross-file `package require` inheritance (W120, #804)
 
-25. A file need not carry its own `package require` for a command whose package
+26. A file need not carry its own `package require` for a command whose package
     was required by an **entry** file that `source`s it.
-26. **Automatic (default).** The workspace index's `source` targets and
+27. **Automatic (default).** The workspace index's `source` targets and
     `package require`s feed a reverse-reachability walk
     (`tcl-lsp-core::source_graph::ancestor_requires`): a module inherits the
     requires of every file that transitively `source`s it. Only **literal**
@@ -287,30 +303,30 @@ per-dialect spec packs, never as name-matching in a consumer (see
     yields no static edge. Path resolution is
     `source_graph::resolve_source_target` (lexical, no filesystem access); the
     server supplies the URI ↔ path conversion.
-27. **Explicit.** `.tcl-lsp.ini [project] entryPoints` lists the entry files
+28. **Explicit.** `.tcl-lsp.ini [project] entryPoints` lists the entry files
     (relative to the folder root, or absolute). When set, the union of those
     files' requires is treated as available for W120 across the whole folder,
     and the automatic `source`-graph inheritance is **disabled** for that
     folder.
-28. The inherited requires are merged with the document's own before the #723
+29. The inherited requires are merged with the document's own before the #723
     transitive resolution runs, so an inherited `package require myWrapper`
     still (transitively) pulls in whatever `myWrapper` provides.
 
 ### iRules cross-file equivalent
 
-29. iRules do not support `package require` on BIG-IP, so W120 never applies
+30. iRules do not support `package require` on BIG-IP, so W120 never applies
     to the `f5-irules` dialect (the refinement early-returns when the registry
     has no `package` command).
-30. iRules procs are instead globally visible across files through the same
+31. iRules procs are instead globally visible across files through the same
     workspace index proc aggregation the LSP cross-document features use.
 
 ### Split packages
 
-31. A single `package ifneeded` script may `source` multiple files
+32. A single `package ifneeded` script may `source` multiple files
     (`source [file join $dir a.tcl]; source [file join $dir b.tcl]`); each is
     extracted independently by the lexer-driven parser, so no regex
     semicolon-capture limitation applies.
-32. A single `pkgIndex.tcl` may declare multiple unrelated packages — each
+33. A single `pkgIndex.tcl` may declare multiple unrelated packages — each
     `package ifneeded` line is parsed independently.
 
 ## File-path anchors

@@ -2904,10 +2904,16 @@ async fn compute_base_analysis(
         let widened = widen_recovery_extra_commands(recovery, extra_commands, text, dialect).await;
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
-        let a_packs = config.spec_pack_key(&*db.lock().await);
+        let (a_packs, a_provides) = {
+            let db = db.lock().await;
+            (
+                config.spec_pack_key(&*db),
+                config.package_provides(&*db).clone(),
+            )
+        };
         return match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
-                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs)
+                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs, a_provides)
                     .analyse(&a_text, a_dialect.name)
                     .clone()
             })
@@ -6765,6 +6771,11 @@ struct FolderConfig {
     shimmer_enabled: Option<bool>,
     /// `tclLsp.extraCommands` override; `None` inherits the global set.
     extra_commands: Option<Vec<String>>,
+    /// `tclLsp.packages.provides` / `[packages.provides]` override; `None`
+    /// inherits the global map. The setting is `"scope": "resource"` and a
+    /// `.tcl-lsp.ini` belongs to its own project, so a secondary root's
+    /// declarations must not be answered with the primary root's.
+    package_provides: Option<Vec<(String, Vec<String>)>>,
     /// `tclLsp.signatureHelp.disabledCommands` override; `None` inherits the
     /// global list. `Some([])` explicitly enables every built-in signature.
     signature_help_disabled_commands: Option<Vec<String>>,
@@ -9110,6 +9121,7 @@ impl Backend {
         uri: Uri,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
+        package_provides: Arc<Vec<(String, Vec<String>)>>,
     ) -> Option<(Uri, String, String, AnalysisResult)> {
         let store = Arc::clone(store);
         crate::rt::spawn_blocking(move || {
@@ -9127,7 +9139,18 @@ impl Backend {
             let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
-            let analysis = Analyser::new().analyse(&text, &dialect);
+            // The declared edges belong here as much as on the interactive
+            // path: this analysis becomes the file's *index* entry, and
+            // `workspace_index` harvests `package_requires` from it. Without
+            // them a closed file's entry omits the implied requires, so a
+            // sibling that inherits through `source` under-reports — and the
+            // same file yields different requires depending on whether it was
+            // reached through this path or the closed-file branch of
+            // `compute_base_analysis`, which does carry them (issue #1813
+            // review).
+            let analysis = Analyser::new()
+                .with_package_provides(package_provides.as_ref().clone())
+                .analyse(&text, &dialect);
             Some((uri, text, dialect, analysis))
         })
         .await
@@ -9157,6 +9180,7 @@ impl Backend {
         }
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
+        let package_provides = Arc::new(self.package_provides.lock().await.clone());
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let futures: Vec<_> = uris
@@ -9166,10 +9190,16 @@ impl Backend {
                 let folder_dialects = Arc::clone(&folder_dialects);
                 let default_dialect = Arc::clone(&default_dialect);
                 let store = Arc::clone(&self.store);
+                let package_provides = Arc::clone(&package_provides);
                 async move {
-                    let scanned =
-                        Self::scan_disk_file(&store, uri.clone(), folder_dialects, default_dialect)
-                            .await;
+                    let scanned = Self::scan_disk_file(
+                        &store,
+                        uri.clone(),
+                        folder_dialects,
+                        default_dialect,
+                        package_provides,
+                    )
+                    .await;
                     Some((uri, scanned))
                 }
             })
@@ -9204,8 +9234,15 @@ impl Backend {
         // error in its siblings.
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let scanned =
-            Self::scan_disk_file(&self.store, uri.clone(), folder_dialects, default_dialect).await;
+        let package_provides = Arc::new(self.package_provides.lock().await.clone());
+        let scanned = Self::scan_disk_file(
+            &self.store,
+            uri.clone(),
+            folder_dialects,
+            default_dialect,
+            package_provides,
+        )
+        .await;
         match scanned {
             Some(scanned) => {
                 self.publish_disk_results(
@@ -13794,7 +13831,7 @@ impl Backend {
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
         let pack_key = self.spec_packs().await.key;
-        let provides = self.package_provides.lock().await.clone();
+        let provides = self.resolved_package_provides(&uri).await;
         let dialect = doc.dialect.clone();
         // The one place that legitimately owns a copy: fix-all *rewrites* the
         // source in a loop, so it needs a mutable buffer of its own rather than
@@ -14589,15 +14626,22 @@ impl Backend {
             .and_then(|p| p.get("provides"))
             .and_then(serde_json::Value::as_object)
         {
-            let mut provides: Vec<(String, Vec<String>)> = map
-                .iter()
-                .map(|(package, loaded)| (package.clone(), provided_package_names(loaded)))
-                .filter(|(_, loaded)| !loaded.is_empty())
-                .collect();
-            // Stable order: this feeds a salsa input, and a map iteration
-            // order change must not look like an edit.
-            provides.sort();
-            *self.package_provides.lock().await = provides;
+            let provides = parse_package_provides(map);
+            let changed = {
+                let mut guard = self.package_provides.lock().await;
+                if *guard == provides {
+                    false
+                } else {
+                    *guard = provides;
+                    true
+                }
+            };
+            // The workspace scan bakes these edges into every closed file's
+            // index entry, so a change to them has to re-scan — the same
+            // treatment `libraryPaths` gets above (issue #1813 review).
+            if changed {
+                self.scan_workspace_folders().await;
+            }
         }
     }
 
@@ -14854,6 +14898,7 @@ impl Backend {
             // process-global value when set; otherwise the folder inherits it.
             let global_extra = self.extra_commands.lock().await.clone();
             let global_generic = self.generic_variable_patterns.lock().await.clone();
+            let global_provides = self.package_provides.lock().await.clone();
             // Packs are a workspace fact, never a per-folder one, so every
             // folder handle carries the same key the global config does.
             let pack_key = self.spec_packs().await.key;
@@ -14872,6 +14917,7 @@ impl Backend {
                 if fc.disabled_diagnostics.is_none()
                     && fc.non_ascii_mode.is_none()
                     && fc.extra_commands.is_none()
+                    && fc.package_provides.is_none()
                     && matches!(fc.generic_variable_patterns, FolderGenericPatterns::Inherit)
                 {
                     continue;
@@ -14891,6 +14937,10 @@ impl Backend {
                     FolderGenericPatterns::BuiltinDefaults => None,
                     FolderGenericPatterns::Replace(list) => Some(list.clone()),
                 };
+                let provides = fc
+                    .package_provides
+                    .clone()
+                    .unwrap_or_else(|| global_provides.clone());
                 // The folder's own live handle first, then its retired one, and
                 // only then a fresh input.
                 if let Some(handle) = reclaimable
@@ -14902,6 +14952,7 @@ impl Backend {
                     handle.set_extra_commands(&mut *db).to(extra);
                     handle.set_generic_variable_patterns(&mut *db).to(generic);
                     handle.set_spec_pack_key(&mut *db).to(pack_key);
+                    handle.set_package_provides(&mut *db).to(provides);
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(
@@ -14913,7 +14964,7 @@ impl Backend {
                         None,
                         pack_key,
                         Vec::new(),
-                        Vec::new(),
+                        provides,
                     );
                     next.push((folder.clone(), handle));
                 }
@@ -14925,6 +14976,7 @@ impl Backend {
                 handle.set_disabled_diagnostics(&mut *db).to(Vec::new());
                 handle.set_extra_commands(&mut *db).to(Vec::new());
                 handle.set_generic_variable_patterns(&mut *db).to(None);
+                handle.set_package_provides(&mut *db).to(Vec::new());
                 handle.set_bigip_version(&mut *db).to(None);
                 handle.set_targets(&mut *db).to(Vec::new());
                 tombstones.insert(folder, handle);
@@ -15320,6 +15372,19 @@ impl Backend {
         }
     }
 
+    /// The resolved declared package edges for `uri`: a folder override wins,
+    /// else the process-global map.
+    async fn resolved_package_provides(&self, uri: &Uri) -> Vec<(String, Vec<String>)> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.package_provides.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.package_provides.lock().await.clone(),
+        }
+    }
+
     /// The resolved built-in signature-help exclusion list for `uri`: a
     /// folder override wins, else the process-global list.
     async fn resolved_signature_help_disabled_commands(&self, uri: &Uri) -> Vec<String> {
@@ -15449,11 +15514,20 @@ impl Backend {
         mode: NonAsciiMode,
         extra_commands: Arc<HashSet<String>>,
         pack_key: u64,
+        package_provides: Vec<(String, Vec<String>)>,
     ) -> Analyser {
         Analyser::with_disabled_diagnostics(disabled)
             .with_non_ascii_mode(mode)
             .with_shared_extra_commands(extra_commands)
             .with_pack_overlay(pack_key)
+            // Declared package edges must survive an incomplete buffer. They
+            // decide Tk activation and what `package_requires` contains, and
+            // this analysis is *published* — and indexed — so dropping them
+            // for the keystrokes between an opening brace and its match makes
+            // the TK checks and W120/H301 flicker, and republishes an index
+            // entry without the implied requires, which reschedules every
+            // peer document (issue #1813 review).
+            .with_package_provides(package_provides)
     }
 
     /// Return the command registry with `dialect` loaded on top of the
@@ -17394,6 +17468,7 @@ impl Backend {
                     .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
             };
             let recorded = self.rehomed_source_seeds.lock().await.clone();
+            let package_provides = self.package_provides.lock().await.clone();
             let mut work: Vec<(String, Vec<String>)> = Vec::new();
             for (uri, seeds) in &desired {
                 let seeds: Vec<String> = seeds.iter().cloned().collect();
@@ -17424,11 +17499,16 @@ impl Backend {
                 let text = doc.text.clone();
                 let dialect = doc.dialect.clone();
                 let seeds_for_worker = seeds.clone();
+                let provides_for_worker = package_provides.clone();
                 let Ok(analyses) = crate::rt::spawn_blocking(move || {
                     seeds_for_worker
                         .iter()
                         .map(|seed| {
-                            let mut analyser = Analyser::new();
+                            // Re-homing overwrites the document's index entry,
+                            // so it must not re-drop the implied requires the
+                            // scan put there (issue #1813 review).
+                            let mut analyser =
+                                Analyser::new().with_package_provides(provides_for_worker.clone());
                             if seed == Self::STANDALONE_SEED {
                                 analyser.analyse(&text, &dialect)
                             } else {
@@ -17803,6 +17883,7 @@ impl Backend {
     ) -> (PackageResolver, usize) {
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
+        let package_provides = Arc::new(self.package_provides.lock().await.clone());
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
@@ -17814,6 +17895,7 @@ impl Backend {
             let open = Arc::clone(&open);
             let folder_dialects = Arc::clone(&folder_dialects);
             let default_dialect = default_dialect.clone();
+            let package_provides = Arc::clone(&package_provides);
             let store = Arc::clone(&self.store);
             tasks.spawn(async move {
                 let _permit = permit;
@@ -17830,7 +17912,12 @@ impl Backend {
                     let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
-                    let mut analyser = Analyser::new();
+                    // Same reason as `scan_disk_file`: this analysis becomes
+                    // the file's index entry, and `package_requires` is
+                    // harvested from it, so a `source` descendant inherits
+                    // whatever the edges imply here (issue #1813 review).
+                    let mut analyser =
+                        Analyser::new().with_package_provides(package_provides.as_ref().clone());
                     let analysis = analyser.analyse(&text, &dialect);
                     Some((uri, text, dialect, analysis))
                 })
@@ -22948,6 +23035,17 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
+    // `tclLsp.packages.provides` per-folder override. The setting is
+    // resource-scoped and a `.tcl-lsp.ini` belongs to its own project, so a
+    // secondary root declares its own edges (issue #1813 review). Parsed
+    // through the same normaliser the global path uses.
+    if let Some(map) = obj
+        .get("packages")
+        .and_then(|p| p.get("provides"))
+        .and_then(serde_json::Value::as_object)
+    {
+        fc.package_provides = Some(parse_package_provides(map));
+    }
     fc.signature_help_disabled_commands = signature_help_disabled_commands(cfg);
     parse_folder_diagnostics(obj, &mut fc);
     // `tclLsp.libraryPaths` per-folder override.
@@ -23618,6 +23716,23 @@ fn refine_w120_diagnostics(
 /// either a JSON array (`"myExtension": ["Tk", "Img"]`) or a single string
 /// (`"myExtension": "Tk"`) — the same one-or-many latitude the `.tcl-lsp.ini`
 /// `[packages.provides]` comma list has. Blank names are dropped.
+/// `tclLsp.packages.provides` / `[packages.provides]` as edges.
+///
+/// Shared by the global and per-folder parses so the two cannot disagree
+/// about normalisation or ordering. Sorted because it feeds a salsa input,
+/// where a map-iteration-order change must not look like an edit.
+fn parse_package_provides(
+    map: &serde_json::Map<String, serde_json::Value>,
+) -> Vec<(String, Vec<String>)> {
+    let mut provides: Vec<(String, Vec<String>)> = map
+        .iter()
+        .map(|(package, loaded)| (package.clone(), provided_package_names(loaded)))
+        .filter(|(_, loaded)| !loaded.is_empty())
+        .collect();
+    provides.sort();
+    provides
+}
+
 fn provided_package_names(value: &serde_json::Value) -> Vec<String> {
     match value {
         serde_json::Value::String(one) => one
@@ -32895,6 +33010,107 @@ mod tests {
         assert!(
             has_tk1002(&after),
             "declared ⇒ the Tk checks run: {after:?}",
+        );
+    }
+
+    /// Review follow-up on #1813: the declared edges must survive an
+    /// incomplete buffer. `compute_base_analysis` switches to
+    /// `recovery_analyser` on an unclosed delimiter, and that analysis is
+    /// published *and* indexed — so dropping the edges there made the Tk
+    /// checks and W120/H301 flicker for every keystroke between an opening
+    /// brace and its match, and republished an index entry without the
+    /// implied requires.
+    #[tokio::test]
+    async fn declared_package_provides_survive_an_incomplete_buffer() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///ext_recovery.tcl").unwrap();
+        // Unclosed brace: `script_is_complete` is false, so this takes the
+        // recovery branch.
+        let src = "package require myExtension
+frame .outer.inner
+proc p {} {
+";
+        assert!(
+            !tcl_lexer::script_is_complete(src),
+            "the fixture must actually take the recovery branch"
+        );
+        let has_tk1002 = |diags: &[tower_lsp_server::ls_types::Diagnostic]| {
+            diags.iter().any(|d| {
+                matches!(
+                    &d.code,
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "TK1002"
+                )
+            })
+        };
+        register(&backend, &uri, src).await;
+        backend
+            .apply_global_config(&serde_json::json!({
+                "packages": { "provides": { "myExtension": ["Tk"] } },
+            }))
+            .await;
+        let diags = backend
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            has_tk1002(&diags),
+            "an unclosed brace must not switch Tk off: {diags:?}",
+        );
+    }
+
+    /// Review follow-up on #1813: `tclLsp.packages.provides` is
+    /// `"scope": "resource"`, so a folder override must win for documents
+    /// under it — and, just as importantly, a folder that overrides some
+    /// *other* analyser input must not silently lose the global edges (the
+    /// folder handle used to be constructed with an empty provides list).
+    #[tokio::test]
+    async fn declared_package_provides_resolve_per_folder() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "packages": { "provides": { "globalExt": ["Tk"] } },
+            }))
+            .await;
+
+        let root = Uri::from_str("file:///w/").unwrap();
+        let other = Uri::from_str("file:///other/").unwrap();
+        backend
+            .apply_folder_configs(vec![
+                (
+                    root.clone(),
+                    parse_folder_config(&serde_json::json!({
+                        "packages": { "provides": { "rootExt": ["Tk"] } },
+                    }))
+                    .expect("folder config parses"),
+                ),
+                (
+                    other.clone(),
+                    // Overrides an unrelated knob only: must still inherit the
+                    // global edges rather than get an empty map.
+                    parse_folder_config(&serde_json::json!({ "extraCommands": ["zzz"] }))
+                        .expect("folder config parses"),
+                ),
+            ])
+            .await;
+
+        let in_root = Uri::from_str("file:///w/a.tcl").unwrap();
+        assert_eq!(
+            backend.resolved_package_provides(&in_root).await,
+            vec![("rootExt".to_owned(), vec!["Tk".to_owned()])],
+            "a folder override wins for documents under it"
+        );
+
+        let in_other = Uri::from_str("file:///other/a.tcl").unwrap();
+        assert_eq!(
+            backend.resolved_package_provides(&in_other).await,
+            vec![("globalExt".to_owned(), vec!["Tk".to_owned()])],
+            "a folder overriding something else still inherits the global edges"
+        );
+
+        let elsewhere = Uri::from_str("file:///nowhere/a.tcl").unwrap();
+        assert_eq!(
+            backend.resolved_package_provides(&elsewhere).await,
+            vec![("globalExt".to_owned(), vec!["Tk".to_owned()])],
+            "no folder match falls back to the global map"
         );
     }
 

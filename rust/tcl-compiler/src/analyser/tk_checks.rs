@@ -1106,6 +1106,45 @@ frame .outer.inner
         assert!(codes(&whole).iter().any(|c| c == "TK1002"));
     }
 
+    /// Review follow-up: a declared edge makes a package available at the
+    /// require that loads it, and an *explicit* require for the same package
+    /// further down must not erase that earlier anchor. H301 takes the
+    /// minimum start per package, so losing it reports the command between
+    /// the two as used-before-available — a hint that appears only because
+    /// the file also requires the package explicitly.
+    #[test]
+    fn a_later_explicit_require_keeps_the_earlier_declared_anchor() {
+        let src = "package require myExtension\n\
+                   frame .outer.inner\n\
+                   package require Tk\n";
+        let res = Analyser::new()
+            .with_package_provides(vec![("myExtension".to_owned(), vec!["Tk".to_owned()])])
+            .analyse(src, "tcl8.6");
+        assert!(
+            !res.diagnostics.iter().any(|d| d.code.as_str() == "H301"),
+            "Tk is available from the `package require myExtension` above the \
+             widget, so nothing is used before its package: {:?}",
+            res.diagnostics
+        );
+        // The implied entry survives alongside the explicit one, anchored
+        // earlier than it.
+        let implied_start = res
+            .package_requires
+            .iter()
+            .filter(|pr| pr.name == "Tk")
+            .map(|pr| pr.range.start())
+            .min()
+            .expect("Tk recorded");
+        let ext_start = res
+            .package_requires
+            .iter()
+            .find(|pr| pr.name == "myExtension")
+            .expect("the loader")
+            .range
+            .start();
+        assert_eq!(implied_start, ext_start);
+    }
+
     /// The closure is transitive and terminates on a cycle.
     #[test]
     fn declared_package_provides_is_transitive_and_cycle_safe() {
