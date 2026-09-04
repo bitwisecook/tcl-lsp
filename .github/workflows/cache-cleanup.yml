@@ -46,10 +46,12 @@ jobs:
           PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
         run: |
           echo "Pruning caches scoped to $PR_REF"
-          # Filter on ref in jq rather than `gh cache list --ref` so this
-          # works regardless of the runner's gh version.
-          ids=$(gh cache list --repo "$REPO" --limit 100 --json id,ref \
-            --jq ".[] | select(.ref == \"$PR_REF\") | .id")
+          # Fetch every page before deleting anything.  Compiler caches can
+          # create hundreds of records for one PR, and deleting while paging
+          # would shift the remaining API pages underneath the traversal.
+          ids=$(gh api --paginate \
+            "repos/$REPO/actions/caches?per_page=100" \
+            --jq ".actions_caches[] | select(.ref == \"$PR_REF\") | .id")
           if [ -z "$ids" ]; then
             echo "  no caches for this PR"
           else
@@ -64,16 +66,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          SCCACHE_MAX_IDLE_DAYS: 7
         run: |
-          # Protect the caches of the long-lived branches that have
-          # push-triggered blocking workflows. ci.yml runs on `push:
-          # branches: [rust]`, so its rust-cache entries live on that ref;
-          # purging refs/heads/rust every week forces cold rebuilds on the
-          # gate. Keep this in sync with ci.yml's push triggers.
-          echo "Sweeping caches not on the protected ref (rust)"
-          # Single pass (limit 100); a residual >100 is caught next week.
-          ids=$(gh cache list --repo "$REPO" --limit 100 --json id,ref \
-            --jq '.[] | select(.ref != "refs/heads/rust") | .id')
+          # Preserve the conventional caches of the long-lived branch that has
+          # push-triggered blocking workflows. ci.yml runs on `rust`, so
+          # purging those rust-cache entries every week would force cold gates.
+          # sccache is different: every compiler object has its own immutable,
+          # content-addressed record. Keep recently used objects on rust, but
+          # retire ones whose source/compiler key has not been read for a week.
+          # Keep the protected ref in sync with ci.yml's push triggers.
+          cutoff=$(date -u -d "$SCCACHE_MAX_IDLE_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "Sweeping non-rust caches and rust sccache objects idle since $cutoff"
+
+          # Collect every page before deletion so records cannot shift the
+          # remaining API pages underneath the traversal.
+          ids=$(gh api --paginate \
+            "repos/$REPO/actions/caches?per_page=100" \
+            --jq ".actions_caches[] | select(\
+              .ref != \"refs/heads/rust\" or \
+              (.ref == \"refs/heads/rust\" and \
+               (.key | startswith(\"sccache/\")) and \
+               .last_accessed_at < \"$cutoff\")) | .id")
           if [ -z "$ids" ]; then
             echo "  nothing to sweep"
           else
