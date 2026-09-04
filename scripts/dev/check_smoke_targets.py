@@ -13,6 +13,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUPPORTED_TARGET_KINDS = {"lib", "bin", "test", "example", "bench"}
@@ -81,11 +82,31 @@ def metadata_command(host: str) -> list[str]:
     ]
 
 
-def rustc_host() -> str:
+def workspace_feature_command(host: str) -> list[str]:
+    """Build a resolver-v2 target/test-context feature query."""
+    return [
+        "cargo",
+        "tree",
+        "--workspace",
+        "--locked",
+        "--target",
+        host,
+        "--edges",
+        "normal,dev,no-proc-macro",
+        "--depth",
+        "0",
+        "--prefix",
+        "none",
+        "--format",
+        "{p}\t{f}",
+    ]
+
+
+def rustc_host(repo_root: Path = REPO_ROOT) -> str:
     """Return the host triple Cargo uses for this local smoke run."""
     result = subprocess.run(
         ["rustc", "-vV"],
-        cwd=REPO_ROOT,
+        cwd=repo_root,
         check=True,
         capture_output=True,
         text=True,
@@ -96,26 +117,60 @@ def rustc_host() -> str:
     raise RuntimeError("rustc -vV did not report a host triple")
 
 
-def load_targets() -> tuple[dict[str, Path], list[Target]]:
+def workspace_target_features(
+    metadata: dict[str, Any], host: str, repo_root: Path
+) -> dict[str, set[str]]:
+    """Resolve features in Cargo's normal/dev target context, not build context."""
+    packages = metadata["packages"]
+    workspace_members = set(metadata["workspace_members"])
+    display_to_name = {
+        f"{package['name']} v{package['version']} "
+        f"({Path(package['manifest_path']).resolve().parent})": package["name"]
+        for package in packages
+        if package["id"] in workspace_members
+    }
+    features = {name: set() for name in display_to_name.values()}
     result = subprocess.run(
-        metadata_command(rustc_host()),
-        cwd=REPO_ROOT,
+        workspace_feature_command(host),
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        display, separator, raw_features = line.partition("\t")
+        if not separator or (package_name := display_to_name.get(display)) is None:
+            continue
+        # Cargo appends this outside the custom format for a de-duplicated or
+        # cyclic tree entry; it is not a feature name.
+        raw_features = raw_features.removesuffix(" (*)").strip()
+        features[package_name].update(
+            feature for feature in raw_features.split(",") if feature
+        )
+    return features
+
+
+def load_targets(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Path], list[Target]]:
+    host = rustc_host(repo_root)
+    result = subprocess.run(
+        metadata_command(host),
+        cwd=repo_root,
         check=True,
         capture_output=True,
         text=True,
     )
     metadata = json.loads(result.stdout)
     workspace_members = set(metadata["workspace_members"])
-    resolved_features = {
-        node["id"]: set(node["features"]) for node in metadata["resolve"]["nodes"]
-    }
+    resolved_features = workspace_target_features(metadata, host, repo_root)
     manifests: dict[str, Path] = {}
     targets: list[Target] = []
     for package in metadata["packages"]:
         if package["id"] not in workspace_members:
             continue
         package_name = package["name"]
-        enabled_features = resolved_features[package["id"]]
+        enabled_features = resolved_features[package_name]
         manifests[package_name] = Path(package["manifest_path"]).resolve().parent
         for raw_target in package["targets"]:
             supported = SUPPORTED_TARGET_KINDS.intersection(raw_target["kind"])
@@ -359,6 +414,85 @@ def self_test() -> None:
         "--filter-platform",
         "x86_64-example-linux",
     ]
+    feature_command = workspace_feature_command("x86_64-example-linux")
+    edges = feature_command.index("--edges")
+    assert feature_command[edges + 1] == "normal,dev,no-proc-macro"
+    depth = feature_command.index("--depth")
+    assert feature_command[depth + 1] == "0"
+
+    # Resolver v2 keeps build/proc-macro feature contexts separate from the
+    # normal target and test context. Cargo metadata reports their union, so
+    # prove the cargo-tree query retains a normal dependency feature but does
+    # not leak a build-dependency-only feature into target eligibility.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        fixture = Path(temp_dir)
+        files = {
+            "Cargo.toml": """\
+[workspace]
+members = ["a", "b", "c"]
+resolver = "2"
+""",
+            "a/Cargo.toml": """\
+[package]
+name = "a"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+build_only = []
+normal = []
+
+[[bin]]
+name = "build_smoke"
+path = "src/build.rs"
+required-features = ["build_only"]
+
+[[bin]]
+name = "normal_smoke"
+path = "src/normal.rs"
+required-features = ["normal"]
+""",
+            "a/src/lib.rs": "pub fn value() -> bool { true }\n",
+            "a/src/build.rs": "fn main() {}\n",
+            "a/src/normal.rs": "fn main() {}\n",
+            "b/Cargo.toml": """\
+[package]
+name = "b"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+a = { path = "../a", features = ["build_only"] }
+""",
+            "b/src/lib.rs": "pub fn value() -> bool { true }\n",
+            "b/build.rs": "fn main() { assert!(a::value()); }\n",
+            "c/Cargo.toml": """\
+[package]
+name = "c"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+a = { path = "../a", features = ["normal"] }
+""",
+            "c/src/lib.rs": "pub fn value() -> bool { a::value() }\n",
+        }
+        for relative_path, contents in files.items():
+            path = fixture / relative_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(contents)
+        subprocess.run(
+            ["cargo", "generate-lockfile", "--offline"],
+            cwd=fixture,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        _fixture_roots, fixture_targets = load_targets(fixture)
+        fixture_by_name = {target.name: target for target in fixture_targets}
+        assert not fixture_by_name["build_smoke"].available_in_workspace
+        assert fixture_by_name["normal_smoke"].available_in_workspace
+        assert fixture_by_name["normal_smoke"].resolved_features == ("normal",)
 
 
 def main() -> int:

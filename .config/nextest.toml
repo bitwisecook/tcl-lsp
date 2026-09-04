@@ -71,6 +71,9 @@ test-group = 'manual-corpus'
 # `smoke` / `*_smoke` (tcl-lsp-server's existing convention). Toolchains
 # without nextest use scripts/dev/smoke-targets.tsv to invoke only the owning
 # Cargo targets; scripts/dev/test-smoke-targets.sh prevents that list drifting.
+# A macro-generated smoke test must put the exact marker
+# `// tcl-lsp-smoke-target` in its source and add that source's target row to
+# smoke-targets.tsv, because the fallback cannot inspect expanded test names.
 #
 # `default-filter` scopes what `--profile smoke` runs with no -E on the
 # command line; a caller's -E still narrows further.

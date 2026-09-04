@@ -18,6 +18,7 @@ ACTUAL=$(mktemp)
 trap 'rm -f "$EXPECTED" "$ACTUAL"' EXIT HUP INT TERM
 
 SMOKE_DECL_RE='^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?((async[[:space:]]+)?fn[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*\(|mod[[:space:]]+smoke([_[:alnum:]]*)[[:space:]]*[;{])'
+SMOKE_MARKER_RE='^[[:space:]]*//[[:space:]]*tcl-lsp-smoke-target[[:space:]]*$'
 
 # Keep the declaration scanner broad enough for Rust's visibility-qualified
 # module forms. A missed declaration would let the fallback consume a
@@ -36,12 +37,26 @@ do
     fi
 done
 
+# A macro can generate a smoke-named test without leaving a declaration for
+# the source scanner. Such a source must carry this exact marker and have a
+# manifest row; the path-set comparison below then remains fail-closed.
+printf '%s\n' '// tcl-lsp-smoke-target' | grep -E -q "$SMOKE_MARKER_RE" || {
+    echo "smoke source marker scanner missed the canonical marker" >&2
+    exit 1
+}
+if printf '%s\n' '// tcl-lsp-smoke-target-extra' | grep -E -q "$SMOKE_MARKER_RE"; then
+    echo "smoke source marker scanner accepted a near miss" >&2
+    exit 1
+fi
+
 cd "$REPO_ROOT"
 
 awk -F '\t' '!/^#/ && NF { print $1 }' "$MANIFEST" | sort -u > "$EXPECTED"
 
 {
     git grep -l -E "$SMOKE_DECL_RE" \
+        -- ':(glob)rust/**/*.rs' || true
+    git grep -l -E "$SMOKE_MARKER_RE" \
         -- ':(glob)rust/**/*.rs' || true
     git ls-files ':(glob)rust/**/*.rs' | awk '
         /\/tests\/smoke\.rs$/ || /\/tests\/[^/]*_smoke\.rs$/ || /\/tests\/smoke\/[^/]*_smoke\.rs$/ { print }
