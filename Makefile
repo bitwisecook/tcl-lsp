@@ -789,7 +789,7 @@ check-monitoring-triggers: ## Verify monitoring cadence retains every score- and
 
 check-smoke-targets: ## Verify every convention-named smoke source is owned by the targeted Cargo fallback
 	@echo "==> Checking targeted Cargo smoke ownership"
-	@sh scripts/dev/test-smoke-targets.sh
+	@cargo xtask smoke-targets check
 
 check-wasm-cc-env: ## Verify wasm32 C-compiler selection and dependency diagnostics
 	@echo "==> Checking wasm32 C compiler bootstrap"
@@ -1008,7 +1008,7 @@ smoke: ## Fast per-module smoke tier (seconds; run after compile, before push)
 	else \
 		echo "==> cargo-nextest not found; running the targeted Cargo smoke manifest"; \
 		echo "    (install: cargo install cargo-nextest --locked)"; \
-		sh scripts/dev/run-cargo-smoke.sh; \
+		cargo xtask smoke-targets run; \
 	fi
 
 # Single-crate smoke: make smoke-p P=tcl-compiler
