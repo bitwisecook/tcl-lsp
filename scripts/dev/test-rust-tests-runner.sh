@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Contract test for the one-physical-host `tank` runner pool. Multiple runner
-# registrations must not turn into concurrent heavyweight workspace suites.
+# registrations must not turn into concurrent heavyweight workspace suites,
+# and bursts must not displace an older suite while it is waiting for the host.
 
 set -eu
 
@@ -58,12 +59,14 @@ case "$rust_tests_job" in
         ;;
 esac
 
-case "$rust_tests_job" in
-    *"cancel-in-progress: false"*) ;;
-    *)
-        echo "queued tank jobs must not cancel an already-running workspace suite" >&2
-        exit 1
-        ;;
-esac
+if ! printf '%s\n' "$rust_tests_job" | grep -Fqx '      cancel-in-progress: false'; then
+    echo "a new tank job must not cancel an already-running workspace suite" >&2
+    exit 1
+fi
+
+if ! printf '%s\n' "$rust_tests_job" | grep -Fqx '      queue: max'; then
+    echo "the tank concurrency group must retain every pending workspace suite" >&2
+    exit 1
+fi
 
 echo "self-hosted Rust test scheduling contract passed"

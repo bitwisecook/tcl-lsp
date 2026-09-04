@@ -798,10 +798,13 @@ jobs:
     # deliberate.  `tank` is one physical host but may have multiple runner
     # registrations; the job-level concurrency group is therefore the source
     # of truth that keeps these CPU- and memory-heavy suites serial on that
-    # host.  Fork PRs and PRs changing this runner policy use a run-specific
-    # group because they execute on separate GitHub-hosted machines and must
-    # retain their normal parallelism.  The latter also makes policy changes
-    # fail safely: a broken scheduler edit cannot strand the protected host.
+    # host.  `cancel-in-progress: false` protects the running job, while
+    # `queue: max` retains every pending job (the default one-pending-job queue
+    # silently displaces an older pending run when another one arrives).  Fork
+    # PRs and PRs changing this runner policy use a run-specific group because
+    # they execute on separate GitHub-hosted machines and must retain their
+    # normal parallelism.  The latter also makes policy changes fail safely: a
+    # broken scheduler edit cannot strand the protected host.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # stay on GitHub-hosted; everything else (push, dispatch, and PRs from
@@ -810,6 +813,7 @@ jobs:
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && 'ubuntu-26.04' || 'tank' }}
     concurrency:
       group: rust-tests-${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && format('hosted-{0}', github.run_id) || 'tank' }}
+      queue: max
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
