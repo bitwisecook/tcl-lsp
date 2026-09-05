@@ -137,6 +137,15 @@ its imports retire depth-first, then the loop moves to the next entry; the
 table is re-snapshotted while it is non-empty, so a command a callback creates
 is torn down in a later pass.
 
+A namespace deleted while a call frame was still running in it fires none of
+this at delete time: the token is retained and the whole loop runs from the pop
+that drops its last activation instead (issue #1751,
+[namespace-tree.md](namespace-tree.md) §4). Traces registered against the
+retained tokens are addressed by the exact `(namespace, tail)` slot rather than
+by re-resolving the name, because a retained `::N::q` and the `::N::q` of a
+namespace recreated under the same spelling are two tokens with one spelling,
+each firing only its own list.
+
 A deletion drops exactly the traces the **dying token** carried, which is what
 C's `Tcl_DeleteCommandFromToken` frees when it releases `cmdPtr->tracePtr`.
 Both registries are keyed by command *name*, so each registration is stamped
@@ -148,7 +157,11 @@ only the stamps that are later than the dying one:
   (`CallCommandTraces` follows `active.nextTracePtr`), and not for a later
   command that takes the vacated name;
 - a trace it registers on a **replacement** it bound at that name belongs to
-  the new token and survives, list intact.
+  the new token and survives, list intact;
+- a trace on a command in a namespace recreated at a **retained** token's
+  spelling belongs to that recreation, and the retained token's own teardown
+  neither fires nor drops it (generations are minted interpreter-wide, so the
+  two never compare equal).
 
 A hide, expose or rename moves the list with its token and re-stamps it,
 because C moves the `Command` itself rather than creating a new one.
