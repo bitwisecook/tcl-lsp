@@ -5730,13 +5730,13 @@ struct PublishedPackSet {
     packs: Arc<tcl_spectcl::PackSet>,
 }
 
-/// Every mutable store a background disk publication changes, acquired as one
+/// Every mutable store a source publication changes, acquired as one
 /// optimistic bundle before it inspects the open-document map.
 ///
-/// The bundle is deliberately built with `try_*` calls: background indexing
-/// never queues for one lock while retaining another.  That makes foreground
-/// document sync the priority path and keeps the final no-`await` commit small.
-struct DiskPublicationLocks<'a> {
+/// The bundle is deliberately built with `try_*` calls: no publisher queues
+/// for one lock while retaining another. That makes foreground document sync
+/// the priority path and keeps each final no-`await` commit small.
+struct PublicationLocks<'a> {
     db: tokio::sync::MutexGuard<'a, tcl_lsp_db::TclDatabase>,
     files: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
     tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
@@ -7473,30 +7473,6 @@ impl Backend {
         }
     }
 
-    /// Whether the salsa db *already* holds exactly this `(text, dialect)` for
-    /// `uri` — i.e. nothing about the analysis inputs changes by setting them.
-    ///
-    /// Used by `did_open` (issue #1619) to tell an opened buffer that merely
-    /// mirrors what the workspace scan read from disk apart from one that
-    /// differs, so only the latter has to drop its workspace-index entry. The
-    /// db is the right thing to ask because the scan sets this input from the
-    /// same text it indexed, in the same pass — so agreement here *is*
-    /// agreement with the index entry, with no second disk read.
-    ///
-    /// Compared in the analysis form [`Self::db_set_source`] stores, so a lone
-    /// `\r` cannot make an identical document look changed.
-    ///
-    /// Lock order is the global one: `db` → `db_files`, both taken and
-    /// released here, and always under `documents` at the call site.
-    async fn db_source_matches(&self, uri: &Uri, text: &str, dialect: &str) -> bool {
-        let normalised = tcl_lexer::normalise_lone_cr(text);
-        let db = self.db.lock().await;
-        let files = self.db_files.lock().await;
-        files.get(uri).is_some_and(|file| {
-            file.text(&*db).as_str() == normalised.as_ref() && file.dialect(&*db) == dialect
-        })
-    }
-
     /// Apply source replacements with all salsa maps already locked, returning
     /// whether the `Project` membership changed.
     ///
@@ -7738,13 +7714,13 @@ impl Backend {
             .max_by_key(|index| index.len())
     }
 
-    /// Optimistically acquire the complete background-publication write set.
+    /// Optimistically acquire the complete source-publication write set.
     ///
     /// Returning `None` drops every partial acquisition.  In particular, disk
     /// work never parks on `workspace_index` while retaining `db`, or parks on
     /// `db` while retaining the open-document map (#1800).
-    fn try_disk_publication_locks(&self) -> Option<DiskPublicationLocks<'_>> {
-        Some(DiskPublicationLocks {
+    fn try_publication_locks(&self) -> Option<PublicationLocks<'_>> {
+        Some(PublicationLocks {
             db: self.db.try_lock().ok()?,
             files: self.db_files.try_lock().ok()?,
             tombstones: self.db_tombstones.try_lock().ok()?,
@@ -7806,7 +7782,7 @@ impl Backend {
         site: &'static str,
     ) -> Vec<Uri> {
         loop {
-            let Some(locks) = self.try_disk_publication_locks() else {
+            let Some(locks) = self.try_publication_locks() else {
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
                 continue;
             };
@@ -7844,7 +7820,7 @@ impl Backend {
                 return Vec::new();
             }
 
-            let DiskPublicationLocks {
+            let PublicationLocks {
                 mut db,
                 mut files,
                 mut tombstones,
@@ -7884,6 +7860,80 @@ impl Backend {
                 .chain(replacements.into_iter().map(|entry| &entry.0))
                 .cloned()
                 .collect();
+        }
+    }
+
+    /// Commit one editor-opened buffer to every authoritative store.
+    ///
+    /// The release `v2.2.2` extension suite caught `did_open` suspended on the
+    /// Salsa mutex while it already owned both the document-sync turn and the
+    /// open-document map (#1849). That made every diagnostics worker queue on
+    /// the map and every request queue on the turn. This transaction takes the
+    /// same complete optimistic lock set as disk publication, and only then
+    /// try-locks `documents`; the final commit contains no `.await` at all.
+    /// Contention therefore leaves the document map available instead of
+    /// turning a slow Salsa/index writer into a whole-server wedge.
+    ///
+    /// The foreground path deliberately does not wait for `rehoming_gate`:
+    /// background disk publication may hold that gate while retrying this same
+    /// bundle, and the live buffer must be allowed to overtake it (#1800). The
+    /// bundle's index writer still serialises the actual commit with rehoming
+    /// and diagnostics publication.
+    async fn commit_open_document(
+        &self,
+        turn: &EditTurn<'_>,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        state: DocumentState,
+    ) {
+        loop {
+            turn.at("did_open: publication_locks");
+            let Some(locks) = self.try_publication_locks() else {
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                continue;
+            };
+
+            // Salsa setters synchronously wait for every snapshot. Holding the
+            // db mutex makes this zero stable; waiting before `documents` is
+            // acquired is what keeps the open-document map out of that wait.
+            if SNAPSHOT_CENSUS.report().outstanding != 0 {
+                drop(locks);
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                continue;
+            }
+            let Some(mut docs) = self.documents.try_lock("did_open") else {
+                drop(locks);
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                continue;
+            };
+
+            let PublicationLocks {
+                mut db,
+                mut files,
+                mut tombstones,
+                mut project,
+                mut index,
+                seeds: _,
+            } = locks;
+            let normalised = tcl_lexer::normalise_lone_cr(text);
+            let matches_indexed_source = files.get(uri).is_some_and(|file| {
+                file.text(&*db).as_str() == normalised.as_ref() && file.dialect(&*db) == dialect
+            });
+            let membership_changed = Self::set_db_sources_locked(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                std::iter::once((uri, text, dialect)),
+            );
+            if membership_changed {
+                Self::sync_db_project(&mut db, &files, &mut project);
+            }
+            docs.insert(uri.clone(), state);
+            if !matches_indexed_source {
+                index.remove_document(uri.as_str());
+            }
+            return;
         }
     }
 
@@ -18930,58 +18980,20 @@ impl LanguageServer for Backend {
         let text = params.text_document.text.clone();
         let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
-        {
-            // Hold `documents` across the salsa input set + the index removal
-            // (the `documents` → `workspace_index` order that replaced the
-            // global gate): a reader must never see the new `doc.text` with a
-            // stale query result for the old text, and no diagnostics run may
-            // re-add a stale index entry between them.
-            turn.at("did_open: documents.lock");
-            let mut docs = self.documents.lock("did_open").await;
-            docs.insert(
-                uri.clone(),
-                DocumentState::with_version(params.text_document.text, dialect, version)
-                    .with_language_id(params.text_document.language_id.clone()),
-            );
-            // Dropping the index entry is what makes a freshly opened
-            // definition invisible to every *other* open document until this
-            // one's debounced publish puts it back — the window issue #1619
-            // wedges in: a sibling analysed inside it settles `W123` on a call
-            // this workspace does define, and the publish that restores the
-            // entry wakes only documents the index already records as invoking
-            // the name, which the sibling — also just opened, also just
-            // removed — is not yet one of.
-            //
-            // The entry is stale only if the buffer differs from what it was
-            // built from. Asked of the salsa db rather than of the disk,
-            // because the db already holds the very text the scan (or a
-            // watched-file reindex) read: this is an in-memory comparison, not
-            // a second read, and it cannot disagree with the index entry that
-            // was built alongside it. The dialect is part of the question —
-            // the same bytes analysed under a different dialect are a
-            // different analysis.
-            //
-            // Residual, deliberately accepted: the scan analyses with a bare
-            // `Analyser::new()`, so a kept entry can lack the class-factory
-            // oracle until this document's own publish replaces it a debounce
-            // later. That is strictly better than the entry being *absent* for
-            // that same window, which is what it was before.
-            turn.at("did_open: db_source_matches");
-            let matches_indexed_source = self
-                .db_source_matches(&uri, &text, &dialect_for_diags)
-                .await;
-            turn.at("did_open: db_set_source");
-            self.db_set_source(&uri, &text, dialect_for_diags.clone())
-                .await;
-            if !matches_indexed_source {
-                turn.at("did_open: workspace_index.write");
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(uri.as_str());
-            }
-            drop(docs);
-        }
+        // Install the live document, Salsa source and workspace-index decision
+        // as one no-await commit. In particular, never retain `documents`
+        // while waiting for the database: that is the exact whole-server wedge
+        // the v2.2.2 release suite captured (#1849).
+        //
+        // The index entry is stale only if the buffer differs from the Salsa
+        // source the scan built it from. An identical entry stays visible so a
+        // sibling opened in the debounce window still resolves it (#1619).
+        // `commit_open_document` compares before setting and protects the
+        // comparison, source update and index decision with one lock bundle.
+        let state = DocumentState::with_version(params.text_document.text, dialect, version)
+            .with_language_id(params.text_document.language_id.clone());
+        self.commit_open_document(&turn, &uri, &text, &dialect_for_diags, state)
+            .await;
         // Do not keep the global document-sync turn across disk I/O. If a
         // change lands while this runs, the version/text check below refuses
         // to attach facts about the file that was opened to the edited buffer.
@@ -35562,6 +35574,86 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// #1849: `didOpen` must not own the open-document map while waiting for
+    /// Salsa. The v2.2.2 release run caught exactly that state: the open held
+    /// `documents`, suspended at `db_source_matches`, and every diagnostics
+    /// worker queued behind it until the entire server stopped answering.
+    ///
+    /// Construct the interleaving directly by holding `db` before starting the
+    /// open. The parent implementation reaches `db_source_matches` only after
+    /// acquiring `documents`, so the independent map acquisition below times
+    /// out deterministically. The publication transaction introduced for
+    /// #1849 cannot acquire its complete lock bundle and retries while owning
+    /// no document guard; releasing `db` then lets its no-await commit finish.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_open_waiting_for_salsa_never_holds_documents_1849() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-1849.tcl").unwrap();
+        let db_held = backend.db.lock().await;
+        let opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: "set release_ready 1\n".to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let waiting = backend
+                    .edit_order
+                    .holder
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .as_ref()
+                    .is_some_and(|holder| {
+                        holder.what == "didOpen" && holder.phase != "did_open: dialect_for_open"
+                    });
+                if waiting {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didOpen must reach the Salsa-backed publication step");
+
+        let docs = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.documents.lock("issue-1849-unrelated-reader"),
+        )
+        .await
+        .expect("didOpen waiting for Salsa must leave the open-document map available (#1849)");
+        assert!(
+            !docs.contains_key(&uri),
+            "the live document is published only by the final atomic commit",
+        );
+        drop(docs);
+
+        drop(db_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), opening)
+            .await
+            .expect("didOpen must finish once Salsa is available")
+            .expect("didOpen must not panic");
+        assert!(
+            backend
+                .documents
+                .lock("issue-1849-assertion")
+                .await
+                .contains_key(&uri),
+            "the final transaction must publish the open document",
+        );
+    }
+
     /// #1800: a closed-file disk refresh is background work.  If its
     /// workspace-index publication is delayed, it must not retain the global
     /// open-document map and stop every diagnostics worker / document-sync
@@ -35739,14 +35831,14 @@ proc p {} {
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .as_ref()
                     .map(|holder| holder.phase);
-                if phase == Some("did_open: workspace_index.write") {
+                if phase == Some("did_open: publication_locks") {
                     break;
                 }
                 crate::rt::yield_now().await;
             }
         })
         .await
-        .expect("foreground didOpen must pass the background publisher and reach the held index");
+        .expect("foreground didOpen must pass the background publisher and retry the held index");
 
         drop(index_held);
         crate::rt::timeout(std::time::Duration::from_secs(30), opening)
@@ -35764,10 +35856,16 @@ proc p {} {
             assert_eq!(live.text.as_ref(), "proc fresh {} {}\n");
             live.dialect.clone()
         };
+        let live_source_matches = {
+            let db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            files.get(&uri).is_some_and(|file| {
+                file.text(&*db) == "proc fresh {} {}\n"
+                    && file.dialect(&*db).as_str() == live_dialect
+            })
+        };
         assert!(
-            backend
-                .db_source_matches(&uri, "proc fresh {} {}\n", &live_dialect)
-                .await,
+            live_source_matches,
             "the live buffer must remain the salsa source of truth",
         );
         assert!(
@@ -37333,16 +37431,17 @@ proc p {} {
     /// is the only reading that can close that gap, and this test is what says
     /// it is telling the truth rather than reporting a stale or default value.
     ///
-    /// Constructed, not raced: the test itself holds the `documents` lock that
-    /// `did_open` must take *inside* its turn, so the handler is granted the
-    /// turn, suspends at exactly one known point, and stays there for as long
-    /// as the assertion needs. Nothing but this test can release it.
+    /// Constructed, not raced: the test itself holds the workspace-index writer
+    /// that `did_open` needs for its no-await publication transaction, so the
+    /// handler is granted the turn, suspends at exactly one known point, and
+    /// stays there for as long as the assertion needs. Nothing but this test
+    /// can release it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_stalled_turn_names_the_await_it_is_suspended_at() {
         let backend = Arc::new(test_backend());
         let uri = Uri::from_str("file:///w/phase.tcl").unwrap();
 
-        let held_documents = backend.documents.lock("test").await;
+        let held_index = backend.workspace_index.write().await;
 
         let opener = {
             let backend = Arc::clone(&backend);
@@ -37372,7 +37471,7 @@ proc p {} {
         let reached = crate::rt::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 if let Some(h) = holder_now()
-                    && h.phase == "did_open: documents.lock"
+                    && h.phase == "did_open: publication_locks"
                 {
                     return h;
                 }
@@ -37383,7 +37482,7 @@ proc p {} {
         let Ok(holder) = reached else {
             panic!(
                 "the turn holder never reported the `await` it is suspended at. `did_open` is \
-                 parked on the `documents` lock this test holds and cannot be anywhere else, so \
+                 retrying the publication bundle because this test holds its index writer, so \
                  the marker is missing or stale. Without it a #1657 stall line names only the \
                  handler, which is where the investigation already was. Last observed holder: \
                  {:?}",
@@ -37409,7 +37508,7 @@ proc p {} {
 
         // Release it and let the handler finish, so the test leaves no wedged
         // task behind — and so this really was a suspension, not a deadlock.
-        drop(held_documents);
+        drop(held_index);
         crate::rt::timeout(std::time::Duration::from_secs(5), opener)
             .await
             .expect("did_open must complete once the lock is released")
