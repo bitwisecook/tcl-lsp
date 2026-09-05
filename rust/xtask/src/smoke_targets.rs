@@ -1860,11 +1860,6 @@ fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Co
     } else {
         Command::new(executable)
     };
-    for (name, _) in env::vars_os() {
-        if name.to_string_lossy().starts_with("CARGO_BIN_EXE_") {
-            command.env_remove(name);
-        }
-    }
     command
         .current_dir(context.package_root)
         .envs(context.package_environment)
@@ -2467,7 +2462,7 @@ path = "src/main.rs"
     ("l/src/main.rs", "fn main() {}\n"),
     (
         "l/tests/smoke.rs",
-        "#[test]\nfn smoke_binary_path() { assert!(std::path::Path::new(&std::env::var(\"CARGO_BIN_EXE_helper-tool\").unwrap()).is_file()); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); }\n",
+        "#[test]\nfn smoke_binary_path() { assert!(std::path::Path::new(&std::env::var(\"CARGO_BIN_EXE_helper-tool\").unwrap()).is_file()); assert_eq!(std::env::var(\"CARGO_BIN_EXE_unrelated\").as_deref(), Ok(\"inherited\")); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); }\n",
     ),
     (
         "m/Cargo.toml",
@@ -3009,6 +3004,18 @@ fn verify_fixture_binary_environment(
 ) -> Result<()> {
     let smoke_target = fixture_target(targets, "l", "smoke")?;
     let args = cargo_target_args("test", "smoke", false);
+    let mut cargo_args = args.clone();
+    cargo_args.extend([
+        "smoke_binary_path".to_owned(),
+        "--".to_owned(),
+        "--exact".to_owned(),
+    ]);
+    let mut cargo_harness = Command::new("cargo");
+    cargo_harness
+        .args(cargo_args)
+        .current_dir(&fixture.root)
+        .envs(extra_env);
+    command_output(&mut cargo_harness)?;
     let artifacts = cargo_test_artifacts(
         &fixture.root,
         &args,
@@ -3321,7 +3328,9 @@ fn cargo_fixture_self_test_subprocess() -> Result<()> {
     command
         .args(["smoke-targets", "fixture-self-test"])
         .env("CARGO_HOME", cargo_home.root.join("cargo-home"))
-        .env("CARGO_MANIFEST_LINKS", "inherited");
+        .env("CARGO_MANIFEST_LINKS", "inherited")
+        .env("CARGO_BIN_EXE_unrelated", "inherited")
+        .env("CARGO_BIN_EXE_helper-tool", "bogus");
     for (name, _) in env::vars_os() {
         let text = name.to_string_lossy();
         if text.starts_with("CARGO_BUILD_")

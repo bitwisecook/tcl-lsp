@@ -120,7 +120,9 @@ behind it.
    build-only dependency closures because Cargo exposes build-dependency
    search paths to a test harness even under resolver v2. The harness also
    preserves an inherited `CARGO_MANIFEST_LINKS`; an explicit value emitted by
-   the owning build script overrides it, matching Cargo.
+   the owning build script overrides it, matching Cargo. Ambient
+   `CARGO_BIN_EXE_*` values are likewise preserved, while executable paths
+   reconstructed for the owning package override same-named inherited values.
 
 ## CI redundancy contract
 
