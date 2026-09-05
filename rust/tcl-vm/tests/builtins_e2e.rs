@@ -1842,6 +1842,55 @@ fn channel_io() {
     );
 }
 
+/// Issue #1607: `seek`'s origin word is a `Tcl_GetIndexFromObj(…, "origin", 0)`
+/// table (`originOptions[]`, `tclIOCmd.c`). This engine silently treated any
+/// unknown origin as `start`; C rejects it, abbreviates `s`/`c`/`e`, and words
+/// the empty origin — a prefix of all three — `ambiguous`.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   seek $f 0 x  -> bad origin "x": must be start, current, or end
+///   seek $f 0 {} -> ambiguous origin "": must be start, current, or end
+///   seek $f 0 s / c / e -> {}
+#[test]
+fn seek_origin_resolves_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be start, current, or end";
+    const SETUP: &str = "set p /tmp/zz_tcltest_seek_test.txt\n\
+                         set f [open $p w]\nputs $f abcdef\nclose $f\n\
+                         set r [open $p r]\n";
+    let msg = |tail: &str| {
+        let (ok, result, _) = run(&format!("{SETUP}catch {{{tail}}} e\nclose $r\nset e\n"));
+        assert!(ok, "expected the catch to succeed for {tail}");
+        result
+    };
+    assert_eq!(msg("seek $r 0 x"), format!("bad origin \"x\": {MUST}"));
+    assert_eq!(
+        msg("seek $r 0 {}"),
+        format!("ambiguous origin \"\": {MUST}")
+    );
+    // Abbreviations resolve, and `e` seeks to the end.
+    assert_eq!(
+        run(&format!(
+            "{SETUP}seek $r 0 e\nset n [tell $r]\nclose $r\nfile delete $p\nset n\n"
+        ))
+        .1,
+        "7"
+    );
+    assert_eq!(
+        run(&format!(
+            "{SETUP}seek $r 2 s\nset n [tell $r]\nclose $r\nset n\n"
+        ))
+        .1,
+        "2"
+    );
+    assert_eq!(
+        run(&format!(
+            "{SETUP}seek $r 2 s\nseek $r 1 c\nset n [tell $r]\nclose $r\nfile delete $p\nset n\n"
+        ))
+        .1,
+        "3"
+    );
+}
+
 /// `-failindex` must be written. The inline `string is` codegen gates on arity
 /// alone, so it used to accept `CLASS -failindex var value`, take the last word
 /// as the value, and silently drop the option — the class answer was right and

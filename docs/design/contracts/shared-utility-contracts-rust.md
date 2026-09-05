@@ -536,7 +536,11 @@ entry point, or gate moves without this contract being updated.
   subcommand word and `package prefer`'s `preference` word resolve here
   too (they are `Tcl_GetIndexFromObj` tables, not an ensemble, despite
   both engines having worded their misses `unknown or ambiguous
-  subcommand` before #1607). New command
+  subcommand` before #1607), as do `update`'s option, `try`'s
+  `handler type`, and `seek`'s `origin`. `after` shares only the
+  `scan` — C looks its subcommands up with a NULL interp and composes
+  its own `bad argument …, or an integer` sentence, so no
+  `OptionTable` message may surface there. New command
   modules MUST resolve through `OptionTable` (or `scan` +
   `bad_key_message` where a byte noun or interleaved control flow
   demands composition) — never a hand-rolled scan.
@@ -857,6 +861,12 @@ helper without reading the rationale:
   release axis of `package`'s table (`prefer` from 8.5, `files` from
   9.0) pinned in
   `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs`.
+- `rust/tcl-vm/tests/cmd_event_e2e.rs` /
+  `cmd_control_e2e.rs` / `builtins_e2e.rs` and the `cmd_event.rs`,
+  `cmd_error.rs`, `cmd_chan.rs` test modules in `runtime/rust` —
+  `update_and_after_words_resolve_like_tcl_get_index_from_obj`,
+  `try_handler_type_resolves_like_tcl_get_index_from_obj`, and
+  `seek_origin_resolves_like_tcl_get_index_from_obj`.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

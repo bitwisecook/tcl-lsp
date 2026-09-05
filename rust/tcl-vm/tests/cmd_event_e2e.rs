@@ -198,6 +198,47 @@ fn after_bad_argument() {
     );
 }
 
+/// Issue #1607: `update`'s option and `after`'s subcommand word both resolve
+/// through the one `Tcl_GetIndexFromObj` matcher. `update`'s is an ordinary
+/// one-entry table, so a miss is always `bad` — never `ambiguous`, not even
+/// for the empty word. `after`'s scan is *silent* in C (`Tcl_GetIndexFromObj`
+/// with a NULL interp), so a miss falls through to the integer parse and
+/// `after` composes its own sentence — including for the ambiguous `i`.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   update {}   -> bad option "": must be idletasks
+///   update i    -> {}     (abbreviation accepted)
+///   after in    -> {}     (info)      ;  after ca 1 -> {}   (cancel)
+///   after i     -> bad argument "i": must be cancel, idle, info, or an integer
+///   after {}    -> bad argument "": must be cancel, idle, info, or an integer
+#[test]
+fn update_and_after_words_resolve_like_tcl_get_index_from_obj() {
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(ok, "expected the catch to succeed for {src}");
+        result
+    };
+    assert_eq!(
+        msg("catch {update {}} e; set e"),
+        "bad option \"\": must be idletasks"
+    );
+    // A unique prefix resolves.
+    let (ok, _msg, _) = run("update i");
+    assert!(ok, "`update i` must resolve to idletasks");
+    // `after`'s silent scan: `in` and `ca` resolve, `i` is ambiguous and so
+    // reaches the integer parse, where `after` words its own miss.
+    assert_eq!(msg("catch {after in} e; set e"), "");
+    assert_eq!(msg("catch {after ca 1} e; set e"), "");
+    assert_eq!(
+        msg("catch {after i} e; set e"),
+        "bad argument \"i\": must be cancel, idle, info, or an integer"
+    );
+    assert_eq!(
+        msg("catch {after {}} e; set e"),
+        "bad argument \"\": must be cancel, idle, info, or an integer"
+    );
+}
+
 // The coroutine driver: after 0 $coro
 
 #[test]
