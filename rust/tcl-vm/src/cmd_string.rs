@@ -114,31 +114,22 @@ const STRING_SUBS: &[&str] = &[
     "wordstart",
 ];
 
-/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name,
-/// honouring Tcl's unique-prefix matching. Returns the standard error message on
-/// no/ambiguous match.
+/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name
+/// through the shared ensemble owner (`string` is a `TclMakeEnsemble` command),
+/// or the ensemble's own miss sentence — including its comma before `or`, which
+/// `prefix::choice_list` words differently.
 fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
-    if let Some(&s) = STRING_SUBS.iter().find(|&&s| s == input) {
-        return Ok(s);
-    }
-    let mut hits = STRING_SUBS.iter().filter(|&&s| s.starts_with(input));
-    match (hits.next(), hits.next()) {
-        (Some(&s), None) if !input.is_empty() => Ok(s),
-        _ => {
-            let mut list = String::new();
-            for (i, s) in STRING_SUBS.iter().enumerate() {
-                if i > 0 {
-                    list.push_str(", ");
-                }
-                if i == STRING_SUBS.len() - 1 {
-                    list.push_str("or ");
-                }
-                list.push_str(s);
-            }
-            Err(format!(
-                "unknown or ambiguous subcommand \"{input}\": must be {list}"
+    match tcl_cmd_core::ensemble::resolve_subcommand(STRING_SUBS, input.as_bytes(), true) {
+        Some(index) => Ok(STRING_SUBS[index]),
+        None => Err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                STRING_SUBS,
+                input.as_bytes(),
+                true,
+                b"::tcl::string",
             ))
-        }
+            .into_owned(),
+        ),
     }
 }
 

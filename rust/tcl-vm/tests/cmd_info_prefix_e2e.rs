@@ -224,6 +224,50 @@ fn prefix_match_ambiguous_and_bad() {
     assert_eq!(msg, r#"bad option "z": no valid options"#);
 }
 
+/// Issue #1607: `tcl::prefix` is itself a `TclMakeEnsemble` command, and
+/// `tcl::prefix match`'s own options are a `Tcl_GetIndexFromObj(…, "option", 0)`
+/// table (`matchOptions[]`, `tclIndexObj.c`) — both were matched exactly here.
+///
+/// tclsh 8.6.16 / 9.0.4:
+/// ```text
+/// tcl::prefix {} {a} a         -> unknown or ambiguous subcommand "":
+///                                 must be all, longest, or match
+/// tcl::prefix m {a} a          -> a
+/// tcl::prefix match -e {a} a   -> ambiguous option "-e": must be -error,
+///                                 -exact, or -message
+/// tcl::prefix match -x {a} a   -> bad option "-x": must be -error, -exact,
+///                                 or -message
+/// tcl::prefix match -m noun {a} b -> bad noun "b": must be a
+/// ```
+#[test]
+fn prefix_ensemble_and_match_options_resolve_like_tclsh() {
+    const OPT_MUST: &str = "must be -error, -exact, or -message";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("tcl::prefix {} {a} a"),
+        "unknown or ambiguous subcommand \"\": must be all, longest, or match"
+    );
+    assert_eq!(run("tcl::prefix m {a} a").1, "a");
+    assert_eq!(run("tcl::prefix l {apple applet} ap").1, "apple");
+    assert_eq!(
+        msg("tcl::prefix match -e {a} a"),
+        format!("ambiguous option \"-e\": {OPT_MUST}")
+    );
+    assert_eq!(
+        msg("tcl::prefix match -x {a} a"),
+        format!("bad option \"-x\": {OPT_MUST}")
+    );
+    // `-m` uniquely abbreviates `-message`, whose value becomes the noun.
+    assert_eq!(
+        msg("tcl::prefix match -m noun {a} b"),
+        "bad noun \"b\": must be a"
+    );
+}
+
 /// The empty word never abbreviation-matches: one entry reports `bad`, two or
 /// more report `ambiguous` — C's `Tcl_GetIndexFromObjStruct` rejects the empty
 /// key before the abbreviation count is consulted. (Previously the VM resolved

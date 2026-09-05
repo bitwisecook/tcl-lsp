@@ -512,7 +512,10 @@ entry point, or gate moves without this contract being updated.
   and `file` ensembles (the VM's two hand-rolled
   exact-then-unique-prefix loops and its list-less miss sentence are
   gone; the runtime's `file` keeps the registry's release-gated name
-  set and borrows only the sentence).
+  set and borrows only the sentence), plus their `string` and
+  `tcl::prefix` ensembles — `tcl::prefix`'s enumeration used to come
+  from `prefix::choice_list_bytes`, the wrong owner, which happens to
+  agree only because that list has three entries.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -877,6 +880,13 @@ helper without reading the rationale:
   `info_and_file_ensemble_misses_carry_the_full_option_list`; the
   `cmd_info.rs` / `cmd_fs.rs` test modules in `runtime/rust` carry the
   matching `*_ensemble_miss_carries_the_full_option_list` rows.
+- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs`
+  (`prefix_ensemble_and_match_options_resolve_like_tclsh`),
+  `cmd_string_e2e.rs` (`string_subcommand_dispatch`, tightened from
+  `starts_with` to the full tclsh 9.0.4 text), and the `cmd_string.rs`
+  test module in `runtime/rust`
+  (`string_and_prefix_ensembles_resolve_like_tclsh`, which also pins
+  `string is`'s `class` and `option` nouns).
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

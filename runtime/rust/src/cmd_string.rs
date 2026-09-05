@@ -125,15 +125,20 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
     // its `trimleft`/`trimright` prefixes via the exact-match rule.
     let sub = obj_bytes(argv[1]);
-    let canonical: &[u8] = match index_lookup(STRING_SUBCOMMANDS, &sub) {
-        Resolution::Exact(i) | Resolution::UniquePrefix(i) => STRING_SUBCOMMANDS[i],
-        Resolution::NoMatch | Resolution::Ambiguous => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(&sub);
-            m.extend_from_slice(b"\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart");
-            return interp.set_error(&m);
-        }
-    };
+    let canonical: &[u8] =
+        match tcl_cmd_core::ensemble::resolve_subcommand(STRING_SUBCOMMANDS, &sub, true) {
+            Some(index) => STRING_SUBCOMMANDS[index],
+            // The whole sentence — including the ensemble's comma before `or` —
+            // belongs to the owner, not to a literal beside the table.
+            None => {
+                return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    STRING_SUBCOMMANDS,
+                    &sub,
+                    true,
+                    b"::tcl::string",
+                ));
+            }
+        };
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`),
     // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.
@@ -335,35 +340,33 @@ fn tcl_string_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     str_reverse(interp, &shifted)
 }
 
-/// Render an option set as Tcl's `a, b, or c` / `a or b` / `a` enumeration —
-/// the shared `Tcl_GetIndexFromObjStruct` formatter.
-fn enum_must_be(items: &[Vec<u8>]) -> Vec<u8> {
-    tcl_cmd_core::prefix::choice_list_bytes(items)
-}
-
 /// `tcl::prefix match|all|longest …` — prefix matching against a table
 /// (`Tcl_PrefixMatchObjCmd` / `Tcl_PrefixAllObjCmd` / `Tcl_PrefixLongestObjCmd`).
 fn tcl_prefix(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"tcl::prefix subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
-        b"match" => tcl_prefix_match(interp, argv),
+    let word = obj_bytes(argv[1]);
+    let canon = match tcl_cmd_core::ensemble::resolve_subcommand(PREFIX_SUBS, &word, true) {
+        Some(index) => PREFIX_SUBS[index],
+        None => {
+            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                PREFIX_SUBS,
+                &word,
+                true,
+                b"::tcl::prefix",
+            ));
+        }
+    };
+    match canon {
         b"all" => tcl_prefix_all(interp, argv),
         b"longest" => tcl_prefix_longest(interp, argv),
-        other => {
-            let subs: Vec<Vec<u8>> = [b"all".as_ref(), b"longest", b"match"]
-                .iter()
-                .map(|s| s.to_vec())
-                .collect();
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be ");
-            m.extend_from_slice(&enum_must_be(&subs));
-            interp.set_error(&m)
-        }
+        _ => tcl_prefix_match(interp, argv),
     }
 }
+
+/// `tcl::prefix`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+const PREFIX_SUBS: &[&[u8]] = &[b"all", b"longest", b"match"];
 
 /// Split `s` as a Tcl list, or set the full list-parse error and return the
 /// failing `Code` (used by the `tcl::prefix` subcommands).
@@ -382,7 +385,12 @@ fn split_list_or_error(interp: &mut Interp, s: &[u8]) -> Result<Vec<Vec<u8>>, Co
     }
 }
 
-const PREFIX_MATCH_OPTIONS: &[&[u8]] = &[b"-error", b"-exact", b"-message"];
+/// `tcl::prefix match`'s own option words, in C table order (`matchOptions[]`,
+/// `tclIndexObj.c`): `Tcl_GetIndexFromObj(…, "option", 0)`, so `-m`
+/// abbreviates `-message` while `-e` prefixes both `-error` and `-exact` and
+/// is `ambiguous option "-e"`.
+const PREFIX_MATCH_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-error", b"-exact", b"-message"]);
 
 fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // tcl::prefix match ?options? table string
@@ -399,19 +407,19 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut i = 2;
     while i < opt_end {
         let opt = obj_bytes(argv[i]);
-        match index_lookup(PREFIX_MATCH_OPTIONS, &opt) {
-            Resolution::Exact(1) | Resolution::UniquePrefix(1) => {
+        match PREFIX_MATCH_OPTIONS.index_of(&opt) {
+            Ok(1) => {
                 exact = true;
                 i += 1;
             }
-            Resolution::Exact(2) | Resolution::UniquePrefix(2) => {
+            Ok(2) => {
                 if i + 1 >= opt_end {
                     return interp.set_error(b"missing value for -message");
                 }
                 message = obj_bytes(argv[i + 1]);
                 i += 2;
             }
-            Resolution::Exact(_) | Resolution::UniquePrefix(_) => {
+            Ok(_) => {
                 if i + 1 >= opt_end {
                     return interp.set_error(b"missing value for -error");
                 }
@@ -426,17 +434,7 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 error_opts = Some(val);
                 i += 2;
             }
-            bad => {
-                let verb: &[u8] = if matches!(bad, Resolution::Ambiguous) {
-                    b"ambiguous option \""
-                } else {
-                    b"bad option \""
-                };
-                let mut m = verb.to_vec();
-                m.extend_from_slice(&opt);
-                m.extend_from_slice(b"\": must be -error, -exact, or -message");
-                return interp.set_error(&m);
-            }
+            Err(m) => return interp.set_error(&m),
         }
     }
     let table = match split_list_or_error(interp, &obj_bytes(argv[argv.len() - 2])) {
@@ -905,7 +903,10 @@ fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `StringIsCmd`'s `isClasses[]`). The order is significant: it drives the
 /// `bad class`/`ambiguous class` "must be …" diagnostic, and the class is
 /// resolved against this table by exact name or unambiguous prefix.
-const IS_CLASSES: &[&[u8]] = &[
+const IS_CLASSES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("class", IS_CLASS_NAMES);
+
+const IS_CLASS_NAMES: &[&[u8]] = &[
     b"alnum",
     b"alpha",
     b"ascii",
@@ -930,18 +931,10 @@ const IS_CLASSES: &[&[u8]] = &[
     b"xdigit",
 ];
 
-/// `string is` option table (for the `-strict`/`-failindex` prefix match).
-const IS_OPTIONS: &[&[u8]] = &[b"-strict", b"-failindex"];
-
-/// Resolve `arg` against `table` like `Tcl_GetIndexFromObj` (flags 0): an exact
-/// match wins, else a *unique* prefix; ambiguous and no-match are distinguished
-/// so the caller can emit `bad`/`ambiguous` as C does. An empty `arg` never
-/// abbreviates, but — per C — its miss is worded `ambiguous` when it trivially
-/// prefixes two or more entries (tclsh8.6: `string is "" x` → `ambiguous
-/// class ""…`; the old local matcher said `bad`).
-fn index_lookup(table: &[&[u8]], arg: &[u8]) -> Resolution {
-    tcl_cmd_core::prefix::scan(table, arg, false)
-}
+/// `string is`'s own options (`Tcl_GetIndexFromObj(…, "option", 0)`), in C
+/// table order — the two-entry enumeration has no comma before `or`.
+const IS_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-strict", b"-failindex"]);
 
 /// `string is class ?-strict? ?-failindex var? string`. Returns 1/0; with
 /// `-failindex`, stores the first failing character index in `var` — but **only
@@ -953,12 +946,9 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(USAGE);
     }
     let class_arg = obj_bytes(argv[2]);
-    let class: &[u8] = match index_lookup(IS_CLASSES, &class_arg) {
-        Resolution::Exact(i) | Resolution::UniquePrefix(i) => IS_CLASSES[i],
-        Resolution::Ambiguous => {
-            return interp.set_error(&class_err(b"ambiguous class", &class_arg));
-        }
-        Resolution::NoMatch => return interp.set_error(&class_err(b"bad class", &class_arg)),
+    let class: &[u8] = match IS_CLASSES.index_of(&class_arg) {
+        Ok(i) => IS_CLASSES.names()[i],
+        Err(m) => return interp.set_error(&m),
     };
 
     // The last argument is always the string under test; the args between the
@@ -969,12 +959,12 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut k = 3;
     while k < last {
         let opt = obj_bytes(argv[k]);
-        match index_lookup(IS_OPTIONS, &opt) {
-            Resolution::Exact(0) | Resolution::UniquePrefix(0) => {
+        match IS_OPTIONS.index_of(&opt) {
+            Ok(0) => {
                 strict = true;
                 k += 1;
             }
-            Resolution::Exact(_) | Resolution::UniquePrefix(_) => {
+            Ok(_) => {
                 if k + 1 >= last {
                     // C names the resolved class here (`string is double …`), not
                     // the generic "class" the arg-count check uses.
@@ -986,10 +976,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 failvar = Some(obj_bytes(argv[k + 1]));
                 k += 2;
             }
-            Resolution::Ambiguous => {
-                return interp.set_error(&option_err(b"ambiguous option", &opt));
-            }
-            Resolution::NoMatch => return interp.set_error(&option_err(b"bad option", &opt)),
+            Err(m) => return interp.set_error(&m),
         }
     }
 
@@ -1016,26 +1003,6 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(if ok { b"1" } else { b"0" });
     Code::Ok
-}
-
-/// `bad class "X": must be …` / `ambiguous class "X": must be …`.
-fn class_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
-    let mut m = kind.to_vec();
-    m.extend_from_slice(b" \"");
-    m.extend_from_slice(arg);
-    m.extend_from_slice(b"\": must be ");
-    let classes: Vec<Vec<u8>> = IS_CLASSES.iter().map(|s| s.to_vec()).collect();
-    m.extend_from_slice(&tcl_cmd_core::ensemble::subcommand_choices(&classes));
-    m
-}
-
-/// `bad option "X": must be -strict or -failindex` (two-item form: no comma).
-fn option_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
-    let mut m = kind.to_vec();
-    m.extend_from_slice(b" \"");
-    m.extend_from_slice(arg);
-    m.extend_from_slice(b"\": must be -strict or -failindex");
-    m
 }
 
 // `string is` classification now lives in the shared `tcl_cmd_core::string_is`
@@ -1276,6 +1243,63 @@ mod tests {
         );
         assert_eq!(ok(b"tcl::prefix longest {apple apricot banana} ap"), b"ap");
         assert_eq!(ok(b"tcl::prefix match -error {} {apple apricot} xy"), b"");
+    }
+
+    /// Issue #1607: `string` and `tcl::prefix` are `TclMakeEnsemble` commands,
+    /// so both the scan and the whole miss sentence belong to
+    /// `tcl_cmd_core::ensemble`; `tcl::prefix`'s dispatch matched exactly and
+    /// its enumeration came from `prefix::choice_list_bytes` (the wrong owner —
+    /// the same bytes only because the list has three entries).
+    /// `tcl::prefix match`'s own options and `string is`'s class/option words
+    /// are `Tcl_GetIndexFromObj` tables whose sentences were spelled by hand.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   tcl::prefix {} {a} a       -> unknown or ambiguous subcommand "":
+    ///                                 must be all, longest, or match
+    ///   tcl::prefix m {a} a        -> a
+    ///   tcl::prefix match -e {a} a -> ambiguous option "-e": must be -error,
+    ///                                 -exact, or -message
+    ///   tcl::prefix match -x {a} a -> bad option "-x": must be <same>
+    ///   string {} a                -> unknown or ambiguous subcommand "":
+    ///                                 must be cat, compare, …, or wordstart
+    ///   string is {} x             -> ambiguous class "": must be alnum, …
+    ///   string is integer -z x     -> bad option "-z": must be -strict or -failindex
+    #[test]
+    fn string_and_prefix_ensembles_resolve_like_tclsh() {
+        const OPT_MUST: &str = "must be -error, -exact, or -message";
+        const STRING_MUST: &str = "must be cat, compare, equal, first, index, insert, is, last, \
+                                   length, map, match, range, repeat, replace, reverse, tolower, \
+                                   totitle, toupper, trim, trimleft, trimright, wordend, or \
+                                   wordstart";
+        assert_eq!(
+            err(b"tcl::prefix {} {a} a"),
+            b"unknown or ambiguous subcommand \"\": must be all, longest, or match"
+        );
+        assert_eq!(ok(b"tcl::prefix m {a} a"), b"a");
+        assert_eq!(
+            err(b"tcl::prefix match -e {a} a"),
+            format!("ambiguous option \"-e\": {OPT_MUST}").as_bytes()
+        );
+        assert_eq!(
+            err(b"tcl::prefix match -x {a} a"),
+            format!("bad option \"-x\": {OPT_MUST}").as_bytes()
+        );
+        assert_eq!(
+            err(b"string {} a"),
+            format!("unknown or ambiguous subcommand \"\": {STRING_MUST}").as_bytes()
+        );
+        assert_eq!(
+            err(b"string to abc"),
+            format!("unknown or ambiguous subcommand \"to\": {STRING_MUST}").as_bytes()
+        );
+        assert_eq!(ok(b"string le hello"), b"5");
+        // `string is`'s class and option words are plain option tables.
+        assert!(err(b"string is {} x").starts_with(b"ambiguous class \"\": must be alnum, "));
+        assert_eq!(
+            err(b"string is integer -z x"),
+            b"bad option \"-z\": must be -strict or -failindex"
+        );
+        assert_eq!(ok(b"string is int 12"), b"1");
     }
 
     #[test]
