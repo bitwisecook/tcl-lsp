@@ -55,7 +55,8 @@
 //! link (`__memory_base` relocation) — both later increments.
 
 use tcl_compiler::codegen::wasm::{
-    ValType, WasmCompileOptions, WasmFunction, WasmInstruction, WasmModule, WasmOp, compile_wasm,
+    GlobalInit, ValType, WasmCompileOptions, WasmFunction, WasmGlobal, WasmInstruction, WasmModule,
+    WasmOp, compile_wasm,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
@@ -353,5 +354,117 @@ fn emitted_completion_codes_propagate() {
     assert_eq!(
         run_capture_code("while {1} {puts body}\nputs after\n", 1, 3, "brkLoop"),
         "puts body\nputs after\n"
+    );
+}
+
+/// A host stub standing in for the linked runtime's table half: it exports a
+/// **growable** function table and one function that calls back through it.
+const TABLE_HOST_WAT: &str = r#"(module
+  (memory (export "memory") 1)
+  (table (export "__indirect_function_table") 1 funcref)
+  (type $slot_t (func (result i32)))
+  (func (export "tcl_call_slot") (param $slot i32) (result i32)
+    (call_indirect (type $slot_t) (local.get $slot))))
+"#;
+
+/// A module in the shape issue #1774 emits: import the runtime's table, grow
+/// it, keep the base in a global, install a function of its own, and have the
+/// host call it back through the table.
+///
+/// The installed function is deliberately **not** exported, so the declarative
+/// element segment is the only thing making its `ref.func` legal — which is
+/// what the segment is there to guarantee once a later change stops exporting
+/// generated functions.
+fn table_install_module() -> WasmModule {
+    let mut m = WasmModule::new();
+    let call_slot = m.add_import("tcl", "tcl_call_slot", &[ValType::I32], &[ValType::I32]);
+    m.import_table = true;
+    m.globals.push(WasmGlobal {
+        name: "table_base".into(),
+        mutable: true,
+        init: GlobalInit::I32(-1),
+    });
+    let answer_index = u32::try_from(m.imports.len()).expect("import count fits u32");
+    m.elem_declared.push(answer_index);
+    m.functions.push(WasmFunction {
+        name: "answer".into(),
+        params: vec![],
+        results: vec![ValType::I32],
+        locals: vec![],
+        body: vec![WasmInstruction::with_operands(WasmOp::I32Const, vec![42])],
+        local_names: vec![],
+        exported: false,
+        source_range: None,
+        kind: "proc".into(),
+    });
+    m.functions.push(WasmFunction {
+        name: "::top".into(),
+        params: vec![],
+        results: vec![ValType::I32],
+        locals: vec![],
+        body: vec![
+            // base = table.grow(null, 1); traps below if the host's table is
+            // not growable, because table.set at -1 is out of bounds.
+            WasmInstruction::ref_null_func(),
+            WasmInstruction::with_operands(WasmOp::I32Const, vec![0x01]),
+            WasmInstruction::table_grow(0),
+            WasmInstruction::with_operands(WasmOp::GlobalSet, vec![0x00]),
+            // table[base] = ref.func $answer
+            WasmInstruction::with_operands(WasmOp::GlobalGet, vec![0x00]),
+            WasmInstruction::ref_func(answer_index),
+            WasmInstruction::table_set(0),
+            // return host(base)
+            WasmInstruction::with_operands(WasmOp::GlobalGet, vec![0x00]),
+            WasmInstruction::with_operands(
+                WasmOp::Call,
+                vec![u8::try_from(call_slot).expect("import index fits a byte")],
+            ),
+        ],
+        local_names: vec![],
+        exported: true,
+        source_range: None,
+        kind: "top".into(),
+    });
+    m
+}
+
+/// The IR's table, global and element encodings are accepted by a real engine,
+/// and the installed function is reachable through the shared table.
+///
+/// The unit tests in `ir.rs` pin the bytes; this proves the bytes are a module
+/// wasmtime will validate, instantiate and run — the half a byte assertion
+/// cannot reach.
+#[test]
+fn an_emitted_module_installs_a_function_into_the_hosts_table() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the table-install execution");
+        return;
+    }
+    let tmp = std::env::temp_dir();
+    let host = tmp.join("tcl_e2e_host_table.wat");
+    let user = tmp.join("tcl_e2e_user_table.wasm");
+    std::fs::write(&host, TABLE_HOST_WAT).expect("write table host");
+    std::fs::write(&user, table_install_module().to_bytes()).expect("write user module");
+    let out = std::process::Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", host.display()))
+        .arg("--invoke")
+        .arg("::top")
+        .arg(&user)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&host);
+    let _ = std::fs::remove_file(&user);
+    assert!(
+        out.status.success(),
+        "the table-installing module did not run:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("42"),
+        "the host must reach the installed function through the table, got {:?}",
+        String::from_utf8_lossy(&out.stdout)
     );
 }
