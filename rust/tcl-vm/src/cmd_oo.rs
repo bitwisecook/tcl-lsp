@@ -2274,13 +2274,32 @@ const ISA_CATEGORIES: tcl_cmd_core::prefix::OptionTable<'static> =
 
 /// `info object isa category object ?arg?`.
 fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    // C checks the arity in two stages (`InfoObjectIsACmd`, tclOOInfo.c).
+    // First, `category objName` must both be present — *before* the category
+    // word is resolved, so `info object isa object` is this message and not a
+    // category error.
     let (Some(kind), Some(obj_arg)) = (rest.first(), rest.get(1)) else {
-        return err("wrong # args: should be \"info object isa category object ?arg ...?\"");
+        return err("wrong # args: should be \"info object isa category objName ?arg ...?\"");
     };
     let kind = match ISA_CATEGORIES.index_of_str(&kind.to_str()) {
         Ok(i) => ISA_CATEGORIES.names()[i],
         Err(e) => return err(e.into_message()),
     };
+    // Then each category pins an *exact* count — C's second stage,
+    // `Tcl_WrongNumArgs(interp, 2, objv, …)`, whose noun carries the resolved
+    // category word (an index-typed argument prints as its table entry). So
+    // `info object isa t o` is `"info object isa typeof objName className"`,
+    // and a trailing extra word is an error rather than being ignored.
+    let (want, tail) = match kind {
+        "mixin" | "typeof" => (3, " objName className"),
+        // class / metaclass / object.
+        _ => (2, " objName"),
+    };
+    if rest.len() != want {
+        return err(format!(
+            "wrong # args: should be \"info object isa {kind}{tail}\""
+        ));
+    }
     let obj = vm.qualify_name(&obj_arg.to_str());
     // `isa object` on a non-object is a plain false, not an error — the same
     // test the `tclooIsObject` opcode this form compiles to performs.

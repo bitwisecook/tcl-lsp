@@ -3194,6 +3194,14 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if sub == b"call" && argv.len() != 5 {
         return wrong_args(interp, b"info object call objName methodName");
     }
+    // `isa` reads `category objName ?className?`, and C checks that both of
+    // the first two are present *before* it resolves the category
+    // (`InfoObjectIsACmd`, tclOOInfo.c) — so `info object isa object` is this
+    // message, not a category error. The per-category counts follow in the
+    // arm, once the word is known.
+    if sub == b"isa" && argv.len() < 5 {
+        return wrong_args(interp, b"info object isa category objName ?arg ...?");
+    }
     if argv.len() < 4 {
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
     }
@@ -3236,12 +3244,22 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(index) => ISA_CATEGORIES.names()[index],
                 Err(m) => return interp.set_error(&m),
             };
-            // `mixin` and `typeof` need the trailing class word.
-            if matches!(cat, b"mixin" | b"typeof") && argv.len() < 6 {
-                let mut m = b"wrong # args: should be \"info object isa ".to_vec();
+            // Each category then pins an *exact* count — C's second stage,
+            // `Tcl_WrongNumArgs(interp, 2, objv, …)`, so the noun carries the
+            // resolved category word (an index-typed argument prints as its
+            // table entry): `info object isa t o` is
+            // `"info object isa typeof objName className"`, and a trailing
+            // extra word is an error rather than being ignored.
+            let (want, tail) = match cat {
+                b"mixin" | b"typeof" => (6, b" objName className".as_slice()),
+                // class / metaclass / object.
+                _ => (5, b" objName".as_slice()),
+            };
+            if argv.len() != want {
+                let mut m = b"info object isa ".to_vec();
                 m.extend_from_slice(cat);
-                m.extend_from_slice(b" objName className\"");
-                return interp.set_error(&m);
+                m.extend_from_slice(tail);
+                return wrong_args(interp, &m);
             }
             // Resolve the object name following import aliases to the origin
             // command, so an imported object command is recognised (oo-1.10).
@@ -6193,6 +6211,87 @@ mod tests {
     ///   oo::define D {method n -x {} {}}
     ///                         -> bad export flag "-x": must be -export,
     ///                            -private, or -unexport
+    /// The other half of `info object isa`'s dispatch: once the category
+    /// resolves, C checks an **exact** argument count per category
+    /// (`InfoObjectIsACmd`, tclOOInfo.c) — two trailing words for
+    /// `class`/`metaclass`/`object`, three for `mixin`/`typeof`. Resolving the
+    /// category by prefix without that second stage answers `0` for
+    /// `info object isa t $obj` (a missing class name) and `1` for
+    /// `info object isa ob $obj extra` (a word C refuses).
+    ///
+    /// The noun is C's `Tcl_WrongNumArgs(interp, 2, objv, …)`, so it carries
+    /// the *resolved* category word: an index-typed argument prints as its
+    /// table entry, which is why `isa t o` reports `typeof`. The
+    /// two-words-missing case is checked before the category is resolved at
+    /// all, so `info object isa object` is the generic message.
+    ///
+    /// tclsh 8.6.16 and 9.0.4, byte-identical:
+    ///   info object isa                -> wrong # args: should be "info
+    ///                                     object isa category objName ?arg ...?"
+    ///   info object isa object         -> <same>
+    ///   info object isa t o            -> wrong # args: should be "info
+    ///                                     object isa typeof objName className"
+    ///   info object isa ob o extra     -> wrong # args: should be "info
+    ///                                     object isa object objName"
+    ///   info object isa cl o extra     -> … "info object isa class objName"
+    ///   info object isa metaclass o e  -> … "info object isa metaclass objName"
+    ///   info object isa mi o           -> … "info object isa mixin objName className"
+    ///   info object isa mixin o C x    -> <same>
+    ///   info object isa ty o C x       -> … "info object isa typeof objName className"
+    #[test]
+    fn info_object_isa_enforces_the_per_category_arity() {
+        leak_free(|i| {
+            let err_of = |i: &mut Interp, src: &[u8]| {
+                assert_eq!(
+                    i.eval_str(src),
+                    Code::Error,
+                    "expected an error for {:?}",
+                    String::from_utf8_lossy(src)
+                );
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            ok(i, b"oo::class create C");
+            ok(i, b"C create o");
+            const GENERIC: &str =
+                "wrong # args: should be \"info object isa category objName ?arg ...?\"";
+            assert_eq!(err_of(i, b"info object isa"), GENERIC);
+            assert_eq!(err_of(i, b"info object isa object"), GENERIC);
+            for (src, want) in [
+                (
+                    b"info object isa t o".as_slice(),
+                    "typeof objName className",
+                ),
+                (
+                    b"info object isa mi o".as_slice(),
+                    "mixin objName className",
+                ),
+                (
+                    b"info object isa mixin o C extra".as_slice(),
+                    "mixin objName className",
+                ),
+                (
+                    b"info object isa ty o C extra".as_slice(),
+                    "typeof objName className",
+                ),
+                (b"info object isa ob o extra".as_slice(), "object objName"),
+                (b"info object isa cl o extra".as_slice(), "class objName"),
+                (
+                    b"info object isa metaclass o extra".as_slice(),
+                    "metaclass objName",
+                ),
+            ] {
+                assert_eq!(
+                    err_of(i, src),
+                    format!("wrong # args: should be \"info object isa {want}\"")
+                );
+            }
+            // The exact counts still answer.
+            assert_eq!(ok(i, b"info object isa object nosuchobj"), b"0");
+            assert_eq!(ok(i, b"info object isa typeof o C"), b"1");
+            assert_eq!(ok(i, b"info object isa mixin o C"), b"0");
+        });
+    }
+
     #[test]
     fn oo_option_tables_resolve_like_tcl_get_index_from_obj() {
         const CATEGORY: &str = "must be class, metaclass, mixin, object, or typeof";

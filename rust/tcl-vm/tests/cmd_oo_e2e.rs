@@ -305,6 +305,66 @@ fn tip558_configurable_property_abbreviates() {
     );
 }
 
+/// The other half of `info object isa`'s dispatch: once the category
+/// resolves, C checks an **exact** argument count per category
+/// (`InfoObjectIsACmd`, tclOOInfo.c) — two trailing words for
+/// `class`/`metaclass`/`object`, three for `mixin`/`typeof`. Resolving the
+/// category by prefix without that second stage answers `0` for
+/// `info object isa t $obj` (a missing class name) and `1` for
+/// `info object isa ob $obj extra` (a word C refuses).
+///
+/// The noun is C's `Tcl_WrongNumArgs(interp, 2, objv, …)`, so it carries the
+/// *resolved* category word — an index-typed argument prints as its table
+/// entry, which is why `isa t o` reports `typeof`. The two-words-missing case
+/// is checked before the category is resolved, so `info object isa object` is
+/// the generic message.
+///
+/// tclsh 8.6.16 and 9.0.4, byte-identical:
+///   info object isa               -> wrong # args: should be "info object isa
+///                                    category objName ?arg ...?"
+///   info object isa object        -> <same>
+///   info object isa t o           -> wrong # args: should be "info object isa
+///                                    typeof objName className"
+///   info object isa ob o extra    -> … "info object isa object objName"
+///   info object isa cl o extra    -> … "info object isa class objName"
+///   info object isa metaclass o e -> … "info object isa metaclass objName"
+///   info object isa mi o          -> … "info object isa mixin objName className"
+///   info object isa mixin o C x   -> <same>
+///   info object isa ty o C x      -> … "info object isa typeof objName className"
+#[test]
+fn info_object_isa_enforces_the_per_category_arity() {
+    const SETUP: &str = "oo::class create C { method m {} {return 1} }\nC create o\n";
+    let msg = |tail: &str| {
+        let (ok, result, _) = run(&format!("{SETUP}{tail}"));
+        assert!(!ok, "expected an error for {tail}");
+        result
+    };
+    const GENERIC: &str = "wrong # args: should be \"info object isa category objName ?arg ...?\"";
+    assert_eq!(msg("info object isa"), GENERIC);
+    assert_eq!(msg("info object isa object"), GENERIC);
+    for (tail, want) in [
+        ("info object isa t o", "typeof objName className"),
+        ("info object isa mi o", "mixin objName className"),
+        ("info object isa mixin o C extra", "mixin objName className"),
+        ("info object isa ty o C extra", "typeof objName className"),
+        ("info object isa ob o extra", "object objName"),
+        ("info object isa cl o extra", "class objName"),
+        ("info object isa metaclass o extra", "metaclass objName"),
+    ] {
+        assert_eq!(
+            msg(tail),
+            format!("wrong # args: should be \"info object isa {want}\"")
+        );
+    }
+    // The exact counts still answer.
+    assert_eq!(
+        run(&format!("{SETUP}info object isa object nosuchobj")).1,
+        "0"
+    );
+    assert_eq!(run(&format!("{SETUP}info object isa typeof o C")).1, "1");
+    assert_eq!(run(&format!("{SETUP}info object isa mixin o C")).1, "0");
+}
+
 /// Issue #1607: `info object isa`'s category is a
 /// `Tcl_GetIndexFromObj(…, "category", 0)` table (`tclOOInfo.c`), so `cl`/`ob`/
 /// `t` abbreviate, `m` is ambiguous (metaclass/mixin), and the enumeration
