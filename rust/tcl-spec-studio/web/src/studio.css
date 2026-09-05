@@ -127,6 +127,43 @@ footer a { color: var(--accent); }
 .cmdlist button { min-width: 0; }
 .cmdlist .badge { color: var(--muted); font-size: .72rem; }
 
+/* The open-command strip, above the workbench's own tabs.
+ *
+ * It never wraps. A strip that wraps changes height as tabs open and close,
+ * which moves the form underneath it — the same failure the documentation dock
+ * is built to avoid — so it scrolls sideways instead, at every width, the way
+ * `.tabs` already does on a phone. Children hold their size (`flex: 0 0 auto`)
+ * for the same reason: twelve tabs squeezed to four characters each are twelve
+ * tabs you cannot read. */
+.opentabs {
+  display: flex; flex-wrap: nowrap; gap: .25rem; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: thin; margin-bottom: .5rem;
+}
+.opentabs[hidden] { display: none; }
+.opentab {
+  flex: 0 0 auto; display: flex; align-items: center; gap: .1rem;
+  border: 1px solid var(--border); border-radius: 8px 8px 0 0; border-bottom-width: 2px;
+  background: var(--bg);
+}
+.opentab > [role=tab] {
+  border: 0; background: transparent; color: var(--muted); font: inherit;
+  font-family: var(--mono); font-size: .8rem; font-weight: 600;
+  padding: .35rem .1rem .35rem .55rem; max-width: 14rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.opentab[data-active="true"] { border-bottom-color: var(--accent); background: var(--card); }
+.opentab[data-active="true"] > [role=tab] { color: var(--fg); }
+.opentab:hover > [role=tab] { color: var(--fg); }
+/* The command has been edited while open, so eviction passes it over — the
+   same mark an editor puts on a file it is holding work for. */
+.opentab .dot { flex: 0 0 auto; color: var(--accent); font-size: .7rem; line-height: 1; }
+.opentab .tabclose {
+  flex: 0 0 auto; border: 0; background: transparent; color: var(--muted);
+  font-size: .85rem; line-height: 1; padding: .3rem .45rem; border-radius: 6px;
+}
+.opentab .tabclose:hover { color: var(--err-fg); background: color-mix(in srgb, var(--err-fg) 12%, transparent); }
+.opentabs :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 /* Tab strip over the workbench panes. */
 .tabs { display: flex; flex-wrap: wrap; gap: .3rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
 .tabs button {
@@ -410,12 +447,22 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
 .palette li button { display: flex; gap: .6rem; align-items: baseline; width: 100%; text-align: left;
   border: 0; background: transparent; color: inherit; padding: .45rem 1rem; }
 .palette li button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.palette .nm { font-family: var(--mono); font-size: .86rem; font-weight: 600; }
-.palette .sm { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette .nm { font-family: var(--mono); font-size: .86rem; font-weight: 600; flex: 0 0 auto; }
+/* The summary takes the slack and gives it back: the provenance chips after it
+   are the whole point of the row, so they never get squeezed off the end. */
+.palette .sm { color: var(--muted); font-size: .78rem; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Where the query actually matched, in the name and in the summary alike. */
+.palette mark { background: color-mix(in srgb, var(--accent) 28%, transparent); color: inherit;
+  border-radius: 3px; padding: 0 .05em; }
+/* Which surfaces `/` looked in, and how much of each answered. */
+.palette .scope { color: var(--muted); font-size: .76rem; padding: .4rem 1rem;
+  border-bottom: 1px solid var(--border); }
 .palette .where { margin-left: auto; font-size: .7rem; color: var(--muted); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 .4rem; white-space: nowrap; }
-.palette .tag.pack { margin-left: auto; font-family: var(--mono); }
+.palette .tag.pack { margin-left: auto; font-family: var(--mono); flex: 0 0 auto; }
 .palette .tag.pack + .where { margin-left: .3rem; }
+.palette .where { flex: 0 0 auto; }
 .palette .foot { color: var(--muted); font-size: .76rem; padding: .45rem 1rem; border-top: 1px solid var(--border); }
 .navbtns { display: flex; gap: .2rem; }
 .navbtns button { padding: .3rem .55rem; }
@@ -443,6 +490,9 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
   .finder { width: 100%; min-width: 0; flex-basis: 100%; }
   .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
   .tabs button { flex: 0 0 auto; }
+  /* The open-command strip already scrolls; on a phone the names shorten so
+     more than one tab is reachable without dragging the strip. */
+  .opentab > [role=tab] { max-width: 8.5rem; }
   .browser { max-height: 18rem; }
   .out pre { font-size: .74rem; max-height: 50vh; }
   .field .ctl select,
@@ -533,7 +583,8 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
    is untouched. */
 @media (pointer: coarse) {
   .toolbar button, .toolbar select, .toolbar input[type=search],
-  .finder button, .tabs button, .out .actions button, .actions button {
+  .finder button, .tabs button, .out .actions button, .actions button,
+  .opentab > [role=tab], .opentab .tabclose {
     min-height: 44px;
   }
   .cmdlist button { min-height: 44px; }

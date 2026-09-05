@@ -31,6 +31,8 @@
 // call here resolves rather than rejects, and the caller is told whether
 // persistence is live so it can say so in the UI.
 
+import { readStoredTabs, type StoredTab } from "./openTabs.js";
+
 /** What a reload restores. */
 export interface Session {
   /** The pack's `.tclspec` document — the studio's one authoritative model. */
@@ -55,6 +57,14 @@ export interface Session {
    * default for the viewport rather than as a failure to restore.
    */
   dockOpen?: boolean;
+  /**
+   * The commands that were open as tabs, in the strip's order.
+   *
+   * Absent in a record written before the studio held more than one command
+   * open, which restores as the single command `open` names — the older record
+   * still says everything it ever said.
+   */
+  tabs?: StoredTab[];
 }
 
 const DB_NAME = "tcl-spec-studio";
@@ -149,6 +159,7 @@ export async function load(): Promise<Session | null> {
           ? row.expanded.filter((id): id is string => typeof id === "string")
           : undefined,
         dockOpen: typeof row.dockOpen === "boolean" ? row.dockOpen : undefined,
+        tabs: row.tabs === undefined ? undefined : readStoredTabs(row.tabs),
       });
     };
     request.onerror = () => resolve(null);

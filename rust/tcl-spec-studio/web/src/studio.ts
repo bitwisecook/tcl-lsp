@@ -55,6 +55,32 @@ import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
 import { initReleasesPanel } from "./importReleases.js";
 import {
+  activeTab,
+  closeTab,
+  cycleIndex,
+  emptyTabs,
+  markEdited,
+  MAX_OPEN_TABS,
+  openTab,
+  rememberView,
+  renameTab,
+  restoreTabs,
+  retainTabs,
+  storedTabs,
+  tabIndex,
+  type OpenTab,
+  type TabSource,
+  type TabState,
+} from "./openTabs.js";
+import {
+  paletteSummary,
+  searchPalette,
+  surfaceLabel,
+  type Highlight,
+  type PaletteCandidate,
+  type PaletteHit,
+} from "./paletteSearch.js";
+import {
   alsoInSentence,
   browserCountLine,
   groupByPack,
@@ -205,6 +231,8 @@ interface State {
   /** The commands visited, oldest first, and where the cursor sits in them. */
   history: Visit[];
   historyAt: number;
+  /** The commands open as tabs, and which of them the form is showing. */
+  tabs: TabState;
 }
 
 let wasm: StudioWasm;
@@ -647,9 +675,14 @@ function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): vo
   }
   writeDsl(formatted);
 
-  // A command the document no longer declares cannot stay open.
+  // A command the document no longer declares cannot stay open — and a tab is
+  // a view of a declaration, so deleting one in this pane takes its tab too.
   const names = new Set((state.pack.view?.commands ?? []).map((c) => c.name));
-  if (state.pack.open && !names.has(state.pack.open)) state.pack.open = null;
+  const dropped = state.pack.open !== null && !names.has(state.pack.open);
+  if (dropped) state.pack.open = null;
+  const retained = retainTabs(state.tabs, names);
+  state.tabs = retained.state;
+  renderOpenTabs();
 
   renderPackList();
   renderDslReport();
@@ -658,6 +691,11 @@ function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): vo
   // test result change — but only pay for it while the tab is on screen.
   if (currentTab === "test") scheduleTest();
   scheduleSave();
+  // Bringing the next tab forward is not a navigation: the author deleted a
+  // declaration, they did not go anywhere.
+  if (!dropped) return;
+  if (retained.focus) showWithoutVisiting(retained.focus);
+  else openNothing();
 }
 
 /** The pack's file name, used for downloads and the file tray. */
@@ -693,6 +731,7 @@ function packOrigin(view: PackCommandView): string {
 
 /** Open one of the pack's own commands in the form. */
 function openPackCommand(name: string): void {
+  leaveOpenCommand();
   try {
     const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
     if (!view.pack) {
@@ -700,9 +739,15 @@ function openPackCommand(name: string): void {
       return;
     }
     state.pack.open = name;
+    const evicted = noteOpenTab(name, "pack");
     loadDraft(view.pack, packOrigin(view), name);
+    // The pane first: a scroll position restored into a hidden pane is a
+    // scroll position measured against the wrong page.
     selectTab("editor");
-    setStatus("status", "");
+    restoreTabView(name);
+    refreshDock();
+    const notice = evictionNotice(evicted);
+    setStatus("status", notice, notice ? "ok" : undefined);
     pushHistory({ name, where: "pack" });
     scheduleSave();
   } catch (e) {
@@ -729,6 +774,7 @@ function writeBackOpenCommand(): void {
     // file and the sidebar follows it to its new name.
     const renamed = typeof state.draft.name === "string" ? state.draft.name : target;
     state.pack.open = renamed;
+    if (renamed !== target) state.tabs = renameTab(state.tabs, target, renamed);
     setPackSource(written.source);
     // Both of these are losses the author has a right to hear about the moment
     // they happen, not when they read the file back.
@@ -794,7 +840,8 @@ function addDraftToPack(): void {
 function removeFromPack(name: string): void {
   try {
     const written = unwrap<PackWrite>(wasm.pack_remove_command(state.pack.source, name));
-    if (state.pack.open === name) state.pack.open = null;
+    // Deliberately left open: `setPackSource` is what notices the declaration
+    // has gone, closes its tab, and brings the next one forward.
     setPackSource(written.source);
     setStatus("status", `${name} removed from the pack`, "ok");
   } catch (e) {
@@ -967,6 +1014,7 @@ function scheduleSave(): void {
       sample: state.sample,
       expanded: [...state.expandedPacks],
       dockOpen,
+      tabs: storedTabs(state.tabs),
     });
   }, SAVE_MS);
 }
@@ -1034,6 +1082,13 @@ function renderEditorSource(): void {
  */
 function onFormEdit(): void {
   formDirty = true;
+  // An edited tab is somewhere the author is working, which is what makes it a
+  // worse thing for the cap to close than one merely read.
+  if (state.pack.open) {
+    const before = state.tabs;
+    state.tabs = markEdited(state.tabs, state.pack.open);
+    if (state.tabs !== before) renderOpenTabs();
+  }
   onDraftChanged();
 }
 
@@ -1141,6 +1196,7 @@ function loadTypedCommand(): void {
 }
 
 function openCommand(name: string): void {
+  leaveOpenCommand();
   // A pack declaration is the editable source of truth, even when the same
   // name also appears in the registry list. Re-opening it must not overwrite
   // the author's in-progress pack edit with a fresh shipped snapshot.
@@ -1165,9 +1221,12 @@ function openCommand(name: string): void {
     setPackSource(written.source);
     const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
     if (!view.pack) throw new Error(`the pack did not retain ${name}`);
+    const evicted = noteOpenTab(name, "registry");
     loadDraft(view.pack, packOrigin(view), name);
-    const upgraded = vocabularyUpgradeMessage(written);
-    setStatus("status", upgraded ?? "", upgraded ? "ok" : undefined);
+    restoreTabView(name);
+    refreshDock();
+    const upgraded = vocabularyUpgradeMessage(written) ?? evictionNotice(evicted);
+    setStatus("status", upgraded, upgraded ? "ok" : undefined);
     pushHistory({ name, where: "registry" });
   } catch (e) {
     setStatus("status", `could not load ${name}: ${String(e)}`, "err");
@@ -1432,6 +1491,9 @@ function addImportedToPack(): void {
         wasm.pack_command(state.pack.source, firstWritten, state.dialect),
       );
       if (view.pack) loadDraft(view.pack, packOrigin(view), firstWritten);
+      // Only once the draft is actually in the form: a tab that names a
+      // command the store would not hand back is a tab over nothing.
+      if (state.pack.open === firstWritten) noteOpenTab(firstWritten, "pack");
     } catch (e) {
       unreadable = message(e);
     }
@@ -1495,7 +1557,7 @@ function runImport(payload: { name: string; text: string }[]): void {
             class: "ghost",
             text: "Edit this spec →",
             onclick: () => {
-              loadDraft(clone(found.draft), `Inferred from imported source: ${found.name}`);
+              detachForm(clone(found.draft), `Inferred from imported source: ${found.name}`);
               selectTab("editor");
             },
           }),
@@ -1761,13 +1823,279 @@ function renderInspection(view: TestInspection): void {
   }
 }
 
+/* Open commands ---------------------------------------------------------- */
+
+// Several commands open at once, one tab each — because a pack is many
+// commands and one deliverable, and every comparison, every option table
+// copied across, every subcommand checked against its sibling used to be a
+// round trip through the browser list.
+//
+// A tab is a *view*, never a store. `state.pack.source` is still the whole
+// model and `writeBackOpenCommand` is still the only path from a form edit to
+// it; a tab holds a command's name and how its form was arranged, so the tab
+// the author comes back to is the one they left. There is no second copy of a
+// draft anywhere here.
+//
+// Tabs reconcile with the two navigation surfaces that already existed rather
+// than becoming a third: switching to a tab opens a command, so it goes
+// through `openPackCommand`/`openCommand` and is recorded as a visit like any
+// other open. Closing one goes nowhere, so it records nothing — the entry
+// showing is corrected in place so the address bar still names what is on
+// screen, and Back steps over exactly the places it did before.
+
+/**
+ * Write the form's pending edit into the document now.
+ *
+ * `onDraftChanged` debounces the write-back by `SETTLE_MS`; replacing the form
+ * inside that window would rebuild it over a timer that then finds a draft it
+ * no longer owns, and the keystroke would be lost. Moving between commands is
+ * a constant act once there are tabs, so it has to be safe mid-keystroke.
+ */
+function flushEdits(): void {
+  if (renderTimer === undefined) return;
+  window.clearTimeout(renderTimer);
+  renderTimer = undefined;
+  renderOutputs();
+}
+
+/** The top-level form groups the author has open, in the form's own order. */
+function openFormGroups(): string[] {
+  return [...byId("form").querySelectorAll<HTMLDetailsElement>(":scope > details[data-group]")]
+    .filter((node) => node.open)
+    .map((node) => node.dataset.group ?? "");
+}
+
+/** Leave the command in the form: commit its edit, keep its view. */
+function leaveOpenCommand(): void {
+  flushEdits();
+  // The view belongs to whatever the form is a projection of, which after a
+  // close is no longer the tab that has focus — writing it onto that tab would
+  // hand the neighbour the layout of the command that was just closed.
+  if (state.tabs.active < 0 || activeTab(state.tabs)?.name !== state.pack.open) return;
+  state.tabs = rememberView(state.tabs, state.tabs.active, {
+    groups: openFormGroups(),
+    scroll: window.scrollY,
+  });
+}
+
+/**
+ * Put `name` in the strip, or focus the tab it already has.
+ *
+ * Returns whatever the cap made room by closing, so the caller can say so in
+ * the one status line rather than this reaching over its shoulder to write it.
+ */
+function noteOpenTab(name: string, where: TabSource): OpenTab | null {
+  const opened = openTab(state.tabs, name, where);
+  state.tabs = opened.state;
+  renderOpenTabs();
+  return opened.evicted;
+}
+
+/** What to say when the cap closed a tab to make room, or nothing. */
+function evictionNotice(evicted: OpenTab | null): string {
+  return evicted
+    ? `${evicted.name} was closed to keep ${MAX_OPEN_TABS} commands open — the pack still holds it`
+    : "";
+}
+
+/**
+ * Put a tab's form back the way it was left.
+ *
+ * Only once it has been left: a tab opened for the first time has no
+ * remembered view, and the form's own defaults — the group the author starts
+ * in, plus every group already carrying a value — are what a command being
+ * seen for the first time should show.
+ */
+function restoreTabView(name: string): void {
+  const tab = state.tabs.tabs[tabIndex(state.tabs, name)];
+  if (!tab?.groups.length) return;
+  const wanted = new Set(tab.groups);
+  for (const node of byId("form").querySelectorAll<HTMLDetailsElement>(
+    ":scope > details[data-group]",
+  )) {
+    node.open = wanted.has(node.dataset.group ?? "");
+  }
+  // Restoring a scroll position into a pane that is not showing would be
+  // measuring it against the wrong page; the groups come back either way.
+  if (currentTab === "editor") window.scrollTo({ top: tab.scroll, behavior: "auto" });
+}
+
+function renderOpenTabs(): void {
+  const strip = byId("openTabs");
+  clear(strip);
+  strip.hidden = state.tabs.tabs.length === 0;
+
+  state.tabs.tabs.forEach((tab, index) => {
+    const on = index === state.tabs.active;
+    const stop = on ? "0" : "-1";
+    const button = el("button", {
+      type: "button",
+      role: "tab",
+      "aria-controls": "pane-editor",
+      "aria-selected": on ? "true" : "false",
+      tabindex: stop,
+      title:
+        tab.where === "pack"
+          ? `${tab.name} — declared by this pack`
+          : `${tab.name} — opened from the ${dialectLabel(state.dialect)} registry`,
+      text: tab.name,
+      onclick: () => focusOpenTab(index),
+    });
+    const close = el("button", {
+      type: "button",
+      class: "tabclose",
+      tabindex: stop,
+      title: `Close ${tab.name}`,
+      "aria-label": `Close ${tab.name}`,
+      text: "✕",
+      onclick: (event: Event) => {
+        event.stopPropagation();
+        closeOpenTab(tab.name);
+      },
+    });
+    // `presentation` rather than a bare div so the tablist owns tabs and
+    // nothing else; the buttons inside keep their own roles regardless.
+    const wrap = el(
+      "div",
+      { class: "opentab", role: "presentation", "data-active": on ? "true" : "false" },
+      [
+        button,
+        tab.edited ? el("span", { class: "dot", "aria-hidden": "true", text: "●" }) : null,
+        close,
+      ],
+    );
+    // Middle-click closes, as it does on every other tab strip. The matching
+    // `mousedown` is what stops the browser starting an autoscroll instead.
+    wrap.addEventListener("mousedown", (event) => {
+      if ((event as MouseEvent).button === 1) event.preventDefault();
+    });
+    wrap.addEventListener("auxclick", (event) => {
+      if ((event as MouseEvent).button !== 1) return;
+      event.preventDefault();
+      closeOpenTab(tab.name);
+    });
+    strip.appendChild(wrap);
+  });
+
+  // Keep the tab the form is showing inside the scrolling strip — and only
+  // there. `scrollIntoView` would pull the *page* up whenever the strip had
+  // been scrolled past, and this runs on every settled write-back.
+  const wrap = strip.querySelectorAll<HTMLElement>(".opentab")[state.tabs.active];
+  if (!wrap) return;
+  const right = wrap.offsetLeft + wrap.offsetWidth;
+  if (wrap.offsetLeft < strip.scrollLeft) strip.scrollLeft = wrap.offsetLeft;
+  else if (right > strip.scrollLeft + strip.clientWidth) {
+    strip.scrollLeft = right - strip.clientWidth;
+  }
+}
+
+/**
+ * Move the strip's roving focus, per the tablist pattern.
+ *
+ * Activation stays manual — Enter or Space — because switching tabs opens a
+ * command and records a visit, and arrowing across twelve of them would
+ * record twelve places nobody went.
+ */
+function focusTabButton(index: number): void {
+  const wraps = [...byId("openTabs").querySelectorAll<HTMLElement>(".opentab")];
+  wraps.forEach((wrap, at) => {
+    for (const control of wrap.querySelectorAll<HTMLElement>("button")) {
+      control.setAttribute("tabindex", at === index ? "0" : "-1");
+    }
+  });
+  wraps[index]?.querySelector<HTMLElement>('[role="tab"]')?.focus();
+}
+
+/** Show the tab at `index`. This is a navigation: it opens a command. */
+function focusOpenTab(index: number): void {
+  const tab = state.tabs.tabs[index];
+  if (!tab) return;
+  // The tab already showing is a request for its pane, not for the command to
+  // be loaded over itself — which is what clicking it from the DSL pane means.
+  if (index === state.tabs.active) {
+    selectTab("editor");
+    return;
+  }
+  if (tab.where === "pack") openPackCommand(tab.name);
+  else openCommand(tab.name);
+}
+
+/** The tab Ctrl+Tab and Ctrl+Shift+Tab move to. */
+function cycleOpenTab(delta: number): void {
+  const at = cycleIndex(state.tabs, delta);
+  if (at >= 0) focusOpenTab(at);
+}
+
+/**
+ * Open a command without recording a visit, and correct the entry showing.
+ *
+ * What closing a tab does: the command that comes forward was not navigated
+ * to, so it earns no history entry — but it *is* what the page is showing, and
+ * an address bar still naming the closed command would be a link to somewhere
+ * the reader is not.
+ */
+function showWithoutVisiting(tab: OpenTab): void {
+  navigating = true;
+  try {
+    if (tab.where === "pack") openPackCommand(tab.name);
+    else openCommand(tab.name);
+  } finally {
+    navigating = false;
+  }
+  replaceRoute({ view: "command", dialect: state.dialect, command: tab.name, field: null });
+}
+
+/**
+ * Put `draft` in the form as a command no tab names.
+ *
+ * A new command, or one inferred from imported source, belongs to no
+ * declaration yet — so no tab may claim to be showing it. Leaving one selected
+ * would be the strip telling the author their edits are going somewhere they
+ * are not, which is the one thing a view over a document must never do.
+ */
+function detachForm(draft: Draft, origin: string): void {
+  leaveOpenCommand();
+  state.tabs = { ...state.tabs, active: -1 };
+  loadDraft(draft, origin);
+  renderOpenTabs();
+}
+
+/** Leave the form on a fresh draft: what closing the last tab lands on. */
+function openNothing(): void {
+  detachForm(
+    newCommandDraft(),
+    "Nothing is open — every field at its CommandSpec::DEFAULT. Pick a command on the left, or start a new one.",
+  );
+}
+
+function closeOpenTab(name: string): void {
+  const at = tabIndex(state.tabs, name);
+  if (at < 0) return;
+  const wasShowing = at === state.tabs.active;
+  if (wasShowing) leaveOpenCommand();
+  const closed = closeTab(state.tabs, name);
+  state.tabs = closed.state;
+  renderOpenTabs();
+  if (closed.focus) showWithoutVisiting(closed.focus);
+  else if (wasShowing) openNothing();
+  scheduleSave();
+}
+
+/** Ctrl/Cmd+W: close what the form is showing. */
+function closeActiveOpenTab(): void {
+  const tab = activeTab(state.tabs);
+  if (tab) closeOpenTab(tab.name);
+}
+
 /* Command search and history --------------------------------------------- */
 
-// `/` anywhere opens search over both models; the arrows walk the commands
-// visited. Both are about the same thing: a pack is many commands and one
+// `/` anywhere searches all three surfaces at once — the pack under edit, the
+// dialect's shipped packs, and the Reference vocabulary — and says which of
+// them each hit came from; the arrows walk the commands visited. Both are
+// about the same thing as the tab strip: a pack is many commands and one
 // deliverable, so moving between them must never cost a page hunt.
 
-let paletteRows: { name: string; where: "pack" | "registry" }[] = [];
+let paletteHits: PaletteHit[] = [];
 let paletteAt = 0;
 
 function openPalette(): void {
@@ -1775,6 +2103,7 @@ function openPalette(): void {
   box.hidden = false;
   const input = byId<HTMLInputElement>("paletteInput");
   input.value = "";
+  paletteAt = 0;
   renderPalette();
   input.focus();
 }
@@ -1783,26 +2112,83 @@ function closePalette(): void {
   byId("palette").hidden = true;
 }
 
+/** How a summary line and a row's provenance chip name the two named surfaces. */
+function paletteNames(): { pack: string; dialect: string } {
+  return { pack: state.pack.view?.pack ?? "", dialect: dialectLabel(state.dialect) };
+}
+
+/**
+ * Everything `/` can find: the pack under edit, the dialect's shipped packs,
+ * and the Reference vocabulary.
+ *
+ * The Reference half is the catalogues a picker draws from and their values —
+ * exactly what `#/ref/…` addresses, and the only part of the studio's own
+ * vocabulary this box could not reach. Spec fields are left out on purpose:
+ * the form and the dock already own those, and a third answer to "where is
+ * this setting" would be one answer too many.
+ */
+function paletteCandidates(): PaletteCandidate[] {
+  const rows: PaletteCandidate[] = [];
+  for (const command of state.pack.view?.commands ?? []) {
+    rows.push({
+      surface: "pack",
+      name: command.name,
+      summary: command.summary,
+      // The row already says "pack <name>"; a chip repeating it is noise.
+      pack: "",
+      target: { open: "command", name: command.name, where: "pack" },
+    });
+  }
+  for (const entry of state.index) {
+    rows.push({
+      surface: "registry",
+      name: entry.name,
+      summary: entry.summary,
+      pack: entry.pack,
+      target: { open: "command", name: entry.name, where: "registry" },
+    });
+  }
+  for (const [id, variants] of Object.entries(state.schema.catalogues)) {
+    const help = state.schema.catalogueHelp[id];
+    rows.push({
+      surface: "reference",
+      name: help?.title ?? id,
+      summary: help?.intro ?? "",
+      pack: "",
+      target: { open: "reference", catalogue: id, variant: null },
+    });
+    for (const variant of variants) {
+      rows.push({
+        surface: "reference",
+        name: variant.key,
+        summary: variant.doc,
+        pack: "",
+        target: { open: "reference", catalogue: id, variant: variant.key },
+      });
+    }
+  }
+  return rows;
+}
+
+/** A highlighted run of text, with what the query matched actually marked. */
+function markedText(part: Highlight): Child[] {
+  return part.match ? [part.before, el("mark", { text: part.match }), part.after] : [part.before];
+}
+
 function renderPalette(): void {
-  const query = byId<HTMLInputElement>("paletteInput").value.trim().toLowerCase();
-  const packRows = (state.pack.view?.commands ?? [])
-    .filter((c) => !query || c.name.toLowerCase().includes(query))
-    .map((c) => ({ name: c.name, where: "pack" as const, summary: c.summary, pack: "" }));
-  const registryRows = state.index
-    .filter(
-      (e) =>
-        !query ||
-        e.name.toLowerCase().includes(query) ||
-        (e.summary ?? "").toLowerCase().includes(query),
-    )
-    .map((e) => ({ name: e.name, where: "registry" as const, summary: e.summary, pack: e.pack }));
-  const rows = [...packRows, ...registryRows].slice(0, MAX_PALETTE);
-  paletteRows = rows.map((r) => ({ name: r.name, where: r.where }));
-  paletteAt = Math.min(paletteAt, Math.max(0, rows.length - 1));
+  const query = byId<HTMLInputElement>("paletteInput").value;
+  const names = paletteNames();
+  const result = searchPalette(paletteCandidates(), query, MAX_PALETTE);
+  paletteHits = result.hits;
+  paletteAt = Math.min(paletteAt, Math.max(0, result.hits.length - 1));
+  // What the browser's own count line does for the registry list: say what was
+  // searched, so "no match" and "60 of 214" both mean something.
+  byId("paletteScope").textContent = paletteSummary(query, result, names);
 
   const list = byId("paletteList");
   clear(list);
-  rows.forEach((row, i) => {
+  result.hits.forEach((hit, i) => {
+    const { candidate } = hit;
     list.appendChild(
       el("li", { role: "option" }, [
         el(
@@ -1813,28 +2199,25 @@ function renderPalette(): void {
             onclick: () => choosePalette(i),
           },
           [
-            el("span", { class: "nm", text: row.name }),
-            el("span", { class: "sm", text: row.summary || "" }),
-            // A palette row is out of the browser's context, so it says where
-            // the command is declared as well as which model it came from.
-            row.pack ? packChip(row.pack) : null,
-            el("span", {
-              class: "where",
-              text: row.where === "pack" ? "pack" : dialectLabel(state.dialect),
-            }),
+            el("span", { class: "nm" }, markedText(hit.name)),
+            el("span", { class: "sm" }, markedText(hit.summary)),
+            // A palette row is out of the browser's context, so it says which
+            // pack declares it as well as which surface it came from.
+            candidate.pack ? packChip(candidate.pack) : null,
+            el("span", { class: "where", text: surfaceLabel(candidate.surface, names) }),
           ],
         ),
       ]),
     );
   });
-  if (!rows.length) {
+  if (!result.hits.length) {
     list.appendChild(el("li", {}, [el("span", { class: "foot", text: "no match" })]));
   }
 }
 
 function movePalette(delta: number): void {
-  if (!paletteRows.length) return;
-  paletteAt = (paletteAt + delta + paletteRows.length) % paletteRows.length;
+  if (!paletteHits.length) return;
+  paletteAt = (paletteAt + delta + paletteHits.length) % paletteHits.length;
   const buttons = byId("paletteList").querySelectorAll<HTMLElement>("button");
   buttons.forEach((node, i) =>
     node.setAttribute("aria-selected", i === paletteAt ? "true" : "false"),
@@ -1843,11 +2226,13 @@ function movePalette(delta: number): void {
 }
 
 function choosePalette(index: number): void {
-  const row = paletteRows[index];
-  if (!row) return;
+  const hit = paletteHits[index];
+  if (!hit) return;
   closePalette();
-  if (row.where === "pack") openPackCommand(row.name);
-  else openCommand(row.name);
+  const target = hit.candidate.target;
+  if (target.open === "reference") openReferenceEntry(target.catalogue, target.variant);
+  else if (target.where === "pack") openPackCommand(target.name);
+  else openCommand(target.name);
 }
 
 /** Record a command as visited, unless history itself is doing the opening. */
@@ -2190,6 +2575,31 @@ function renderDock(): void {
   for (const cluster of content.related) body.appendChild(relatedNode(cluster));
 }
 
+/**
+ * Keep the dock true across a change of command.
+ *
+ * It documents whatever was last focused, and opening another command focuses
+ * nothing — so its subject is re-read against the schema and repainted, and
+ * where the rebuilt form has retired it the dock falls back to a group the
+ * form now on screen actually has open. The dock never blanks; it also never
+ * goes on describing something that is no longer there.
+ */
+function refreshDock(): void {
+  const subject = dockContent?.subject;
+  const content = subject ? describeSubject(dockSources(), subject) : null;
+  if (content) {
+    dockContent = content;
+    renderDock();
+    return;
+  }
+  const open = byId("form").querySelector<HTMLElement>(":scope > details[data-group][open]");
+  if (
+    !setDockSubject({ kind: "group", name: open?.dataset.group ?? state.schema.groups[0] ?? "" })
+  ) {
+    renderDock();
+  }
+}
+
 /** One named cluster: why its members constrain each other, and links to them. */
 function relatedNode(cluster: RelatedGroup): HTMLElement {
   const list = el("ul", {});
@@ -2461,7 +2871,28 @@ function writeRoute(route: Route, visit: number | null): number {
   return index;
 }
 
-/** Write a route that opens no new visit — a tab move, a Reference entry. */
+/**
+ * Correct the entry showing, without adding one.
+ *
+ * Closing a command tab is not a navigation — it goes nowhere, and Back has to
+ * step over the same places it did before — but the command that comes forward
+ * *is* what the page shows, and a fragment still naming the closed one would
+ * be a link to somewhere the reader is not.
+ */
+function replaceRoute(route: Route): void {
+  if (!routing) return;
+  const here = currentEntry();
+  const entry: StudioEntry = { index: here?.index ?? 1, visit: here?.visit ?? null };
+  try {
+    window.history.replaceState(entry, "", formatHash(route));
+  } catch {
+    routing = false;
+    return;
+  }
+  lastRoute = route;
+}
+
+/** Write a route that opens no new visit — a pane move, a Reference entry. */
 function routeTo(route: Route): void {
   // History is doing the opening: it must not record its own moves.
   if (navigating) return;
@@ -2731,7 +3162,7 @@ function bindUi(): void {
   });
 
   byId("newCmd").addEventListener("click", () => {
-    loadDraft(newCommandDraft(), "A new command — every field at its CommandSpec::DEFAULT.");
+    detachForm(newCommandDraft(), "A new command — every field at its CommandSpec::DEFAULT.");
     selectTab("editor");
   });
 
@@ -2766,6 +3197,38 @@ function bindUi(): void {
   byId("testSample").addEventListener("click", insertSampleCall);
 
   /* `/` search and history. */
+
+  /* The open-command strip. */
+
+  // One listener on the strip rather than one per tab: the strip is rebuilt
+  // on every change, and a listener on a node that survives that is one fewer
+  // thing to get wrong.
+  byId("openTabs").addEventListener("keydown", (event) => {
+    const key = (event as KeyboardEvent).key;
+    const tabs = [...byId("openTabs").querySelectorAll<HTMLElement>('[role="tab"]')];
+    const at = tabs.indexOf(document.activeElement as HTMLElement);
+    if (at < 0 || !tabs.length) return;
+    if (key === "ArrowRight" || key === "ArrowLeft") {
+      event.preventDefault();
+      focusTabButton((at + (key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length);
+    } else if (key === "Home") {
+      event.preventDefault();
+      focusTabButton(0);
+    } else if (key === "End") {
+      event.preventDefault();
+      focusTabButton(tabs.length - 1);
+    } else if (key === "Delete" || key === "Backspace") {
+      // Closing from the keyboard without reaching for the ✕, which is also
+      // one Tab away whenever a tab has focus.
+      event.preventDefault();
+      const tab = state.tabs.tabs[at];
+      if (!tab) return;
+      closeOpenTab(tab.name);
+      // Closing from the keyboard has to leave the keyboard somewhere: the tab
+      // that took its place, or the end of a strip that just got shorter.
+      if (state.tabs.tabs.length) focusTabButton(Math.min(at, state.tabs.tabs.length - 1));
+    }
+  });
 
   byId("navBack").addEventListener("click", () => navigate(-1));
   byId("navFwd").addEventListener("click", () => navigate(1));
@@ -2808,6 +3271,17 @@ function bindUi(): void {
     } else if ((event as KeyboardEvent).altKey && key === "ArrowRight") {
       event.preventDefault();
       navigate(1);
+    }
+    // The editor shortcuts, offered rather than promised: most browsers keep
+    // Ctrl/Cmd+W and Ctrl+Tab for themselves and a page cannot take them back.
+    // The strip's ✕, its Delete key and middle-click are what always work.
+    const modified = (event as KeyboardEvent).ctrlKey || (event as KeyboardEvent).metaKey;
+    if (modified && (key === "w" || key === "W")) {
+      event.preventDefault();
+      closeActiveOpenTab();
+    } else if ((event as KeyboardEvent).ctrlKey && key === "Tab") {
+      event.preventDefault();
+      cycleOpenTab((event as KeyboardEvent).shiftKey ? -1 : 1);
     }
   });
 
@@ -2886,7 +3360,7 @@ function bindUi(): void {
     dialect: () => state.dialect,
     addToPack: writeDraftsToPack,
     openDraft: (draft, origin) => {
-      loadDraft(clone(draft), origin);
+      detachForm(clone(draft), origin);
       selectTab("editor");
     },
   });
@@ -2936,6 +3410,9 @@ async function restoreSession(): Promise<void> {
     renderList();
   }
   if (typeof session.dockOpen === "boolean") setDockOpen(session.dockOpen, { save: false });
+  // A record written before the studio held more than one command open carries
+  // no tabs at all; `open` alone still restores it, as it always did.
+  if (session.tabs?.length) state.tabs = restoreTabs(session.tabs, session.open);
   // A session saved before a dialect left the catalogue keeps the default
   // rather than restoring a picker value that no longer exists.
   if (session.dialect && session.dialect !== state.dialect && dialectLabels.has(session.dialect)) {
@@ -2948,10 +3425,16 @@ async function restoreSession(): Promise<void> {
     state.sample = session.sample;
     writeSample(session.sample);
   }
+  const open = state.tabs.tabs.length;
   byId("liveSave").textContent =
     `Restored from this browser: pack ${state.pack.view?.pack ?? ""}, ` +
-    `${state.pack.view?.summary.commands ?? 0} command(s).`;
-  if (session.open) openPackCommand(session.open);
+    `${state.pack.view?.summary.commands ?? 0} command(s)` +
+    (open ? `, ${open} open in tabs.` : ".");
+  // Whichever tab had focus is the command that was showing; a record with no
+  // tabs names it directly, and a document that has since dropped it has
+  // already moved the focus to the tab beside it.
+  const resume = activeTab(state.tabs)?.name ?? session.open;
+  if (resume) openPackCommand(resume);
 }
 
 function boot(): void {
@@ -2988,6 +3471,7 @@ function boot(): void {
         sample: SAMPLE_HINT,
         history: [],
         historyAt: -1,
+        tabs: emptyTabs(),
       };
 
       editors = makeEditors({
