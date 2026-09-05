@@ -2055,6 +2055,14 @@ before pushing, how to add a diagnostic or a formatter option, the repository
 layout, and the code-style rules — see **[AGENTS.md](AGENTS.md)** and
 **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
+The local smoke gate prefers `cargo nextest` when it is installed. If nextest
+is unavailable, `make smoke` and `make smoke-p P=<crate>` use the checked-in
+manifest at `scripts/dev/smoke-targets.tsv` through `cargo xtask smoke-targets`
+instead. The fallback selects the same smoke sources without changing Cargo's
+workspace feature resolution. Run `cargo xtask smoke-targets check` to inspect
+or validate the ownership manifest; see the [smoke fallback troubleshooting
+note](docs/kcs/kcs-issue-smoke-fallback-does-not-match-nextest.md) if it fails.
+
 Tcl VM conformance work uses the shared C Tcl oracle harness. See
 **[How to run the C tcltest suite through the bytecode VM](docs/kcs/kcs-howto-run-tcltest-bundles.md)**;
 for example, a narrow Tcl 9 comparison is `cargo xtask tcltest-sweep --backend

@@ -58,6 +58,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target
   directory.
+- [kcs-issue-smoke-fallback-does-not-match-nextest.md](kcs-issue-smoke-fallback-does-not-match-nextest.md)
+  — the manifest-backed Cargo smoke fallback rejects a missing or ambiguous
+  ownership row when cargo-nextest is unavailable.
 - [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
   — the language server's memory use climbs with every keystroke and never
   comes back down.
