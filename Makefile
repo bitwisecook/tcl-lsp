@@ -1019,11 +1019,11 @@ smoke-p: ## Smoke tier for one crate: make smoke-p P=<crate-name>
 	fi; \
 	cd $(ROOT) && \
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		echo "==> cargo nextest run --profile smoke -p $(P)"; \
-		cargo nextest run --profile smoke -p "$(P)"; \
+		echo "==> cargo nextest run --profile smoke --workspace -E package($(P)) & default()"; \
+		cargo nextest run --profile smoke --workspace -E "package($(P)) & default()"; \
 	else \
-		echo "==> cargo-nextest not found; falling back to 'cargo test -p $(P) smoke'"; \
-		cargo test -p "$(P)" smoke; \
+		echo "==> cargo-nextest not found; running the targeted Cargo smoke manifest for $(P)"; \
+		cargo xtask smoke-targets run --package "$(P)"; \
 	fi
 
 # Manual-only tier: every #[ignore]d corpus sweep, differential-fuzz gate,

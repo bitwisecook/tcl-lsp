@@ -18,7 +18,7 @@
 
 //! Fail-closed ownership and execution for the no-nextest smoke fallback.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -50,12 +50,36 @@ struct Target {
     source: PathBuf,
     available: bool,
     testable: bool,
+    runtime_packages: BTreeSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Metadata {
     packages: Vec<Package>,
     workspace_members: Vec<String>,
+    resolve: Resolve,
+}
+
+#[derive(Debug, Deserialize)]
+struct Resolve {
+    nodes: Vec<ResolveNode>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResolveNode {
+    id: String,
+    deps: Vec<ResolveDependency>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResolveDependency {
+    pkg: String,
+    dep_kinds: Vec<DependencyKind>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DependencyKind {
+    kind: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,7 +95,6 @@ struct Package {
     license_file: Option<PathBuf>,
     readme: Option<PathBuf>,
     rust_version: Option<String>,
-    links: Option<String>,
     manifest_path: PathBuf,
     targets: Vec<RawTarget>,
 }
@@ -98,14 +121,34 @@ struct ManifestRow {
 #[derive(Clone, Debug)]
 struct CargoRuntime {
     target: String,
+    target_directory: PathBuf,
     runner: Option<PathAndArgs>,
     rustc: PathAndArgs,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct BuildEnvironment {
     out_dir: PathBuf,
     values: BTreeMap<OsString, OsString>,
+    linked_paths: Vec<PathBuf>,
+}
+
+struct RuntimeEnvironment {
+    values: BTreeMap<OsString, OsString>,
+    preserves_dynamic_library_path: bool,
+}
+
+fn harness_environment(
+    package: &BTreeMap<OsString, OsString>,
+    runtime: &BTreeMap<OsString, OsString>,
+) -> BTreeMap<OsString, OsString> {
+    let mut environment = runtime.clone();
+    // Cargo's manifest-derived package variables are authoritative even when
+    // a build script tries to emit a reserved name through rustc-env. Runtime
+    // values without a package counterpart, including OUT_DIR and an authored
+    // CARGO_MANIFEST_LINKS, remain intact.
+    environment.extend(package.clone());
+    environment
 }
 
 #[derive(Debug, Default)]
@@ -113,6 +156,8 @@ struct CargoTestArtifacts {
     executables: HashMap<TargetKey, PathBuf>,
     binary_executables: HashMap<(String, String), PathBuf>,
     build_environments: HashMap<String, Vec<BuildEnvironment>>,
+    target_directory: PathBuf,
+    explicit_target_context: bool,
 }
 
 struct HarnessContext<'a> {
@@ -120,9 +165,11 @@ struct HarnessContext<'a> {
     package_environment: &'a BTreeMap<OsString, OsString>,
     rust_runtime_library: &'a Path,
     runner: Option<&'a PathAndArgs>,
+    preserves_dynamic_library_path: bool,
 }
 
-type TargetKey = (String, String, PathBuf);
+type TargetKey = (String, String, String, PathBuf);
+type TargetIdentity = (String, String, String);
 type PackageEnvironments = HashMap<String, BTreeMap<OsString, OsString>>;
 type Contract = (
     HashMap<String, PathBuf>,
@@ -131,6 +178,12 @@ type Contract = (
     Vec<ManifestRow>,
     CargoRuntime,
 );
+
+#[derive(Default)]
+struct SmokeInventory {
+    sources: BTreeSet<String>,
+    owners: HashMap<String, BTreeSet<TargetIdentity>>,
+}
 
 fn default_true() -> bool {
     true
@@ -175,6 +228,11 @@ fn cargo_runtime(root: &Path) -> Result<CargoRuntime> {
         .context("resolving Cargo target runner")?;
     Ok(CargoRuntime {
         target: target.triple().to_owned(),
+        target_directory: config
+            .build
+            .target_dir
+            .clone()
+            .unwrap_or_else(|| root.join("target")),
         runner,
         rustc: config.rustc().clone(),
     })
@@ -310,10 +368,6 @@ fn package_environment(package: &Package) -> Result<BTreeMap<OsString, OsString>
             manifest_dir.as_os_str().to_os_string(),
         ),
         (
-            "CARGO_MANIFEST_LINKS",
-            OsString::from(package.links.as_deref().unwrap_or_default()),
-        ),
-        (
             "CARGO_MANIFEST_PATH",
             package.manifest_path.as_os_str().to_os_string(),
         ),
@@ -366,10 +420,58 @@ fn package_environment(package: &Package) -> Result<BTreeMap<OsString, OsString>
         ("CARGO_PKG_VERSION_PATCH", OsString::from(patch)),
         ("CARGO_PKG_VERSION_PRE", OsString::from(pre)),
     ];
-    Ok(values
+    let environment: BTreeMap<OsString, OsString> = values
         .into_iter()
         .map(|(name, value)| (OsString::from(name), value))
-        .collect())
+        .collect();
+    Ok(environment)
+}
+
+fn runtime_package_closures(metadata: &Metadata) -> HashMap<String, BTreeSet<String>> {
+    let nodes: HashMap<&str, &ResolveNode> = metadata
+        .resolve
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
+    let procedural_macros: HashSet<&str> = metadata
+        .packages
+        .iter()
+        .filter(|package| {
+            package
+                .targets
+                .iter()
+                .any(|target| target.kind.iter().any(|kind| kind == "proc-macro"))
+        })
+        .map(|package| package.id.as_str())
+        .collect();
+    metadata
+        .workspace_members
+        .iter()
+        .map(|root| {
+            let mut packages = BTreeSet::from([root.clone()]);
+            let mut seen = HashSet::from([root.clone()]);
+            let mut queue = VecDeque::from([(root.as_str(), true)]);
+            while let Some((package_id, include_dev)) = queue.pop_front() {
+                let Some(node) = nodes.get(package_id) else {
+                    continue;
+                };
+                for dependency in &node.deps {
+                    let is_runtime = dependency.dep_kinds.iter().any(|kind| {
+                        kind.kind.is_none() || (include_dev && kind.kind.as_deref() == Some("dev"))
+                    });
+                    if !is_runtime || procedural_macros.contains(dependency.pkg.as_str()) {
+                        continue;
+                    }
+                    if seen.insert(dependency.pkg.clone()) {
+                        packages.insert(dependency.pkg.clone());
+                        queue.push_back((dependency.pkg.as_str(), false));
+                    }
+                }
+            }
+            (root.clone(), packages)
+        })
+        .collect()
 }
 
 fn load_targets(
@@ -378,6 +480,7 @@ fn load_targets(
 ) -> Result<(HashMap<String, PathBuf>, PackageEnvironments, Vec<Target>)> {
     let metadata = metadata(root, target)?;
     let features = workspace_target_features(&metadata, target, root)?;
+    let runtime_packages = runtime_package_closures(&metadata);
     let members: HashSet<&str> = metadata
         .workspace_members
         .iter()
@@ -400,6 +503,9 @@ fn load_targets(
         let enabled = features
             .get(&package.name)
             .with_context(|| format!("missing feature context for {}", package.name))?;
+        let package_runtime = runtime_packages
+            .get(&package.id)
+            .with_context(|| format!("missing runtime dependency closure for {}", package.name))?;
         for raw_target in &package.targets {
             let available = raw_target
                 .required_features
@@ -414,6 +520,7 @@ fn load_targets(
                     source: raw_target.src_path.clone(),
                     available,
                     testable: raw_target.test,
+                    runtime_packages: package_runtime.clone(),
                 });
             }
         }
@@ -461,6 +568,29 @@ fn best_owners<'a>(source: &Path, targets: &'a [Target]) -> Vec<&'a Target> {
         .collect()
 }
 
+fn target_identity(target: &Target) -> TargetIdentity {
+    (
+        target.package.clone(),
+        target.kind.clone(),
+        target.name.clone(),
+    )
+}
+
+fn manifest_owners<'a>(
+    source: &Path,
+    relative: &str,
+    targets: &'a [Target],
+    inventory: &SmokeInventory,
+) -> Vec<&'a Target> {
+    let Some(identities) = inventory.owners.get(relative) else {
+        return best_owners(source, targets);
+    };
+    targets
+        .iter()
+        .filter(|target| identities.contains(&target_identity(target)))
+        .collect()
+}
+
 fn is_smoke_named_target(target: &Target) -> bool {
     target.name == "smoke" || target.name.ends_with("_smoke")
 }
@@ -496,6 +626,7 @@ fn validate_manifest(
     manifest: &Path,
     package_roots: &HashMap<String, PathBuf>,
     targets: &[Target],
+    inventory: &SmokeInventory,
 ) -> Result<Vec<ManifestRow>> {
     let rows = read_manifest(manifest)?;
     let mut errors = Vec::new();
@@ -511,17 +642,10 @@ fn validate_manifest(
             errors.push(format!("missing smoke source: {}", row.source_text));
             continue;
         }
-        let Some(package_root) = package_roots.get(&row.package) else {
+        if !package_roots.contains_key(&row.package) {
             errors.push(format!(
                 "unknown Cargo package '{}' for {}",
                 row.package, row.source_text
-            ));
-            continue;
-        };
-        if !source.starts_with(package_root) {
-            errors.push(format!(
-                "smoke source {} does not belong to package '{}'",
-                row.source_text, row.package
             ));
             continue;
         }
@@ -537,12 +661,14 @@ fn validate_manifest(
             .filter(|target| target.package == row.package)
             .cloned()
             .collect();
-        let owners = best_owners(&source, &package_targets);
-        let exact = owners
+        let owners = manifest_owners(&source, &row.source_text, &package_targets, inventory);
+        let exact: Vec<&Target> = owners
             .iter()
-            .filter(|owner| owner.kind == row.kind && owner.name == row.target_name);
-        if owners.len() == 1 && exact.count() == 1 {
-            if !owners[0].testable {
+            .filter(|owner| owner.kind == row.kind && owner.name == row.target_name)
+            .copied()
+            .collect();
+        if exact.len() == 1 {
+            if !exact[0].testable {
                 errors.push(format!(
                     "smoke source {} belongs to Cargo target {}:{} with test = false",
                     row.source_text, row.kind, row.target_name
@@ -575,7 +701,7 @@ fn validate_manifest(
 
     for target in targets
         .iter()
-        .filter(|target| target.available && target.testable && is_smoke_named_target(target))
+        .filter(|target| target.testable && is_smoke_named_target(target))
     {
         let identity = (
             target.package.clone(),
@@ -609,18 +735,260 @@ fn tracked_rust_sources(root: &Path) -> Result<Vec<String>> {
         .collect())
 }
 
-fn items_contain_smoke_declaration(items: &[syn::Item]) -> bool {
-    items.iter().any(|item| match item {
-        syn::Item::Fn(function) => function.sig.ident.unraw().to_string().starts_with("smoke"),
-        syn::Item::Mod(module) => {
-            module.ident.unraw().to_string().starts_with("smoke")
-                || module
-                    .content
-                    .as_ref()
-                    .is_some_and(|(_, items)| items_contain_smoke_declaration(items))
+fn meta_applies_test_attribute(meta: &syn::Meta) -> bool {
+    if meta
+        .path()
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "test")
+    {
+        return true;
+    }
+    let syn::Meta::List(list) = meta else {
+        return false;
+    };
+    if !list.path.is_ident("cfg_attr") {
+        return false;
+    }
+    list.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated)
+        .is_ok_and(|nested| nested.iter().skip(1).any(meta_applies_test_attribute))
+}
+
+fn has_test_attribute(attributes: &[syn::Attribute]) -> bool {
+    attributes
+        .iter()
+        .any(|attribute| meta_applies_test_attribute(&attribute.meta))
+}
+
+fn module_directory(source: &Path) -> Result<PathBuf> {
+    let parent = source
+        .parent()
+        .with_context(|| format!("Rust source has no parent: {}", source.display()))?;
+    let stem = source
+        .file_stem()
+        .and_then(OsStr::to_str)
+        .with_context(|| format!("Rust source has no UTF-8 stem: {}", source.display()))?;
+    if matches!(stem, "lib" | "main" | "mod") {
+        Ok(parent.to_path_buf())
+    } else {
+        Ok(parent.join(stem))
+    }
+}
+
+fn lexically_normalise(path: &Path) -> PathBuf {
+    let mut normalised = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !normalised.pop() {
+                    normalised.push(component.as_os_str());
+                }
+            }
+            _ => normalised.push(component.as_os_str()),
         }
-        _ => false,
-    })
+    }
+    normalised
+}
+
+fn collect_module_paths(meta: &syn::Meta, paths: &mut Vec<String>) {
+    if meta.path().is_ident("path") {
+        if let syn::Meta::NameValue(value) = meta
+            && let syn::Expr::Lit(value) = &value.value
+            && let syn::Lit::Str(value) = &value.lit
+        {
+            paths.push(value.value());
+        }
+        return;
+    }
+    let syn::Meta::List(list) = meta else {
+        return;
+    };
+    if !list.path.is_ident("cfg_attr") {
+        return;
+    }
+    if let Ok(nested) = list
+        .parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated)
+    {
+        for attribute in nested.iter().skip(1) {
+            collect_module_paths(attribute, paths);
+        }
+    }
+}
+
+fn module_sources(module: &syn::ItemMod, directory: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let mut configured = Vec::new();
+    for attribute in &module.attrs {
+        collect_module_paths(&attribute.meta, &mut configured);
+    }
+    let has_direct_path = module
+        .attrs
+        .iter()
+        .any(|attribute| attribute.path().is_ident("path"));
+    let mut sources: Vec<(PathBuf, PathBuf)> = configured
+        .into_iter()
+        .map(|path| {
+            let source = lexically_normalise(&directory.join(path));
+            let child_directory = source
+                .parent()
+                .map_or_else(|| directory.to_path_buf(), Path::to_path_buf);
+            (source, child_directory)
+        })
+        .filter(|(path, _)| path.is_file())
+        .collect();
+    if !has_direct_path {
+        let name = module.ident.unraw().to_string();
+        sources.extend(
+            [
+                directory.join(format!("{name}.rs")),
+                directory.join(&name).join("mod.rs"),
+            ]
+            .into_iter()
+            .filter(|path| path.is_file())
+            .map(|path| (path, directory.join(&name))),
+        );
+    }
+    sources.sort();
+    sources.dedup();
+    sources
+}
+
+fn inline_module_directories(module: &syn::ItemMod, directory: &Path) -> Vec<PathBuf> {
+    let mut configured = Vec::new();
+    for attribute in &module.attrs {
+        collect_module_paths(&attribute.meta, &mut configured);
+    }
+    let has_direct_path = module
+        .attrs
+        .iter()
+        .any(|attribute| attribute.path().is_ident("path"));
+    let mut directories: Vec<PathBuf> = configured
+        .into_iter()
+        .map(|path| lexically_normalise(&directory.join(path)))
+        .collect();
+    if !has_direct_path {
+        directories.push(directory.join(module.ident.unraw().to_string()));
+    }
+    directories.sort();
+    directories.dedup();
+    directories
+}
+
+fn collect_smoke_test_sources(
+    source: &Path,
+    directory: &Path,
+    items: &[syn::Item],
+    inside_smoke_module: bool,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    found: &mut BTreeSet<PathBuf>,
+) -> Result<()> {
+    for item in items {
+        match item {
+            syn::Item::Fn(function) => {
+                if has_test_attribute(&function.attrs)
+                    && (inside_smoke_module
+                        || function.sig.ident.unraw().to_string().starts_with("smoke"))
+                {
+                    found.insert(source.to_path_buf());
+                }
+            }
+            syn::Item::Mod(module) => {
+                let module_is_smoke =
+                    inside_smoke_module || module.ident.unraw().to_string().starts_with("smoke");
+                if let Some((_, items)) = &module.content {
+                    for child_directory in inline_module_directories(module, directory) {
+                        collect_smoke_test_sources(
+                            source,
+                            &child_directory,
+                            items,
+                            module_is_smoke,
+                            visited,
+                            found,
+                        )?;
+                    }
+                } else {
+                    for (child, child_directory) in module_sources(module, directory) {
+                        collect_source_smoke_tests_at(
+                            &child,
+                            &child_directory,
+                            module_is_smoke,
+                            visited,
+                            found,
+                        )?;
+                    }
+                }
+            }
+            syn::Item::Macro(item) if item.mac.path.is_ident("include") => {
+                let Ok(path) = syn::parse2::<syn::LitStr>(item.mac.tokens.clone()) else {
+                    continue;
+                };
+                let Some(parent) = source.parent() else {
+                    continue;
+                };
+                let included = lexically_normalise(&parent.join(path.value()));
+                if included.is_file() {
+                    // rustc resolves modules declared by an included file
+                    // beside that file, while a nested include remains
+                    // relative to the file that contains it.
+                    let child_directory = included
+                        .parent()
+                        .map_or_else(|| directory.to_path_buf(), Path::to_path_buf);
+                    collect_source_smoke_tests_at(
+                        &included,
+                        &child_directory,
+                        inside_smoke_module,
+                        visited,
+                        found,
+                    )?;
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn collect_source_smoke_tests(
+    source: &Path,
+    inside_smoke_module: bool,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    found: &mut BTreeSet<PathBuf>,
+) -> Result<()> {
+    collect_source_smoke_tests_at(
+        source,
+        &module_directory(source)?,
+        inside_smoke_module,
+        visited,
+        found,
+    )
+}
+
+fn collect_source_smoke_tests_at(
+    source: &Path,
+    directory: &Path,
+    inside_smoke_module: bool,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    found: &mut BTreeSet<PathBuf>,
+) -> Result<()> {
+    if !visited.insert((
+        source.to_path_buf(),
+        directory.to_path_buf(),
+        inside_smoke_module,
+    )) {
+        return Ok(());
+    }
+    let text = fs::read_to_string(source)
+        .with_context(|| format!("reading Rust module {}", source.display()))?;
+    let parsed = syn::parse_file(&text)
+        .with_context(|| format!("parsing Rust module {}", source.display()))?;
+    collect_smoke_test_sources(
+        source,
+        directory,
+        &parsed.items,
+        inside_smoke_module,
+        visited,
+        found,
+    )
 }
 
 fn compile_marker_regex() -> Result<Regex> {
@@ -628,48 +996,175 @@ fn compile_marker_regex() -> Result<Regex> {
         .context("compiling smoke marker regex")
 }
 
-fn scan_smoke_sources(root: &Path, targets: &[Target]) -> Result<BTreeSet<String>> {
-    let marker = compile_marker_regex()?;
-    let integration = Regex::new(r"/tests/(smoke\.rs|[^/]*_smoke\.rs|smoke/[^/]*_smoke\.rs)$")?;
-    let mut discovered = BTreeSet::new();
-    for relative in tracked_rust_sources(root)? {
-        let text = fs::read_to_string(root.join(&relative))
-            .with_context(|| format!("reading {relative}"))?;
-        let parsed = syn::parse_file(&text).with_context(|| format!("parsing {relative}"))?;
-        if integration.is_match(&relative)
-            || items_contain_smoke_declaration(&parsed.items)
-            || text.lines().any(|line| marker.is_match(line))
-        {
-            discovered.insert(relative);
-        }
+fn is_smoke_marker_line(marker: &Regex, line: &str) -> Result<bool> {
+    if marker.is_match(line) {
+        return Ok(true);
     }
-    for target in targets
-        .iter()
-        .filter(|target| target.available && target.testable && is_smoke_named_target(target))
-    {
-        let relative = target.source.strip_prefix(root).with_context(|| {
-            format!(
-                "smoke target source is outside workspace: {}",
-                target.source.display()
-            )
-        })?;
-        discovered.insert(relative.to_string_lossy().replace('\\', "/"));
+    let comment = line.trim_start().strip_prefix("//").map(str::trim_start);
+    if comment.is_some_and(|comment| comment.contains("tcl-lsp-smoke")) {
+        bail!("invalid smoke marker; expected exactly '// tcl-lsp-smoke-target'");
     }
-    Ok(discovered)
+    Ok(false)
 }
 
-fn check_source_inventory(root: &Path, rows: &[ManifestRow], targets: &[Target]) -> Result<()> {
-    let expected: BTreeSet<String> = rows.iter().map(|row| row.source_text.clone()).collect();
-    let actual = scan_smoke_sources(root, targets)?;
-    if expected == actual {
+fn relative_source(root: &Path, source: &Path) -> Result<String> {
+    Ok(source
+        .strip_prefix(root)
+        .with_context(|| {
+            format!(
+                "discovered smoke source is outside workspace: {}",
+                source.display()
+            )
+        })?
+        .to_string_lossy()
+        .replace('\\', "/"))
+}
+
+fn record_target_owner(inventory: &mut SmokeInventory, relative: String, target: &Target) {
+    inventory
+        .owners
+        .entry(relative)
+        .or_default()
+        .insert(target_identity(target));
+}
+
+fn record_target_source(inventory: &mut SmokeInventory, relative: String, target: &Target) {
+    inventory.sources.insert(relative.clone());
+    record_target_owner(inventory, relative, target);
+}
+
+fn scan_target_smoke_sources(
+    root: &Path,
+    target: &Target,
+    inventory: &mut SmokeInventory,
+) -> Result<()> {
+    let smoke_named = is_smoke_named_target(target);
+    if smoke_named {
+        record_target_source(inventory, relative_source(root, &target.source)?, target);
+    }
+    let target_directory = target.source.parent().with_context(|| {
+        format!(
+            "Cargo target source has no parent: {}",
+            target.source.display()
+        )
+    })?;
+    let mut visited = HashSet::new();
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests_at(
+        &target.source,
+        target_directory,
+        smoke_named,
+        &mut visited,
+        &mut found,
+    )?;
+    for (source, _, _) in visited {
+        if source.starts_with(root) {
+            record_target_owner(inventory, relative_source(root, &source)?, target);
+        }
+    }
+    for source in found {
+        record_target_source(inventory, relative_source(root, &source)?, target);
+    }
+    Ok(())
+}
+
+fn scan_smoke_sources(root: &Path, targets: &[Target]) -> Result<SmokeInventory> {
+    let marker = compile_marker_regex()?;
+    let mut inventory = SmokeInventory::default();
+    for relative in tracked_rust_sources(root)? {
+        let source = root.join(&relative);
+        let text = fs::read_to_string(&source).with_context(|| format!("reading {relative}"))?;
+        let mut source_has_marker = false;
+        for (line_index, line) in text.lines().enumerate() {
+            source_has_marker |= is_smoke_marker_line(&marker, line)
+                .with_context(|| format!("{relative}:{}", line_index + 1))?;
+        }
+        if source_has_marker {
+            inventory.sources.insert(relative);
+        }
+    }
+    for target in targets.iter().filter(|target| target.testable) {
+        scan_target_smoke_sources(root, target, &mut inventory)?;
+    }
+    Ok(inventory)
+}
+
+fn inventory_entries(
+    root: &Path,
+    inventory: &SmokeInventory,
+    targets: &[Target],
+) -> BTreeSet<(String, TargetIdentity)> {
+    inventory
+        .sources
+        .iter()
+        .flat_map(|source| {
+            let owners: Vec<TargetIdentity> = inventory.owners.get(source).map_or_else(
+                || {
+                    best_owners(&root.join(source), targets)
+                        .into_iter()
+                        .map(target_identity)
+                        .collect()
+                },
+                |owners| owners.iter().cloned().collect(),
+            );
+            owners.into_iter().map(|owner| (source.clone(), owner))
+        })
+        .collect()
+}
+
+fn inventory_entry_text(entry: &(String, TargetIdentity)) -> String {
+    let (source, (package, kind, target)) = entry;
+    format!("{source} [{package} {kind}:{target}]")
+}
+
+fn check_source_inventory(
+    root: &Path,
+    rows: &[ManifestRow],
+    inventory: &SmokeInventory,
+    targets: &[Target],
+) -> Result<()> {
+    let expected_sources: BTreeSet<String> =
+        rows.iter().map(|row| row.source_text.clone()).collect();
+    let expected_entries: BTreeSet<(String, TargetIdentity)> = rows
+        .iter()
+        .map(|row| {
+            (
+                row.source_text.clone(),
+                (
+                    row.package.clone(),
+                    row.kind.clone(),
+                    row.target_name.clone(),
+                ),
+            )
+        })
+        .collect();
+    let actual_entries = inventory_entries(root, inventory, targets);
+    if expected_sources == inventory.sources && expected_entries == actual_entries {
         return Ok(());
     }
-    let missing: Vec<_> = actual.difference(&expected).cloned().collect();
-    let stale: Vec<_> = expected.difference(&actual).cloned().collect();
+    let missing_sources: Vec<_> = inventory
+        .sources
+        .difference(&expected_sources)
+        .cloned()
+        .collect();
+    let stale_sources: Vec<_> = expected_sources
+        .difference(&inventory.sources)
+        .cloned()
+        .collect();
+    let missing_entries: Vec<_> = actual_entries
+        .difference(&expected_entries)
+        .map(inventory_entry_text)
+        .collect();
+    let stale_entries: Vec<_> = expected_entries
+        .difference(&actual_entries)
+        .map(inventory_entry_text)
+        .collect();
     bail!(
-        "smoke-targets.tsv inventory drift; missing rows: [{}]; stale rows: [{}]",
-        missing.join(", "),
-        stale.join(", ")
+        "smoke-targets.tsv inventory drift; missing sources: [{}]; stale sources: [{}]; missing target rows: [{}]; stale target rows: [{}]",
+        missing_sources.join(", "),
+        stale_sources.join(", "),
+        missing_entries.join(", "),
+        stale_entries.join(", ")
     )
 }
 
@@ -681,7 +1176,7 @@ fn target_selector(target: &Target) -> (String, String) {
     }
 }
 
-fn target_groups(rows: &[ManifestRow], targets: &[Target]) -> Vec<Vec<Target>> {
+fn target_groups(rows: &[ManifestRow], targets: &[Target]) -> Result<Vec<Vec<Target>>> {
     let available: HashMap<(&str, &str, &str), &Target> = targets
         .iter()
         .filter(|target| target.available && target.testable)
@@ -718,7 +1213,8 @@ fn target_groups(rows: &[ManifestRow], targets: &[Target]) -> Vec<Vec<Target>> {
         });
         groups[index].push((*target).clone());
     }
-    groups
+    reject_ineligible_collisions(&groups, targets)?;
+    Ok(groups)
 }
 
 fn has_ineligible_collision(group: &[Target], targets: &[Target]) -> bool {
@@ -726,6 +1222,23 @@ fn has_ineligible_collision(group: &[Target], targets: &[Target]) -> bool {
     targets.iter().any(|target| {
         target_selector(target) == selector && (!target.available || !target.testable)
     })
+}
+
+fn reject_ineligible_collisions(groups: &[Vec<Target>], targets: &[Target]) -> Result<()> {
+    if let Some(group) = groups
+        .iter()
+        .find(|group| group[0].kind != "lib" && has_ineligible_collision(group, targets))
+    {
+        let (kind, name) = target_selector(&group[0]);
+        bail!(
+            "smoke selector {kind}:{name} collides with an unavailable or test=false target; rename one target so Cargo can preserve workspace features without selecting the disabled peer"
+        );
+    }
+    Ok(())
+}
+
+fn uses_automatic_workspace_selection(group: &[Target], targets: &[Target]) -> bool {
+    group[0].kind == "lib" && has_ineligible_collision(group, targets)
 }
 
 fn cargo_target_args(kind: &str, target_name: &str, full_workspace: bool) -> Vec<String> {
@@ -763,10 +1276,19 @@ fn combined_cargo_target_args(groups: &[&[Target]]) -> Vec<String> {
 
 fn target_key(target: &Target) -> TargetKey {
     (
+        target.package_id.clone(),
         target.kind.clone(),
         target.name.clone(),
         target.source.clone(),
     )
+}
+
+fn linked_path(value: &str) -> PathBuf {
+    const KINDS: &[&str] = &["all", "crate", "dependency", "framework", "native"];
+    value
+        .split_once('=')
+        .filter(|(kind, _)| KINDS.contains(kind))
+        .map_or_else(|| PathBuf::from(value), |(_, path)| PathBuf::from(path))
 }
 
 fn record_build_environment(message: &Value, artifacts: &mut CargoTestArtifacts) -> Result<()> {
@@ -796,14 +1318,26 @@ fn record_build_environment(message: &Value, artifacts: &mut CargoTestArtifacts)
             .context("build-script environment value is not a string")?;
         values.insert(OsString::from(key), OsString::from(value));
     }
-    artifacts
+    let linked_paths = message
+        .get("linked_paths")
+        .and_then(Value::as_array)
+        .context("build-script result has no linked-path array")?
+        .iter()
+        .map(|path| {
+            path.as_str()
+                .map(linked_path)
+                .context("build-script linked path is not a string")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let environments = artifacts
         .build_environments
         .entry(package_id.to_owned())
-        .or_default()
-        .push(BuildEnvironment {
-            out_dir: PathBuf::from(out_dir),
-            values,
-        });
+        .or_default();
+    environments.push(BuildEnvironment {
+        out_dir: PathBuf::from(out_dir),
+        values,
+        linked_paths,
+    });
     Ok(())
 }
 
@@ -830,12 +1364,12 @@ fn record_compiler_artifact(message: &Value, artifacts: &mut CargoTestArtifacts)
         .filter_map(Value::as_str)
         .map(ToOwned::to_owned)
         .collect();
+    let package_id = message
+        .get("package_id")
+        .and_then(Value::as_str)
+        .context("compiler artifact has no package ID")?;
     let is_test = message.pointer("/profile/test").and_then(Value::as_bool) == Some(true);
     if !is_test && raw_kinds.iter().any(|kind| kind == "bin") {
-        let package_id = message
-            .get("package_id")
-            .and_then(Value::as_str)
-            .context("binary artifact has no package ID")?;
         artifacts.binary_executables.insert(
             (package_id.to_owned(), name.to_owned()),
             PathBuf::from(executable),
@@ -844,7 +1378,12 @@ fn record_compiler_artifact(message: &Value, artifacts: &mut CargoTestArtifacts)
     if is_test {
         for kind in canonical_target_kinds(&raw_kinds) {
             artifacts.executables.insert(
-                (kind, name.to_owned(), PathBuf::from(source)),
+                (
+                    package_id.to_owned(),
+                    kind,
+                    name.to_owned(),
+                    PathBuf::from(source),
+                ),
                 PathBuf::from(executable),
             );
         }
@@ -855,11 +1394,15 @@ fn record_compiler_artifact(message: &Value, artifacts: &mut CargoTestArtifacts)
 fn cargo_test_executables(
     root: &Path,
     args: &[String],
+    target: Option<&str>,
     extra_env: &BTreeMap<OsString, OsString>,
 ) -> Result<CargoTestArtifacts> {
     let mut command = Command::new("cargo");
+    command.args(args);
+    if let Some(target) = target {
+        command.args(["--target", target]);
+    }
     command
-        .args(args)
         .args(["--no-run", "--message-format=json"])
         .current_dir(root)
         .envs(extra_env);
@@ -888,18 +1431,14 @@ impl CargoTestArtifacts {
         &self,
         target: &Target,
         executable: &Path,
-    ) -> Result<BTreeMap<OsString, OsString>> {
+    ) -> Result<RuntimeEnvironment> {
         let mut environment = BTreeMap::new();
+        let profile_dir = executable
+            .parent()
+            .and_then(Path::parent)
+            .context("test executable has no Cargo profile directory")?;
         if let Some(candidates) = self.build_environments.get(&target.package_id) {
-            let profile_dir = executable
-                .parent()
-                .and_then(Path::parent)
-                .context("test executable has no Cargo profile directory")?;
-            let matching: Vec<&BTreeMap<OsString, OsString>> = candidates
-                .iter()
-                .filter(|candidate| candidate.out_dir.starts_with(profile_dir))
-                .map(|candidate| &candidate.values)
-                .collect();
+            let matching = matching_build_environments(candidates, profile_dir);
             let Some(first) = matching.first() else {
                 bail!(
                     "no build-script environment for {} matches {}",
@@ -914,18 +1453,126 @@ impl CargoTestArtifacts {
                     executable.display()
                 );
             }
-            environment.extend((*first).clone());
+            environment.extend(first.values.clone());
         }
-        for ((package_id, name), path) in &self.binary_executables {
-            if package_id == &target.package_id {
-                environment.insert(
-                    OsString::from(format!("CARGO_BIN_EXE_{name}")),
-                    path.as_os_str().to_os_string(),
-                );
+        let variable = OsString::from(dynamic_library_variable());
+        let preserves_dynamic_library_path = environment.contains_key(&variable);
+        let linked_paths: BTreeSet<PathBuf> = target
+            .runtime_packages
+            .iter()
+            .flat_map(|package_id| {
+                self.build_environments
+                    .get(package_id)
+                    .into_iter()
+                    .flatten()
+            })
+            .filter(|environment| environment.out_dir.starts_with(profile_dir))
+            .flat_map(|environment| {
+                environment
+                    .linked_paths
+                    .iter()
+                    .map(|path| lexically_normalise(path))
+                    .filter(|path| path.starts_with(&self.target_directory))
+            })
+            .collect();
+        if !linked_paths.is_empty() && !preserves_dynamic_library_path {
+            environment.insert(
+                variable,
+                env::join_paths(linked_paths)
+                    .context("joining build-script dynamic library search path")?,
+            );
+        }
+        if matches!(target.kind.as_str(), "test" | "bench") {
+            for ((package_id, name), path) in &self.binary_executables {
+                if package_id == &target.package_id {
+                    environment.insert(
+                        OsString::from(format!("CARGO_BIN_EXE_{name}")),
+                        path.as_os_str().to_os_string(),
+                    );
+                }
             }
         }
-        Ok(environment)
+        Ok(RuntimeEnvironment {
+            values: environment,
+            preserves_dynamic_library_path,
+        })
     }
+
+    fn needs_explicit_target(&self, targets: &[Target]) -> Result<bool> {
+        for target in targets {
+            let Some(executable) = self.executable(target) else {
+                continue;
+            };
+            let profile_dir = executable
+                .parent()
+                .and_then(Path::parent)
+                .context("test executable has no Cargo profile directory")?;
+            for package_id in &target.runtime_packages {
+                let Some(candidates) = self.build_environments.get(package_id) else {
+                    continue;
+                };
+                let matching: Vec<&BuildEnvironment> =
+                    matching_build_environments(candidates, profile_dir)
+                        .into_iter()
+                        .filter(|environment| {
+                            package_id == &target.package_id
+                                || environment
+                                    .linked_paths
+                                    .iter()
+                                    .map(|path| lexically_normalise(path))
+                                    .any(|path| path.starts_with(&self.target_directory))
+                        })
+                        .collect();
+                if let Some(first) = matching.first()
+                    && matching.iter().any(|candidate| *candidate != *first)
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+}
+
+fn matching_build_environments<'a>(
+    candidates: &'a [BuildEnvironment],
+    profile_dir: &Path,
+) -> Vec<&'a BuildEnvironment> {
+    candidates
+        .iter()
+        .filter(|candidate| candidate.out_dir.starts_with(profile_dir))
+        .collect()
+}
+
+fn cargo_test_artifacts(
+    root: &Path,
+    args: &[String],
+    targets: &[Target],
+    runtime: &CargoRuntime,
+    extra_env: &BTreeMap<OsString, OsString>,
+) -> Result<CargoTestArtifacts> {
+    let configured_target_directory = extra_env
+        .get(OsStr::new("CARGO_TARGET_DIR"))
+        .map_or_else(|| runtime.target_directory.clone(), PathBuf::from);
+    let target_directory = if configured_target_directory.is_absolute() {
+        configured_target_directory
+    } else {
+        root.join(configured_target_directory)
+    };
+    let target_directory = lexically_normalise(&target_directory);
+    let mut artifacts = cargo_test_executables(root, args, None, extra_env)?;
+    artifacts.target_directory.clone_from(&target_directory);
+    if !artifacts.needs_explicit_target(targets)? {
+        return Ok(artifacts);
+    }
+    println!("==> Cargo build-script contexts overlap; rebuilding for the resolved target");
+    let mut rebuilt = cargo_test_executables(root, args, Some(&runtime.target), extra_env)?;
+    rebuilt.target_directory = target_directory;
+    if rebuilt.needs_explicit_target(targets)? {
+        bail!("build-script environments remain ambiguous under explicit target selection");
+    }
+    rebuilt.explicit_target_context = true;
+    Ok(rebuilt)
 }
 
 fn rust_runtime_library(root: &Path, target: &str, rustc: &PathAndArgs) -> Result<PathBuf> {
@@ -957,23 +1604,45 @@ fn dynamic_library_variable() -> &'static str {
     }
 }
 
+fn cargo_profile_library_paths(executable: &Path) -> Result<(PathBuf, PathBuf)> {
+    let artifact_directory = executable
+        .parent()
+        .context("test executable has no parent")?;
+    let profile = if matches!(
+        artifact_directory.file_name(),
+        Some(name) if name == "deps" || name == "examples"
+    ) {
+        artifact_directory
+            .parent()
+            .context("Cargo artifact directory has no profile parent")?
+    } else {
+        artifact_directory
+    };
+    Ok((profile.to_path_buf(), profile.join("deps")))
+}
+
 fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Command> {
     let variable = dynamic_library_variable();
-    let mut paths = vec![
-        executable
-            .parent()
-            .context("test executable has no parent")?
-            .to_path_buf(),
-    ];
-    if let Some(profile) = executable.parent().and_then(Path::parent) {
-        paths.push(profile.to_path_buf());
-        paths.push(profile.join("deps"));
-    }
-    paths.push(context.rust_runtime_library.to_path_buf());
-    if let Some(existing) = env::var_os(variable) {
-        paths.extend(env::split_paths(&existing));
-    }
-    let joined = env::join_paths(paths).context("joining dynamic library search path")?;
+    let joined = if context.preserves_dynamic_library_path {
+        context
+            .package_environment
+            .get(OsStr::new(variable))
+            .context("preserved build-script dynamic library path is missing")?
+            .clone()
+    } else {
+        let mut paths = context
+            .package_environment
+            .get(OsStr::new(variable))
+            .map_or_else(Vec::new, |value| env::split_paths(value).collect());
+        let (profile, dependencies) = cargo_profile_library_paths(executable)?;
+        paths.push(profile);
+        paths.push(dependencies);
+        paths.push(context.rust_runtime_library.to_path_buf());
+        if let Some(existing) = env::var_os(variable) {
+            paths.extend(env::split_paths(&existing));
+        }
+        env::join_paths(paths).context("joining dynamic library search path")?
+    };
     let mut command = if let Some(runner) = context.runner {
         let mut command = Command::new(&runner.path);
         command.args(&runner.args).arg(executable);
@@ -986,6 +1655,7 @@ fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Co
             command.env_remove(name);
         }
     }
+    command.env_remove("CARGO_MANIFEST_LINKS");
     command
         .current_dir(context.package_root)
         .envs(context.package_environment)
@@ -1112,45 +1782,52 @@ fn execute_manifest(
     runtime: &CargoRuntime,
     list_only: bool,
 ) -> Result<()> {
-    let groups = target_groups(rows, targets);
+    let groups = target_groups(rows, targets)?;
     let rust_runtime_library = rust_runtime_library(root, &runtime.target, &runtime.rustc)?;
     let extra_env = BTreeMap::new();
-    let regular_groups: Vec<&[Target]> = groups
+    let explicit_groups: Vec<&[Target]> = groups
         .iter()
-        .filter(|group| !has_ineligible_collision(group, targets))
+        .filter(|group| !uses_automatic_workspace_selection(group, targets))
         .map(Vec::as_slice)
         .collect();
-    let regular_executables = if regular_groups.is_empty() {
+    let automatic_groups: Vec<&[Target]> = groups
+        .iter()
+        .filter(|group| uses_automatic_workspace_selection(group, targets))
+        .map(Vec::as_slice)
+        .collect();
+    let explicit_artifacts = if explicit_groups.is_empty() {
         CargoTestArtifacts::default()
     } else {
-        let args = combined_cargo_target_args(&regular_groups);
+        let args = combined_cargo_target_args(&explicit_groups);
         println!("==> cargo test --workspace selected smoke targets --no-run");
-        cargo_test_executables(root, &args, &extra_env)?
+        let selected_targets: Vec<Target> = explicit_groups
+            .iter()
+            .flat_map(|group| *group)
+            .cloned()
+            .collect();
+        cargo_test_artifacts(root, &args, &selected_targets, runtime, &extra_env)?
     };
-    let automatic_executables = if groups
-        .iter()
-        .any(|group| has_ineligible_collision(group, targets))
-    {
-        println!("==> cargo test --workspace automatic targets --no-run");
-        Some(cargo_test_executables(
-            root,
-            &cargo_target_args("", "", true),
-            &extra_env,
-        )?)
+    let automatic_artifacts = if automatic_groups.is_empty() {
+        CargoTestArtifacts::default()
     } else {
-        None
+        let args = cargo_target_args("", "", true);
+        println!("==> cargo test --workspace automatic library targets --no-run");
+        let selected_targets: Vec<Target> = automatic_groups
+            .iter()
+            .flat_map(|group| *group)
+            .cloned()
+            .collect();
+        cargo_test_artifacts(root, &args, &selected_targets, runtime, &extra_env)?
     };
 
     for group in groups {
-        let executables = if has_ineligible_collision(&group, targets) {
-            automatic_executables
-                .as_ref()
-                .context("automatic Cargo artifact set is missing")?
+        let artifacts = if uses_automatic_workspace_selection(&group, targets) {
+            &automatic_artifacts
         } else {
-            &regular_executables
+            &explicit_artifacts
         };
         for target in &group {
-            let executable = executables.executable(target).with_context(|| {
+            let executable = artifacts.executable(target).with_context(|| {
                 format!(
                     "Cargo did not produce a test executable for {} {}:{}",
                     target.package, target.kind, target.name
@@ -1159,16 +1836,18 @@ fn execute_manifest(
             let package_root = package_roots
                 .get(&target.package)
                 .with_context(|| format!("missing package root for {}", target.package))?;
-            let mut package_environment = package_environments
+            let package_environment = package_environments
                 .get(&target.package)
-                .with_context(|| format!("missing package environment for {}", target.package))?
-                .clone();
-            package_environment.extend(executables.runtime_environment(target, executable)?);
+                .with_context(|| format!("missing package environment for {}", target.package))?;
+            let runtime_environment = artifacts.runtime_environment(target, executable)?;
+            let package_environment =
+                harness_environment(package_environment, &runtime_environment.values);
             let context = HarnessContext {
                 package_root,
                 package_environment: &package_environment,
                 rust_runtime_library: &rust_runtime_library,
                 runner: runtime.runner.as_ref(),
+                preserves_dynamic_library_path: runtime_environment.preserves_dynamic_library_path,
             };
             run_harness(target, executable, &context, list_only, false)?;
         }
@@ -1180,8 +1859,9 @@ fn check_contract(root: &Path) -> Result<Contract> {
     let manifest = root.join(MANIFEST);
     let runtime = cargo_runtime(root)?;
     let (package_roots, package_environments, targets) = load_targets(root, &runtime.target)?;
-    let rows = validate_manifest(root, &manifest, &package_roots, &targets)?;
-    check_source_inventory(root, &rows, &targets)?;
+    let inventory = scan_smoke_sources(root, &targets)?;
+    let rows = validate_manifest(root, &manifest, &package_roots, &targets, &inventory)?;
+    check_source_inventory(root, &rows, &inventory, &targets)?;
     Ok((package_roots, package_environments, targets, rows, runtime))
 }
 
@@ -1189,16 +1869,29 @@ struct Fixture {
     root: PathBuf,
 }
 
+fn create_fixture(mut next_root: impl FnMut() -> PathBuf) -> Result<Fixture> {
+    loop {
+        let root = next_root();
+        match fs::create_dir(&root) {
+            Ok(()) => return Ok(Fixture { root }),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("creating smoke fixture {}", root.display()));
+            }
+        }
+    }
+}
+
 impl Fixture {
     fn new() -> Result<Self> {
-        let serial = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
-        let root = env::temp_dir().join(format!(
-            "tcl-lsp-smoke-targets-{}-{serial}",
-            std::process::id()
-        ));
-        fs::create_dir(&root)
-            .with_context(|| format!("creating smoke fixture {}", root.display()))?;
-        Ok(Self { root })
+        create_fixture(|| {
+            let serial = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+            env::temp_dir().join(format!(
+                "tcl-lsp-smoke-targets-{}-{serial}",
+                std::process::id()
+            ))
+        })
     }
 
     fn write(&self, relative: &str, contents: &str) -> Result<()> {
@@ -1232,6 +1925,10 @@ impl Drop for Fixture {
 fn rustc_probe_config(fixture: &Fixture) -> Result<String> {
     let probe = fixture.root.join("rustc-probe.sh");
     let marker = fixture.root.join("rustc-sysroot-queried");
+    let wrapper = fixture.root.join("rustc-wrapper.sh");
+    let wrapper_marker = fixture.root.join("rustc-wrapper-queried");
+    let workspace_wrapper = fixture.root.join("rustc-workspace-wrapper.sh");
+    let workspace_wrapper_marker = fixture.root.join("rustc-workspace-wrapper-queried");
     fixture.write_executable(
         "rustc-probe.sh",
         &format!(
@@ -1239,7 +1936,26 @@ fn rustc_probe_config(fixture: &Fixture) -> Result<String> {
             marker.display()
         ),
     )?;
-    Ok(format!("rustc = {}\n", serde_json::to_string(&probe)?))
+    fixture.write_executable(
+        "rustc-wrapper.sh",
+        &format!(
+            "#!/bin/sh\n: > \"{}\"\nexec \"$@\"\n",
+            wrapper_marker.display()
+        ),
+    )?;
+    fixture.write_executable(
+        "rustc-workspace-wrapper.sh",
+        &format!(
+            "#!/bin/sh\n: > \"{}\"\nexec \"$@\"\n",
+            workspace_wrapper_marker.display()
+        ),
+    )?;
+    Ok(format!(
+        "rustc = {}\nrustc-wrapper = {}\nrustc-workspace-wrapper = {}\n",
+        serde_json::to_string(&probe)?,
+        serde_json::to_string(&wrapper)?,
+        serde_json::to_string(&workspace_wrapper)?,
+    ))
 }
 
 #[cfg(not(unix))]
@@ -1248,17 +1964,32 @@ fn rustc_probe_config(_fixture: &Fixture) -> Result<String> {
 }
 
 fn reset_rustc_probe(fixture: &Fixture) -> Result<()> {
-    let marker = fixture.root.join("rustc-sysroot-queried");
-    if marker.exists() {
-        fs::remove_file(&marker).with_context(|| format!("removing {}", marker.display()))?;
+    for name in [
+        "rustc-sysroot-queried",
+        "rustc-wrapper-queried",
+        "rustc-workspace-wrapper-queried",
+    ] {
+        let marker = fixture.root.join(name);
+        if marker.exists() {
+            fs::remove_file(&marker).with_context(|| format!("removing {}", marker.display()))?;
+        }
     }
     Ok(())
 }
 
 #[cfg(unix)]
 fn verify_rustc_probe(fixture: &Fixture) -> Result<()> {
-    if !fixture.root.join("rustc-sysroot-queried").is_file() {
-        bail!("configured Cargo rustc was not used for the sysroot query");
+    for (name, context) in [
+        ("rustc-sysroot-queried", "configured Cargo rustc"),
+        ("rustc-wrapper-queried", "configured Cargo rustc wrapper"),
+        (
+            "rustc-workspace-wrapper-queried",
+            "configured Cargo workspace rustc wrapper",
+        ),
+    ] {
+        if !fixture.root.join(name).is_file() {
+            bail!("{context} was not used for the sysroot query");
+        }
     }
     Ok(())
 }
@@ -1279,7 +2010,7 @@ const CARGO_FIXTURE_FILES: &[(&str, &str)] = &[
     (
         "Cargo.toml",
         r#"[workspace]
-members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q"]
 resolver = "2"
 "#,
     ),
@@ -1323,6 +2054,7 @@ edition = "2024"
 
 [build-dependencies]
 a = { path = "../a", features = ["build_only"] }
+e = { path = "../e", features = ["host_only"] }
 "#,
     ),
     ("b/src/lib.rs", "pub fn value() -> bool { true }\n"),
@@ -1339,6 +2071,10 @@ a = { path = "../a", features = ["normal"] }
 "#,
     ),
     ("c/src/lib.rs", "pub fn value() -> bool { a::value() }\n"),
+    (
+        "c/build.rs",
+        "fn main() { std::thread::sleep(std::time::Duration::from_millis(250)); let native = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()).join(\"native\"); std::fs::create_dir_all(&native).unwrap(); println!(\"cargo::rustc-link-search=native={}\", native.display()); }\n",
+    ),
     (
         "d/Cargo.toml",
         r#"[package]
@@ -1357,23 +2093,28 @@ proc-macro = true
 name = "e"
 version = "0.1.0"
 edition = "2024"
+links = "fixture-e"
 
 [dependencies]
+c = { path = "../c" }
 f = { path = "../f" }
+
+[features]
+host_only = []
 "#,
     ),
     (
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); assert!(std::env::var(\"OUT_DIR\").unwrap().replace(char::from(92), \"/\").contains(\"/build/e-\")); if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::env::var_os(\"CARGO_MANIFEST_LINKS\").is_none()); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
     ),
     (
         "e/build.rs",
-        "fn main() { println!(\"cargo::rustc-env=TCL_LSP_BUILD_ENV=owned\"); }\n",
+        "fn main() { let out = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()); let native = out.join(\"native\"); let later = out.join(\"aaa-native\"); let shared = out.parent().unwrap().parent().unwrap().parent().unwrap().join(\"shared-native\"); let escaped = out.ancestors().nth(5).unwrap().join(\"../outside-native\"); std::fs::create_dir_all(&native).unwrap(); std::fs::create_dir_all(&later).unwrap(); std::fs::create_dir_all(&shared).unwrap(); std::fs::create_dir_all(&escaped).unwrap(); let context = if std::env::var_os(\"CARGO_FEATURE_HOST_ONLY\").is_some() { \"host\" } else { \"owned\" }; println!(\"cargo::rustc-env=TCL_LSP_BUILD_ENV={context}\"); println!(\"cargo::rustc-env=CARGO_PKG_NAME=overridden\"); println!(\"cargo::rustc-env=CARGO_PKG_VERSION=9.9.9\"); println!(\"cargo::rustc-env=CARGO_MANIFEST_DIR=overridden\"); println!(\"cargo::rustc-env=CARGO_MANIFEST_PATH=overridden\"); println!(\"cargo::rustc-link-search=native={}\", native.display()); println!(\"cargo::rustc-link-search=native={}\", later.display()); println!(\"cargo::rustc-link-search=native={}\", shared.display()); println!(\"cargo::rustc-link-search=native={}\", escaped.display()); }\n",
     ),
     (
         "f/Cargo.toml",
@@ -1389,6 +2130,10 @@ a = { path = "../a" }
     (
         "f/src/lib.rs",
         "pub fn normal_is_enabled() -> bool { a::normal_is_enabled() }\n",
+    ),
+    (
+        "f/build.rs",
+        "fn main() { let native = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()).join(\"native\"); std::fs::create_dir_all(&native).unwrap(); println!(\"cargo::rustc-link-search=native={}\", native.display()); }\n",
     ),
     (
         "g/Cargo.toml",
@@ -1411,6 +2156,10 @@ edition = "2024"
 
 [lib]
 name = "library_smoke"
+
+[[bin]]
+name = "library-helper"
+path = "src/main.rs"
 "#,
     ),
     (
@@ -1418,9 +2167,12 @@ name = "library_smoke"
         r#"#[test]
 fn ordinary_library_test() {
     assert!(std::env::current_dir().unwrap().ends_with("h"));
+    assert!(std::env::var_os("CARGO_BIN_EXE_library-helper").is_none());
 }
 "#,
     ),
+    ("h/src/main.rs", "fn main() {}\n"),
+    ("h/tests/deep.rs", "#[test]\nfn ordinary() {}\n"),
     (
         "i/Cargo.toml",
         r#"[package]
@@ -1455,12 +2207,21 @@ edition = "2024"
 name = "demo_smoke"
 path = "examples/demo.rs"
 test = false
+
+[[bench]]
+name = "bench_smoke"
+path = "benches/bench.rs"
+test = false
 "#,
     ),
     ("j/src/lib.rs", ""),
     (
         "j/examples/demo.rs",
-        "#[test]\nfn must_not_run() { panic!(); }\nfn main() {}\n",
+        "#[cfg(test)]\ncompile_error!(\"test=false example must not compile as a test\");\nfn main() {}\n",
+    ),
+    (
+        "j/benches/bench.rs",
+        "#[cfg(test)]\ncompile_error!(\"test=false benchmark must not compile as a test\");\nfn main() {}\n",
     ),
     (
         "k/Cargo.toml",
@@ -1496,9 +2257,82 @@ path = "src/main.rs"
         "l/tests/smoke.rs",
         "#[test]\nfn smoke_binary_path() { assert!(std::path::Path::new(&std::env::var(\"CARGO_BIN_EXE_helper-tool\").unwrap()).is_file()); }\n",
     ),
+    (
+        "m/Cargo.toml",
+        r#"[package]
+name = "m"
+version = "0.1.0"
+edition = "2024"
+
+[[bench]]
+name = "unique_smoke"
+path = "benches/bench.rs"
+"#,
+    ),
+    ("m/src/lib.rs", ""),
+    (
+        "m/benches/bench.rs",
+        "#[test]\nfn ordinary_bench_test() {}\n",
+    ),
+    (
+        "n/Cargo.toml",
+        r#"[package]
+name = "n"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+test = false
+"#,
+    ),
+    (
+        "n/src/lib.rs",
+        "#[cfg(test)]\ncompile_error!(\"test=false library must not compile as a test\");\n",
+    ),
+    (
+        "o/Cargo.toml",
+        r#"[package]
+name = "o"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "common"
+path = "../shared.rs"
+"#,
+    ),
+    (
+        "p/Cargo.toml",
+        r#"[package]
+name = "p"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "common"
+path = "../shared.rs"
+"#,
+    ),
+    ("shared.rs", "#[test]\nfn smoke_shared_source() {}\n"),
+    (
+        "q/Cargo.toml",
+        r#"[package]
+name = "q"
+version = "0.1.0"
+edition = "2024"
+"#,
+    ),
+    (
+        "q/src/lib.rs",
+        "#[test]\nfn smoke_dynamic_override() { assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"emitted\")); let out = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert_eq!(paths.first(), Some(&out.join(\"custom\"))); assert!(!paths.contains(&out.join(\"linked\"))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_OVERRIDE_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } }\n",
+    ),
+    (
+        "q/build.rs",
+        "fn main() { let out = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()); let custom = out.join(\"custom\"); let linked = out.join(\"linked\"); std::fs::create_dir_all(&custom).unwrap(); std::fs::create_dir_all(&linked).unwrap(); let target = std::env::var(\"CARGO_CFG_TARGET_OS\").unwrap(); let variable = if target == \"windows\" { \"PATH\" } else if target == \"macos\" { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let mut paths = vec![custom]; if let Some(existing) = std::env::var_os(variable) { paths.extend(std::env::split_paths(&existing)); } let override_value = std::env::join_paths(paths).unwrap(); println!(\"cargo::rustc-link-search=native={}\", linked.display()); println!(\"cargo::rustc-env={variable}={}\", override_value.to_string_lossy()); println!(\"cargo::rustc-env=CARGO_MANIFEST_LINKS=emitted\"); }\n",
+    ),
 ];
 
-fn verify_fixture_metadata(targets: &[Target]) -> Result<()> {
+fn verify_fixture_metadata(fixture: &Fixture, targets: &[Target]) -> Result<()> {
     let build_smoke = fixture_target(targets, "a", "build_smoke")?;
     let normal_smoke = fixture_target(targets, "a", "normal_smoke")?;
     if build_smoke.available || !normal_smoke.available {
@@ -1509,10 +2343,188 @@ fn verify_fixture_metadata(targets: &[Target]) -> Result<()> {
     {
         bail!("Cargo library-kind canonicalisation self-test failed");
     }
+    let mut inventory = SmokeInventory::default();
+    scan_target_smoke_sources(&fixture.root, build_smoke, &mut inventory)?;
+    let build_source = "a/src/build.rs".to_owned();
+    if !inventory.sources.contains(&build_source)
+        || !inventory
+            .owners
+            .get(&build_source)
+            .is_some_and(|owners| owners.contains(&target_identity(build_smoke)))
+    {
+        bail!("unavailable target inventory self-test failed");
+    }
+    let unavailable_row = ManifestRow {
+        source_text: build_source,
+        package: "a".to_owned(),
+        kind: "bin".to_owned(),
+        target_name: "build_smoke".to_owned(),
+    };
+    if !target_groups(&[unavailable_row], targets)?.is_empty() {
+        bail!("unavailable target execution self-test failed");
+    }
     Ok(())
 }
 
-fn verify_fixture_libraries(
+fn verify_fixture_runtime_environment(
+    environment: &BTreeMap<OsString, OsString>,
+    executable: &Path,
+    context: &HarnessContext<'_>,
+) -> Result<Vec<&'static str>> {
+    let variable = dynamic_library_variable();
+    let build_paths: Vec<PathBuf> = environment
+        .get(OsStr::new(variable))
+        .map(|value| env::split_paths(value).collect())
+        .context("fixture package e has no build-script runtime paths")?;
+    let own_first = build_paths.iter().position(|path| {
+        let path = path.to_string_lossy().replace('\\', "/");
+        path.contains("/build/e-") && path.ends_with("/out/native")
+    });
+    let own_second = build_paths.iter().position(|path| {
+        let path = path.to_string_lossy().replace('\\', "/");
+        path.contains("/build/e-") && path.ends_with("/out/aaa-native")
+    });
+    if !matches!((own_first, own_second), (Some(first), Some(second)) if second < first) {
+        bail!("build-script linked-path ordering self-test failed");
+    }
+    let linked_path_order = fixture_linked_path_order(&build_paths);
+    if linked_path_order
+        != [
+            "c-native",
+            "e-aaa-native",
+            "e-native",
+            "f-native",
+            "e-shared-native",
+        ]
+    {
+        bail!("Cargo-compatible linked-path ordering self-test failed");
+    }
+    let command = harness_command(executable, context)?;
+    let command_paths: Vec<PathBuf> = command
+        .get_envs()
+        .find_map(|(name, value)| (name == variable).then_some(value).flatten())
+        .map(env::split_paths)
+        .context("fixture harness has no dynamic-library environment")?
+        .collect();
+    if !command_paths.starts_with(&build_paths) {
+        bail!("build-script runtime paths were not prepended to harness paths");
+    }
+    let (profile, dependencies) = cargo_profile_library_paths(executable)?;
+    if command_paths.get(build_paths.len()) != Some(&profile)
+        || command_paths.get(build_paths.len() + 1) != Some(&dependencies)
+    {
+        bail!("Cargo profile runtime path ordering self-test failed");
+    }
+    let mut expected_paths = build_paths;
+    expected_paths.extend([
+        profile,
+        dependencies,
+        context.rust_runtime_library.to_path_buf(),
+    ]);
+    if let Some(existing) = env::var_os(variable) {
+        expected_paths.extend(env::split_paths(&existing));
+    }
+    if command_paths != expected_paths {
+        bail!(
+            "direct harness runtime paths {command_paths:?} differ from Cargo's synthesized paths {expected_paths:?}"
+        );
+    }
+    let manifest_links = command
+        .get_envs()
+        .find_map(|(name, value)| (name == "CARGO_MANIFEST_LINKS").then_some(value));
+    if manifest_links != Some(None) {
+        bail!("absent package links environment self-test failed");
+    }
+    Ok(linked_path_order)
+}
+
+fn fixture_linked_path_order(paths: &[PathBuf]) -> Vec<&'static str> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let path = path.to_string_lossy().replace('\\', "/");
+            if path.contains("/build/e-") && path.ends_with("/out/native") {
+                Some("e-native")
+            } else if path.contains("/build/e-") && path.ends_with("/out/aaa-native") {
+                Some("e-aaa-native")
+            } else if path.contains("/build/c-") && path.ends_with("/out/native") {
+                Some("c-native")
+            } else if path.contains("/build/f-") && path.ends_with("/out/native") {
+                Some("f-native")
+            } else if path.ends_with("/shared-native") {
+                Some("e-shared-native")
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn verify_cargo_runtime_path_order(
+    fixture: &Fixture,
+    runtime: &CargoRuntime,
+    extra_env: &BTreeMap<OsString, OsString>,
+    runtime_library: &Path,
+    direct_path_order: &[&str],
+) -> Result<()> {
+    let cargo_path_record = fixture.root.join("cargo-runtime-paths");
+    let mut cargo_args = cargo_target_args("", "", true);
+    cargo_args.extend([
+        "--target".to_owned(),
+        runtime.target.clone(),
+        "--exclude".to_owned(),
+        "n".to_owned(),
+        "smoke_dependency".to_owned(),
+        "--".to_owned(),
+        "--exact".to_owned(),
+    ]);
+    let mut cargo_harness = Command::new("cargo");
+    cargo_harness
+        .args(cargo_args)
+        .current_dir(&fixture.root)
+        .envs(extra_env)
+        .env("TCL_LSP_EXPECTED_SYSROOT_LIB", runtime_library)
+        .env("TCL_LSP_RECORD_CARGO_PATH", &cargo_path_record);
+    command_output(&mut cargo_harness)?;
+    let cargo_paths: Vec<PathBuf> = fs::read_to_string(&cargo_path_record)
+        .context("reading Cargo fixture runtime paths")?
+        .lines()
+        .map(PathBuf::from)
+        .collect();
+    let cargo_path_order = fixture_linked_path_order(&cargo_paths);
+    if cargo_path_order != direct_path_order {
+        bail!(
+            "direct harness build-script path order {direct_path_order:?} differs from Cargo {cargo_path_order:?}"
+        );
+    }
+    Ok(())
+}
+
+fn fixture_override_path_order(paths: &[PathBuf]) -> Vec<&'static str> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let path = path.to_string_lossy().replace('\\', "/");
+            if path.contains("/build/q-") && path.ends_with("/out/custom") {
+                Some("q-custom")
+            } else if path.contains("/build/q-") && path.ends_with("/out/linked") {
+                Some("q-linked")
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn read_fixture_runtime_paths(path: &Path) -> Result<Vec<PathBuf>> {
+    Ok(fs::read_to_string(path)
+        .with_context(|| format!("reading fixture runtime paths from {}", path.display()))?
+        .lines()
+        .map(PathBuf::from)
+        .collect())
+}
+
+fn verify_fixture_dynamic_override(
     fixture: &Fixture,
     package_roots: &HashMap<String, PathBuf>,
     package_environments: &PackageEnvironments,
@@ -1520,6 +2532,67 @@ fn verify_fixture_libraries(
     runtime: &CargoRuntime,
     extra_env: &BTreeMap<OsString, OsString>,
     runtime_library: &Path,
+) -> Result<()> {
+    let target = fixture_target(targets, "q", "q")?;
+    let artifacts = cargo_test_artifacts(
+        &fixture.root,
+        &cargo_target_args("", "", true),
+        std::slice::from_ref(target),
+        runtime,
+        extra_env,
+    )?;
+    let executable = artifacts
+        .executable(target)
+        .context("fixture package q has no library executable")?;
+    let direct_record = fixture.root.join("direct-override-paths");
+    let runtime_environment = artifacts.runtime_environment(target, executable)?;
+    let mut environment =
+        harness_environment(&package_environments["q"], &runtime_environment.values);
+    environment.insert(
+        OsString::from("TCL_LSP_RECORD_OVERRIDE_PATH"),
+        direct_record.as_os_str().to_os_string(),
+    );
+    let context = HarnessContext {
+        package_root: &package_roots["q"],
+        package_environment: &environment,
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+        preserves_dynamic_library_path: runtime_environment.preserves_dynamic_library_path,
+    };
+    run_harness(target, executable, &context, false, true)?;
+
+    let cargo_record = fixture.root.join("cargo-override-paths");
+    let mut cargo_args = cargo_target_args("", "", true);
+    cargo_args.extend([
+        "--exclude".to_owned(),
+        "n".to_owned(),
+        "smoke_dynamic_override".to_owned(),
+        "--".to_owned(),
+        "--exact".to_owned(),
+    ]);
+    let mut cargo_harness = Command::new("cargo");
+    cargo_harness
+        .args(cargo_args)
+        .current_dir(&fixture.root)
+        .envs(extra_env)
+        .env("TCL_LSP_RECORD_OVERRIDE_PATH", &cargo_record);
+    command_output(&mut cargo_harness)?;
+
+    let direct_paths = read_fixture_runtime_paths(&direct_record)?;
+    let cargo_paths = read_fixture_runtime_paths(&cargo_record)?;
+    let direct = fixture_override_path_order(&direct_paths);
+    let cargo = fixture_override_path_order(&cargo_paths);
+    if direct != ["q-custom"] || cargo != direct || cargo_paths != direct_paths {
+        bail!(
+            "direct harness dynamic-path override {direct:?} differs from Cargo {cargo:?}: direct {direct_paths:?}, Cargo {cargo_paths:?}"
+        );
+    }
+    Ok(())
+}
+
+fn verify_package_narrowing_loses_features(
+    fixture: &Fixture,
+    extra_env: &BTreeMap<OsString, OsString>,
 ) -> Result<()> {
     let mut targeted = Command::new("cargo");
     targeted
@@ -1540,26 +2613,93 @@ fn verify_fixture_libraries(
     if targeted.output()?.status.success() {
         bail!("package-narrowed feature-loss self-test unexpectedly passed");
     }
+    Ok(())
+}
 
-    let library_args = cargo_target_args("lib", "", false);
-    let library_artifacts = cargo_test_executables(&fixture.root, &library_args, extra_env)?;
+fn verify_fixture_libraries(
+    fixture: &Fixture,
+    package_roots: &HashMap<String, PathBuf>,
+    package_environments: &PackageEnvironments,
+    targets: &[Target],
+    runtime: &CargoRuntime,
+    extra_env: &BTreeMap<OsString, OsString>,
+    runtime_library: &Path,
+) -> Result<()> {
+    verify_package_narrowing_loses_features(fixture, extra_env)?;
+
+    let library_args = cargo_target_args("", "", true);
     let e_target = fixture_target(targets, "e", "e")?;
+    let h_target = fixture_target(targets, "h", "library_smoke")?;
+    let o_target = fixture_target(targets, "o", "common")?;
+    let p_target = fixture_target(targets, "p", "common")?;
+    if !has_ineligible_collision(std::slice::from_ref(h_target), targets)
+        || reject_ineligible_collisions(&[vec![h_target.clone()]], targets).is_err()
+    {
+        bail!("disabled-library collision self-test failed");
+    }
+    let library_artifacts = cargo_test_artifacts(
+        &fixture.root,
+        &library_args,
+        &[
+            e_target.clone(),
+            h_target.clone(),
+            o_target.clone(),
+            p_target.clone(),
+        ],
+        runtime,
+        extra_env,
+    )?;
+    if !library_artifacts.explicit_target_context {
+        bail!("overlapping host/target build-script context self-test failed");
+    }
+    let o_executable = library_artifacts
+        .executable(o_target)
+        .context("fixture package o has no shared-source library executable")?;
+    let p_executable = library_artifacts
+        .executable(p_target)
+        .context("fixture package p has no shared-source library executable")?;
+    if o_executable == p_executable {
+        bail!("package-specific compiler-artifact identity self-test failed");
+    }
     let e_executable = library_artifacts
         .executable(e_target)
         .context("fixture package e has no library executable")?;
-    let mut e_environment = package_environments["e"].clone();
-    e_environment.extend(library_artifacts.runtime_environment(e_target, e_executable)?);
+    let e_runtime_environment = library_artifacts.runtime_environment(e_target, e_executable)?;
+    let mut e_environment =
+        harness_environment(&package_environments["e"], &e_runtime_environment.values);
+    e_environment.insert(
+        OsString::from("TCL_LSP_EXPECTED_SYSROOT_LIB"),
+        runtime_library.as_os_str().to_os_string(),
+    );
     let e_context = HarnessContext {
         package_root: &package_roots["e"],
         package_environment: &e_environment,
         rust_runtime_library: runtime_library,
         runner: runtime.runner.as_ref(),
+        preserves_dynamic_library_path: e_runtime_environment.preserves_dynamic_library_path,
     };
+    let direct_path_order =
+        verify_fixture_runtime_environment(&e_environment, e_executable, &e_context)?;
+    verify_cargo_runtime_path_order(
+        fixture,
+        runtime,
+        extra_env,
+        runtime_library,
+        &direct_path_order,
+    )?;
+    verify_fixture_dynamic_override(
+        fixture,
+        package_roots,
+        package_environments,
+        targets,
+        runtime,
+        extra_env,
+        runtime_library,
+    )?;
     let e_selected = run_harness(e_target, e_executable, &e_context, false, true)?;
     if e_selected != [("smoke_dependency".to_owned(), "test".to_owned())] {
         bail!("exact nextest-name selection self-test failed");
     }
-    let h_target = fixture_target(targets, "h", "library_smoke")?;
     let h_executable = library_artifacts
         .executable(h_target)
         .context("fixture package h has no library executable")?;
@@ -1568,6 +2708,7 @@ fn verify_fixture_libraries(
         package_environment: &package_environments["h"],
         rust_runtime_library: runtime_library,
         runner: runtime.runner.as_ref(),
+        preserves_dynamic_library_path: false,
     };
     let h_selected = run_harness(h_target, h_executable, &h_context, false, true)?;
     if h_selected != [("ordinary_library_test".to_owned(), "test".to_owned())] {
@@ -1589,45 +2730,39 @@ fn verify_fixture_collision_and_bench(
     if !has_ineligible_collision(std::slice::from_ref(demo_target), targets) {
         bail!("ineligible same-named target collision self-test failed");
     }
-    let automatic_args = cargo_target_args("example", "demo_smoke", true);
-    let automatic = cargo_test_executables(&fixture.root, &automatic_args, extra_env)?;
-    if automatic.executable(demo_target).is_none()
-        || automatic
-            .executable(fixture_target(targets, "j", "demo_smoke")?)
-            .is_some()
-    {
-        bail!("automatic Cargo target eligibility self-test failed");
-    }
-    let demo_context = HarnessContext {
-        package_root: &package_roots["i"],
-        package_environment: &package_environments["i"],
-        rust_runtime_library: runtime_library,
-        runner: runtime.runner.as_ref(),
-    };
-    run_harness(
-        demo_target,
-        automatic
-            .executable(demo_target)
-            .context("fixture package i has no example executable")?,
-        &demo_context,
-        false,
-        true,
-    )?;
-
     let bench_target = fixture_target(targets, "k", "bench_smoke")?;
-    let bench_args = cargo_target_args("bench", "bench_smoke", false);
-    let benches = cargo_test_executables(&fixture.root, &bench_args, extra_env)?;
+    if !has_ineligible_collision(std::slice::from_ref(bench_target), targets) {
+        bail!("ineligible same-named benchmark collision self-test failed");
+    }
+    if reject_ineligible_collisions(
+        &[vec![demo_target.clone()], vec![bench_target.clone()]],
+        targets,
+    )
+    .is_ok()
+    {
+        bail!("ineligible selector collision contract self-test failed");
+    }
+    let unique_bench = fixture_target(targets, "m", "unique_smoke")?;
+    let bench_args = cargo_target_args("bench", "unique_smoke", false);
+    let bench_artifacts = cargo_test_artifacts(
+        &fixture.root,
+        &bench_args,
+        std::slice::from_ref(unique_bench),
+        runtime,
+        extra_env,
+    )?;
     let bench_context = HarnessContext {
-        package_root: &package_roots["k"],
-        package_environment: &package_environments["k"],
+        package_root: &package_roots["m"],
+        package_environment: &package_environments["m"],
         rust_runtime_library: runtime_library,
         runner: runtime.runner.as_ref(),
+        preserves_dynamic_library_path: false,
     };
     run_harness(
-        bench_target,
-        benches
-            .executable(bench_target)
-            .context("fixture package k has no bench executable")?,
+        unique_bench,
+        bench_artifacts
+            .executable(unique_bench)
+            .context("fixture package m has no bench executable")?,
         &bench_context,
         false,
         true,
@@ -1646,12 +2781,18 @@ fn verify_fixture_binary_environment(
 ) -> Result<()> {
     let smoke_target = fixture_target(targets, "l", "smoke")?;
     let args = cargo_target_args("test", "smoke", false);
-    let artifacts = cargo_test_executables(&fixture.root, &args, extra_env)?;
+    let artifacts = cargo_test_artifacts(
+        &fixture.root,
+        &args,
+        std::slice::from_ref(smoke_target),
+        runtime,
+        extra_env,
+    )?;
     let executable = artifacts
         .executable(smoke_target)
         .context("fixture package l has no integration-test executable")?;
-    let mut environment = package_environments["l"].clone();
-    environment.extend(artifacts.runtime_environment(smoke_target, executable)?);
+    let runtime_environment = artifacts.runtime_environment(smoke_target, executable)?;
+    let environment = harness_environment(&package_environments["l"], &runtime_environment.values);
     if !environment.contains_key(OsStr::new("CARGO_BIN_EXE_helper-tool")) {
         bail!("Cargo binary executable environment self-test failed");
     }
@@ -1660,12 +2801,13 @@ fn verify_fixture_binary_environment(
         package_environment: &environment,
         rust_runtime_library: runtime_library,
         runner: runtime.runner.as_ref(),
+        preserves_dynamic_library_path: runtime_environment.preserves_dynamic_library_path,
     };
     run_harness(smoke_target, executable, &context, false, true)?;
     Ok(())
 }
 
-fn cargo_fixture_self_test() -> Result<()> {
+fn cargo_fixture_self_test_inner() -> Result<()> {
     let fixture = Fixture::new()?;
     for &(relative, contents) in CARGO_FIXTURE_FILES {
         fixture.write(relative, contents)?;
@@ -1678,8 +2820,7 @@ fn cargo_fixture_self_test() -> Result<()> {
     };
     let rustc_config = rustc_probe_config(&fixture)?;
     let config = format!(
-        "[build]\ntarget = {}\n{rustc_config}\n[target.{}]\nrunner = {}\n",
-        serde_json::to_string(&host)?,
+        "[build]\n{rustc_config}\n[target.{}]\nrunner = {}\n",
         serde_json::to_string(&host)?,
         serde_json::to_string(&runner)?,
     );
@@ -1694,7 +2835,7 @@ fn cargo_fixture_self_test() -> Result<()> {
     }
     let (package_roots, package_environments, targets) =
         load_targets(&fixture.root, &runtime.target)?;
-    verify_fixture_metadata(&targets)?;
+    verify_fixture_metadata(&fixture, &targets)?;
     let extra_env = BTreeMap::from([
         (
             OsString::from("CARGO_TARGET_DIR"),
@@ -1737,8 +2878,408 @@ fn cargo_fixture_self_test() -> Result<()> {
     )
 }
 
+fn smoke_module_scanner_self_test() -> Result<()> {
+    let module_fixture = Fixture::new()?;
+    module_fixture.write("src/lib.rs", "pub mod smoke;\n")?;
+    module_fixture.write("src/smoke.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &module_fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([module_fixture.root.join("src/smoke.rs")]) {
+        bail!("out-of-line smoke module scanner self-test failed");
+    }
+    let conditional_fixture = Fixture::new()?;
+    conditional_fixture.write(
+        "src/lib.rs",
+        "#[cfg_attr(unix, path = \"platform_tests.rs\")]\n#[cfg_attr(windows, path = \"windows_tests.rs\")]\npub mod smoke;\n",
+    )?;
+    conditional_fixture.write("src/platform_tests.rs", "#[test]\nfn ordinary() {}\n")?;
+    conditional_fixture.write("src/windows_tests.rs", "#[test]\nfn ordinary() {}\n")?;
+    conditional_fixture.write("src/smoke.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &conditional_fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found
+        != BTreeSet::from([
+            conditional_fixture.root.join("src/platform_tests.rs"),
+            conditional_fixture.root.join("src/smoke.rs"),
+            conditional_fixture.root.join("src/windows_tests.rs"),
+        ])
+    {
+        bail!("conditionally attributed module-path scanner self-test failed");
+    }
+    let relative_fixture = Fixture::new()?;
+    relative_fixture.write("src/lib.rs", "#[path = \"../smoke_tests.rs\"] mod smoke;\n")?;
+    relative_fixture.write("smoke_tests.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &relative_fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([relative_fixture.root.join("smoke_tests.rs")]) {
+        bail!("path-attributed source outside crate directory self-test failed");
+    }
+    let logical_fixture = Fixture::new()?;
+    logical_fixture.write("src/lib.rs", "#[path = \"alt.rs\"]\nmod smoke;\n")?;
+    logical_fixture.write("src/alt.rs", "mod inner;\n")?;
+    logical_fixture.write("src/inner.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &logical_fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([logical_fixture.root.join("src/inner.rs")]) {
+        bail!("path-attributed module logical-directory self-test failed");
+    }
+    nested_path_module_scanner_self_test()?;
+    literal_include_scanner_self_test()?;
+    Ok(())
+}
+
+fn nested_path_module_scanner_self_test() -> Result<()> {
+    let fixture = Fixture::new()?;
+    fixture.write("src/lib.rs", "#[path = \"sub/alt.rs\"]\nmod smoke;\n")?;
+    fixture.write("src/sub/alt.rs", "mod inner;\n")?;
+    fixture.write("src/sub/inner.rs", "#[test]\nfn ordinary() {}\n")?;
+    fixture.write(
+        "src/inner.rs",
+        "#[test]\nfn wrong_directory_must_not_be_selected() {}\n",
+    )?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([fixture.root.join("src/sub/inner.rs")]) {
+        bail!("nested path-attributed module directory self-test failed");
+    }
+    let inline_fixture = Fixture::new()?;
+    inline_fixture.write(
+        "src/lib.rs",
+        "#[path = \"alt\"]\nmod smoke { mod inner; }\n",
+    )?;
+    inline_fixture.write("src/alt/inner.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &inline_fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([inline_fixture.root.join("src/alt/inner.rs")]) {
+        bail!("path-attributed inline-module directory self-test failed");
+    }
+    Ok(())
+}
+
+fn literal_include_scanner_self_test() -> Result<()> {
+    let fixture = Fixture::new()?;
+    fixture.write("src/lib.rs", "include!(\"sub/generated_tests.rs\");\n")?;
+    fixture.write("src/main.rs", "fn main() {}\n")?;
+    fixture.write(
+        "src/sub/generated_tests.rs",
+        "// tcl-lsp-smoke-target\n#[test]\nfn smoke_generated() {}\nmod smoke;\n",
+    )?;
+    fixture.write(
+        "src/sub/smoke.rs",
+        "#[test]\nfn ordinary_in_real_module() {}\n",
+    )?;
+    fixture.write(
+        "src/smoke.rs",
+        "#[test]\nfn ordinary_in_wrong_module() {}\n",
+    )?;
+    let targets = [
+        Target {
+            package_id: "included".to_owned(),
+            package: "included".to_owned(),
+            kind: "lib".to_owned(),
+            name: "included".to_owned(),
+            source: fixture.root.join("src/lib.rs"),
+            available: true,
+            testable: true,
+            runtime_packages: BTreeSet::new(),
+        },
+        Target {
+            package_id: "included".to_owned(),
+            package: "included".to_owned(),
+            kind: "bin".to_owned(),
+            name: "included".to_owned(),
+            source: fixture.root.join("src/main.rs"),
+            available: true,
+            testable: true,
+            runtime_packages: BTreeSet::new(),
+        },
+    ];
+    let mut inventory = SmokeInventory::default();
+    inventory
+        .sources
+        .insert("src/sub/generated_tests.rs".to_owned());
+    for target in &targets {
+        scan_target_smoke_sources(&fixture.root, target, &mut inventory)?;
+    }
+    let included = inventory_entries(&fixture.root, &inventory, &targets);
+    let expected = BTreeSet::from([
+        (
+            "src/sub/generated_tests.rs".to_owned(),
+            target_identity(&targets[0]),
+        ),
+        ("src/sub/smoke.rs".to_owned(), target_identity(&targets[0])),
+    ]);
+    if included != expected {
+        bail!("literal include target ownership self-test failed: {included:?}");
+    }
+    Ok(())
+}
+
+fn cargo_fixture_self_test_subprocess() -> Result<()> {
+    let cargo_home = Fixture::new()?;
+    let mut command = Command::new(env::current_exe().context("locating xtask executable")?);
+    command
+        .args(["smoke-targets", "fixture-self-test"])
+        .env("CARGO_HOME", cargo_home.root.join("cargo-home"));
+    for (name, _) in env::vars_os() {
+        let text = name.to_string_lossy();
+        if text.starts_with("CARGO_BUILD_")
+            || text.starts_with("CARGO_TARGET_")
+            || matches!(
+                text.as_ref(),
+                "RUSTC"
+                    | "RUSTC_WRAPPER"
+                    | "RUSTC_WORKSPACE_WRAPPER"
+                    | "RUSTFLAGS"
+                    | "CARGO_ENCODED_RUSTFLAGS"
+            )
+        {
+            command.env_remove(name);
+        }
+    }
+    command_output(&mut command)?;
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn cargo_fixture_self_test() -> Result<()> {
+    cargo_fixture_self_test_subprocess()
+}
+
+#[cfg(test)]
+fn cargo_fixture_self_test() -> Result<()> {
+    // A binary unit test's current executable is libtest, not the xtask CLI.
+    // Ask Cargo to launch the CLI, whose isolated bridge then starts the
+    // fixture under exactly the same scrubbed environment as production.
+    let mut command = Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+    command
+        .args([
+            "run",
+            "--quiet",
+            "--locked",
+            "-p",
+            "xtask",
+            "--",
+            "smoke-targets",
+            "fixture-self-test-isolated",
+        ])
+        .current_dir(repo_root());
+    command_output(&mut command)?;
+    Ok(())
+}
+
+fn smoke_scanner_self_test() -> Result<()> {
+    for source in [
+        "mod smoke { #[test] fn ordinary() {} }",
+        "pub(crate) mod smoke_tests { #[test] fn ordinary() {} }",
+        "#[test] extern \"C\" fn smoke_probe() {}",
+        "#[test] pub unsafe extern \"C-unwind\" fn smoke_hook() {}",
+        "#[test] pub(crate) const unsafe extern fn smoke_qualified() {}",
+        "#[test]\npub(crate)\nunsafe\nextern \"C\"\nfn smoke_split() {}",
+        "#[test]\nfn r#smoke_raw() {}",
+        "#[cfg_attr(unix, test)]\nfn smoke_conditional() {}",
+        "#[cfg_attr(unix, cfg_attr(unix, test))]\nfn smoke_nested_conditional() {}",
+    ] {
+        let parsed = syn::parse_file(source).context("parsing smoke scanner self-test")?;
+        let fake_source = Path::new("/repo/src/lib.rs");
+        let mut found = BTreeSet::new();
+        collect_smoke_test_sources(
+            fake_source,
+            Path::new("/repo/src"),
+            &parsed.items,
+            false,
+            &mut HashSet::new(),
+            &mut found,
+        )?;
+        if found != BTreeSet::from([fake_source.to_path_buf()]) {
+            bail!("smoke declaration scanner missed: {source}");
+        }
+    }
+    for source in [
+        "fn smoke_detector() {}",
+        "mod smoke { fn ordinary() {} }",
+        "#[test] fn ordinary() {}",
+    ] {
+        let parsed = syn::parse_file(source).context("parsing smoke scanner negative self-test")?;
+        let mut found = BTreeSet::new();
+        collect_smoke_test_sources(
+            Path::new("/repo/src/lib.rs"),
+            Path::new("/repo/src"),
+            &parsed.items,
+            false,
+            &mut HashSet::new(),
+            &mut found,
+        )?;
+        if !found.is_empty() {
+            bail!("smoke declaration scanner false positive: {source}");
+        }
+    }
+    smoke_module_scanner_self_test()?;
+    let marker = compile_marker_regex()?;
+    if !is_smoke_marker_line(&marker, "// tcl-lsp-smoke-target")?
+        || is_smoke_marker_line(&marker, "fn tcl_lsp_smoke() {}")?
+        || is_smoke_marker_line(&marker, "// tcl-lsp-smoke-target-extra").is_ok()
+        || is_smoke_marker_line(&marker, "// tcl-lsp-smoke-targte").is_ok()
+    {
+        bail!("smoke marker scanner self-test failed");
+    }
+    Ok(())
+}
+
+fn multi_owner_inventory_self_test() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let root = &fixture.root;
+    fixture.write("shared.rs", "#[test]\nfn smoke_shared_source() {}\n")?;
+    fixture.write("o/Cargo.toml", "")?;
+    fixture.write("p/Cargo.toml", "")?;
+    fixture.write(
+        "smoke-targets.tsv",
+        "shared.rs\to\tlib\tcommon\nshared.rs\tp\tlib\tcommon\n",
+    )?;
+    let source = root.join("shared.rs");
+    let targets: Vec<Target> = ["o", "p"]
+        .into_iter()
+        .map(|package| Target {
+            package_id: package.to_owned(),
+            package: package.to_owned(),
+            kind: "lib".to_owned(),
+            name: "common".to_owned(),
+            source: source.clone(),
+            available: true,
+            testable: true,
+            runtime_packages: BTreeSet::new(),
+        })
+        .collect();
+    let mut inventory = SmokeInventory::default();
+    record_target_source(&mut inventory, "shared.rs".to_owned(), &targets[0]);
+    record_target_owner(&mut inventory, "shared.rs".to_owned(), &targets[1]);
+    let rows: Vec<ManifestRow> = targets
+        .iter()
+        .map(|target| ManifestRow {
+            source_text: "shared.rs".to_owned(),
+            package: target.package.clone(),
+            kind: target.kind.clone(),
+            target_name: target.name.clone(),
+        })
+        .collect();
+    if check_source_inventory(root, &rows[..1], &inventory, &targets).is_ok() {
+        bail!("multi-owner source accepted a missing target row");
+    }
+    check_source_inventory(root, &rows, &inventory, &targets)
+        .context("multi-owner source rejected complete target rows")?;
+    let package_roots = HashMap::from([
+        ("o".to_owned(), root.join("o")),
+        ("p".to_owned(), root.join("p")),
+    ]);
+    let validated = validate_manifest(
+        root,
+        &root.join("smoke-targets.tsv"),
+        &package_roots,
+        &targets,
+        &inventory,
+    )?;
+    if validated.len() != 2 {
+        bail!("Cargo-owned source outside package directories was rejected");
+    }
+
+    fixture.write(
+        "smoke-targets.tsv",
+        "shared.rs\to\tlib\tcommon\nshared.rs\to\tbin\tcommon-bin\n",
+    )?;
+    let same_package_targets = vec![
+        targets[0].clone(),
+        Target {
+            package_id: "o".to_owned(),
+            package: "o".to_owned(),
+            kind: "bin".to_owned(),
+            name: "common-bin".to_owned(),
+            source,
+            available: true,
+            testable: true,
+            runtime_packages: BTreeSet::new(),
+        },
+    ];
+    let mut same_package_inventory = SmokeInventory::default();
+    for target in &same_package_targets {
+        record_target_source(&mut same_package_inventory, "shared.rs".to_owned(), target);
+    }
+    let validated = validate_manifest(
+        root,
+        &root.join("smoke-targets.tsv"),
+        &package_roots,
+        &same_package_targets,
+        &same_package_inventory,
+    )?;
+    if validated.len() != 2 {
+        bail!("same-package shared Cargo source rejected exact target rows");
+    }
+    Ok(())
+}
+
+fn cargo_profile_library_paths_self_test() -> Result<()> {
+    let profile = Path::new("/repo/target/debug");
+    for executable in [
+        profile.join("deps/test-harness"),
+        profile.join("examples/example-harness"),
+        profile.join("direct-harness"),
+    ] {
+        if cargo_profile_library_paths(&executable)?
+            != (profile.to_path_buf(), profile.join("deps"))
+        {
+            bail!("Cargo profile library-path self-test failed");
+        }
+    }
+    Ok(())
+}
+
+fn fixture_collision_self_test() -> Result<()> {
+    let parent = Fixture::new()?;
+    let collision = parent.root.join("collision");
+    let unique = parent.root.join("unique");
+    fs::create_dir(&collision)
+        .with_context(|| format!("creating collision fixture {}", collision.display()))?;
+    let mut candidates = VecDeque::from([collision, unique.clone()]);
+    let fixture = create_fixture(|| candidates.pop_front().expect("fixture candidate"))?;
+    if fixture.root != unique {
+        bail!("fixture collision retry selected the wrong directory");
+    }
+    Ok(())
+}
+
 fn self_test() -> Result<()> {
     let root = Path::new("/repo/example");
+    fixture_collision_self_test()?;
+    cargo_profile_library_paths_self_test()?;
     let targets = vec![
         Target {
             package_id: "example".to_owned(),
@@ -1748,6 +3289,7 @@ fn self_test() -> Result<()> {
             source: root.join("src/lib.rs"),
             available: true,
             testable: true,
+            runtime_packages: BTreeSet::new(),
         },
         Target {
             package_id: "example".to_owned(),
@@ -1757,6 +3299,7 @@ fn self_test() -> Result<()> {
             source: root.join("src/main.rs"),
             available: true,
             testable: true,
+            runtime_packages: BTreeSet::new(),
         },
         Target {
             package_id: "example".to_owned(),
@@ -1766,6 +3309,7 @@ fn self_test() -> Result<()> {
             source: root.join("tests/new.rs"),
             available: true,
             testable: true,
+            runtime_packages: BTreeSet::new(),
         },
     ];
     let owners = best_owners(&root.join("tests/new.rs"), &targets);
@@ -1774,6 +3318,38 @@ fn self_test() -> Result<()> {
     }
     if best_owners(&root.join("src/shared.rs"), &targets).len() != 2 {
         bail!("ambiguous library/binary ownership self-test failed");
+    }
+    let mut inventory = SmokeInventory::default();
+    record_target_source(&mut inventory, "smoke_tests.rs".to_owned(), &targets[0]);
+    let owners = manifest_owners(
+        &root.join("smoke_tests.rs"),
+        "smoke_tests.rs",
+        &targets,
+        &inventory,
+    );
+    if owners.len() != 1 || owners[0].kind != "lib" {
+        bail!("path-attributed module target ownership self-test failed");
+    }
+    multi_owner_inventory_self_test()?;
+    let renamed_integration = Target {
+        package_id: "example".to_owned(),
+        package: "example".to_owned(),
+        kind: "test".to_owned(),
+        name: "ordinary".to_owned(),
+        source: root.join("tests/file_smoke.rs"),
+        available: true,
+        testable: false,
+        runtime_packages: BTreeSet::new(),
+    };
+    let convention_named_integration = Target {
+        name: "file_smoke".to_owned(),
+        testable: true,
+        ..renamed_integration.clone()
+    };
+    if is_smoke_named_target(&renamed_integration)
+        || !is_smoke_named_target(&convention_named_integration)
+    {
+        bail!("effective integration target-name self-test failed");
     }
     let entries = vec![
         ("smoke_fast".to_owned(), "test".to_owned()),
@@ -1792,41 +3368,31 @@ fn self_test() -> Result<()> {
     if substring_skips(&collision_entries, &collision_entries[..1]).is_some() {
         bail!("overlapping Cargo substring exclusion self-test failed");
     }
-    for source in [
-        "mod smoke {}",
-        "pub(crate) mod smoke_tests;",
-        "extern \"C\" fn smoke_probe() {}",
-        "pub unsafe extern \"C-unwind\" fn smoke_hook() {}",
-        "pub(crate) const unsafe extern fn smoke_qualified() {}",
-        "#[test]\npub(crate)\nunsafe\nextern \"C\"\nfn smoke_split() {}",
-        "#[test]\nfn r#smoke_raw() {}",
-    ] {
-        let parsed = syn::parse_file(source).context("parsing smoke scanner self-test")?;
-        if !items_contain_smoke_declaration(&parsed.items) {
-            bail!("smoke declaration scanner missed: {source}");
-        }
-    }
-    let marker = compile_marker_regex()?;
-    if !marker.is_match("// tcl-lsp-smoke-target")
-        || marker.is_match("// tcl-lsp-smoke-target-extra")
-    {
-        bail!("smoke marker scanner self-test failed");
-    }
+    smoke_scanner_self_test()?;
     cargo_fixture_self_test()
 }
 
 /// Validate or execute the exact Cargo smoke fallback.
-pub fn run(operation: &str) -> Result<ExitCode> {
+pub fn run(operation: &str, package: Option<&str>) -> Result<ExitCode> {
     let root = repo_root();
     match operation {
         "check" => {
+            if package.is_some() {
+                bail!("--package is only valid with smoke-targets run or list");
+            }
             self_test()?;
             check_contract(&root)?;
             println!("targeted Cargo smoke ownership contract passed");
         }
         "run" | "list" => {
-            let (package_roots, package_environments, targets, rows, runtime) =
+            let (package_roots, package_environments, targets, mut rows, runtime) =
                 check_contract(&root)?;
+            if let Some(package) = package {
+                if !package_roots.contains_key(package) {
+                    bail!("unknown Cargo package '{package}'");
+                }
+                rows.retain(|row| row.package == package);
+            }
             execute_manifest(
                 &root,
                 &package_roots,
@@ -1837,6 +3403,8 @@ pub fn run(operation: &str) -> Result<ExitCode> {
                 operation == "list",
             )?;
         }
+        "fixture-self-test" if package.is_none() => cargo_fixture_self_test_inner()?,
+        "fixture-self-test-isolated" if package.is_none() => cargo_fixture_self_test_subprocess()?,
         _ => bail!("unknown smoke-targets operation '{operation}'; expected check, run, or list"),
     }
     Ok(ExitCode::SUCCESS)

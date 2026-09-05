@@ -125,6 +125,9 @@ enum Command {
         /// Operation to perform: check, run, or list.
         #[arg(default_value = "check")]
         operation: String,
+        /// Restrict run/list execution to one Cargo package.
+        #[arg(long)]
+        package: Option<String>,
     },
 
     /// Print the project version (`git describe` → setuptools-scm scheme).
@@ -453,7 +456,9 @@ enum Command {
 fn main() -> anyhow::Result<ExitCode> {
     match Cli::parse().command {
         Command::KcsIndexLinks => kcs_index_links::run(),
-        Command::SmokeTargets { operation } => cargo_smoke::run(&operation),
+        Command::SmokeTargets { operation, package } => {
+            cargo_smoke::run(&operation, package.as_deref())
+        }
         Command::Version => Ok(version::run()),
         Command::TzdataBundle {
             zoneinfo,

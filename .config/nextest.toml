@@ -77,7 +77,8 @@ test-group = 'manual-corpus'
 # smoke-targets.tsv, because the fallback cannot inspect expanded test names.
 #
 # `default-filter` scopes what `--profile smoke` runs with no -E on the
-# command line; a caller's -E still narrows further.
+# command line; callers that add `-E` must intersect it with `default()` to
+# retain this tier.
 [profile.smoke]
 default-filter = 'test(/(::|^)smoke/) | binary(/(^|_)smoke$/)'
 # A smoke run is a quick green/red signal, not an exhaustive failure report.
