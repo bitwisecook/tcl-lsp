@@ -473,6 +473,17 @@ let packs survive releases without rebuilds:
 - Unknown property words, trait names, role names, or hook names are
   dropped with a logged notice; the rest of the spec loads. New server +
   old pack always works; old server + new pack degrades gracefully.
+- A trait name the registry has since retired is dropped the same way,
+  but the notice names what carries the fact now: a pack saying
+  `traits HAS_SWITCH_BODY` is told that a `case_list` block carries it and
+  that `CommandSpec::has_switch_body` is the derived answer, rather than
+  that the word is unknown. The rest of the `traits` list and the command
+  still load, and the word itself does nothing — the replacement is a
+  descriptor the pack already writes, so there is no shim to carry. The
+  table is `RETIRED_TRAITS` in `rust/tcl-registry/src/traits.rs`; when a
+  trait is retired at all is
+  [command-registry.md](compiler/command-registry.md#retiring-a-trait)'s
+  rule.
 - **Except where dropping the word would strengthen the answer.** Since
   `SpecTcl` 2.0 (redesign §6.1, review B13) an unknown word in a pack
   declaring a vocabulary this build postdates is classified by its
