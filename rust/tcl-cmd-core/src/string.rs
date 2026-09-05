@@ -126,6 +126,16 @@ pub fn compare<O: ValueOps>(
         return Err(CmdError::wrong_args(&usage));
     }
 
+    // A deliberate non-`OptionTable` site (#1607): C's `StringCmpOpts`
+    // hand-rolls `strncmp(…, length > 1)` instead of calling
+    // `Tcl_GetIndexFromObj`, so `""` and a lone `-` are `bad`, never
+    // `ambiguous`, and a one-character word never abbreviates. Routing this
+    // through the shared matcher would change all three verdicts.
+    //
+    // tclsh 8.6.16 / 9.0.4:
+    //   string compare "" a b  -> bad option "": must be -nocase or -length
+    //   string compare -  a b  -> bad option "-": must be -nocase or -length
+    //   string compare -n a A  -> 0
     let mut nocase = false;
     let mut length = None;
     let mut i = 0;

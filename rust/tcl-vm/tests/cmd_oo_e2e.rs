@@ -269,6 +269,154 @@ fn tip558_configurable_bad_property() {
     assert_eq!(msg, "bad property \"gorp\": must be -x, -y, or -z");
 }
 
+/// Issue #1607: `configure`'s property word is resolved by C's
+/// `oo::configuresupport` through `tcl::prefix match -message property`, so an
+/// abbreviation resolves and a word prefixing several — `""` and a lone `-`
+/// included — is `ambiguous property`. This matched exactly and hand-joined
+/// the enumeration.
+///
+/// tclsh 9.0.4 (`oo::configurable create Q { property yellow zed }`):
+///   q configure -zz   -> bad property "-zz": must be -yellow or -zed
+///   q configure {}    -> ambiguous property "": must be -yellow or -zed
+///   q configure -     -> ambiguous property "-": must be -yellow or -zed
+///   q configure -ye 1 -> {}      ;  q configure -ye -> 1
+#[test]
+fn tip558_configurable_property_abbreviates() {
+    const MUST: &str = "must be -yellow or -zed";
+    let setup = "oo::configurable create Q { property yellow zed\n\
+                     constructor {} { my configure -yellow 0 -zed 0 } }\n\
+                 set q [Q new]\n";
+    let msg = |tail: &str| {
+        let (ok, result, _) = run(&format!("{setup}$q configure {tail}"));
+        assert!(!ok, "expected an error for `configure {tail}`");
+        result
+    };
+    assert_eq!(msg("-zz"), format!("bad property \"-zz\": {MUST}"));
+    assert_eq!(msg("{}"), format!("ambiguous property \"\": {MUST}"));
+    assert_eq!(msg("-"), format!("ambiguous property \"-\": {MUST}"));
+    // A unique prefix resolves — and the *canonical* property is written.
+    assert_eq!(
+        run(&format!("{setup}$q configure -ye 1\n$q configure -yellow")).1,
+        "1"
+    );
+    assert_eq!(
+        run(&format!("{setup}$q configure -ye 1\n$q configure -ye")).1,
+        "1"
+    );
+}
+
+/// The other half of `info object isa`'s dispatch: once the category
+/// resolves, C checks an **exact** argument count per category
+/// (`InfoObjectIsACmd`, tclOOInfo.c) — two trailing words for
+/// `class`/`metaclass`/`object`, three for `mixin`/`typeof`. Resolving the
+/// category by prefix without that second stage answers `0` for
+/// `info object isa t $obj` (a missing class name) and `1` for
+/// `info object isa ob $obj extra` (a word C refuses).
+///
+/// The noun is C's `Tcl_WrongNumArgs(interp, 2, objv, …)`, so it carries the
+/// *resolved* category word — an index-typed argument prints as its table
+/// entry, which is why `isa t o` reports `typeof`. The two-words-missing case
+/// is checked before the category is resolved, so `info object isa object` is
+/// the generic message.
+///
+/// tclsh 8.6.16 and 9.0.4, byte-identical:
+///   info object isa               -> wrong # args: should be "info object isa
+///                                    category objName ?arg ...?"
+///   info object isa object        -> <same>
+///   info object isa t o           -> wrong # args: should be "info object isa
+///                                    typeof objName className"
+///   info object isa ob o extra    -> … "info object isa object objName"
+///   info object isa cl o extra    -> … "info object isa class objName"
+///   info object isa metaclass o e -> … "info object isa metaclass objName"
+///   info object isa mi o          -> … "info object isa mixin objName className"
+///   info object isa mixin o C x   -> <same>
+///   info object isa ty o C x      -> … "info object isa typeof objName className"
+#[test]
+fn info_object_isa_enforces_the_per_category_arity() {
+    const SETUP: &str = "oo::class create C { method m {} {return 1} }\nC create o\n";
+    const GENERIC: &str = "wrong # args: should be \"info object isa category objName ?arg ...?\"";
+    let msg = |tail: &str| {
+        let (ok, result, _) = run(&format!("{SETUP}{tail}"));
+        assert!(!ok, "expected an error for {tail}");
+        result
+    };
+    assert_eq!(msg("info object isa"), GENERIC);
+    assert_eq!(msg("info object isa object"), GENERIC);
+    for (tail, want) in [
+        ("info object isa t o", "typeof objName className"),
+        ("info object isa mi o", "mixin objName className"),
+        ("info object isa mixin o C extra", "mixin objName className"),
+        ("info object isa ty o C extra", "typeof objName className"),
+        ("info object isa ob o extra", "object objName"),
+        ("info object isa cl o extra", "class objName"),
+        ("info object isa metaclass o extra", "metaclass objName"),
+    ] {
+        assert_eq!(
+            msg(tail),
+            format!("wrong # args: should be \"info object isa {want}\"")
+        );
+    }
+    // The exact counts still answer.
+    assert_eq!(
+        run(&format!("{SETUP}info object isa object nosuchobj")).1,
+        "0"
+    );
+    assert_eq!(run(&format!("{SETUP}info object isa typeof o C")).1, "1");
+    assert_eq!(run(&format!("{SETUP}info object isa mixin o C")).1, "0");
+}
+
+/// Issue #1607: `info object isa`'s category is a
+/// `Tcl_GetIndexFromObj(…, "category", 0)` table (`tclOOInfo.c`), so `cl`/`ob`/
+/// `t` abbreviate, `m` is ambiguous (metaclass/mixin), and the enumeration
+/// keeps the Oxford comma the *method* lists drop.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   info object isa x o  -> bad category "x": must be class, metaclass,
+///                           mixin, object, or typeof
+///   info object isa {} o -> ambiguous category "": must be <same>
+///   info object isa m o  -> ambiguous category "m": must be <same>
+///   info object isa cl o -> 0 ; ob o -> 1 ; me o -> 0 ; t o C -> 1
+///   o x                  -> unknown method "x": must be destroy or m
+#[test]
+fn info_object_isa_category_resolves_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be class, metaclass, mixin, object, or typeof";
+    const SETUP: &str = "oo::class create C { method m {} {return 1} }\nC create o\n";
+    let msg = |tail: &str| {
+        let (ok, result, _) = run(&format!("{SETUP}{tail}"));
+        assert!(!ok, "expected an error for {tail}");
+        result
+    };
+    assert_eq!(
+        msg("info object isa x o"),
+        format!("bad category \"x\": {MUST}")
+    );
+    assert_eq!(
+        msg("info object isa {} o"),
+        format!("ambiguous category \"\": {MUST}")
+    );
+    assert_eq!(
+        msg("info object isa m o"),
+        format!("ambiguous category \"m\": {MUST}")
+    );
+    assert_eq!(run(&format!("{SETUP}info object isa cl o")).1, "0");
+    assert_eq!(run(&format!("{SETUP}info object isa ob o")).1, "1");
+    assert_eq!(run(&format!("{SETUP}info object isa me o")).1, "0");
+    assert_eq!(run(&format!("{SETUP}info object isa t o C")).1, "1");
+    // The method list keeps TclOO's own join, which drops the Oxford comma the
+    // option tables above keep.
+    //
+    // tclsh 8.6.16 / 9.0.4:
+    //   o3 zz -> unknown method "zz": must be a, b, c or destroy
+    assert_eq!(msg("o x"), "unknown method \"x\": must be destroy or m");
+    assert_eq!(msg("o {}"), "unknown method \"\": must be destroy or m");
+    let (ok, four, _) = run(
+        "oo::class create C3 { method a {} {}; method b {} {}; method c {} {} }\n\
+         C3 create o3\no3 zz",
+    );
+    assert!(!ok);
+    assert_eq!(four, "unknown method \"zz\": must be a, b, c or destroy");
+}
+
 #[test]
 fn tip558_configurable_custom_get_set() {
     // ooProp-3.1: custom `-get`/`-set` bodies run as accessor methods over the

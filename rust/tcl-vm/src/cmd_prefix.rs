@@ -37,15 +37,31 @@ fn cmd_prefix(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"tcl::prefix subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let word = sub.to_str();
+    let canon = match tcl_cmd_core::ensemble::resolve_subcommand(PREFIX_SUBS, word.as_bytes(), true)
+    {
+        Some(index) => PREFIX_SUBS[index],
+        None => {
+            return err(String::from_utf8_lossy(
+                &tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    PREFIX_SUBS,
+                    word.as_bytes(),
+                    true,
+                    b"::tcl::prefix",
+                ),
+            )
+            .into_owned());
+        }
+    };
+    match canon {
         "all" => prefix_all(rest),
         "longest" => prefix_longest(rest),
-        "match" => prefix_match(vm, rest),
-        other => err(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be all, longest, or match"
-        )),
+        _ => prefix_match(vm, rest),
     }
 }
+
+/// `tcl::prefix`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+const PREFIX_SUBS: &[&str] = &["all", "longest", "match"];
 
 /// Split a list value, surfacing a parse error as a completion.
 fn entries(v: &Value) -> Result<Vec<String>, Completion<Value>> {
@@ -100,6 +116,13 @@ fn prefix_longest(rest: &[Value]) -> Completion<Value> {
     ok(Value::string(first.chars().take(len).collect::<String>()))
 }
 
+/// `tcl::prefix match`'s own option words, in C table order (`matchOptions[]`,
+/// `tclIndexObj.c`): `Tcl_GetIndexFromObj(…, "option", 0)`, so `-m`
+/// abbreviates `-message` while `-e` prefixes both `-error` and `-exact` and
+/// is `ambiguous option "-e"`.
+const MATCH_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["-error", "-exact", "-message"]);
+
 /// `tcl::prefix match ?-exact? ?-message s? ?-error opts? table string`.
 fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let mut exact = false;
@@ -118,30 +141,29 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let mut i = 0;
     while i < opts.len() {
-        match &*opts[i].to_str() {
-            "-exact" => {
-                exact = true;
-                i += 1;
-            }
-            "-message" => {
-                let Some(v) = opts.get(i + 1) else {
-                    return err("missing value for -message");
-                };
-                message = v.to_str().to_string();
-                i += 2;
-            }
-            "-error" => {
+        // C's `matchOptions[]` (`tclIndexObj.c`), resolved with
+        // `Tcl_GetIndexFromObj(…, "option", 0)`: `-m` abbreviates `-message`,
+        // while `-e` prefixes both `-error` and `-exact` and is `ambiguous`.
+        match MATCH_OPTIONS.index_of_str(&opts[i].to_str()) {
+            Ok(0) => {
                 let Some(v) = opts.get(i + 1) else {
                     return err("missing value for -error");
                 };
                 error_opts = Some(v.clone());
                 i += 2;
             }
-            other => {
-                return err(format!(
-                    "bad option \"{other}\": must be -error, -exact, or -message"
-                ));
+            Ok(1) => {
+                exact = true;
+                i += 1;
             }
+            Ok(_) => {
+                let Some(v) = opts.get(i + 1) else {
+                    return err("missing value for -message");
+                };
+                message = v.to_str().to_string();
+                i += 2;
+            }
+            Err(e) => return err(e.into_message()),
         }
     }
     let table = match entries(table) {

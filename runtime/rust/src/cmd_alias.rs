@@ -113,6 +113,75 @@ fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
 
 // -- interp ----------------------------------------------------------------
 
+/// `interp`'s subcommand words, in C table order (`options[]`, `tclInterp.c`).
+/// C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`, so `cr`
+/// abbreviates `create` and the empty word — a prefix of every entry — is
+/// `ambiguous option ""`.
+///
+/// The table names only the subcommands this runtime dispatches (issue #1412
+/// item 3): `cancel`, `share`, and `transfer` need infrastructure it has none
+/// of. `slaves` is 8.x's deprecated spelling of `children`: it still resolves
+/// (as it does in C, whose `options[]` keeps it) but
+/// [`interp_option_choices`] drops it from the 9.0 enumeration, exactly as C
+/// reports its misses against `optionsNoSlaves[]`.
+const INTERP_OPTIONS: &[&[u8]] = &[
+    b"alias",
+    b"aliases",
+    b"bgerror",
+    b"children",
+    b"create",
+    b"debug",
+    b"delete",
+    b"eval",
+    b"exists",
+    b"expose",
+    b"hide",
+    b"hidden",
+    b"issafe",
+    b"invokehidden",
+    b"limit",
+    b"marktrusted",
+    b"recursionlimit",
+    b"slaves",
+    b"target",
+];
+
+/// The `interp` subcommands the miss message enumerates for the emulated
+/// release: 9.0 retired `slaves` from the advertised list while still
+/// dispatching it.
+fn interp_option_choices(interp: &Interp) -> Vec<&'static [u8]> {
+    if interp.runtime_version() >= tcl_dialect::TclVersion::V9_0 {
+        INTERP_OPTIONS
+            .iter()
+            .copied()
+            .filter(|name| *name != b"slaves")
+            .collect()
+    } else {
+        INTERP_OPTIONS.to_vec()
+    }
+}
+
+/// Resolve an `interp`-family subcommand word through the shared owner:
+/// `dispatch` is the table the word may resolve against, `advertised` the
+/// (possibly shorter) table the miss message enumerates — C splits the two the
+/// same way for `slaves`.
+pub(crate) fn resolve_interp_option(
+    dispatch: &'static [&'static [u8]],
+    advertised: &[&'static [u8]],
+    word: &[u8],
+) -> Result<&'static [u8], Vec<u8>> {
+    match tcl_cmd_core::prefix::scan(dispatch, word, false) {
+        tcl_cmd_core::prefix::Resolution::Exact(i)
+        | tcl_cmd_core::prefix::Resolution::UniquePrefix(i) => Ok(dispatch[i]),
+        miss => Err(tcl_cmd_core::prefix::bad_key_message(
+            advertised,
+            b"option",
+            word,
+            matches!(miss, tcl_cmd_core::prefix::Resolution::Ambiguous),
+        )),
+    }
+}
+
 /// The `interp` ensemble. `alias`, `aliases`, `create`, `delete`, `eval`,
 /// `exists`, `hide`, `expose`, `hidden`, `invokehidden`, `issafe`,
 /// `marktrusted`, `recursionlimit`, `bgerror`, `debug`, `limit`, and `target`
@@ -126,7 +195,12 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    let choices = interp_option_choices(interp);
+    let sub = match resolve_interp_option(INTERP_OPTIONS, &choices, &obj_bytes(argv[1])) {
+        Ok(name) => name,
+        Err(m) => return interp.set_error(&m),
+    };
+    match sub {
         b"alias" => interp_alias(interp, argv),
         b"aliases" => interp_aliases(interp, argv),
         b"create" => interp_create(interp, argv),
@@ -224,14 +298,12 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         b"target" => interp_target(interp, argv),
+        // Unreachable: every name in `INTERP_OPTIONS` has an arm above.
         other => {
             let mut m = b"bad option \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(
-                b"\": must be alias, aliases, bgerror, children, create, \
-                  debug, delete, eval, exists, expose, hide, hidden, issafe, \
-                  invokehidden, limit, marktrusted, recursionlimit, or target",
-            );
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(&choices));
             interp.set_error(&m)
         }
     }
@@ -275,6 +347,19 @@ fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+/// `interp create`'s option words (`createOptions[]`, `tclInterp.c`), resolved
+/// with `Tcl_GetIndexFromObj(…, "option", 0)`: `-s` abbreviates `-safe` and the
+/// lone `-` — a prefix of both entries — is `ambiguous option "-"`. Only a word
+/// starting with `-` reaches the table, so an empty word is a path, not a miss.
+const CREATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-safe", b"--"]);
+
+/// `interp invokehidden`'s leading option words (`hiddenOptions[]`,
+/// `tclInterp.c`), resolved the same way: `-g`/`-n` abbreviate and the lone `-`
+/// is `ambiguous option "-"`. Only a word starting with `-` reaches the table.
+const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-global", b"-namespace", b"--"]);
+
 /// `interp create ?-safe? ?--? ?path?` — create a child interpreter, returning
 /// its name (auto-generated `interpN` when omitted). `-safe` hides the
 /// host-touching commands (the Safe Base's re-aliasing is a follow-up).
@@ -289,20 +374,17 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i < argv.len() {
         let a = obj_bytes(argv[i]);
         if !last && a.first() == Some(&b'-') {
-            match a.as_slice() {
-                b"-safe" => {
+            match CREATE_OPTIONS.index_of(&a) {
+                Ok(0) => {
                     safe = true;
                     i += 1;
                     continue;
                 }
-                b"--" => {
+                Ok(_) => {
                     i += 1;
                     last = true;
                 }
-                _ => {
-                    let mut m = b"bad option \"".to_vec();
-                    m.extend_from_slice(&a);
-                    m.extend_from_slice(b"\": must be -safe or --");
+                Err(m) => {
                     return interp.set_error(&m);
                 }
             }
@@ -396,10 +478,7 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ltype = obj_bytes(argv[3]);
     // Validate the limit type before the current-interp guard so a bad type is
     // reported ahead of the inaccessibility error (interp-35.3 vs .23).
-    if ltype.as_slice() != b"commands" && ltype.as_slice() != b"time" {
-        let mut m = b"bad limit type \"".to_vec();
-        m.extend_from_slice(&ltype);
-        m.extend_from_slice(b"\": must be commands or time");
+    if let Err(m) = crate::interp::LIMIT_TYPES.index_of(&ltype) {
         return interp.set_error(&m);
     }
     if path.is_empty() {
@@ -592,12 +671,12 @@ pub(crate) fn invokehidden_in(
         if opt.first() != Some(&b'-') {
             break;
         }
-        match opt.as_slice() {
-            b"-global" => {
+        match HIDDEN_OPTIONS.index_of(&opt) {
+            Ok(0) => {
                 ns_name = Some(b"::".to_vec());
                 i += 1;
             }
-            b"-namespace" => {
+            Ok(1) => {
                 i += 1;
                 if i == words.len() {
                     // C: "there must be more arguments" — stop scanning
@@ -607,16 +686,11 @@ pub(crate) fn invokehidden_in(
                 ns_name = Some(obj_bytes(words[i]));
                 i += 1;
             }
-            b"--" => {
+            Ok(_) => {
                 i += 1;
                 break;
             }
-            _ => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(&opt);
-                m.extend_from_slice(b"\": must be -global, -namespace, or --");
-                return interp.set_error(&m);
-            }
+            Err(m) => return interp.set_error(&m),
         }
     }
     if i >= words.len() {
@@ -840,6 +914,120 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    /// Issue #1607: the `interp` ensemble and the child-as-command dispatch
+    /// are `Tcl_GetIndexFromObj(…, "option", 0)` tables (`options[]` in
+    /// `Tcl_InterpObjCmd` and `NRChildCmd`, `tclInterp.c`), so subcommands
+    /// abbreviate and the empty word — a prefix of every entry — is
+    /// `ambiguous option ""`. The `interp` list still names only what this
+    /// runtime dispatches (#1412 item 3); the child list is tclsh's in full.
+    ///
+    /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened `interp` list):
+    ///   interp {}       -> ambiguous option "": must be …
+    ///   interp c j      -> ambiguous option "c": must be …
+    ///   interp cr j     -> j
+    ///   interp e {}     -> ambiguous option "e": must be …
+    ///   interp sl       -> the children list (8.x's deprecated spelling)
+    ///   kid ev {set x 1} -> 1   ;  kid h / kid hi -> ambiguous option "h" / "hi"
+    ///   kid x           -> bad option "x": must be alias, aliases, bgerror,
+    ///                      debug, eval, expose, hide, hidden, issafe,
+    ///                      invokehidden, limit, marktrusted, or recursionlimit
+    #[test]
+    fn interp_subcommand_words_resolve_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be alias, aliases, bgerror, children, create, debug, \
+                            delete, eval, exists, expose, hide, hidden, issafe, \
+                            invokehidden, limit, marktrusted, recursionlimit, or target";
+        const CHILD_MUST: &str = "must be alias, aliases, bgerror, debug, eval, expose, \
+                                  hide, hidden, issafe, invokehidden, limit, marktrusted, \
+                                  or recursionlimit";
+        leak_free(|i| {
+            let err = |i: &mut Interp, script: &[u8]| {
+                assert_eq!(i.eval_str(script), Code::Error, "expected an error");
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            assert_eq!(
+                err(i, b"interp {}"),
+                format!("ambiguous option \"\": {MUST}")
+            );
+            assert_eq!(err(i, b"interp x"), format!("bad option \"x\": {MUST}"));
+            assert_eq!(
+                err(i, b"interp c j"),
+                format!("ambiguous option \"c\": {MUST}")
+            );
+            assert_eq!(i.eval_str(b"interp cr j"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"j");
+            assert_eq!(
+                err(i, b"interp e {set x 1}"),
+                format!("ambiguous option \"e\": {MUST}")
+            );
+            assert_eq!(i.eval_str(b"interp ev {} {set x 1}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // 8.x's deprecated `slaves` spelling still resolves and dispatches.
+            assert_eq!(i.eval_str(b"llength [interp sl]"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // The child-as-command table.
+            assert_eq!(i.eval_str(b"interp create kid"), Code::Ok);
+            assert_eq!(err(i, b"kid x"), format!("bad option \"x\": {CHILD_MUST}"));
+            assert_eq!(
+                err(i, b"kid {}"),
+                format!("ambiguous option \"\": {CHILD_MUST}")
+            );
+            assert_eq!(
+                err(i, b"kid h"),
+                format!("ambiguous option \"h\": {CHILD_MUST}")
+            );
+            assert_eq!(
+                err(i, b"kid hi"),
+                format!("ambiguous option \"hi\": {CHILD_MUST}")
+            );
+            assert_eq!(i.eval_str(b"kid ev {set x 1}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+        });
+    }
+
+    /// Issue #1607: `interp create`'s and `interp invokehidden`'s leading
+    /// options are `Tcl_GetIndexFromObj(…, "option", 0)` tables
+    /// (`createOptions[]` / `hiddenOptions[]`, `tclInterp.c`), so they
+    /// abbreviate and the lone `-` — a prefix of every entry — is `ambiguous`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   interp create -x k         -> bad option "-x": must be -safe or --
+    ///   interp create - k          -> ambiguous option "-": must be -safe or --
+    ///   interp create -s k         -> k
+    ///   interp invokehidden i -x f -> bad option "-x": must be -global, -namespace, or --
+    ///   interp invokehidden i - f  -> ambiguous option "-": must be -global, -namespace, or --
+    #[test]
+    fn interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj() {
+        const CREATE_MUST: &str = "must be -safe or --";
+        const HIDDEN_MUST: &str = "must be -global, -namespace, or --";
+        leak_free(|i| {
+            let err = |i: &mut Interp, script: &[u8]| {
+                assert_eq!(i.eval_str(script), Code::Error, "expected an error");
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            assert_eq!(
+                err(i, b"interp create -x k"),
+                format!("bad option \"-x\": {CREATE_MUST}")
+            );
+            assert_eq!(
+                err(i, b"interp create - k"),
+                format!("ambiguous option \"-\": {CREATE_MUST}")
+            );
+            assert_eq!(i.eval_str(b"interp create -s k"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"k");
+            assert_eq!(i.eval_str(b"interp create -- k2"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"k2");
+            assert_eq!(i.eval_str(b"interp create kid"), Code::Ok);
+            assert_eq!(
+                err(i, b"interp invokehidden kid -x foo"),
+                format!("bad option \"-x\": {HIDDEN_MUST}")
+            );
+            assert_eq!(
+                err(i, b"interp invokehidden kid - foo"),
+                format!("ambiguous option \"-\": {HIDDEN_MUST}")
+            );
+        });
     }
 
     // Needs the numeric tower: the child's `dbl` proc computes via `expr`.

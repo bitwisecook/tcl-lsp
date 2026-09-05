@@ -226,15 +226,13 @@ fn exported_by_default(name: &str) -> bool {
     name.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
 }
 
-/// Format a sorted method-name set as `must be a, b or c` (`TclOO`'s list style
-/// — no Oxford comma before the final `or`).
+/// Format a sorted method-name set as `must be a, b or c` — `TclOO`'s own list
+/// style, which drops the Oxford comma `Tcl_GetIndexFromObj` keeps. The rule
+/// lives in `tcl_cmd_core::prefix::tcloo_choice_list_bytes`; this is the
+/// `String` adapter over it.
 fn oxford_or(names: &BTreeSet<String>) -> String {
     let v: Vec<&str> = names.iter().map(String::as_str).collect();
-    match v.as_slice() {
-        [] => String::new(),
-        [a] => (*a).to_string(),
-        [rest @ .., last] => format!("{} or {last}", rest.join(", ")),
-    }
+    String::from_utf8_lossy(&tcl_cmd_core::prefix::tcloo_choice_list_bytes(&v)).into_owned()
 }
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -362,17 +360,6 @@ fn err_code(message: impl Into<String>, code: &[&str]) -> Completion<Value> {
     );
     let opts = Value::list(vec![Value::string("-errorcode"), ec]);
     Completion::new(Code::Error, Value::string(message.into()), opts)
-}
-
-/// Format a sorted name list `Tcl_GetIndexFromObj`-style: `a`, `a or b`, or
-/// `a, b, or c` (with the Oxford comma, unlike `TclOO`'s method-name [`oxford_or`]).
-fn index_or(names: &[String]) -> String {
-    match names {
-        [] => String::new(),
-        [a] => a.clone(),
-        [a, b] => format!("{a} or {b}"),
-        [rest @ .., last] => format!("{}, or {last}", rest.join(", ")),
-    }
 }
 
 /// The readable (`writable == false`) or writable property names visible to
@@ -628,10 +615,10 @@ fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Va
             ok(Value::list(out))
         }
         1 => {
-            let dashed = args[0].to_str().to_string();
-            if let Err(e) = gate_property(vm, obj_key, &dashed, false) {
-                return e;
-            }
+            let dashed = match gate_property(vm, obj_key, &args[0].to_str(), false) {
+                Ok(name) => name,
+                Err(e) => return e,
+            };
             match read_property(vm, obj_key, &dashed) {
                 Ok(v) => ok(v),
                 Err(e) => e,
@@ -640,10 +627,10 @@ fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Va
         n if n % 2 == 0 => {
             let mut i = 0;
             while i < n {
-                let dashed = args[i].to_str().to_string();
-                if let Err(e) = gate_property(vm, obj_key, &dashed, true) {
-                    return e;
-                }
+                let dashed = match gate_property(vm, obj_key, &args[i].to_str(), true) {
+                    Ok(name) => name,
+                    Err(e) => return e,
+                };
                 if let Err(e) = write_property(vm, obj_key, &dashed, args[i + 1].clone()) {
                     return e;
                 }
@@ -661,26 +648,39 @@ fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Va
     }
 }
 
-/// Check that `dashed` is a valid property for the requested access, producing
-/// the `bad property`/`is write only`/`is read only` errors otherwise.
+/// Resolve `dashed` to a property valid for the requested access, producing
+/// the `bad`/`ambiguous property`/`is write only`/`is read only` errors
+/// otherwise.
+///
+/// C's `oo::configuresupport` reaches this through
+/// `tcl::prefix match -message property`, so an abbreviation resolves
+/// (`-ye` → `-yellow`) and a word prefixing several — `""` and a lone `-`
+/// included — is `ambiguous property`. The resolved *canonical* name is what
+/// the accessor then reads or writes.
 fn gate_property(
     vm: &Vm,
     obj_key: &str,
     dashed: &str,
     for_write: bool,
-) -> Result<(), Completion<Value>> {
+) -> Result<String, Completion<Value>> {
     let wanted = configure_props(vm, obj_key, for_write);
-    if wanted.iter().any(|p| p == dashed) {
-        return Ok(());
-    }
+    let miss = match tcl_cmd_core::prefix::OptionTable::abbreviating("property", &wanted)
+        .index_of(dashed.as_bytes())
+    {
+        Ok(index) => return Ok(wanted[index].clone()),
+        Err(message) => message,
+    };
     // Present but in the opposite slot → a directionality error.
     let other = configure_props(vm, obj_key, !for_write);
-    if other.iter().any(|p| p == dashed) {
+    if tcl_cmd_core::prefix::OptionTable::abbreviating("property", &other)
+        .index_of(dashed.as_bytes())
+        .is_ok()
+    {
         let why = if for_write { "read only" } else { "write only" };
         return Err(err(format!("property \"{dashed}\" is {why}")));
     }
     Err(err_code(
-        format!("bad property \"{dashed}\": must be {}", index_or(&wanted)),
+        String::from_utf8_lossy(&miss).into_owned(),
         &["TCL", "LOOKUP", "INDEX", "property", dashed],
     ))
 }
@@ -2261,12 +2261,45 @@ fn info_object_properties(vm: &mut Vm, obj: &str, extra: &[Value]) -> Completion
     ok(Value::list(names.into_iter().map(Value::string).collect()))
 }
 
+/// `info object isa`'s category word, in C table order (`categories[]`,
+/// `tclOOInfo.c`): `Tcl_GetIndexFromObj(…, "category", 0)`, so `cl`/`ob`/`t`
+/// abbreviate, `m` is ambiguous (metaclass/mixin), and the empty word — a
+/// prefix of all five — is `ambiguous category ""`. The Oxford comma before
+/// `or` is `Tcl_GetIndexFromObj`'s, not `TclOO`'s method-list style.
+const ISA_CATEGORIES: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "category",
+        &["class", "metaclass", "mixin", "object", "typeof"],
+    );
+
 /// `info object isa category object ?arg?`.
 fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    // C checks the arity in two stages (`InfoObjectIsACmd`, tclOOInfo.c).
+    // First, `category objName` must both be present — *before* the category
+    // word is resolved, so `info object isa object` is this message and not a
+    // category error.
     let (Some(kind), Some(obj_arg)) = (rest.first(), rest.get(1)) else {
-        return err("wrong # args: should be \"info object isa category object ?arg ...?\"");
+        return err("wrong # args: should be \"info object isa category objName ?arg ...?\"");
     };
-    let kind = kind.to_str().to_string();
+    let kind = match ISA_CATEGORIES.index_of_str(&kind.to_str()) {
+        Ok(i) => ISA_CATEGORIES.names()[i],
+        Err(e) => return err(e.into_message()),
+    };
+    // Then each category pins an *exact* count — C's second stage,
+    // `Tcl_WrongNumArgs(interp, 2, objv, …)`, whose noun carries the resolved
+    // category word (an index-typed argument prints as its table entry). So
+    // `info object isa t o` is `"info object isa typeof objName className"`,
+    // and a trailing extra word is an error rather than being ignored.
+    let (want, tail) = match kind {
+        "mixin" | "typeof" => (3, " objName className"),
+        // class / metaclass / object.
+        _ => (2, " objName"),
+    };
+    if rest.len() != want {
+        return err(format!(
+            "wrong # args: should be \"info object isa {kind}{tail}\""
+        ));
+    }
     let obj = vm.qualify_name(&obj_arg.to_str());
     // `isa object` on a non-object is a plain false, not an error — the same
     // test the `tclooIsObject` opcode this form compiles to performs.
@@ -2276,7 +2309,7 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if !vm.oo.objects.contains_key(&obj) {
         return ok(Value::bool(false));
     }
-    let res = match kind.as_str() {
+    let res = match kind {
         "class" => vm.oo.classes.contains_key(&obj),
         "metaclass" => vm.oo.is_metaclass(&obj),
         "typeof" => rest
@@ -2286,11 +2319,8 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             let ck = vm.qualify_name(&c.to_str());
             vm.oo.objects[&obj].mixins.contains(&ck)
         }),
-        _ => {
-            return err(format!(
-                "bad category \"{kind}\": must be class, metaclass, mixin, object or typeof"
-            ));
-        }
+        // Unreachable: `ISA_CATEGORIES` has exactly these five names.
+        _ => false,
     };
     ok(Value::bool(res))
 }

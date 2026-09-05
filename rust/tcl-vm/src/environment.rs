@@ -59,8 +59,11 @@
 //! [`TclVersion`]: tcl_dialect::TclVersion
 //! [`TclVersion::dialect_name`]: tcl_dialect::TclVersion::dialect_name
 
+use std::sync::{Mutex, OnceLock};
+
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 use tcl_registry::CommandRegistry;
 
 /// Resolve a dialect **name** to the profile this VM pins.
@@ -118,4 +121,76 @@ pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'s
 /// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 pub(crate) fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {
     tcl_registry::model::static_document_context_for(name).authoring_query()
+}
+
+/// One memoised answer: `(command, release name, the release's slice of the
+/// engine's table)`.
+type SubcommandCacheEntry = (&'static str, String, &'static [&'static str]);
+
+/// The subset of an engine ensemble `table` the emulated release actually
+/// has, in the table's own order.
+///
+/// A `TclMakeEnsemble` table is a *release* fact: `dict getwithdefault`,
+/// `array for`, `file tempdir` and `info cmdtype` arrive in Tcl 9, and a
+/// handler that resolves against one release's table under every pin gets
+/// two things wrong at once — it dispatches a subcommand the pinned release
+/// never had, and, worse, a 9-only name silently changes an 8.x prefix
+/// verdict for a name that has nothing to do with it (`dict g` is `get` on
+/// 8.6 and ambiguous on 9.0). The names and their gates belong to the
+/// registry, so this filters the engine's table through the selected
+/// release's surface rather than duplicating the release facts here.
+///
+/// Only *removal* happens: a name the registry does not model (an engine
+/// extra) is kept, so a table stays the engine's own list of what it
+/// dispatches and its enumeration order.
+///
+/// This sits on the dispatch path of the hottest ensembles (`dict`, `string`,
+/// `info`), and resolving the environment by name costs tens of microseconds
+/// — 6x the whole cost of a `dict get` — so the answer is memoised per
+/// `(command, release)`. That pair is a closed, tiny set, and each engine has
+/// exactly one table per command name, so the leak is bounded by it.
+fn release_subcommand_cache() -> &'static Mutex<Vec<SubcommandCacheEntry>> {
+    static CACHE: OnceLock<Mutex<Vec<SubcommandCacheEntry>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+pub(crate) fn release_subcommands(
+    dialect_name: &str,
+    command: &'static str,
+    table: &[&'static str],
+) -> &'static [&'static str] {
+    let cache = release_subcommand_cache();
+    if let Some((_, _, hit)) = cache
+        .lock()
+        .expect("subcommand cache")
+        .iter()
+        .find(|(cmd, name, _)| *cmd == command && name == dialect_name)
+    {
+        return hit;
+    }
+    let profile = profile_for_dialect(dialect_name);
+    let point = surface_point(profile);
+    let filtered: Vec<&'static str> = match store_for_profile(profile).get(command) {
+        Some(spec) => table
+            .iter()
+            .copied()
+            .filter(|name| {
+                spec.subcommands
+                    .iter()
+                    .find(|sub| sub.name == *name)
+                    .is_none_or(|sub| {
+                        sub.surface
+                            .or(spec.surface)
+                            .is_none_or(|gate| surface_admits(gate, Some(&point)))
+                    })
+            })
+            .collect(),
+        None => table.to_vec(),
+    };
+    let leaked: &'static [&'static str] = Vec::leak(filtered);
+    cache
+        .lock()
+        .expect("subcommand cache")
+        .push((command, dialect_name.to_string(), leaked));
+    leaked
 }

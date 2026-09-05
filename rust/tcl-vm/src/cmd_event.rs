@@ -151,6 +151,18 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("update", cmd_update);
 }
 
+/// `after`'s subcommand words, in C table order (`afterSubCmds[]`,
+/// `tclTimer.c`). C scans them at flags `0` with a NULL interp, so
+/// abbreviations resolve (`in` → `info`, `ca` → `cancel`) but the miss is
+/// silent and `after` composes its own sentence.
+const AFTER_SUBCOMMANDS: &[&str] = &["cancel", "idle", "info"];
+
+/// `update`'s one option word (`tclCmdIL.c`): `Tcl_GetIndexFromObj(…,
+/// "option", 0)`, so `i` abbreviates `idletasks` and a one-entry table's miss
+/// is always `bad`, never `ambiguous`.
+const UPDATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["idletasks"]);
+
 /// `after ms ?script ...?` / `after idle ?script ...?` /
 /// `after cancel id|script` / `after info ?id?`. A bare `after ms` (no script)
 /// processes events until `ms` has elapsed (a blocking delay). Multiple script
@@ -159,7 +171,22 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(first) = args.first() else {
         return err("wrong # args: should be \"after option ?arg ...?\"");
     };
-    match &*first.to_str() {
+    let word = first.to_str();
+    // C composes this one itself: `Tcl_GetIndexFromObj(NULL, …, afterSubCmds,
+    // "", 0, &index)` (`tclTimer.c`) — a *silent* lookup, so a miss falls
+    // through to the integer parse and only then to `after`'s own
+    // `bad argument …, or an integer` sentence. An `OptionTable` message must
+    // never surface here; only the scan is shared. Note `i` is ambiguous
+    // (idle/info) and so lands on the integer path, exactly as in tclsh.
+    let scanned = tcl_cmd_core::prefix::scan(AFTER_SUBCOMMANDS, word.as_bytes(), false);
+    let first = match scanned {
+        tcl_cmd_core::prefix::Resolution::Exact(i)
+        | tcl_cmd_core::prefix::Resolution::UniquePrefix(i) => AFTER_SUBCOMMANDS[i],
+        tcl_cmd_core::prefix::Resolution::Ambiguous | tcl_cmd_core::prefix::Resolution::NoMatch => {
+            ""
+        }
+    };
+    match first {
         "idle" => {
             if args.len() < 2 {
                 return err("wrong # args: should be \"after idle script\"");
@@ -185,10 +212,10 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // report empty (nothing depends on the detail, and it never lies about
         // scheduling — a cancelled/fired event is simply absent).
         "info" => ok(Value::empty()),
-        other => {
-            let Some(ms) = parse_ms(other) else {
+        _ => {
+            let Some(ms) = parse_ms(&word) else {
                 return err(format!(
-                    "bad argument \"{other}\": must be cancel, idle, info, or an integer"
+                    "bad argument \"{word}\": must be cancel, idle, info, or an integer"
                 ));
             };
             if args.len() == 1 {
@@ -234,10 +261,10 @@ fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let idletasks = match args {
         [] => false,
-        [a] if &*a.to_str() == "idletasks" => true,
-        [a] => {
-            return err(format!("bad option \"{}\": must be idletasks", a.to_str()));
-        }
+        [a] => match UPDATE_OPTIONS.index_of_str(&a.to_str()) {
+            Ok(_) => true,
+            Err(e) => return err(e.into_message()),
+        },
         _ => return err("wrong # args: should be \"update ?idletasks?\""),
     };
     let now = Instant::now();

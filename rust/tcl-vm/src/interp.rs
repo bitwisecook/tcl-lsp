@@ -247,6 +247,41 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
     Err(format!("expected integer but got \"{s}\""))
 }
 
+/// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
+/// it with `Tcl_GetIndexFromObj(…, "debug option", 0)`, so `-f`/`-fr`
+/// abbreviate and a miss is `bad debug option "…": must be -frame` — a
+/// one-entry table is never `ambiguous`, not even for the empty word.
+const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("debug option", &["-frame"]);
+
+/// The child-as-command (`$child sub …`) subcommand words, in C table order
+/// (`options[]` in `NRChildCmd`, `tclInterp.c`), resolved with
+/// `Tcl_GetIndexFromObj(…, "option", 0)` — so `ev` abbreviates `eval` and the
+/// empty word is `ambiguous option ""`.
+///
+/// C's table is `alias, aliases, bgerror, debug, eval, expose, hide, hidden,
+/// issafe, invokehidden, limit, marktrusted, recursionlimit`; like the
+/// `interp` ensemble's own table this engine names only what it dispatches
+/// (#1412 item 3), dropping `alias`, `aliases`, and `bgerror`.
+pub(crate) const CHILD_OPTIONS: &[&str] = &[
+    "debug",
+    "eval",
+    "expose",
+    "hide",
+    "hidden",
+    "issafe",
+    "invokehidden",
+    "limit",
+    "marktrusted",
+    "recursionlimit",
+];
+
+/// `interp limit`'s type word (`limitTypes[]`, `tclInterp.c`): the noun is
+/// `limit type` and the flags are `0`, so `c`/`t` abbreviate and the empty
+/// word — a prefix of both entries — is `ambiguous limit type ""`.
+pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("limit type", &["commands", "time"]);
+
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`,
 /// matching C's `Tcl_GetIndexFromObj` — through the one shared owner.
 ///
@@ -3049,26 +3084,31 @@ impl Vm {
 
     /// `interp debug ?-frame ?bool??` on this interp. `-frame` is a one-way
     /// switch (once on, stays on); returns the settings list / the frame bool.
-    pub(crate) fn debug_apply(&mut self, args: &[Value]) -> Result<Value, String> {
-        match args {
-            [] => Ok(Value::list(vec![
-                Value::string("-frame"),
-                Value::int(i64::from(self.debug_frame)),
-            ])),
-            [opt] if &*opt.to_str() == "-frame" => Ok(Value::int(i64::from(self.debug_frame))),
-            [opt, val] if &*opt.to_str() == "-frame" => {
-                if val.as_bool().unwrap_or(false) {
-                    self.debug_frame = true;
-                }
-                Ok(Value::int(i64::from(self.debug_frame)))
+    ///
+    /// C checks the argument count before the option word, so
+    /// `interp debug i -x 1 2` is `wrong # args`, not `bad debug option`;
+    /// `usage` is the caller's own `should be` text, which differs between the
+    /// `interp debug path …` and `$child debug …` spellings.
+    pub(crate) fn debug_apply(&mut self, args: &[Value], usage: &str) -> Result<Value, String> {
+        let (opt, rest) = match args {
+            [] => {
+                return Ok(Value::list(vec![
+                    Value::string("-frame"),
+                    Value::int(i64::from(self.debug_frame)),
+                ]));
             }
-            _ => Err(format!(
-                "bad option \"{}\": must be -frame",
-                args.first()
-                    .map(|v| v.to_str().to_string())
-                    .unwrap_or_default()
-            )),
+            [opt, rest @ ..] if rest.len() <= 1 => (opt, rest),
+            _ => return Err(format!("wrong # args: should be \"{usage}\"")),
+        };
+        DEBUG_OPTIONS
+            .index_of_str(&opt.to_str())
+            .map_err(tcl_cmd_core::CmdError::into_message)?;
+        if let [val] = rest
+            && val.as_bool().unwrap_or(false)
+        {
+            self.debug_frame = true;
         }
+        Ok(Value::int(i64::from(self.debug_frame)))
     }
 
     /// `interp bgerror ?cmdPrefix?` on this interp — get/set the background-error
@@ -3221,12 +3261,12 @@ impl Vm {
     /// `interp limit limitType ?-option value …?` on this interp (query / set;
     /// enforced for `time`).
     pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, String> {
-        match ltype {
-            "commands" => self.limit_commands(args),
-            "time" => self.limit_time(args),
-            other => Err(format!(
-                "bad limit type \"{other}\": must be commands or time"
-            )),
+        match LIMIT_TYPES
+            .index_of_str(ltype)
+            .map_err(tcl_cmd_core::CmdError::into_message)?
+        {
+            0 => self.limit_commands(args),
+            _ => self.limit_time(args),
         }
     }
 
@@ -4089,7 +4129,19 @@ impl Vm {
         let Some((sub, rest)) = argv.split_first() else {
             return err(format!("wrong # args: should be \"{name} cmd ?arg ...?\""));
         };
-        match &*sub.to_str() {
+        let word = sub.to_str();
+        // `$child delete` is this engine's own extra — C's child table has no
+        // `delete` (it is only ever spelled `interp delete path`) — so it is
+        // matched exactly, never abbreviates, and stays out of the enumeration.
+        let sub = if &*word == "delete" {
+            "delete"
+        } else {
+            match crate::command::resolve_interp_option(CHILD_OPTIONS, CHILD_OPTIONS, &word) {
+                Ok(canonical) => canonical,
+                Err(m) => return err(m),
+            }
+        };
+        match sub {
             "eval" => {
                 let script = rest
                     .iter()
@@ -4111,16 +4163,29 @@ impl Vm {
                 names.sort();
                 ok(Value::list(names.into_iter().map(Value::string).collect()))
             }
-            "hide" | "expose" if rest.len() == 1 => {
-                let hide = &*sub.to_str() == "hide";
+            "hide" | "expose" => {
+                let hide = sub == "hide";
+                // `$child hide   cmdName    ?hiddenCmdName?`
+                // `$child expose hiddenName ?cmdName?`
+                let (cmd, token) = match rest {
+                    [cmd] => (cmd.to_str(), cmd.to_str()),
+                    [cmd, token] => (cmd.to_str(), token.to_str()),
+                    _ => {
+                        let form = if hide {
+                            "hide cmdName ?hiddenCmdName?"
+                        } else {
+                            "expose hiddenCmdName ?cmdName?"
+                        };
+                        return err(format!("wrong # args: should be \"{name} {form}\""));
+                    }
+                };
                 if self.is_safe() {
                     let verb = if hide { "hide" } else { "expose" };
                     return err(format!(
                         "permission denied: safe interpreter cannot {verb} commands"
                     ));
                 }
-                let c = rest[0].to_str();
-                match self.child_hide_by_id(id, &c, &c, hide) {
+                match self.child_hide_by_id(id, &cmd, &token, hide) {
                     Ok(()) => ok(Value::empty()),
                     Err(problem) => problem.into_completion(),
                 }
@@ -4132,18 +4197,28 @@ impl Vm {
                 self.mark_interp_trusted(id);
                 ok(Value::empty())
             }
-            "invokehidden" if !rest.is_empty() => self.dispatch_child_invokehidden(name, id, rest),
+            "invokehidden" => self.dispatch_child_invokehidden(name, id, rest),
             "recursionlimit" if rest.len() <= 1 => {
                 self.dispatch_child_recursionlimit(name, id, rest)
             }
             "recursionlimit" => err(format!(
                 "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
             )),
+            // `$child debug ?-frame ?bool??` — the same switch `interp debug
+            // path …` reaches, with the child spelling in the arity message.
+            "debug" => {
+                let dargs = rest.to_vec();
+                let usage = format!("{name} debug ?-frame ?bool??");
+                match self.in_interp(id, |vm| vm.debug_apply(&dargs, &usage)) {
+                    Ok(v) => ok(v),
+                    Err(m) => err(m),
+                }
+            }
             "limit" => self.dispatch_child_limit(name, id, rest),
+            // Unreachable: every name in `CHILD_OPTIONS` has an arm above.
             other => err(format!(
-                "bad option \"{other}\": must be alias, aliases, bgerror, eval, \
-                 expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
-                 recursionlimit, or transfer"
+                "bad option \"{other}\": must be {}",
+                tcl_cmd_core::prefix::choice_list(CHILD_OPTIONS)
             )),
         }
     }
@@ -4158,25 +4233,17 @@ impl Vm {
         if self.is_safe() {
             return err("not allowed to invoke hidden commands from safe interpreter");
         }
-        // Skip unmodelled `-namespace ns` / `--` flags.
-        let mut i = 0;
-        while i < rest.len() {
-            match &*rest[i].to_str() {
-                "-namespace" => i += 2,
-                "--" => {
-                    i += 1;
-                    break;
-                }
-                s if s.starts_with('-') => i += 1,
-                _ => break,
-            }
-        }
+        let i = match crate::command::skip_hidden_options(rest) {
+            Ok(i) => i,
+            Err(m) => return err(m),
+        };
         match rest.get(i) {
             Some(cmd) => self
                 .invoke_hidden_by_id(id, &cmd.to_str(), &rest[i + 1..])
                 .unwrap_or_else(|| err(format!("could not find interpreter \"{name}\""))),
             None => err(format!(
-                "wrong # args: should be \"{name} invokehidden ?-namespace ns? ?--? cmd ?arg ..?\""
+                "wrong # args: should be \"{name} invokehidden ?-namespace ns? \
+                 ?-global? ?--? cmd ?arg ..?\""
             )),
         }
     }

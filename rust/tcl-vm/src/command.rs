@@ -591,6 +591,13 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// `interp create`'s option words (`createOptions[]`, `tclInterp.c`), resolved
+/// with `Tcl_GetIndexFromObj(…, "option", 0)`: `-s` abbreviates `-safe` and the
+/// lone `-` — a prefix of both entries — is `ambiguous option "-"`. Only a word
+/// starting with `-` reaches the table, so the empty word is a path, not a miss.
+const CREATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["-safe", "--"]);
+
 /// `interp create ?-safe? ?--? ?name?` — make a child interpreter.
 fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // C's "weird historical rule": `-safe` is accepted anywhere before `--`
@@ -603,17 +610,17 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     while i < rest.len() {
         let a = rest[i].to_str();
         if !last && a.starts_with('-') {
-            match &*a {
-                "-safe" => {
+            match CREATE_OPTIONS.index_of_str(&a) {
+                Ok(0) => {
                     safe = true;
                     i += 1;
                     continue;
                 }
-                "--" => {
+                Ok(_) => {
                     i += 1;
                     last = true;
                 }
-                s => return err(format!("bad option \"{s}\": must be -safe or --")),
+                Err(e) => return err(e.into_message()),
             }
         }
         if name.is_some() {
@@ -666,10 +673,8 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     // Validate the limit type before the current-interp guard so that a bad
     // type is reported ahead of the inaccessibility error (interp-35.3 vs .23).
-    if &*ltype != "commands" && &*ltype != "time" {
-        return err(format!(
-            "bad limit type \"{ltype}\": must be commands or time"
-        ));
+    if let Err(e) = crate::interp::LIMIT_TYPES.index_of_str(&ltype) {
+        return err(e.into_message());
     }
     if path.is_empty() {
         return err("limits on current interpreter inaccessible");
@@ -768,17 +773,18 @@ fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 /// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
 fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    const USAGE: &str = "interp debug path ?-frame ?bool??";
     let Some((path, dargs)) = rest.split_first() else {
-        return err("wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+        return err(format!("wrong # args: should be \"{USAGE}\""));
     };
     let p = path.to_str();
     let res = if p.is_empty() {
-        vm.debug_apply(dargs)
+        vm.debug_apply(dargs, USAGE)
     } else {
         match vm.resolve_interp_path(&p) {
             Ok(id) => {
                 let dargs = dargs.to_vec();
-                vm.in_interp(id, |vm| vm.debug_apply(&dargs))
+                vm.in_interp(id, |vm| vm.debug_apply(&dargs, USAGE))
             }
             Err(c) => return c,
         }
@@ -851,11 +857,50 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
     }
 }
 
-/// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
-/// hidden command in the named child.
+/// `interp invokehidden`'s leading option words (`hiddenOptions[]`,
+/// `tclInterp.c`), resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-g`
+/// and `-n` abbreviate, and the lone `-` is `ambiguous option "-"`. Only a word
+/// starting with `-` reaches the table, so an empty word is the command name.
+const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["-global", "-namespace", "--"]);
+
+/// Consume `interp invokehidden`'s leading options from `tail`, returning the
+/// index of the command word. Mirrors C's loop: a word not starting with `-`
+/// ends the scan, `-namespace` swallows the following word, and `--` ends it.
+/// `-namespace`/`-global` select the invocation namespace, which this engine
+/// does not model.
+pub(crate) fn skip_hidden_options(tail: &[Value]) -> Result<usize, String> {
+    let mut i = 0;
+    while i < tail.len() {
+        let word = tail[i].to_str();
+        if !word.starts_with('-') {
+            break;
+        }
+        match HIDDEN_OPTIONS.index_of_str(&word) {
+            Ok(1) => {
+                // `-namespace ns` — the namespace word, when there is one.
+                i += 1;
+                if i == tail.len() {
+                    break;
+                }
+                i += 1;
+            }
+            Ok(2) => {
+                i += 1;
+                break;
+            }
+            Ok(_) => i += 1,
+            Err(e) => return Err(e.into_message()),
+        }
+    }
+    Ok(i)
+}
+
+/// `interp invokehidden path ?-namespace ns? ?-global? ?--? cmd ?arg ...?` —
+/// invoke a hidden command in the named child.
 fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let usage =
-        "wrong # args: should be \"interp invokehidden path ?-namespace ns? ?--? cmd ?arg ..?\"";
+    let usage = "wrong # args: should be \"interp invokehidden path \
+                 ?-namespace ns? ?-global? ?--? cmd ?arg ..?\"";
     let [path, tail @ ..] = rest else {
         return err(usage);
     };
@@ -865,25 +910,94 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if vm.is_safe() {
         return err("not allowed to invoke hidden commands from safe interpreter");
     }
-    // Skip the option flags we don't model (`-namespace ns`, `--`).
-    let mut i = 0;
-    while i < tail.len() {
-        match &*tail[i].to_str() {
-            "-namespace" => i += 2,
-            "--" => {
-                i += 1;
-                break;
-            }
-            s if s.starts_with('-') => i += 1,
-            _ => break,
-        }
-    }
+    let i = match skip_hidden_options(tail) {
+        Ok(i) => i,
+        Err(m) => return err(m),
+    };
     let Some(cmd) = tail.get(i) else {
         return err(usage);
     };
     let p = path.to_str();
     vm.invoke_hidden_in_child(&p, &cmd.to_str(), &tail[i + 1..])
         .unwrap_or_else(|| err(format!("could not find interpreter \"{p}\"")))
+}
+
+/// `interp`'s subcommand words, in C table order (`options[]`, `tclInterp.c`).
+/// C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`, so `cr`
+/// abbreviates `create` and the empty word — a prefix of every entry — is
+/// `ambiguous option ""`.
+///
+/// Like the WASM runtime (#1412 item 3), the table names only the subcommands
+/// this engine dispatches: `aliases`, `cancel`, and `target` need
+/// infrastructure the VM has none of, so they are dropped rather than left
+/// advertised-but-undispatchable. `slaves` is 8.x's deprecated spelling of
+/// `children`: it still resolves at 9.0 (as it does in C, whose `options[]`
+/// keeps it) but [`interp_option_choices`] drops it from the enumeration.
+///
+/// tclsh 9.0.4, for contrast:
+///   bad option "x": must be alias, aliases, bgerror, cancel, children,
+///   create, debug, delete, eval, exists, expose, hide, hidden, issafe,
+///   invokehidden, limit, marktrusted, recursionlimit, share, target, or
+///   transfer
+pub(crate) const INTERP_OPTIONS: &[&str] = &[
+    "alias",
+    "bgerror",
+    "children",
+    "create",
+    "debug",
+    "delete",
+    "eval",
+    "exists",
+    "expose",
+    "hide",
+    "hidden",
+    "issafe",
+    "invokehidden",
+    "limit",
+    "marktrusted",
+    "recursionlimit",
+    "slaves",
+    "share",
+    "transfer",
+];
+
+/// The `interp` subcommands the miss message enumerates for the emulated
+/// release: 9.0 retired `slaves` from the advertised list (C reports the miss
+/// against its own `optionsNoSlaves[]`) while still dispatching it.
+fn interp_option_choices(vm: &Vm) -> Vec<&'static str> {
+    if vm.runtime_version() >= tcl_dialect::TclVersion::V9_0 {
+        INTERP_OPTIONS
+            .iter()
+            .copied()
+            .filter(|name| *name != "slaves")
+            .collect()
+    } else {
+        INTERP_OPTIONS.to_vec()
+    }
+}
+
+/// Resolve an `interp`-family subcommand word through the shared owner:
+/// `dispatch` is the table the word may resolve against, `advertised` the
+/// (possibly shorter) table the miss message enumerates — C splits the two the
+/// same way for `slaves`.
+pub(crate) fn resolve_interp_option(
+    dispatch: &'static [&'static str],
+    advertised: &[&'static str],
+    word: &str,
+) -> Result<&'static str, String> {
+    match tcl_cmd_core::prefix::scan(dispatch, word.as_bytes(), false) {
+        tcl_cmd_core::prefix::Resolution::Exact(i)
+        | tcl_cmd_core::prefix::Resolution::UniquePrefix(i) => Ok(dispatch[i]),
+        miss => Err(
+            String::from_utf8_lossy(&tcl_cmd_core::prefix::bad_key_message(
+                advertised,
+                b"option",
+                word.as_bytes(),
+                matches!(miss, tcl_cmd_core::prefix::Resolution::Ambiguous),
+            ))
+            .into_owned(),
+        ),
+    }
 }
 
 /// `interp` — child-interpreter creation, evaluation, and the single-interp
@@ -894,7 +1008,12 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"interp cmd ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let choices = interp_option_choices(vm);
+    let sub = match resolve_interp_option(INTERP_OPTIONS, &choices, &sub.to_str()) {
+        Ok(name) => name,
+        Err(m) => return err(m),
+    };
+    match sub {
         "create" => interp_create_cmd(vm, rest),
         // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
         "alias" => match rest {
@@ -949,7 +1068,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "slaves" | "children" => interp_children_cmd(vm, rest),
         "recursionlimit" => interp_recursionlimit_cmd(vm, rest),
         // interp hide path cmd / interp expose path cmd
-        "hide" | "expose" => interp_hidectl_cmd(vm, &*sub.to_str() == "hide", rest),
+        "hide" | "expose" => interp_hidectl_cmd(vm, sub == "hide", rest),
         "hidden" => interp_hidden_cmd(vm, rest),
         "invokehidden" => interp_invokehidden_cmd(vm, rest),
         "debug" => interp_debug_cmd(vm, rest),
@@ -972,11 +1091,10 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // channels at top level runs to completion (the dependent reads are
         // covered by the per-interp channel table, not a global one).
         "share" | "transfer" => ok(Value::empty()),
+        // Unreachable: every name in `INTERP_OPTIONS` has an arm above.
         other => err(format!(
-            "bad option \"{other}\": must be alias, aliases, bgerror, cancel, \
-             children, create, debug, delete, eval, exists, expose, hide, \
-             hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, \
-             share, slaves, target, or transfer"
+            "bad option \"{other}\": must be {}",
+            tcl_cmd_core::prefix::choice_list(&choices)
         )),
     }
 }
@@ -1579,23 +1697,48 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
 /// ignored (no encoding-file search). This is a documented simplification — real
 /// codepage conversion (cp1252, shiftjis, …) is not implemented on either side.
-fn cmd_encoding(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+/// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+/// 9.0's table also carries `profiles` and `user`, which need the encoding
+/// machinery this engine does not model; like its other ensembles it names
+/// only what it dispatches.
+const ENCODING_SUBS: &[&str] = &["convertfrom", "convertto", "dirs", "names", "system"];
+
+fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(sub) = args.first() else {
         return err("wrong # args: should be \"encoding subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    // `dirs` arrives in 8.5, so the table follows the emulated release.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "encoding",
+        ENCODING_SUBS,
+    );
+    let canon =
+        match tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.to_str().as_bytes(), true) {
+            Some(index) => subs[index],
+            None => {
+                return err(String::from_utf8_lossy(
+                    &tcl_cmd_core::ensemble::unknown_subcommand_message(
+                        subs,
+                        sub.to_str().as_bytes(),
+                        true,
+                        b"::tcl::encoding",
+                    ),
+                )
+                .into_owned());
+            }
+        };
+    match canon {
         "dirs" => ok(Value::empty()),
         "system" => ok(Value::string("utf-8")),
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
-        "convertto" | "convertfrom" => {
+        // Unreachable: `ENCODING_SUBS` has exactly these five names.
+        _ => {
             if args.len() < 2 {
                 return err("wrong # args: should be \"encoding convertto ?encoding? data\"");
             }
             ok(args.last().expect("len >= 2").clone())
         }
-        other => err(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be convertfrom, convertto, dirs, names, or system"
-        )),
     }
 }
 

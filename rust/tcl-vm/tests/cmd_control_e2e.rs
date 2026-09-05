@@ -264,6 +264,35 @@ fn try_dash_fallthrough() {
     );
 }
 
+/// Issue #1607: `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
+/// "handler type", 0)` table, so the three types abbreviate and the empty word
+/// — a prefix of all three — is `ambiguous handler type ""`, not `bad`.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   try {} o error {} {}  -> {}       ;  try {} f {}      -> {}
+///   try {} t {} {} {}     -> {}
+///   try {} {} error {} {} -> ambiguous handler type "": must be finally, on, or trap
+///   try {} x error {} {}  -> bad handler type "x": must be finally, on, or trap
+///   try {} x              -> bad handler type "x": … (the type precedes the arity)
+#[test]
+fn try_handler_type_resolves_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be finally, on, or trap";
+    // Unique prefixes resolve to their clause grammar.
+    assert_eq!(run("set t try; $t {set x ok} o error {} {set x h}").1, "ok");
+    assert_eq!(run("set t try; $t {set x ok} f {set y 1}").1, "ok");
+    assert_eq!(run("set t try; $t {set x ok} t {} {} {set x h}").1, "ok");
+    // The empty word prefixes all three ⇒ ambiguous.
+    assert_eq!(
+        run("set t try; catch {$t good {} error {} {x}} e; set e").1,
+        format!("ambiguous handler type \"\": {MUST}"),
+    );
+    // The type is resolved before the clause's arity.
+    assert_eq!(
+        run("set t try; catch {$t good x} e; set e").1,
+        format!("bad handler type \"x\": {MUST}"),
+    );
+}
+
 /// `try` grammar errors are raised before the body runs (validated by
 /// `parse_clauses`).
 #[test]

@@ -192,14 +192,39 @@ fn array_arity_errors() {
 /// An unknown `array` subcommand reports the VM's bad-subcommand message (the
 /// VM's supported set is exists/for/get/names/set/size/unset — narrower than C's
 /// full ensemble, so the message text is the VM's own).
+///
+/// Issue #1607: the sentence and the exact-then-unique-prefix scan are
+/// `tcl_cmd_core::ensemble`'s, so `array e a` abbreviates as it does in tclsh.
+///
+/// tclsh 9.0.4 (the verdicts, not the shortened list):
+///   array e a  -> 1     ;  array ex a -> 1
+///   array s a  -> unknown or ambiguous subcommand "s": must be …
+///                        (set/size both start with `s`)
+///   array {} a -> unknown or ambiguous subcommand "": must be …
 #[test]
 fn array_bad_subcommand() {
-    let (ok, msg, _) = run("array badcmd a");
-    assert!(!ok);
+    const MUST: &str = "must be exists, for, get, names, set, size, or unset";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
     assert_eq!(
-        msg,
-        "unknown or ambiguous subcommand \"badcmd\": must be exists, for, get, names, set, size, or unset"
+        msg("array badcmd a"),
+        format!("unknown or ambiguous subcommand \"badcmd\": {MUST}")
     );
+    assert_eq!(
+        msg("array s a"),
+        format!("unknown or ambiguous subcommand \"s\": {MUST}")
+    );
+    assert_eq!(
+        msg("array {} a"),
+        format!("unknown or ambiguous subcommand \"\": {MUST}")
+    );
+    // Unique prefixes resolve.
+    assert_eq!(run("set a(x) 1\narray e a").1, "1");
+    assert_eq!(run("set a(x) 1\narray ex a").1, "1");
+    assert_eq!(run("set a(x) 1\narray n a").1, "x");
 }
 
 /// `array for {k v} arrayName body` iterates the element pairs (Tcl 9.0). The
@@ -610,13 +635,55 @@ fn dict_with() {
 }
 
 /// An unknown `dict` subcommand reports the VM's bad-subcommand message.
+///
+/// Issue #1607: `dict` is a `TclMakeEnsemble` command, so the whole sentence
+/// — which this used to emit without any `must be` clause — and the
+/// exact-then-unique-prefix scan come from `tcl_cmd_core::ensemble`. The list
+/// is C's 9.0 table minus `info` (per-dict hash statistics), which this engine
+/// does not model.
+///
+/// tclsh 9.0.4 (the verdicts, not the shortened list):
+///   dict k {a 1}         -> a      (keys)
+///   dict g {a 1} a       -> unknown or ambiguous subcommand "g": must be …
+///                                  (get/getdef/getwithdefault)
+///   dict {} {a 1}        -> unknown or ambiguous subcommand "": must be …
+///   dict filter {a 1} k *  -> a 1
+///   dict filter {a 1} x *  -> bad filterType "x": must be key, script, or value
+///   dict filter {a 1} {} * -> ambiguous filterType "": must be key, script, or value
 #[test]
 fn dict_bad_subcommand() {
-    let (ok, msg, _) = run("dict no_such_sub x");
-    assert!(!ok);
-    assert!(
-        msg.starts_with("unknown or ambiguous subcommand \"no_such_sub\""),
-        "got: {msg}"
+    const MUST: &str = "must be append, create, exists, filter, for, get, getdef, \
+                        getwithdefault, incr, keys, lappend, map, merge, remove, replace, \
+                        set, size, unset, update, values, or with";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("dict no_such_sub x"),
+        format!("unknown or ambiguous subcommand \"no_such_sub\": {MUST}")
+    );
+    assert_eq!(
+        msg("dict g {a 1} a"),
+        format!("unknown or ambiguous subcommand \"g\": {MUST}")
+    );
+    assert_eq!(
+        msg("dict {} {a 1}"),
+        format!("unknown or ambiguous subcommand \"\": {MUST}")
+    );
+    // Unique prefixes resolve.
+    assert_eq!(run("dict k {a 1}").1, "a");
+    assert_eq!(run("dict si {a 1}").1, "1");
+    // `dict filter`'s type word is its own `Tcl_GetIndexFromObj` table.
+    assert_eq!(run("dict filter {a 1} k *").1, "a 1");
+    assert_eq!(
+        msg("dict filter {a 1} x *"),
+        "bad filterType \"x\": must be key, script, or value"
+    );
+    assert_eq!(
+        msg("dict filter {a 1} {} *"),
+        "ambiguous filterType \"\": must be key, script, or value"
     );
 }
 

@@ -83,65 +83,66 @@ fn path_str(bytes: &[u8]) -> Completion<Value> {
     ok(Value::string(std::str::from_utf8(bytes).unwrap_or("")))
 }
 
-/// Resolve a `file` subcommand word to its canonical Tcl 9 name with Tcl's
-/// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): exact match wins, else a
-/// unique prefix — so `file ext` resolves to `extension` (cmdAH.test). The
-/// table is the full Tcl 9 `file` option set so ambiguity matches C even for
-/// subcommands the VM does not yet implement (those resolve then fall through
-/// to the unknown-subcommand arm). `None` ⇒ no match or ambiguous.
-fn canonical_file_sub(sub: &str) -> Option<&'static str> {
-    const SUBS: &[&str] = &[
-        "atime",
-        "attributes",
-        "channels",
-        "copy",
-        "delete",
-        "dirname",
-        "executable",
-        "exists",
-        "extension",
-        "isdirectory",
-        "isfile",
-        "join",
-        "link",
-        "lstat",
-        "mkdir",
-        "mtime",
-        "nativename",
-        "normalize",
-        "owned",
-        "pathtype",
-        "readable",
-        "readlink",
-        "rename",
-        "rootname",
-        "separator",
-        "size",
-        "split",
-        "stat",
-        "system",
-        "tail",
-        "tempdir",
-        "tempfile",
-        "type",
-        "volumes",
-        "writable",
-    ];
-    if sub.is_empty() {
-        return None;
-    }
-    if let Some(&exact) = SUBS.iter().find(|&&s| s == sub) {
-        return Some(exact);
-    }
-    let mut found = None;
-    let mut count = 0u32;
-    for &s in SUBS {
-        if s.starts_with(sub) {
-            found = Some(s);
-            count += 1;
-        }
-    }
-    if count == 1 { found } else { None }
+/// `file`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
+/// full Tcl 9 table, so ambiguity matches C even for subcommands the VM does
+/// not yet implement (those resolve, then fall through to the
+/// unknown-subcommand arm).
+///
+/// It is filtered to the emulated release before use
+/// ([`crate::environment::release_subcommands`]): `home`, `tempdir` and
+/// `tildeexpand` are Tcl 9 additions, and under an 8.6 pin they must neither
+/// resolve nor take part in the prefix scan — `file te` is a unique prefix of
+/// `tempfile` on 8.6.16 and ambiguous on 9.0.4.
+const FILE_SUBS: &[&str] = &[
+    "atime",
+    "attributes",
+    "channels",
+    "copy",
+    "delete",
+    "dirname",
+    "executable",
+    "exists",
+    "extension",
+    "home",
+    "isdirectory",
+    "isfile",
+    "join",
+    "link",
+    "lstat",
+    "mkdir",
+    "mtime",
+    "nativename",
+    "normalize",
+    "owned",
+    "pathtype",
+    "readable",
+    "readlink",
+    "rename",
+    "rootname",
+    "separator",
+    "size",
+    "split",
+    "stat",
+    "system",
+    "tail",
+    "tempdir",
+    "tempfile",
+    "tildeexpand",
+    "type",
+    "volumes",
+    "writable",
+];
+
+/// `file`'s implementation namespace — the `ns_fqn` an empty ensemble's miss
+/// message would name (`TclMakeEnsemble`, `tclFileName.c`).
+const FILE_NS: &[u8] = b"::tcl::file";
+
+/// Resolve a `file` subcommand word to its canonical name through the shared
+/// ensemble owner: exact match wins, else a unique prefix — so `file ext`
+/// resolves to `extension` (cmdAH.test). `subs` is the emulated release's
+/// table ([`file_subcommands`]). `None` ⇒ no match or ambiguous.
+fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
+    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_bytes(), true).map(|index| subs[index])
 }
 
 /// The platform-independent path-text subcommands of `file` (no filesystem
@@ -209,9 +210,24 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let s = |v: &Value| v.to_str().to_string();
     let sub_str = sub.to_str();
-    let canon: &str = match canonical_file_sub(&sub_str) {
-        Some(c) => c,
-        None => &sub_str,
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "file",
+        FILE_SUBS,
+    );
+    // A miss reports here rather than falling through with the raw word: the
+    // arms below match on the canonical name, so a word the *pinned release*
+    // does not have would otherwise still dispatch.
+    let Some(canon) = canonical_file_sub(subs, &sub_str) else {
+        return err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                sub_str.as_bytes(),
+                true,
+                FILE_NS,
+            ))
+            .into_owned(),
+        );
     };
     // Pure path-text subcommands (no filesystem access) are handled first; the
     // rest fall through to the filesystem-backed ops below.
@@ -276,7 +292,17 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
-        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+        // Reached by a word that matched nothing, prefixed several entries, or
+        // resolved to a subcommand this engine does not implement.
+        other => err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                other.as_bytes(),
+                true,
+                FILE_NS,
+            ))
+            .into_owned(),
+        ),
     }
 }
 
@@ -349,31 +375,115 @@ fn normalize(p: &str, cwd: &str) -> String {
     format!("/{}", parts.join("/"))
 }
 
-/// `glob ?-nocomplain? ?-directory dir? ?--? pattern ...` — minimal matching
-/// against the directory's entries.
+/// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
+/// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`
+/// abbreviate, `-t` prefixes both `-tails` and `-types` and so is
+/// `ambiguous option "-t"`, and the lone `-` prefixes every entry. Only a word
+/// starting with `-` reaches the table, so an empty word is a pattern
+/// (tclsh: `glob {}` → `.`), never a miss.
+///
+/// Issue #1607: this loop used to *skip* an unrecognised `-word` silently, so
+/// `glob -x a` ran and `-types d` leaked its value into the pattern list.
+/// Rejecting an unknown option is a deliberate behaviour change, ruled on for
+/// that sweep; every name the table advertises is honoured below.
+const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &[
+            "-directory",
+            "-join",
+            "-nocomplain",
+            "-path",
+            "-tails",
+            "-types",
+            "--",
+        ],
+    );
+
+/// Whether the entry at `path` satisfies every `-types` specifier — the same
+/// portable rule the WASM runtime applies (`cmd_fs::entry_matches_types`):
+/// file-kind `d f l` and permission `r w x` over the [`Filesystem`] seam, with
+/// the Unix special-device kinds `p s b c` never matching because the seam
+/// cannot express them. An empty list matches everything.
+fn glob_types_match(filesystem: &dyn Filesystem, path: &str, types: &[char]) -> bool {
+    if types.is_empty() {
+        return true;
+    }
+    // `symlink_metadata` so `l` (and the kind tests) see the link itself.
+    let Ok(meta) = filesystem.symlink_metadata(path) else {
+        return false;
+    };
+    types.iter().all(|&t| match t {
+        'd' => meta.is_dir,
+        'f' => meta.is_file,
+        'l' => meta.is_symlink,
+        'x' => meta.executable,
+        'p' | 's' | 'b' | 'c' => false, // special devices: not portable
+        _ => true, // `r`/`w` are best-effort; an unknown letter does not exclude
+    })
+}
+
+/// `glob ?-nocomplain? ?-directory dir? ?-tails? ?-types list? ?-join? ?--?
+/// pattern ...` — minimal matching against the directory's entries.
 fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // We never error on no match (effectively always `-nocomplain`).
     let mut dir: Option<String> = None;
     let mut join = false;
+    let mut tails = false;
+    let mut types: Vec<char> = Vec::new();
     let mut i = 0;
     while i < args.len() {
-        match &*args[i].to_str() {
-            "-nocomplain" => i += 1,
-            "-join" => {
-                join = true;
-                i += 1;
-            }
-            "-directory" | "-dir" => {
+        let word = args[i].to_str();
+        // Only a `-`-leading word reaches the table, as in C — a bare word
+        // (the empty one included) is the first pattern.
+        if !word.starts_with('-') {
+            break;
+        }
+        match GLOB_OPTIONS.index_of_str(&word) {
+            // `-directory dir` and `-path prefix` are distinct in C; this
+            // engine models both as the search root.
+            Ok(0 | 3) => {
                 dir = args.get(i + 1).map(|v| v.to_str().to_string());
                 i += 2;
             }
-            "--" => {
+            Ok(1) => {
+                join = true;
+                i += 1;
+            }
+            Ok(2) => i += 1,
+            Ok(4) => {
+                tails = true;
+                i += 1;
+            }
+            Ok(5) => {
+                // A list of one-letter type specifiers (`d`, `f`, `r`, …); a
+                // name must satisfy every requested test.
+                types = args
+                    .get(i + 1)
+                    .and_then(|v| v.as_list().ok())
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|s| {
+                                let s = s.to_str();
+                                let mut cs = s.chars();
+                                cs.next().filter(|_| cs.next().is_none())
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                i += 2;
+            }
+            // `--` ends the option scan.
+            Ok(_) => {
                 i += 1;
                 break;
             }
-            s if s.starts_with('-') => i += 1, // ignore other options
-            _ => break,
+            Err(e) => return err(e.into_message()),
         }
+    }
+    if tails && dir.is_none() {
+        return err("\"-tails\" must be used with either \"-directory\" or \"-path\"");
     }
     let patterns = &args[i..];
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
@@ -396,6 +506,24 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     name
                 };
                 results.push(full);
+            }
+        }
+    }
+    // `-types` filters on the entry's real path; `-tails` then reports each hit
+    // relative to the `-directory`/`-path` root, as C does.
+    let prefix = format!("{}/", base.trim_end_matches('/'));
+    results.retain(|r| {
+        let probe = if dir.is_some() {
+            r.clone()
+        } else {
+            file_join(&[Value::string(base.clone()), Value::string(r.clone())])
+        };
+        glob_types_match(filesystem, &probe, &types)
+    });
+    if tails {
+        for r in &mut results {
+            if let Some(rest) = r.strip_prefix(&prefix) {
+                *r = rest.to_owned();
             }
         }
     }

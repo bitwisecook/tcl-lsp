@@ -1152,16 +1152,23 @@ fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
     }
 }
 
-/// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
+/// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
+/// it with `Tcl_GetIndexFromObj(…, "debug option", 0)`, so `-f`/`-fr`
+/// abbreviate and a miss is `bad debug option "…": must be -frame` — a
+/// one-entry table is never `ambiguous`, not even for the empty word. Shared
+/// with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
+const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("debug option", &[b"-frame"]);
+
+/// `interp limit`'s type word (`limitTypes[]`, `tclInterp.c`): the noun is
+/// `limit type` and the flags are `0`, so `c`/`t` abbreviate and the empty
+/// word — a prefix of both entries — is `ambiguous limit type ""`.
+pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("limit type", &[b"commands", b"time"]);
+
+/// Validate an `interp debug` option through the shared owner.
 fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
-    let o = obj_bytes(opt);
-    if !o.is_empty() && b"-frame".starts_with(o.as_slice()) {
-        return Ok(());
-    }
-    let mut m = b"bad debug option \"".to_vec();
-    m.extend_from_slice(&o);
-    m.extend_from_slice(b"\": must be -frame");
-    Err(m)
+    DEBUG_OPTIONS.index_of(&obj_bytes(opt)).map(|_| ())
 }
 
 /// Parse an `interp limit` integer option value (`expected integer but got "X"`).
@@ -6655,6 +6662,29 @@ impl Interp {
             .resolve_fqn(self.current_ns.get(), name)
     }
 
+    /// The child-as-command subcommand words, in C table order (`options[]` in
+    /// `NRChildCmd`, `tclInterp.c`), resolved with
+    /// `Tcl_GetIndexFromObj(…, "option", 0)` — so `ev` abbreviates `eval` and
+    /// the empty word is `ambiguous option ""`. The child command object
+    /// advertises a *shorter* list than `interp` does (no `children`, `create`,
+    /// `delete`, or `exists`: those are only ever spelled `interp <op> path`),
+    /// and this runtime dispatches all thirteen (issue #1412 item 7).
+    pub(crate) const CHILD_OPTIONS: &[&[u8]] = &[
+        b"alias",
+        b"aliases",
+        b"bgerror",
+        b"debug",
+        b"eval",
+        b"expose",
+        b"hide",
+        b"hidden",
+        b"issafe",
+        b"invokehidden",
+        b"limit",
+        b"marktrusted",
+        b"recursionlimit",
+    ];
+
     /// The `wrong # args: should be "<child><tail>"` message for the `$child
     /// <sub>` shorthand. C's `NRChildCmd` builds every one of its arity errors
     /// with `Tcl_WrongNumArgs(interp, 1, objv, …)`, so the noun is **`objv[0]`
@@ -6673,6 +6703,15 @@ impl Interp {
     /// `Tcl_WrongNumArgs` reads back. This runtime's alias trampoline records no
     /// such rewrite, so `bar hidden extra` reports the target's name rather than
     /// `bar` — a separate gap in alias dispatch, not in this seam.
+    ///
+    /// The *subcommand* half of the noun goes the other way: every `tail` here
+    /// spells the table word in full, because `Tcl_WrongNumArgs` expands an
+    /// index-typed argument back to its table entry (`tclIndexObj.c`) and
+    /// `Tcl_GetIndexFromObj` has already retyped `objv[1]` by the time the
+    /// arity check runs. So an abbreviated call reports the canonical word:
+    /// `kid hidd extra` is `"kid hidden"`, not `"kid hidd"` (tclsh
+    /// 8.6.16 / 9.0.4-pinned). Written word for the command, canonical word
+    /// for the subcommand.
     fn child_wrong_args(&mut self, argv: &[*mut TclObj], tail: &[u8]) -> Code {
         let mut message = b"wrong # args: should be \"".to_vec();
         message.extend_from_slice(&invoked_word(argv));
@@ -6694,7 +6733,23 @@ impl Interp {
         if argv.len() < 2 {
             return self.child_wrong_args(argv, b" cmd ?arg ...?");
         }
-        match obj_bytes(argv[1]).as_slice() {
+        let word = obj_bytes(argv[1]);
+        // `$child delete` is this runtime's own extra — C's child table has no
+        // `delete` (it is only ever spelled `interp delete path`) — so it is
+        // matched exactly, never abbreviates, and stays out of the enumeration.
+        let sub: &[u8] = if word == b"delete" {
+            b"delete"
+        } else {
+            match crate::cmd_alias::resolve_interp_option(
+                Self::CHILD_OPTIONS,
+                Self::CHILD_OPTIONS,
+                &word,
+            ) {
+                Ok(canonical) => canonical,
+                Err(m) => return self.error(&m),
+            }
+        };
+        match sub {
             b"eval" => {
                 if argv.len() < 3 {
                     return self.child_wrong_args(argv, b" eval arg ?arg ...?");
@@ -6721,7 +6776,8 @@ impl Interp {
             // qualified *token* and `kid expose ::foo::bar` a qualified
             // *destination*, so the two report different errors.
             b"hide" | b"expose" => {
-                let hide = obj_bytes(argv[1]) == b"hide";
+                // The *resolved* word, so `kid ex foo` is an expose too.
+                let hide = sub == b"hide";
                 let op = if hide {
                     CommandVisibilityOp::Hide
                 } else {
@@ -6782,7 +6838,10 @@ impl Interp {
             // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
             // the child delegating to `targetCmd` in this (parent) interp. (The
             // target is implicitly the parent, so there is no target-path arg.)
-            b"alias" if argv.len() >= 4 => {
+            b"alias" => {
+                if argv.len() < 4 {
+                    return self.child_wrong_args(argv, b" alias aliasName ?targetName? ?arg ...?");
+                }
                 let alias = obj_bytes(argv[2]);
                 let target = obj_bytes(argv[3]);
                 let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
@@ -6863,22 +6922,14 @@ impl Interp {
                     None => self.error(b"could not find interpreter"),
                 }
             }
+            // Unreachable: every name in `Self::CHILD_OPTIONS` has an arm above.
             other => {
-                // Same `bad option` shape as the `interp` ensemble's own
-                // fallthrough (`cmd_alias.rs::interp_cmd`) — the child
-                // command object (`NRChildCmd`, tclInterp.c) advertises a
-                // *shorter* list than `interp` does (no `children`,
-                // `create`, `delete`, or `exists`: those are only ever
-                // spelled `interp <op> path`, never `$child <op>`), but the
-                // shape is the same tclsh `bad option` error, not a
-                // runtime-specific message (issue #1412 item 7).
                 let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(other);
-                m.extend_from_slice(
-                    b"\": must be alias, aliases, bgerror, debug, eval, expose, \
-                      hide, hidden, issafe, invokehidden, limit, marktrusted, \
-                      or recursionlimit",
-                );
+                m.extend_from_slice(b"\": must be ");
+                m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
+                    Self::CHILD_OPTIONS,
+                ));
                 self.error(&m)
             }
         }
@@ -7466,15 +7517,9 @@ impl Interp {
         ltype: &[u8],
         opts: &[*mut TclObj],
     ) -> Result<*mut TclObj, Vec<u8>> {
-        match ltype {
-            b"commands" => self.limit_commands(opts),
-            b"time" => self.limit_time(opts),
-            other => {
-                let mut m = b"bad limit type \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be commands or time");
-                Err(m)
-            }
+        match LIMIT_TYPES.index_of(ltype)? {
+            0 => self.limit_commands(opts),
+            _ => self.limit_time(opts),
         }
     }
 

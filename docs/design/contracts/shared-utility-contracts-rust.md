@@ -507,6 +507,45 @@ entry point, or gate moves without this contract being updated.
   path. `subcommand_choices` is the ensemble enumeration, which keeps
   a comma before `or` even for two entries (`bar, or baz`) — the
   wording `prefix::choice_list` must not be used for.
+  Consumers of the scan and of `unknown_subcommand_message`: both
+  engines' script ensembles, and — since #1607 — their built-in `info`
+  and `file` ensembles (the VM's two hand-rolled
+  exact-then-unique-prefix loops and its list-less miss sentence are
+  gone; the runtime's `file` keeps the registry's release-gated name
+  set and borrows only the sentence), plus their `string` and
+  `tcl::prefix` ensembles — `tcl::prefix`'s enumeration used to come
+  from `prefix::choice_list_bytes`, the wrong owner, which happens to
+  agree only because that list has three entries — and their `dict` and
+  `array` ensembles, where resolving the word first is also what makes
+  `array e a` fire the variable's `array` trace under the canonical
+  name — and their `binary`, `binary encode`/`decode` (the one
+  `prefixes = false` pair, whose miss is `unknown subcommand`),
+  `encoding`, `chan`, `zlib` and `namespace` ensembles.
+  TclOO's own tables resolve through `prefix` too — `info object isa`'s
+  `category`, `configure`'s `property` (C reaches it through
+  `tcl::prefix match -message property`, so it abbreviates),
+  `definitionnamespace`'s `kind`, and `method`'s `export flag` — while
+  every *method* list is joined by `tcloo_choice_list_bytes`, which
+  drops the Oxford comma the option tables keep. Resolving the word is
+  only half of each of these: `info object isa` then checks an **exact**
+  count per resolved category (`InfoObjectIsACmd` checks the argument
+  count twice — once before the category resolves, once after), and the
+  `$child` shorthand words every arity message from `invoked_word` while
+  the *option* identity comes from the table.
+
+  **The table a scan runs over is release-gated.** A `TclMakeEnsemble`
+  subcommand set is a release fact, both engines are release-selectable,
+  and a name from the wrong release changes prefix verdicts for words
+  that have nothing to do with it (`dict g` is `get` on 8.6, ambiguous
+  on 9.0 once `getdef`/`getwithdefault` exist). Each engine's
+  `environment::release_subcommands` filters its table through the
+  selected release's registry surface — removal only, so the engine
+  still owns which names it dispatches and their order — and it is
+  memoised per `(command, release)` because it sits on the `dict` /
+  `string` / `info` dispatch path. A resolution miss must then *report*
+  rather than fall through with the raw word: dispatch arms match
+  canonical names, so an exact 9-only spelling would otherwise still
+  run under an 8.6 pin.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -525,7 +564,22 @@ entry point, or gate moves without this contract being updated.
   match` `-message`). Consumers: `switch`/`lsort`/`lsearch`/`regexp`/
   `regsub`/`trace`/`string is` option words (this crate), the VM's
   `tcl::prefix match` and `string is`, the WASM runtime's `string`
-  ensemble, `tcl::prefix match`, and OO option tables. New command
+  ensemble, `tcl::prefix match`, OO option tables, and — since #1607 —
+  both engines' `interp debug` option word (noun `debug option`),
+  `interp limit` type word (noun `limit type`), and the `interp`
+  ensemble, child-as-command, `interp create` and `interp invokehidden`
+  option words. Where an engine advertises only the subcommands it
+  dispatches (#1412 item 3), the miss message is composed with `scan` +
+  `bad_key_message` over the shorter table — the way C reports
+  `interp`'s own misses against `optionsNoSlaves[]`. `package`'s
+  subcommand word and `package prefer`'s `preference` word resolve here
+  too (they are `Tcl_GetIndexFromObj` tables, not an ensemble, despite
+  both engines having worded their misses `unknown or ambiguous
+  subcommand` before #1607), as do `update`'s option, `try`'s
+  `handler type`, and `seek`'s `origin`. `after` shares only the
+  `scan` — C looks its subcommands up with a NULL interp and composes
+  its own `bad argument …, or an integer` sentence, so no
+  `OptionTable` message may surface there. New command
   modules MUST resolve through `OptionTable` (or `scan` +
   `bad_key_message` where a byte noun or interleaved control flow
   demands composition) — never a hand-rolled scan.
@@ -738,12 +792,41 @@ entry point, or gate moves without this contract being updated.
 
 ## Known deliberate exceptions
 
-- `string match` / `string map` `-nocase`: C hand-rolls a
-  `length > 1` prefix test (`strncmp`) instead of
-  `Tcl_GetIndexFromObj`, which differs from the table rule on a lone
-  `-` (`string match - a b` is `bad option`, where the table rule
-  would call it ambiguous) — kept hand-rolled, with the probe cited at
-  the site (`tcl-cmd-core::string`).
+- `string match` / `string map` / `string compare` / `string equal`
+  option words: C hand-rolls a `length > 1` prefix test (`strncmp`,
+  `StringCmpOpts`) instead of `Tcl_GetIndexFromObj`, which differs from
+  the table rule on the empty word and a lone `-` (`string match - a b`
+  and `string compare "" a b` are both `bad option`, where the table
+  rule would call them ambiguous) — kept hand-rolled, with the probe
+  cited at the site (`tcl-cmd-core::string`).
+- `try`'s completion codes (`TclGetCompletionCodeFromObj`) are
+  `TCL_EXACT` with a custom `…, or an integer` trailer, and `after`'s
+  subcommand scan is a NULL-interp lookup whose miss falls through to
+  an integer parse: both compose their own sentence, so only the
+  matcher — never an `OptionTable` message — is shared.
+- TclOO method dispatch, `oo::define`'s slot ops, and its body-command
+  lookup are hash probes, not tables: only the **join**
+  (`prefix::tcloo_choice_list_bytes`) is shared.
+- `glob` is **not** an exception — both engines resolve its option words
+  through `OptionTable` since #1607 — but the two halves landed for
+  different reasons and the record belongs here. The WASM runtime's
+  scan already rejected an unknown option exactly as C does, so its
+  conversion changed no accept/reject decision. The bytecode VM's
+  silently *skipped* any unrecognised `-word`, so `glob -x a` ran and
+  `-types d` leaked its value into the pattern list; converting it makes
+  the VM reject unknown options, which is a deliberate behaviour change
+  ruled on for that sweep rather than an incidental one. Because the
+  table now advertises `-tails` and `-types`, the VM honours them too —
+  no engine may advertise an option it ignores. Both engines' text is
+  tclsh 8.6.16/9.0.4-exact (`bad option "-x": must be -directory, -join,
+  -nocomplain, -path, -tails, -types, or --`), pinned in
+  `glob_option_words_resolve_like_tcl_get_index_from_obj` on each side.
+- `tcl_registry::abbrev::KeywordTable` is a fourth prefix matcher (it
+  supports `min_abbrev` and carries the ambiguous candidates), reached
+  through `CommandSpec::resolve_subcommand_word` by the WASM runtime's
+  `file` dispatch and the VM's `namespace`. It is out of scope for the
+  "new command modules MUST resolve through `OptionTable`" rule above;
+  reconciling the two matchers is its own piece of work (#1607).
 
 Each of these is a *documented* divergence — keep the comment at the
 site pointing back here, and do not "fix" them onto the canonical
@@ -838,6 +921,63 @@ helper without reading the rationale:
   resolution/creation pinned against tclsh8.6.
 - `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs` — `tcl::prefix` message
   texts pinned against tclsh.
+- `rust/tcl-vm/tests/builtins_e2e.rs` and the `builtins.rs` /
+  `cmd_alias.rs` test modules in `runtime/rust` —
+  `interp_debug_option_uses_c_noun_and_abbreviates`,
+  `interp_limit_type_word_resolves_like_tcl_get_index_from_obj`,
+  `interp_subcommand_words_resolve_like_tcl_get_index_from_obj`, and
+  `interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj`,
+  the `interp` family's option/type nouns and abbreviation verdicts
+  pinned against tclsh 8.6.16 and 9.0.4 on both engines
+  (`runtime/rust/tests/rename_interp_semantics.rs` pins the runtime's
+  deliberately shortened enumeration).
+- `rust/tcl-vm/tests/builtins_e2e.rs` and the `cmd_package.rs` test
+  module in `runtime/rust` —
+  `package_option_words_resolve_like_tcl_get_index_from_obj`, with the
+  release axis of `package`'s table (`prefer` from 8.5, `files` from
+  9.0) pinned in
+  `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs`.
+- `rust/tcl-vm/tests/cmd_event_e2e.rs` /
+  `cmd_control_e2e.rs` / `builtins_e2e.rs` and the `cmd_event.rs`,
+  `cmd_error.rs`, `cmd_chan.rs` test modules in `runtime/rust` —
+  `update_and_after_words_resolve_like_tcl_get_index_from_obj`,
+  `try_handler_type_resolves_like_tcl_get_index_from_obj`, and
+  `seek_origin_resolves_like_tcl_get_index_from_obj`.
+- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs` —
+  `info_and_file_ensemble_misses_carry_the_full_option_list`; the
+  `cmd_info.rs` / `cmd_fs.rs` test modules in `runtime/rust` carry the
+  matching `*_ensemble_miss_carries_the_full_option_list` rows.
+- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs`
+  (`prefix_ensemble_and_match_options_resolve_like_tclsh`),
+  `cmd_string_e2e.rs` (`string_subcommand_dispatch`, tightened from
+  `starts_with` to the full tclsh 9.0.4 text), and the `cmd_string.rs`
+  test module in `runtime/rust`
+  (`string_and_prefix_ensembles_resolve_like_tclsh`, which also pins
+  `string is`'s `class` and `option` nouns).
+- `rust/tcl-vm/tests/cmd_collections_e2e.rs`
+  (`array_bad_subcommand`, `dict_bad_subcommand` — both tightened from
+  `starts_with` to full text) and the `cmd_array.rs` / `cmd_dict.rs`
+  test modules in `runtime/rust`, plus
+  `prefix.rs::dict_filter_type_noun_and_abbreviations` for the owner's
+  own `filterType` row.
+- `rust/tcl-vm/tests/builtins_e2e.rs`
+  (`ensemble_subcommand_words_resolve_like_tclsh`) and the
+  `cmd_binary.rs`, `cmd_misc.rs`, `cmd_zlib.rs`, `cmd_namespace.rs`
+  test modules in `runtime/rust` — the `binary`/`encoding`/`zlib`/
+  `namespace` surfaces, including `zlib gzip`'s and `gunzip`'s option
+  tables (C's order is `-header, -level`, not alphabetical).
+- `rust/tcl-vm/tests/builtins_e2e.rs` and the `cmd_fs.rs` test module in
+  `runtime/rust` — `glob_option_words_resolve_like_tcl_get_index_from_obj`
+  on each side, which pins the VM's *new* rejection of an unknown option
+  as well as the shared abbreviation verdicts.
+- `rust/tcl-vm/tests/cmd_oo_e2e.rs`
+  (`info_object_isa_category_resolves_like_tcl_get_index_from_obj`,
+  `tip558_configurable_property_abbreviates`) and the `cmd_oo.rs` test
+  module in `runtime/rust`
+  (`oo_option_tables_resolve_like_tcl_get_index_from_obj`,
+  `configure_property_word_abbreviates`) — the four TclOO nouns plus a
+  four-entry `unknown method` list, which is the shortest one where the
+  two join styles differ.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

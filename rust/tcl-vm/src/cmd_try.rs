@@ -201,6 +201,14 @@ fn bind_handler_vars(
     Ok(())
 }
 
+/// `try`'s handler-type words, in C table order (`TryObjCmd`'s `handlerNames`,
+/// `tclCmdMZ.c`): `Tcl_GetIndexFromObj(…, "handler type", 0)`, so `f`/`o`/`t`
+/// abbreviate and the empty word — a prefix of all three — is
+/// `ambiguous handler type ""`. The type is resolved before the clause's
+/// arity, as it is in C (`try {} x` → `bad handler type "x"`).
+const HANDLER_TYPES: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("handler type", &["finally", "on", "trap"]);
+
 /// Parse a `try`'s handler (`on`/`trap`) and `finally` clauses, validating the
 /// grammar (a bad clause errors before the body runs). Returns the handlers and
 /// the optional `finally` script.
@@ -209,7 +217,12 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
     let mut finally: Option<Value> = None;
     let mut j = 0;
     while j < rest.len() {
-        match &*rest[j].to_str() {
+        let word = rest[j].to_str();
+        let handler_type = match HANDLER_TYPES.index_of_str(&word) {
+            Ok(i) => HANDLER_TYPES.names()[i],
+            Err(e) => return Err(err(e.into_message())),
+        };
+        match handler_type {
             "finally" => {
                 if j + 2 < rest.len() {
                     return Err(err("finally clause must be last"));
@@ -256,9 +269,11 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
                 });
                 j += 4;
             }
+            // Unreachable: `HANDLER_TYPES` has exactly the three arms above.
             other => {
                 return Err(err(format!(
-                    "bad handler type \"{other}\": must be finally, on, or trap"
+                    "bad handler type \"{other}\": must be {}",
+                    tcl_cmd_core::prefix::choice_list(HANDLER_TYPES.names())
                 )));
             }
         }
