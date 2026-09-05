@@ -3707,6 +3707,20 @@ mod tests {
         NATIVE_PROC_STATUS_RAN
     }
 
+    /// A stub in the shape the emitter produces for a body whose last command
+    /// leaves no result of its own — a bare `return`, or a `puts`.
+    ///
+    /// It reports success with `out` untouched, which the ABI defines as "the
+    /// runtime's own result is the body's answer".
+    unsafe extern "C" fn stub_no_result(
+        _argv: *const *mut TclObj,
+        _argc: i32,
+        _out: *mut TclCompletionAbi,
+    ) -> i32 {
+        STUB_CALLS.with(|calls| calls.set(calls.get() + 1));
+        NATIVE_PROC_STATUS_RAN
+    }
+
     /// A stub that declines before doing anything at all — the only shape a
     /// decline may take, since the runtime then runs the source body in the
     /// frame it already prepared.
@@ -4166,6 +4180,35 @@ mod tests {
                     "the outermost script and the `catch` body cost one \
                      eval-depth unit each, leaving 126 of the native bound's \
                      128 for 63 levels at two apiece"
+                );
+            });
+        });
+    }
+
+    /// A completion that comes back with no result answers with the empty
+    /// string, never the caller's.
+    ///
+    /// `Tcl_EvalEx` resets the result at entry and the eval loop can skip that
+    /// because its first command always sets one. A compiled body cannot make
+    /// that promise — `tcl_codegen_var_set` and `tcl_codegen_puts` set no
+    /// interpreter result — so `run_native_body` resets it instead. Without
+    /// that a `puts`-ending body would answer with whatever the caller's last
+    /// command left, which is the kind of wrong answer no result assertion on
+    /// the body itself would catch.
+    #[test]
+    fn a_native_entry_that_writes_no_result_answers_with_the_empty_string() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                define_native(b"quiet", b"", b"return source", Some(stub_no_result));
+                assert_eq!(eval(interp, "set marker abc"), (Code::Ok, b"abc".to_vec()));
+                assert_eq!(eval(interp, "quiet"), (Code::Ok, Vec::new()));
+                assert_eq!(stub_calls(), 1);
+                // The caller's own live result is the interesting case: the
+                // list's first element sets it, and the second must not report
+                // it back.
+                assert_eq!(
+                    eval(interp, "list [set marker] [quiet]").1,
+                    b"abc {}".to_vec()
                 );
             });
         });

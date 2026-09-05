@@ -247,9 +247,72 @@ of *Beyond Relooper*: merge nodes get a `block` opened by their immediate
 dominator, loop headers a `loop`, everything else is inlined where its one
 forward predecessor branches. Every value is one WASM local of its machine
 type; boxed locals are owned, released on redefinition and in the epilogue.
-Each function enters an activation (`tcl_codegen_activation_enter`), allocates
-one transient call frame for its typed out slots, completion triple, and argv
-array, and leaves the activation with its completion code.
+How a function is entered depends on its **entry protocol**
+(`NativeFunction.protocol`), and only two exist. The module's own entry point
+`::top` is `() -> ()`: it enters an activation
+(`tcl_codegen_activation_enter`), allocates one transient call frame for its
+typed out slots, completion triple, and argv array, and leaves the activation
+with its completion code. A **procedure body** is
+`(argv, argc, out) -> status` and is *prologue-free*: it allocates the same
+transient frame and nothing else. It must not enter an activation or push a
+Tcl call frame, because `Interp::run_proc` has already pushed the variable
+frame in the proc's own namespace, recorded `info level`'s words and bound the
+formals by name, and `Interp::run_native_body` holds the activation and the
+`CmdFrame`. Emitting the script prologue there would push a second, nameless
+frame at the *caller's* namespace — `namespace current`, `upvar 1` and `info
+level` all one level out — and halve the recursion depth Tcl allows.
+`argv`/`argc` are the bound call arguments, reserved for P5's native formal
+binder; a P5-lite body reads its formals as named cells.
+
+A procedure body ends by writing its completion triple into `out` and
+answering `NATIVE_PROC_STATUS_RAN`. A **null** result there is not an omission:
+it means the runtime's own current result is the body's answer, which is what
+an evaluated source rung leaves and what every error edge leaves. So the
+emitter materialises the Tcl result of the two operations that leave neither —
+`set` answers with the value it stored, `incr` with the new one — and **declines
+to bind** a body whose returned completion determines no result at all: an
+`append`/`lappend` reaching the in-place cell shape, or a structured region
+(`if` with no `else`) whose completion the executable IR produces empty. Such a
+body is still emitted; it is simply not installed, and the definition keeps its
+source body. `FunctionReport.binding` records which, and the Explorer shows it.
+
+Each statement also logs its own `errorInfo` frame on its error edge
+(`tcl_codegen_log_command`, with the statement's exact text and its line within
+the body it was compiled from). Generated code reaches no eval loop, so without
+this a failing compiled statement leaves no `while executing "<text>"` frame,
+never advances `errorLine`, and — because `error_stack_push_call` will not chain
+a `CALL` onto an error stack with no inner context — loses the TIP 348 `CALL`
+entry as well. The runtime owns the `already_logged` protocol, so the innermost
+statement of a nest logs and the rest are no-ops, exactly as C dedups within one
+bytecode frame.
+
+### Binding a compiled body to its procedure
+
+A `proc` statement whose body became one of this module's functions lowers to
+the **definition** shape rather than a generic invocation
+(`NativeLowering::Definition`, the registry descriptor `proc` has always
+carried): `tcl_codegen_proc_define_native(name, params, body, entry)`, where
+`entry` is the body's index in the runtime's shared function table, or `0` for
+"source body only". The runtime then binds both — the written source body,
+exactly as `proc` does, and the compiled entry beside it.
+
+`::top` owns the install. Its prologue, guarded on a module global that starts
+at `-1` so a second call is a no-op, grows the shared table once by the
+module's entry count, keeps the returned base in that global, and writes one
+`ref.func` per bound body; `table.grow` answering `-1` is a runtime linked
+without `--growable-table`, and the module traps there rather than dispatching
+to whatever sits at slot 0. Each definition statement then reads its entry as
+`base + slot`. `ProcedurePlan` is the single owner of proc → function index and
+proc → table slot; `ProcDef` owns proc → entry on the runtime side.
+
+Two consequences fall straight out of where the front end keeps procedures.
+Lowering keeps the **first** definition of a name (a later `proc p` only
+records a redefinition), so only that statement can name a compiled body and a
+second `proc p` stays a generic invocation — which installs an ordinary
+source-only procedure at run time, which is what makes a mid-script redefinition
+behave. And a module whose `::top` stayed on the legacy path installs nothing at
+all, since the install sequence lives there; every definition it emits passes
+`entry = 0`.
 
 ### What still declines
 
@@ -258,8 +321,14 @@ completion handlers are executable-IR instructions the native lowering does
 not project yet (`iterate-lists`, `match-pattern`, `join-completion`,
 `write-completion-cell`, `operand-expression`); a function containing one
 stays on the legacy structured walk with that reason. Procedure bodies lower
-with named cells (no slot storage yet) and are still never called by the
-runtime (issue #1774, P5).
+with named cells (no slot storage yet).
+
+A `proc` statement only takes the definition shape while its own dispatch is
+still proven, so a definition written after a command that widens the world
+state — a `catch`, a `namespace eval`, anything the tier lowers as an opaque
+region — keeps the generic invocation and its body stays source-only. In
+practice that means the definitions a script wants compiled belong near its
+top.
 
 ## The general tier's leaf-command path
 
@@ -453,6 +522,14 @@ export `::top` first, followed by procedures in qualified-name order. Current
 generic modules export the selected semantic function as `::top` with the full
 completion-triple signature. Runtime-linked constant data occupies the reserved
 window below the Rust runtime's data/heap.
+
+A module that installs at least one compiled procedure body additionally
+imports the runtime's `__indirect_function_table`, defines one mutable `i32`
+global for the base of its window in it, and carries a declarative element
+segment naming every function a `ref.func` may name. All three are absent from
+a module that installs none, so such a module still instantiates against a
+runtime with no exported table. `_start` (standalone packaging) and a host
+calling `::top` both reach the install, because it is `::top`'s own prologue.
 
 There is currently no compiler package-require scan, extension selector,
 variant runtime artefact, or package-driven linker. The optional `wasm_stdlib`

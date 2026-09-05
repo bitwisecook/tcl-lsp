@@ -77,9 +77,9 @@ t3-procs	33_string_builder	native	3	0	3	0
 t3-procs	34_apply_lambda	default	5	0	0	0
 t3-procs	34_apply_lambda	analysis	1	0	6	0
 t3-procs	34_apply_lambda	native	0	0	7	0
-t3-procs	35_native_dispatch_matrix	default	66	1	0	0
-t3-procs	35_native_dispatch_matrix	analysis	16	1	55	0
-t3-procs	35_native_dispatch_matrix	native	0	0	56	29
+t3-procs	35_native_dispatch_matrix	default	72	2	0	0
+t3-procs	35_native_dispatch_matrix	analysis	17	2	61	0
+t3-procs	35_native_dispatch_matrix	native	0	0	62	29
 t3-procs	36_proc_error_info	default	15	0	0	0
 t3-procs	36_proc_error_info	analysis	3	0	16	0
 t3-procs	36_proc_error_info	native	0	0	17	0

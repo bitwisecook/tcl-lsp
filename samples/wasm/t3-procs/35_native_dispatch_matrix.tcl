@@ -24,6 +24,11 @@ proc bumped {x} { incr x }
 proc show {x} { puts $x }
 proc nothing {} { return }
 proc empty {} {}
+# ...and the two shapes whose answer the compiled body cannot produce, so the
+# definition keeps its source body: `append` does not hand back the cell's new
+# value, and a one-armed `if` completes with no result of its own.
+proc grow {s} { append s ! }
+proc branch {x} { if {$x} { set y yes } }
 
 puts [fib 20]
 
@@ -68,3 +73,5 @@ puts [bumped 41]
 puts "[show inner]<"
 puts "[nothing]<"
 puts "[empty]<"
+puts [grow hi]
+puts "[branch 1]|[branch 0]<"

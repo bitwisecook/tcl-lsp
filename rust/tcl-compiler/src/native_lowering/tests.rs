@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use tcl_registry::CommandRegistry;
 
 use super::elide::{BarrierDecision, BarrierKept, IncrGuard};
-use super::ir::{CompareKind, NativeFunction, NativeOp};
+use super::ir::{CompareKind, EntryProtocol, NativeFunction, NativeOp};
 use super::{
     FunctionDecline, FunctionReport, LoweringInput, NativeLoweringDecline, StatementOutcome,
     lower_function,
@@ -448,4 +448,90 @@ fn a_nested_generic_command_word_is_a_nested_invocation() {
         outcomes(&report, "invoke"),
         vec![StatementOutcome::GenericInvoke]
     );
+}
+
+#[test]
+fn a_proc_statement_lowers_to_the_definition_shape() {
+    let (function, report) = lower(
+        "proc greet {name} { return hi }\ngreet bob\n",
+        native_config(),
+    )
+    .expect("lowers");
+    assert_eq!(
+        outcomes(&report, "invoke"),
+        vec![
+            StatementOutcome::NativeDefinition,
+            StatementOutcome::GenericInvoke
+        ],
+        "the definition takes the definition shape; the call stays generic"
+    );
+    let defines: Vec<&NativeOp> = all_ops(&function)
+        .into_iter()
+        .filter(|op| matches!(op, NativeOp::DefineProc { .. }))
+        .collect();
+    assert_eq!(
+        defines,
+        vec![&NativeOp::DefineProc {
+            qualified_name: "::greet".into(),
+            params_raw: "name".into(),
+            body_source: " return hi ".into(),
+        }],
+        "the definition carries the front end's own name, params and body text"
+    );
+}
+
+/// Lowering keeps the *first* definition of a name, so only that statement can
+/// name a compiled body; a later `proc` of the same name stays a generic
+/// invocation and installs an ordinary source-only procedure at run time.
+#[test]
+fn a_second_definition_of_one_name_stays_a_generic_invocation() {
+    let (function, report) = lower(
+        "proc pick {} { return first }\nproc pick {} { return second }\n",
+        native_config(),
+    )
+    .expect("lowers");
+    assert_eq!(
+        outcomes(&report, "invoke"),
+        vec![
+            StatementOutcome::NativeDefinition,
+            StatementOutcome::GenericInvoke
+        ]
+    );
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::DefineProc { .. })),
+        1
+    );
+}
+
+/// A statement carries the enclosing command's exact text and its line within
+/// the body being compiled, which is everything the runtime needs to write the
+/// `errorInfo` frame the eval loop would have written.
+#[test]
+fn a_statement_carries_the_site_its_error_frame_names() {
+    let source = "set a 1\nputs [foo]\n";
+    let (function, _) = lower(source, native_config()).expect("lowers");
+    let sites: Vec<(u32, String)> = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.statements)
+        .filter_map(|statement| {
+            statement
+                .site
+                .as_ref()
+                .map(|site| (site.line, site.text.clone()))
+        })
+        .collect();
+    assert!(sites.contains(&(1, "set a 1".to_owned())), "{sites:?}");
+    assert!(
+        sites.contains(&(2, "puts [foo]".to_owned())),
+        "a word evaluation names the whole command the eval loop would log: {sites:?}"
+    );
+}
+
+/// The top-level script and a procedure body are entered differently, and the
+/// lowering is the one place that decides which.
+#[test]
+fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
+    let (top, _) = lower("set a 1\n", native_config()).expect("lowers");
+    assert_eq!(top.protocol, EntryProtocol::Script);
 }
