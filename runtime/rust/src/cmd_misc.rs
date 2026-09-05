@@ -201,4 +201,30 @@ mod tests {
         assert_eq!(i.eval_str(b"encoding na"), Code::Ok);
         assert_eq!(i.result_bytes(), b"utf-8 unicode ascii iso8859-1");
     }
+
+    /// Issue #1607: `clock` is an ensemble too — its list was spelled out
+    /// beside the dispatch and matched exactly, so `clock se` failed.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   clock se -> the seconds count
+    ///   clock m  -> unknown or ambiguous subcommand "m": must be add, clicks,
+    ///               format, microseconds, milliseconds, scan, or seconds
+    ///   clock {} -> unknown or ambiguous subcommand "": must be <same>
+    #[test]
+    fn clock_ensemble_resolves_like_tclsh() {
+        const MUST: &str = "must be add, clicks, format, microseconds, milliseconds, scan, \
+                            or seconds";
+        let mut i = Interp::new();
+        assert_eq!(i.eval_str(b"clock se"), Code::Ok);
+        assert_eq!(i.eval_str(b"clock m"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"m\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"clock {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+        );
+    }
 }

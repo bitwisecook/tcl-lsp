@@ -747,6 +747,8 @@ fn interp_debug_option_uses_c_noun_and_abbreviates() {
 ///   namespace cu         -> ::
 #[test]
 fn ensemble_subcommand_words_resolve_like_tclsh() {
+    const CLOCK_MUST: &str = "must be add, clicks, format, microseconds, milliseconds, \
+                              scan, or seconds";
     const FORMATS: &str = "must be base64, hex, or uuencode";
     const ENC_MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
     let msg = |src: &str| {
@@ -783,6 +785,19 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
     assert_eq!(
         msg("encoding {}"),
         format!("unknown or ambiguous subcommand \"\": {ENC_MUST}")
+    );
+    // `clock` is an ensemble too: `se` resolves, `m`/`mi` are ambiguous.
+    assert!(
+        run("clock se").0,
+        "`clock se` must resolve to `clock seconds`"
+    );
+    assert_eq!(
+        msg("clock m"),
+        format!("unknown or ambiguous subcommand \"m\": {CLOCK_MUST}")
+    );
+    assert_eq!(
+        msg("clock {}"),
+        format!("unknown or ambiguous subcommand \"\": {CLOCK_MUST}")
     );
     // `namespace`'s miss sentence now comes from the same owner.
     assert_eq!(run("namespace cu").1, "::");
