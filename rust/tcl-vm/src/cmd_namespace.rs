@@ -41,6 +41,19 @@ use tcl_dialect::model::surface_admits;
 /// variables). `call_argv` is the invoking command (e.g. `namespace eval ::ns
 /// {…}`) for `info level N`.
 fn eval_in_ns(vm: &mut Vm, target: String, body: &str, call_argv: Vec<Value>) -> Completion<Value> {
+    // A token in its *synchronous* delete window is no longer found by
+    // `TclGetNamespaceForQualName`, so `NamespaceEvalCmd` tries to create it —
+    // and `Tcl_CreateNamespace` still sees the child entry, which
+    // `TclTeardownNamespace` unlinks only after the command loop. tclsh 9.0.4
+    // and 8.6.16 both raise `already exists` there. A token whose deletion was
+    // *deferred* has already lost that entry, so the same script builds a fresh
+    // namespace instead.
+    if vm.namespace_is_dying(&target) {
+        return err(format!(
+            "can't create namespace \"{}\": already exists",
+            display_ns(&target)
+        ));
+    }
     vm.declare_namespace(&target);
     vm.push_ns_eval_frame(&target, call_argv);
     vm.push_ns(target);

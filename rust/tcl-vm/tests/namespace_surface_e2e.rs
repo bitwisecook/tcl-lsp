@@ -1020,9 +1020,11 @@ fn namespace_delete_marks_the_namespace_dying_before_command_traces() {
         "{} 1"
     );
 
-    // Re-entering the exact dying namespace may provide a temporary frame to
-    // the callback, but it cannot resurrect the namespace token. Exact Tcl
-    // 9.0.4 oracle result.
+    // Re-entering the exact dying namespace is refused: `namespace eval ::N`
+    // no longer finds the token (it is `NS_DYING`) and `Tcl_CreateNamespace`
+    // then trips over the child entry `TclTeardownNamespace` unlinks only
+    // after the command loop, so the callback errors out and appends nothing.
+    // Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
     assert_eq!(
         run("set seen {}
              proc deleted {old new op} {
@@ -1032,7 +1034,7 @@ fn namespace_delete_marks_the_namespace_dying_before_command_traces() {
              trace add command ::N::p delete deleted
              namespace delete ::N
              list $seen [namespace exists ::N]"),
-        "0 0"
+        "{} 0"
     );
 }
 

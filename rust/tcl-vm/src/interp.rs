@@ -4582,7 +4582,7 @@ impl Vm {
     }
 
     /// Whether the exact namespace token is currently being torn down.
-    fn namespace_is_dying(&self, ns: &str) -> bool {
+    pub(crate) fn namespace_is_dying(&self, ns: &str) -> bool {
         self.dying_namespaces.contains(ns)
     }
 
