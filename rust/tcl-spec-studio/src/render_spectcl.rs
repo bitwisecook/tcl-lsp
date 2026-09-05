@@ -69,7 +69,7 @@
 //!   spelling at all, and is reported as a [`Loss`] rather than written down
 //!   wrong — see [`word`].
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use serde_json::Value;
@@ -710,6 +710,19 @@ pub struct Loss {
     pub reason: String,
 }
 
+/// Losses attributed to one command in a multi-command pack render.
+///
+/// The ordinary reporting entry point flattens these for UI callers. Exhaustive
+/// consumers can retain the command boundary while evaluating the rendered pack
+/// once instead of starting one evaluator per command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandLosses {
+    /// The rendered command name.
+    pub command: String,
+    /// Fields from that command which the renderer could not carry.
+    pub losses: Vec<Loss>,
+}
+
 impl Out {
     /// A buffer whose statements start at `indent` levels of four spaces.
     fn at(indent: usize) -> Self {
@@ -818,34 +831,49 @@ impl Out {
 /// `return-codes` do.
 #[derive(Debug, Default)]
 struct ValueTables {
-    /// `(name, values array)`, in declaration order.
-    tables: Vec<(String, Value)>,
+    /// Shared value tables, in declaration order.
+    tables: Vec<ValueTable>,
+}
+
+#[derive(Debug)]
+struct ValueTable {
+    name: String,
+    values: Value,
+    /// Top-level commands which refer to this table.
+    owners: BTreeSet<String>,
 }
 
 impl ValueTables {
     /// Register `values` under a name derived from `hint`, reusing an
     /// identical table when one is already declared.
-    fn intern(&mut self, hint: &str, values: &Value) -> String {
-        if let Some((name, _)) = self.tables.iter().find(|(_, table)| table == values) {
-            return name.clone();
+    fn intern(&mut self, hint: &str, values: &Value, owner: &str) -> String {
+        if let Some(table) = self.tables.iter_mut().find(|table| table.values == *values) {
+            table.owners.insert(owner.to_owned());
+            return table.name.clone();
         }
         let base = slug(hint);
         let mut name = base.clone();
         let mut n = 2;
-        while self.tables.iter().any(|(taken, _)| *taken == name) {
+        while self.tables.iter().any(|table| table.name == name) {
             name = format!("{base}-{n}");
             n += 1;
         }
-        self.tables.push((name.clone(), values.clone()));
+        self.tables.push(ValueTable {
+            name: name.clone(),
+            values: values.clone(),
+            owners: BTreeSet::from([owner.to_owned()]),
+        });
         name
     }
 
-    fn render(&self, out: &mut Out) {
-        for (name, values) in &self.tables {
+    fn render(&self, out: &mut Out) -> BTreeMap<String, Vec<Loss>> {
+        let mut by_command: BTreeMap<String, Vec<Loss>> = BTreeMap::new();
+        for table in &self.tables {
+            let losses_before = out.losses.len();
             out.gap();
-            out.line(&format!("values {name} {{"));
+            out.line(&format!("values {} {{", table.name));
             out.indented(|out| {
-                for value in as_array(values) {
+                for value in as_array(&table.values) {
                     let Some(spelling) = word(str_of(&value["value"])) else {
                         unwritable(out, "arg_values");
                         continue;
@@ -878,7 +906,15 @@ impl ValueTables {
                 }
             });
             out.line("}");
+            let losses = &out.losses[losses_before..];
+            for owner in &table.owners {
+                by_command
+                    .entry(owner.clone())
+                    .or_default()
+                    .extend_from_slice(losses);
+            }
         }
+        by_command
     }
 }
 
@@ -1474,6 +1510,8 @@ struct Ctx<'a> {
     defaults: &'a Draft,
     /// The `-native` id prefix — `lsort`, or `string::is` for a subcommand.
     scope: String,
+    /// The top-level command which owns any shared table interned here.
+    owner: String,
     tables: &'a mut ValueTables,
     /// Whether the pack being rendered declares `SpecTcl` 2.0, and may
     /// therefore use the availability algebra.
@@ -2041,7 +2079,7 @@ fn push_values(
             .collect();
         push_flag(row, lost, "-values", list_word(&words));
     } else {
-        let name = ctx.tables.intern(hint, values);
+        let name = ctx.tables.intern(hint, values, &ctx.owner);
         row.push("-values-from".to_owned());
         row.push(name);
     }
@@ -2771,6 +2809,7 @@ fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     let mut scope = Ctx {
         defaults: ctx.defaults,
         scope: format!("{}::{}", ctx.scope, str_of(&class["class_name"])),
+        owner: ctx.owner.clone(),
         tables: ctx.tables,
         availability: ctx.availability,
     };
@@ -2801,6 +2840,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     let mut ctx = Ctx {
         defaults: &defaults,
         scope: format!("{}::{name}", parent.scope),
+        owner: parent.owner.clone(),
         tables: parent.tables,
         availability: parent.availability,
     };
@@ -3058,6 +3098,19 @@ pub fn render_pack_reporting(drafts: &[Draft], pack_name: &str) -> (String, Vec<
     render_pack_reporting_with_version(drafts, pack_name, DSL_VERSION)
 }
 
+/// [`render_pack_reporting`], retaining which command produced each loss.
+///
+/// This is useful for exhaustive round-trip checks which render a whole pack
+/// at once but still need per-command loss accounting.
+#[must_use]
+pub fn render_pack_reporting_by_command(
+    drafts: &[Draft],
+    pack_name: &str,
+) -> (String, Vec<CommandLosses>) {
+    let (text, _, losses) = render_pack_reporting_impl(drafts, pack_name, DSL_VERSION);
+    (text, losses)
+}
+
 /// [`render_pack_reporting`] with an explicit `speclib` vocabulary version.
 ///
 /// Kept separate from the default entry point so exports continue to target
@@ -3069,6 +3122,15 @@ pub fn render_pack_reporting_with_version(
     pack_name: &str,
     dsl_version: &str,
 ) -> (String, Vec<Loss>) {
+    let (text, losses, _) = render_pack_reporting_impl(drafts, pack_name, dsl_version);
+    (text, losses)
+}
+
+fn render_pack_reporting_impl(
+    drafts: &[Draft],
+    pack_name: &str,
+    dsl_version: &str,
+) -> (String, Vec<Loss>, Vec<CommandLosses>) {
     let mut tables = ValueTables::default();
     let mut bodies: Vec<(String, Out)> = Vec::new();
     // The header decides the vocabulary the body may use, never the other way
@@ -3088,6 +3150,7 @@ pub fn render_pack_reporting_with_version(
             let mut ctx = Ctx {
                 defaults: &defaults,
                 scope: name.clone(),
+                owner: name.clone(),
                 tables: &mut tables,
                 availability,
             };
@@ -3113,7 +3176,7 @@ pub fn render_pack_reporting_with_version(
     // The ports do not indent a pack's own declarations — a `.tclspec` is one
     // long file of `command` blocks, and a second level of indentation buys
     // nothing.
-    tables.render(&mut out);
+    let mut table_losses = tables.render(&mut out);
     for (name, body) in &bodies {
         out.gap();
         out.line(&format!("command {} {{", name_word(name)));
@@ -3122,7 +3185,15 @@ pub fn render_pack_reporting_with_version(
     }
     out.gap();
     out.line("}");
-    (out.text, out.losses)
+    let losses_by_command = bodies
+        .into_iter()
+        .map(|(command, body)| {
+            let mut losses = body.losses;
+            losses.extend(table_losses.remove(&command).unwrap_or_default());
+            CommandLosses { command, losses }
+        })
+        .collect();
+    (out.text, out.losses, losses_by_command)
 }
 
 #[cfg(test)]
@@ -3430,6 +3501,42 @@ mod tests {
             "the TODO must name the field:\n{text}"
         );
         assert!(text.contains("frame_effect -level-word W -layout L"));
+    }
+
+    #[test]
+    fn multi_command_reporting_keeps_each_loss_with_its_command() {
+        let clean = drafted("clean");
+        let mut lossy = drafted("lossy");
+        lossy.insert(draft::UNRENDERABLE_KEY.into(), json!(["frame_effect"]));
+
+        let (_, reports) = render_pack_reporting_by_command(&[clean, lossy], "probe");
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0].command, "clean");
+        assert!(reports[0].losses.is_empty());
+        assert_eq!(reports[1].command, "lossy");
+        assert_eq!(reports[1].losses.len(), 1);
+        assert_eq!(reports[1].losses[0].key, "frame_effect");
+    }
+
+    #[test]
+    fn shared_value_table_losses_are_reported_for_every_owning_command() {
+        let values = json!([{
+            "index": 0,
+            "values": [
+                { "value": "{", "detail": "Unwritable value.", "min_tcl": null, "code": null },
+            ],
+        }]);
+        let mut first = drafted("first");
+        first.insert("arg_values".into(), values.clone());
+        let mut second = drafted("second");
+        second.insert("arg_values".into(), values);
+
+        let (_, reports) = render_pack_reporting_by_command(&[first, second], "probe");
+        assert_eq!(reports.len(), 2);
+        for report in reports {
+            assert_eq!(report.losses.len(), 1, "{}", report.command);
+            assert_eq!(report.losses[0].key, "arg_values");
+        }
     }
 
     #[test]
