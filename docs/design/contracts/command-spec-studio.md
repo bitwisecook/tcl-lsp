@@ -116,6 +116,142 @@ esbuild pulling Monaco back into the first.
 Third-party licences: `web/THIRD-PARTY-NOTICES.md`, restated as a banner
 comment at the top of the editor chunk.
 
+## The documentation dock
+
+The form has 137 settings, and each carries a **?** that expands an inline
+panel — which pushes the field being edited out from under the cursor to make
+room for its own explanation, and says nothing about which settings are read
+together. The dock is a third region that documents whatever has focus
+without moving anything. `web/src/docsDock.ts` decides what it shows and how
+a view is named in the URL, as pure functions of the wire schema with no
+DOM; `studio.ts` paints the decision, so the two cannot drift apart.
+
+**A second surface, never a second copy.** The dock and the inline panels
+render the same `help` and `example` entries through the same
+`helpParagraphs` and `annotatedExample`, so the text exists once. The inline
+panels stay: on a narrow viewport they are still the primary surface, and
+replacing them would swap one help path for another rather than add one.
+
+| Viewport | Shape | Open | Collapsed |
+|---|---|---|---|
+| ≥ 75rem | a third column of the browser/workbench grid, sticky, scrolling inside itself | — | header only |
+| < 75rem | a bar fixed to the bottom of the viewport | 15rem | 3rem |
+| ≤ 34rem | one summary line, collapsed until tapped, with the **Docs** label dropped | 50vh | 2.9rem |
+
+The sidebar overlays nothing. The two bar shapes can cover the control being
+edited, so `--dock-h` is reserved as padding at the end of the page, every
+field carries it as `scroll-margin-bottom`, and a control focused underneath
+the bar is scrolled clear. Open or collapsed rides the IndexedDB session
+record beside the browser's expand state; a record written before the dock
+existed restores as the viewport's default, not as a failure. The body is an
+`aria-live` region, so a screen reader hears a re-target it cannot see.
+
+### Focus, not hover
+
+The dock re-targets on `focusin`, `click`, and `change` in the form and on
+`focusin` and `click` in the browser — never on the pointer passing over,
+because a cursor crossing 137 settings must not churn the panel. There are
+five subjects, one per thing an author can be touching:
+
+| Subject | Recognised by | Decision |
+|---|---|---|
+| A setting | `data-field-key` on its row, top-level or inside an option row | A property inside a composite row is documented from the `nestedFields` table, named by the row it is a property of, without clusters. |
+| A group heading | `data-group` on its `<details>` | Asked about first: a subcommand's groups sit *inside* the field holding the subcommand, so testing the field first would never reach them. |
+| A catalogue picker | `data-catalogue` on the control | Opening a `<select>` asks about the vocabulary, not about whatever was already chosen in it. |
+| One picker value | `data-variant` on a toggle, or a `<select>`'s value on `change` | A dropdown's value counts once it is committed. |
+| A pack section | `data-pack` on its `<details>` in the browser | Label, repository path, blurb, and command count. |
+
+A subject the schema cannot describe leaves the dock showing what it had,
+which is also what "nothing focused" does: it is seeded with the first group
+at boot and never blanks after that. Only a focused *setting* is written into
+the address bar; a group or a catalogue is context around it.
+
+### Related settings are links
+
+Each `related` cluster renders as its name, its `why`, and one chip per
+member. The member being shown is a dashed chip rather than a link, and a
+key this registry's schema lacks is inert. Following a chip switches to the
+editor tab if needed, opens every `<details>` between the form and the
+target, scrolls to it, outlines it for 1.2 s, focuses its first control, and
+re-targets the dock to it — so a chain of chips reads as navigation. Under
+`prefers-reduced-motion` the outline is held static and the scroll is not
+animated, rather than the arrival going unmarked.
+
+A link needs exactly one place to land, so `fieldAnchorId(key)` —
+`field-<key>` — is set only on the top-level command form; a subcommand's
+nested form builds the same keys again inside its row and gets none. The
+properties edited inside an option row or a Tk geometry descriptor
+(`variable_scope`, `script_timing`, `method_prefix_matching`, …) are cluster
+members with no row of their own, so `NestedFieldSchema::field` names the
+top-level key each is edited *under* — `options`, `object_class`,
+`tk_geometry` — and following the chip reveals that row while the dock goes
+on to document the property. The row is the true answer rather than a
+consolation: it is where the author edits the setting. The owning Rust type
+is not, which is why the schema had to learn the field as a separate fact,
+and a test holds every one of them to a live `COMMAND_FIELDS` or
+`SUBCOMMAND_FIELDS` key.
+
+`ownerField` is the single answer to "where is this edited", so a key the
+schema can place nowhere is drawn inert instead — a link that goes nowhere is
+worse than no link. The status line's "not a setting this command has" is
+left for the case it really names: a row this command's form does not build.
+
+### Every view has a URL
+
+Two shapes, because there are two things worth sending someone:
+`#/c/<dialect>/<command>`, plus the setting key when one has focus, and
+`#/ref/<catalogue>[/<variant>]`. That setting key is always a top-level one:
+a nested property is written as the row it is edited in, so every fragment
+the studio writes names something the form can restore. On load the fragment is applied *after* the
+resumed session, so a link someone was sent names the view they were sent to;
+a dialect it names is switched through the picker's own `change` event, so
+the language server, the pack's collisions, and the browser follow as they
+always do.
+
+**One history, not two.** The visit stack stays the record of which commands
+were opened and in what order; every visit is mirrored as one session-history
+entry tagged `{index, visit}`, and the in-page ◀ ▶ (and `Alt+←`/`Alt+→`) no
+longer open anything themselves. They compute the delta from the entry they
+are on to the entry carrying the visit they want and call `history.go`, so
+`popstate` does the opening and the page's buttons and the browser's Back are
+one act rather than two stacks racing. `index` is a *position* in this
+page's run of session history, not a serial: a push from a back position
+takes the place the browser just vacated, and a counter would climb on and
+make `go()` overshoot. A Reference entry is written so it is linkable but is
+not a visit, so the buttons step over it; two visits the address bar cannot
+tell apart — one name opened from the pack and from the registry — have a
+zero delta and are opened directly, because `go(0)` reloads the page.
+
+**An entry restores the view it was written for.** A Reference entry is
+linkable without being a visit, and it inherits the `visit` tag of whichever
+command was open when it was written — so the tag alone cannot say what to
+re-open. `restoreFor` reads the fragment first: a `#/ref/…` entry restores
+the Reference view, and a tagged visit is opened only where the fragment
+agrees it names that command. Opening the visit there rather than the route
+is what carries *how* the command was reached — from the pack, or from the
+registry list — through a Back, which the fragment does not record. Take the
+tag first instead and Back off a command opened after a Reference entry
+re-opens the command that Reference entry was opened *from*, with the address
+bar still reading `#/ref/…`.
+
+**Focus moves replace.** `historyMode` pushes for another command, another
+dialect, or another kind of view, and replaces for anything within the
+command already open — a focused setting, a return to the editor tab from
+one of the un-routed panes, a route re-written over itself when a Back is
+restored. Back therefore steps between *commands*, not between every field
+the pointer touched. The entry the page was loaded on is adopted the same
+way: the first command opened in a session is where the session starts, not
+a second place it went. The other tabs write nothing; they are panes over the
+command already in the bar, and an entry for each would fill Back with places
+nothing came from.
+
+**`file://` keeps the buttons.** `pushState` throws on a page opened from
+disk — an opaque origin cannot own a URL — and this page is built to be saved
+and opened that way. The first throw switches routing off for the session:
+`navigate` opens the visit directly and ◀ ▶ carry on from the visit stack
+alone. Deep links are lost there and the Back button is not, which is what
+the "opening `index.html` straight off disk still works" promise needs.
+
 ## The schema is the single source of truth
 
 `schema::COMMAND_FIELDS` and `schema::SUBCOMMAND_FIELDS` carry one
@@ -249,8 +385,11 @@ nowhere is worse than no link.
 
 `FieldSchema::to_json` carries the result as `related` on every field, so
 the front-end can link `pure` to `side_effects` without knowing either name.
-The link surface itself is not yet drawn: the schema is ready, and what
-remains is front-end only.
+The documentation dock draws them: each cluster is its name, its sentence,
+and one chip per member, and following a chip is the navigation described
+under [related settings are links](#related-settings-are-links). A studio
+wasm built before the key existed sends no `related`, and the dock then ends
+after the example rather than failing to render.
 
 ### Invariant: the schema covers every spec field
 

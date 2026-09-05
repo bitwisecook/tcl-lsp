@@ -49,6 +49,13 @@ export interface RelatedLink {
   self: boolean;
   /** Whether the schema documents this key at all. */
   known: boolean;
+  /**
+   * The form row following this key lands on, from `ownerField`.
+   *
+   * `null` is what makes a key inert rather than a link that goes nowhere:
+   * the schema knows of no row to reveal, so nothing is offered.
+   */
+  target: string | null;
 }
 
 /** A named cluster of settings that are read together. */
@@ -107,16 +114,30 @@ export function labelIndex(schema: Schema): Map<string, string> {
 }
 
 /**
- * The clusters `field` belongs to, with each key resolved to a label.
+ * The form row `key` is edited in: itself for a top-level setting, and the
+ * composite field a nested property is a property *of* — an option's
+ * `variable_scope` is edited inside the `options` row, and that row is where
+ * an author goes to find it.
+ *
+ * `null` when the schema names no row, which is the only honest answer for a
+ * key it does not carry.
+ */
+export function ownerField(schema: Schema, key: string): string | null {
+  if (findField(schema, key)) return key;
+  const nested = schema.nestedFields.find((candidate) => candidate.key === key);
+  return nested?.field ?? null;
+}
+
+/**
+ * The clusters `field` belongs to, with each key resolved to a label and to
+ * the row that documents it.
  *
  * `related` is optional in the wire contract on purpose: a studio wasm built
  * before the key existed simply does not send it, and the dock then shows the
  * field's own documentation with no cluster section at all.
  */
-export function relatedGroups(
-  field: FieldSchema,
-  labels: ReadonlyMap<string, string>,
-): RelatedGroup[] {
+export function relatedGroups(field: FieldSchema, schema: Schema): RelatedGroup[] {
+  const labels = labelIndex(schema);
   return (field.related ?? [])
     .map((cluster) => ({
       name: cluster.name,
@@ -126,6 +147,7 @@ export function relatedGroups(
         label: labels.get(key) ?? key,
         self: key === field.key,
         known: labels.has(key),
+        target: ownerField(schema, key),
       })),
     }))
     .filter((cluster) => cluster.links.length > 0);
@@ -158,17 +180,20 @@ export function describeSubject(sources: DockSources, subject: DockSubject): Doc
           doc: field.doc,
           help: field.help,
           example: field.example,
-          related: relatedGroups(field, labelIndex(schema)),
+          related: relatedGroups(field, schema),
         };
       }
       // A property edited inside a composite row — an option's arity, an
-      // argument's role — is documented too, just in another table.
+      // argument's role — is documented too, just in another table. It is
+      // named by the row it is a property of, because that is where the
+      // author edits it; the owning Rust type is not somewhere they can go.
       const nested = schema.nestedFields.find((candidate) => candidate.key === subject.key);
       if (!nested) return null;
+      const owner = nested.field ? findField(schema, nested.field) : undefined;
       return {
         subject,
         title: nested.label,
-        kindLabel: `Setting · inside ${nested.owner}`,
+        kindLabel: `Setting · inside ${owner?.label ?? nested.owner}`,
         code: nested.key,
         doc: nested.doc,
         help: nested.help,
@@ -247,6 +272,11 @@ export function describeSubject(sources: DockSources, subject: DockSubject): Doc
  *
  * Two shapes, because there are two things worth sending someone: a command
  * (optionally with one of its settings in focus) and a Reference entry.
+ *
+ * `field` is always a *top-level* key — `ownerField` maps a nested property
+ * to the row it is edited in before it is written. A fragment naming a key
+ * with no row of its own could not be restored, and a link that cannot be
+ * restored is worse than a link that names one thing less.
  */
 export type Route =
   | { view: "command"; dialect: string; command: string; field: string | null }
@@ -315,6 +345,43 @@ export function historyMode(previous: Route | null, next: Route): "push" | "repl
       : "push";
   }
   return "push";
+}
+
+/** What a session-history entry should re-open when a Back lands on it. */
+export type Restore =
+  | { kind: "visit"; visit: number; field: string | null }
+  | { kind: "route"; route: Route }
+  | { kind: "nothing" };
+
+/**
+ * What to open for the entry a `popstate` landed on.
+ *
+ * An entry is tagged with whichever visit was open when it was written, and
+ * that is not always the view it was written *for*: a Reference entry carries
+ * the command it was opened from. So the fragment decides — a Reference entry
+ * restores the Reference view — and the visit is opened only where the
+ * fragment agrees it names that command, which is what keeps the visit stack
+ * and the address bar pointing at the same place.
+ *
+ * `visitCommand` is the name the visit stack still holds at `visit`, or
+ * `null` when it holds nothing there.
+ */
+export function restoreFor(
+  route: Route | null,
+  visit: number | null,
+  visitCommand: string | null,
+): Restore {
+  if (route?.view === "reference") return { kind: "route", route };
+  if (visit === null || visitCommand === null) {
+    return route ? { kind: "route", route } : { kind: "nothing" };
+  }
+  if (route === null) return { kind: "visit", visit, field: null };
+  // Opening the visit rather than the route keeps *how* the command was
+  // reached — from the pack, or from the registry list — which the fragment
+  // does not carry.
+  return visitCommand === route.command
+    ? { kind: "visit", visit, field: route.field }
+    : { kind: "route", route };
 }
 
 /** What the dock should document for `route`, when the route names something. */

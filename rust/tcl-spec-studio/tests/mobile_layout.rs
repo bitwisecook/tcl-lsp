@@ -239,7 +239,12 @@ fn a_deep_link_lands_on_a_stable_anchor_and_says_where_it_landed() {
 
 #[test]
 fn the_dock_follows_focus_and_never_the_pointer() {
-    for wiring in ["\"focusin\"", "\"change\"", "retargetFromForm", "retargetFromBrowser"] {
+    for wiring in [
+        "\"focusin\"",
+        "\"change\"",
+        "retargetFromForm",
+        "retargetFromBrowser",
+    ] {
         assert!(
             STUDIO_TS.contains(wiring),
             "the dock follows focus and deliberate choices: {wiring} not found"

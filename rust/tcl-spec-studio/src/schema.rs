@@ -213,6 +213,13 @@ pub struct NestedFieldSchema {
     pub doc: &'static str,
     /// Owning registry type.
     pub owner: &'static str,
+    /// Top-level `COMMAND_FIELDS` / `SUBCOMMAND_FIELDS` key whose editor this
+    /// property is edited inside.
+    ///
+    /// The owning *type* cannot be navigated to; the form row can. A surface
+    /// that links a nested key — the studio's dock does — needs the row, and
+    /// the schema is where every other "where is this edited" answer lives.
+    pub field: &'static str,
     /// Form group containing the composite editor.
     pub group: &'static str,
 }
@@ -225,6 +232,7 @@ impl NestedFieldSchema {
             "label": self.label,
             "doc": self.doc,
             "owner": self.owner,
+            "field": self.field,
             "group": self.group,
             "help": crate::help::field_help(self.key).unwrap_or(self.doc),
             "example": crate::examples::field_example(self.key, self.label),
@@ -243,6 +251,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "External input link",
         doc: "Whether this VarWrite option links a variable that external input can update.",
         owner: "OptionArg",
+        field: "options",
         group: "Options and values",
     },
     NestedFieldSchema {
@@ -250,6 +259,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Variable scope",
         doc: "Where an unqualified variable-name option value resolves.",
         owner: "OptionArg",
+        field: "options",
         group: "Options and values",
     },
     NestedFieldSchema {
@@ -257,6 +267,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Script timing",
         doc: "Whether this script option runs now or is stored for a later callback.",
         owner: "OptionArg",
+        field: "options",
         group: "Options and values",
     },
     NestedFieldSchema {
@@ -264,6 +275,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Callback external inputs",
         doc: "User-controlled callback substitutions that must be treated as taint sources.",
         owner: "OptionArg",
+        field: "options",
         group: "Options and values",
     },
     NestedFieldSchema {
@@ -271,6 +283,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Method prefix matching",
         doc: "Whether this object's instance methods accept unique-prefix abbreviations.",
         owner: "ObjectClassSpec",
+        field: "object_class",
         group: "Advanced",
     },
     NestedFieldSchema {
@@ -278,6 +291,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Container policy",
         doc: "Whether the geometry manager claims exclusive ownership of a container.",
         owner: "TkGeometryManagerSpec",
+        field: "tk_geometry",
         group: "Advanced",
     },
     NestedFieldSchema {
@@ -285,6 +299,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Container option",
         doc: "Option whose value overrides the widget pathname's parent container.",
         owner: "TkGeometryManagerSpec",
+        field: "tk_geometry",
         group: "Advanced",
     },
     NestedFieldSchema {
@@ -292,6 +307,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Direct placement form",
         doc: "Whether the manager's no-subcommand form places widgets.",
         owner: "TkGeometryManagerSpec",
+        field: "tk_geometry",
         group: "Advanced",
     },
     NestedFieldSchema {
@@ -299,6 +315,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Placement subcommand",
         doc: "Subcommand that places or reconfigures widgets.",
         owner: "TkGeometryManagerSpec",
+        field: "tk_geometry",
         group: "Advanced",
     },
     NestedFieldSchema {
@@ -306,6 +323,7 @@ pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
         label: "Release subcommands",
         doc: "Subcommands that stop managing their widget arguments.",
         owner: "TkGeometryManagerSpec",
+        field: "tk_geometry",
         group: "Advanced",
     },
 ];
@@ -2181,6 +2199,27 @@ mod tests {
                 );
                 seen.push(field.key);
             }
+        }
+    }
+
+    #[test]
+    fn every_nested_property_names_the_form_row_it_is_edited_in() {
+        for nested in NESTED_FIELDS {
+            assert!(
+                command_field(nested.field).is_some() || subcommand_field(nested.field).is_some(),
+                "{} is edited under {}, which is not a spec field",
+                nested.key,
+                nested.field
+            );
+            assert_eq!(
+                to_json()["nestedFields"]
+                    .as_array()
+                    .and_then(|rows| rows.iter().find(|row| row["key"] == nested.key))
+                    .map(|row| row["field"].clone()),
+                Some(json!(nested.field)),
+                "{} must carry its owning row on the wire",
+                nested.key
+            );
         }
     }
 

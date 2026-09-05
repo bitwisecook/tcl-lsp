@@ -63,11 +63,14 @@ import {
   formatHash,
   historyMode,
   labelIndex,
+  ownerField,
   parseHash,
   relatedGroups,
+  restoreFor,
   routeSubject,
   type DockSources,
   type Route,
+  type Restore,
 } from "../src/docsDock.js";
 import { mapSelectionThroughFormat } from "../src/textSelection.js";
 import type { CodeExample, FieldSchema, IndexEntry, PackRow, Schema } from "../src/types.js";
@@ -637,10 +640,20 @@ function schema(): Schema {
         key: "variable_scope",
         label: "Variable scope",
         doc: "which scope an option writes",
-        owner: "options",
+        owner: "OptionArg",
+        field: "options",
         group: "Behaviour",
         help: "the long form of variable_scope",
         example: example("# scope"),
+      },
+      {
+        key: "orphan_property",
+        label: "Orphan property",
+        doc: "a property from a wasm that predates the owning-row key",
+        owner: "OptionArg",
+        group: "Behaviour",
+        help: "the long form of orphan_property",
+        example: example("# orphan"),
       },
     ],
     command: [
@@ -654,6 +667,7 @@ function schema(): Schema {
         ],
       }),
       field("side_effects", { label: "Side effects" }),
+      field("options", { label: "Options", group: "Behaviour" }),
     ],
     subcommand: [field("arity", { group: "Identity" })],
   };
@@ -681,13 +695,19 @@ describe("describeSubject", () => {
     assert.equal(describeSubject(sources(), { kind: "field", key: "arity" })?.title, "arity");
     const nested = describeSubject(sources(), { kind: "field", key: "variable_scope" });
     assert.equal(nested?.title, "Variable scope");
-    assert.equal(nested?.kindLabel, "Setting · inside options");
+    // Named by the row it is a property of, not by the Rust type carrying it:
+    // the row is the place the author edits it.
+    assert.equal(nested?.kindLabel, "Setting · inside Options");
+    assert.equal(
+      describeSubject(sources(), { kind: "field", key: "orphan_property" })?.kindLabel,
+      "Setting · inside OptionArg",
+    );
   });
 
   it("documents a group, a catalogue, one of its values, and a pack", () => {
     const group = describeSubject(sources(), { kind: "group", name: "Behaviour" });
     assert.equal(group?.help, "what the command does when it runs");
-    assert.equal(group?.doc, "2 settings in this group.");
+    assert.equal(group?.doc, "3 settings in this group.");
 
     const catalogue = describeSubject(sources(), { kind: "catalogue", id: "taintColour" });
     assert.equal(catalogue?.title, "Taint colours");
@@ -726,20 +746,78 @@ describe("relatedGroups", () => {
     assert.equal(clusters[0]?.name, "Purity");
     assert.equal(clusters[0]?.why, "a pure command cannot also declare side effects.");
     assert.deepEqual(clusters[0]?.links, [
-      { key: "pure", label: "pure", self: true, known: true },
-      { key: "side_effects", label: "Side effects", self: false, known: true },
-      { key: "nosuch_key", label: "nosuch_key", self: false, known: false },
+      { key: "pure", label: "pure", self: true, known: true, target: "pure" },
+      {
+        key: "side_effects",
+        label: "Side effects",
+        self: false,
+        known: true,
+        target: "side_effects",
+      },
+      { key: "nosuch_key", label: "nosuch_key", self: false, known: false, target: null },
+    ]);
+  });
+
+  it("sends a nested key to the row it is edited in, and offers no other", () => {
+    // A link that goes nowhere is worse than no link: a property with a row
+    // targets that row, and one the schema cannot place targets nothing, so
+    // the dock draws it inert.
+    const clusters = relatedGroups(
+      field("pure", {
+        related: [
+          {
+            name: "Scope",
+            why: "an option's scope is read with the command's purity.",
+            keys: ["variable_scope", "orphan_property"],
+          },
+        ],
+      }),
+      schema(),
+    );
+    assert.deepEqual(clusters[0]?.links, [
+      {
+        key: "variable_scope",
+        label: "Variable scope",
+        self: false,
+        known: true,
+        target: "options",
+      },
+      {
+        key: "orphan_property",
+        label: "Orphan property",
+        self: false,
+        known: true,
+        target: null,
+      },
     ]);
   });
 
   it("says nothing when a studio build predates the key", () => {
     // `related` is optional in the wire contract: a wasm module built before
     // it existed simply sends no clusters, and the dock ends at the example.
-    assert.deepEqual(relatedGroups(field("pure"), labelIndex(schema())), []);
+    assert.deepEqual(relatedGroups(field("pure"), schema()), []);
     assert.deepEqual(
       describeSubject(sources(), { kind: "field", key: "side_effects" })?.related,
       [],
     );
+  });
+});
+
+describe("ownerField", () => {
+  it("answers with the row a key is edited in, and nothing for a key it lacks", () => {
+    const model = schema();
+    assert.equal(ownerField(model, "pure"), "pure");
+    assert.equal(ownerField(model, "arity"), "arity", "a subcommand key is a row of its own");
+    assert.equal(ownerField(model, "variable_scope"), "options");
+    assert.equal(ownerField(model, "orphan_property"), null);
+    assert.equal(ownerField(model, "nosuch"), null);
+  });
+
+  it("indexes every documented key, nested properties included", () => {
+    const labels = labelIndex(schema());
+    assert.equal(labels.get("side_effects"), "Side effects");
+    assert.equal(labels.get("variable_scope"), "Variable scope");
+    assert.equal(labels.has("nosuch"), false);
   });
 });
 
@@ -814,6 +892,50 @@ describe("historyMode", () => {
     assert.equal(historyMode(entry, { ...entry }), "replace");
     assert.equal(historyMode(entry, { ...entry, variant: "Session" }), "push");
     assert.equal(historyMode({ ...entry, variant: null }, { ...entry, variant: null }), "replace");
+  });
+});
+
+describe("restoreFor", () => {
+  const lsort: Route = { view: "command", dialect: "tcl9.0", command: "lsort", field: null };
+  const reference: Route = { view: "reference", catalogue: "taintColour", variant: "Http" };
+
+  it("restores a Reference entry as the Reference view, not as the visit it was opened from", () => {
+    // The entry is tagged with whichever visit was open when it was written,
+    // so a Reference entry carries the command it was opened from; the
+    // fragment is what says which view the entry is *for*.
+    assert.deepEqual(restoreFor(reference, 0, "lsort"), { kind: "route", route: reference });
+  });
+
+  it("opens the visit an entry names when the fragment agrees it is that command", () => {
+    assert.deepEqual(restoreFor(lsort, 3, "lsort"), { kind: "visit", visit: 3, field: null });
+    assert.deepEqual(restoreFor({ ...lsort, field: "arity" }, 3, "lsort"), {
+      kind: "visit",
+      visit: 3,
+      field: "arity",
+    });
+  });
+
+  it("follows the fragment when the visit stack disagrees or has lost the visit", () => {
+    assert.deepEqual(restoreFor(lsort, 3, "lindex"), { kind: "route", route: lsort });
+    assert.deepEqual(restoreFor(lsort, 3, null), { kind: "route", route: lsort });
+    assert.deepEqual(restoreFor(lsort, null, null), { kind: "route", route: lsort });
+  });
+
+  it("falls back to the entry's visit only where there is no view to restore", () => {
+    assert.deepEqual(restoreFor(null, 2, "lsort"), { kind: "visit", visit: 2, field: null });
+    assert.deepEqual(restoreFor(null, null, null), { kind: "nothing" });
+  });
+
+  it("takes X → Reference → Y back to the Reference entry and then to X", () => {
+    // The sequence the single-history design has to get right: Back off Y
+    // lands on the Reference entry, and the next Back on X's own entry.
+    const y: Route = { ...lsort, command: "lindex" };
+    const back: Restore[] = [restoreFor(reference, 0, "lsort"), restoreFor(lsort, 0, "lsort")];
+    assert.deepEqual(back, [
+      { kind: "route", route: reference },
+      { kind: "visit", visit: 0, field: null },
+    ]);
+    assert.deepEqual(restoreFor(y, 1, "lindex"), { kind: "visit", visit: 1, field: null });
   });
 });
 

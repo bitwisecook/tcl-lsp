@@ -41,7 +41,9 @@ import {
   fieldAnchorId,
   formatHash,
   historyMode,
+  ownerField,
   parseHash,
+  restoreFor,
   routeSubject,
   type DockContent,
   type DockSubject,
@@ -2192,7 +2194,7 @@ function renderDock(): void {
 function relatedNode(cluster: RelatedGroup): HTMLElement {
   const list = el("ul", {});
   for (const link of cluster.links) {
-    if (link.self || !link.known) {
+    if (link.self || !link.known || !link.target) {
       list.appendChild(
         el("li", {}, [
           el("span", {
@@ -2205,7 +2207,7 @@ function relatedNode(cluster: RelatedGroup): HTMLElement {
       continue;
     }
     const anchor = el("a", {
-      href: relatedHref(link.key),
+      href: relatedHref(link.target),
       text: link.key,
       title: link.label,
       onclick: (event: Event) => {
@@ -2223,21 +2225,26 @@ function relatedNode(cluster: RelatedGroup): HTMLElement {
 }
 
 /** The address a related link points at: the deep link when there is one. */
-function relatedHref(key: string): string {
+function relatedHref(row: string): string {
   const command = openCommandName();
   return command
-    ? formatHash({ view: "command", dialect: state.dialect, command, field: key })
-    : `#${fieldAnchorId(key)}`;
+    ? formatHash({ view: "command", dialect: state.dialect, command, field: row })
+    : `#${fieldAnchorId(row)}`;
 }
 
 /**
  * Navigate to the setting `key`: the editor tab, its group open, scrolled to,
  * outlined, focused — and then documented, so following a chain of links
  * works link after link.
+ *
+ * A property edited inside a composite row has no row of its own, so it is
+ * the owning row that is revealed while the dock goes on to document the
+ * property itself: that row *is* where the author edits it.
  */
 function revealField(key: string): void {
   if (currentTab !== "editor") selectTab("editor");
-  const node = document.getElementById(fieldAnchorId(key));
+  const row = ownerField(state.schema, key);
+  const node = row ? document.getElementById(fieldAnchorId(row)) : null;
   if (!node) {
     setStatus("status", `${key} is not a setting this command has`, "err");
     return;
@@ -2467,9 +2474,20 @@ function noteFieldInRoute(key: string): void {
   const command = openCommandName();
   if (!command) return;
   writeRoute(
-    { view: "command", dialect: state.dialect, command, field: key },
+    { view: "command", dialect: state.dialect, command, field: routedField(key) },
     currentEntry()?.visit ?? null,
   );
+}
+
+/**
+ * The key a route may carry for the setting `key`.
+ *
+ * Only a top-level row can be restored, so a property edited inside one is
+ * written as the row that holds it — the link then opens the place the
+ * setting is edited instead of naming something the form cannot land on.
+ */
+function routedField(key: string | null): string | null {
+  return key === null ? null : ownerField(state.schema, key);
 }
 
 /** Open the visit at `at` without recording it as a new one. */
@@ -2516,12 +2534,18 @@ function bindRouting(): void {
     const entry = event.state as Partial<StudioEntry> | null;
     const route = parseHash(window.location.hash);
     lastRoute = route;
-    if (typeof entry?.visit === "number" && state.history[entry.visit]) {
-      openVisit(entry.visit);
-      if (route?.view === "command" && route.field) revealField(route.field);
+    const visit = typeof entry?.visit === "number" ? entry.visit : null;
+    const restore = restoreFor(
+      route,
+      visit,
+      (visit === null ? null : state.history[visit]?.name) ?? null,
+    );
+    if (restore.kind === "visit") {
+      openVisit(restore.visit);
+      if (restore.field) revealField(restore.field);
       return;
     }
-    if (route) applyRoute(route);
+    if (restore.kind === "route") applyRoute(restore.route);
   });
 }
 
@@ -2638,7 +2662,9 @@ function selectTab(name: Tab): void {
   // entry for each of them would fill Back with places nothing came from.
   if (name === "editor") {
     const command = openCommandName();
-    const field = dockContent?.subject.kind === "field" ? dockContent.subject.key : null;
+    const field = routedField(
+      dockContent?.subject.kind === "field" ? dockContent.subject.key : null,
+    );
     if (command) routeTo({ view: "command", dialect: state.dialect, command, field });
   }
   for (const tab of TABS) {

@@ -118,7 +118,17 @@ export interface NestedFieldSchema {
   key: string;
   label: string;
   doc: string;
+  /** The Rust type carrying the property — a name, not somewhere to go. */
   owner: string;
+  /**
+   * The top-level spec key whose editor the property is edited inside, which
+   * is the row a link to it can land on.
+   *
+   * Optional in the wire contract for the same reason `related` is: a studio
+   * wasm built before the key existed sends nothing, and the property is then
+   * documented without being linkable.
+   */
+  field?: string;
   group: string;
   help: string;
   example: CodeExample;
