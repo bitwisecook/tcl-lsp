@@ -161,7 +161,7 @@ covers the compiler-facing ones.
 | Trait bit | Purpose |
 |-----------|---------|
 | `CREATES_DYNAMIC_BARRIER` | Lowered to `IRBarrier` -- blocks optimisations across this call |
-| `HAS_LOOP_BODY` | Command has a loop body (affects dead-code analysis) |
+| `HAS_LOOP_BODY` | A body argument may run more than once.  The registry's one answer to "is this a loop?" (`CommandRegistry::is_loop_command`); the W240/W241/W242 termination checks read the loop's shape off its argument roles, so no loop is named in the analyser.  See [Retiring a trait](#retiring-a-trait) |
 | `NEVER_INLINE_BODY` | Body arguments must not be inlined by the optimiser |
 | `LOOP_LIST_HEADER` | CFG header carries list-expression args evaluated once before the loop body (foreach, lmap) |
 | `CONTROL_FLOW` | Command is a control-flow statement (break, continue, return) |
@@ -172,6 +172,61 @@ covers the compiler-facing ones.
 
 Traits compose across levels: a `SubCommand` carries its own `traits`, and
 consumers read the union of the command's and the resolved subcommand's bits.
+
+##### Retiring a trait
+
+A trait is a fact a consumer branches on. One that nothing reads is not
+harmless: where a descriptor already carries the fact, the flag is a second
+statement of it, and the two drift with no consumer to notice.
+`HAS_SWITCH_BODY` said strictly less than `case_list` — six `expect*`
+commands declared the clause list without ever carrying the flag.
+`HAS_DESTRUCTIVE_OPS` disagreed with `SubCommand::destructive` in both
+directions — `registry` carried it with no destructive subcommand, while
+`after`, `array`, `dict`, `oo::object` and `timer` had one without it.
+
+So the vocabulary follows three rules:
+
+- **A trait must have a behavioural consumer.** A row in the snapshot's
+  `TRAIT_FLAGS` serialisation table is not one.
+- **A fact a descriptor already carries is derived, not flagged.** The
+  query reads the descriptor a consumer needs anyway, so it cannot disagree
+  with it.
+- **A retired spelling stays in `RETIRED_TRAITS`** (`traits.rs`), paired
+  with a sentence naming what carries the fact now. Packs name traits as
+  strings, so a `.tclspec` written against an older registry still says
+  `traits HAS_SWITCH_BODY`; the loader consults the table before reporting
+  an unknown trait, and the author is told where the behaviour moved. The
+  word is still dropped — the replacement is a descriptor the pack already
+  writes. A test forbids a retired name from being declared again.
+
+| Retired | Carried now by |
+|---------|----------------|
+| `HAS_SWITCH_BODY` | `case_list`; derived as `CommandSpec::has_switch_body` |
+| `HAS_DESTRUCTIVE_OPS` | `SubCommand::destructive`; derived as `CommandSpec::has_destructive_ops` |
+| `HAS_INTERP_EVAL` | `taint_interp_eval_subcommands`, which is consumed and disagreed with the flag in both directions; `send` carries `EVALUATES_CODE` on its own |
+| `CONFIGURES_CHANNEL` | the `FileIo` side effect with `reads` and `writes` that both carriers, `chan` and `fconfigure`, already declare |
+| `STRING_LIST_CONFUSION` | nothing — an authoring hint about `append`, not a behavioural fact |
+
+One fact was deliberately let go. `registry` models its operations as
+`ArgValue`s rather than a subcommand table, because Tcl accepts any unique
+abbreviation and the table would misreport `registry se`; so
+`has_destructive_ops` answers false for it. Its persistent write is carried
+by its `FileIo` side effect, which is read. The command-level boolean was
+not.
+
+`HAS_LOOP_BODY` is the trait the first rule would have retired and did not:
+nothing else in the model says a body may run more than once
+(`NEVER_INLINE_BODY` marks a different set — `timerate` and `array for` are
+loops without it, and `switch` has it without being one). It was given the
+consumer it should have had instead. Whether a command is a loop is
+`CommandRegistry::is_loop_command`, and the W240/W241/W242 termination
+checks read the condition, body, init and step positions off its declared
+argument roles (the `Expr` word, the `Body` words around it), so a pack
+shipping its own loop construct is analysed under whatever name it has; a
+loop with no boolean condition (`foreach`, `lmap`) has no termination shape
+to check. The literal `while` / `for` positions survive only as the
+registry-less fallback, the same shape `is_loop_exit_command` already
+documents.
 
 #### Purity and optimisation
 
@@ -1660,6 +1715,11 @@ is what that looks like from the outside.
 - Prefer a new `CommandSpec` field or a typed hook ID over teaching a
   consumer a command name; the registry is the source of truth, and a
   consumer that matches on a name is the thing this design exists to avoid.
+- To add a trait: first check that no descriptor already carries the fact
+  — if one does, add a derived query on `CommandSpec` instead — and that a
+  consumer will branch on it.  To retire one, move its spelling to
+  `RETIRED_TRAITS` with a sentence naming the replacement, and never
+  declare a retired name again.  See [Retiring a trait](#retiring-a-trait).
 
 ## The reference manual
 

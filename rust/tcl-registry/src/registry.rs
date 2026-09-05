@@ -4721,6 +4721,22 @@ impl CommandRegistry {
             .is_some_and(|t| t == crate::types::TclType::List)
     }
 
+    /// Whether `name` runs one of its body arguments more than once —
+    /// [`Traits::HAS_LOOP_BODY`].
+    ///
+    /// The single answer for a consumer that needs "is this a loop?" without
+    /// naming `while` / `for` / `foreach`, so a pack-declared loop command
+    /// joins loop analysis with no consumer edit. Nothing else in the model
+    /// says it: `NEVER_INLINE_BODY` marks a different, non-coextensive set —
+    /// `timerate` and `array for` are loops without it, and consumers read the
+    /// command's bits unioned with the resolved subcommand's, so `dict for`
+    /// carries it from `dict` itself.
+    #[must_use]
+    pub fn is_loop_command(&self, name: &str) -> bool {
+        self.get(name)
+            .is_some_and(|spec| spec.traits.contains(Traits::HAS_LOOP_BODY))
+    }
+
     /// `{command: BytePayloadSpec}` for every registered `<proto>::payload`
     /// byte-array command — the getter is a binary source and `<cmd> replace`
     /// a byte sink for the S110 byte-array-corruption check.

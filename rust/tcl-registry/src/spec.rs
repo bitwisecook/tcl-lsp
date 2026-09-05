@@ -2728,6 +2728,31 @@ impl CommandSpec {
             .find(|s| s.name == canonical && avail(s))
     }
 
+    /// Whether this command takes a `{pattern body …}` clause list as its
+    /// final braced word.
+    ///
+    /// Derived from [`Self::case_list`], which describes the clause shape a
+    /// consumer actually needs. This replaces the retired `HAS_SWITCH_BODY`
+    /// flag, which said strictly less than the descriptor and disagreed with
+    /// it: Expect's `expect*` commands declared the clause list without ever
+    /// carrying the flag.
+    #[must_use]
+    pub fn has_switch_body(&self) -> bool {
+        self.case_list.is_some()
+    }
+
+    /// Whether any of this command's subcommands performs an irreversible
+    /// operation.
+    ///
+    /// Derived from [`SubCommand::destructive`], the per-subcommand truth a
+    /// consumer needs in order to say *which* operation is irreversible. This
+    /// replaces the retired `HAS_DESTRUCTIVE_OPS` flag, a second command-level
+    /// answer that disagreed with the subcommands in both directions.
+    #[must_use]
+    pub fn has_destructive_ops(&self) -> bool {
+        self.subcommands.iter().any(|sub| sub.destructive)
+    }
+
     /// Return static arg role for a given index, if declared.
     #[must_use]
     pub fn arg_role_at(&self, index: u8) -> Option<ArgRole> {

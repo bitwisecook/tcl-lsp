@@ -36,7 +36,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use russh::client;
-use russh::keys::{known_hosts, ssh_key};
+use russh::keys::{PublicKeyOrCertificate, known_hosts, ssh_key};
 use russh::{ChannelMsg, Disconnect};
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::OpenFlags;
@@ -149,8 +149,19 @@ impl client::Handler for AcceptServerKey {
 
     fn check_server_key(
         &mut self,
-        server_public_key: &ssh_key::PublicKey,
+        server_public_key: &PublicKeyOrCertificate,
     ) -> impl Future<Output = Result<bool, Self::Error>> {
+        let PublicKeyOrCertificate::PublicKey {
+            key: server_public_key,
+            ..
+        } = server_public_key
+        else {
+            eprintln!(
+                "error: the SSH server presented a host certificate, which this client cannot \
+                 verify against its known_hosts trust store — refusing to connect"
+            );
+            return std::future::ready(Ok(false));
+        };
         std::future::ready(Ok(accept_host_key(
             &self.host,
             self.port,

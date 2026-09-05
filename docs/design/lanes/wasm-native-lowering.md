@@ -28,9 +28,11 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
   installs its functions, and registers `(name, params, table index)`; the
   runtime treats the index as an `extern "C"` function pointer. Falls back to
   the source body when the native entry declines.
-- No emitter reads a compatibility string. `whole_var_reference` and the
-  `name.contains('(')` gates in `codegen/wasm/backend.rs` were retired by P3;
-  word shapes come from `WordExpr` only.
+- No emitter reads a compatibility string for itself. Word shapes come from
+  `WordExpr`; the one reading of a `$…` spelling or a name word left —
+  which cell it denotes — is owned by `native_lowering::cells`
+  (`whole_reference`, `variable_word_place`, `cell_place`) over the
+  `tcl_syntax::naming` split, and every backend consumes it.
 
 ## Site inventory and status
 
@@ -1099,9 +1101,11 @@ harness, and `samples/wasm/budgets.tsv`.
    `value_try_double` (typed reads that never set an error), `expr_eval`,
    `mathop`, `mathfunc` (completion-triple writers). The compat-text gates in
    `backend.rs` — `whole_var_reference`, `is_pure_cmd_subst`,
-   `parse_cmd_parts`, `name.contains('(')` — are gone from every tier, which
-   closed the five analysis-plan ledger rows for issue #1772 in the same
-   commit. `emit_wasm --native` and `Plan::Native` in the harness.
+   `parse_cmd_parts`, `name.contains('(')` — stopped deciding what a *word*
+   is, which closed the five analysis-plan ledger rows for issue #1772 in the
+   same commit; the name readings they left behind were folded into
+   `native_lowering::cells` when #1772 itself closed. `emit_wasm --native` and
+   `Plan::Native` in the harness.
 
 ### Budgets, T0/T1 (`eval_code / expr_bool / invoke_argv / native_i64_f64`)
 

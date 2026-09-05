@@ -374,16 +374,6 @@ declare_traits! {
     OpensChannel => OPENS_CHANNEL, Security, "opens an I/O channel";
     /// Sources a file (`source`).
     SourcesFile => SOURCES_FILE, Security, "sources another file";
-    /// Has a switch body (`switch`).
-    HasSwitchBody => HAS_SWITCH_BODY, ControlFlow, "takes a switch-style clause list";
-    /// String/list confusion risk (`append`).
-    StringListConfusion => STRING_LIST_CONFUSION, Runtime, "at risk of string/list confusion";
-    /// Configures a channel (`fconfigure`, `chan configure`).
-    ConfiguresChannel => CONFIGURES_CHANNEL, Security, "configures a channel";
-    /// Has `interp eval` subcommand.
-    HasInterpEval => HAS_INTERP_EVAL, DynamicAnalysis, "evaluates code in another interpreter";
-    /// Has destructive operations (`file delete`, `namespace delete`).
-    HasDestructiveOps => HAS_DESTRUCTIVE_OPS, Security, "has irreversible operations";
     /// iRules event handler (`when`).
     IsEventHandler => IS_EVENT_HANDLER, Irules, "an iRules event handler";
     /// Returns unnormalised HTTP path/URI/query.
@@ -567,8 +557,7 @@ declare_traits! {
     /// var-escape slot resolver treats a frame reached this way as
     /// hash-backed. Single source of truth for the former
     /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
-    /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
-    /// of these carry.)
+    /// `CREATES_DYNAMIC_BARRIER`, which only some of these carry.)
     DynamicEvalBody => DYNAMIC_EVAL_BODY, ControlFlow, "its body is evaluated dynamically";
 
     /// (Subcommand) introspects program state by variable *name* —
@@ -1243,11 +1232,6 @@ declare_trait_examples! {
     PerformsSubstitution => flow!("set channel stdin\nset template {[read $channel]}\nset value [subst $template]\nputs $value"; (2, "subst"); (1, "{[read $channel]}", "contains substitutions as data"), (2, "subst $template", "performs those substitutions at runtime"), (3, "$value", "carries their result"));
     OpensChannel => flow!("set path [gets stdin]\nset channel [open $path r]\nputs [read $channel]"; (1, "open"); (0, "[gets stdin]", "supplies an untrusted path"), (1, "open $path r", "opens an external resource"), (2, "read $channel", "observes data from the channel"));
     SourcesFile => flow!("set path ./plugin.tcl\nsource $path\nplugin::run"; (1, "source"); (0, "./plugin.tcl", "selects another source file"), (1, "source $path", "evaluates that file in this interpreter"), (2, "plugin::run", "uses a command the file defined"));
-    HasSwitchBody => flow!("set mode [gets stdin]\nswitch -- $mode { safe {puts ok} default {puts rejected} }"; (1, "switch"); (0, "[gets stdin]", "supplies the selector"), (1, "switch", "selects one clause body"), (1, "default {puts rejected}", "handles unmatched input"));
-    StringListConfusion => flow!("set values [list alpha beta]\nappend values \" {gamma\"\nset status [catch {llength $values} message]\nputs [list $status $message]"; (1, "append"); (0, "[list alpha beta]", "starts as a canonical list"), (1, "append values", "performs a string operation on it"), (2, "llength $values", "later reinterprets the changed string as a list"), (3, "$status $message", "observes the malformed-list error"));
-    ConfiguresChannel => flow!("set channel [open data.bin w+]\nfconfigure $channel -translation binary\nputs -nonewline $channel hello\nseek $channel 0\nset bytes [read $channel]"; (1, "fconfigure"); (0, "open data.bin w+", "creates the channel"), (1, "fconfigure $channel", "changes its I/O semantics"), (4, "read $channel", "uses the configured translation"));
-    HasInterpEval => flow!("set child [interp create -safe]\ninterp eval $child {set value 42}\ninterp eval $child {puts $value}"; (1, "interp"); (0, "[interp create -safe]", "creates another interpreter"), (1, "interp eval", "evaluates code in that interpreter"), (2, "$value", "observes its separate state"));
-    HasDestructiveOps => flow!("set path ./cache.tmp\nclose [open $path w]\nfile delete -- $path\nfile exists $path"; (2, "file"); (0, "./cache.tmp", "identifies existing state"), (2, "file delete", "irreversibly removes it"), (3, "file exists $path", "now reports false"));
     IsEventHandler => flow!("when HTTP_REQUEST {\n    set uri [HTTP::uri]\n    log local0. $uri\n}"; (0, "when"); (0, "when HTTP_REQUEST", "registers the deferred event handler"), (1, "HTTP::uri", "reads request data when the event fires"), (2, "$uri", "flows to the handler output"));
     UnnormalisedHttpGetter => flow!("when HTTP_REQUEST {\n    set path [HTTP::path]\n    HTTP::respond 200 content $path\n}"; (1, "HTTP::path"); (1, "HTTP::path", "returns attacker-controlled, unnormalised path data"), (2, "$path", "reaches an output without protection and reports taint"));
     RequiresHttpContext => flow!("when HTTP_REQUEST {\n    HTTP::respond 200\n    HTTP::header value Host\n}"; (2, "HTTP::header"); (1, "HTTP::respond 200", "commits the HTTP response"), (2, "HTTP::header", "requires the now-unavailable HTTP transaction and is diagnosed"));
@@ -1360,6 +1344,41 @@ const _: () = assert!(
     "more traits than a u128 bitset can hold — widen `Traits` to [u64; N] via a custom bit type"
 );
 
+/// Trait spellings that were declared once and have since been retired, each
+/// paired with a sentence naming what carries the fact now.
+///
+/// A `.tclspec` pack names traits as strings, so a pack written against an
+/// older registry still says `traits HAS_SWITCH_BODY` long after the flag is
+/// gone. The loader consults this table before reporting an unknown trait, so
+/// its author is told where the behaviour moved rather than only that the word
+/// means nothing. The row is still dropped — the replacement is derived from a
+/// descriptor the pack already writes, not from the retired word.
+///
+/// A name here must never become a live [`Trait::name`] again; the
+/// `no_retired_trait_is_declared_again` test is that gate.
+pub const RETIRED_TRAITS: &[(&str, &str)] = &[
+    (
+        "HAS_SWITCH_BODY",
+        "a `case_list` block now carries this; the derived answer is `CommandSpec::has_switch_body`",
+    ),
+    (
+        "HAS_DESTRUCTIVE_OPS",
+        "`destructive` on the individual subcommand now carries this; the derived answer is `CommandSpec::has_destructive_ops`",
+    ),
+    (
+        "HAS_INTERP_EVAL",
+        "`taint_interp_eval_subcommands` names the subcommands that evaluate in another interpreter, and `EVALUATES_CODE` marks a command that evaluates its argument as code",
+    ),
+    (
+        "CONFIGURES_CHANNEL",
+        "a `SideEffect` on the `FileIo` target with `reads` and `writes` set now carries this",
+    ),
+    (
+        "STRING_LIST_CONFUSION",
+        "retired with no replacement: it was an authoring hint about `append`, not a behavioural fact about the command",
+    ),
+];
+
 /// Clause/block words that behave as [`Traits::LANGUAGE_KEYWORD`] tokens but
 /// have no standalone `CommandSpec` — they are never independently invocable
 /// (`else` only means anything as an `if` clause), so they cannot carry a
@@ -1391,3 +1410,22 @@ pub const CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC: &[&str] =
 /// argument aliasing — rewriting a literal `then` to `$alias` would break
 /// `if`'s clause parsing) must keep literal.
 pub const CLAUSE_NOISE_KEYWORDS: &[&str] = &["then"];
+
+#[cfg(test)]
+mod tests {
+    use super::{RETIRED_TRAITS, Trait};
+
+    /// The gate that stops a retired trait coming back. Reviving a spelling
+    /// would leave the loader telling a pack author the flag moved while the
+    /// registry accepted it, and would silently re-adopt whichever meaning the
+    /// new declaration happened to give it.
+    #[test]
+    fn no_retired_trait_is_declared_again() {
+        for (name, _) in RETIRED_TRAITS {
+            assert!(
+                Trait::from_name(name).is_none(),
+                "`{name}` is listed as retired but `declare_traits!` declares it again"
+            );
+        }
+    }
+}
