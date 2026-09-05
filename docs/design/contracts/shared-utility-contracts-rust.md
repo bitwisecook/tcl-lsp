@@ -521,6 +521,12 @@ entry point, or gate moves without this contract being updated.
   name — and their `binary`, `binary encode`/`decode` (the one
   `prefixes = false` pair, whose miss is `unknown subcommand`),
   `encoding`, `chan`, `zlib` and `namespace` ensembles.
+  TclOO's own tables resolve through `prefix` too — `info object isa`'s
+  `category`, `configure`'s `property` (C reaches it through
+  `tcl::prefix match -message property`, so it abbreviates),
+  `definitionnamespace`'s `kind`, and `method`'s `export flag` — while
+  every *method* list is joined by `tcloo_choice_list_bytes`, which
+  drops the Oxford comma the option tables keep.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -904,6 +910,14 @@ helper without reading the rationale:
   test modules in `runtime/rust` — the `binary`/`encoding`/`zlib`/
   `namespace` surfaces, including `zlib gzip`'s and `gunzip`'s option
   tables (C's order is `-header, -level`, not alphabetical).
+- `rust/tcl-vm/tests/cmd_oo_e2e.rs`
+  (`info_object_isa_category_resolves_like_tcl_get_index_from_obj`,
+  `tip558_configurable_property_abbreviates`) and the `cmd_oo.rs` test
+  module in `runtime/rust`
+  (`oo_option_tables_resolve_like_tcl_get_index_from_obj`,
+  `configure_property_word_abbreviates`) — the four TclOO nouns plus a
+  four-entry `unknown method` list, which is the shortest one where the
+  two join styles differ.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single
