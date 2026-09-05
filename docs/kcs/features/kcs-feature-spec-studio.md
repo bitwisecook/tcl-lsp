@@ -316,8 +316,27 @@ The directory the registry files land in is set in the pack's own section
 of the browser — **renders into** `rust/tcl-registry/src/commands/` — rather
 than on any one file, because it is a fact about the pack: it names where
 every command's `.rs` and the `mod.rs` go, and the `mod.rs` names its
-collector after it. Set it to the pack your commands belong in before you
-download.
+collector after it. It starts as your pack's own name, so a library called
+`mylib` proposes `commands/mylib/`, and it follows the name if you rename
+the library. Change it when your commands belong in a pack that already
+exists — `tcl`, `irules`, `tk` — and the export changes with it.
+
+Naming an existing pack changes what the `mod.rs` row is. That pack's
+`mod.rs` already declares every other command in it, and a file holding
+only yours would delete the lot, so the export renders the **lines to add**
+instead: the row is labelled *add to the pack's mod.rs*, the file is called
+`mod.rs.additions`, and it opens with a banner saying not to write it over
+anything. Merge its two lists — the `mod` declarations and the collector
+rows — into the file that is there. A directory the registry does not ship
+still gets a whole `mod.rs` you can drop straight in.
+
+If two of your commands would be filed at the same path — `a-b` and `a_b`
+both become `a_b.rs`, because a Rust module name cannot carry a hyphen — a
+warning above the list names them. Both files are still there to read, but
+Rust declares that module once, so a contribution holding both would ship
+one and lose the other. Rename one of them. Namespaced names do not
+collide with flat ones: `IP::ttl` is filed at `ip__ttl.rs` and `ip_ttl` at
+`ip_ttl.rs`, the way the registry itself files that pair.
 
 The exported `.tclspec` is the pack rendered canonically — the text
 **Re-render canonically** would produce — so your own comments and layout

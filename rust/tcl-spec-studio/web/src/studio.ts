@@ -82,12 +82,16 @@ import {
   type PaletteHit,
 } from "./paletteSearch.js";
 import {
+  collidingCommands,
+  collisionNotice,
   emptyExportNotice,
   exportGroups,
   exportSummary,
   fileBase,
   fileDir,
   kindLabel,
+  packDirectory,
+  reseedPackDir,
   selectedPath,
   surfaceOf,
   visibleFiles,
@@ -255,6 +259,12 @@ let editors: Record<string, Editor>;
 /** The pack's last export, and which of its files the pane is showing. */
 let packExport: PackExport | null = null;
 let shownExportPath: string | null = null;
+/**
+ * Which row of the list that path is, so a collision — two commands rendered
+ * to one path — still selects the row that was clicked. `-1` means "wherever
+ * the path first appears", which is every ordinary export.
+ */
+let shownExportIndex = -1;
 let renderTimer: number | undefined;
 let exportTimer: number | undefined;
 let saveTimer: number | undefined;
@@ -703,6 +713,10 @@ function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): vo
 
   renderPackList();
   renderDslReport();
+  // The directory follows the pack's name, so renaming the library — or
+  // opening another one — re-proposes its own directory rather than leaving
+  // the last document's behind.
+  seedPackDir();
   // The export is a rendering of the whole document, so every write to it —
   // a form edit, a DSL keystroke, an import — is a new export.
   scheduleExport();
@@ -1276,7 +1290,31 @@ function renderOutputs(): void {
 
 /** The registry directory the pack's `.rs` files are rendered into. */
 function packDir(): string {
-  return byId<HTMLInputElement>("packDir").value.trim() || "tcl";
+  return packDirectory(byId<HTMLInputElement>("packDir").value, packName());
+}
+
+/** What the document calls itself, empty until one is loaded. */
+function packName(): string {
+  return state.pack.view?.pack ?? "";
+}
+
+/** The value `seedPackDir` last wrote, so an author's own is never overwritten. */
+let seededPackDir: string | null = null;
+
+/**
+ * Follow the document's name with the directory field, until the author types
+ * their own.
+ *
+ * A contribution to a pack that already exists is the ordinary case and the
+ * field stays editable for it; what must not happen is a *default* naming
+ * somebody else's pack.
+ */
+function seedPackDir(): void {
+  const field = byId<HTMLInputElement>("packDir");
+  const next = reseedPackDir(field.value, seededPackDir, packName());
+  if (next === null) return;
+  field.value = next;
+  seededPackDir = next;
 }
 
 /** Which stub spelling the pane's toggle is showing. */
@@ -1315,19 +1353,30 @@ function listedExportFiles(): ExportFile[] {
   return packExport ? visibleFiles(packExport.files, stubView()) : [];
 }
 
+/** Where in the list the reader is, or -1 when they are nowhere. */
+function shownExportAt(): number {
+  const files = listedExportFiles();
+  if (shownExportIndex >= 0 && files[shownExportIndex]?.path === shownExportPath) {
+    return shownExportIndex;
+  }
+  return files.findIndex((file) => file.path === shownExportPath);
+}
+
 /** The file the reader has open, or null when the pack produces none. */
 function shownExportFile(): ExportFile | null {
-  return listedExportFiles().find((file) => file.path === shownExportPath) ?? null;
+  return listedExportFiles()[shownExportAt()] ?? null;
 }
 
 /**
  * The DOM id of a file's row, so the listbox can point at it.
  *
- * The path itself, which is unique within an export and — having no
- * whitespace — a legal id. Squashing it to letters and digits would not be.
+ * The path and its position in the list. The path alone is nearly unique and
+ * would read better, but two commands whose module stems collide are rendered
+ * to one path — reported, never silently merged — and two rows may not carry
+ * one id.
  */
-function exportRowId(path: string): string {
-  return `exportfile:${path}`;
+function exportRowId(path: string, at: number): string {
+  return `exportfile:${at}:${path}`;
 }
 
 function renderExportList(): void {
@@ -1339,6 +1388,15 @@ function renderExportList(): void {
   const files = listedExportFiles();
   setStatus("exportSummary", exportSummary(exp, dialectLabel(state.dialect), files.length));
 
+  // Two commands at one path is a pack that cannot ship: the `mod.rs` can
+  // declare that module once, so one of them would go missing from the
+  // contribution. Said here, above the list, rather than left to the reader
+  // to notice two rows with the same name.
+  const clashes = byId("exportCollisions");
+  const notice = collisionNotice(exp.collisions ?? []);
+  clashes.hidden = !notice;
+  clashes.textContent = notice;
+
   // An empty pack has no `.rs` and a stub with nothing in it. A list of three
   // empty artefacts is a worse answer than the sentence.
   const empty = byId("exportEmpty");
@@ -1348,6 +1406,7 @@ function renderExportList(): void {
   setExportActionsEnabled(exp.commands > 0);
   if (!exp.commands) {
     shownExportPath = null;
+    shownExportIndex = -1;
     byId("exportPath").textContent = "";
     return;
   }
@@ -1355,15 +1414,17 @@ function renderExportList(): void {
   for (const group of exportGroups(files)) {
     const rows = el("ul", { role: "presentation" });
     for (const file of group.files) {
+      const at = files.indexOf(file);
+      const shared = collidingCommands(exp.collisions ?? [], file.path);
       rows.appendChild(
         el(
           "li",
           {
             class: "exportfile",
-            id: exportRowId(file.path),
+            id: exportRowId(file.path, at),
             role: "option",
             "aria-selected": "false",
-            onclick: () => showExportFile(file.path),
+            onclick: () => showExportFile(file.path, at),
           },
           [
             el("span", { class: "nm", text: fileBase(file.path) }),
@@ -1371,6 +1432,9 @@ function renderExportList(): void {
             el("span", { class: "state" }, [
               el("span", { class: "tag", text: kindLabel(file.kind) }),
               file.command ? el("span", { class: "tag cmd", text: file.command }) : null,
+              shared.length
+                ? el("span", { class: "tag clash", text: `shared with ${shared.length - 1} more` })
+                : null,
             ]),
           ],
         ),
@@ -1387,7 +1451,11 @@ function renderExportList(): void {
     );
   }
 
-  showExportFile(selectedPath(files, shownExportPath));
+  const wanted = selectedPath(files, shownExportPath);
+  showExportFile(
+    wanted,
+    wanted === shownExportPath && shownExportIndex >= 0 ? shownExportIndex : -1,
+  );
 }
 
 /** The per-file and whole-set actions, live only while there is a set. */
@@ -1405,20 +1473,23 @@ function setExportActionsEnabled(on: boolean): void {
  * Which one is on screen follows the selected file, and the hidden `<pre>`
  * behind each still seeds it for a reader who never loads the editor chunk.
  */
-function showExportFile(path: string | null): void {
+function showExportFile(path: string | null, at = -1): void {
   shownExportPath = path;
+  shownExportIndex = at;
+  const where = shownExportAt();
   const file = shownExportFile();
+  const id = file ? exportRowId(file.path, where) : null;
   for (const row of byId("exportList").querySelectorAll<HTMLElement>('[role="option"]')) {
-    row.setAttribute("aria-selected", file && row.id === exportRowId(file.path) ? "true" : "false");
+    row.setAttribute("aria-selected", row.id === id ? "true" : "false");
   }
   byId("exportPath").textContent = file?.path ?? "";
-  if (!file) return;
+  if (!file || id === null) return;
 
   const list = byId("exportList");
-  list.setAttribute("aria-activedescendant", exportRowId(file.path));
+  list.setAttribute("aria-activedescendant", id);
   // The editor shows one file at a time, so it is labelled by the row that
   // chose it rather than by a heading that never changes.
-  byId("exportView").setAttribute("aria-labelledby", exportRowId(file.path));
+  byId("exportView").setAttribute("aria-labelledby", id);
 
   const rust = surfaceOf(file.kind) === "rust";
   byId(rust ? "rsOut" : "stubOut").firstElementChild!.textContent = file.source;
@@ -1437,7 +1508,7 @@ function showExportFile(path: string | null): void {
 function moveExportSelection(delta: number | "first" | "last"): void {
   const files = listedExportFiles();
   if (!files.length) return;
-  const at = files.findIndex((file) => file.path === shownExportPath);
+  const at = shownExportAt();
   const next =
     delta === "first"
       ? 0
@@ -1446,8 +1517,8 @@ function moveExportSelection(delta: number | "first" | "last"): void {
         : Math.min(files.length - 1, Math.max(0, (at < 0 ? 0 : at) + delta));
   const file = files[next];
   if (!file) return;
-  showExportFile(file.path);
-  byId(exportRowId(file.path)).scrollIntoView({ block: "nearest" });
+  showExportFile(file.path, next);
+  byId(exportRowId(file.path, next)).scrollIntoView({ block: "nearest" });
 }
 
 /* Files ----------------------------------------------------------------- */
@@ -3494,8 +3565,12 @@ function bindUi(): void {
   /* The pack export. */
 
   // The directory names where every rendered `.rs` lands, so a change to it is
-  // a new export rather than a re-paint of the one on screen.
-  byId("packDir").addEventListener("input", scheduleExport);
+  // a new export rather than a re-paint of the one on screen. Typing in it is
+  // also the author taking it over: it stops following the document's name.
+  byId("packDir").addEventListener("input", () => {
+    seededPackDir = null;
+    scheduleExport();
+  });
   // Both stub spellings are already in the export; the toggle only chooses
   // which of them the list offers.
   byId("stubMode").addEventListener("change", renderExportList);

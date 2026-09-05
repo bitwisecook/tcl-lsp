@@ -232,8 +232,16 @@ export interface StagedFile {
 
 /* The pack export --------------------------------------------------------- */
 
-/** Which artefact one exported file is, from `pack_export`. */
-export type ExportKind = "spectcl" | "rs" | "rs-mod" | "stub-file" | "stub-inline";
+/**
+ * Which artefact one exported file is, from `pack_export`.
+ *
+ * `rs-mod` and `rs-mod-add` are the same render under the two ways it can be
+ * applied: a whole `mod.rs` for a directory the registry does not ship, and
+ * the lines to *add* to the one that is already there when it does. They are
+ * two kinds rather than a flag because nothing about a drop-in file may read
+ * the same as a patch to a populated one.
+ */
+export type ExportKind = "spectcl" | "rs" | "rs-mod" | "rs-mod-add" | "stub-file" | "stub-inline";
 
 /** One file a finished pack produces. */
 export interface ExportFile {
@@ -242,6 +250,20 @@ export interface ExportFile {
   source: string;
   /** The command a rendered `.rs` came from; absent for every other kind. */
   command?: string;
+}
+
+/**
+ * Two or more commands the export rendered to one path.
+ *
+ * Module stems follow the registry's own spelling, so `IP::ttl` and `ip_ttl`
+ * are filed apart — but two names that differ only in a character no
+ * identifier carries (`a-b` and `a_b`) still meet, and Rust can declare that
+ * module once. Which name to change is the author's call, so the export
+ * reports the meeting rather than resolving it.
+ */
+export interface ExportCollision {
+  path: string;
+  commands: string[];
 }
 
 /**
@@ -255,6 +277,7 @@ export interface PackExport {
   dialect: string;
   commands: number;
   files: ExportFile[];
+  collisions: ExportCollision[];
   error?: string;
 }
 

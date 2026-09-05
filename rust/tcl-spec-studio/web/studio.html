@@ -90,11 +90,15 @@ __STYLES__
             <!-- Which `commands/<dir>/` the pack's registry sources are
                  rendered into. A pack-level fact: it names the directory every
                  command's `.rs` *and* the `mod.rs` that collects them land in,
-                 which is why it is here and not beside one rendered file. -->
+                 which is why it is here and not beside one rendered file.
+                 Seeded from the document's own `speclib` name and editable
+                 from there: a default naming a pack the registry already
+                 ships would offer that pack's `mod.rs` as a drop-in holding
+                 only this document. -->
             <label class="packdir" for="packDir">
               <span>renders into</span>
               <code>rust/tcl-registry/src/commands/</code>
-              <input type="text" id="packDir" value="tcl" size="8">
+              <input type="text" id="packDir" value="" size="8" placeholder="pack name">
             </label>
           </div>
         </details>
@@ -225,6 +229,11 @@ __STYLES__
               <span class="path" id="exportPath"></span>
             </div>
             <div class="status" id="exportSummary"></div>
+            <!-- Two commands whose module stems collide are rendered to one
+                 path. Rust declares that module once, so the contribution
+                 would ship one of them and lose the other — said here rather
+                 than left to a reader to spot two rows with one name. -->
+            <div class="note warn" id="exportCollisions" hidden></div>
             <div class="note info" id="exportEmpty" hidden></div>
             <div class="exportsplit" id="exportBody">
               <ul class="exportlist" id="exportList" role="listbox" tabindex="0" aria-label="Files this pack produces"></ul>

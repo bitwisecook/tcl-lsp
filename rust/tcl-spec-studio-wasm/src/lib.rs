@@ -88,14 +88,6 @@ pub fn command_index(dialect: &str) -> String {
     to_string(&tcl_spec_studio::command_index(dialect))
 }
 
-/// Every artefact the pack produces: its `.tclspec`, one `.rs` per command,
-/// the `mod.rs` collecting them, and the dialect stub in both spellings.
-#[wasm_bindgen]
-#[must_use]
-pub fn pack_export(source: &str, pack: &str, dialect: &str) -> String {
-    to_string(&tcl_spec_studio::pack_export(source, pack, dialect))
-}
-
 /// The authoring packs `dialect` browses, with a command count each — the
 /// studio's top-level navigation.
 #[wasm_bindgen]
@@ -438,6 +430,22 @@ pub fn pack_remove_command(source: &str, name: &str) -> String {
     } else {
         error(&format!("the pack does not declare `{name}`"))
     }
+}
+
+/// Every artefact the pack produces: its `.tclspec`, one `.rs` per command,
+/// the `mod.rs` collecting them, and the dialect stub in both spellings.
+///
+/// Through [`with_store`] like every other entry point in this section, and
+/// for the reason they are: a form edit against a **programmed** document
+/// leaves `source` alone and stands as a patch in the cached store (E-R12).
+/// Re-parsing the text here exported the pack as it was *before* that edit,
+/// so the Export tab disagreed with the form the author was looking at.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_export(source: &str, pack: &str, dialect: &str) -> String {
+    with_store(source, |store| {
+        to_string(&tcl_spec_studio::pack_export_from(store, pack, dialect))
+    })
 }
 
 /// The patch pack standing over `source`, and the overrides it holds.

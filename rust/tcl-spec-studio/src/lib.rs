@@ -228,17 +228,44 @@ pub fn pack_catalogue(dialect: &str) -> Value {
 /// commands, and carries every file with the `kind` that says which surface
 /// reads it. `pack` is the registry directory, not the pack's name: it
 /// decides where the `.rs` files land and what the collector is called.
+///
+/// It also carries `collisions`: the paths two commands were both rendered to.
+/// [`render_rs::suggested_path`] keeps the registry's own spelling, so
+/// `IP::ttl` and `ip_ttl` no longer meet — but `a-b` and `a_b` still do, and
+/// an export that quietly filed one over the other is exactly the failure this
+/// reports.
 #[must_use]
 pub fn pack_export(source: &str, pack: &str, dialect: &str) -> Value {
-    let store = store::PackStore::from_source(source);
-    let commands = store.commands();
+    pack_export_from(&store::PackStore::from_source(source), pack, dialect)
+}
+
+/// [`pack_export`] against a store that is already loaded.
+///
+/// The store, not the source, is the studio's state: a form edit against a
+/// **programmed** document leaves the text alone and stands as a patch pack
+/// over it (E-R12), so re-parsing the source here would render the pack as it
+/// was before the edit. Every other wasm entry point runs against the cached
+/// store; this is how the export joins them.
+#[must_use]
+pub fn pack_export_from(store: &store::PackStore, pack: &str, dialect: &str) -> Value {
+    let commands = live_commands(store);
     let mut files = vec![json!({
         "kind": "spectcl",
         "path": format!("{}.tclspec", store.name()),
         "source": store.canonical(),
     })];
+    // A standing patch is the document's other half, not a rewrite of it: the
+    // author's program is never edited, so the export ships both packs the way
+    // the studio holds them.
+    if let Some(patch) = store.patch_source() {
+        files.push(json!({
+            "kind": "spectcl",
+            "path": format!("{}.tclspec", store.patch_name()),
+            "source": patch,
+        }));
+    }
 
-    for (name, draft) in commands {
+    for (name, draft) in &commands {
         files.push(json!({
             "kind": "rs",
             "path": render_rs::suggested_path(name, pack),
@@ -248,10 +275,21 @@ pub fn pack_export(source: &str, pack: &str, dialect: &str) -> Value {
     }
 
     if !commands.is_empty() {
+        // Naming a shipped directory is the ordinary case — a contribution to
+        // `tcl` is a handful of commands added to hundreds — and a whole-file
+        // `mod.rs` offered for it is a drop-in that deletes the rest of the
+        // pack. Rendered as an addition, it cannot be applied that way.
+        let shipped = tcl_registry::commands::SpecPack::by_id(pack).is_some();
+        let form = if shipped {
+            render_rs::ModuleForm::Addition
+        } else {
+            render_rs::ModuleForm::Whole
+        };
+        let dir = format!("rust/tcl-registry/src/commands/{pack}/mod.rs");
         files.push(json!({
-            "kind": "rs-mod",
-            "path": format!("rust/tcl-registry/src/commands/{pack}/mod.rs"),
-            "source": render_rs::render_pack_module(commands, pack),
+            "kind": if shipped { "rs-mod-add" } else { "rs-mod" },
+            "path": if shipped { format!("{dir}.additions") } else { dir },
+            "source": render_rs::render_pack_module(&commands, pack, form),
         }));
     }
 
@@ -271,8 +309,60 @@ pub fn pack_export(source: &str, pack: &str, dialect: &str) -> Value {
         "pack": store.name(),
         "dialect": dialect,
         "commands": commands.len(),
+        "collisions": path_collisions(&commands, pack),
         "files": files,
     })
+}
+
+/// The commands the export renders: the document's, each at the definition
+/// that is actually **live**.
+///
+/// A patch pack (E-R12) stands over the document's own declaration, and may
+/// also declare a command the document never did — a form edit that renamed
+/// one, or added one to a program. Both belong in the export, because both are
+/// what the registry answers with.
+fn live_commands(store: &store::PackStore) -> Vec<(String, draft::Draft)> {
+    let mut out: Vec<(String, draft::Draft)> = store
+        .commands()
+        .iter()
+        .map(|(name, draft)| {
+            let live = store.effective_draft(name).unwrap_or(draft);
+            (name.clone(), live.clone())
+        })
+        .collect();
+    for standing in store.standing_overrides() {
+        if out.iter().any(|(name, _)| *name == standing.command) {
+            continue;
+        }
+        if let Some(draft) = store.patch_draft(&standing.command) {
+            out.push((standing.command.clone(), draft.clone()));
+        }
+    }
+    out
+}
+
+/// Every path more than one command renders to, with the commands that met
+/// there — `[]` for a pack whose stems are all distinct.
+///
+/// The `mod.rs` can only declare such a module once, so a collision is a
+/// command the contribution would lose. Reporting it is the whole of the
+/// answer here: which of two names to change is the author's call, not one a
+/// renderer can make for them.
+fn path_collisions(commands: &[(String, draft::Draft)], pack: &str) -> Value {
+    let mut at: Vec<(String, Vec<String>)> = Vec::new();
+    for (name, _) in commands {
+        let path = render_rs::suggested_path(name, pack);
+        match at.iter_mut().find(|(known, _)| *known == path) {
+            Some((_, names)) => names.push(name.clone()),
+            None => at.push((path, vec![name.clone()])),
+        }
+    }
+    Value::Array(
+        at.into_iter()
+            .filter(|(_, names)| names.len() > 1)
+            .map(|(path, commands)| json!({ "path": path, "commands": commands }))
+            .collect(),
+    )
 }
 
 /// The dialect list the studio's picker shows.
@@ -374,6 +464,45 @@ mod tests {
         assert_eq!(pack_of("f5-irules", "close").as_deref(), Some("irules"));
     }
 
+    /// A pack declaring `names`, exported into `pack` for `dialect`.
+    fn export_of(names: &[&str], pack: &str, dialect: &str) -> Value {
+        let mut store = store::PackStore::empty("demo");
+        for name in names {
+            let mut d = draft::default_command_draft();
+            d.insert("name".to_owned(), json!(name));
+            store.set_command(name, &d, false);
+        }
+        pack_export(store.source(), pack, dialect)
+    }
+
+    fn kinds(export: &Value) -> Vec<&str> {
+        export["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .filter_map(|f| f["kind"].as_str())
+            .collect()
+    }
+
+    fn paths(export: &Value) -> Vec<&str> {
+        export["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .filter_map(|f| f["path"].as_str())
+            .collect()
+    }
+
+    fn module_source<'a>(export: &'a Value, kind: &str) -> &'a str {
+        export["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .find(|f| f["kind"] == json!(kind))
+            .and_then(|f| f["source"].as_str())
+            .unwrap_or_else(|| panic!("no {kind} in the export"))
+    }
+
     /// The export is the pack, not whichever command the form happens to
     /// hold: every command's `.rs`, the `mod.rs` that collects them, the
     /// document itself, and the stub in both spellings.
@@ -411,25 +540,148 @@ mod tests {
         assert!(module.contains("pub fn demo_command_specs()"), "{module}");
     }
 
-    /// A namespaced command still lands on one legal module name, so the
-    /// collector needs no lint suppression the way the hand-written packs do.
+    /// A namespaced command is filed the way the registry files one — `::` as
+    /// a double underscore — so the collector carries the same lint
+    /// suppression every hand-written pack does.
     #[test]
-    fn a_namespaced_command_gets_a_snake_case_module_name() {
-        let mut store = store::PackStore::empty("demo");
-        let mut d = draft::default_command_draft();
-        d.insert("name".to_owned(), json!("HTTP::header"));
-        store.set_command("HTTP::header", &d, false);
-        let export = pack_export(store.source(), "demo", "f5-irules");
-        let module = export["files"]
+    fn a_namespaced_command_is_filed_as_the_registry_files_one() {
+        let export = export_of(&["HTTP::header"], "demo", "f5-irules");
+        let module = module_source(&export, "rs-mod");
+        assert!(module.contains("mod http__header;"), "{module}");
+        assert!(module.contains("http__header::spec(),"), "{module}");
+        assert!(module.contains("#![allow(non_snake_case)]"), "{module}");
+        assert!(
+            paths(&export).contains(&"rust/tcl-registry/src/commands/demo/http__header.rs"),
+            "{:?}",
+            paths(&export)
+        );
+    }
+
+    /// The `mod.rs` is written *into* `tcl-registry`, which does not alias
+    /// itself: `use tcl_registry::CommandSpec;` there is `E0432`, and the
+    /// file the studio advertised as a drop-in did not compile.
+    #[test]
+    fn the_exported_module_compiles_inside_the_registry_crate() {
+        let export = export_of(&["greet"], "demo", "tcl9.0");
+        let module = module_source(&export, "rs-mod");
+        assert!(!module.contains("use tcl_registry::"), "{module}");
+        assert!(module.contains("use crate::spec::CommandSpec;"), "{module}");
+    }
+
+    /// `IP::ttl` and `ip_ttl` are both real iRules commands. Filing them at
+    /// one path emitted two files there and one `mod` line, so the pack
+    /// shipped one of the two and lost the other without saying so.
+    #[test]
+    fn two_commands_the_registry_files_apart_are_exported_apart() {
+        let export = export_of(&["IP::ttl", "ip_ttl"], "demo", "f5-irules");
+        assert_eq!(export["collisions"], json!([]));
+        let paths = paths(&export);
+        assert!(
+            paths.contains(&"rust/tcl-registry/src/commands/demo/ip__ttl.rs"),
+            "{paths:?}"
+        );
+        assert!(
+            paths.contains(&"rust/tcl-registry/src/commands/demo/ip_ttl.rs"),
+            "{paths:?}"
+        );
+        let module = module_source(&export, "rs-mod");
+        assert!(module.contains("mod ip__ttl;"), "{module}");
+        assert!(module.contains("mod ip_ttl;"), "{module}");
+    }
+
+    /// A collision no naming rule can resolve — the two names differ only in
+    /// a character no identifier carries — is reported rather than resolved
+    /// by whichever file the export happened to write last.
+    #[test]
+    fn a_residual_path_collision_is_reported_beside_the_files() {
+        let export = export_of(&["a-b", "a_b"], "demo", "tcl9.0");
+        assert_eq!(
+            export["collisions"],
+            json!([{
+                "path": "rust/tcl-registry/src/commands/demo/a_b.rs",
+                "commands": ["a-b", "a_b"],
+            }])
+        );
+    }
+
+    /// `commands/tcl/` is a real, populated directory. A whole-file `mod.rs`
+    /// offered for it is a drop-in that deletes every command already there.
+    #[test]
+    fn a_shipped_directory_is_exported_as_an_addition_not_a_replacement() {
+        let export = export_of(&["greet"], "tcl", "tcl9.0");
+        let shipped = kinds(&export);
+        assert!(shipped.contains(&"rs-mod-add"), "{shipped:?}");
+        assert!(!shipped.contains(&"rs-mod"), "{shipped:?}");
+        let paths = paths(&export);
+        assert!(
+            !paths.contains(&"rust/tcl-registry/src/commands/tcl/mod.rs"),
+            "{paths:?}"
+        );
+        let module = module_source(&export, "rs-mod-add");
+        assert!(module.contains("NOT A DROP-IN FILE"), "{module}");
+        assert!(!module.contains("pub fn tcl_command_specs()"), "{module}");
+
+        // A directory the registry does not ship is still a whole file.
+        let fresh = export_of(&["greet"], "mylib", "tcl9.0");
+        assert!(kinds(&fresh).contains(&"rs-mod"), "{:?}", kinds(&fresh));
+    }
+
+    /// A **programmed** document is never rewritten: a form edit stands as a
+    /// patch pack over it (E-R12). The export renders what the registry
+    /// actually answers with, so it renders the override — not the
+    /// declaration the program computed before it.
+    #[test]
+    fn the_export_renders_a_standing_patch_not_the_document_under_it() {
+        let program = "speclib fleet 1 {\n    foreach name {alpha} {\n        command fleet::$name {\n            synopsis {fleet::$name}\n            arity 0\n        }\n    }\n}\n";
+        let mut store = store::PackStore::from_source(program);
+        assert!(
+            store.programmed().is_some(),
+            "the document must be a program"
+        );
+        let mut edited = store
+            .draft("fleet::alpha")
+            .expect("the declared command")
+            .clone();
+        edited.insert(
+            "hover".to_owned(),
+            json!({ "summary": "patched by the form", "synopsis": [], "snippet": "",
+                    "source": "", "examples": "", "return_value": "" }),
+        );
+        store.set_command("fleet::alpha", &edited, false);
+        assert_eq!(store.source(), program, "the program was rewritten");
+        assert!(
+            store.patch_source().is_some(),
+            "the edit did not become a patch"
+        );
+
+        // The source is not the state, and this is the proof: the document
+        // is byte-for-byte what it was, so the entry point that re-parses it
+        // renders the declaration the program computed. That is the entry
+        // point the wasm facade used to call.
+        let rendered_from_source = pack_export(store.source(), "demo", "tcl9.0");
+        assert!(
+            !rendered_from_source
+                .to_string()
+                .contains("patched by the form"),
+            "the patch cannot be in the document — that is what makes it a patch"
+        );
+
+        let export = pack_export_from(&store, "demo", "tcl9.0");
+        let rendered = export["files"]
             .as_array()
             .expect("files")
             .iter()
-            .find(|f| f["kind"] == "rs-mod")
+            .find(|f| f["command"] == json!("fleet::alpha"))
             .and_then(|f| f["source"].as_str())
-            .expect("mod.rs");
-        assert!(module.contains("mod http_header;"), "{module}");
-        assert!(module.contains("http_header::spec(),"), "{module}");
-        assert!(!module.contains("non_snake_case"), "{module}");
+            .expect("the rendered .rs");
+        assert!(rendered.contains("patched by the form"), "{rendered}");
+        // Both halves of the studio's state are in the export, so reloading
+        // the pair restores what the author was looking at.
+        assert!(
+            paths(&export).contains(&"fleet-studio-overrides.tclspec"),
+            "{:?}",
+            paths(&export)
+        );
     }
 
     #[test]

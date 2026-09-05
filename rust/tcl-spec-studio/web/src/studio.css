@@ -334,6 +334,7 @@ summary .qbtn { margin-left: .45rem; }
 .exportfile .dir { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); overflow-wrap: anywhere; }
 .exportfile .state { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .15rem; }
 .exportfile .tag.cmd { border-color: var(--accent); color: var(--accent); font-family: var(--mono); }
+.exportfile .tag.clash { border-color: var(--warn-bd); color: var(--warn-fg); background: var(--warn-bg); }
 .exportsurface[hidden] { display: none; }
 
 /* The tray of files gathered for a GitHub issue. */

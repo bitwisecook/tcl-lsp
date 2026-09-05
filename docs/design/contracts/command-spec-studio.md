@@ -697,13 +697,46 @@ contributor write by hand — each `mod` line having to match the stem
 `suggested_path` chose for the `.rs`. Two places to get wrong for no
 judgement gained, so one `module_stem` feeds both.
 
-It carries no `#![allow(non_snake_case)]`, though every hand-written pack
-does. Theirs spell a `::` as a double underscore — `HTTP::header` is
-`http__header.rs` — and rustc's lint rejects consecutive underscores;
-`suggested_path` lower-cases and collapses each run of separators to one,
-so every stem it produces (`http_header`) is already snake case and the
-allowance would silence a lint that cannot fire. An empty pack gets no
-`mod.rs`: a collector of nothing is a file with no reason to exist.
+`suggested_path` files a command the way the registry's own thousand-odd
+command files do: a namespace `::` is a **double** underscore, every other
+run of punctuation a single one. `IP::ttl` is `ip__ttl.rs` and `ip_ttl` is
+`ip_ttl.rs`, and iRules really ships both. Collapsing every separator run
+to one underscore put four such pairs at one path, where `pack_export`
+wrote one file over the other and `render_pack_module` — which
+deduplicates, because Rust declares a module once — emitted a single `mod`
+line: a command silently missing from the contribution. So the generated
+`mod.rs` carries `#![allow(non_snake_case)]`, as an inner attribute above
+the `mod` lines, exactly like the six hand-written packs whose stems have
+the same shape.
+
+The import is `use crate::spec::CommandSpec;`. The file is written *into*
+`tcl-registry`, which does not alias itself, so `use tcl_registry::…` there
+is `E0432` — the file the studio advertised as a drop-in did not compile.
+`rust/tcl-registry/src/commands/*/mod.rs` is the check: thirteen files,
+twelve saying `crate::spec` and one `crate::prelude`, none of them naming
+the crate.
+
+A residual collision survives any naming rule: `a-b` and `a_b` differ only
+in a character no identifier carries, as do the operator commands `+` and
+`-`. `pack_export` reports those in `collisions` — path and the commands
+that met there — and the Export pane says so above the list. Which name to
+change is the author's, not a renderer's.
+
+**Whole file or addition.** `render_pack_module` takes a `ModuleForm`.
+`Whole` is the drop-in above. `Addition` is what a directory the registry
+*already ships* gets: no banner, no collector body, and a comment block
+saying — before anything else on the page — that this is not a file to
+write over `commands/tcl/mod.rs`, followed by the `mod` lines and the
+collector rows to merge into the one that is there. `pack_export` chooses
+by asking `tcl_registry::commands::SPEC_PACKS` whether the directory is a
+shipped pack's, gives the addition the `rs-mod-add` kind and a
+`mod.rs.additions` path, and the pane labels the row *add to the pack's
+mod.rs* and drops the section's "drop-in" promise. A whole-file `mod.rs`
+offered for `tcl` holds only the commands in this document; applying it
+deletes the other several hundred.
+
+An empty pack gets no `mod.rs`: a collector of nothing is a file with no
+reason to exist.
 
 ## Stub renderer contract
 
@@ -738,15 +771,34 @@ produces, in one call:
 |---|---|---|
 | `spectcl` | `<name>.tclspec` | `PackStore::canonical` — the pack re-rendered from its drafts, not the text as typed; the DSL pane's own download is the text |
 | `rs`, one per command | `suggested_path(command, pack)` | `render_rs::render`, with `command` beside it |
-| `rs-mod` | `rust/tcl-registry/src/commands/<pack>/mod.rs` | `render_pack_module`; absent for an empty pack |
+| `rs-mod` | `rust/tcl-registry/src/commands/<pack>/mod.rs` | `render_pack_module`, `ModuleForm::Whole` — a directory the registry does not ship; absent for an empty pack |
+| `rs-mod-add` | `…/<pack>/mod.rs.additions` | `ModuleForm::Addition` — the lines to add to a shipped pack's `mod.rs`, in its place |
 | `stub-file` | `<dialect>.tcl.stubs` | `render_stub`, `Mode::File` |
 | `stub-inline` | `stubs.tcl` | `render_stub`, `Mode::Inline` |
+
+The reply also carries `collisions`: `{path, commands}` for every path two
+commands were rendered to. Nothing is dropped for one — both `.rs` files are
+in the list — but the `mod.rs` can only declare that module once, so the pack
+would ship one of them. The pane says so above the list and tags the rows;
+`web/src/packExport.ts` writes the sentence, as it writes every other one.
 
 `pack` is the registry directory the `.rs` files are filed under and the
 collector is named after; the reply's `pack` is the document's `speclib`
 name. Two facts, kept apart on the page: the directory is `#packDir` in the
 pack panel, beside the name, because it is about every `.rs` and the
 `mod.rs` rather than the command that happens to be open.
+
+**The directory is seeded from the document, not from a real pack.**
+`#packDir` used to default to the literal `tcl`, which is a populated
+authoring directory: an untouched export therefore offered
+`commands/tcl/mod.rs` holding this document's handful of commands, as a
+drop-in, and named its collector `tcl_command_specs()` however the document
+called itself. It now follows the `speclib` name — `mylib` proposes
+`mylib` — and keeps following it until the author types their own, which is
+the field's whole purpose and stays available. The collector identifier is
+the directory with each punctuation run collapsed (`my-lib` →
+`my_lib_command_specs`), because a `speclib` name is free text and an
+identifier is not.
 
 One **Export** tab replaces the two panes. `web/src/packExport.ts` decides
 — the groups and their order, a kind's label and surface, the summary line,
@@ -757,6 +809,18 @@ with nothing in it is dropped, and the selection is held by *path*, so a
 recompute leaves the reader on the file they had open. Every write to the
 document — form, DSL keystroke, import — schedules a re-export behind the
 same 120 ms settle as the form's write-back.
+
+**The export runs against the store, not the source.** `pack_export(source,
+…)` is the plain-Rust entry point and loads the document itself;
+`pack_export_from(&PackStore, …)` is what the wasm facade calls, inside the
+same `with_store` cache every other pack entry point uses. A form edit
+against a **programmed** document leaves `source` untouched and stands as a
+patch pack over it (E-R12), so re-parsing the text exported the pack as it
+was *before* the edit — the Export tab disagreed with the form on screen.
+Each command is rendered at its `effective_draft`, a command the patch
+declares and the document does not is rendered too, and the patch ships as
+its own `<pack>-studio-overrides.tclspec` beside the document. Both halves
+of the studio's state, because that is what the studio holds.
 
 **Two surfaces, not three.** Every artefact is Rust or Tcl, and the two
 read-only editors the old panes used are exactly those: the Rust one has no

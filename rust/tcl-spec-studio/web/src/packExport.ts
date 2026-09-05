@@ -25,7 +25,7 @@
 // it, and what the line above the list says are all functions of that reply,
 // so they live here and `studio.ts` only paints the answer.
 
-import type { ExportFile, ExportKind, PackExport } from "./types.js";
+import type { ExportCollision, ExportFile, ExportKind, PackExport } from "./types.js";
 
 /**
  * The two stub spellings are one artefact seen two ways, so the pane offers
@@ -45,6 +45,40 @@ export interface ExportGroup {
   files: ExportFile[];
 }
 
+/**
+ * The registry directory the `.rs` files are rendered into, given what the
+ * author has typed and what the document calls itself.
+ *
+ * The pack's own name is the answer until they say otherwise. The field used
+ * to default to the literal `tcl`, which is a real, populated authoring
+ * directory: an untouched export therefore offered `commands/tcl/mod.rs`
+ * holding this document's handful of commands as a drop-in, and applying it
+ * would have deleted every other command in the Tcl pack. It also named the
+ * collector after the wrong pack — a `mylib` document exported
+ * `tcl_command_specs()`.
+ */
+export function packDirectory(typed: string, packName: string): string {
+  return typed.trim() || packName.trim() || "pack";
+}
+
+/**
+ * The value the directory field should take now the document is named
+ * `packName`, or `null` to leave it exactly as it is.
+ *
+ * `seeded` is what this function last returned. A field holding anything else
+ * is the author's, and renaming the library does not take it from them; an
+ * empty one, or one still holding the last seed, follows the name.
+ */
+export function reseedPackDir(
+  typed: string,
+  seeded: string | null,
+  packName: string,
+): string | null {
+  if (!packName || typed === packName) return null;
+  if (typed !== "" && typed !== seeded) return null;
+  return packName;
+}
+
 /** How a row names an artefact's kind. */
 export function kindLabel(kind: ExportKind): string {
   switch (kind) {
@@ -54,6 +88,8 @@ export function kindLabel(kind: ExportKind): string {
       return "registry command";
     case "rs-mod":
       return "module collector";
+    case "rs-mod-add":
+      return "add to the pack's mod.rs";
     case "stub-file":
       return "stub file";
     case "stub-inline":
@@ -67,7 +103,7 @@ export function kindLabel(kind: ExportKind): string {
  * showing one file at a time needs no third surface.
  */
 export function surfaceOf(kind: ExportKind): ExportSurface {
-  return kind === "rs" || kind === "rs-mod" ? "rust" : "tcl";
+  return kind === "rs" || kind === "rs-mod" || kind === "rs-mod-add" ? "rust" : "tcl";
 }
 
 /** The stub spelling the other view would show. */
@@ -90,7 +126,7 @@ const GROUPS: { title: string; note: string; kinds: ExportKind[] }[] = [
   {
     title: "Registry sources",
     note: "Drop-in tcl-registry modules: one per command, plus the mod.rs that declares and collects them.",
-    kinds: ["rs", "rs-mod"],
+    kinds: ["rs", "rs-mod", "rs-mod-add"],
   },
   {
     title: "Dialect stub",
@@ -108,9 +144,40 @@ export function exportGroups(files: ExportFile[]): ExportGroup[] {
   const groups: ExportGroup[] = [];
   for (const group of GROUPS) {
     const members = files.filter((file) => group.kinds.includes(file.kind));
-    if (members.length) groups.push({ title: group.title, note: group.note, files: members });
+    if (!members.length) continue;
+    // "Drop-in" is a promise the collector cannot keep for a pack the
+    // registry already ships: there the mod.rs is a set of lines to add, and
+    // the section says so rather than leaving the row to correct it.
+    const note = members.some((file) => file.kind === "rs-mod-add")
+      ? "One drop-in tcl-registry module per command. The pack directory already exists, so its mod.rs comes as the lines to add to the file that is there — not as a replacement for it."
+      : group.note;
+    groups.push({ title: group.title, note, files: members });
   }
   return groups;
+}
+
+/**
+ * What the pane says above the list when two commands were rendered to one
+ * path — the export's own warning, in the author's terms.
+ *
+ * Empty when nothing collided, so a caller can hide the banner on falsiness.
+ */
+export function collisionNotice(collisions: ExportCollision[]): string {
+  if (!collisions.length) return "";
+  const each = collisions
+    .map((clash) => `${clash.commands.join(" and ")} → ${fileBase(clash.path)}`)
+    .join("; ");
+  const carry = collisions.length === 1 ? "carries" : "carry";
+  return (
+    `${plural(collisions.length, "path")} ${carry} more than one command: ${each}. ` +
+    "Rust declares that module once, so the pack would ship one of each set and lose the " +
+    "rest — rename one of the commands, or file it in a different pack."
+  );
+}
+
+/** The commands the export could not keep apart, as a lookup by path. */
+export function collidingCommands(collisions: ExportCollision[], path: string): string[] {
+  return collisions.find((clash) => clash.path === path)?.commands ?? [];
 }
 
 function plural(count: number, noun: string): string {
