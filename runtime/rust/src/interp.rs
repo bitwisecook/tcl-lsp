@@ -1888,16 +1888,6 @@ impl Interp {
         let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
             return RenameOutcome::NoSuchCommand;
         };
-        // `Namespaces::publish_rename_destination` writes the table entry
-        // directly rather than going through `ns_register`, so clear the
-        // destination's TclOO root marking here too. Today an OO rename is also
-        // re-registered through the funnel by `oo_command_renamed`, which
-        // clears it; doing it here as well makes the invariant — "a root
-        // marking never outlives the entry it described" — hold for the rename
-        // path on its own, rather than by way of a follow-up call that a future
-        // refactor could reorder or drop.
-        let dest = self.fqn_for(new);
-        self.forget_registry_object_root(&dest);
         let Some(publication) = self.namespaces.borrow_mut().publish_rename_destination(
             self.current_ns.get(),
             old,
@@ -1906,6 +1896,15 @@ impl Interp {
             return RenameOutcome::NoSuchCommand;
         };
         let new_fqn = publication.destination_fqn.clone();
+        // `Namespaces::publish_rename_destination` writes the table entry
+        // directly rather than going through `ns_register`, so drop the marking
+        // that described whatever it displaced at the destination. Today an OO
+        // rename is also re-registered through the funnel by
+        // `oo_command_renamed`, which clears it; doing it here as well makes the
+        // invariant — "a root marking never outlives the entry it described" —
+        // hold for the rename path on its own, rather than by way of a
+        // follow-up call that a future refactor could reorder or drop.
+        self.forget_registry_object_root(&new_fqn);
         // The trace list (and any OO object) follows to the new name, and so
         // does every `namespace import` redirect of the old name — C's imports
         // hold the source's command token, so they survive a source rename

@@ -1058,3 +1058,35 @@ fn the_rename_window_covers_objects_ensembles_and_imports() {
          after: M S F"
     );
 }
+
+/// Two nested renames inside one pass: the enclosing window and the
+/// `CMD_TRACE_ACTIVE` stand-in must both be retargeted each time, so the
+/// outermost vacating name keeps reaching the command wherever it has got to,
+/// and the pass's later callbacks neither re-fire nor lose it.
+#[test]
+fn a_twice_nested_rename_keeps_retargeting_the_enclosing_window() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc R1 {old new op} { lappend ::log R1; rename victim v3 }\n\
+         proc R2 {old new op} { lappend ::log \"R2: [trace info command victim] | \
+         [trace info command v3]\" }\n\
+         proc R3 {old new op} { lappend ::log \"R3: [catch {rename victim v4}] \
+         [llength [info commands ::v4]]\" }\n\
+         trace add command victim rename R3\n\
+         trace add command victim rename R2\n\
+         trace add command victim rename R1\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]] [llength [info commands ::v3]] \
+         [llength [info commands ::v4]] [v4]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R1\n\
+         R2: {rename R1} {rename R2} {rename R3} | {rename R1} {rename R2} {rename R3}\n\
+         R3: 0 1\n\
+         after: 0 0 0 1 V"
+    );
+}
