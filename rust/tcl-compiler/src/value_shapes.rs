@@ -282,10 +282,30 @@ pub fn parse_command_substitution_with_spans_and_config(
         } else {
             // Adjacent tokens with no separator concatenate onto the
             // previous word (e.g. `$a$b` or `foo$x`).
+            //
+            // Extend by slicing `inner` from where the word so far ends,
+            // never by appending this token's own raw text: raw token spans
+            // *overlap* when a quoted word opens directly on a substitution.
+            // `parse_quoted`'s documented empty-content clamp extends a
+            // zero-content `Esc` one byte over the `$`/`[` that stopped the
+            // scan — so `"[lindex $x 0]"` lexes `Esc 5..7` (`"[`) followed by
+            // `Cmd 6..18`, and both claim the `[`. The clamp is the lexer's
+            // convention, resolved there by `SourceMap::token_text`; a
+            // consumer that wants the raw source spelling has to reconcile
+            // it. Appending raw text emitted the shared byte twice
+            // (`"[[lindex $x 0]"`), leaving the text disagreeing with its own
+            // (correct) span. Slicing the gap keeps the two in lockstep by
+            // construction: the word's text is always exactly the source
+            // covered by the word's span (#1846).
             let (last_text, last_span) =
                 words.last_mut().expect("words is non-empty in this branch");
-            last_text.push_str(&word_text);
-            *last_span = Span::new(last_span.start(), abs_span.end());
+            let joined_end = abs_span.end().max(last_span.end());
+            if joined_end > last_span.end() {
+                let from = usize::try_from(last_span.end() - base).ok()?;
+                let to = usize::try_from(joined_end - base).ok()?;
+                last_text.push_str(inner.get(from..to)?);
+            }
+            *last_span = Span::new(last_span.start(), joined_end);
         }
         prev_kind = tok.kind;
     }
@@ -659,5 +679,77 @@ mod tests {
             &text[args[1].1.start() as usize..args[1].1.end() as usize],
             "\"a$b\""
         );
+    }
+
+    /// A quoted word that opens *directly* on a command substitution used
+    /// to come back with a doubled `[` and no closing `]`
+    /// (`"[[lindex $x 0]"`, #1846). The raw token spans overlap in this
+    /// shape — `parse_quoted`'s empty-content clamp extends the opening
+    /// `Esc` one byte over the `[` that stopped its scan, and the `Cmd`
+    /// token starts on that same `[` — so concatenating raw token text
+    /// emitted the shared byte twice.
+    #[test]
+    fn spans_quoted_word_opening_on_command_sub_is_not_doubled() {
+        let text = r#"[list "[lindex $x 0]"]"#;
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(cmd, "list");
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0].0, "\"[lindex $x 0]\"");
+        assert_eq!(
+            &text[args[0].1.start() as usize..args[0].1.end() as usize],
+            "\"[lindex $x 0]\""
+        );
+    }
+
+    /// The same clamp extends the opening `Esc` over a `$` introducer, so
+    /// a quoted word opening directly on a variable substitution is the
+    /// other half of the overlap family fixed with #1846.
+    #[test]
+    fn spans_quoted_word_opening_on_var_sub_is_not_doubled() {
+        let text = r#"[list "$x"]"#;
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(cmd, "list");
+        assert_eq!(args[0].0, "\"$x\"");
+        assert_eq!(
+            &text[args[0].1.start() as usize..args[0].1.end() as usize],
+            "\"$x\""
+        );
+    }
+
+    /// The #1846 table: the one broken shape plus the three neighbouring
+    /// shapes that were already right, each pinned on the invariant the
+    /// bug broke — a returned argument's text is exactly the source its
+    /// own span covers, so the two can never disagree again.
+    #[test]
+    fn spans_argument_text_always_matches_its_own_span() {
+        for text in [
+            r#"[list "[lindex $x 0]"]"#,
+            r#"[list "a[foo]"]"#,
+            r"[list a[lindex $x 0]b]",
+            r"[list ${p}]",
+            r#"[list "$x"]"#,
+            r#"[list "a$b" {c d} [e]]"#,
+        ] {
+            let (_cmd, args) = parse_command_substitution_with_spans_and_config(
+                text,
+                tcl_lexer::LexerConfig::default(),
+            )
+            .unwrap_or_else(|| panic!("{text} should parse as one command substitution"));
+            for (arg_text, span) in &args {
+                assert_eq!(
+                    arg_text.as_str(),
+                    &text[span.start() as usize..span.end() as usize],
+                    "argument text and span disagree for {text}"
+                );
+            }
+        }
     }
 }
