@@ -1191,7 +1191,7 @@ impl<'src> Lexer<'src> {
                         || after == b']'
                         || is_bs_nl;
                     if !ok {
-                        self.warn_or_error("extra characters after close-quote")?;
+                        self.warn_or_error(crate::EXTRA_AFTER_CLOSE_QUOTE)?;
                     }
                 }
             }
