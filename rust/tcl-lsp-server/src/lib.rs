@@ -421,6 +421,11 @@ impl DocumentReadiness {
     }
 }
 
+struct FreshAnalysisSeed {
+    analysis: Arc<AnalysisResult>,
+    class_factory_generation: u64,
+}
+
 /// A snapshot of what the editor holds for every open document, by path.
 ///
 /// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
@@ -2634,6 +2639,7 @@ struct DiagInputs {
     /// The salsa `Project` input handle (workspace file set), read by the worker
     /// for opt-in cross-file callback-arity validation.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Per-folder salsa `AnalyserConfig` handles (see
     /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
@@ -4233,6 +4239,8 @@ struct EvidenceHandles {
     /// Serialises that re-index with source-site reconciliation, exactly as
     /// [`Backend::merge_workspace_scan_results`] does.
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Serialises class-factory oracle changes with standalone index seeds.
+    class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
 }
 
 impl EvidenceHandles {
@@ -4244,6 +4252,7 @@ impl EvidenceHandles {
             workspace_index: Arc::clone(&inputs.workspace_index),
             documents: Arc::clone(&inputs.documents),
             rehoming_gate: Arc::clone(&inputs.rehoming_gate),
+            class_factory_generation: Arc::clone(&inputs.class_factory_generation),
         }
     }
 }
@@ -4567,6 +4576,11 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     let Ok(Some((want, pending))) = computed else {
         return ClassFactoryRound::Cancelled;
     };
+    // Take the oracle-generation writer before the database. Standalone
+    // analysis captures in that same order and holds a generation reader
+    // through index publication, so its oracle cannot change underneath the
+    // final replace.
+    let mut class_factory_generation = handles.class_factory_generation.write().await;
     let mut db = handles.db.lock().await;
     let mut changed = Vec::with_capacity(pending.len());
     for (uri, file) in pending {
@@ -4580,6 +4594,7 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     if changed.is_empty() {
         ClassFactoryRound::Settled
     } else {
+        *class_factory_generation = class_factory_generation.saturating_add(1);
         ClassFactoryRound::Moved(changed)
     }
 }
@@ -6625,6 +6640,11 @@ pub struct Backend {
     /// however the document or the index changed; the URI key just keeps the
     /// map small and evictable on `did_close`.
     workspace_class_analyses: Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
+    /// Oracle currency shared with every project-wide class-factory publisher.
+    /// A standalone analysis carries this generation and holds a read guard
+    /// through its index commit, so an older oracle can never overwrite facts
+    /// published after the analysis started.
+    class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
     /// Set while a debounced `workspace/semanticTokens/refresh` fire is
     /// scheduled (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]).
     /// The refresh carries no data — a client that receives it simply
@@ -7889,6 +7909,7 @@ impl Backend {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
+            class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
@@ -8498,15 +8519,25 @@ impl Backend {
         text: &str,
         dialect: &str,
         version: i32,
-        analysis: &AnalysisResult,
+        mut seed: FreshAnalysisSeed,
     ) -> bool {
-        let _rehoming_guard = self.rehoming_gate.lock().await;
         loop {
+            let rehoming_guard = self.rehoming_gate.lock().await;
+            let class_factory_generation = self.class_factory_generation.read().await;
+            if *class_factory_generation != seed.class_factory_generation {
+                drop(class_factory_generation);
+                drop(rehoming_guard);
+                seed = self
+                    .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
+                    .await;
+                continue;
+            }
             let mut docs = self.documents.lock("did_open_publish_complete").await;
             let current = docs.get(uri).is_some_and(|doc| {
                 doc.version == Some(version)
                     && doc.text.as_ref() == text
                     && doc.dialect.as_str() == dialect
+                    && !doc.backing_file_deleted
             });
             if !current {
                 return false;
@@ -8524,7 +8555,7 @@ impl Backend {
                 drop(self.rehomed_source_seeds.lock().await);
                 continue;
             };
-            index.replace_document(uri.as_str(), analysis);
+            index.replace_document(uri.as_str(), &seed.analysis);
             // This is a standalone replacement. Invalidate any source-site
             // view marker in the same rehoming transaction so the next
             // workspace query reapplies its qualified views.
@@ -8548,15 +8579,25 @@ impl Backend {
         text: &str,
         dialect: &str,
         revision: u64,
-        analysis: &AnalysisResult,
+        mut seed: FreshAnalysisSeed,
     ) -> bool {
-        let _rehoming_guard = self.rehoming_gate.lock().await;
         loop {
+            let rehoming_guard = self.rehoming_gate.lock().await;
+            let class_factory_generation = self.class_factory_generation.read().await;
+            if *class_factory_generation != seed.class_factory_generation {
+                drop(class_factory_generation);
+                drop(rehoming_guard);
+                seed = self
+                    .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
+                    .await;
+                continue;
+            }
             let mut docs = self.documents.lock("did_change_publish_complete").await;
             let current = docs.get(uri).is_some_and(|doc| {
                 doc.revision == revision
                     && doc.text.as_ref() == text
                     && doc.dialect.as_str() == dialect
+                    && !doc.backing_file_deleted
             });
             if !current {
                 return false;
@@ -8574,7 +8615,7 @@ impl Backend {
                 drop(self.rehomed_source_seeds.lock().await);
                 continue;
             };
-            index.replace_document(uri.as_str(), analysis);
+            index.replace_document(uri.as_str(), &seed.analysis);
             seeds.remove(uri.as_str());
             docs.get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
@@ -8600,10 +8641,10 @@ impl Backend {
         if !index_needs_seed {
             return true;
         }
-        let analysis = self
-            .fresh_analysis_for(uri, Arc::clone(text), dialect.to_owned())
+        let seed = self
+            .fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
             .await;
-        self.publish_live_index_if_current(uri, text, dialect, revision, &analysis)
+        self.publish_live_index_if_current(uri, text, dialect, revision, seed)
             .await
     }
 
@@ -8663,7 +8704,7 @@ impl Backend {
             text,
             dialect,
             version,
-            self.fresh_analysis_for(uri, Arc::from(text), dialect.to_owned()),
+            self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
         )
         .await
     }
@@ -8683,7 +8724,7 @@ impl Backend {
         seed: F,
     ) -> bool
     where
-        F: Future<Output = Arc<AnalysisResult>>,
+        F: Future<Output = FreshAnalysisSeed>,
     {
         {
             let _publication = self.live_publication_gate.lock().await;
@@ -8782,8 +8823,8 @@ impl Backend {
         // future owns no Salsa snapshot and runs after the publication gate is
         // released, so a newer edit can publish and make this seed obsolete.
         // The diagnostics worker may later replace it with its refined view.
-        let analysis = seed.await;
-        self.publish_open_index_if_current(uri, text, dialect, version, &analysis)
+        let seed = seed.await;
+        self.publish_open_index_if_current(uri, text, dialect, version, seed)
             .await
     }
 
@@ -9006,11 +9047,11 @@ impl Backend {
             // seed while it runs, exactly as on the cold-open path.
             drop(publication);
             let text: Arc<str> = Arc::from(text);
-            let analysis = self
-                .fresh_analysis_for(uri, Arc::clone(&text), dialect.to_owned())
+            let seed = self
+                .fresh_analysis_seed(uri, Arc::clone(&text), dialect.to_owned())
                 .await;
             return self
-                .publish_live_index_if_current(uri, &text, dialect, revision, &analysis)
+                .publish_live_index_if_current(uri, &text, dialect, revision, seed)
                 .await;
         }
     }
@@ -9112,10 +9153,11 @@ impl Backend {
     /// even though it cannot carry that view on a `SourceFile` yet.
     async fn published_class_factories_for_fresh_analysis(
         &self,
-    ) -> Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>> {
+    ) -> (u64, Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>) {
+        let generation = self.class_factory_generation.read().await;
         let db = self.db.lock().await;
         let files = self.db_files.lock().await;
-        Self::published_class_factories(&db, &files)
+        (*generation, Self::published_class_factories(&db, &files))
     }
 
     /// This document's cross-file call-site evidence, cloned out of the salsa
@@ -9510,12 +9552,22 @@ impl Backend {
         text: Arc<str>,
         dialect: String,
     ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
+        self.fresh_analysis_seed(uri, text, dialect).await.analysis
+    }
+
+    async fn fresh_analysis_seed(
+        &self,
+        uri: &Uri,
+        text: Arc<str>,
+        dialect: String,
+    ) -> FreshAnalysisSeed {
         // Analyse outside Salsa with the same per-folder config the cached path
         // would have used, so the result still honours folder-scoped
         // suppression and cross-file factory oracle without retaining a
         // database snapshot.
         let config = self.resolved_db_config(uri).await;
-        let workspace_class_factories = self.published_class_factories_for_fresh_analysis().await;
+        let (class_factory_generation, workspace_class_factories) =
+            self.published_class_factories_for_fresh_analysis().await;
         let (disabled, na_mode, extra, pack_key, resource) = {
             let db = self.db.lock().await;
             (
@@ -9526,7 +9578,7 @@ impl Backend {
                 ResourceAnalyserInputs::from_db_config(config, &*db),
             )
         };
-        crate::rt::spawn_blocking(move || {
+        let analysis = crate::rt::spawn_blocking(move || {
             let analysis_text = tcl_lexer::normalise_lone_cr(&text);
             let mut analyser =
                 Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
@@ -9534,7 +9586,11 @@ impl Backend {
             Arc::new(analyser.analyse(&analysis_text, &dialect))
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_default();
+        FreshAnalysisSeed {
+            analysis,
+            class_factory_generation,
+        }
     }
 
     /// Return a snapshot of the current workspace folder
@@ -11084,6 +11140,7 @@ impl Backend {
             db_project: _,
             db_config: _,
             client_supports_pull_diagnostics: _,
+            class_factory_generation: _,
             semantic_tokens_refresh_pending: _,
             warm_task: _,
             edit_order: _,
@@ -17358,6 +17415,7 @@ impl Backend {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_project: Arc::clone(&self.db_project),
+            class_factory_generation: Arc::clone(&self.class_factory_generation),
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
@@ -19565,6 +19623,7 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             documents: Arc::clone(&self.documents),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
+            class_factory_generation: Arc::clone(&self.class_factory_generation),
         };
         let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
         // …then re-index the unopened documents that oracle can change
@@ -20914,6 +20973,11 @@ impl LanguageServer for Backend {
             for uri in &deleted_while_open {
                 if let Some(doc) = docs.get_mut(uri) {
                     doc.backing_file_deleted = true;
+                    // For an orphan the current cross-document index view is
+                    // deliberately absent. Mark that derived state settled so
+                    // local providers do not wait for a seed which must never
+                    // resurrect the deleted path.
+                    doc.publication = DocumentPublication::Indexed;
                 }
             }
             for uri in &revived_while_open {
@@ -20921,6 +20985,9 @@ impl LanguageServer for Backend {
                     doc.backing_file_deleted = false;
                 }
             }
+            drop(docs);
+            self.live_publication_invalidated.notify_one();
+            self.live_publication_advanced.notify_waiters();
         }
         let domain_changed =
             !deleted.is_empty() || !changed.is_empty() || !revived_while_open.is_empty();
@@ -28027,7 +28094,7 @@ mod tests {
     /// The old fixed-from-first-edit delay launched fresh salsa reads throughout
     /// the burst, so `set_text` repeatedly waited for their cancellation and the
     /// request-side edit barrier could exceed its 30-second budget.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test(start_paused = true)]
     async fn diagnostics_debounce_waits_for_a_quiet_window() {
         let uri = Uri::from_str("file:///debounce.tcl").unwrap();
         let slots = Arc::new(Mutex::new(HashMap::new()));
@@ -28037,27 +28104,30 @@ mod tests {
             slot.mark_dirty();
         }
 
-        let mut waiter = crate::rt::spawn({
+        let waiter = crate::rt::spawn({
             let slots = Arc::clone(&slots);
             let uri = uri.clone();
             async move { stable_diagnostics_generation(&slots, &uri).await }
         });
 
+        // Virtual time makes the producer cadence exact. With wall-clock
+        // sleeps a loaded suite can delay this task past the 50 ms deadline,
+        // correctly letting the waiter settle before the next nominal 30 ms
+        // edit and making the test report a false early-return failure.
+        crate::rt::yield_now().await;
         for _ in 0..2 {
-            crate::rt::sleep(std::time::Duration::from_millis(30)).await;
+            tokio::time::advance(std::time::Duration::from_millis(30)).await;
             slots.lock().await.get_mut(&uri).unwrap().mark_dirty();
         }
 
+        tokio::time::advance(std::time::Duration::from_millis(49)).await;
+        crate::rt::yield_now().await;
         assert!(
-            crate::rt::timeout(std::time::Duration::from_millis(30), &mut waiter)
-                .await
-                .is_err(),
+            !waiter.is_finished(),
             "the waiter resolved before a full quiet debounce window elapsed"
         );
-        let generation = crate::rt::timeout(std::time::Duration::from_millis(250), waiter)
-            .await
-            .expect("debounce waiter should settle after the burst")
-            .expect("debounce waiter task panicked");
+        tokio::time::advance(DIAGNOSTICS_DEBOUNCE * 2).await;
+        let generation = waiter.await.expect("debounce waiter task panicked");
         assert_eq!(generation, Some(3));
     }
 
@@ -33036,6 +33106,7 @@ mod tests {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
+            class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
@@ -34365,6 +34436,7 @@ mod tests {
             workspace_index: Arc::clone(&backend.workspace_index),
             documents: Arc::clone(&backend.documents),
             rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
         };
 
         let first = sync_cross_file_evidence(&handles).await;
@@ -41944,13 +42016,17 @@ proc p {} {
             let mut analyser = Analyser::new();
             Arc::new(analyser.analyse(text, "tcl8.6").clone())
         };
+        let seed = FreshAnalysisSeed {
+            analysis,
+            class_factory_generation: 0,
+        };
         let index_reader = backend.workspace_index.read().await;
         let publishing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
                 backend
-                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, &analysis)
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
                     .await
             }
         });
@@ -41980,6 +42056,206 @@ proc p {} {
                 .expect("the open index publisher must finish once the reader drains")
                 .expect("the open index publisher must not panic"),
             "the still-current open seed must publish",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a watched deletion can overtake
+    /// the off-Salsa cold-open seed. Its orphan mark must make the queued seed
+    /// fail currency instead of resurrecting the dead path in the index.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_cancels_a_queued_open_index_seed_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///deleted-open-seed-1854.tcl").unwrap();
+        let text = "proc ghost {} {}\n";
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let seed = backend
+            .fresh_analysis_seed(&uri, Arc::from(text), "tcl8.6".to_owned())
+            .await;
+
+        let index_reader = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.workspace_index.try_read().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the cold-open seed must queue behind the held index reader");
+
+        let deleting = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| {
+                        doc.backing_file_deleted && doc.publication == DocumentPublication::Indexed
+                    });
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the watcher must settle the deleted open buffer as an orphan");
+        drop(index_reader);
+
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the obsolete seed must finish after the index reader drains")
+                .expect("the obsolete seed must not panic"),
+            "the orphan mark must reject the cold-open seed",
+        );
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the watched deletion must finish")
+            .expect("the watched deletion must not panic");
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the deleted path must remain absent from the workspace index",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a cold seed analysed under an old
+    /// class-factory oracle must be recomputed if the project publishes a new
+    /// oracle before its standalone index commit.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn open_index_seed_retries_after_factory_oracle_change_1854() {
+        use salsa::Setter as _;
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///factory-oracle-race-1854.tcl").unwrap();
+        let consumer = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(consumer.to_owned(), "tcl9.0".to_owned(), 1)
+                .with_language_id("tcl9.0".to_owned())
+                .with_publication_pending(),
+        );
+        let stale_analysis = {
+            let mut analyser = Analyser::new();
+            Arc::new(analyser.analyse(consumer, "tcl9.0").clone())
+        };
+        assert!(
+            !stale_analysis.all_classes.contains_key("::IconList"),
+            "the stale seed must not know the cross-file factory",
+        );
+        let oracle = {
+            let mut analyser = Analyser::new();
+            Arc::new(
+                analyser
+                    .analyse(
+                        concat!(
+                            "oo::class create ::tk::MegawidgetClass {}\n",
+                            "oo::class create ::tk::Megawidget {\n",
+                            "    superclass oo::class\n",
+                            "    self method create {name superclasses body} {\n",
+                            "        next $name [list superclass ::tk::MegawidgetClass",
+                            " {*}$superclasses]\\;$body\n",
+                            "    }\n",
+                            "}\n",
+                        ),
+                        "tcl9.0",
+                    )
+                    .class_factories(),
+            )
+        };
+
+        let seed_started = Arc::new(tokio::sync::Notify::new());
+        let seed_release = Arc::new(tokio::sync::Notify::new());
+        let started = seed_started.notified();
+        tokio::pin!(started);
+        started.as_mut().enable();
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let seed_started = Arc::clone(&seed_started);
+            let seed_release = Arc::clone(&seed_release);
+            async move {
+                backend
+                    .commit_open_document_with_seed(&uri, consumer, "tcl9.0", 1, async move {
+                        seed_started.notify_one();
+                        seed_release.notified().await;
+                        FreshAnalysisSeed {
+                            analysis: stale_analysis,
+                            class_factory_generation: 0,
+                        }
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), &mut started)
+            .await
+            .expect("the source tier must publish before the stale seed is released");
+
+        {
+            let mut generation = backend.class_factory_generation.write().await;
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = *files.get(&uri).expect("the live Salsa source exists");
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(Arc::clone(&oracle)));
+            *generation = generation.saturating_add(1);
+        }
+        seed_release.notify_one();
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the seed publisher must finish")
+                .expect("the seed publisher must not panic"),
+            "the current open seed must publish after recomputation",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            index.workspace_command_exists("::IconList"),
+            "the revalidated seed must carry the newly published factory oracle",
         );
     }
 
@@ -43127,7 +43403,10 @@ proc p {} {
                     .commit_open_document_with_seed(&uri, opened_text, "tcl8.6", 1, async move {
                         seed_started.notify_one();
                         seed_release.notified().await;
-                        obsolete_analysis
+                        FreshAnalysisSeed {
+                            analysis: obsolete_analysis,
+                            class_factory_generation: 0,
+                        }
                     })
                     .await
             }
