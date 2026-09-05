@@ -34,7 +34,7 @@ __STYLES__
     <a class="brand-mark" href="https://github.com/bitwisecook/tcl-lsp" rel="noopener" target="_blank" role="img" aria-label="tcl-lsp on GitHub" title="tcl-lsp on GitHub"><span class="logo-when-light">__LOGO_TCL_LSP__</span><span class="logo-when-dark">__LOGO_TCL_LSP_DARK__</span></a>
     <h1>Command Registry — Spec Studio</h1>
   </div>
-  <p class="tagline">Browse the <code>tcl-registry</code> command surface, edit every field of a <code>CommandSpec</code>, and render it back out as a drop-in registry <code>.rs</code> file or a Tcl dialect stub. Import a package's own Tcl and the compiler will infer a starting signature for each <code>proc</code> it finds.</p>
+  <p class="tagline">Browse the <code>tcl-registry</code> command surface, edit every field of a <code>CommandSpec</code>, and export the whole pack as drop-in registry <code>.rs</code> files and a Tcl dialect stub. Import a package's own Tcl and the compiler will infer a starting signature for each <code>proc</code> it finds.</p>
 
   <div class="privacy" id="privacy">
     <span class="lock" aria-hidden="true">🔒</span>
@@ -87,6 +87,15 @@ __STYLES__
               <button type="button" class="ghost" id="packAdd" title="Copy the command in the editor into the pack">+ Add to pack</button>
               <button type="button" class="ghost" id="packNew" title="Start an empty pack">New pack</button>
             </div>
+            <!-- Which `commands/<dir>/` the pack's registry sources are
+                 rendered into. A pack-level fact: it names the directory every
+                 command's `.rs` *and* the `mod.rs` that collects them land in,
+                 which is why it is here and not beside one rendered file. -->
+            <label class="packdir" for="packDir">
+              <span>renders into</span>
+              <code>rust/tcl-registry/src/commands/</code>
+              <input type="text" id="packDir" value="tcl" size="8">
+            </label>
           </div>
         </details>
         <label class="fld">Registry</label>
@@ -109,8 +118,7 @@ __STYLES__
           <button type="button" role="tab" id="tab-editor" aria-controls="pane-editor" aria-selected="true">Spec editor</button>
           <button type="button" role="tab" id="tab-dsl" aria-controls="pane-dsl" aria-selected="false">Pack DSL</button>
           <button type="button" role="tab" id="tab-test" aria-controls="pane-test" aria-selected="false">Test</button>
-          <button type="button" role="tab" id="tab-rs" aria-controls="pane-rs" aria-selected="false">Rendered .rs</button>
-          <button type="button" role="tab" id="tab-stub" aria-controls="pane-stub" aria-selected="false">Tcl stub</button>
+          <button type="button" role="tab" id="tab-export" aria-controls="pane-export" aria-selected="false">Export</button>
           <button type="button" role="tab" id="tab-import" aria-controls="pane-import" aria-selected="false">Import a package</button>
           <button type="button" role="tab" id="tab-reference" aria-controls="pane-reference" aria-selected="false">Reference</button>
           <button type="button" role="tab" id="tab-share" aria-controls="pane-share" aria-selected="false">Files &amp; issue</button>
@@ -190,40 +198,47 @@ __STYLES__
           </div>
         </section>
 
-        <section class="pane" id="pane-rs" role="tabpanel" aria-labelledby="tab-rs" hidden>
+        <!-- The Export pane. The unit of work is the pack, not whichever
+             command the form happens to hold: `pack_export` renders every
+             artefact the pack produces at once — the `.tclspec`, one `.rs` per
+             command, the `mod.rs` that collects them, and the dialect stub —
+             and this pane is a reader over that set. The two read-only editor
+             surfaces are the same ones the per-command panes used; which of
+             them is on screen follows the selected file's language. -->
+        <section class="pane" id="pane-export" role="tabpanel" aria-labelledby="tab-export" hidden>
+          <p class="hint" style="margin-top:0">Everything this pack produces, recomputed as you edit. Pick a file to read it; copy or download one, download the set, or stage the whole export into <b>Files &amp; issue</b>.</p>
           <div class="out">
             <div class="actions">
-              <button type="button" class="primary" id="rsCopy">Copy</button>
-              <button type="button" class="ghost" id="rsDownload">Download ↓</button>
-              <button type="button" class="ghost" id="rsAdd">Add to files</button>
+              <!-- Disabled until the first export lands, so an empty pack
+                   offers no control that silently does nothing. -->
+              <button type="button" class="primary" id="exportCopy" disabled>Copy</button>
+              <button type="button" class="ghost" id="exportDownload" disabled>Download ↓</button>
+              <button type="button" class="ghost" id="exportDownloadAll" disabled>Download all ↓</button>
+              <button type="button" class="ghost" id="exportStage" disabled>Stage every file</button>
               <label class="row" style="border:0;padding:0;background:none">
-                <span style="font-size:.78rem;color:var(--muted)">spec pack</span>
-                <input type="text" id="rsPack" value="tcl" size="8" aria-label="Spec pack directory">
-              </label>
-              <span class="path" id="rsPath"></span>
-            </div>
-            <div class="editorhost output" id="rsEditor" data-language="rust"></div>
-            <pre id="rsOut"><code>—</code></pre>
-          </div>
-        </section>
-
-        <section class="pane" id="pane-stub" role="tabpanel" aria-labelledby="tab-stub" hidden>
-          <div class="out">
-            <div class="actions">
-              <button type="button" class="primary" id="stubCopy">Copy</button>
-              <button type="button" class="ghost" id="stubDownload">Download ↓</button>
-              <button type="button" class="ghost" id="stubAdd">Add to files</button>
-              <label class="row" style="border:0;padding:0;background:none">
-                <span style="font-size:.78rem;color:var(--muted)">form</span>
-                <select id="stubMode" aria-label="Stub form">
+                <span style="font-size:.78rem;color:var(--muted)">stub</span>
+                <select id="stubMode" aria-label="Which stub spelling the list offers">
                   <option value="inline">inline comment block</option>
                   <option value="file">.tcl.stubs file</option>
                 </select>
               </label>
-              <span class="path" id="stubPath"></span>
+              <span class="path" id="exportPath"></span>
             </div>
-            <div class="editorhost output" id="stubEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
-            <pre id="stubOut"><code>—</code></pre>
+            <div class="status" id="exportSummary"></div>
+            <div class="note info" id="exportEmpty" hidden></div>
+            <div class="exportsplit" id="exportBody">
+              <ul class="exportlist" id="exportList" role="listbox" tabindex="0" aria-label="Files this pack produces"></ul>
+              <div class="exportview" id="exportView" role="group">
+                <div class="exportsurface" id="exportRust">
+                  <div class="editorhost output" id="rsEditor" data-language="rust"></div>
+                  <pre id="rsOut"><code>—</code></pre>
+                </div>
+                <div class="exportsurface" id="exportTcl" hidden>
+                  <div class="editorhost output" id="stubEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
+                  <pre id="stubOut"><code>—</code></pre>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -315,7 +330,7 @@ __STYLES__
         <section class="pane" id="pane-share" role="tabpanel" aria-labelledby="tab-share" hidden>
           <div class="tray card" style="margin-top:0">
             <label class="fld">Files</label>
-            <p class="hint" style="margin-top:0">Everything you have added from the render panes. Download them as a set, or open a GitHub issue with them attached.</p>
+            <p class="hint" style="margin-top:0">Everything staged from the <b>Export</b> tab. Download them as a set, or open a GitHub issue with them attached.</p>
             <ul id="fileList"></ul>
             <div class="actions" style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.9rem">
               <button type="button" class="ghost" id="filesDownload">Download all ↓</button>

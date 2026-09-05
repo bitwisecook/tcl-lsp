@@ -202,13 +202,6 @@ export interface DialectEntry {
   label: string;
 }
 
-/** A rendered artefact — the suggested path plus its contents. */
-export interface Rendered {
-  path: string;
-  source: string;
-  error?: string;
-}
-
 /** Source returned by a pure formatter operation. */
 export interface Formatted {
   source: string;
@@ -235,6 +228,34 @@ export interface ImportResult {
 export interface StagedFile {
   path: string;
   source: string;
+}
+
+/* The pack export --------------------------------------------------------- */
+
+/** Which artefact one exported file is, from `pack_export`. */
+export type ExportKind = "spectcl" | "rs" | "rs-mod" | "stub-file" | "stub-inline";
+
+/** One file a finished pack produces. */
+export interface ExportFile {
+  kind: ExportKind;
+  path: string;
+  source: string;
+  /** The command a rendered `.rs` came from; absent for every other kind. */
+  command?: string;
+}
+
+/**
+ * Every artefact the pack produces, in one reply.
+ *
+ * `pack` is the document's own name (`mylib`), not the registry directory the
+ * `.rs` files were rendered into — that is an argument to the call.
+ */
+export interface PackExport {
+  pack: string;
+  dialect: string;
+  commands: number;
+  files: ExportFile[];
+  error?: string;
 }
 
 /* The pack store ---------------------------------------------------------- */
@@ -467,10 +488,12 @@ export interface TestInspection {
 }
 
 /**
- * The wasm module's exports.
+ * The wasm module's exports, as the studio calls them.
  *
  * Every call takes and returns a JSON string: the Rust side marshals, so the
- * browser needs no generated bindings beyond wasm-bindgen's own glue.
+ * browser needs no generated bindings beyond wasm-bindgen's own glue. The
+ * per-command `render_rs` / `render_stub` are not here: the studio exports the
+ * pack, and `pack_export` is what calls both.
  */
 export interface StudioWasm {
   schema(): string;
@@ -481,8 +504,6 @@ export interface StudioWasm {
   new_command(): string;
   new_subcommand(): string;
   format_pack(source: string): string;
-  render_rs(draftJson: string, pack: string): string;
-  render_stub(draftsJson: string, mode: string, dialect: string): string;
   import_package(filesJson: string, dialect: string): string;
 
   /* Release archives, read entirely in this page. `unzip_entries` takes the
@@ -505,6 +526,7 @@ export interface StudioWasm {
   pack_remove_command(source: string, name: string): string;
   pack_render(source: string): string;
   pack_validate(source: string, dialect: string): string;
+  pack_export(source: string, pack: string, dialect: string): string;
 
   /* The Test tab: the sample analysed with the pack installed, and the
      per-word deep view. `offset` is a **byte** offset into `sample`, which is

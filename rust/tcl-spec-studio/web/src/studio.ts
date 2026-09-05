@@ -21,8 +21,8 @@
 // The form is *generated* from the schema the wasm module reports, never
 // hand-written: a new field on `CommandSpec` shows up here with no change to
 // this file. What lives here is the app around that form — the registry
-// browser, the output panes, the file tray, the GitHub issue, and the package
-// importer.
+// browser, the pack's export, the file tray, the GitHub issue, and the
+// package importer.
 
 import {
   byId,
@@ -31,6 +31,7 @@ import {
   copyText,
   deepEqual,
   download,
+  downloadAll,
   el,
   setStatus,
   type Child,
@@ -81,6 +82,18 @@ import {
   type PaletteHit,
 } from "./paletteSearch.js";
 import {
+  emptyExportNotice,
+  exportGroups,
+  exportSummary,
+  fileBase,
+  fileDir,
+  kindLabel,
+  selectedPath,
+  surfaceOf,
+  visibleFiles,
+  type StubView,
+} from "./packExport.js";
+import {
   alsoInSentence,
   browserCountLine,
   groupByPack,
@@ -94,6 +107,8 @@ import type {
   CodeExample,
   DialectEntry,
   Draft,
+  ExportFile,
+  PackExport,
   FieldSchema,
   Formatted,
   ImportResult,
@@ -105,7 +120,6 @@ import type {
   PackRow,
   PackStoreView,
   PackWrite,
-  Rendered,
   Schema,
   StagedFile,
   StudioWasm,
@@ -128,7 +142,7 @@ const MAX_LISTED = 400;
 /// How many names to offer the browser's native autocomplete at once.
 const MAX_SUGGESTED = 50;
 
-const TABS = ["editor", "dsl", "test", "rs", "stub", "import", "reference", "share"] as const;
+const TABS = ["editor", "dsl", "test", "export", "import", "reference", "share"] as const;
 type Tab = (typeof TABS)[number];
 
 /** How many commands the `/` search offers at once. */
@@ -238,8 +252,11 @@ interface State {
 let wasm: StudioWasm;
 let state: State;
 let editors: Record<string, Editor>;
-const rendered: { rs: Rendered | null; stub: Rendered | null } = { rs: null, stub: null };
+/** The pack's last export, and which of its files the pane is showing. */
+let packExport: PackExport | null = null;
+let shownExportPath: string | null = null;
 let renderTimer: number | undefined;
+let exportTimer: number | undefined;
 let saveTimer: number | undefined;
 let testTimer: number | undefined;
 /** The last Test tab report, and which word (byte offset) is inspected. */
@@ -686,6 +703,9 @@ function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): vo
 
   renderPackList();
   renderDslReport();
+  // The export is a rendering of the whole document, so every write to it —
+  // a form edit, a DSL keystroke, an import — is a new export.
+  scheduleExport();
   if (opts.refreshForm && state.pack.open) refreshOpenCommand();
   // The pack decides what the sample resolves to, so a document change is a
   // test result change — but only pay for it while the tab is on screen.
@@ -1239,33 +1259,195 @@ function onDraftChanged(): void {
 }
 
 function renderOutputs(): void {
-  if (!state.draft) return;
-  // The document first: every other pane renders from the draft, but the
-  // draft's home is the pack source, and an edit is not real until it is
-  // written there.
-  writeBackOpenCommand();
-  renderUnrenderableWarning(state.draft);
-  try {
-    const pack = byId<HTMLInputElement>("rsPack").value || "tcl";
-    const rs = JSON.parse(wasm.render_rs(JSON.stringify(state.draft), pack)) as Rendered;
-    if (rs.error) throw new Error(rs.error);
-    rendered.rs = rs;
-    byId("rsOut").firstElementChild!.textContent = rs.source;
-    editorHost?.setRustText(rs.source);
-    byId("rsPath").textContent = rs.path;
-
-    const mode = byId<HTMLSelectElement>("stubMode").value;
-    const stub = JSON.parse(
-      wasm.render_stub(JSON.stringify([state.draft]), mode, state.dialect),
-    ) as Rendered;
-    if (stub.error) throw new Error(stub.error);
-    rendered.stub = stub;
-    byId("stubOut").firstElementChild!.textContent = stub.source;
-    editorHost?.setStubText(stub.source);
-    byId("stubPath").textContent = stub.path;
-  } catch (e) {
-    setStatus("status", `render failed: ${e instanceof Error ? e.message : String(e)}`, "err");
+  // The document first: the form renders from the draft, but the draft's home
+  // is the pack source, and an edit is not real until it is written there.
+  if (state.draft) {
+    writeBackOpenCommand();
+    renderUnrenderableWarning(state.draft);
   }
+  renderExport();
+}
+
+/* The pack export -------------------------------------------------------- */
+
+// The export is a *pack*-level view, so it is driven by the document rather
+// than by the form: an author who edits three commands and then goes to ship
+// them should not have to open each one to make its file appear.
+
+/** The registry directory the pack's `.rs` files are rendered into. */
+function packDir(): string {
+  return byId<HTMLInputElement>("packDir").value.trim() || "tcl";
+}
+
+/** Which stub spelling the pane's toggle is showing. */
+function stubView(): StubView {
+  return byId<HTMLSelectElement>("stubMode").value === "file" ? "file" : "inline";
+}
+
+/**
+ * Re-export after the settle window, the way a form edit is debounced.
+ *
+ * Every path into the document lands here, including the DSL pane's own
+ * keystrokes, so the whole pack is re-rendered at most once per settle rather
+ * than once per character.
+ */
+function scheduleExport(): void {
+  if (exportTimer !== undefined) window.clearTimeout(exportTimer);
+  exportTimer = window.setTimeout(renderExport, SETTLE_MS);
+}
+
+function renderExport(): void {
+  if (exportTimer !== undefined) {
+    window.clearTimeout(exportTimer);
+    exportTimer = undefined;
+  }
+  try {
+    packExport = unwrap<PackExport>(wasm.pack_export(state.pack.source, packDir(), state.dialect));
+  } catch (e) {
+    setStatus("exportSummary", `could not export the pack: ${message(e)}`, "err");
+    return;
+  }
+  renderExportList();
+}
+
+/** Every file the pane is currently offering, in list order. */
+function listedExportFiles(): ExportFile[] {
+  return packExport ? visibleFiles(packExport.files, stubView()) : [];
+}
+
+/** The file the reader has open, or null when the pack produces none. */
+function shownExportFile(): ExportFile | null {
+  return listedExportFiles().find((file) => file.path === shownExportPath) ?? null;
+}
+
+/**
+ * The DOM id of a file's row, so the listbox can point at it.
+ *
+ * The path itself, which is unique within an export and — having no
+ * whitespace — a legal id. Squashing it to letters and digits would not be.
+ */
+function exportRowId(path: string): string {
+  return `exportfile:${path}`;
+}
+
+function renderExportList(): void {
+  const exp = packExport;
+  const list = byId("exportList");
+  clear(list);
+  if (!exp) return;
+
+  const files = listedExportFiles();
+  setStatus("exportSummary", exportSummary(exp, dialectLabel(state.dialect), files.length));
+
+  // An empty pack has no `.rs` and a stub with nothing in it. A list of three
+  // empty artefacts is a worse answer than the sentence.
+  const empty = byId("exportEmpty");
+  empty.hidden = exp.commands > 0;
+  empty.textContent = exp.commands ? "" : emptyExportNotice(exp);
+  byId("exportBody").hidden = exp.commands === 0;
+  setExportActionsEnabled(exp.commands > 0);
+  if (!exp.commands) {
+    shownExportPath = null;
+    byId("exportPath").textContent = "";
+    return;
+  }
+
+  for (const group of exportGroups(files)) {
+    const rows = el("ul", { role: "presentation" });
+    for (const file of group.files) {
+      rows.appendChild(
+        el(
+          "li",
+          {
+            class: "exportfile",
+            id: exportRowId(file.path),
+            role: "option",
+            "aria-selected": "false",
+            onclick: () => showExportFile(file.path),
+          },
+          [
+            el("span", { class: "nm", text: fileBase(file.path) }),
+            fileDir(file.path) ? el("span", { class: "dir", text: fileDir(file.path) }) : null,
+            el("span", { class: "state" }, [
+              el("span", { class: "tag", text: kindLabel(file.kind) }),
+              file.command ? el("span", { class: "tag cmd", text: file.command }) : null,
+            ]),
+          ],
+        ),
+      );
+    }
+    list.appendChild(
+      el("li", { class: "exportgroup", role: "group", "aria-label": group.title }, [
+        el("div", { class: "hd" }, [
+          el("span", { class: "title", text: group.title }),
+          el("span", { class: "note", text: group.note }),
+        ]),
+        rows,
+      ]),
+    );
+  }
+
+  showExportFile(selectedPath(files, shownExportPath));
+}
+
+/** The per-file and whole-set actions, live only while there is a set. */
+function setExportActionsEnabled(on: boolean): void {
+  for (const id of ["exportCopy", "exportDownload", "exportDownloadAll", "exportStage"]) {
+    byId<HTMLButtonElement>(id).disabled = !on;
+  }
+}
+
+/**
+ * Open one file in the pane's read-only editor.
+ *
+ * There is no third code surface: every artefact is Rust or Tcl, and the two
+ * output editors the per-command panes used are exactly those two languages.
+ * Which one is on screen follows the selected file, and the hidden `<pre>`
+ * behind each still seeds it for a reader who never loads the editor chunk.
+ */
+function showExportFile(path: string | null): void {
+  shownExportPath = path;
+  const file = shownExportFile();
+  for (const row of byId("exportList").querySelectorAll<HTMLElement>('[role="option"]')) {
+    row.setAttribute("aria-selected", file && row.id === exportRowId(file.path) ? "true" : "false");
+  }
+  byId("exportPath").textContent = file?.path ?? "";
+  if (!file) return;
+
+  const list = byId("exportList");
+  list.setAttribute("aria-activedescendant", exportRowId(file.path));
+  // The editor shows one file at a time, so it is labelled by the row that
+  // chose it rather than by a heading that never changes.
+  byId("exportView").setAttribute("aria-labelledby", exportRowId(file.path));
+
+  const rust = surfaceOf(file.kind) === "rust";
+  byId(rust ? "rsOut" : "stubOut").firstElementChild!.textContent = file.source;
+  if (rust) editorHost?.setRustText(file.source);
+  else editorHost?.setStubText(file.source);
+  // Monaco measures the container it was created in, and the surface coming
+  // forward was `display: none` when it last did — but only the swap needs
+  // re-measuring, and this runs on every settled edit.
+  const swapped = byId("exportRust").hidden === rust;
+  byId("exportRust").hidden = !rust;
+  byId("exportTcl").hidden = rust;
+  if (swapped) editorHost?.layout();
+}
+
+/** Move the selection by `delta` rows, or to an end of the list. */
+function moveExportSelection(delta: number | "first" | "last"): void {
+  const files = listedExportFiles();
+  if (!files.length) return;
+  const at = files.findIndex((file) => file.path === shownExportPath);
+  const next =
+    delta === "first"
+      ? 0
+      : delta === "last"
+        ? files.length - 1
+        : Math.min(files.length - 1, Math.max(0, (at < 0 ? 0 : at) + delta));
+  const file = files[next];
+  if (!file) return;
+  showExportFile(file.path);
+  byId(exportRowId(file.path)).scrollIntoView({ block: "nearest" });
 }
 
 /* Files ----------------------------------------------------------------- */
@@ -1278,6 +1460,30 @@ function addFile(path: string, source: string): void {
   setStatus("status", `${path.split("/").pop()} added to files`, "ok");
 }
 
+/**
+ * Put the whole export in the tray at once.
+ *
+ * Assembling a contribution by opening each command and pressing a button is
+ * exactly the mechanical transcription the studio exists to remove, so the
+ * unit staged is the pack. Paths already in the tray are refreshed in place,
+ * and the stub goes in in whichever spelling the pane is offering — both would
+ * be the same signatures twice in one issue.
+ */
+function stageExport(): void {
+  const files = listedExportFiles();
+  if (!files.length) {
+    setStatus("status", "there is nothing to stage yet", "err");
+    return;
+  }
+  for (const file of files) {
+    const existing = state.files.find((staged) => staged.path === file.path);
+    if (existing) existing.source = file.source;
+    else state.files.push({ path: file.path, source: file.source });
+  }
+  renderFiles();
+  setStatus("status", `${files.length} file(s) staged in Files & issue`, "ok");
+}
+
 function renderFiles(): void {
   const list = byId("fileList");
   clear(list);
@@ -1286,7 +1492,7 @@ function renderFiles(): void {
       el("li", {}, [
         el("span", {
           class: "sm",
-          text: "No files yet — render a spec and choose “Add to files”.",
+          text: "No files yet — stage the pack's export, or add the document from the Pack DSL tab.",
         }),
       ]),
     );
@@ -3103,7 +3309,7 @@ function selectTab(name: Tab): void {
     byId(`tab-${tab}`).setAttribute("aria-selected", on ? "true" : "false");
     byId(`pane-${tab}`).hidden = !on;
   }
-  if (name === "dsl" || name === "test" || name === "rs" || name === "stub") {
+  if (name === "dsl" || name === "test" || name === "export") {
     void mountEditorHost().then(() => {
       // Monaco measures the container it was created in; a container inside a
       // `hidden` pane measures zero, so every reveal needs a re-layout.
@@ -3285,32 +3491,39 @@ function bindUi(): void {
     }
   });
 
-  byId("rsPack").addEventListener("input", onDraftChanged);
-  byId("stubMode").addEventListener("change", onDraftChanged);
+  /* The pack export. */
 
-  byId("rsCopy").addEventListener("click", () => {
-    if (rendered.rs) copyText(rendered.rs.source, "status");
+  // The directory names where every rendered `.rs` lands, so a change to it is
+  // a new export rather than a re-paint of the one on screen.
+  byId("packDir").addEventListener("input", scheduleExport);
+  // Both stub spellings are already in the export; the toggle only chooses
+  // which of them the list offers.
+  byId("stubMode").addEventListener("change", renderExportList);
+
+  byId("exportCopy").addEventListener("click", () => {
+    const file = shownExportFile();
+    if (file) copyText(file.source, "status");
   });
-  byId("rsDownload").addEventListener("click", () => {
-    if (rendered.rs) download(rendered.rs.path, rendered.rs.source);
+  byId("exportDownload").addEventListener("click", () => {
+    const file = shownExportFile();
+    if (file) download(file.path, file.source);
   });
-  byId("rsAdd").addEventListener("click", () => {
-    if (rendered.rs) addFile(rendered.rs.path, rendered.rs.source);
+  byId("exportDownloadAll").addEventListener("click", () => downloadAll(listedExportFiles()));
+  byId("exportStage").addEventListener("click", stageExport);
+  byId("exportList").addEventListener("keydown", (event) => {
+    const moves: Record<string, number | "first" | "last"> = {
+      ArrowDown: 1,
+      ArrowUp: -1,
+      Home: "first",
+      End: "last",
+    };
+    const move = moves[(event as KeyboardEvent).key];
+    if (move === undefined) return;
+    event.preventDefault();
+    moveExportSelection(move);
   });
 
-  byId("stubCopy").addEventListener("click", () => {
-    if (rendered.stub) copyText(rendered.stub.source, "status");
-  });
-  byId("stubDownload").addEventListener("click", () => {
-    if (rendered.stub) download(rendered.stub.path, rendered.stub.source);
-  });
-  byId("stubAdd").addEventListener("click", () => {
-    if (rendered.stub) addFile(rendered.stub.path, rendered.stub.source);
-  });
-
-  byId("filesDownload").addEventListener("click", () => {
-    for (const file of state.files) download(file.path, file.source);
-  });
+  byId("filesDownload").addEventListener("click", () => downloadAll(state.files));
   byId("filesClear").addEventListener("click", () => {
     state.files = [];
     renderFiles();
