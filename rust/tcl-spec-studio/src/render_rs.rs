@@ -27,6 +27,8 @@
 //! come from the trailing `..CommandSpec::DEFAULT`, matching how every
 //! hand-written spec in the registry is laid out.
 
+use std::fmt::Write as _;
+
 use serde_json::Value;
 
 use crate::draft::{self, Draft, UNRENDERABLE_KEY};
@@ -1210,6 +1212,53 @@ fn module_doc(name: &str, summary: &str) -> String {
     }
     out.push_str(".\n");
     out
+}
+
+/// Render the `commands/<pack>/mod.rs` that declares each command's module
+/// and collects their specs.
+///
+/// The one file in a pack contribution that is pure bookkeeping: a `mod` line
+/// per command and a `vec![…]` naming each `spec()`. `command-registry.md`
+/// tells a contributor to write both by hand, and the module stem has to match
+/// the path [`suggested_path`] chose — two places to get wrong for no
+/// judgement gained.
+///
+/// No `#![allow(non_snake_case)]`, unlike the registry's hand-written packs:
+/// their modules are named for the command (`http__header.rs`), while
+/// [`suggested_path`] lower-cases and collapses each run of separators to one
+/// underscore, so every stem it produces is already `snake_case`.
+#[must_use]
+pub fn render_pack_module(commands: &[(String, Draft)], pack: &str) -> String {
+    let stems: Vec<String> = commands.iter().map(|(name, _)| module_stem(name)).collect();
+    let mut sorted: Vec<&String> = stems.iter().collect();
+    sorted.sort_unstable();
+    sorted.dedup();
+
+    let mut out = String::from(COPYRIGHT_BANNER);
+    let _ = write!(out, "\n\n//! `{pack}` command specifications.\n\n");
+    for stem in &sorted {
+        let _ = writeln!(out, "mod {stem};");
+    }
+    out.push_str("\nuse tcl_registry::CommandSpec;\n");
+    let _ = write!(
+        out,
+        "\n/// Every command specification the `{pack}` pack declares.\n#[must_use]\npub fn {pack}_command_specs() -> Vec<CommandSpec> {{\n    vec![\n"
+    );
+    for stem in &sorted {
+        let _ = writeln!(out, "        {stem}::spec(),");
+    }
+    out.push_str("    ]\n}\n");
+    out
+}
+
+/// The module name [`suggested_path`] files a command under.
+fn module_stem(name: &str) -> String {
+    suggested_path(name, "x")
+        .rsplit('/')
+        .next()
+        .and_then(|file| file.strip_suffix(".rs"))
+        .unwrap_or("command")
+        .to_owned()
 }
 
 /// Render `draft` as a complete `tcl-registry` command-spec source file.

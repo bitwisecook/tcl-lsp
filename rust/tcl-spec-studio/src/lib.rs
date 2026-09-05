@@ -209,6 +209,70 @@ pub fn pack_catalogue(dialect: &str) -> Value {
     json!({ "dialect": dialect, "packs": packs })
 }
 
+/// Every artefact a finished pack produces, in one call.
+///
+/// The studio's outputs were per-command: one rendered `.rs` for whichever
+/// draft the form happened to hold, one stub for the same. But the unit of
+/// work is the **pack** — an author builds a library command by command and
+/// then ships the set, and assembling that set by opening each command and
+/// pressing Download is exactly the mechanical transcription the studio
+/// exists to remove.
+///
+/// So the export is the pack: its `.tclspec` source, one `.rs` per command
+/// under `commands/<pack>/`, the `mod.rs` that declares and collects them
+/// (which a contributor otherwise writes by hand — see
+/// [`command-registry.md`](../../../docs/design/compiler/command-registry.md),
+/// "to add a command"), and the dialect stub in both spellings.
+///
+/// `losses` carries what a renderer could not say, per file, rather than
+/// letting a silent gap reach a pull request.
+#[must_use]
+pub fn pack_export(source: &str, pack: &str, dialect: &str) -> Value {
+    let store = store::PackStore::from_source(source);
+    let commands = store.commands();
+    let mut files = vec![json!({
+        "kind": "spectcl",
+        "path": format!("{}.tclspec", store.name()),
+        "source": store.canonical(),
+    })];
+
+    for (name, draft) in commands {
+        files.push(json!({
+            "kind": "rs",
+            "path": render_rs::suggested_path(name, pack),
+            "source": render_rs::render(draft),
+            "command": name,
+        }));
+    }
+
+    if !commands.is_empty() {
+        files.push(json!({
+            "kind": "rs-mod",
+            "path": format!("rust/tcl-registry/src/commands/{pack}/mod.rs"),
+            "source": render_rs::render_pack_module(commands, pack),
+        }));
+    }
+
+    let drafts: Vec<draft::Draft> = commands.iter().map(|(_, d)| d.clone()).collect();
+    files.push(json!({
+        "kind": "stub-file",
+        "path": format!("{dialect}.tcl.stubs"),
+        "source": render_stub::render(&drafts, render_stub::Mode::File, dialect),
+    }));
+    files.push(json!({
+        "kind": "stub-inline",
+        "path": "stubs.tcl",
+        "source": render_stub::render(&drafts, render_stub::Mode::Inline, dialect),
+    }));
+
+    json!({
+        "pack": store.name(),
+        "dialect": dialect,
+        "commands": commands.len(),
+        "files": files,
+    })
+}
+
 /// The dialect list the studio's picker shows.
 #[must_use]
 pub fn dialects() -> Value {
@@ -306,6 +370,77 @@ mod tests {
         };
         assert_eq!(pack_of("tcl9.0", "close").as_deref(), Some("tcl"));
         assert_eq!(pack_of("f5-irules", "close").as_deref(), Some("irules"));
+    }
+
+    /// The export is the pack, not whichever command the form happens to
+    /// hold: every command's `.rs`, the `mod.rs` that collects them, the
+    /// document itself, and the stub in both spellings.
+    #[test]
+    fn a_pack_exports_every_artefact_it_produces() {
+        let mut store = store::PackStore::empty("demo");
+        for name in ["greet", "farewell"] {
+            let mut d = draft::default_command_draft();
+            d.insert("name".to_owned(), json!(name));
+            store.set_command(name, &d, false);
+        }
+        let export = pack_export(store.source(), "demo", "tcl9.0");
+        assert_eq!(export["commands"], json!(2));
+        let files = export["files"].as_array().expect("files");
+        let kinds: Vec<&str> = files.iter().filter_map(|f| f["kind"].as_str()).collect();
+        assert_eq!(
+            kinds,
+            ["spectcl", "rs", "rs", "rs-mod", "stub-file", "stub-inline"]
+        );
+        let paths: Vec<&str> = files.iter().filter_map(|f| f["path"].as_str()).collect();
+        assert!(paths.contains(&"rust/tcl-registry/src/commands/demo/greet.rs"));
+        assert!(paths.contains(&"rust/tcl-registry/src/commands/demo/mod.rs"));
+        assert!(paths.contains(&"demo.tclspec"));
+
+        // The collector names each module exactly as the rendered path files
+        // it, which is the pairing a contributor otherwise has to keep by
+        // hand.
+        let module = files
+            .iter()
+            .find(|f| f["kind"] == "rs-mod")
+            .and_then(|f| f["source"].as_str())
+            .expect("mod.rs");
+        assert!(module.contains("mod farewell;\nmod greet;"), "{module}");
+        assert!(module.contains("farewell::spec(),"), "{module}");
+        assert!(module.contains("pub fn demo_command_specs()"), "{module}");
+    }
+
+    /// A namespaced command still lands on one legal module name, so the
+    /// collector needs no lint suppression the way the hand-written packs do.
+    #[test]
+    fn a_namespaced_command_gets_a_snake_case_module_name() {
+        let mut store = store::PackStore::empty("demo");
+        let mut d = draft::default_command_draft();
+        d.insert("name".to_owned(), json!("HTTP::header"));
+        store.set_command("HTTP::header", &d, false);
+        let export = pack_export(store.source(), "demo", "f5-irules");
+        let module = export["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .find(|f| f["kind"] == "rs-mod")
+            .and_then(|f| f["source"].as_str())
+            .expect("mod.rs");
+        assert!(module.contains("mod http_header;"), "{module}");
+        assert!(module.contains("http_header::spec(),"), "{module}");
+        assert!(!module.contains("non_snake_case"), "{module}");
+    }
+
+    #[test]
+    fn an_empty_pack_exports_no_module_to_collect_nothing() {
+        let store = store::PackStore::empty("demo");
+        let export = pack_export(store.source(), "demo", "tcl9.0");
+        let kinds: Vec<&str> = export["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .filter_map(|f| f["kind"].as_str())
+            .collect();
+        assert!(!kinds.contains(&"rs-mod"), "{kinds:?}");
     }
 
     #[test]

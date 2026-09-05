@@ -88,6 +88,14 @@ pub fn command_index(dialect: &str) -> String {
     to_string(&tcl_spec_studio::command_index(dialect))
 }
 
+/// Every artefact the pack produces: its `.tclspec`, one `.rs` per command,
+/// the `mod.rs` collecting them, and the dialect stub in both spellings.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_export(source: &str, pack: &str, dialect: &str) -> String {
+    to_string(&tcl_spec_studio::pack_export(source, pack, dialect))
+}
+
 /// The authoring packs `dialect` browses, with a command count each — the
 /// studio's top-level navigation.
 #[wasm_bindgen]
