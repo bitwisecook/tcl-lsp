@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result, anyhow, bail};
 use cargo_config2::{Config as CargoConfig, PathAndArgs};
-use regex::Regex;
+use rustc_lexer::TokenKind;
 use serde::Deserialize;
 use serde_json::Value;
 use syn::ext::IdentExt;
@@ -116,6 +116,12 @@ struct ManifestRow {
     package: String,
     kind: String,
     target_name: String,
+}
+
+#[derive(Clone, Copy, Default)]
+struct SmokeMarkers {
+    target: bool,
+    no_smoke_include: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -888,6 +894,7 @@ fn collect_smoke_test_sources(
     source: &Path,
     directory: &Path,
     items: &[syn::Item],
+    markers: SmokeMarkers,
     inside_smoke_module: bool,
     visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
     found: &mut BTreeSet<PathBuf>,
@@ -911,6 +918,7 @@ fn collect_smoke_test_sources(
                             source,
                             &child_directory,
                             items,
+                            markers,
                             module_is_smoke,
                             visited,
                             found,
@@ -930,6 +938,12 @@ fn collect_smoke_test_sources(
             }
             syn::Item::Macro(item) if item.mac.path.is_ident("include") => {
                 let Ok(path) = syn::parse2::<syn::LitStr>(item.mac.tokens.clone()) else {
+                    if !markers.target && !markers.no_smoke_include {
+                        bail!(
+                            "{}: non-literal include! expression requires an exact standalone '// tcl-lsp-smoke-target' or '// tcl-lsp-no-smoke-include' comment",
+                            source.display()
+                        );
+                    }
                     continue;
                 };
                 let Some(parent) = source.parent() else {
@@ -991,30 +1005,58 @@ fn collect_source_smoke_tests_at(
         .with_context(|| format!("reading Rust module {}", source.display()))?;
     let parsed = syn::parse_file(&text)
         .with_context(|| format!("parsing Rust module {}", source.display()))?;
+    let markers = source_smoke_markers(&text)
+        .with_context(|| format!("checking smoke markers in {}", source.display()))?;
+    if markers.target {
+        found.insert(source.to_path_buf());
+    }
     collect_smoke_test_sources(
         source,
         directory,
         &parsed.items,
+        markers,
         inside_smoke_module,
         visited,
         found,
     )
 }
 
-fn compile_marker_regex() -> Result<Regex> {
-    Regex::new(r"^[ \t]*//[ \t]*tcl-lsp-smoke-target[ \t]*$")
-        .context("compiling smoke marker regex")
-}
-
-fn is_smoke_marker_line(marker: &Regex, line: &str) -> Result<bool> {
-    if marker.is_match(line) {
-        return Ok(true);
+fn source_smoke_markers(text: &str) -> Result<SmokeMarkers> {
+    let mut offset = 0;
+    let mut line_start = 0;
+    let mut line_number = 1;
+    let mut markers = SmokeMarkers::default();
+    for token in rustc_lexer::tokenize(text) {
+        let end = offset + token.len;
+        let lexeme = &text[offset..end];
+        if token.kind == TokenKind::LineComment {
+            let body = lexeme
+                .strip_prefix("//")
+                .context("Rust lexer returned a malformed line comment")?
+                .trim();
+            let standalone = text[line_start..offset]
+                .chars()
+                .all(|character| matches!(character, ' ' | '\t'));
+            if body == "tcl-lsp-smoke-target" && standalone {
+                markers.target = true;
+            } else if body == "tcl-lsp-no-smoke-include" && standalone {
+                markers.no_smoke_include = true;
+            } else if body.starts_with("tcl-lsp-") && body.contains("smoke") {
+                bail!(
+                    "line {line_number}: invalid smoke marker; expected exactly '// tcl-lsp-smoke-target' or '// tcl-lsp-no-smoke-include' on a standalone line"
+                );
+            }
+        }
+        line_number += lexeme.bytes().filter(|byte| *byte == b'\n').count();
+        if let Some(last_newline) = lexeme.rfind('\n') {
+            line_start = offset + last_newline + 1;
+        }
+        offset = end;
     }
-    let comment = line.trim_start().strip_prefix("//").map(str::trim_start);
-    if comment.is_some_and(|comment| comment.contains("tcl-lsp-smoke")) {
-        bail!("invalid smoke marker; expected exactly '// tcl-lsp-smoke-target'");
+    if markers.target && markers.no_smoke_include {
+        bail!("source has contradictory smoke-target and no-smoke-include markers");
     }
-    Ok(false)
+    Ok(markers)
 }
 
 fn relative_source(root: &Path, source: &Path) -> Result<String> {
@@ -1079,17 +1121,14 @@ fn scan_target_smoke_sources(
 }
 
 fn scan_smoke_sources(root: &Path, targets: &[Target]) -> Result<SmokeInventory> {
-    let marker = compile_marker_regex()?;
     let mut inventory = SmokeInventory::default();
     for relative in tracked_rust_sources(root)? {
         let source = root.join(&relative);
         let text = fs::read_to_string(&source).with_context(|| format!("reading {relative}"))?;
-        let mut source_has_marker = false;
-        for (line_index, line) in text.lines().enumerate() {
-            source_has_marker |= is_smoke_marker_line(&marker, line)
-                .with_context(|| format!("{relative}:{}", line_index + 1))?;
-        }
-        if source_has_marker {
+        if source_smoke_markers(&text)
+            .with_context(|| format!("checking {relative}"))?
+            .target
+        {
             inventory.sources.insert(relative);
         }
     }
@@ -3127,6 +3166,7 @@ fn smoke_scanner_self_test() -> Result<()> {
             fake_source,
             Path::new("/repo/src"),
             &parsed.items,
+            SmokeMarkers::default(),
             false,
             &mut HashSet::new(),
             &mut found,
@@ -3146,6 +3186,7 @@ fn smoke_scanner_self_test() -> Result<()> {
             Path::new("/repo/src/lib.rs"),
             Path::new("/repo/src"),
             &parsed.items,
+            SmokeMarkers::default(),
             false,
             &mut HashSet::new(),
             &mut found,
@@ -3155,13 +3196,43 @@ fn smoke_scanner_self_test() -> Result<()> {
         }
     }
     smoke_module_scanner_self_test()?;
-    let marker = compile_marker_regex()?;
-    if !is_smoke_marker_line(&marker, "// tcl-lsp-smoke-target")?
-        || is_smoke_marker_line(&marker, "fn tcl_lsp_smoke() {}")?
-        || is_smoke_marker_line(&marker, "// tcl-lsp-smoke-target-extra").is_ok()
-        || is_smoke_marker_line(&marker, "// tcl-lsp-smoke-targte").is_ok()
+    if !source_smoke_markers("// tcl-lsp-smoke-target")?.target
+        || source_smoke_markers("fn tcl_lsp_smoke() {}")?.target
+        || source_smoke_markers("const TEXT: &str = r#\"\n// tcl-lsp-smoke-target\n\"#;\n")?.target
+        || source_smoke_markers("/*\n// tcl-lsp-smoke-target\n*/\n")?.target
+        || source_smoke_markers("// tcl-lsp-smoke-target-extra").is_ok()
+        || source_smoke_markers("let value = 1; // tcl-lsp-smoke-target").is_ok()
+        || source_smoke_markers("// tcl-lsp-smoke-target\n// tcl-lsp-no-smoke-include\n").is_ok()
     {
         bail!("smoke marker scanner self-test failed");
+    }
+    let fixture = Fixture::new()?;
+    let source = fixture.root.join("src/lib.rs");
+    fixture.write(
+        "src/lib.rs",
+        "include!(concat!(env!(\"OUT_DIR\"), \"/tests.rs\"));\n",
+    )?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("non-literal include without a smoke marker was accepted");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-no-smoke-include\ninclude!(concat!(env!(\"OUT_DIR\"), \"/data.rs\"));\n",
+    )?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut found)?;
+    if !found.is_empty() {
+        bail!("non-smoke generated include marker selected a smoke source");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-smoke-target\ninclude!(concat!(env!(\"OUT_DIR\"), \"/tests.rs\"));\n",
+    )?;
+    found.clear();
+    collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut found)?;
+    if found != BTreeSet::from([source]) {
+        bail!("marked non-literal include source was not selected");
     }
     Ok(())
 }

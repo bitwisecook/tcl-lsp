@@ -87,10 +87,13 @@ behind it.
    them; modules and further includes declared there resolve beside the
    included file, matching rustc. A test source filename is not a separate
    selection rule when the manifest explicitly gives its Cargo target another
-   name. Attribute macros
-   that generate a smoke test cannot be
-   inferred from Rust syntax; mark their source with an exact standalone
-   `// tcl-lsp-smoke-target` comment. `cargo xtask smoke-targets run` is the
+   name. Attribute macros and non-literal `include!` expressions that generate
+   a smoke test cannot be inferred from tracked Rust syntax; mark their
+   declaring source with an exact standalone `// tcl-lsp-smoke-target` line
+   comment. Every other non-literal include must be classified explicitly with
+   `// tcl-lsp-no-smoke-include`. The checker tokenises comments, so
+   marker-shaped text inside a string or block comment is ignored. `cargo
+   xtask smoke-targets run` is the
    no-nextest fallback and must select the same tests as the nextest smoke
    profile without changing workspace feature resolution;
    `make smoke-p P=<crate>` keeps `--workspace` resolution in both branches,
