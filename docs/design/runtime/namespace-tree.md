@@ -72,7 +72,7 @@ Per-namespace storage and metadata.  Fields we mirror:
 | `flags` | `int` | `NS_DYING` / `NS_DEAD` / `NS_TEARDOWN` |
 
 Fields we skip (tracked in §4): `clientData`, `deleteProc`,
-`earlyDeleteProc`, `nsId`, `interp`, `activationCount`, `refCount`,
+`earlyDeleteProc`, `nsId`, `interp`, `refCount`,
 `resolverEpoch`, `cmdResProc`, `varResProc`, `compiledVarResProc`,
 `exportLookupEpoch`, `ensembles`, `unknownHandlerPtr`.
 
@@ -205,10 +205,18 @@ struct Namespace {
     /// `namespace unknown` handler (a command prefix); `None` ⇒ inherit the
     /// interpreter default.
     unknown: Option<Vec<u8>>,
+    /// The name a retained token keeps after its parent edge is gone (C keeps
+    /// `fullName` when the deferred deletion nulls `parentPtr`).
+    retained_fqn: Option<Vec<u8>>,
 }
 ```
 
-Four fields of C's `Namespace` have no counterpart, deliberately:
+`Namespaces` carries the token's lifecycle counters beside the arena:
+`activations: Vec<u32>` — C's `Namespace.activationCount`, bumped for every
+call frame — and `deferred: BTreeSet<NsId>`, the tokens a non-zero count is
+keeping alive (§4).
+
+Three fields of C's `Namespace` have no counterpart, deliberately:
 
 - **`fullName`** is not stored. `qualified_name(ns)` walks the `parent` chain
   and builds it on demand — a namespace's FQN is derivable, and caching it
@@ -217,9 +225,9 @@ Four fields of C's `Namespace` have no counterpart, deliberately:
   no resolution cache. `resolve` walks the live tables on every lookup, so a
   command added or removed anywhere is visible immediately, with no
   bookkeeping and no cascade.
-- **`flags`** (`NS_DYING` / `NS_DEAD` / `NS_TEARDOWN`) is absent: a deleted
-  namespace is removed from its parent's `children` map and its arena slot is
-  emptied, so there is no dying-but-reachable state to describe.
+- **`flags`** (`NS_DYING` / `NS_DEAD` / `NS_TEARDOWN`) is absent as a word:
+  the states it names are the `dying`, `dead` and `deferred` sets on
+  `Namespaces`, keyed by token id.
 
 `BTreeMap` (not `HashMap`) throughout gives deterministic storage and makes
 `info commands` / `info vars` stable run to run. Two places are exceptions,
@@ -307,10 +315,11 @@ implemented, it is implemented differently — the pointer below says where.
 C Tcl uses `refCount`, `activationCount`, `NS_DYING` / `NS_DEAD`,
 `deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`, and
 `Command.cmdEpoch` to sequence a namespace teardown that can be re-entered by
-the very code it is tearing down. Most of them are not carried: there is no
-`flags` word on either `Namespace` or `Command`, because Rust ownership
-sequences the teardown instead — a removed entry is moved out of its map, so
-nothing can observe a half-dead one.
+the very code it is tearing down. `refCount`, `deleteProc` and
+`earlyDeleteProc` are not carried, and there is no `flags` word on either
+`Namespace` or `Command`, because Rust ownership sequences the teardown
+instead — a removed entry is moved out of its map, so nothing can observe a
+half-dead one.
 
 The one exception is what `CMD_DYING` + `Command.cmdEpoch` together decide:
 *is the thing at this name still the token I snapshotted?* `CommandTable`
@@ -322,8 +331,44 @@ snapshotted sibling, or redefines the entry the loop is on, changes that
 entry's generation and the loop skips it; a command the callback *created*
 is torn down by the next snapshot.
 
-`activationCount` and the deferred teardown it drives are still not carried
-(#1751).
+`activationCount` **is** carried, as `Namespaces::activations`. Every call
+frame — proc, `apply`, TclOO method, `namespace eval`/`inscope` — counts an
+activation against the namespace it runs in, and gives it back at the matching
+pop. `namespace delete` on a token whose count is non-zero takes C's other
+branch (`activationCount > (nsPtr == globalNsPtr)`, `tclNamesp.c:1012`): it
+retires the token's owned ensembles and its `namespace unknown` handler, drops
+the parent's child edge — so `namespace exists` and every absolute name stop
+resolving at once, and the spelling is free for a wholly separate token — and
+then stops. Commands, variables, children and exports stay exactly as they
+are, reachable only from a frame that *holds* the token: a relative name
+resolves through it, `namespace current` answers from the name it kept
+(`retained_fqn`, C's `fullName` surviving a nulled `parentPtr`), and a
+definition without a qualifier lands in it. The ordinary teardown then runs
+from the pop that drops the last activation, exactly as C's
+`Tcl_PopCallFrame` (`tclNamesp.c:491`) simply calls `Tcl_DeleteNamespace`
+again — same per-token hash-ordered loop, same traces, same recursion into
+children, which each re-enter the count check and may defer in turn.
+
+A coroutine is the one place C never gets there: deleting a suspended
+coroutine frees its parked frames without `Tcl_PopCallFrame`, so a namespace
+they retained is abandoned rather than torn down, and no trace fires. Both
+runtimes match, by discarding the parked stack rather than popping it.
+
+The bytecode VM keeps the same counters (`NamespaceDeferral`) but cannot leave
+a retained token's tables in place: its `commands` map is flat and keyed by
+canonical name, so a retained `N::q` and the `N::q` of a namespace recreated
+under that spelling would be one entry. The retained subtree therefore moves
+into a `RetainedNamespace` record filed under the token's id, which only the
+frames holding that token reach — resolution consults it for the
+current-namespace candidate and refuses the flat map's entries in that
+subtree, `info commands` / `info procs` / `namespace children` read it by
+token id, and a relative definition is absorbed into it. Its final teardown
+splices each token back into the live map one at a time, so the shared command
+lifecycle runs unchanged. Two pieces of the retained token are not in the
+record yet (#1751 milestone 2): its command-trace sidecars, which are still
+keyed by name and can therefore be reached by a recreation's traces during the
+window, and its variables, which stay in the VM's one flat global table under
+their canonical names.
 
 `namespace delete` **is** implemented (`cmd_namespace.rs::ns_delete`, mirroring
 C's `NamespaceDeleteCmd`): it deletes each named namespace with its children,
@@ -487,9 +532,21 @@ fully-qualified name instead of the handle — the key that command and
 execution traces are registered under, so a trace addresses the same binding
 `resolve` (and `rename` / `delete`) hits.
 
-Deliberate C-parity gaps: no `NS_DEAD` check (nothing is dying-but-reachable,
-§4), no `CMD_VIA_RESOLVER` (no resolvers, §4), and no `cmdEpoch` rehash (there
-is no cache to stale).
+A **retained** token (§4) is reachable by no public path: its parent edge is
+gone, so no absolute name and no `namespace path` entry finds it. Only the
+frames whose current namespace *is* that token reach its tables, and they reach
+them the way C does — `TclGetNamespaceForQualName` walking from
+`varFramePtr->nsPtr`. An absolute name from such a frame is still rooted at the
+global namespace, where a same-named recreation lives, so the two tokens never
+answer for each other.
+
+Deliberate C-parity gaps: no `CMD_VIA_RESOLVER` (no resolvers, §4) and no
+`cmdEpoch` rehash (there is no cache to stale). tclsh's `ResolvedCmdName`
+object cache is also **not** modelled: C only invalidates it when the
+command's own namespace is `NS_DYING`, so a *literal* absolute name to a
+command in a non-dying child of a retained namespace keeps resolving there.
+That is a caching artefact, not a semantic, and tests must build such names at
+run time rather than pin it.
 
 ### 5.3 Variable resolution
 
