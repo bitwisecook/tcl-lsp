@@ -57,8 +57,20 @@ import {
   packIndex,
   packSections,
 } from "../src/packs.js";
+import {
+  describeSubject,
+  fieldAnchorId,
+  formatHash,
+  historyMode,
+  labelIndex,
+  parseHash,
+  relatedGroups,
+  routeSubject,
+  type DockSources,
+  type Route,
+} from "../src/docsDock.js";
 import { mapSelectionThroughFormat } from "../src/textSelection.js";
-import type { IndexEntry, PackRow } from "../src/types.js";
+import type { CodeExample, FieldSchema, IndexEntry, PackRow, Schema } from "../src/types.js";
 
 describe("mapSelectionThroughFormat", () => {
   it("keeps a caret after its text when formatting inserts indentation", () => {
@@ -578,5 +590,254 @@ describe("alsoInSentence", () => {
   it("says nothing about a name only one pack declares", () => {
     assert.equal(alsoInSentence("lsort", []), "");
     assert.equal(alsoInSentence("lsort", [""]), "");
+  });
+});
+
+/* The live documentation dock ------------------------------------------- */
+
+/** The smallest example the annotated renderer will take. */
+function example(code: string): CodeExample {
+  return { code, annotations: [] };
+}
+
+function field(key: string, over: Partial<FieldSchema> = {}): FieldSchema {
+  return {
+    key,
+    label: key.replace(/_/g, " "),
+    doc: `what ${key} means`,
+    group: "Behaviour",
+    help: `the long form of ${key}`,
+    example: example(`# ${key}`),
+    kind: { tag: "bool" },
+    ...over,
+  };
+}
+
+/** A schema with just enough in it to resolve every kind of subject. */
+function schema(): Schema {
+  return {
+    groups: ["Identity", "Behaviour"],
+    groupHelp: { Behaviour: "what the command does when it runs" },
+    groupExamples: { Behaviour: example("# behaviour") },
+    catalogues: {
+      taintColour: [
+        { key: "Http", doc: "from the request", example: example("# http") },
+        { key: "Session", doc: "from the session", group: "Sources", example: example("# ssn") },
+      ],
+    },
+    catalogueHelp: {
+      taintColour: {
+        title: "Taint colours",
+        intro: "where a value came from",
+        example: example(""),
+      },
+    },
+    nestedFields: [
+      {
+        key: "variable_scope",
+        label: "Variable scope",
+        doc: "which scope an option writes",
+        owner: "options",
+        group: "Behaviour",
+        help: "the long form of variable_scope",
+        example: example("# scope"),
+      },
+    ],
+    command: [
+      field("pure", {
+        related: [
+          {
+            name: "Purity",
+            why: "a pure command cannot also declare side effects.",
+            keys: ["pure", "side_effects", "nosuch_key"],
+          },
+        ],
+      }),
+      field("side_effects", { label: "Side effects" }),
+    ],
+    subcommand: [field("arity", { group: "Identity" })],
+  };
+}
+
+function sources(): DockSources {
+  return {
+    schema: schema(),
+    packs: new Map([["tk", pack("tk", 12)]]),
+  };
+}
+
+describe("describeSubject", () => {
+  it("documents a setting with its schema help and its example", () => {
+    const content = describeSubject(sources(), { kind: "field", key: "pure" });
+    assert.equal(content?.title, "pure");
+    assert.equal(content?.code, "pure");
+    assert.equal(content?.doc, "what pure means");
+    assert.equal(content?.help, "the long form of pure");
+    assert.equal(content?.example?.code, "# pure");
+    assert.equal(content?.kindLabel, "Setting · Behaviour");
+  });
+
+  it("falls back to the subcommand table, then to nested properties", () => {
+    assert.equal(describeSubject(sources(), { kind: "field", key: "arity" })?.title, "arity");
+    const nested = describeSubject(sources(), { kind: "field", key: "variable_scope" });
+    assert.equal(nested?.title, "Variable scope");
+    assert.equal(nested?.kindLabel, "Setting · inside options");
+  });
+
+  it("documents a group, a catalogue, one of its values, and a pack", () => {
+    const group = describeSubject(sources(), { kind: "group", name: "Behaviour" });
+    assert.equal(group?.help, "what the command does when it runs");
+    assert.equal(group?.doc, "2 settings in this group.");
+
+    const catalogue = describeSubject(sources(), { kind: "catalogue", id: "taintColour" });
+    assert.equal(catalogue?.title, "Taint colours");
+    assert.equal(catalogue?.doc, "2 values to pick from.");
+
+    const value = describeSubject(sources(), {
+      kind: "value",
+      catalogue: "taintColour",
+      key: "Session",
+    });
+    assert.equal(value?.title, "Session");
+    assert.equal(value?.kindLabel, "Value of Taint colours");
+    assert.equal(value?.doc, "from the session");
+
+    const declaring = describeSubject(sources(), { kind: "pack", id: "tk" });
+    assert.equal(declaring?.title, "TK");
+    assert.equal(declaring?.kindLabel, "Pack · 12 commands");
+  });
+
+  it("resolves nothing it cannot document, so the dock keeps what it had", () => {
+    assert.equal(describeSubject(sources(), { kind: "field", key: "nosuch" }), null);
+    assert.equal(describeSubject(sources(), { kind: "group", name: "Nosuch" }), null);
+    assert.equal(describeSubject(sources(), { kind: "catalogue", id: "nosuch" }), null);
+    assert.equal(
+      describeSubject(sources(), { kind: "value", catalogue: "taintColour", key: "nosuch" }),
+      null,
+    );
+    assert.equal(describeSubject(sources(), { kind: "pack", id: "nosuch" }), null);
+  });
+});
+
+describe("relatedGroups", () => {
+  it("labels every key, marks the field itself, and flags keys the schema lacks", () => {
+    const clusters = describeSubject(sources(), { kind: "field", key: "pure" })?.related ?? [];
+    assert.equal(clusters.length, 1);
+    assert.equal(clusters[0]?.name, "Purity");
+    assert.equal(clusters[0]?.why, "a pure command cannot also declare side effects.");
+    assert.deepEqual(clusters[0]?.links, [
+      { key: "pure", label: "pure", self: true, known: true },
+      { key: "side_effects", label: "Side effects", self: false, known: true },
+      { key: "nosuch_key", label: "nosuch_key", self: false, known: false },
+    ]);
+  });
+
+  it("says nothing when a studio build predates the key", () => {
+    // `related` is optional in the wire contract: a wasm module built before
+    // it existed simply sends no clusters, and the dock ends at the example.
+    assert.deepEqual(relatedGroups(field("pure"), labelIndex(schema())), []);
+    assert.deepEqual(
+      describeSubject(sources(), { kind: "field", key: "side_effects" })?.related,
+      [],
+    );
+  });
+});
+
+describe("fieldAnchorId", () => {
+  it("derives one stable id per key", () => {
+    assert.equal(fieldAnchorId("arity_windows"), "field-arity_windows");
+    assert.equal(fieldAnchorId("options.arity_hook"), "field-options-arity_hook");
+  });
+});
+
+describe("parseHash and formatHash", () => {
+  it("round-trips a command, a focused setting, and a reference entry", () => {
+    const cases: Route[] = [
+      { view: "command", dialect: "tcl9.0", command: "lsort", field: null },
+      { view: "command", dialect: "tcl9.0", command: "lsort", field: "arity_windows" },
+      { view: "reference", catalogue: "taintColour", variant: null },
+      { view: "reference", catalogue: "taintColour", variant: "Http" },
+    ];
+    for (const route of cases) {
+      assert.deepEqual(parseHash(formatHash(route)), route, formatHash(route));
+    }
+  });
+
+  it("encodes a command name that a path would otherwise split", () => {
+    const route: Route = {
+      view: "command",
+      dialect: "spectcl",
+      command: "::tcl::mathfunc::ceil",
+      field: null,
+    };
+    assert.equal(formatHash(route), "#/c/spectcl/%3A%3Atcl%3A%3Amathfunc%3A%3Aceil");
+    assert.deepEqual(parseHash(formatHash(route)), route);
+  });
+
+  it("reads a fragment that names no view of the studio as no route", () => {
+    for (const hash of ["", "#", "#/", "#/c", "#/c/tcl9.0", "#/ref", "#/nosuch/thing"]) {
+      assert.equal(parseHash(hash), null, hash);
+    }
+  });
+
+  it("survives a hand-edited fragment rather than throwing during boot", () => {
+    assert.deepEqual(parseHash("#/c/tcl9.0/%E0%A4%A"), {
+      view: "command",
+      dialect: "tcl9.0",
+      command: "%E0%A4%A",
+      field: null,
+    });
+  });
+});
+
+describe("historyMode", () => {
+  it("replaces within one command so Back moves between commands", () => {
+    const lsort: Route = { view: "command", dialect: "tcl9.0", command: "lsort", field: null };
+    const focused: Route = { ...lsort, field: "arity" };
+    assert.equal(historyMode(lsort, focused), "replace");
+    assert.equal(historyMode(focused, lsort), "replace");
+  });
+
+  it("pushes for another command, another dialect, or another kind of view", () => {
+    const lsort: Route = { view: "command", dialect: "tcl9.0", command: "lsort", field: null };
+    assert.equal(historyMode(lsort, { ...lsort, command: "lindex" }), "push");
+    assert.equal(historyMode(lsort, { ...lsort, dialect: "spectcl" }), "push");
+    assert.equal(
+      historyMode(lsort, { view: "reference", catalogue: "taintColour", variant: null }),
+      "push",
+    );
+    assert.equal(historyMode(null, lsort), "push");
+  });
+
+  it("replaces when a route is re-written over itself, as restoring one does", () => {
+    const entry: Route = { view: "reference", catalogue: "taintColour", variant: "Http" };
+    assert.equal(historyMode(entry, { ...entry }), "replace");
+    assert.equal(historyMode(entry, { ...entry, variant: "Session" }), "push");
+    assert.equal(historyMode({ ...entry, variant: null }, { ...entry, variant: null }), "replace");
+  });
+});
+
+describe("routeSubject", () => {
+  it("documents the setting a command route focuses, and nothing when it names none", () => {
+    assert.deepEqual(
+      routeSubject({ view: "command", dialect: "tcl9.0", command: "lsort", field: "pure" }),
+      { kind: "field", key: "pure" },
+    );
+    assert.equal(
+      routeSubject({ view: "command", dialect: "tcl9.0", command: "lsort", field: null }),
+      null,
+    );
+  });
+
+  it("documents a reference route as its catalogue, or as the one value it names", () => {
+    assert.deepEqual(routeSubject({ view: "reference", catalogue: "taint", variant: null }), {
+      kind: "catalogue",
+      id: "taint",
+    });
+    assert.deepEqual(routeSubject({ view: "reference", catalogue: "taint", variant: "Http" }), {
+      kind: "value",
+      catalogue: "taint",
+      key: "Http",
+    });
   });
 });

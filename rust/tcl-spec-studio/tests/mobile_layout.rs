@@ -136,3 +136,134 @@ fn autocomplete_suggests_name_matches_only() {
         "datalist suggestions must rank prefix matches first"
     );
 }
+
+/* The live documentation dock.
+ *
+ * The dock is the surface that documents whatever the author is touching
+ * *without moving it*, so its whole value rests on layout rules: it is a
+ * column of its own where there is room, a bottom bar where there is not, and
+ * a one-line strip on a phone. The rules below are the ones that stop it
+ * covering the control being edited — the failure that would make it worse
+ * than the inline panel it was built to supplement. */
+
+#[test]
+fn the_dock_is_its_own_column_only_where_there_is_room_for_one() {
+    let css = squashed(CSS);
+    assert!(
+        css.contains("@media(min-width:75rem)"),
+        "the dock's sidebar breakpoint (min-width: 75rem ≈ 1200px) is missing — \
+         below it the dock has to be a bottom bar, not a third grid track"
+    );
+    assert!(
+        css.contains("grid-template-columns:20remminmax(0,1fr)23rem"),
+        "the wide layout must give the dock its own track between 22 and 26rem, \
+         with the workbench on a `minmax(0, 1fr)` so a long line cannot widen it"
+    );
+}
+
+#[test]
+fn the_bottom_bar_reserves_its_own_room_at_the_end_of_the_page() {
+    // A fixed bar covers whatever the page ends with unless the page keeps
+    // that much padding — and on a phone the expanded dock is half the
+    // viewport, which is most of the form.
+    let css = squashed(CSS);
+    assert!(
+        css.contains("--dock-h"),
+        "`--dock-h` is missing — the page and the fields both size their \
+         clearance from how much room the dock is taking"
+    );
+    assert!(
+        css.contains("padding-bottom:calc(var(--dock-h)+2rem)"),
+        "the page must reserve the bottom bar's height, or its last field \
+         cannot be scrolled out from under it"
+    );
+    assert!(
+        css.contains("scroll-margin-bottom:calc(var(--dock-h)+1rem)"),
+        "a field must carry the bar's height as scroll margin, or a deep link \
+         scrolls it to exactly where the bar covers it"
+    );
+    assert!(
+        css.contains(r#":root[data-dock="collapsed"]"#),
+        "a collapsed dock must reserve less room than an expanded one"
+    );
+}
+
+#[test]
+fn the_dock_collapses_to_a_strip_that_still_names_its_subject() {
+    assert!(
+        HTML.contains(r#"id="dockToggle""#) && HTML.contains(r#"id="dockSubject""#),
+        "the collapsed dock is a strip carrying the current subject's name and \
+         the control that reopens it"
+    );
+    assert!(
+        HTML.contains(r#"aria-controls="dockBody""#) && HTML.contains(r#"aria-expanded="true""#),
+        "the collapse control must report what it controls and its state"
+    );
+    assert!(
+        STUDIO_TS.contains("max-width: 34rem)\").matches"),
+        "a phone must start on the summary line rather than covering the form"
+    );
+}
+
+#[test]
+fn the_dock_is_a_labelled_region_whose_changing_half_is_announced() {
+    assert!(
+        HTML.contains(r#"<aside class="dock""#) && HTML.contains(r#"aria-labelledby="dockLabel""#),
+        "the dock must be a labelled complementary region"
+    );
+    assert!(
+        HTML.contains(r#"id="dockBody" aria-live="polite""#),
+        "the part of the dock that changes as focus moves must be a polite live region"
+    );
+}
+
+#[test]
+fn a_deep_link_lands_on_a_stable_anchor_and_says_where_it_landed() {
+    assert!(
+        STUDIO_TS.contains("fieldAnchorId(field.key)") && STUDIO_TS.contains("revealField"),
+        "every field control needs the stable anchor id a related-setting link \
+         navigates to"
+    );
+    assert!(
+        squashed(CSS).contains(".field.dock-target{animation:dock-flash"),
+        "the landing flash is what tells one row of a 137-setting form from its \
+         neighbours"
+    );
+    assert!(
+        CSS.contains("@media (prefers-reduced-motion: reduce)")
+            && squashed(CSS).contains("animation:none;outline:2pxsolidvar(--accent)"),
+        "reduced motion must hold a static outline rather than dropping the \
+         answer to where the link landed"
+    );
+}
+
+#[test]
+fn the_dock_follows_focus_and_never_the_pointer() {
+    for wiring in ["\"focusin\"", "\"change\"", "retargetFromForm", "retargetFromBrowser"] {
+        assert!(
+            STUDIO_TS.contains(wiring),
+            "the dock follows focus and deliberate choices: {wiring} not found"
+        );
+    }
+    for churn in ["mouseover", "mouseenter", "pointerover"] {
+        assert!(
+            !STUDIO_TS.contains(churn),
+            "the dock must not re-target on {churn} — a pointer crossing the \
+             form would churn the panel"
+        );
+    }
+}
+
+#[test]
+fn the_inline_help_panels_remain_the_narrow_viewport_surface() {
+    // The dock is an additional surface over the same schema text, not a
+    // replacement: on a phone the inline panel is still the primary one.
+    assert!(
+        STUDIO_TS.contains("helpButton(help, field.label)"),
+        "the field's inline ? button must survive the dock"
+    );
+    assert!(
+        STUDIO_TS.contains("helpWithExample(field.help, field.example)"),
+        "the inline panel and the dock must render the same schema help"
+    );
+}

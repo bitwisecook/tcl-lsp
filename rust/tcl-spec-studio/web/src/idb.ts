@@ -48,6 +48,13 @@ export interface Session {
    * which restores as "nothing opened" rather than as a failure to restore.
    */
   expanded?: string[];
+  /**
+   * Whether the documentation dock was expanded.
+   *
+   * Absent in a record written before the dock existed, which restores as the
+   * default for the viewport rather than as a failure to restore.
+   */
+  dockOpen?: boolean;
 }
 
 const DB_NAME = "tcl-spec-studio";
@@ -141,6 +148,7 @@ export async function load(): Promise<Session | null> {
         expanded: Array.isArray(row.expanded)
           ? row.expanded.filter((id): id is string => typeof id === "string")
           : undefined,
+        dockOpen: typeof row.dockOpen === "boolean" ? row.dockOpen : undefined,
       });
     };
     request.onerror = () => resolve(null);

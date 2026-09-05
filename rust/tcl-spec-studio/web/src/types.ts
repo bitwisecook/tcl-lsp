@@ -79,6 +79,21 @@ export interface FieldKind {
   hint?: string;
 }
 
+/**
+ * A named cluster of settings that are read together.
+ *
+ * `pure` contradicting `side_effects`, `arity` against `arity_windows`, a
+ * taint source with nothing that checks it: these are decided as a set, and a
+ * form that shows one at a time never says so.
+ */
+export interface RelatedCluster {
+  name: string;
+  /** One sentence on why the cluster's members constrain each other. */
+  why: string;
+  /** The spec keys in the cluster, including the field carrying the entry. */
+  keys: string[];
+}
+
 /** One editable field, from `schema::FieldSchema`. */
 export interface FieldSchema {
   key: string;
@@ -89,6 +104,13 @@ export interface FieldSchema {
   help: string;
   example: CodeExample;
   kind: FieldKind;
+  /**
+   * The clusters this field belongs to, one entry each.
+   *
+   * Optional in the wire contract: a studio wasm built before the key existed
+   * sends nothing, and the dock then shows the field alone.
+   */
+  related?: RelatedCluster[];
 }
 
 /** One documented property edited inside a composite field row. */

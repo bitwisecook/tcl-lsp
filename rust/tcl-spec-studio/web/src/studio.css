@@ -538,3 +538,120 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
   }
   .cmdlist button { min-height: 44px; }
 }
+
+/* The live documentation dock.
+ *
+ * One region, three shapes. Wide enough for three columns and it is a docked
+ * sidebar sticky to the viewport, scrolling inside itself. Below that it is a
+ * bottom bar of fixed height. On a phone it is a single summary line that
+ * expands on tap. The reason for all of it is the same: opening documentation
+ * for the field you are editing must not move the field you are editing, which
+ * is exactly what the inline `?` panel does — so this surface never takes part
+ * in the form's flow.
+ *
+ * `--dock-h` is how much room the bar takes at the bottom of the viewport; the
+ * page reserves it as padding so the last field can still be scrolled clear of
+ * an overlay, and fields carry it as `scroll-margin-bottom` so a deep link
+ * lands above the bar rather than behind it. The sidebar shape overlays
+ * nothing, so there it is zero. */
+:root { --dock-h: 0rem; }
+
+.dock {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0;
+}
+.dockhead { margin: 0; font-size: 1rem; }
+.dockhead > button {
+  display: flex; align-items: baseline; gap: .5rem; width: 100%;
+  border: 0; background: transparent; color: inherit; font: inherit;
+  padding: .6rem .85rem; border-radius: 12px; text-align: left;
+}
+.docklabel { font-weight: 700; font-size: .78rem; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted); flex: 0 0 auto; }
+.docksubject {
+  flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .88rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Drawn rather than typed: a rotating glyph keeps the open/closed state
+   legible without a second string for a screen reader to read out — the
+   button already carries `aria-expanded`. */
+.dockchevron {
+  flex: 0 0 auto; width: .5rem; height: .5rem; border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .12s;
+}
+.dock.collapsed .dockchevron { transform: rotate(-135deg); }
+.dockhead > button:hover .dockchevron { border-color: var(--accent); }
+.dockbody {
+  padding: 0 .85rem .85rem; overflow-y: auto; overflow-x: hidden;
+  border-top: 1px solid var(--border); flex: 1 1 auto; min-height: 0;
+}
+.dock.collapsed .dockbody { display: none; }
+.dockkind { color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; }
+.docktitle { margin: .15rem 0 .1rem; font-size: 1rem; }
+.dockcode { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
+.dockdoc { color: var(--muted); font-size: .84rem; margin: .2rem 0 .5rem; }
+.dockempty { color: var(--muted); font-size: .84rem; margin: .7rem 0 0; }
+/* The dock reuses the form's help panel and example blocks verbatim — the same
+   nodes the `?` panels build, from the same schema text. */
+.dockbody .helptext { border-left-width: 2px; margin-left: 0; }
+.dockbody .code-example { font-size: .95em; }
+
+/* Related settings: the clusters a setting is read as part of. */
+.dockrel { margin-top: .9rem; border-top: 1px solid var(--border); padding-top: .6rem; }
+.dockrel h4 { margin: .6rem 0 .1rem; font-size: .84rem; }
+.dockrel .why { color: var(--muted); font-size: .8rem; margin: 0 0 .35rem; }
+.dockrel ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem; }
+.dockrel a, .dockrel .self {
+  display: inline-block; font-family: var(--mono); font-size: .76rem;
+  border: 1px solid var(--border); border-radius: 999px; padding: .1rem .5rem;
+  color: var(--accent); text-decoration: none;
+}
+.dockrel a:hover { border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.dockrel .self { color: var(--muted); border-style: dashed; }
+.dockrel .unknown { color: var(--muted); }
+
+/* A deep link's arrival: a brief outline on the field it landed on, which is
+   the only way to tell one row of a 137-setting form from its neighbours.
+   Non-blocking — nothing waits for it, and the reduced-motion answer is the
+   same outline held still rather than no answer at all. */
+.field.dock-target { animation: dock-flash 1.2s ease-out; border-radius: 8px; }
+@keyframes dock-flash {
+  from { box-shadow: 0 0 0 3px var(--accent); }
+  to { box-shadow: 0 0 0 3px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .field.dock-target { animation: none; outline: 2px solid var(--accent); outline-offset: 3px; }
+  .dockchevron { transition: none; }
+}
+
+/* Wide: a third column of the browser/workbench grid, sticky and scrolling on
+   its own. 23rem sits in the 22–26rem the design asks for and still leaves the
+   form its width at 1200px. */
+@media (min-width: 75rem) {
+  .split { grid-template-columns: 20rem minmax(0, 1fr) 23rem; }
+  .dock { position: sticky; top: 1rem; max-height: calc(100vh - 3rem); }
+}
+
+/* Narrower: a bottom bar. Fixed to the viewport rather than placed in the
+   grid, because a docked panel that scrolls away with the page is not a dock. */
+@media (max-width: 74.99rem) {
+  :root { --dock-h: 15rem; }
+  :root[data-dock="collapsed"] { --dock-h: 3rem; }
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    height: var(--dock-h); border-radius: 12px 12px 0 0; border-bottom: 0;
+  }
+  .wrap { padding-bottom: calc(var(--dock-h) + 2rem); }
+  .field { scroll-margin-bottom: calc(var(--dock-h) + 1rem); }
+}
+
+/* Phone: one summary line until it is asked for. Expanded it takes at most
+   half the viewport, and the page keeps that much padding at its end, so the
+   control being edited can always be scrolled out from under it. */
+@media (max-width: 34rem) {
+  :root { --dock-h: 50vh; }
+  :root[data-dock="collapsed"] { --dock-h: 2.9rem; }
+  .dockhead > button { padding: .55rem .7rem; min-height: 44px; }
+  .docklabel { display: none; }
+}
