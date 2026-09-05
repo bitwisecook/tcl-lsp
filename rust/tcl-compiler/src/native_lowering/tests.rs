@@ -48,6 +48,7 @@ fn lower(
         config,
         escape: None,
         top_level: true,
+        line_origin: 0,
         entry_assumption: facts.dispatch_entry_assumption(),
         type_hints: &hints,
     };

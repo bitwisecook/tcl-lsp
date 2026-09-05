@@ -1349,6 +1349,13 @@ pub struct Procedure {
     pub params_raw: String,
     /// Source text of the body (`None` for synthetic procs like `when`).
     pub body_source: Option<String>,
+    /// Offset of [`Self::body_source`]'s first byte in the unit source.
+    ///
+    /// A statement of the body carries an absolute span; subtracting this
+    /// offset turns it into the body-relative position Tcl counts `errorLine`
+    /// and `(procedure "p" line N)` from. `0` for a procedure with no body
+    /// text of its own (a synthetic or lambda body unit).
+    pub body_offset: u32,
     /// Whether defined inside `namespace eval`.
     pub namespace_scoped: bool,
     /// BIG-IP handler priority (`0..=1000`, default 500).
@@ -1960,6 +1967,7 @@ mod tests {
             }]),
             params_raw: "name".into(),
             body_source: Some("puts \"Hello $name\"".into()),
+            body_offset: 0,
             namespace_scoped: false,
             base_priority: 500,
         };
