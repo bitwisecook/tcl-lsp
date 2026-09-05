@@ -577,38 +577,12 @@ pub fn eval_mathop(
 
 // ---- value helpers ---------------------------------------------------------
 
-/// Tcl boolean coercion (`Tcl_GetBoolean`): the keywords or any non-zero number.
+/// Tcl boolean context (`Tcl_GetBooleanFromObj`) as an `expr` error: the
+/// runtime's one typed-read owner ([`crate::typed_value::boolean`]) — the
+/// shared boolean words by unique prefix, else any number against zero, a NaN
+/// refused — with C's message and `-errorcode` carried into [`ExprError`].
 pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
-    let bytes = obj::bytes_of(o);
-    let s = core::str::from_utf8(&bytes).unwrap_or("");
-    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(s.trim()) {
-        return Ok(value);
-    }
-    // Any number: non-zero ⇒ true. NaN is numeric but not a boolean —
-    // tclsh: `expr {NaN ? 1 : 0}` → "floating point value is Not a Number".
-    let zero = Owned::fresh(obj::new_wide_int_obj(0));
-    match bignum::compare(o, zero.ptr()) {
-        Some(NumericCompare::Ordered(ord)) => Ok(!ord.is_eq()),
-        // A NaN is numeric but not a boolean; C stamps its own code here
-        // (tclsh: `-errorcode TCL VALUE DOUBLE NAN`) — #1581.
-        Some(NumericCompare::Unordered) => Err(ExprError::with_code(
-            tcl_syntax::expr::errors::NAN_MESSAGE.as_bytes(),
-            tcl_syntax::expr::errors::NAN_CODE.as_bytes(),
-        )),
-        None => {
-            // The `got <here>` tail matches C: a multi-token well-formed list
-            // reads as `a list`, anything else is quoted (truncated to 50 bytes),
-            // so `expr {"a b" ? 1 : 0}` reports `… but got a list`, not `"a b"`.
-            let mut m = b"expected boolean value but got ".to_vec();
-            m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
-            Err(ExprError::from_parts(
-                m,
-                tcl_syntax::expr::errors::BOOLEAN_OPERAND_CODE
-                    .as_bytes()
-                    .to_vec(),
-            ))
-        }
-    }
+    crate::typed_value::boolean(o).map_err(|e| ExprError::from_parts(e.message, e.code.to_vec()))
 }
 
 fn bool_obj(b: bool) -> Owned {

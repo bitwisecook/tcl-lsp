@@ -539,3 +539,96 @@ fn operand_type_errors_use_the_8_6_wording_at_8_6() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1425 — boolean context: the shared `tcl_syntax::boolean` words, by unique
+// prefix, in every context the runtime evaluates.
+// ---------------------------------------------------------------------------
+
+/// tclsh 8.6.16/9.0.4: every unique prefix of a boolean word is accepted in
+/// `expr`'s `?:`, in `if`, in `while`, and in `dict filter … script` — the
+/// issue's own repro (`set x tru; expr {$x ? "T" : "F"}` is `T`).
+#[test]
+fn boolean_prefixes_are_accepted_in_every_boolean_context() {
+    let (code, result, _) = run("set x tru; expr {$x ? \"T\" : \"F\"}");
+    assert_eq!((code, result.as_str()), (Code::Ok, "T"));
+    for (word, want) in [
+        ("t", "yes"),
+        ("tr", "yes"),
+        ("tru", "yes"),
+        ("y", "yes"),
+        ("ye", "yes"),
+        ("on", "yes"),
+        ("f", "no"),
+        ("fa", "no"),
+        ("fal", "no"),
+        ("n", "no"),
+        ("of", "no"),
+        ("off", "no"),
+    ] {
+        let (code, result, _) = run(&format!("set x {word}; if {{$x}} {{list yes}} {{list no}}"));
+        assert_eq!((code, result.as_str()), (Code::Ok, want), "if {{{word}}}");
+        let (code, result, _) = run(&format!(
+            "set x {word}; set n 0; while {{$x}} {{incr n; set x 0}}; set n"
+        ));
+        let laps = if want == "yes" { "1" } else { "0" };
+        assert_eq!(
+            (code, result.as_str()),
+            (Code::Ok, laps),
+            "while {{{word}}}"
+        );
+    }
+    let (code, result, _) = run("set x tru; dict filter {a 1 b 2} script {k v} {set x}");
+    assert_eq!((code, result.as_str()), (Code::Ok, "a 1 b 2"));
+}
+
+/// tclsh 8.6.16/9.0.4: `o` is shared by `on` and `off`, so it is refused —
+/// with the same message and `TCL VALUE NUMBER` in every boolean context —
+/// and a NaN is `TCL VALUE DOUBLE NAN`. A multi-element list is described as
+/// `a list` at 9.0 (8.6.16 quotes it, `"a b"`; that wording axis is #1581's,
+/// which `describe_bad_value` does not yet carry, so only the 9.0 row is
+/// pinned).
+#[test]
+fn the_ambiguous_prefix_and_nan_are_refused_in_every_boolean_context() {
+    for script in [
+        "set x o; if {$x} {}",
+        "set x o; while {$x} {}",
+        "set x o; expr {$x ? 1 : 0}",
+        "set x o; dict filter {a 1} script {k v} {set x}",
+    ] {
+        let (code, result, error_code) = run(script);
+        assert_eq!(code, Code::Error, "{script}");
+        assert_eq!(result, "expected boolean value but got \"o\"", "{script}");
+        assert_eq!(error_code, "TCL VALUE NUMBER", "{script}");
+    }
+    let (code, result, error_code) = run("set x NaN; if {$x} {}");
+    assert_eq!(
+        (code, result.as_str(), error_code.as_str()),
+        (
+            Code::Error,
+            "floating point value is Not a Number",
+            "TCL VALUE DOUBLE NAN"
+        )
+    );
+    let (code, result, error_code) = run("set x {a b}; if {$x} {}");
+    assert_eq!(
+        (code, result.as_str(), error_code.as_str()),
+        (
+            Code::Error,
+            "expected boolean value but got a list",
+            "TCL VALUE NUMBER"
+        )
+    );
+}
+
+/// A boolean word is coerced only where a boolean is actually needed: as a
+/// whole expression it keeps its own spelling (tclsh: `expr {tru}` is `tru`,
+/// not `1`), while `!` and `&&` — which do want a boolean — read it through
+/// the same acceptor as `if`.
+#[test]
+fn a_boolean_word_keeps_its_spelling_outside_a_boolean_context() {
+    expr_is("tru", "tru");
+    expr_is("yes", "yes");
+    expr_is("!of", "1");
+    expr_is("tru && 1", "1");
+}
