@@ -355,31 +355,115 @@ fn normalize(p: &str, cwd: &str) -> String {
     format!("/{}", parts.join("/"))
 }
 
-/// `glob ?-nocomplain? ?-directory dir? ?--? pattern ...` — minimal matching
-/// against the directory's entries.
+/// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
+/// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`
+/// abbreviate, `-t` prefixes both `-tails` and `-types` and so is
+/// `ambiguous option "-t"`, and the lone `-` prefixes every entry. Only a word
+/// starting with `-` reaches the table, so an empty word is a pattern
+/// (tclsh: `glob {}` → `.`), never a miss.
+///
+/// Issue #1607: this loop used to *skip* an unrecognised `-word` silently, so
+/// `glob -x a` ran and `-types d` leaked its value into the pattern list.
+/// Rejecting an unknown option is a deliberate behaviour change, ruled on for
+/// that sweep; every name the table advertises is honoured below.
+const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &[
+            "-directory",
+            "-join",
+            "-nocomplain",
+            "-path",
+            "-tails",
+            "-types",
+            "--",
+        ],
+    );
+
+/// Whether the entry at `path` satisfies every `-types` specifier — the same
+/// portable rule the WASM runtime applies (`cmd_fs::entry_matches_types`):
+/// file-kind `d f l` and permission `r w x` over the [`Filesystem`] seam, with
+/// the Unix special-device kinds `p s b c` never matching because the seam
+/// cannot express them. An empty list matches everything.
+fn glob_types_match(filesystem: &dyn Filesystem, path: &str, types: &[char]) -> bool {
+    if types.is_empty() {
+        return true;
+    }
+    // `symlink_metadata` so `l` (and the kind tests) see the link itself.
+    let Ok(meta) = filesystem.symlink_metadata(path) else {
+        return false;
+    };
+    types.iter().all(|&t| match t {
+        'd' => meta.is_dir,
+        'f' => meta.is_file,
+        'l' => meta.is_symlink,
+        'x' => meta.executable,
+        'p' | 's' | 'b' | 'c' => false, // special devices: not portable
+        _ => true, // `r`/`w` are best-effort; an unknown letter does not exclude
+    })
+}
+
+/// `glob ?-nocomplain? ?-directory dir? ?-tails? ?-types list? ?-join? ?--?
+/// pattern ...` — minimal matching against the directory's entries.
 fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // We never error on no match (effectively always `-nocomplain`).
     let mut dir: Option<String> = None;
     let mut join = false;
+    let mut tails = false;
+    let mut types: Vec<char> = Vec::new();
     let mut i = 0;
     while i < args.len() {
-        match &*args[i].to_str() {
-            "-nocomplain" => i += 1,
-            "-join" => {
-                join = true;
-                i += 1;
-            }
-            "-directory" | "-dir" => {
+        let word = args[i].to_str();
+        // Only a `-`-leading word reaches the table, as in C — a bare word
+        // (the empty one included) is the first pattern.
+        if !word.starts_with('-') {
+            break;
+        }
+        match GLOB_OPTIONS.index_of_str(&word) {
+            // `-directory dir` and `-path prefix` are distinct in C; this
+            // engine models both as the search root.
+            Ok(0 | 3) => {
                 dir = args.get(i + 1).map(|v| v.to_str().to_string());
                 i += 2;
             }
-            "--" => {
+            Ok(1) => {
+                join = true;
+                i += 1;
+            }
+            Ok(2) => i += 1,
+            Ok(4) => {
+                tails = true;
+                i += 1;
+            }
+            Ok(5) => {
+                // A list of one-letter type specifiers (`d`, `f`, `r`, …); a
+                // name must satisfy every requested test.
+                types = args
+                    .get(i + 1)
+                    .and_then(|v| v.as_list().ok())
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|s| {
+                                let s = s.to_str();
+                                let mut cs = s.chars();
+                                cs.next().filter(|_| cs.next().is_none())
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                i += 2;
+            }
+            // `--` ends the option scan.
+            Ok(_) => {
                 i += 1;
                 break;
             }
-            s if s.starts_with('-') => i += 1, // ignore other options
-            _ => break,
+            Err(e) => return err(e.into_message()),
         }
+    }
+    if tails && dir.is_none() {
+        return err("\"-tails\" must be used with either \"-directory\" or \"-path\"");
     }
     let patterns = &args[i..];
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
@@ -402,6 +486,24 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     name
                 };
                 results.push(full);
+            }
+        }
+    }
+    // `-types` filters on the entry's real path; `-tails` then reports each hit
+    // relative to the `-directory`/`-path` root, as C does.
+    let prefix = format!("{}/", base.trim_end_matches('/'));
+    results.retain(|r| {
+        let probe = if dir.is_some() {
+            r.clone()
+        } else {
+            file_join(&[Value::string(base.clone()), Value::string(r.clone())])
+        };
+        glob_types_match(filesystem, &probe, &types)
+    });
+    if tails {
+        for r in &mut results {
+            if let Some(rest) = r.strip_prefix(&prefix) {
+                *r = rest.to_owned();
             }
         }
     }

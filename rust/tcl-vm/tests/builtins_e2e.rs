@@ -1921,6 +1921,58 @@ fn channel_io() {
     );
 }
 
+/// Issue #1607: `glob`'s option words are a
+/// `Tcl_GetIndexFromObj(…, "option", 0)` table (`globOptions[]`,
+/// `tclFileName.c`). This engine used to *skip* an unrecognised `-word`
+/// silently — `glob -x a` ran, and `-types d` leaked its value into the
+/// pattern list. Rejecting an unknown option is a deliberate behaviour change,
+/// ruled on for this sweep, so the new rejection is pinned byte for byte.
+///
+/// tclsh 8.6.16 and 9.0.4 agree on every row (no dialect split):
+///   glob -x a  -> bad option "-x": must be -directory, -join, -nocomplain,
+///                 -path, -tails, -types, or --
+///   glob - a   -> ambiguous option "-": must be <same>
+///   glob -t d a-> ambiguous option "-t": must be <same>   (-tails/-types)
+///   glob -tails <pat>
+///              -> "-tails" must be used with either "-directory" or "-path"
+///   glob {}    -> .    (the empty word is a pattern, not an option)
+///   -n/-d/-j/-ta/-ty all resolve as unique prefixes.
+#[test]
+fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be -directory, -join, -nocomplain, -path, -tails, -types, or --";
+    const SETUP: &str = "set d /tmp/zz_tcltest_glob\n\
+                         file delete -force $d\n\
+                         file mkdir $d/sub\n\
+                         set f [open $d/a.tcl w]\nclose $f\n";
+    let msg = |tail: &str| {
+        let (ok, result, _) = run(&format!("{SETUP}catch {{{tail}}} e\nset e\n"));
+        assert!(ok, "expected the catch to succeed for {tail}");
+        result
+    };
+    // Unique prefixes resolve, and each advertised name is honoured.
+    assert_eq!(run(&format!("{SETUP}glob -d $d -ta *.tcl")).1, "a.tcl");
+    assert_eq!(run(&format!("{SETUP}glob -n -d $d -ta -ty f *")).1, "a.tcl");
+    assert_eq!(run(&format!("{SETUP}glob -n -d $d -ta -ty d *")).1, "sub");
+    // The new rejection.
+    assert_eq!(msg("glob -x a"), format!("bad option \"-x\": {MUST}"));
+    assert_eq!(msg("glob - a"), format!("ambiguous option \"-\": {MUST}"));
+    assert_eq!(
+        msg("glob -t d a"),
+        format!("ambiguous option \"-t\": {MUST}")
+    );
+    assert_eq!(
+        msg("glob -tails *.tcl"),
+        "\"-tails\" must be used with either \"-directory\" or \"-path\""
+    );
+    assert_eq!(
+        run(&format!(
+            "{SETUP}set r [glob -j -d $d -- sub]\nfile delete -force $d\nset r"
+        ))
+        .1,
+        "/tmp/zz_tcltest_glob/sub"
+    );
+}
+
 /// Issue #1607: `seek`'s origin word is a `Tcl_GetIndexFromObj(…, "origin", 0)`
 /// table (`originOptions[]`, `tclIOCmd.c`). This engine silently treated any
 /// unknown origin as `start`; C rejects it, abbreviates `s`/`c`/`e`, and words

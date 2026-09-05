@@ -788,6 +788,20 @@ entry point, or gate moves without this contract being updated.
 - TclOO method dispatch, `oo::define`'s slot ops, and its body-command
   lookup are hash probes, not tables: only the **join**
   (`prefix::tcloo_choice_list_bytes`) is shared.
+- `glob` is **not** an exception — both engines resolve its option words
+  through `OptionTable` since #1607 — but the two halves landed for
+  different reasons and the record belongs here. The WASM runtime's
+  scan already rejected an unknown option exactly as C does, so its
+  conversion changed no accept/reject decision. The bytecode VM's
+  silently *skipped* any unrecognised `-word`, so `glob -x a` ran and
+  `-types d` leaked its value into the pattern list; converting it makes
+  the VM reject unknown options, which is a deliberate behaviour change
+  ruled on for that sweep rather than an incidental one. Because the
+  table now advertises `-tails` and `-types`, the VM honours them too —
+  no engine may advertise an option it ignores. Both engines' text is
+  tclsh 8.6.16/9.0.4-exact (`bad option "-x": must be -directory, -join,
+  -nocomplain, -path, -tails, -types, or --`), pinned in
+  `glob_option_words_resolve_like_tcl_get_index_from_obj` on each side.
 - `tcl_registry::abbrev::KeywordTable` is a fourth prefix matcher (it
   supports `min_abbrev` and carries the ambiguous candidates), reached
   through `CommandSpec::resolve_subcommand_word` by the WASM runtime's
@@ -925,6 +939,10 @@ helper without reading the rationale:
   test modules in `runtime/rust` — the `binary`/`encoding`/`zlib`/
   `namespace` surfaces, including `zlib gzip`'s and `gunzip`'s option
   tables (C's order is `-header, -level`, not alphabetical).
+- `rust/tcl-vm/tests/builtins_e2e.rs` and the `cmd_fs.rs` test module in
+  `runtime/rust` — `glob_option_words_resolve_like_tcl_get_index_from_obj`
+  on each side, which pins the VM's *new* rejection of an unknown option
+  as well as the shared abbreviation verdicts.
 - `rust/tcl-vm/tests/cmd_oo_e2e.rs`
   (`info_object_isa_category_resolves_like_tcl_get_index_from_obj`,
   `tip558_configurable_property_abbreviates`) and the `cmd_oo.rs` test
