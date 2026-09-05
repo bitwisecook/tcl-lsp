@@ -154,7 +154,7 @@ if [ "$check_status" -ne 1 ]; then
     exit 1
 fi
 case "$check_output" in
-    *"wasi-sdk 25.0 with a wasm32-unknown-unknown-capable C compiler"*) ;;
+    *"wasi-sdk 34.0 with a wasm32-unknown-unknown-capable C compiler"*) ;;
     *)
         echo "dependency audit did not report the missing wasm32 compiler" >&2
         printf '%s\n' "$check_output" >&2

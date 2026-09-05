@@ -287,7 +287,7 @@ mod tests {
         for (version, expected_version, expected_patchlevel) in [
             (TclVersion::V8_4, "8.4", "8.4.20"),
             (TclVersion::V8_5, "8.5", "8.5.19"),
-            (TclVersion::V8_6, "8.6", "8.6.16"),
+            (TclVersion::V8_6, "8.6", "8.6.18"),
             (TclVersion::V9_0, "9.0", "9.0.4"),
             // `tclsh9.1` (the 9.1b0 reference build): `info tclversion` →
             // `9.1`, `info patchlevel` → `9.1b0`.

@@ -42,8 +42,8 @@ def _logo_data_uri(path: str) -> str:
     than referenced. The MIME type is guessed from the extension (``.svg`` →
     ``image/svg+xml``); an unknown type falls back to ``application/octet-stream``.
     """
-    with open(path, "rb") as fh:
-        data = fh.read()
+    with open(path, "rb") as handle:
+        data = handle.read()
     mime, _ = mimetypes.guess_type(path)
     if mime is None:
         mime = (
@@ -146,8 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     master_key = args.f5mku
     if args.f5mku_file:
         try:
-            with open(args.f5mku_file, encoding="utf-8") as fh:
-                master_key = fh.read().strip()
+            with open(args.f5mku_file, encoding="utf-8") as handle:
+                master_key = handle.read().strip()
         except OSError as exc:
             print(f"f5-report: could not read --f5mku-file: {exc}", file=sys.stderr)
             return 2
@@ -155,8 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     copyright_notice = args.copyright or ""
     if args.copyright_file:
         try:
-            with open(args.copyright_file, encoding="utf-8") as fh:
-                copyright_notice = fh.read().strip()
+            with open(args.copyright_file, encoding="utf-8") as handle:
+                copyright_notice = handle.read().strip()
         except OSError as exc:
             print(f"f5-report: could not read --copyright-file: {exc}", file=sys.stderr)
             return 2
@@ -164,8 +164,8 @@ def main(argv: list[str] | None = None) -> int:
     front_matter = ""
     if args.front_matter:
         try:
-            with open(args.front_matter, encoding="utf-8") as fh:
-                front_matter = fh.read()
+            with open(args.front_matter, encoding="utf-8") as handle:
+                front_matter = handle.read()
         except OSError as exc:
             print(f"f5-report: could not read --front-matter: {exc}", file=sys.stderr)
             return 2

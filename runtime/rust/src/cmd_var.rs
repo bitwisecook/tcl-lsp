@@ -711,7 +711,7 @@ mod tests {
             assert_eq!(i.result_bytes(), b"9.0");
             i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             assert_eq!(i.eval_str(b"info patchlevel"), Code::Ok);
-            assert_eq!(i.result_bytes(), b"8.6.16");
+            assert_eq!(i.result_bytes(), b"8.6.18");
             assert_eq!(i.eval_str(b"set ::tcl_version"), Code::Ok);
             assert_eq!(i.result_bytes(), b"8.6");
         });

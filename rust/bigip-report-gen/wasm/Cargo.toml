@@ -62,7 +62,7 @@ tcl-bigip-io = { path = "../../tcl-bigip-io" }
 # Parse the SCF for `sys file ssl-cert` cache-paths so the matching PEM can be
 # pulled out of the UCS filestore for the certs tab.
 tcl-bigip = { path = "../../tcl-bigip" }
-wasm-bindgen = "=0.2.127"
+wasm-bindgen = "=0.2.128"
 serde_json = { version = "1", features = ["preserve_order"] }
 # Give chrono a working clock on wasm32 (feature unification with the query
 # engine's time builtins), matching bigip-query-wasm.

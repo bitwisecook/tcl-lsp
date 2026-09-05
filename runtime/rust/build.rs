@@ -100,7 +100,7 @@ fn main() {
     // shared `cdylib`/`staticlib`.
     //
     // WASM: clang + a WASI sysroot (wasi-sdk) cross-compile the *same* pristine
-    // libtommath to a `wasm32-wasi` object archive, which rustc's wasm link
+    // libtommath to a `wasm32-wasip1` object archive, which rustc's wasm link
     // (`rust-lld`) pulls into the runtime `cdylib` — so the numeric tower
     // (`expr`, `::tcl::math*`, `lseq`, the bignum obj rep) is present on wasm
     // exactly as on native, and a whole-program AOT link gets a self-contained
@@ -130,7 +130,7 @@ fn main() {
             println!(
                 "cargo:warning=wasm C compiler ({cc}) not found; bignum backend \
                  disabled on wasm (install wasi-sdk and set WASI_SDK_PATH, or set \
-                 TCL_WASM_CC to a wasm32-wasi clang)"
+                 TCL_WASM_CC to a wasm32-wasip1 clang)"
             );
             return;
         }
@@ -145,7 +145,7 @@ fn main() {
             println!(
                 "cargo:warning=no WASI sysroot found; bignum backend disabled on \
                  wasm (install wasi-sdk and set WASI_SDK_PATH, or set \
-                 TCL_WASM_SYSROOT to a wasm32-wasi sysroot)"
+                 TCL_WASM_SYSROOT to a wasm32-wasip1 sysroot)"
             );
             return;
         };
@@ -156,7 +156,7 @@ fn main() {
         });
 
         let cflags = vec![
-            "--target=wasm32-wasi".to_string(),
+            "--target=wasm32-wasip1".to_string(),
             format!("--sysroot={sysroot}"),
         ];
         (cc, ar, cflags)
@@ -210,8 +210,8 @@ fn main() {
 }
 
 /// Build a [`Command`] from a possibly multi-word program string (e.g. a
-/// `TCL_WASM_CC="clang --target=wasm32-wasi"` override → program `clang`, arg
-/// `--target=wasm32-wasi`). The first whitespace-separated token is the
+/// `TCL_WASM_CC="clang --target=wasm32-wasip1"` override → program `clang`, arg
+/// `--target=wasm32-wasip1`). The first whitespace-separated token is the
 /// program; the rest are leading arguments.
 fn split_cmd(cmd: &str) -> Command {
     let mut parts = cmd.split_whitespace();

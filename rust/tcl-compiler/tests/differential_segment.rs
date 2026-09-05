@@ -246,7 +246,7 @@ fn gather_tcl(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn cst_matches_oracle_over_tcl_corpus() {
     let mut files = Vec::new();
-    for version in ["tcl8.4.20", "tcl8.5.19", "tcl8.6.16", "tcl9.0.4"] {
+    for version in ["tcl8.4.20", "tcl8.5.19", "tcl8.6.18", "tcl9.0.4"] {
         gather_tcl(&repo_root().join("tmp").join(version), &mut files);
     }
     if files.is_empty() {

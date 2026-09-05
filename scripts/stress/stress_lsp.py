@@ -89,7 +89,6 @@ import time
 from collections import deque
 from dataclasses import dataclass
 
-
 # -- failure artifacts: self-contained reproduction bundles ------------------
 #
 # Mirrors `rust/tcl-lsp-db/examples/stress_concurrent_analysis.rs`'s
@@ -141,12 +140,13 @@ def dump_repro_bundle(
             )
         if files:
             f.write("\n## Files in this bundle\n\n")
-            for name in sorted(files):
-                f.write(f"- `{name}`\n")
+            f.writelines(f"- `{name}`\n" for name in sorted(files))
         if copy_dirs:
             f.write("\n## Directories in this bundle\n\n")
-            for name in sorted(copy_dirs):
-                f.write(f"- `{name}/` (copy of the scenario's on-disk workspace)\n")
+            f.writelines(
+                f"- `{name}/` (copy of the scenario's on-disk workspace)\n"
+                for name in sorted(copy_dirs)
+            )
     for name, content in (files or {}).items():
         path = os.path.join(bundle, name)
         os.makedirs(os.path.dirname(path) or bundle, exist_ok=True)
