@@ -2570,6 +2570,17 @@ impl DiagInputs {
         let (text, decode_report, dialect, language_id, revision, version) = {
             let docs = self.documents.lock("capture_job").await;
             let doc = docs.get(uri)?;
+            // The edit handler makes the new buffer visible before its Salsa
+            // source so it can release EditOrder without wedging requests
+            // (#1849). A worker left over from the preceding revision can
+            // drain inside that gap; declining the capture makes it retire,
+            // and the successful source commit schedules a fresh worker.
+            // Combining this text/revision with the preceding SourceFile
+            // would pass the revision-only delivery guard and briefly publish
+            // stale diagnostics for the new edit.
+            if !doc.source_published {
+                return None;
+            }
             (
                 doc.text.clone(),
                 doc.decode_report,
@@ -4177,11 +4188,17 @@ impl EvidenceHandles {
 /// immediately if this is gated on it.
 async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     use salsa::Setter as _;
-    // Which files the host can honestly claim a closed world for, resolved
-    // before taking the db locks (the index has its own).
-    let covered =
-        files_with_covered_load_targets(&handles.db_files, &handles.workspace_index).await;
-    let (snapshot, files, project) = {
+    // A removal changes the file membership, workspace index, and Salsa
+    // project in one rehoming transaction. Keep that transaction excluded
+    // until both the coverage view and its matching Salsa snapshot have been
+    // captured; otherwise a pre-removal URI set can be paired with the
+    // post-removal index/project and unsafely claim a closed world. Live
+    // publication can still add a source while this short section runs, but a
+    // missing addition only withholds evidence -- the conservative direction.
+    let (covered, snapshot, files, project) = {
+        let _rehoming = handles.rehoming_gate.lock().await;
+        let covered =
+            files_with_covered_load_targets(&handles.db_files, &handles.workspace_index).await;
         let db = handles.db.lock().await;
         let db_files = handles.db_files.lock().await;
         let db_project = handles.db_project.lock().await;
@@ -4190,11 +4207,8 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (
-            SNAPSHOT_CENSUS.take(&db, "sync_cross_file_evidence"),
-            files,
-            project,
-        )
+        let snapshot = SNAPSHOT_CENSUS.take(&db, "sync_cross_file_evidence");
+        (covered, snapshot, files, project)
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
@@ -4604,18 +4618,31 @@ async fn files_with_covered_load_targets(
     db_files: &TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
     workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
 ) -> HashSet<Uri> {
-    // Snapshot the URI set and release `db_files` before awaiting the index.
-    // Holding the mutex across the fair RwLock read let this background fold
-    // pin `db_files` behind an index writer — the likeliest lock chain in the
-    // v2.2.2 `didOpen` stall (#1849 review).
-    let files: Vec<Uri> = db_files.lock().await.keys().cloned().collect();
+    // Obtain one simultaneous view without ever awaiting while a guard is
+    // held. The first attempt joins db_files' fair queue, then try-reads the
+    // index. On contention it drops db_files, joins the index queue while
+    // holding nothing, and retries. This preserves the #1849 no-outward-wait
+    // rule while preventing a removed source from surviving in `known_paths`
+    // beside the post-removal index.
+    let (files, sources) = loop {
+        let files_guard = db_files.lock().await;
+        if let Ok(index) = workspace_index.try_read() {
+            let files = files_guard.keys().cloned().collect::<Vec<_>>();
+            let sources = index.sources().cloned().collect::<Vec<_>>();
+            break (files, sources);
+        }
+        drop(files_guard);
+        // Join the dependency's ordered queue, but retain no other guard while
+        // waiting. A writer already ahead of us therefore completes instead
+        // of participating in the old db_files -> index lock chain.
+        drop(workspace_index.read().await);
+    };
     let known_paths: HashSet<std::path::PathBuf> = files
         .iter()
         .filter_map(|u| u.to_file_path().map(|p| p.to_path_buf()))
         .collect();
     let mut uncovered: HashSet<&str> = HashSet::new();
-    let index = workspace_index.read().await;
-    for site in index.sources() {
+    for site in &sources {
         if uncovered.contains(site.uri.as_str()) {
             continue;
         }
@@ -33714,6 +33741,68 @@ mod tests {
         );
     }
 
+    /// Automated review of #1854: coverage must never pair a URI set captured
+    /// before a removal with source sites read after it. Pin the index between
+    /// those two stages, wait until the helper has attempted the file-set
+    /// acquisition, remove the target, then release the index. The old
+    /// snapshot-then-await implementation incorrectly kept `main` covered.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn covered_load_snapshot_retries_after_source_removal_1854() {
+        let db = tcl_lsp_db::TclDatabase::default();
+        let main = Uri::from_str("file:///w/main.tcl").unwrap();
+        let target = Uri::from_str("file:///w/target.tcl").unwrap();
+        let main_file = tcl_lsp_db::SourceFile::new(
+            &db,
+            "source target.tcl\n".to_owned(),
+            "tcl8.6".to_owned(),
+            Some("/w/main.tcl".to_owned()),
+        );
+        let target_file = tcl_lsp_db::SourceFile::new(
+            &db,
+            String::new(),
+            "tcl8.6".to_owned(),
+            Some("/w/target.tcl".to_owned()),
+        );
+        let files = Arc::new(TrackedMutex::new(
+            "db_files",
+            HashMap::from([(main.clone(), main_file), (target.clone(), target_file)]),
+        ));
+        let mut index = new_workspace_index();
+        let analysis = Analyser::new()
+            .analyse("source target.tcl\n", "tcl8.6")
+            .clone();
+        index.add_document(main.as_str(), &analysis);
+        let index = Arc::new(RwLock::new(index));
+        let index_held = index.write().await;
+        let coverage = crate::rt::spawn({
+            let files = Arc::clone(&files);
+            let index = Arc::clone(&index);
+            async move { files_with_covered_load_targets(&files, &index).await }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if files.contention().contains("free; last held") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the coverage helper must attempt its file-set snapshot");
+        files.lock().await.remove(&target);
+        drop(index_held);
+
+        let covered = crate::rt::timeout(std::time::Duration::from_secs(5), coverage)
+            .await
+            .expect("coverage must finish after the index writer leaves")
+            .expect("coverage task must not panic");
+        assert!(
+            !covered.contains(&main),
+            "a source whose target left the project must not retain closed-world evidence",
+        );
+    }
+
     /// #1145: a watched `DELETED` → `CREATED` pair — what a `git checkout` or
     /// branch switch fires for every changed file — must not allocate a second
     /// salsa input per cycle.
@@ -36579,6 +36668,9 @@ proc p {} {
         backend
             .db_set_source(&uri, "set release_ready 1\n", "tcl8.6".to_owned())
             .await;
+        let diag_inputs = backend
+            .diag_inputs(&uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
 
         let db_held = backend.db.lock().await;
         let mut editing = crate::rt::spawn({
@@ -36621,6 +36713,10 @@ proc p {} {
         .await
         .expect("didChange waiting for Salsa must not retain the request barrier (#1849)");
         assert!(
+            diag_inputs.capture_job(&uri).await.is_none(),
+            "diagnostics must not pair the pending live revision with the preceding Salsa source",
+        );
+        assert!(
             crate::rt::timeout(std::time::Duration::from_millis(100), &mut editing)
                 .await
                 .is_err(),
@@ -36650,6 +36746,11 @@ proc p {} {
             .expect("the same-document request task must not panic")
             .expect("the edited document must remain open");
         assert_eq!(current.text.as_ref(), "set release_ready 2\n");
+        let published_job = diag_inputs
+            .capture_job(&uri)
+            .await
+            .expect("diagnostics capture resumes after matching source publication");
+        assert_eq!(published_job.text.as_ref(), "set release_ready 2\n");
         let db = backend.db.lock().await;
         let files = backend.db_files.lock().await;
         assert_eq!(
