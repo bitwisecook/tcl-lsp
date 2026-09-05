@@ -381,18 +381,18 @@ class LspClient:
         return result if isinstance(result, dict) else {}
 
     def notify(self, method: str, params: dict) -> None:
-        # Best-effort: a notification has no response to fail on, so a dead
-        # server is swallowed here rather than raised — the caller's *next*
-        # `request()` call (every scenario's loop always follows a burst of
-        # notifies with a request) hits the same dead-server condition and
-        # raises `LspError` there, where it's already handled. This is what
-        # stops a `didOpen`/`didChange`/`didClose` call site (none of which
-        # wrap `notify()` in try/except, since normally there is nothing to
-        # handle) from raising an unhandled exception straight out of a
-        # worker thread the instant the server dies mid-run.
         try:
             self._send({"jsonrpc": "2.0", "method": method, "params": params})
         except LspError:
+            # Best-effort: a notification has no response to fail on, so a dead
+            # server is swallowed here rather than raised — the caller's *next*
+            # `request()` call (every scenario's loop always follows a burst of
+            # notifies with a request) hits the same dead-server condition and
+            # raises `LspError` there, where it's already handled. This is what
+            # stops a `didOpen`/`didChange`/`didClose` call site (none of which
+            # wrap `notify()` in try/except, since normally there is nothing to
+            # handle) from raising an unhandled exception straight out of a
+            # worker thread the instant the server dies mid-run.
             pass
 
     def initialize(self, root_uri: str) -> dict:
@@ -422,6 +422,8 @@ class LspClient:
             self.request("shutdown", {}, timeout=5.0)
             self.notify("exit", {})
         except LspError:
+            # A server that is already dead needs no polite shutdown; the
+            # wait/kill below reaps it either way.
             pass
         try:
             self.process.wait(timeout=5.0)
