@@ -16,7 +16,7 @@ description = "CI gate: validate the generated Zed tree-sitter highlight queries
 [workspace]
 
 [dependencies]
-tree-sitter = "0.26"
+tree-sitter = "0.27"
 
 [build-dependencies]
 cc = "1"

@@ -46,7 +46,6 @@
 //! contiguous run of object slots holding its words, so `tcl_invoke_argv`
 //! receives a pointer directly into the frame.
 
-use tcl_lexer::Span;
 use tcl_registry::SemanticOperationId;
 use tcl_runtime_api::codegen_abi::{
     WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_SIZE, WASM32_POINTER_BYTES,
@@ -57,8 +56,8 @@ use crate::backend_registry::{
     SelectionFacts, SelectionInput, SelectionRegion, SelectorAttemptFailure, SelectorDecision,
     SelectorPriority, SelectorRequest,
 };
-use crate::codegen::values::whole_var_reference;
-use crate::ir::{Provenance, SourceSite, WordExpr, WordPart};
+use crate::ir::{SourceSite, WordExpr, WordPart};
+use crate::native_lowering::cells::{CellPlace, VariableWordDecline, variable_word_place};
 use crate::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
 };
@@ -473,61 +472,24 @@ fn plan_part(
     }
 }
 
-/// Plan a variable read, distinguishing `$a(b)` from `${a(b)}`.
+/// Plan a variable read.
 ///
-/// The compatibility spelling normalises both to `${a(b)}`, so the recorded
-/// lexical extent is what tells them apart: a `${…}` reference is exactly two
-/// bytes longer than its name, a `$…` reference exactly one. Only the latter
-/// is an array-element access; `${a(b)}` names a scalar whose name happens to
-/// contain parentheses.
+/// [`variable_word_place`] owns the reading — which cell a `$…` / `${…}` word
+/// names, and how `$a(b)` is told apart from `${a(b)}`; this only maps its
+/// refusal into this planner's vocabulary.
 fn plan_variable(
     spelling: &str,
     source: &SourceSite,
     slot: usize,
 ) -> Result<WasmWordPlan, WasmLeafInvokeDecline> {
-    let name = whole_var_reference(spelling).ok_or(WasmLeafInvokeDecline::DynamicVariableName)?;
-    if !name.contains('(') {
-        return Ok(WasmWordPlan::Scalar {
-            slot,
-            name: name.to_owned(),
-        });
-    }
-    if source.provenance != Provenance::Source {
-        return Err(WasmLeafInvokeDecline::AmbiguousVariableSpelling);
-    }
-    match extent(source.span).checked_sub(name.len()) {
-        // `${name}` — the whole thing is one scalar name.
-        Some(2) => Ok(WasmWordPlan::Scalar {
-            slot,
-            name: name.to_owned(),
-        }),
-        // `$name(key)` — a genuine array element access.
-        Some(1) => {
-            let (base, key) =
-                split_element(name).ok_or(WasmLeafInvokeDecline::AmbiguousVariableSpelling)?;
-            if key.bytes().any(|byte| matches!(byte, b'$' | b'[' | b'\\')) {
-                return Err(WasmLeafInvokeDecline::DynamicVariableName);
-            }
-            Ok(WasmWordPlan::Element {
-                slot,
-                name: base.to_owned(),
-                key: key.to_owned(),
-            })
+    match variable_word_place(spelling, source) {
+        Ok(CellPlace::Named { name }) => Ok(WasmWordPlan::Scalar { slot, name }),
+        Ok(CellPlace::Element { name, key }) => Ok(WasmWordPlan::Element { slot, name, key }),
+        Err(VariableWordDecline::Dynamic) => Err(WasmLeafInvokeDecline::DynamicVariableName),
+        Err(VariableWordDecline::Ambiguous) => {
+            Err(WasmLeafInvokeDecline::AmbiguousVariableSpelling)
         }
-        _ => Err(WasmLeafInvokeDecline::AmbiguousVariableSpelling),
     }
-}
-
-fn extent(span: Span) -> usize {
-    span.end().saturating_sub(span.start()) as usize
-}
-
-/// Split `base(key)` the way the runtime's own array reference split does.
-fn split_element(name: &str) -> Option<(&str, &str)> {
-    let inner = name.strip_suffix(')')?;
-    let open = inner.find('(')?;
-    let (base, key) = inner.split_at(open);
-    (!base.is_empty()).then(|| (base, &key[1..]))
 }
 
 /// The structured words of a `[…]` command substitution.

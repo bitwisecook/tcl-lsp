@@ -69,9 +69,26 @@ trace, or sourced-file boundary.
 ### rename
 `rename old new` moves the Command between namespace command tables;
 `rename old ""` deletes and must splice the command out of every importer's
-redirect list and deactivate those redirects. Self-rename is a no-op.
-Built-ins are protected (`return`, `error`) and refused verbatim
-(`can't rename "X": …`). Renaming a command does **not** chase existing
+redirect list and deactivate those redirects.
+
+Self-rename is **not** a no-op: `TclRenameCommand` checks the destination's
+hash table before it removes the source, so `rename foo foo` finds the source
+itself occupying the slot and is refused like any other occupied destination —
+`can't rename to "foo": command already exists`, errorcode `TCL OPERATION
+RENAME TARGET_EXISTS`.
+
+There is **no protected-command list**. `rename return myreturn` and `rename
+error myerror` both succeed on tclsh 8.6.16 and 9.0.4, and the runtime allows
+them (pinned by `cmd_alias.rs::tests::rename_builtin_return_is_allowed`).
+What `rename` refuses is about the move, not the source: an occupied
+destination (above), a rename that would close an alias cycle (`cannot define
+or rename alias "X": would create a loop`), and a builtin the emulated release
+does not carry. A missing source is `can't rename "X": command doesn't exist`,
+or `can't delete "X": command doesn't exist` when the destination is empty —
+the verb follows the requested operation. All three carry C's errorcodes
+(`TCL LOOKUP COMMAND X` on a miss).
+
+Renaming a command does **not** chase existing
 `interp alias` targets — an alias stores the target *name*, so after a rename
 the stored name simply stops resolving (matches C).
 
@@ -186,7 +203,7 @@ redefinition.
 | Behaviour | Class | Notes |
 |---|---|---|
 | Unqualified resolution order: current ns → path → global → unknown | **Contract** | Path makes bare `+` resolve via `::tcl::mathop`. |
-| `rename` move/delete, importer splice, built-in protection | **Contract** | `can't rename "X": …` verbatim. |
+| `rename` move/delete, importer splice, occupied-destination refusal | **Contract** | `can't rename "X": …` / `can't delete "X": …` / `can't rename to "X": command already exists` verbatim. No protected-builtin list — `rename return myreturn` succeeds. |
 | `interp alias` frozen prefix, by-name target re-resolve, no rename-follow | **Contract** | Lazily sees target deletion only. |
 | `import` transparent unwrap; snapshot-at-import; `forget`/source-rename splice | **Contract** | Imports unwrapped, aliases not. |
 | Ensemble subcommand prefix-match, `-map`/`-unknown`/`-subcommands` | **Contract** | `dict for`→`::tcl::dict::for` rewrite. |

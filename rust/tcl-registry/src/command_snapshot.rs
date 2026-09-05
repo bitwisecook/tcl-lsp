@@ -53,7 +53,6 @@ const EMPTY_LIST_DIGEST: &str =
 /// these boolean fields into the [`Traits`] bitflags.
 const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("byte_compiled", Traits::BYTE_COMPILED),
-    ("configures_channel", Traits::CONFIGURES_CHANNEL),
     (
         "configures_instance_options",
         Traits::CONFIGURES_INSTANCE_OPTIONS,
@@ -68,14 +67,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("evaluates_code", Traits::EVALUATES_CODE),
     ("frameless_runtime", Traits::FRAMELESS_RUNTIME),
     ("has_boolean_condition", Traits::HAS_BOOLEAN_COND),
-    ("has_destructive_ops", Traits::HAS_DESTRUCTIVE_OPS),
-    ("has_interp_eval", Traits::HAS_INTERP_EVAL),
     ("has_loop_body", Traits::HAS_LOOP_BODY),
-    (
-        "has_string_list_confusion_risk",
-        Traits::STRING_LIST_CONFUSION,
-    ),
-    ("has_switch_body", Traits::HAS_SWITCH_BODY),
     ("taints_var_writes", Traits::TAINTS_VAR_WRITES),
     ("taint_source_zero_args", Traits::TAINT_SOURCE_ZERO_ARGS),
     ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),

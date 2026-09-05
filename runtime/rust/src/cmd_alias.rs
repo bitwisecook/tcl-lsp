@@ -34,7 +34,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{obj_bytes, Code, CommandVisibilityOp, Interp};
+use crate::interp::{drop_fresh, obj_bytes, Code, CommandVisibilityOp, Interp};
 use crate::list;
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj};
@@ -75,7 +75,8 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = verb.to_vec();
             m.extend_from_slice(&old);
             m.extend_from_slice(b"\": command doesn't exist");
-            interp.set_error(&m)
+            let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &old]);
+            interp.error_with_code(&m, &code)
         }
         // C names the refused alias by the simple command name it would have
         // been bound under (`Tcl_GetCommandName`), not by the written path.
@@ -252,6 +253,9 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"hidden" => {
             // `interp hidden ?path?` — hidden command names in the interp
             // addressed by the (possibly nested) path.
+            if argv.len() > 3 {
+                return interp.wrong_args(b"interp hidden ?path?");
+            }
             let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
             let names = interp
                 .with_child_path(&path, |c| c.hidden_names())
@@ -266,6 +270,9 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"issafe" => {
             // `interp issafe ?path?` — the current interp (no path) or a child
             // addressed by a (possibly nested) path.
+            if argv.len() > 3 {
+                return interp.wrong_args(b"interp issafe ?path?");
+            }
             let path = argv.get(2).map(|&a| interp_path(a)).unwrap_or_default();
             let safe = interp
                 .with_child_path(&path, |c| c.is_safe())
@@ -451,9 +458,9 @@ fn not_found_path(interp: &mut Interp, path: &[Vec<u8>]) -> Code {
     let joined = crate::list::new_list_obj(&elems);
     let rendered = obj_bytes(joined);
     for e in elems {
-        crate::interp::drop_fresh(e);
+        drop_fresh(e);
     }
-    crate::interp::drop_fresh(joined);
+    drop_fresh(joined);
     let mut m = b"could not find interpreter \"".to_vec();
     m.extend_from_slice(&rendered);
     m.push(b'"');
@@ -528,15 +535,62 @@ fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// Whether `name` resolves in the global namespace — it carries no namespace
-/// qualifiers beyond an optional leading `::`.
-fn is_global_command(name: &[u8]) -> bool {
-    let body = name.strip_prefix(b"::".as_slice()).unwrap_or(name);
-    !body.windows(2).any(|w| w == b"::")
+/// The shared owner of `interp hide|expose path cmdName ?other?` and the
+/// `$child hide|expose cmdName ?other?` shorthand — C's `ChildHide` /
+/// `ChildExpose`, which `NRInterpCmd` and `NRChildCmd` both call rather than
+/// each re-deriving the argument rules.
+///
+/// `words` is `[cmdName ?hiddenCmdName?]`, already arity-checked by the caller
+/// (the two entry points word their `wrong # args` differently, and only they
+/// know the noun). `cmd` is the source — the visible command when hiding, the
+/// hidden token when exposing — and `token` the destination, defaulting to
+/// `cmd` in the one-word form.
+///
+/// Only the destination test lives here; the rest of C's order is inside
+/// [`Interp::hide_command`] / [`Interp::expose_command`], where the lookups
+/// happen. The two directions are **not** mirror images:
+///
+/// - hiding refuses a qualified *token* — `Tcl_HideCommand` runs
+///   `strstr(hiddenCmdToken, "::")` first (`tclBasic.c:2314`) — but accepts a
+///   qualified-looking source, because that lookup is global-anchored anyway;
+/// - exposing refuses a *destination* containing `::` anywhere, a leading one
+///   included, because C tests it with the same raw `strstr`
+///   (`Tcl_ExposeCommand`, `:2469`) — and has no token check at all, so a
+///   qualified token is simply a token that is not in the hidden table.
+pub(crate) fn hidectl_in(
+    interp: &mut Interp,
+    path: &[Vec<u8>],
+    op: CommandVisibilityOp,
+    words: &[*mut TclObj],
+) -> Code {
+    let cmd = obj_bytes(words[0]);
+    let token = words.get(1).map_or_else(|| cmd.clone(), |&w| obj_bytes(w));
+    if tcl_syntax::naming::is_qualified(&token) {
+        return match op {
+            CommandVisibilityOp::Hide => interp.error_with_code(
+                b"cannot use namespace qualifiers in hidden command token (rename)",
+                b"TCL VALUE HIDDENTOKEN",
+            ),
+            CommandVisibilityOp::Expose => interp.error_with_code(
+                b"cannot expose to a namespace (use expose to toplevel, then rename)",
+                b"TCL EXPOSE NON_GLOBAL",
+            ),
+        };
+    }
+    let moved = interp.with_child_path(path, |c| match op {
+        CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),
+        CommandVisibilityOp::Expose => c.expose_command(&cmd, &token),
+    });
+    let Some(moved) = moved else {
+        return not_found_path(interp, path);
+    };
+    interp.finish_command_visibility(op, &cmd, &token, moved)
 }
 
 /// `interp hide|expose path cmdName` — move a command into/out of the hidden
-/// table of the named (or current, when path is `{}`) interpreter.
+/// table of the named (or current, when path is `{}`) interpreter. The
+/// argument rules are [`hidectl_in`]'s; this arm owns only the arity message
+/// and the executing-interp permission check.
 fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibilityOp) -> Code {
     // `interp hide   path cmdName     ?hiddenCmdName?`
     // `interp expose path hiddenName  ?cmdName?`
@@ -562,52 +616,7 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
             }
         });
     }
-    let path = interp_path(argv[2]);
-    let cmd = obj_bytes(argv[3]);
-    let token = if argv.len() == 5 {
-        obj_bytes(argv[4])
-    } else {
-        cmd.clone()
-    };
-    // The hidden-command token may never carry namespace qualifiers, and only
-    // global-namespace commands can be hidden / exposed-from.
-    match op {
-        CommandVisibilityOp::Hide => {
-            if token.windows(2).any(|w| w == b"::") {
-                return interp.set_error(
-                    b"cannot use namespace qualifiers in hidden command token (rename)",
-                );
-            }
-            if !is_global_command(&cmd) {
-                return interp
-                    .set_error(b"can only hide global namespace commands (use rename then hide)");
-            }
-        }
-        CommandVisibilityOp::Expose => {
-            if cmd.windows(2).any(|w| w == b"::") {
-                return interp.set_error(
-                    b"cannot use namespace qualifiers in hidden command token (rename)",
-                );
-            }
-            if !is_global_command(&token) {
-                return interp.set_error(
-                    b"cannot expose to a namespace (use expose to toplevel, then rename)",
-                );
-            }
-        }
-    }
-    // Tcl's `Tcl_HideCommand` reports a missing source as `unknown command`;
-    // retaining the old silent no-op swallowed typos in security-sensitive
-    // command-surface setup. Exposure remains a separate operation with its
-    // existing hidden-command error behaviour.
-    let moved = interp.with_child_path(&path, |c| match op {
-        CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),
-        CommandVisibilityOp::Expose => c.expose_command(&cmd, &token),
-    });
-    let Some(moved) = moved else {
-        return not_found_path(interp, &path);
-    };
-    interp.finish_command_visibility(op, &cmd, &token, moved)
+    hidectl_in(interp, &interp_path(argv[2]), op, &argv[3..])
 }
 
 /// `interp invokehidden path ?-namespace ns? ?-global? ?--? cmdName ?arg
@@ -633,11 +642,32 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(USAGE);
     }
-    let path = interp_path(argv[2]);
+    invokehidden_in(interp, &interp_path(argv[2]), &argv[3..], USAGE)
+}
+
+/// The shared owner of `interp invokehidden path …` and the `$child
+/// invokehidden …` shorthand — C's `ChildInvokeHidden`, reached from both
+/// `NRInterpCmd` and `NRChildCmd`.
+///
+/// `words` is everything after the path: the option words, the command word,
+/// and its arguments. `usage` is the caller's own `wrong # args` text, which is
+/// all that differs between the two entry points (`interp invokehidden path …`
+/// versus `<child> invokehidden …`).
+///
+/// The safe-interpreter check runs **after** option parsing, as C does: the
+/// options are read by the ensemble dispatcher and only then is
+/// `ChildInvokeHidden` entered, so `interp invokehidden {} -bogus …` from a
+/// safe interpreter reports the bad option rather than the permission denial.
+pub(crate) fn invokehidden_in(
+    interp: &mut Interp,
+    path: &[Vec<u8>],
+    words: &[*mut TclObj],
+    usage: &[u8],
+) -> Code {
     let mut ns_name: Option<Vec<u8>> = None;
-    let mut i = 3;
-    while i < argv.len() {
-        let opt = obj_bytes(argv[i]);
+    let mut i = 0;
+    while i < words.len() {
+        let opt = obj_bytes(words[i]);
         if opt.first() != Some(&b'-') {
             break;
         }
@@ -648,12 +678,12 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Ok(1) => {
                 i += 1;
-                if i == argv.len() {
+                if i == words.len() {
                     // C: "there must be more arguments" — stop scanning
                     // options and fall through to the arg-count check below.
                     break;
                 }
-                ns_name = Some(obj_bytes(argv[i]));
+                ns_name = Some(obj_bytes(words[i]));
                 i += 1;
             }
             Ok(_) => {
@@ -663,22 +693,22 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(m) => return interp.set_error(&m),
         }
     }
-    if i >= argv.len() {
-        return interp.wrong_args(USAGE);
+    if i >= words.len() {
+        return interp.wrong_args(usage);
     }
     if interp.is_safe() {
         return interp.set_error(b"not allowed to invoke hidden commands from safe interpreter");
     }
-    let cmd = obj_bytes(argv[i]);
+    let cmd = obj_bytes(words[i]);
     // Build the hidden command's argv (cmd + remaining args).
-    let mut hidden_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() - i);
-    for &a in &argv[i..] {
+    let mut hidden_argv: Vec<*mut TclObj> = Vec::with_capacity(words.len() - i);
+    for &a in &words[i..] {
         unsafe { obj::incr_ref_count(a) };
         hidden_argv.push(a);
     }
     // Run in the addressed interp (the current one for an empty path), in the
     // requested namespace context if any, copying its result back up the path.
-    let code = match interp.with_child_path(&path, |c| {
+    let code = match interp.with_child_path(path, |c| {
         let saved_ns = c.current_ns();
         if let Some(name) = &ns_name {
             let target = c.ensure_global_namespace(name);
@@ -692,7 +722,7 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&res);
             code
         }
-        None => not_found_path(interp, &path),
+        None => not_found_path(interp, path),
     };
     for a in hidden_argv {
         unsafe { obj::decr_ref_count(a) };
@@ -862,16 +892,6 @@ fn set_alias_list(interp: &mut Interp, target: &[u8], prefix: &[Vec<u8>]) {
     interp.set_result(list::new_list_obj(&elems));
     for e in elems {
         drop_fresh(e);
-    }
-}
-
-/// Free a freshly created (`rc 0`) object once `new_list_obj` has taken its own
-/// reference.
-fn drop_fresh(obj: *mut TclObj) {
-    // SAFETY: `obj` is a live rc-0 object; retain-then-release frees it cleanly.
-    unsafe {
-        obj::incr_ref_count(obj);
-        obj::decr_ref_count(obj);
     }
 }
 
@@ -1180,11 +1200,21 @@ mod tests {
             );
             assert_eq!(i.eval_str(b"interp hidden {}"), Code::Ok);
             assert_eq!(i.result_bytes(), b"visible");
+            // Hiding again once the source has moved into the hidden table is a
+            // *lookup* miss, not a token collision: `Tcl_HideCommand` resolves
+            // the source before it consults the hidden table, and the source is
+            // no longer there to resolve (tclsh 8.6.16 / 9.0.4-pinned). Reaching
+            // the collision needs a live source *and* a taken token, so the
+            // command has to be re-created first.
+            assert_eq!(i.eval_str(b"interp hide {} visible"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown command \"visible\"");
+            assert_eq!(i.eval_str(b"proc visible {} {return shadow}"), Code::Ok);
             assert_eq!(i.eval_str(b"interp hide {} visible"), Code::Error);
             assert_eq!(
                 i.result_bytes(),
                 b"hidden command named \"visible\" already exists"
             );
+            assert_eq!(i.eval_str(b"rename visible {}"), Code::Ok);
             assert_eq!(i.eval_str(b"interp invokehidden {} visible"), Code::Ok);
             assert_eq!(i.result_bytes(), b"visible");
             assert_eq!(i.eval_str(b"interp expose {} visible"), Code::Ok);
@@ -1236,6 +1266,47 @@ mod tests {
             );
             assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Error);
             assert_eq!(i.result_bytes(), b"unknown command \"lassign\"");
+        });
+    }
+
+    /// The `$child` shorthand now routes through `hidectl_in` /
+    /// `invokehidden_in`, and the latter moved the manual
+    /// `incr_ref_count`/`decr_ref_count` bracketing around the hidden argv out
+    /// of two call sites into one. The counter harness is the guard on that
+    /// move: a dropped `+1` or a missing `-1` shows up here and nowhere else.
+    #[test]
+    fn child_shorthand_visibility_ops_are_leak_free() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set c [interp create]"), Code::Ok);
+            assert_eq!(i.eval_str(b"$c eval {proc lst {} {return L}}"), Code::Ok);
+            assert_eq!(i.eval_str(b"$c hide lst mylst"), Code::Ok);
+            assert_eq!(i.eval_str(b"$c hidden"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"mylst");
+            assert_eq!(i.eval_str(b"$c invokehidden mylst"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"L");
+            assert_eq!(i.eval_str(b"$c expose mylst lst2"), Code::Ok);
+            assert_eq!(i.eval_str(b"$c hide set"), Code::Ok);
+            assert_eq!(i.eval_str(b"$c invokehidden -global set g 1"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(
+                i.eval_str(b"$c invokehidden -namespace foo set q 2"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"2");
+            assert_eq!(
+                i.eval_str(b"catch {$c invokehidden -bogus set x 1} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"bad option \"-bogus\": must be -global, -namespace, or --"
+            );
+            assert_eq!(i.eval_str(b"catch {$c hide ::foo::bar} m; set m"), Code::Ok);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot use namespace qualifiers in hidden command token (rename)"
+            );
+            assert_eq!(i.eval_str(b"interp delete $c"), Code::Ok);
         });
     }
 
