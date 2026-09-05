@@ -590,11 +590,15 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         vm.install_renamed_command(&mut rename, &key, cmd);
         vm.commit_renamed_command(&rename);
-        // The rename happened: fire the command's `rename` traces
-        // (`callback ::old ::new rename`, both fully qualified — tclsh-
-        // pinned) and move every trace to the new key so it keeps firing
-        // under the new name (also pinned).
+        // The rename happened: move every trace to the new key so it keeps
+        // firing under the new name, then fire the command's `rename` traces
+        // (`callback ::old ::new rename`, both fully qualified — tclsh-pinned).
+        // The source is still registered here, matching C's window between
+        // creating the destination entry and `Tcl_DeleteHashEntry(oldHPtr)`:
+        // a callback resolves *both* names, and reaches the one trace list
+        // through either (tclsh-pinned on 8.6.16 and 9.0.4).
         vm.on_command_renamed_traces(&old_key, &key);
+        vm.retire_renamed_command_source(&rename);
     }
     ok(Value::empty())
 }

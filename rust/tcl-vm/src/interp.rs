@@ -760,6 +760,12 @@ impl CommandSidecarKey {
             Self::Visible(name) | Self::Hidden(name) => name,
         }
     }
+
+    fn into_name(self) -> String {
+        match self {
+            Self::Visible(name) | Self::Hidden(name) => name,
+        }
+    }
 }
 
 /// Metadata and any release-hidden destination displaced while a command is
@@ -991,6 +997,17 @@ pub struct InterpState {
     /// `trace add execution` registrations (`enter`/`leave`/`enterstep`/
     /// `leavestep` ops), keyed like [`Self::cmd_traces`] and moved on rename.
     pub(crate) exec_traces: HashMap<CommandSidecarKey, Vec<Rc<CmdTraceEntry>>>,
+    /// Source→destination pairs for the `rename` windows currently open,
+    /// innermost last. C creates the destination hash entry, fires the
+    /// `rename` traces and only then deletes the source, and *both* entries
+    /// reference the one `Command` — so for the callbacks' duration the
+    /// vacating name **is** the destination command: it answers `trace info`,
+    /// takes `trace add`/`remove`, and a `rename` or delete through it moves
+    /// or destroys the destination (tclsh-pinned, 8.6.16 and 9.0.4 identical).
+    /// The VM keys its tables by table key, so each open window records that
+    /// equivalence, and [`Self::relocate_rename_state`] retargets every
+    /// enclosing window when a nested rename moves the destination on again.
+    rename_windows: Vec<(CommandSidecarKey, CommandSidecarKey)>,
     /// Weak registry of in-flight sidecar identities. Relocation updates live
     /// handles without retaining completed invocations.
     active_sidecar_handles: Vec<Weak<RefCell<Option<CommandSidecarKey>>>>,
@@ -1814,6 +1831,7 @@ impl InterpState {
             next_var_trace_id: 0,
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
+            rename_windows: Vec::new(),
             active_sidecar_handles: Vec::new(),
             exec_step_scopes: Vec::new(),
             trace_deopt_epoch: std::cell::Cell::new(0),
@@ -2748,7 +2766,15 @@ impl Vm {
         &self,
         name: &str,
     ) -> Option<(Command, CommandRenameTransaction)> {
-        let old_key = self.resolve_command_fqn(self.current_ns(), name)?;
+        // Inside an open rename window the source name still resolves, but it
+        // names the *destination* command — so `rename <old> <third>` and
+        // `rename <old> {}` from a callback move or destroy that one command
+        // rather than a second copy standing at the vacating key.
+        let old_key = self
+            .renamed_command_key(CommandSidecarKey::visible(
+                self.resolve_command_fqn(self.current_ns(), name)?,
+            ))
+            .into_name();
         let command = self.commands.get(&old_key)?;
         if !self.builtin_command_visible_for_surface(&old_key, command) {
             return None;
@@ -2790,12 +2816,15 @@ impl Vm {
         // [`Self::note_rename_destination`] before the alias-loop check, and
         // `register_command` re-inserts the same key, which the order owner
         // leaves where that call put it.
-        // Keep the successful rename's established source-removal then
-        // destination-registration order.  The caller has already completed
-        // every rejection path, so this is now allowed to fire destination
-        // delete traces and invalidate command/trace guard state.
-        self.take_command_unchecked_key(&transaction.old_key)
-            .expect("the prepared rename source remains registered");
+        //
+        // The source entry stays put: C only deletes it once the `rename`
+        // traces have run (`tclBasic.c` 9.0.4 `TclRenameCommand` — create
+        // `hPtr`, fire the traces, then `Tcl_DeleteHashEntry(oldHPtr)`), so a
+        // callback still resolves the old name.  `cmd_rename` closes the
+        // window with [`Self::retire_renamed_command_source`].  The caller has
+        // already completed every rejection path, so this is now allowed to
+        // fire destination delete traces and invalidate command/trace guard
+        // state.
         self.register_command(new_key, command.clone());
         self.command_generations
             .insert(new_key.to_owned(), transaction.source_generation);
@@ -2822,6 +2851,16 @@ impl Vm {
             &CommandSidecarKey::visible(&transaction.old_key),
             &CommandSidecarKey::visible(new_key),
         );
+    }
+
+    /// Drop the source half of a rename once its `rename` traces have run —
+    /// C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of `TclRenameCommand`.
+    /// This is a plain table removal, not a command deletion: no `delete`
+    /// trace fires, and the command lives on under its new key.  A callback
+    /// may have deleted the source itself (C guards the same case with a
+    /// refcount), so a vacated entry is not an error.
+    pub(crate) fn retire_renamed_command_source(&mut self, transaction: &CommandRenameTransaction) {
+        self.take_command_unchecked_key(&transaction.old_key);
     }
 
     /// Remove the source for an already validated `rename old {}`. Deletion
@@ -6521,8 +6560,9 @@ impl Vm {
         };
         let is_step = is_step_capable(&ops);
         // The trace belongs to the token standing at this key now, not to the
-        // name (C hangs it off `cmdPtr->tracePtr`).
-        let sidecar = CommandSidecarKey::visible(key);
+        // name (C hangs it off `cmdPtr->tracePtr`) — and inside a rename's
+        // callbacks the vacating name reaches the destination's list.
+        let sidecar = self.renamed_command_key(CommandSidecarKey::visible(key));
         let token = self
             .command_token_identity(&sidecar)
             .map(|identity| identity.generation);
@@ -6559,12 +6599,12 @@ impl Vm {
             return err(format!("unknown command \"{name}\""));
         };
         let is_step = is_step_capable(ops);
+        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let table = if execution {
             &mut self.exec_traces
         } else {
             &mut self.cmd_traces
         };
-        let key = CommandSidecarKey::visible(key);
         let mut removed = false;
         if let Some(list) = table.get_mut(&key) {
             // Newest-first first match, as `remove_var_trace` explains.
@@ -6609,7 +6649,8 @@ impl Vm {
         } else {
             &self.cmd_traces
         };
-        let Some(list) = table.get(&CommandSidecarKey::visible(key)) else {
+        let Some(list) = table.get(&self.renamed_command_key(CommandSidecarKey::visible(key)))
+        else {
             return ok(Value::empty());
         };
         ok(Value::list(
@@ -6659,12 +6700,20 @@ impl Vm {
         res
     }
 
-    /// Fire the `rename`/`delete` command traces of `key` as
+    /// Fire the `rename`/`delete` command traces held at `key` as
     /// `callback oldName newName op` — names fully qualified (tclsh-pinned:
     /// `::victim ::victim2 rename`; a delete passes `{}` for the new name).
-    /// Callback errors are ignored (C: "Any errors in these traces are
-    /// ignored").
-    fn fire_command_traces_for(&mut self, key: &CommandSidecarKey, new_display: &str, op: &str) {
+    /// `old_display` is passed rather than derived from `key`: a rename fires
+    /// from the destination's list (see [`Self::on_command_renamed_traces`])
+    /// but still names the command it is leaving.  Callback errors are ignored
+    /// (C: "Any errors in these traces are ignored").
+    fn fire_command_traces_for(
+        &mut self,
+        key: &CommandSidecarKey,
+        old_display: &str,
+        new_display: &str,
+        op: &str,
+    ) {
         // C's per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`: a rename/delete of
         // *this* command from inside its own callback does not fire again. A
         // different command's traces still do.
@@ -6675,7 +6724,6 @@ impl Vm {
             return;
         };
         self.firing_cmd_traces.push(key.clone());
-        let old_display = format!("::{}", key.name());
         // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
@@ -6697,7 +6745,7 @@ impl Vm {
             let _ = self.run_cmd_trace_callback(
                 &entry,
                 &[
-                    Value::string(old_display.clone()),
+                    Value::string(old_display),
                     Value::string(new_display),
                     Value::string(op),
                 ],
@@ -6724,7 +6772,7 @@ impl Vm {
             .map(|identity| identity.generation);
         let mut removed_trace = false;
         if !self.cmd_traces.is_empty() {
-            self.fire_command_traces_for(key, "", "delete");
+            self.fire_command_traces_for(key, &format!("::{}", key.name()), "", "delete");
             removed_trace |= self.drop_retired_cmd_traces(key, dying);
         }
         if !self.exec_traces.is_empty()
@@ -6763,29 +6811,72 @@ impl Vm {
         removed
     }
 
-    /// A command moved `old_key` → `new_key` (`rename`): fire its `rename`
-    /// traces with both fully-qualified names, then move every trace with it
-    /// (tclsh-pinned: an execution trace keeps firing under the new name).
+    /// A command moved `old_key` → `new_key` (`rename`): move every trace with
+    /// it (tclsh-pinned: an execution trace keeps firing under the new name),
+    /// then fire its `rename` traces with both fully-qualified names.
+    ///
+    /// The move comes *first* because C's traces hang off the shared `Command`
+    /// rather than off either hash entry, so a callback reaches one list under
+    /// either name: `trace info command <old>` and `… <new>` answer the same
+    /// thing, and a `trace remove` through either name edits it.  Publishing
+    /// the move and aliasing the source key onto the destination for the
+    /// callbacks' duration reproduces that; `cmd_rename` keeps the source
+    /// command registered across this call so the old name still resolves.
     pub(crate) fn on_command_renamed_traces(&mut self, old_key: &str, new_key: &str) {
+        let old_display = format!("::{old_key}");
+        let new_display = format!("::{new_key}");
         let old_key = CommandSidecarKey::visible(old_key);
         let new_key = CommandSidecarKey::visible(new_key);
         self.relocate_active_sidecars(&old_key, &new_key);
+        self.relocate_rename_state(&old_key, &new_key);
         let mut moved_trace = false;
-        if !self.cmd_traces.is_empty() {
-            self.fire_command_traces_for(&old_key, &format!("::{}", new_key.name()), "rename");
-            if let Some(entries) = self.cmd_traces.remove(&old_key) {
-                self.cmd_traces.insert(new_key.clone(), entries);
-                moved_trace = true;
-            }
+        if !self.cmd_traces.is_empty()
+            && let Some(entries) = self.cmd_traces.remove(&old_key)
+        {
+            self.cmd_traces.insert(new_key.clone(), entries);
+            moved_trace = true;
         }
         if !self.exec_traces.is_empty()
             && let Some(entries) = self.exec_traces.remove(&old_key)
         {
-            self.exec_traces.insert(new_key, entries);
+            self.exec_traces.insert(new_key.clone(), entries);
             moved_trace = true;
         }
         if moved_trace {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
+        self.rename_windows.push((old_key, new_key.clone()));
+        self.fire_command_traces_for(&new_key, &old_display, &new_display, "rename");
+        self.rename_windows.pop();
+    }
+
+    /// The key a command's state lives under now, following any open rename
+    /// window (see [`Self::rename_windows`]). Identity outside one.
+    fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
+        match self.rename_windows.iter().find(|(from, _)| *from == key) {
+            Some((_, to)) => to.clone(),
+            None => key,
+        }
+    }
+
+    /// A rename moved `old_key` → `new_key`: point every open window and every
+    /// in-flight firing record that named the old key at the new one. C needs
+    /// no equivalent — both its hash entries reference one `Command` object, so
+    /// a nested rename cannot strand them — but the VM's key-addressed state
+    /// would otherwise be left on a key the move just vacated: an enclosing
+    /// window would stop answering through the source name, and the
+    /// `firing_cmd_traces` record standing in for `CMD_TRACE_ACTIVE` would stop
+    /// suppressing the command's own remaining callbacks.
+    fn relocate_rename_state(&mut self, old_key: &CommandSidecarKey, new_key: &CommandSidecarKey) {
+        for (_, destination) in &mut self.rename_windows {
+            if destination == old_key {
+                destination.clone_from(new_key);
+            }
+        }
+        for firing in &mut self.firing_cmd_traces {
+            if firing == old_key {
+                firing.clone_from(new_key);
+            }
         }
     }
 
@@ -6793,6 +6884,7 @@ impl Vm {
     /// hide/expose is not a Tcl rename, so no callback is fired.
     fn move_command_traces(&mut self, old_key: &CommandSidecarKey, new_key: CommandSidecarKey) {
         self.relocate_active_sidecars(old_key, &new_key);
+        self.relocate_rename_state(old_key, &new_key);
         // The list travels with the token, so re-stamp it to whatever token
         // now stands at the destination; a later deletion there still tells
         // this list from a replacement's.
