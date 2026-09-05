@@ -9538,6 +9538,7 @@
       "@azure/msal-node": "^5.1.5"
     },
     "lodash": "^4.18.1",
+    "qs": "^6.16.0",
     "undici": "^7.28.0",
     "@vscode/wasm-wasi-lsp": {
       "vscode-languageclient": "$vscode-languageclient"
