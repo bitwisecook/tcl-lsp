@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [CFG](#cfg) · [Codegen](#codegen) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [CFG](#cfg) · [Codegen](#codegen) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -1366,6 +1366,33 @@ the group name for the four the native tier enables.
 See also: [WASM explorer view](design/contracts/wasm-explorer-view.md)
 § *Optimisation passes*.
 KCS tag: `codegen-passes`.
+
+### Native proc entry
+
+The compiled body of a Tcl `proc`: a function an emitted WASM module defines
+and installs into the runtime's shared indirect function table, so the runtime
+calls it instead of interpreting the proc's source body. A wasm32 function
+pointer *is* an index into that table, so "the entry" is just that index
+travelling across the ABI — `tcl_codegen_proc_define_native`'s last argument,
+and `ProcDef.native` on the runtime side.
+
+It lives on the proc's definition rather than in a side table, so redefining
+the proc drops it, `rename` carries it, and deleting the proc frees it, with
+nothing to invalidate.
+
+The runtime keeps the whole call protocol: arity checking and `wrong # args`,
+the call frame in the proc's namespace, `info level`'s words and the formal
+binding all happen before the entry runs, and the return boundary, the
+procedure error frame and frame teardown all happen after. The entry supplies
+only the body, and pushes neither a frame nor an activation of its own. It may
+also **decline** — before any observable effect — and the runtime then runs the
+source body in the frame it already prepared. A live step trace forces the
+source body too, since a natively lowered command never reaches the dispatcher
+and so would fire no `enterstep`.
+
+See also: [WASM codegen](design/compiler/wasm-codegen.md)
+§ *The shared function table*.
+KCS tag: `codegen`.
 
 ### LVT
 
