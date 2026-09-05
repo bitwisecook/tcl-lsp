@@ -702,7 +702,14 @@ impl<T> TrackedMutex<T> {
                 )
             },
         );
-        let oldest_waiter = tracking.waiters.values().min_by_key(|actor| actor.since);
+        // The browser runtime uses an f64-backed monotonic clock, so its
+        // Instant is only partially ordered. Worker timestamps are finite in
+        // practice; keep telemetry robust if a host ever supplies NaN.
+        let oldest_waiter = tracking.waiters.values().min_by(|left, right| {
+            left.since
+                .partial_cmp(&right.since)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let waiters = oldest_waiter.map_or_else(
             || "no queued waiters".to_owned(),
             |actor| {
