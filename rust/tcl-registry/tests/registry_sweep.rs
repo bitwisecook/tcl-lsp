@@ -157,11 +157,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::PERFORMS_SUBSTITUTION,
     Traits::OPENS_CHANNEL,
     Traits::SOURCES_FILE,
-    Traits::HAS_SWITCH_BODY,
-    Traits::STRING_LIST_CONFUSION,
-    Traits::CONFIGURES_CHANNEL,
-    Traits::HAS_INTERP_EVAL,
-    Traits::HAS_DESTRUCTIVE_OPS,
     Traits::IS_EVENT_HANDLER,
     Traits::UNNORMALISED_HTTP_GETTER,
     Traits::RETURNS_PATH,
@@ -1294,12 +1289,22 @@ fn family_control_flow_shapes() {
             "{c} HAS_LOOP_BODY"
         );
     }
+    // The two derived answers that replaced retired command-level flags. Both
+    // read a descriptor a consumer needs anyway, so neither can disagree with
+    // it the way the flags did — `expect` declared a clause list without ever
+    // carrying `HAS_SWITCH_BODY`, and `array` had a destructive subcommand
+    // without `HAS_DESTRUCTIVE_OPS`.
+    assert!(reg.get("switch").unwrap().has_switch_body());
+    assert!(!reg.get("if").unwrap().has_switch_body());
     assert!(
-        reg.get("switch")
-            .unwrap()
-            .traits
-            .contains(Traits::HAS_SWITCH_BODY)
+        reg.get("file").unwrap().has_destructive_ops(),
+        "`file delete` is irreversible"
     );
+    assert!(
+        reg.get("array").unwrap().has_destructive_ops(),
+        "`array unset` is irreversible, and the retired flag missed it"
+    );
+    assert!(!reg.get("string").unwrap().has_destructive_ops());
     // tclsh: `switch --` terminator is real — `switch -- abc {abc {...}}` runs.
     // The registry models the terminator via resolve_option_terminator.
     let term = reg.resolve_option_terminator(

@@ -56,8 +56,8 @@
 //! *lowering*: turning the owner's borrow-free spans into this crate's
 //! borrow-based `Command`/`Word` tree, and applying the eval-facing
 //! word-delimiter rules on the way (`{braced}` is literal; `"quoted"` must
-//! close; text welded onto a close-brace is C's `extra characters after
-//! close-brace`).
+//! close; text welded onto a close-brace or a close-quote is C's `extra
+//! characters after close-brace` / `…close-quote`).
 //!
 //! This crate used to carry its own copy of the decomposer (`scan_parts`,
 //! `scan_var_name`, `skip_command_subst`, `parse_var_ref`) with `subst.rs`
@@ -411,12 +411,15 @@ fn script_parse_error(
 /// C's parse errors for the word delimiters this module owns — spelled by
 /// the shared owner, not re-typed here.
 ///
-/// The lexer itself stays lenient about all three — it is shared with the LSP,
+/// The lexer itself stays lenient about all four — it is shared with the LSP,
 /// which must keep tokenizing broken source — so this eval-facing parser is
 /// the one that fails closed, carrying the failure as a
 /// [`WordPart::ParseError`] the evaluator raises when it reaches the word
 /// (issues #1576, #1586).
-use tcl_lexer::word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE};
+use tcl_lexer::{
+    word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE},
+    EXTRA_AFTER_CLOSE_QUOTE,
+};
 
 /// Whether a `Str` token that **opens a brace** never found its closing `}`
 /// before end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the
@@ -473,6 +476,30 @@ fn build_word<'s>(
             kind,
             expand,
             body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_BRACE)]),
+            start,
+        };
+    }
+    // The sibling shape on a quote (`"a"b`, `""b`, `"a"$b`, `"a"[b]`,
+    // `"a"{b}`, `"a$x"b`, `"a[x]"c`) is C's `extra characters after
+    // close-quote`, also raised while the command is parsed — measured on
+    // 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0, `list [sfx inner] "a"b`
+    // reports it without running `sfx`. `tcl_lexer::first_parse_cut` already
+    // answered it from source; this engine concatenated to `ab` instead, the
+    // one divergence `tests/parse_cut_agreement.rs` had to pin (#1828). Same
+    // order as the brace: before anything else in the word, because C stops
+    // at the `"`.
+    //
+    // Unlike the brace, this shape has a dialect axis: the boundary owner's
+    // flag is advisory and set blind, and under
+    // `QuoteTermination::Concatenating` (`JimTcl`) the run after the close
+    // quote joins the same word instead, so `"abc"def` is `abcdef` and the
+    // diagnostic never fires. The lexer's own `strict_quoting` gate reads the
+    // same policy, so honour it here rather than raising unconditionally.
+    if word.welded_after_close_quote && config.quote_termination.is_strict() {
+        return Word {
+            kind,
+            expand,
+            body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_QUOTE)]),
             start,
         };
     }
@@ -1075,6 +1102,61 @@ mod tests {
         match c.words[0].body {
             WordBody::Literal(b) => assert!(std::ptr::eq(b.as_ptr(), src.as_ptr())),
             _ => panic!("expected zero-copy Literal"),
+        }
+    }
+
+    /// The welded close-quote is a `ParseError` part, ahead of anything else
+    /// in the word — and `"$"` is still the text `$`, not a weld (the #527
+    /// empty-content clamp; see `tcl_lexer::script`).
+    #[test]
+    fn a_welded_close_quote_is_a_parse_error_part() {
+        for src in [
+            &b"set y \"a\"b"[..],
+            b"set y \"\"b",
+            b"set y \"a$x\"b",
+            b"set y \"a\"$b",
+        ] {
+            let c = nth(src, 0);
+            assert_eq!(
+                parts(&c.words[2]),
+                &[WordPart::ParseError(EXTRA_AFTER_CLOSE_QUOTE)],
+                "{}",
+                String::from_utf8_lossy(src)
+            );
+        }
+        assert_eq!(lit(&nth(b"puts \"$\"", 0).words[1]), b"$");
+    }
+
+    /// The weld flag is advisory and set blind, so the raise must read the
+    /// dialect's quote-termination policy. `JimTcl` concatenates
+    /// (`jim.c` has no such check), and its lexer emits no warning for the
+    /// same source — the evaluator must agree rather than invent an error.
+    #[test]
+    fn a_concatenating_dialect_welds_instead_of_raising() {
+        let config = LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("jim")));
+        assert!(
+            !config.quote_termination.is_strict(),
+            "jim must be the concatenating dialect for this test to mean anything"
+        );
+        for (src, joined) in [
+            (&b"set y \"abc\"def"[..], &b"abcdef"[..]),
+            (b"set y \"a\"b", b"ab"),
+        ] {
+            let cmd = parse_script_with_config(src, config)
+                .into_iter()
+                .next()
+                .expect("command");
+            let text = match &cmd.words[2].body {
+                WordBody::Literal(bytes) => bytes.to_vec(),
+                WordBody::Parts(parts) => parts.iter().fold(Vec::new(), |mut acc, part| {
+                    match part {
+                        WordPart::Text(bytes) => acc.extend_from_slice(bytes),
+                        other => panic!("unexpected part {other:?}"),
+                    }
+                    acc
+                }),
+            };
+            assert_eq!(text, joined, "{}", String::from_utf8_lossy(src));
         }
     }
 

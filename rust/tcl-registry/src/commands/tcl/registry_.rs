@@ -104,7 +104,6 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "registry",
         surface: Some(SpecSurface::ALL_TCL),
-        traits: Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::new(2, 5),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

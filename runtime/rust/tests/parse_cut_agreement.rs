@@ -50,8 +50,9 @@ fn owner_cut(src: &str, config: LexerConfig) -> Option<(usize, &'static str)> {
 }
 
 /// The malformed shapes, one per message C can raise, plus the two the
-/// warning-stream scan the owner replaced answered wrongly and the one it
-/// could not see at all.
+/// warning-stream scan the owner replaced answered wrongly, the one it could
+/// not see at all, and the close-quote weld this crate once pinned as a
+/// divergence (#1828).
 const SHEET: &[&str] = &[
     "puts pre; puts \"x${abc\"",
     "puts pre; puts \"unterminated",
@@ -59,6 +60,20 @@ const SHEET: &[&str] = &[
     "puts pre; set y {a}b",
     "puts pre; puts $a(",
     "puts pre; puts \"a\"b",
+    // The close-quote weld in every token shape the lexer gives it (#1828):
+    // the empty `""` whose span sits on its closer, a bare closing marker
+    // after a `$x` and after a `[…]`, and a weld a level down.
+    "puts pre; set y \"\"b",
+    "puts pre; set y \"a\"$b",
+    "puts pre; set y \"a$x\"b",
+    "puts pre; set y \"a[x]\"c",
+    "puts pre; list [sfx one] [set y \"a\"b]",
+    "puts pre; sfx \"q\"{*}$z",
+    // Not welds: a `$` that names nothing is text, and a `"` inside a bare
+    // word is literal — both must stay `None` on both engines.
+    "puts pre; puts \"$\"",
+    "puts pre; puts \"a$ b\"",
+    "puts pre; puts a\"b\"c",
     "puts pre; set y {unclosed",
     // An unterminated quote whose word already failed inside a bracket:
     // C reports the bracket, not the quote.
@@ -81,53 +96,15 @@ const SHEET: &[&str] = &[
     "lappend ev pre-[lindex $args end]",
 ];
 
-/// The one shape the two engines still answer differently, pinned rather
-/// than hidden: a word welded onto its **closing quote**.
-///
-/// C rejects `set y "a"b` with `extra characters after close-quote` on all
-/// five shells; the owner reports it, and this crate silently concatenates
-/// to `ab`. It is the exact sibling of the welded *close-brace* #1818
-/// taught this crate to raise, and the boundary owner says so in as many
-/// words — `WordSpan::welded_after_close` "is deliberately brace-only —
-/// the analogous close-quote weld (`"a"b`) is a different C error and is
-/// not reported here."
-///
-/// Raising a new error from the evaluator is a behaviour change with its
-/// own oracle sheet, so it is a follow-up, not a rider on the owner. Until
-/// then this row is the record that the divergence is known and measured,
-/// not that the two engines agree.
-const KNOWN_DIVERGENCES: &[&str] = &["puts pre; puts \"a\"b"];
-
 #[test]
 fn the_two_engines_agree_on_the_sheet() {
     for src in SHEET {
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
             let config = LexerConfig::for_dialect(dialect);
             let (runtime, owner) = (runtime_cut(src, config), owner_cut(src, config));
-            if KNOWN_DIVERGENCES.contains(src) {
-                assert_ne!(
-                    runtime, owner,
-                    "{dialect}: {src:?} no longer diverges — \
-                     drop it from KNOWN_DIVERGENCES"
-                );
-                continue;
-            }
             assert_eq!(runtime, owner, "{dialect}: {src:?}");
         }
     }
-}
-
-/// The pinned divergence is exactly one shape, and it is the one described.
-#[test]
-fn the_close_quote_weld_is_the_only_pinned_divergence() {
-    let config = LexerConfig::default();
-    assert_eq!(
-        KNOWN_DIVERGENCES
-            .iter()
-            .map(|src| (runtime_cut(src, config), owner_cut(src, config)))
-            .collect::<Vec<_>>(),
-        vec![(None, Some((1, "extra characters after close-quote")))],
-    );
 }
 
 /// Real Tcl, where the two must agree that there is nothing to cut.
@@ -158,13 +135,6 @@ fn the_two_engines_agree_over_the_corpus() {
             continue;
         };
         let (runtime, owner) = (runtime_cut(&src, config), owner_cut(&src, config));
-        // The pinned close-quote weld: `samples/tcl/05_warning_examples.tcl`
-        // is a deliberate demonstration file and carries one.
-        if runtime.is_none()
-            && owner.is_some_and(|(_, m)| m == "extra characters after close-quote")
-        {
-            continue;
-        }
         if runtime != owner {
             disagreements.push(format!(
                 "{}: runtime {runtime:?} owner {owner:?}",

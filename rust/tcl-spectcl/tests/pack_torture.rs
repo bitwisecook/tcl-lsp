@@ -667,6 +667,35 @@ fn unknown_words_at_every_level_are_dropped_with_a_notice() {
     );
 }
 
+/// A retired trait spelling is still dropped, but the notice names what
+/// carries the fact now — a pack written against an older registry gets a
+/// migration instruction rather than "unknown word".
+#[test]
+fn a_retired_trait_name_is_dropped_with_its_replacement_named() {
+    let pack = evaluate_pack(
+        "speclib demo 1.1 {\n\
+        \x20 command demo::pick {\n\
+        \x20   arity 2\n\
+        \x20   traits {CONTROL_FLOW HAS_SWITCH_BODY}\n\
+        \x20 }\n\
+        }\n",
+    );
+
+    let cmd = pack
+        .command("demo::pick")
+        .expect("a retired trait must not take the command down");
+    assert!(
+        cmd.spec.traits.contains(tcl_registry::Traits::CONTROL_FLOW),
+        "the live sibling trait must still apply"
+    );
+    let notices = notice_text_for(&pack);
+    assert!(
+        notices.contains("retired trait `HAS_SWITCH_BODY` dropped")
+            && notices.contains("CommandSpec::has_switch_body"),
+        "the notice must name the replacement: {notices}"
+    );
+}
+
 /// A `-dialect` naming no profile keeps the extension row without routing, and
 /// a bogus `dialects` word does not take the command down.
 #[test]

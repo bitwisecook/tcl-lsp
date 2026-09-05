@@ -23,7 +23,6 @@ import {
   getDocUri,
   activate,
   getServerLogSize,
-  nextDiagnosticsPublish,
   pollUntil,
   waitForDeepDiagnostics,
   waitForDiagnostics,
@@ -1255,17 +1254,32 @@ suite("Configuration Settings", () => {
         label: "W100 disabled",
       });
 
-      // Re-trigger: touch the document so the server re-analyses.
-      // Register the publish listener *before* the edit so the fresh
-      // publish event is not missed and we do not read stale
-      // pre-toggle results.
+      // Re-trigger analysis under the new setting, and anchor the read on
+      // the server's own marker for *that* pass.
+      //
+      // A bare publish barrier is wrong here twice over. It resolves on the
+      // first onDidChangeDiagnostics naming this URI, so a publish computed
+      // before the toggle and delivered late satisfies it — this server is
+      // known to deliver a publish long after the turn that produced it
+      // (#1678, #1849, #1865). And the config change itself re-analyses open
+      // documents, so a W100-free set can already be published before the
+      // edit is even sent. In the first case the assertion reads a stale
+      // pre-toggle set and fails on timing; in the second it passes without
+      // ever observing the edit, leaving a defective edit-triggered pass free
+      // to republish W100 afterwards.
+      //
+      // `waitForDeepDiagnostics` with `since` captured *before* the edit keys
+      // on the `[timing] deep diagnostics` line from the run the edit caused,
+      // which settles both: the pass is the edit's own, and it has finished
+      // publishing. Same discipline as the optimiser toggle test below, made
+      // that way for the same reason.
       const editor = vscode.window.activeTextEditor!;
-      const freshDiags = nextDiagnosticsPublish(docUri);
+      const sinceEdit = getServerLogSize();
       await setTestContent(editor, editor.document.getText() + " ");
-      const after = await freshDiags;
-      const hasW100After = after.some((d) => codeOf(d) === "W100");
+      await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+      const after = vscode.languages.getDiagnostics(docUri);
       assert.ok(
-        !hasW100After,
+        !after.some((d) => codeOf(d) === "W100"),
         `W100 should be suppressed when disabled, got [${after.map(codeOf)}]`,
       );
     } finally {

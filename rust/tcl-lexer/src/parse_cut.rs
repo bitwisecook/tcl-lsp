@@ -83,8 +83,8 @@ use crate::{Lexer, LexerConfig, SourceMap, Token, word_closer_offset_at, word_sp
 /// Spelled here rather than in [`word_parts`](crate::word_parts) because
 /// only a *word in a command* can have anything after its closer — the
 /// content scan that module owns never sees past one.  The lexer raises the
-/// same text under `strict_quoting`; this is the shared constant both now
-/// name.
+/// same text under `strict_quoting`; this is the shared constant the lexer,
+/// the cut owner and `runtime/rust` all name.
 pub const EXTRA_AFTER_CLOSE_QUOTE: &str = "extra characters after close-quote";
 
 /// Where a script stops parsing, in C's order.

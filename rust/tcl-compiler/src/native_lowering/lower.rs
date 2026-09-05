@@ -38,7 +38,10 @@ use tcl_syntax::expr::ast::render_expr;
 use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, Numbers};
 
-use super::cells::{CellPlace, ShadowState};
+use super::cells::{
+    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution, variable_word_place,
+    whole_reference,
+};
 use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
 use super::ir::{
     CmpOp, CompareKind, IfElseResult, IntOp, NativeBlock, NativeBlockId, NativeFunction, NativeOp,
@@ -58,19 +61,15 @@ use crate::dispatch_proof::{
     DispatchEntryAssumption, DispatchProofAnalysis, analyse_dispatch_stability,
 };
 use crate::executable_ir::{
-    CellReference, ExecutableArgvId, ExecutableBlock, ExecutableExpr, ExecutableFunction,
-    ExecutableInstruction, ExecutableTerminator, ExecutableValueId, GenericInvoke,
-    InvocationResolution, LoweredOperation,
+    ExecutableArgvId, ExecutableBlock, ExecutableExpr, ExecutableFunction, ExecutableInstruction,
+    ExecutableTerminator, ExecutableValueId, GenericInvoke, InvocationResolution, LoweredOperation,
 };
 use crate::intervals::Interval;
-use crate::ir::{
-    CommandTokens, Module, NodeId, Provenance, SourceSite, Statement, WordExpr, WordPart,
-};
+use crate::ir::{CommandTokens, Module, NodeId, SourceSite, Statement, WordExpr, WordPart};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_word_exprs};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::types::TypeShape;
 use crate::var_escape::types::ProcEscapeSummary;
-use tcl_lexer::Span;
 
 /// Recursion cap for nested command substitution and compound-word parts.
 const MAX_WORD_DEPTH: u32 = 32;
@@ -1058,13 +1057,13 @@ impl<'a> Lowerer<'a> {
     /// bare scalar variable reference.
     fn lower_operand_word(&mut self, text: &str) -> Option<NativeValueId> {
         if text.starts_with('$') {
-            let name = variable_name(text)?;
-            if name.contains('(') {
+            // A retained `$name` word carries no lexical extent here, so the
+            // owner's name reading decides it: an element access is not one
+            // scalar operand.
+            let place = cell_place(whole_reference(text)?, true)?;
+            if matches!(place, CellPlace::Element { .. }) {
                 return None;
             }
-            let place = CellPlace::Named {
-                name: name.to_owned(),
-            };
             let value = self.read_cell(&place);
             return Some(self.as_int_operand(value));
         }
@@ -1826,10 +1825,6 @@ fn hull(a: Interval, b: Interval) -> Interval {
     Interval { lo, hi }
 }
 
-fn has_substitution(text: &str) -> bool {
-    text.bytes().any(|byte| matches!(byte, b'$' | b'[' | b'\\'))
-}
-
 /// The value word of a `set name value` statement's retained tokens.
 fn value_word(tokens: Option<&CommandTokens>) -> Option<&WordExpr> {
     let tokens = tokens?;
@@ -1837,30 +1832,6 @@ fn value_word(tokens: Option<&CommandTokens>) -> Option<&WordExpr> {
         return None;
     }
     tokens.words().get(2)
-}
-
-/// The cell a statically spelled variable name denotes.
-fn cell_place(name: &str, braced: bool) -> Option<CellPlace> {
-    match CellReference::from_name(name, braced) {
-        CellReference::Named {
-            name: base,
-            element,
-        } => {
-            if !element {
-                return Some(CellPlace::Named { name: base });
-            }
-            let (_, key) = tcl_syntax::naming::split_array_name_braced(name, braced);
-            let key = key?;
-            if !braced && has_substitution(key) {
-                return None;
-            }
-            Some(CellPlace::Element {
-                name: base,
-                key: key.to_owned(),
-            })
-        }
-        CellReference::Computed => None,
-    }
 }
 
 /// The cell an expression `$name` / `$arr(key)` reads.
@@ -1881,64 +1852,15 @@ fn expr_variable_place(name: &str) -> Option<CellPlace> {
     }
 }
 
-/// The name a `$…` / `${…}` word spelling refers to.
-fn variable_name(spelling: &str) -> Option<&str> {
-    if let Some(name) = spelling
-        .strip_prefix("${")
-        .and_then(|rest| rest.strip_suffix('}'))
-    {
-        return (!name.is_empty()).then_some(name);
-    }
-    let name = spelling.strip_prefix('$')?;
-    (!name.is_empty()
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b':'))
-    .then_some(name)
-}
-
-/// The cell a variable word reads, distinguishing `$a(b)` from `${a(b)}` by
-/// the recorded lexical extent exactly as the leaf-invocation planner does.
+/// The cell a variable word reads, in this tier's decline vocabulary.
+///
+/// [`variable_word_place`] is the one owner of the reading; this only names
+/// the refusal.
 fn variable_place(spelling: &str, source: &SourceSite) -> Result<CellPlace, NativeLoweringDecline> {
-    let name = variable_name(spelling).ok_or(NativeLoweringDecline::DynamicVariableName)?;
-    if !name.contains('(') {
-        return Ok(CellPlace::Named {
-            name: name.to_owned(),
-        });
-    }
-    if source.provenance != Provenance::Source {
-        return Err(NativeLoweringDecline::AmbiguousVariableSpelling);
-    }
-    match extent(source.span).checked_sub(name.len()) {
-        Some(2) => Ok(CellPlace::Named {
-            name: name.to_owned(),
-        }),
-        Some(1) => {
-            let inner = name
-                .strip_suffix(')')
-                .ok_or(NativeLoweringDecline::AmbiguousVariableSpelling)?;
-            let open = inner
-                .find('(')
-                .ok_or(NativeLoweringDecline::AmbiguousVariableSpelling)?;
-            let (base, key) = inner.split_at(open);
-            let key = &key[1..];
-            if base.is_empty() {
-                return Err(NativeLoweringDecline::AmbiguousVariableSpelling);
-            }
-            if has_substitution(key) {
-                return Err(NativeLoweringDecline::DynamicVariableName);
-            }
-            Ok(CellPlace::Element {
-                name: base.to_owned(),
-                key: key.to_owned(),
-            })
-        }
-        _ => Err(NativeLoweringDecline::AmbiguousVariableSpelling),
-    }
-}
-
-fn extent(span: Span) -> usize {
-    span.end().saturating_sub(span.start()) as usize
+    variable_word_place(spelling, source).map_err(|decline| match decline {
+        VariableWordDecline::Dynamic => NativeLoweringDecline::DynamicVariableName,
+        VariableWordDecline::Ambiguous => NativeLoweringDecline::AmbiguousVariableSpelling,
+    })
 }
 
 /// The structured words of a `[…]` command substitution, recovered by the
