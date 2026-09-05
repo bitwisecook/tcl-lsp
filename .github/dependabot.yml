@@ -65,6 +65,49 @@ updates:
         exclude-patterns:
           - "npm"
 
+  # Every npm project in the tree needs its own entry — Dependabot does not
+  # walk sub-directories.  The spec-studio web app was the gap that let four
+  # DOMPurify advisories sit unnoticed (they only surfaced through the
+  # Scorecard `Vulnerabilities` check, which reads the lockfiles directly).
+  - package-ecosystem: npm
+    directory: /rust/tcl-spec-studio/web
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /rust/bigip-report-gen/frontend
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  # The three cargo workspaces: the main one at the root (~45 crates — the
+  # language server, compiler and CLIs), the WASM runtime, and the Zed
+  # extension.  Only the last was tracked.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
+    directory: /runtime/rust
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
   - package-ecosystem: cargo
     directory: /editors/zed
     schedule:

@@ -26,5 +26,8 @@
     "vscode-languageserver-protocol": "^3.18.2",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
+  },
+  "overrides": {
+    "dompurify": "^3.4.14"
   }
 }
