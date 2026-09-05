@@ -985,6 +985,14 @@ impl Namespaces {
         self.arena[ns].commands.generation(name)
     }
 
+    /// The generation of the command token `name` resolves to from `current`
+    /// — the token identity a command trace is registered against, and the one
+    /// a deletion frees the trace list of.
+    pub(crate) fn resolve_generation(&self, current: NsId, name: &[u8]) -> Option<u64> {
+        let (ns, simple) = self.home_of(current, name)?;
+        self.arena[ns].commands.generation(&simple)
+    }
+
     /// The fully-qualified name of the binding at `(ns, name)`.
     pub(crate) fn command_fqn_at(&self, ns: NsId, name: &[u8]) -> Vec<u8> {
         self.command_fqn(ns, name)

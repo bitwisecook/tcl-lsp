@@ -1772,6 +1772,9 @@ impl Interp {
         // it captured here, not whatever the name holds when the callback
         // returns — so the binding is captured alongside the name.
         let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
+        // The token whose trace list this deletion frees, captured before the
+        // callbacks can bind a replacement at the same name.
+        let dying_token = self.resolve_cmd_token(old);
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
@@ -1867,9 +1870,12 @@ impl Interp {
                         self.oo_command_renamed(&of, Some(&nf));
                     }
                 }
-                // The command is gone; its traces and OO registry entry go too.
+                // The command is gone; the dying token's traces and OO
+                // registry entry go with it. A replacement the delete callback
+                // bound at the same name keeps its own traces (C frees only
+                // `cmdPtr->tracePtr`).
                 RenameOutcome::Deleted => {
-                    self.remove_cmd_traces(&of);
+                    self.remove_cmd_traces_of_token(&of, dying_token);
                     let tokens: Vec<_> = ensemble_token.into_iter().collect();
                     let mut origins = vec![of.clone()];
                     if let Some(removed_fqn) = removed_import_fqn {
@@ -2126,9 +2132,10 @@ impl Interp {
     /// command traces, then drop every command/execution trace on it (the
     /// command — and its trace list — go away). No-op when it has no traces.
     ///
-    /// Only the traces the deletion actually fired are dropped. A callback that
-    /// redefines the command registers traces on the *new* token under the same
-    /// name, and C frees only the list the dying `Command` carried.
+    /// Only the *dying token's* traces are dropped. C frees `cmdPtr->tracePtr`,
+    /// so a trace the callback adds to the command being deleted dies with it,
+    /// while one it registers on a replacement it bound at the same name lives
+    /// on that new token.
     fn on_command_replaced(&mut self, fqn: &[u8]) {
         if self
             .traces
@@ -2139,20 +2146,37 @@ impl Interp {
         {
             return;
         }
-        let token_traces = self.traces.borrow().next_cmd_trace_id;
+        let dying = self.resolve_cmd_token(fqn);
         self.fire_cmd_trace(fqn, b"", crate::cmd_trace::ops::DELETE);
-        self.remove_cmd_traces_before(fqn, token_traces);
+        self.remove_cmd_traces_of_token(fqn, dying);
     }
 
-    /// Drop the traces on `fqn` that were registered before `watermark` — the
-    /// whole list the dying token carried, and nothing a callback registered
-    /// on the replacement while the delete traces ran.
-    fn remove_cmd_traces_before(&mut self, fqn: &[u8], watermark: u64) {
+    /// The generation of the command token `name` resolves to — the identity a
+    /// command trace hangs off.
+    pub(crate) fn resolve_cmd_token(&self, name: &[u8]) -> Option<u64> {
+        self.namespaces
+            .borrow()
+            .resolve_generation(self.current_ns.get(), name)
+    }
+
+    /// Drop the command/execution traces on `fqn` that belonged to the token
+    /// being deleted — C's "free the whole `cmdPtr->tracePtr` list".
+    ///
+    /// Generations are minted in binding order, so a trace registered on a
+    /// replacement the delete callback bound at this same name compares
+    /// greater and survives. An unidentifiable dying token (an unbound or
+    /// hidden name) takes the whole list, as it did before tokens were
+    /// tracked.
+    fn remove_cmd_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
         let mut traces = self.traces.borrow_mut();
         let old_len = traces.cmd_traces.len();
-        traces
-            .cmd_traces
-            .retain(|t| t.name != fqn || t.id >= watermark);
+        traces.cmd_traces.retain(|t| {
+            t.name != fqn
+                || match (t.token, dying) {
+                    (Some(token), Some(dying)) => token > dying,
+                    _ => false,
+                }
+        });
         let removed = traces.cmd_traces.len() != old_len;
         drop(traces);
         if removed {
@@ -3861,11 +3885,16 @@ impl Interp {
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
     fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+        // C moves the `Command` itself, so its trace list travels with the
+        // token. Re-stamp to whatever token now stands at the destination, so
+        // a later deletion there still tells this list from a replacement's.
+        let token = self.resolve_cmd_token(new_fqn);
         let mut traces = self.traces.borrow_mut();
         let mut moved = false;
         for t in traces.cmd_traces.iter_mut() {
             if t.name == old_fqn {
                 t.name = new_fqn.to_vec();
+                t.token = token;
                 moved = true;
             }
         }

@@ -127,10 +127,23 @@ the order `TclTeardownNamespace` snapshots `nsPtr->cmdTable` — the retained
 #1752). Each token's traces fire while its entry is still in the table, then
 its imports retire depth-first, then the loop moves to the next entry; the
 table is re-snapshotted while it is non-empty, so a command a callback creates
-is torn down in a later pass. A deletion drops exactly the traces the dying
-token carried: a callback that redefines the command registers traces on a new
-token under the same name, and those survive, as C's per-`Command` trace list
-does.
+is torn down in a later pass.
+
+A deletion drops exactly the traces the **dying token** carried, which is what
+C's `Tcl_DeleteCommandFromToken` frees when it releases `cmdPtr->tracePtr`.
+Both registries are keyed by command *name*, so each registration is stamped
+with the generation of the token it was made against, and the deletion keeps
+only the stamps that are later than the dying one:
+
+- a trace a delete callback adds to the command **being deleted** attaches to
+  that same dying token, so it never fires — not in the walk in progress
+  (`CallCommandTraces` follows `active.nextTracePtr`), and not for a later
+  command that takes the vacated name;
+- a trace it registers on a **replacement** it bound at that name belongs to
+  the new token and survives, list intact.
+
+A hide, expose or rename moves the list with its token and re-stamps it,
+because C moves the `Command` itself rather than creating a new one.
 
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
 `active_var_scopes` for the duration of the callback, so a callback touching

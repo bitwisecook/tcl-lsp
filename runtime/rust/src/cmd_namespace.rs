@@ -1740,6 +1740,50 @@ mod tests {
     }
 
     #[test]
+    fn a_refused_alias_rename_keeps_the_command_tables_growth() {
+        // `TclRenameCommand` creates the destination hash entry *before*
+        // `TclPreventAliasLoop` and deletes it again on a refusal, so the
+        // transient twelfth entry rebuilds the eleven-command table from 4
+        // buckets to 16 and the grown array outlives the rejected rename.
+        let eleven = "namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten eleven} {
+                 proc ::N::$n {} {}
+             }";
+        let trace_and_delete = "
+             foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N";
+        assert_eq!(
+            teardown_log(&format!("{eleven}{trace_and_delete}")),
+            "six four three eight seven nine five two one eleven ten"
+        );
+        let mut refusal = String::new();
+        let mut alias_survives = String::new();
+        leak_free(|i| {
+            let recorder = b"set log {}
+                 proc rec {old new op} {lappend ::log [namespace tail $old]}";
+            assert_eq!(i.eval_str(recorder), Code::Ok);
+            assert_eq!(i.eval_str(eleven.as_bytes()), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} ::a {} ::N::b"), Code::Ok);
+            assert_eq!(i.eval_str(b"rename ::a ::N::b"), Code::Error);
+            refusal = String::from_utf8_lossy(&i.result_bytes()).into_owned();
+            assert_eq!(i.eval_str(b"llength [info commands ::a]"), Code::Ok);
+            alias_survives = String::from_utf8_lossy(&i.result_bytes()).into_owned();
+            assert_eq!(i.eval_str(trace_and_delete.as_bytes()), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::log"), Code::Ok);
+            assert_eq!(
+                String::from_utf8_lossy(&i.result_bytes()),
+                "three seven one two four eleven eight five nine six ten"
+            );
+            assert_eq!(i.eval_str(b"unset ::log"), Code::Ok);
+        });
+        assert_eq!(
+            refusal,
+            "cannot define or rename alias \"b\": would create a loop"
+        );
+        assert_eq!(alias_survives, "1");
+    }
+
+    #[test]
     fn namespace_delete_removes_subtree() {
         leak_free(|i| {
             i.eval_str(b"namespace eval foo { proc p {} {return P} ; namespace eval bar {} }");

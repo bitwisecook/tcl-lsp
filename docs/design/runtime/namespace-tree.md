@@ -233,10 +233,13 @@ reconstructed from the live entries alone. `TclDeleteNamespaceChildren` and
 and delete traces make it observable.
 
 `CommandTable` also mints a **generation** per entry. It is the one piece of
-C's `Command` identity the table needs: a teardown snapshot names
-`(tail, generation)`, so a token a delete callback deleted or redefined is
-skipped rather than confused with whatever now holds the name — C's
-`CMD_DYING` early return, which leaves the replacement to the next snapshot.
+C's `Command` identity the table needs, and two things read it. A teardown
+snapshot names `(tail, generation)`, so a token a delete callback deleted or
+redefined is skipped rather than confused with whatever now holds the name —
+C's `CMD_DYING` early return, which leaves the replacement to the next
+snapshot. And every command-trace registration is stamped with it, so a
+deletion frees the dying token's trace list and no one else's
+([`trace-implementation.md`](trace-implementation.md)).
 
 The bytecode VM reaches the same behaviour from a different shape: its command
 table is one flat map keyed by canonical FQN, so it keeps the order owners in
