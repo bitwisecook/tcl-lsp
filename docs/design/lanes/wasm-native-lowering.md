@@ -1230,3 +1230,21 @@ constants, so neither side spells any of them twice:
 `tcl_codegen_proc_register` stays exactly as it is — `entry = 0` is its
 documented equivalent — because already-emitted legacy-tier modules import it.
 
+### The table (delivered)
+
+`runtime/rust/build.rs` adds `--export-table` and `--growable-table` beside
+the existing `--global-base`, for every wasm target. Verified on the linked
+`tcl_runtime.wasm`: `(table $0 814 funcref)` — no maximum — and
+`(export "__indirect_function_table" (table $0))`.
+
+`wasm_real_link.rs::the_runtime_exports_a_growable_indirect_function_table`
+is the gate: a bootstrap imports the table, `table.grow`s one slot,
+`ref.func`s a function of its own into it, and `call_indirect`s it back.
+Checked in both directions — with the two flags removed from `build.rs` the
+case fails (wasmtime cannot even instantiate the bootstrap), so it is not
+vacuous.
+
+Neither flag changes an existing module: the runtime's own indirect calls
+index below the initial size, nothing emitted imports the table yet, and
+`wasm-merge` preserves both properties.
+

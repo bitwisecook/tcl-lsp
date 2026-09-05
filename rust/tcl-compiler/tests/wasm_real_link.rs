@@ -110,6 +110,7 @@ use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 mod common;
 use common::wasm_link::{real_link_runtime, scratch};
+use tcl_runtime_api::codegen_abi::WASM32_FUNCTION_TABLE_IMPORT;
 
 /// The bootstrap WASI command (see the module docs): create + select an interp,
 /// run the emitted `::top`, then evaluate `query` against the same interp and
@@ -919,4 +920,91 @@ fn sealed_native_i64_add_runs_and_trace_registration_falls_back() {
         ),
         "6\n2"
     );
+}
+
+/// A bootstrap that installs a function of its own into the **runtime's**
+/// indirect function table and calls it back through that table.
+///
+/// This is the whole of issue #1774's transport, minus the emitter: a wasm32
+/// function pointer *is* an index into this table, so a module can only hand
+/// the runtime a callable body by growing the table, `ref.func`-ing its
+/// function into the new slot, and passing the index across the ABI. Every
+/// step is a linker property of `tcl_runtime.wasm`, not of anything we emit,
+/// which is why it is proved here before any codegen depends on it.
+///
+/// Each failure is distinct and loud:
+///
+/// - the runtime linked without `--export-table` ⇒ wasmtime refuses to
+///   instantiate this module, naming the missing import;
+/// - linked without `--growable-table` ⇒ the table keeps `wasm-ld`'s
+///   `min == max`, `table.grow` returns `-1`, and the `unreachable` traps;
+/// - a slot that does not hold the installed function ⇒ the `call_indirect`
+///   result is not 42 and the second `unreachable` traps.
+fn function_table_bootstrap_wat() -> String {
+    format!(
+        r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "{WASM32_FUNCTION_TABLE_IMPORT}" (table $fns 0 funcref))
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (export "memory" (memory 0))
+  (type $answer_t (func (result i32)))
+  (elem declare func $answer)
+  (func $answer (type $answer_t) (i32.const 42))
+  (func (export "_start")
+    (local $slot i32)
+    (local.set $slot (table.grow $fns (ref.null func) (i32.const 1)))
+    (if (i32.lt_s (local.get $slot) (i32.const 0)) (then unreachable))
+    (table.set $fns (local.get $slot) (ref.func $answer))
+    (if (i32.ne (call_indirect $fns (type $answer_t) (local.get $slot)) (i32.const 42))
+      (then unreachable))
+    (i32.store (i32.const 0x190008) (i32.const 0x180000))
+    (i32.store (i32.const 0x19000C) (i32.const 3))
+    (drop (call $fd_write (i32.const 1) (i32.const 0x190008) (i32.const 1) (i32.const 0x190010))))
+  (data (i32.const 0x180000) "ok\n"))
+"#
+    )
+}
+
+/// Run a bootstrap against the runtime alone — no emitted `user` module.
+fn run_boot_only(runtime: &Path, tag: &str, wat: &str) -> Result<String, String> {
+    let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
+    std::fs::write(&boot, wat).expect("write bootstrap");
+    let out = Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", runtime.display()))
+        .arg(&boot)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&boot);
+    if out.status.success() {
+        Ok(String::from_utf8(out.stdout).expect("stdout is utf-8"))
+    } else {
+        Err(format!(
+            "--- stdout ---\n{}\n--- stderr ---\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        ))
+    }
+}
+
+/// The runtime exports its indirect function table, and that table grows.
+///
+/// `runtime/rust/build.rs` passes `--export-table --growable-table` for every
+/// wasm target. Without the first there is no table to import; without the
+/// second `wasm-ld` fixes `max == min` and nothing can ever be installed. Both
+/// are inert for a module that does not touch the table, so no already-emitted
+/// module changes — but a native proc entry is impossible without them.
+#[test]
+fn the_runtime_exports_a_growable_indirect_function_table() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    match run_boot_only(&runtime, "function_table", &function_table_bootstrap_wat()) {
+        Ok(stdout) => assert_eq!(stdout, "ok\n"),
+        Err(report) => panic!(
+            "a module could not install a function into the runtime's table.\n             Check that runtime/rust/build.rs still passes --export-table and \
+             --growable-table for wasm targets.\n{report}"
+        ),
+    }
 }
