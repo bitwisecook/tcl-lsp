@@ -217,14 +217,25 @@ fn entier_of_a_beyond_wide_float_is_the_exact_integer() {
 }
 
 /// `round()` is unbounded in both releases too (tclsh: `round(1e300)` is the
-/// same 301-digit integer, `round(1e20)` the same 21-digit one).
+/// same 301-digit integer, `round(1e20)` the same 21-digit one), and it is
+/// half away from zero on the *exact* operand rather than `floor(d + 0.5)`,
+/// which rounds twice: tclsh 8.6.16/9.0.4 answer `round(0.49999999999999994)`
+/// with `0` while `floor(0.49999999999999994 + 0.5)` is `1.0`.
 #[test]
 fn round_of_a_beyond_wide_float_is_the_exact_integer() {
     expr_is("round(1e300)", E1E300);
     expr_is("round(-1e300)", &format!("-{E1E300}"));
     expr_is("round(1e20)", "100000000000000000000");
+    expr_is("round(0.5)", "1");
+    expr_is("round(1.5)", "2");
     expr_is("round(2.5)", "3");
     expr_is("round(-2.5)", "-3");
+    expr_is("round(0.49999999999999994)", "0");
+    expr_is("round(-0.49999999999999994)", "0");
+    expr_is("round(4503599627370497.0)", "4503599627370497");
+    expr_is("round(-4503599627370497.0)", "-4503599627370497");
+    expr_is("round(4503599627370497.5)", "4503599627370498");
+    expr_is("round(2251799813685248.5)", "2251799813685249");
 }
 
 /// `wide()` truncates then takes the low 64 bits, in every release
