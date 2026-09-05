@@ -703,6 +703,15 @@ fn compiled_argv_invocations_run_against_the_real_runtime() {
             "set out",
             "fast",
         ),
+        // A braced element *target*: `set {a(b)} 5` writes the element, as
+        // tclsh does, not a scalar literally named `a(b)`. The direct
+        // assignment gate reads that shape through `cell_place`, so this pins
+        // the answer it must keep giving.
+        (
+            "set {cfg(mode)} fast\nlappend out $cfg(mode) [array exists cfg]\n",
+            "set out",
+            "fast 1",
+        ),
         // Runtime dispatch is genuinely runtime dispatch: a renamed command
         // resolves to its new name, which no compile-time binding could know.
         (
@@ -726,6 +735,32 @@ fn compiled_argv_invocations_run_against_the_real_runtime() {
             "program {program:?}, query {query:?}"
         );
     }
+}
+
+/// Issue #1772's exact repro, against the real runtime.
+///
+/// The retired analysis-tier `puts` fast path took a single-argument `puts`
+/// and re-read the argument's *compatibility text* to find a variable name.
+/// For `puts "$p $q"` that text is `${p} ${q}`, whose outer-brace strip yields
+/// the name `p} ${q` — a variable that does not exist, so the runtime wrote
+/// nothing and the following `puts end` was swallowed with it. Nothing else in
+/// the suite shows the symptom the issue reported, because it is a *missing*
+/// line rather than a wrong value: the first `puts` proves the compound word
+/// survives, and `end` proves the statement after it still runs.
+#[test]
+fn analysed_compound_puts_word_reaches_the_runtime_intact() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "compound-puts",
+            "set p 1\nset q 2\nputs \"$p $q\"\nputs end\n",
+            "set p",
+        ),
+        "1 2\nend\n1",
+    );
 }
 
 /// The compiled path leaks nothing in the real runtime: after repeated runs the

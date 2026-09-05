@@ -58,6 +58,7 @@ use crate::common_aot_plan::semantic_operation_binding_is_trusted;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::mixed_region_plan::GuardedSelectionEvidence;
+use crate::native_lowering::cells::{CellPlace, cell_place};
 use crate::native_lowering::{
     FunctionDecline, FunctionReport, LoweringInput, NativeTierReport, lower_function,
 };
@@ -456,23 +457,22 @@ impl WasmEmitter {
         true
     }
 
+    /// A direct procedure's expression reads only its formal parameters
+    /// (`direct_expr_supported`), so every name is a frame slot. Nothing else
+    /// reaches this: `emit_expr_value` runs solely from the `DirectProc`
+    /// `Statement::Return` arm.
     fn emit_var_get(&mut self, name: &str) -> bool {
         let Some(aot) = self.general_imports().aot else {
             return false;
         };
-        if self.mode == FunctionMode::DirectProc {
-            let Some(slot) = self.local_slots.get(name).copied() else {
-                return false;
-            };
-            self.push_i32(i64::from(slot));
-            self.call(aot.local_get);
-        } else {
-            // A direct procedure's expression reads only its formal
-            // parameters (`direct_expr_supported`), so the name is exactly
-            // the cell's name; no compatibility-text spelling is reparsed.
-            self.push_text_pair(name);
-            self.call(aot.var_get);
+        if self.mode != FunctionMode::DirectProc {
+            return false;
         }
+        let Some(slot) = self.local_slots.get(name).copied() else {
+            return false;
+        };
+        self.push_i32(i64::from(slot));
+        self.call(aot.local_get);
         true
     }
 
@@ -1428,9 +1428,13 @@ fn function_facts(
             } = statement
                 && (*name_braced || !crate::naming::is_dynamic_word(name))
                 // `tcl_codegen_var_set` stores under the exact name, so an
-                // unbraced `a(b)` target — an array element, not a scalar whose
-                // name contains parentheses — keeps the source-span fallback.
-                && (*name_braced || !name.contains('('))
+                // array-element target — as opposed to a scalar whose name
+                // merely contains parentheses — keeps the source-span
+                // fallback. `cell_place` owns that reading for every backend.
+                && matches!(
+                    cell_place(name, *name_braced),
+                    Some(CellPlace::Named { .. })
+                )
                 && registry
                     .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
                         LoweringHookId::Set,

@@ -12,4 +12,4 @@ registrations 1
 notices 1
 notice command if 39 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command if line 10 overrides false degraded false spec dae3095f335c9e6f hooks 47ad4b1a6bacb531 grammar 586dd5a294898ebe
+command if line 10 overrides false degraded false spec fe32fe7e8631a812 hooks 47ad4b1a6bacb531 grammar 586dd5a294898ebe

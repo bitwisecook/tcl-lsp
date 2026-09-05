@@ -68,7 +68,7 @@
 //! * A command consisting only of dangling `{*}` markers — no real word —
 //!   is discarded, exactly as the segmenter discards it.
 //!
-//! # `welded_after_close`
+//! # `welded_after_close` and `welded_after_close_quote`
 //!
 //! New here, and advisory only: [`WordSpan::welded_after_close`] records
 //! that a content token followed a braced (`Str`) token with **no
@@ -79,8 +79,13 @@
 //! severity.  The analyser stays lenient and diagnoses, since it must keep
 //! tokenising broken source; the eval-facing `runtime/rust` raises C's error
 //! from it (`parse.rs` `build_word`).
-//! It is deliberately brace-only — the analogous close-quote weld (`"a"b`)
-//! is a different C error and is not reported here.
+//!
+//! [`WordSpan::welded_after_close_quote`] is its sibling for the
+//! close-quote weld (`"a"b`, `""b`, `"a$x"b`), C's
+//! [`EXTRA_AFTER_CLOSE_QUOTE`](crate::EXTRA_AFTER_CLOSE_QUOTE) (issue
+//! #1828).  The two are kept apart because C raises different messages and
+//! stops at whichever closer comes first: `{a}"b"c` carries only the brace
+//! flag.
 
 use std::ops::Range;
 
@@ -141,6 +146,23 @@ pub struct WordSpan {
     /// this module never acts on it — but `runtime/rust`'s eval-facing parser
     /// does, raising C's error for the word that carries it.
     pub welded_after_close: bool,
+    /// A content token followed a **quoted** fragment of this word after its
+    /// closing `"`, with no separator between them — `"a"b`, `""b`,
+    /// `"a"$b`, `"a"[b]`, `"a"{b}`, `"a$x"b`, `"a[x]"c`.
+    ///
+    /// C rejects every one of those with
+    /// [`EXTRA_AFTER_CLOSE_QUOTE`](crate::EXTRA_AFTER_CLOSE_QUOTE), the
+    /// sibling of the close-brace flag above (issue #1828).  Like it, this
+    /// is advisory — the module never acts on it, the analyser stays
+    /// lenient — and `runtime/rust`'s eval-facing parser raises C's error
+    /// from it.  It is dialect-blind, as the whole grouper is: under
+    /// `JimTcl`'s concatenating quote rule the flag is still set and the
+    /// consumer decides, exactly as
+    /// [`first_parse_cut`](crate::first_parse_cut) already reports the shape
+    /// regardless of dialect.  Never set on a word that opened with `{` — C
+    /// stops at the close-brace first, so `{a}"b"c` carries
+    /// [`welded_after_close`](Self::welded_after_close) only.
+    pub welded_after_close_quote: bool,
 }
 
 impl WordSpan {
@@ -232,6 +254,7 @@ struct PendingWord {
     end: usize,
     expand: bool,
     welded: bool,
+    welded_quote: bool,
 }
 
 /// In-flight grouping state, mirroring `build.rs`'s `Builder` minus
@@ -319,6 +342,14 @@ impl<'a> Grouper<'a> {
                             word.end = i;
                             word.welded = true;
                         }
+                    } else if self.prev_closed_a_quote() {
+                        // After the brace test, never before it: C stops at
+                        // whichever closer comes first, so `{a}"b"c` is a
+                        // close-*brace* error and carries only that flag.
+                        if let Some(word) = self.cur.as_mut() {
+                            word.end = i;
+                            word.welded_quote = true;
+                        }
                     } else if let Some(word) = self.cur.as_mut() {
                         word.end = i;
                     } else {
@@ -339,6 +370,7 @@ impl<'a> Grouper<'a> {
             end: i,
             expand: !self.markers.is_empty(),
             welded: false,
+            welded_quote: false,
         });
         self.markers.clear();
     }
@@ -360,6 +392,52 @@ impl<'a> Grouper<'a> {
                 .and_then(|i| self.tokens.get(i))
                 .and_then(|t| self.src.as_bytes().get(t.span.start() as usize))
                 == Some(&b'{')
+    }
+
+    /// Did the previous token close the **quoted** word in progress?
+    ///
+    /// Only an `Esc` can: inside a quote the lexer dispatches `$` and `[` to
+    /// their own parsers and everything else — the closing `"` included — to
+    /// `parse_quoted`, so the byte that closes a quote is always consumed by
+    /// an `Esc` (the content run that stopped at it, or a zero-content
+    /// marker when a `$x` / `[…]` ran straight into it). The word must have
+    /// *opened* with `"`: a `"` inside a bare word is literal (`a"b"c`), and
+    /// a word that opened with `{` is C's close-*brace* case whatever
+    /// follows (`{a}"b"c`).
+    ///
+    /// Where the closer sits follows the #527 convention, not
+    /// `span.end() + 1`: one past the span for a non-empty run (`"a`), but
+    /// *inside* the span for the empty-content clamp — `""`, and the bare
+    /// closing `"` after a substitution — whose span was extended to cover
+    /// the stop byte. `token_text_in` — the body of `SourceMap::token_text`
+    /// — is the one owner of "is this token's content empty", so the same
+    /// call that distinguishes the two also rejects the opening `"$` / `"[`
+    /// clamp: its last byte is the introducer, not a `"`, and `puts "$"`
+    /// must stay the text `$`.
+    fn prev_closed_a_quote(&self) -> bool {
+        if self.prev_type != TokenType::Esc {
+            return false;
+        }
+        let bytes = self.src.as_bytes();
+        let opened_with_quote = self
+            .cur
+            .as_ref()
+            .and_then(|word| self.tokens.get(word.start))
+            .and_then(|first| bytes.get(first.span.start() as usize))
+            == Some(&b'"');
+        if !opened_with_quote {
+            return false;
+        }
+        let Some(prev) = self.prev_tok.and_then(|i| self.tokens.get(i)) else {
+            return false;
+        };
+        let end = prev.span.end() as usize;
+        let closer = if crate::source_map::token_text_in(self.src, *prev).is_empty() {
+            end.checked_sub(1)
+        } else {
+            Some(end)
+        };
+        closer.and_then(|at| bytes.get(at)) == Some(&b'"')
     }
 
     fn note_weld(&mut self) {
@@ -394,6 +472,7 @@ impl<'a> Grouper<'a> {
             tokens: word.start..word.end + 1,
             span: Span::new(first.span.start(), last.span.end()),
             welded_after_close: word.welded,
+            welded_after_close_quote: word.welded_quote,
         });
     }
 
@@ -576,9 +655,9 @@ mod tests {
         assert_eq!(word_texts(src, &cmds[0], &toks), ["foo", "\"q\"{*}$z"]);
         assert!(cmds[0].expand_markers.is_empty());
         assert!(cmds[0].words.iter().all(|w| !w.expand));
-        // Brace-only: the close-*quote* weld is a different C error and is
-        // not reported through this flag.
+        // The close-quote weld is the sibling flag, not this one.
         assert!(!cmds[0].words[1].welded_after_close);
+        assert!(cmds[0].words[1].welded_after_close_quote);
     }
 
     #[test]
@@ -665,7 +744,7 @@ mod tests {
             ("puts {a}", false),
             ("puts {a} b", false),
             ("puts a{b}", false),   // `{` mid-word is literal, not a Str token
-            ("puts \"a\"b", false), // close-quote weld: not this flag
+            ("puts \"a\"b", false), // close-quote weld: the sibling flag
             // A nameless `$` is also a `Str` token, with no brace anywhere:
             // `$$x` is `Str,Var` and Tcl reports no error for it (the first
             // `$` is literal, `$x` substitutes). Keying the weld on the token
@@ -686,6 +765,90 @@ mod tests {
         let (_toks, cmds) = group(src);
         let flags: Vec<bool> = cmds[0].words.iter().map(|w| w.welded_after_close).collect();
         assert_eq!(flags, [false, true, false, false]);
+    }
+
+    // ---------------------------------------------------------------
+    // welded_after_close_quote
+    // ---------------------------------------------------------------
+
+    /// Measured on tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0 (#1828):
+    /// every `true` row is `extra characters after close-quote`; every
+    /// `false` row is accepted.
+    #[test]
+    fn quote_weld_shapes() {
+        for (src, welded) in [
+            ("puts \"a\"b", true),
+            ("puts \"\"b", true), // empty `""`: the #527 clamp, closer inside the span
+            ("puts \"a\"$b", true),
+            ("puts \"a\"[b]", true),
+            ("puts \"a\"{b}", true),
+            ("puts \"a\"\"b\"", true),
+            ("puts \"a\\\"b\"c", true), // escaped quote inside the run
+            ("puts \"a$x\"b", true),    // bare closing marker after a `$x`
+            ("puts \"$x\"b", true),
+            ("puts \"a[x]\"c", true), // bare closing marker after a `[…]`
+            ("puts \"a$\"b", true),
+            ("puts \"$\"b", true),
+            ("puts \"a\"$", true),
+            ("puts \"a\"\\ b", true),
+            ("puts \"a\"}", true),
+            ("puts \"a\"]", true),
+            ("puts \"q\"{*}$z", true),
+            ("puts \"a\"", false),
+            ("puts \"a\" b", false),
+            ("puts \"\"", false),
+            ("puts \"$\"", false), // `$` with no name: text, not a weld
+            ("puts \"a$ b\"", false),
+            ("puts \"$x\"", false),
+            ("puts \"a[x]\"", false),
+            ("puts a\"b\"c", false), // `"` inside a bare word is literal
+            ("puts $a\"b\"c", false),
+            ("puts \"a\"\\\nb", false), // backslash-newline is a separator
+        ] {
+            let (_toks, cmds) = group(src);
+            let word = &cmds[0].words[1];
+            assert_eq!(word.welded_after_close_quote, welded, "{src:?}");
+            assert!(
+                !word.welded_after_close,
+                "{src:?}: brace flag stays brace-only"
+            );
+        }
+    }
+
+    /// C stops at the close-brace, so a quote welded onto a braced word is
+    /// still the *brace* error and only that flag carries it.
+    #[test]
+    fn a_brace_weld_followed_by_a_quote_carries_only_the_brace_flag() {
+        for src in ["puts {a}\"b\"", "puts {a}\"b\"c", "puts {a}\"b"] {
+            let (_toks, cmds) = group(src);
+            let word = &cmds[0].words[1];
+            assert!(word.welded_after_close, "{src:?}");
+            assert!(!word.welded_after_close_quote, "{src:?}");
+        }
+    }
+
+    #[test]
+    fn quote_weld_is_per_word_not_per_command() {
+        let src = "puts \"a\"b \"c\" d";
+        let (_toks, cmds) = group(src);
+        let flags: Vec<bool> = cmds[0]
+            .words
+            .iter()
+            .map(|w| w.welded_after_close_quote)
+            .collect();
+        assert_eq!(flags, [false, true, false, false]);
+    }
+
+    #[test]
+    fn f5_ghost_separator_after_a_close_quote_is_not_a_weld() {
+        // F5 splits `"a"b` into two words with no diagnostic
+        // (bigip-irule-parser-measurements.md, "Word-formation evidence");
+        // the ghost `Sep` the lexer emits starts a new word here, so nothing
+        // is welded.
+        let src = "set y \"a\"b";
+        let (_toks, cmds) = group_with(src, LexerConfig::for_dialect("f5-irules"));
+        assert_eq!(cmds[0].words.len(), 4);
+        assert!(cmds[0].words.iter().all(|w| !w.welded_after_close_quote));
     }
 
     // ---------------------------------------------------------------

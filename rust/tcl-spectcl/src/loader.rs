@@ -2128,10 +2128,27 @@ fn parse_traits(text: &str, line: u32, log: &mut Log) -> Traits {
     for name in list_words(text) {
         match catalogue::trait_bit(&name) {
             Some(bit) => traits |= bit,
-            None => log.say(line, format!("unknown trait `{name}` dropped")),
+            None => log.say(line, unaccepted_trait_notice(&name)),
         }
     }
     traits
+}
+
+/// The notice for a trait word the registry will not accept.
+///
+/// A retired spelling names what carries the fact now: a pack written against
+/// an older registry is still out there saying `traits HAS_SWITCH_BODY`, and
+/// its author needs the replacement, not the news that a word the registry
+/// once documented is meaningless. The word is dropped either way — the
+/// replacement is a descriptor the pack writes for itself.
+fn unaccepted_trait_notice(name: &str) -> String {
+    match tcl_registry::traits::RETIRED_TRAITS
+        .iter()
+        .find(|(retired, _)| *retired == name)
+    {
+        Some((_, replacement)) => format!("retired trait `{name}` dropped: {replacement}"),
+        None => format!("unknown trait `{name}` dropped"),
+    }
 }
 
 fn parse_taint(text: &str, line: u32, log: &mut Log) -> tcl_registry::taint::TaintColour {

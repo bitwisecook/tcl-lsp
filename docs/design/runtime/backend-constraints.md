@@ -59,11 +59,19 @@ The second half is a tcltest overlay: a Tcl script that reads the
 introspection facts, registers backend constraints, and feeds
 `tcltest::configure -skip` the test-id globs the current backend cannot run.
 
-**The hook is wired in both harnesses; no overlay script is checked in.**
-Setting `TCL_BACKEND_CONSTRAINTS` to a path sources that file at the right
-moment, but the repository ships no such file, and no backend constraint names
-are registered anywhere in the tree. Until an overlay exists, every backend
-runs the full suite and reports capability gaps as failures rather than skips.
+**The overlay is checked in at `tests/external/backend_constraints.tcl`**, and
+`TCL_BACKEND_CONSTRAINTS` points a harness at it (or at a replacement). It
+registers seven constraint names — `rustBackend`, `bytecodeRuntime`,
+`treewalkRuntime`, `wasmBackend`, `notWasm`, `wasiPreview1`, `ebpfBackend` —
+and is safe to source under C tclsh, because every fact it reads defaults when
+the key is absent.
+
+The tcltest sweep passes it by default: `rust/xtask/src/tcltest_sweep.rs`
+names it in the `BACKEND_CONSTRAINTS` const, sets the env var for every VM
+run, and *refuses to sweep at all* without it
+(`missing default backend constraint overlay …`). The two example harnesses do
+not default it — set `TCL_BACKEND_CONSTRAINTS` yourself for a manual
+`run_test` or `run_script --init`.
 
 Where each harness sources it:
 
@@ -78,26 +86,50 @@ Where each harness sources it:
 
 ```sh
 # tcl-vm bytecode VM, evaluated as the WASI backend
-TCL_BACKEND_CONSTRAINTS=<overlay.tcl> \
+TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl \
 TCL_WASI_SPEC=preview1 \
-  cargo run -p tcl-vm --release --example run_test -- tmp/tcl9.0.3/tests/socket.test
+  cargo run -p tcl-vm --release --example run_test -- tmp/tcl9.0.4/tests/socket.test
 
 # runtime/rust tree-walk runtime, evaluated as eBPF
-TCL_BACKEND_CONSTRAINTS=<overlay.tcl> \
+TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl \
 TCL_EBPF_SPEC=1.4 \
-  cargo run --release --example run_script -- --init tmp/tcl9.0.3/tests/clock.test
+  cargo run --release --example run_script -- --init tmp/tcl9.0.4/tests/clock.test
 ```
 
 A native run (no `TCL_*_SPEC`) has nothing to skip and runs the full suite.
 
-### What an overlay has to do
+### What the overlay does
 
-1. Read the introspection facts, defaulting to `native` when absent, so it is
-   safe under C tclsh or an older build.
-2. Register the backend constraints the exclusion rows name.
-3. Feed `tcltest::configure -skip` from a data-driven exclusion table ordered
-   by capability area, each row carrying the *reason* — the audit trail for why
-   a test is not run.
+1. Reads `::tcl_platform(runtime)` (defaulting to `c`) and `(wasm)` / `(wasi)`
+   / `(ebpf)` (defaulting to empty), so the file is safe under C tclsh.
+   `runtime/rust` publishes `runtime = "treewalk"` and `tcl-vm` publishes
+   `"bytecode"`; `tcl-platform` owns the schema.
+2. Registers the seven constraint names:
+
+   | Name | True when |
+   |---|---|
+   | `rustBackend` | `runtime` is `bytecode`, `treewalk`, or `ebpf` |
+   | `bytecodeRuntime` | `runtime eq "bytecode"` |
+   | `treewalkRuntime` | `runtime eq "treewalk"` |
+   | `wasmBackend` / `notWasm` | `wasm ne ""` / `wasm eq ""` |
+   | `wasiPreview1` | `wasi` is `preview1` or `0.1` |
+   | `ebpfBackend` | `ebpf ne ""` |
+
+3. Appends to any existing `::tcltest::configure -skip`, one row per backend
+   boundary: `platform-1.1` (the Rust runtimes add introspection keys, so C's
+   exact-key assertion is inapplicable); `socket-*` when there is no `socket`
+   command; `exec-*` when there is no `exec`, or under WASI or eBPF;
+   `thread-* async-*` when `tcl_platform(threaded)` is absent or false;
+   `fCmd-* fileSystem-*` under eBPF.
+
+The authoring rule is in the file's own header and is **gated**: an overlay may
+exclude only platform identity, unavailable host capabilities, and C-only
+internal-representation probes. Semantic stems (`set-*`, `expr-*`, `proc-*`,
+`namespace-*`, `dict-*`) are forbidden.
+`tcltest_sweep.rs::tests::overlay_only_skips_explicit_backend_cases` pins every
+`lappend exclusions` pattern against `ALLOWED_BACKEND_SKIP_PATTERNS` and fails
+on a semantic stem, so an overlay edit must update that list in the same
+change.
 
 ## Relationship to the tier ladder
 

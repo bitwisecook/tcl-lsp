@@ -46,6 +46,11 @@ a hang); `TCL_BACKEND_CONSTRAINTS=<overlay.tcl>` sources a skip overlay before
 the file so tests the backend cannot support are skipped. The tree-walk runtime
 analogue is `runtime/rust`'s `run_script --init`.
 
+The whole sweep sets `TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl`
+for you (and refuses to start without that file). A manual `run_test` or
+`run_script --init` does **not** — set it yourself, or the run reports
+capability gaps as failures rather than skips.
+
 Run the same file through the C oracle to compare:
 
 ```

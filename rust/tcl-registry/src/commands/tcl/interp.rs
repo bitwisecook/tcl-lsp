@@ -922,8 +922,6 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
-            | Traits::HAS_INTERP_EVAL
-            | Traits::HAS_DESTRUCTIVE_OPS
             | Traits::LANGUAGE_KEYWORD
             | Traits::DYNAMIC_EVAL_BODY
             // `interp alias` / `hide` / `expose` / `invokehidden` all take

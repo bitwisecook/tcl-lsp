@@ -561,6 +561,10 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             other => other,
         };
+        // C creates the destination's hash entry before `TclPreventAliasLoop`
+        // and deletes it again on a refusal, so the resize that transient entry
+        // triggers outlives the rejected rename.
+        vm.note_rename_destination(&key);
         let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
@@ -570,6 +574,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // delete callbacks and trace/deoptimisation state that cannot be
         // rolled back after `register_command` observes an overwrite.
         if is_alias && vm.alias_chain_loops_for_rename(&key, &cmd) {
+            vm.forget_rename_destination(&key);
             let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
@@ -1179,7 +1184,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
-    if name_s.contains("::") && !vm.namespace_accepts_command_definition(&namespace, &reg_name) {
+    if name_s.contains("::") && !vm.namespace_accepts_command_definition(&namespace) {
         return err(format!(
             "can't create procedure \"{name_s}\": unknown namespace"
         ));

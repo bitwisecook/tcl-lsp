@@ -103,14 +103,6 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("performs_substitution", Traits::PERFORMS_SUBSTITUTION),
     ("opens_channel", Traits::OPENS_CHANNEL),
     ("sources_file", Traits::SOURCES_FILE),
-    ("has_switch_body", Traits::HAS_SWITCH_BODY),
-    (
-        "has_string_list_confusion_risk",
-        Traits::STRING_LIST_CONFUSION,
-    ),
-    ("configures_channel", Traits::CONFIGURES_CHANNEL),
-    ("has_interp_eval", Traits::HAS_INTERP_EVAL),
-    ("has_destructive_ops", Traits::HAS_DESTRUCTIVE_OPS),
     ("is_irules_event_handler", Traits::IS_EVENT_HANDLER),
     (
         "is_unnormalized_http_getter",

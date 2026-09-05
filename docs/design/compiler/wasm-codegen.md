@@ -211,7 +211,12 @@ unchanged. Statements lower by registry descriptor and dispatch proof:
 Words are evaluated structurally from `WordExpr` only: the `puts` fast path
 that reparsed compatibility text (issue #1772) is gone from every tier, and a
 `[…]` word resolved to `expr` over one braced literal lowers as a native
-expression when the module keeps `expr` bound to its builtin.
+expression when the module keeps `expr` bound to its builtin. The one reading
+a backend still makes of a `$…` spelling — which cell a variable word names,
+and whether `$a(b)` is an element or a scalar spelt `${a(b)}` — has a single
+owner, `native_lowering::cells::variable_word_place`, built on
+`tcl_syntax::naming::split_element_ref`; `cell_place` is its counterpart for a
+statically spelled name word. No tier keeps a copy.
 
 ### Representation and cells
 
