@@ -488,7 +488,14 @@ fn build_word<'s>(
     // one divergence `tests/parse_cut_agreement.rs` had to pin (#1828). Same
     // order as the brace: before anything else in the word, because C stops
     // at the `"`.
-    if word.welded_after_close_quote {
+    //
+    // Unlike the brace, this shape has a dialect axis: the boundary owner's
+    // flag is advisory and set blind, and under
+    // `QuoteTermination::Concatenating` (`JimTcl`) the run after the close
+    // quote joins the same word instead, so `"abc"def` is `abcdef` and the
+    // diagnostic never fires. The lexer's own `strict_quoting` gate reads the
+    // same policy, so honour it here rather than raising unconditionally.
+    if word.welded_after_close_quote && config.quote_termination.is_strict() {
         return Word {
             kind,
             expand,
@@ -1118,6 +1125,39 @@ mod tests {
             );
         }
         assert_eq!(lit(&nth(b"puts \"$\"", 0).words[1]), b"$");
+    }
+
+    /// The weld flag is advisory and set blind, so the raise must read the
+    /// dialect's quote-termination policy. `JimTcl` concatenates
+    /// (`jim.c` has no such check), and its lexer emits no warning for the
+    /// same source — the evaluator must agree rather than invent an error.
+    #[test]
+    fn a_concatenating_dialect_welds_instead_of_raising() {
+        let config = LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("jim")));
+        assert!(
+            !config.quote_termination.is_strict(),
+            "jim must be the concatenating dialect for this test to mean anything"
+        );
+        for (src, joined) in [
+            (&b"set y \"abc\"def"[..], &b"abcdef"[..]),
+            (b"set y \"a\"b", b"ab"),
+        ] {
+            let cmd = parse_script_with_config(src, config)
+                .into_iter()
+                .next()
+                .expect("command");
+            let text = match &cmd.words[2].body {
+                WordBody::Literal(bytes) => bytes.to_vec(),
+                WordBody::Parts(parts) => parts.iter().fold(Vec::new(), |mut acc, part| {
+                    match part {
+                        WordPart::Text(bytes) => acc.extend_from_slice(bytes),
+                        other => panic!("unexpected part {other:?}"),
+                    }
+                    acc
+                }),
+            };
+            assert_eq!(text, joined, "{}", String::from_utf8_lossy(src));
+        }
     }
 
     #[test]
