@@ -262,7 +262,7 @@ fn invocation_refinements_are_structured_not_an_opaque_rust_expression() {
             gap(key).is_none(),
             "the renderer writes {key}, so it declares no gap for it"
         );
-        let example = tcl_spec_studio::examples::field_example(key, field.label, field.group)
+        let example = tcl_spec_studio::examples::field_example(key, field.label)
             .unwrap_or_else(|| panic!("{key} must have an annotated form-selection example"));
         let code = example["code"].as_str().expect("example code");
         let annotations = example["annotations"]
@@ -270,15 +270,44 @@ fn invocation_refinements_are_structured_not_an_opaque_rust_expression() {
             .expect("example annotations");
         assert!(
             annotations.len() >= 2,
-            "{key}'s example must contrast query and mutation forms"
+            "{key}'s example must contrast two forms of one invocation"
         );
-        match key {
-            "command_forms" => assert!(code.contains("get") && code.contains("set")),
-            "subcommand_forms" => {
-                assert!(code.contains("present") && code.contains("clear"));
-            }
-            _ => unreachable!(),
-        }
+        // The property, not a word list: a refinement example has to show the
+        // *same* invocation twice, so the reader sees which word chose a
+        // different set of facts. Asserting the literal `get`/`set` pair
+        // instead outlived its example — `command_forms` refines by arity as
+        // often as by a selector word, and its real carriers are Tk widgets
+        // rather than a getter/setter pair.
+        let lines: Vec<&str> = code.lines().collect();
+        assert!(
+            lines.len() >= 2,
+            "{key}'s example must show more than one invocation"
+        );
+        let head = |line: &str| {
+            line.trim_start()
+                .trim_start_matches(['[', '$'])
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        };
+        let subject = lines
+            .iter()
+            .map(|line| head(line))
+            .find(|word| lines.iter().filter(|line| head(line) == *word).count() >= 2)
+            .unwrap_or_else(|| {
+                panic!("{key}'s example must invoke one command twice, in two forms: {code:?}")
+            });
+        let annotated: Vec<usize> = annotations
+            .iter()
+            .map(|annotation| {
+                usize::try_from(annotation["line"].as_u64().expect("line")).expect("fits usize")
+            })
+            .collect();
+        assert!(
+            annotated.windows(2).any(|pair| pair[0] != pair[1]),
+            "{key}'s arrows must point at both forms of {subject}, not at one line"
+        );
     }
 }
 

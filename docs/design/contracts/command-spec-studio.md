@@ -130,7 +130,10 @@ Everything else reads that table:
 - `render_rs` walks the same table in order.
 
 **Adding a field to `CommandSpec` means adding one `FieldSchema` entry and one
-line in `draft`.** No UI, serialiser, or renderer change is needed.
+line in `draft`.** No UI, serialiser, or renderer change is needed. The help
+gates below then ask for three more entries — long-form help, a worked
+example, and a place among the related-settings clusters — each failing by
+name until it is written.
 
 ### Long-form help rides the schema
 
@@ -148,6 +151,106 @@ field, group, and catalogue must have help (a new field fails by name until
 its entry is written), and every help entry must name something that still
 exists. "A **?** on everything" is therefore a property of the build, not a
 review habit.
+
+#### Every example shows the setting it sits under
+
+`examples.rs` gives each field, group heading, catalogue, and vocabulary value
+a compact Tcl snippet plus the spans to point at. The browser draws a bracket
+and a numbered arrow beneath each span, and the **?** panel and the Reference
+row read the same JSON, so one surface cannot explain a setting differently
+from the other.
+
+The stronger property is that a field's example is an example *of that
+field*. `field_template` is an exhaustive keyed table split across
+`examples/fields_core.rs` and `examples/fields_behaviour.rs`, and
+`every_group_and_field_has_a_valid_example` fails by name for a key with no
+entry. There is deliberately no group-level fallback: inheriting the group's
+snippet is how most of the form once shipped illustrating something other
+than itself — every taint sink drew the same line, and the whole Availability
+group showed one `package require`. A group heading keeps its own snippet,
+because a group's **?** is about the group.
+
+Each snippet uses a shipped command that really declares the field, so the
+arrows point at a consequence the analyser draws today: an output sink is
+`HTTP::respond`, a log sink is `log local0.`, a network sink is `socket`.
+
+Dropdown values are the same idea one level down. A vocabulary the registry
+owns — `Trait`, `TaintColourAtom`, `SideEffectTarget`, `ArgRole`,
+`AppendedArity`, `TclType`, `StorageType`, `ConnectionSide`,
+`ByteArrayEffect`, `PatternType`, `FormatType` — carries a
+`DocumentationExample` per variant, and `variant_example` serialises it. The
+remaining pickers (`bodyKind`, `scriptTiming`, the hook ids, `dialects`, …)
+still introduce a value with their catalogue's snippet. That is the boundary
+today, stated rather than papered over; moving a vocabulary across it is the
+registry change described next.
+
+#### Where a vocabulary's example lives
+
+Issue #1693 asked whether a trait's worked example should stay beside its
+declaration or move out. Three arrangements were compared:
+
+| Arrangement | What it buys | What it costs |
+|---|---|---|
+| Co-located: a second exhaustive `match` beside the declaration (`declare_trait_examples!`, `ArgRole::example`, …) | A variant cannot compile without one; the studio and the explorer serialise the same value, so neither grows a parallel table | A registry module carries prose and Tcl, and a large table sits in a compiler crate |
+| A typed, registry-keyed catalogue elsewhere | Examples get their own file and their own reviewers | The key is a string the exhaustive `match` no longer checks — exactly the drift the `match` exists to prevent — and every consumer needs a projection test to prove nothing was omitted |
+| Generated from doctests or executable fixtures | The program is proven to run | An example's value is the *annotation* — which span carries the fact, in what causal order — which a doctest cannot express; running the snippet proves the wrong thing |
+
+Co-location stays. The second `match` already gives examples the separate
+review lifecycle the split was meant to buy — a change to an example is a
+diff to one arm, next to the semantics it illustrates — and ownership stays
+in the registry, which is the rule everywhere else on this page. The cost is
+the first row's, and it is accepted.
+
+#### Arrow order is checked, not trusted
+
+Arrows are numbered by their position in the annotation array and drawn as
+numbered steps, so their order is a claim about *when things happen* (issue
+#1714). `causal_order_errors` in `examples.rs` checks that claim against the
+source with three rules:
+
+1. **Numbering runs forwards through the program.** An arrow on an earlier
+   line may not be numbered after one on a later line; that tells the reader
+   the consequence before the cause.
+2. **A substitution is numbered before the word that consumes it.** In
+   `puts [gets stdin]` the `[gets stdin]` is step 1. Left-to-right is
+   deliberately *not* the rule — `error` before `catch` on one line is
+   right, and only containment can say so. Only a `[…]` or `$…` needle
+   counts: `%b` inside a braced format string is contained but not
+   substituted, and Tcl's own rule is the one followed.
+3. **Two arrows on a line may not start at the same column.** The browser
+   finds a needle with `indexOf` and brackets its first occurrence, so
+   `$item` on a line holding `$items` stacks two brackets on one token and
+   at least one label describes something the reader is not shown. This rule
+   found two real defects on landing: `LOOP_LIST_HEADER` had exactly that
+   `$item`, and `FRAME_HASH_BUILTIN` had `set local` nested in
+   `set local value`.
+
+Spans that merely overlap or sit side by side are left alone. Their order is
+the author's knowledge of the flow, and no rule here can recover it.
+
+#### Related settings ride the schema too
+
+A `CommandSpec` field is rarely a standalone switch: `arity` is read against
+`arity_windows`, and setting `pure` while `side_effects` says otherwise is a
+contradiction an author should see rather than meet in a failing gate.
+`relations.rs` names twenty-five clusters of settings that are read together
+(Taint sinks, Effects and purity, Bodies and frames, …), each with one
+sentence saying why it hangs together, and `STANDALONE` names the one field
+that belongs to none — `name` — with its reason.
+
+Clusters, not pairs. A pair table states both directions and gets one of
+them wrong the first time a member is added; membership of a named group is
+symmetric by construction, and the group's name is the heading the UI wants
+anyway. A field may sit in several clusters. A field in no cluster and not
+declared standalone fails `every_field_is_clustered_or_declared_standalone`,
+so a new setting is filed by a decision rather than by omission; a cluster
+naming a key that is not a schema field fails too, because a link that goes
+nowhere is worse than no link.
+
+`FieldSchema::to_json` carries the result as `related` on every field, so
+the front-end can link `pure` to `side_effects` without knowing either name.
+The link surface itself is not yet drawn: the schema is ready, and what
+remains is front-end only.
 
 ### Invariant: the schema covers every spec field
 
@@ -470,7 +573,8 @@ it. A registry change is **not complete** until four surfaces move together:
 3. **Renderer** — `render_spectcl.rs` emits the spelling (non-default values
    only), and the `spectcl_roundtrip` gate proves draft → DSL → loader →
    draft loses nothing.
-4. **Studio form** — `schema.rs` / `draft.rs` / `help.rs` surface it.
+4. **Studio form** — `schema.rs` / `draft.rs` / `help.rs` surface it, with
+   its example in `examples/` and its cluster in `relations.rs`.
 
 The only sanctioned exception is an explicit entry in `render_spectcl.rs`'s
 `GAPS` table naming the field, its documented spelling, and why it cannot

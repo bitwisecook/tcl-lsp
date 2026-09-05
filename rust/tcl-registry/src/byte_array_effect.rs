@@ -47,6 +47,7 @@
 //!   [`BytePayloadSpec::NON_GETTER_SUBS`] / [`BytePayloadSpec::replace_data_arg`]
 //!   below.
 
+use crate::documentation::{DocumentationAnnotation, DocumentationCarrier, DocumentationExample};
 use crate::spec::BytePayloadSpec;
 
 /// How an operation treats a byte-array (binary) operand it derives its result
@@ -136,6 +137,55 @@ pub enum ByteArrayEffect {
 }
 
 impl ByteArrayEffect {
+    /// Every effect, in declaration order; `Rebinarifies` is listed with
+    /// `binary scan`'s operand index.
+    pub const ALL: &'static [Self] = &[
+        Self::None,
+        Self::Transparent,
+        Self::Coerces,
+        Self::CaseFolds,
+        Self::Encodes,
+        Self::Rebinarifies { value_arg: 0 },
+    ];
+
+    /// Registry-owned program showing binary data reaching a shipped
+    /// operation stamped with this effect, and what S110 then concludes —
+    /// silence, a corruption report, or a repaired value. The carrier is the
+    /// stamped operation. This exhaustive match is the compile gate for
+    /// byte-array-effect documentation.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        macro_rules! bytes {
+            ($code:literal; carrier ($cline:literal, $cneedle:literal); $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {
+                {
+                    const ANNOTATIONS: &[DocumentationAnnotation] =
+                        &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+                    DocumentationExample::with_carrier($code, DocumentationCarrier::new($cline, $cneedle), ANNOTATIONS)
+                }
+            };
+        }
+        match self {
+            Self::None => {
+                bytes!("set raw [TCP::payload]\nset size [string length $raw]\nTCP::payload replace 0 $size $raw"; carrier (1, "string length"); (0, "TCP::payload", "returns binary payload that S110 tracks"), (1, "string length", "reads the byte count without deriving a new value, so S110 ignores it"), (2, "$raw", "reaches the byte sink untouched"))
+            }
+            Self::Transparent => {
+                bytes!("set raw [TCP::payload]\nset head [string range $raw 0 3]\nTCP::payload replace 0 4 $head"; carrier (1, "string range"); (0, "TCP::payload", "returns binary payload"), (1, "string range", "keeps the byte-array rep, so every byte stays exact"), (2, "$head", "is written back byte-exact and S110 stays quiet"))
+            }
+            Self::Coerces => {
+                bytes!("set raw [TCP::payload]\nset patched [string map {abc xyz} $raw]\nTCP::payload replace 0 3 $patched"; carrier (1, "string map"); (0, "TCP::payload", "returns binary payload"), (1, "string map", "builds a character string from the bytes and marks the value damaged"), (2, "$patched", "is re-encoded at the byte sink, so S110 fires"))
+            }
+            Self::CaseFolds => {
+                bytes!("set raw [TCP::payload]\nset shouted [string toupper $raw]\nlog local0. $shouted"; carrier (1, "string toupper"); (0, "TCP::payload", "returns binary payload"), (1, "string toupper", "reinterprets the bytes as Unicode characters, mangling every byte >= 0x80"), (2, "$shouted", "is already corrupt, so S110 fires with no byte sink at all"))
+            }
+            Self::Encodes => {
+                bytes!("set note [HTTP::header value X-Note]\nset bytes [encoding convertto utf-8 $note]\nset twice [encoding convertto utf-8 $bytes]"; carrier (1, "encoding convertto"); (0, "HTTP::header value", "returns a character string"), (1, "encoding convertto utf-8 $note", "encodes it into a fresh byte array, a binary source"), (2, "encoding convertto utf-8 $bytes", "re-encodes bytes that are already binary, so S110 reports a double encode"))
+            }
+            Self::Rebinarifies { .. } => {
+                bytes!("set raw [TCP::payload]\nappend raw \\r\\n\nbinary scan $raw c* -\nTCP::payload replace 0 [TCP::payload length] $raw"; carrier (2, "binary scan"); (1, "append raw", "rebuilds the value as a character string, marking it damaged"), (2, "binary scan $raw", "reads its value operand as bytes and reinstalls the byte-array rep in place"), (3, "$raw", "reaches the byte sink repaired, so S110 stays quiet"))
+            }
+        }
+    }
+
     /// Whether the effect leaves the operand's byte-array representation intact
     /// (byte-exact at a byte sink).
     #[must_use]
@@ -224,7 +274,17 @@ impl BytePayloadSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::example_checks::assert_examples_valid;
     use crate::{CommandRegistry, TclType};
+
+    #[test]
+    fn every_effect_has_a_distinct_source_aligned_example() {
+        let examples: Vec<_> = ByteArrayEffect::ALL
+            .iter()
+            .map(|&effect| (format!("{effect:?}"), effect.example()))
+            .collect();
+        assert_examples_valid("ByteArrayEffect", &examples);
+    }
 
     #[test]
     fn string_subcommand_effects_are_classified() {

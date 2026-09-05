@@ -27,10 +27,14 @@
 
 use serde_json::{Value, json};
 
+use tcl_registry::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
+use tcl_registry::byte_array_effect::ByteArrayEffect;
 use tcl_registry::documentation::DocumentationExample;
-use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::patterns::{FormatType, PatternType};
+use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget, StorageType};
 use tcl_registry::taint::TaintColourAtom;
 use tcl_registry::traits::Trait;
+use tcl_registry::types::TclType;
 
 /// One span in a source line that the browser annotates.
 #[derive(Debug, Clone, Copy)]
@@ -54,285 +58,19 @@ const fn focus(line: usize, needle: &'static str, note: &'static str) -> Focus {
     Focus { line, needle, note }
 }
 
-const IDENTITY: Example = Example {
-    code: "mycommand value",
-    focuses: &[focus(0, "mycommand", "describes the command word")],
-};
-const AVAILABILITY: Example = Example {
-    code: "mycommand value",
-    focuses: &[focus(
-        0,
-        "mycommand",
-        "decides whether this command exists here",
-    )],
-};
-const ARGUMENTS: Example = Example {
-    code: "mycommand first second",
-    focuses: &[focus(0, "first", "describes this argument position")],
-};
-const TYPES: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "describes values flowing through this call",
-    )],
-};
-const SUBCOMMANDS: Example = Example {
-    code: "mycommand action value",
-    focuses: &[focus(0, "action", "selects the subcommand specification")],
-};
-const DOCUMENTATION: Example = Example {
-    code: "mycommand -mode fast value",
-    focuses: &[focus(
-        0,
-        "mycommand -mode fast value",
-        "is the invocation readers see documented",
-    )],
-};
-const OPTIONS: Example = Example {
-    code: "mycommand -mode fast value",
-    focuses: &[focus(
-        0,
-        "-mode fast",
-        "describes the option and its value words",
-    )],
-};
-const BEHAVIOUR: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "describes the behaviour of the whole invocation",
-    )],
-};
-const EFFECTS: Example = Example {
-    code: "set result [mycommand $state]",
-    focuses: &[focus(
-        0,
-        "[mycommand $state]",
-        "records state read or changed by this invocation",
-    )],
-};
-const HOOKS: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "selects special handling for this invocation",
-    )],
-};
-const TAINT: Example = Example {
-    code: "set safe [mycommand $untrusted]\nputs $safe",
-    focuses: &[
-        focus(
-            0,
-            "[mycommand $untrusted]",
-            "colours or checks data at this call",
-        ),
-        focus(1, "$safe", "the resulting proof follows this value"),
-    ],
-};
-const DEPRECATION: Example = Example {
-    code: "oldcommand value",
-    focuses: &[focus(
-        0,
-        "oldcommand",
-        "reports or translates this deprecated invocation",
-    )],
-};
-const ADVANCED: Example = Example {
-    code: "mycommand $value",
-    focuses: &[focus(
-        0,
-        "mycommand $value",
-        "applies custom registry behaviour to this call",
-    )],
-};
+mod catalogues;
+mod fields_behaviour;
+mod fields_core;
+mod groups;
 
-const FIELD_TRAITS: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "traits describe the whole invocation",
-    )],
+use catalogues::{
+    CATALOGUE_ARG_ROLE, CATALOGUE_DIALECT, CATALOGUE_EFFECT, CATALOGUE_HOOK, CATALOGUE_OPTION,
+    CATALOGUE_PREFIX, CATALOGUE_PRESENTATION, CATALOGUE_TAINT, CATALOGUE_TYPE,
 };
-const FIELD_ARG_ROLES: Example = Example {
-    code: "myloop item $items {\n    puts $item\n}",
-    focuses: &[
-        focus(0, "item", "a variable-name role applies to this word"),
-        focus(0, "{", "a body role starts at this script argument"),
-    ],
-};
-const FIELD_RETURN_TYPE: Example = Example {
-    code: "set count [mycommand $items]",
-    focuses: &[focus(
-        0,
-        "[mycommand $items]",
-        "types the value returned by this call",
-    )],
-};
-const FIELD_TAINT_SOURCE: Example = Example {
-    code: "set user_input [mycommand]",
-    focuses: &[focus(
-        0,
-        "[mycommand]",
-        "marks this returned value as untrusted",
-    )],
-};
-const FIELD_TAINT_TRANSFORM: Example = Example {
-    code: "set safe [mycommand $user_input]",
-    focuses: &[focus(
-        0,
-        "[mycommand $user_input]",
-        "adds a sanitising proof to this result",
-    )],
-};
-const FIELD_TAINT_SINK: Example = Example {
-    code: "mycommand $user_input",
-    focuses: &[focus(
-        0,
-        "$user_input",
-        "checks taint arriving in this argument",
-    )],
-};
-const FIELD_COMMAND_PREFIX: Example = Example {
-    code: "mycommand callback\nproc callback {value status} { ... }",
-    focuses: &[
-        focus(0, "callback", "is the callback command prefix"),
-        focus(
-            1,
-            "{value status}",
-            "must accept the arguments appended at invocation time",
-        ),
-    ],
-};
-const FIELD_TK_GEOMETRY: Example = Example {
-    code: "frame .panel\nlabel .name -text Name\npack .name -in .panel\npack configure .name -padx 8\npack forget .name",
-    focuses: &[
-        focus(2, "pack .name", "the direct form places the widget"),
-        focus(2, "-in .panel", "selects the effective container"),
-        focus(
-            3,
-            "configure .name",
-            "the placement subcommand reconfigures it",
-        ),
-        focus(4, "forget .name", "a release subcommand stops managing it"),
-    ],
-};
-const FIELD_TAINTS_VAR_WRITE: Example = Example {
-    code: "ttk::combobox .country -textvariable country -values {UK US}\neval $country",
-    focuses: &[
-        focus(
-            0,
-            "-textvariable country",
-            "lets user input update this variable",
-        ),
-        focus(
-            1,
-            "$country",
-            "carries the untrusted value to a code-evaluation sink",
-        ),
-    ],
-};
-const FIELD_VARIABLE_SCOPE: Example = Example {
-    code: "proc build {} {\n    ttk::entry .country -textvariable country\n}\nbuild\nputs $::country",
-    focuses: &[
-        focus(
-            1,
-            "-textvariable country",
-            "Global resolves the unqualified link as ::country",
-        ),
-        focus(
-            4,
-            "$::country",
-            "reads the same linked variable outside the procedure",
-        ),
-    ],
-};
-const FIELD_SCRIPT_TIMING: Example = Example {
-    code: "button .save -command {save_document}\nputs ready",
-    focuses: &[
-        focus(
-            0,
-            "-command {save_document}",
-            "stores this script for a later button event",
-        ),
-        focus(
-            1,
-            "puts ready",
-            "runs when construction returns, before any future click",
-        ),
-    ],
-};
-const FIELD_SCRIPT_TIMING_RESOLVER: Example = Example {
-    code: "send other {work now}\nsend -async other {work later}",
-    focuses: &[
-        focus(
-            0,
-            "{work now}",
-            "the resolver reports SameInvocation without -async",
-        ),
-        focus(
-            1,
-            "{work later}",
-            "the resolver reports Deferred when -async is present",
-        ),
-    ],
-};
-const FIELD_CALLBACK_TAINT_INPUTS: Example = Example {
-    code: "entry .password -validatecommand {set proposed %P; eval $proposed}\nbind .password <Key> {set typed %A; eval $typed}",
-    focuses: &[
-        focus(
-            0,
-            "%P",
-            "the proposed editable value is external input when validation runs",
-        ),
-        focus(
-            0,
-            "$proposed",
-            "carries that value to the code-evaluation sink",
-        ),
-        focus(
-            1,
-            "%A",
-            "the typed event character is external input for this binding",
-        ),
-    ],
-};
-const FIELD_METHOD_PREFIX_MATCHING: Example = Example {
-    code: "entry .editor\n.editor g\n.editor c",
-    focuses: &[
-        focus(
-            1,
-            "g",
-            "resolves to the one matching method, get, when Enabled",
-        ),
-        focus(
-            2,
-            "c",
-            "stays unresolved because cget and configure are ambiguous",
-        ),
-    ],
-};
-const FIELD_COMMAND_FORMS: Example = Example {
-    code: "cache get document\ncache set document contents",
-    focuses: &[
-        focus(0, "get", "a literal selector can choose the read-only form"),
-        focus(
-            1,
-            "set",
-            "a sibling selector can choose replacement mutation effects",
-        ),
-    ],
-};
-const FIELD_SUBCOMMAND_FORMS: Example = Example {
-    code: "entry .editor\n.editor selection present\n.editor selection clear",
-    focuses: &[
-        focus(1, "present", "selects the nested read-only operation form"),
-        focus(2, "clear", "keeps the parent method's mutation effects"),
-    ],
+use fields_behaviour::{FIELD_SCRIPT_TIMING, FIELD_TRAITS, FIELD_VARIABLE_SCOPE};
+use groups::{
+    ADVANCED, ARGUMENTS, AVAILABILITY, BEHAVIOUR, DEPRECATION, DOCUMENTATION, EFFECTS, HOOKS,
+    IDENTITY, OPTIONS, SUBCOMMANDS, TAINT, TYPES,
 };
 
 /// The example inherited by every field in a form group.
@@ -355,109 +93,19 @@ fn group_template(group: &str) -> Option<Example> {
     }
 }
 
-/// A more precise example where a group-level example would hide the useful
-/// attachment point.
-fn field_template(key: &str, group: &str) -> Option<Example> {
-    match key {
-        "traits" => Some(FIELD_TRAITS),
-        "arg_roles" | "arg_role_resolver" | "repeated_args" => Some(FIELD_ARG_ROLES),
-        "return_type" | "return_type_hook" | "return_elements" | "var_write_typing" => {
-            Some(FIELD_RETURN_TYPE)
-        }
-        "command_prefixes" | "command_prefix_resolver" | "start_cmd_arg" => {
-            Some(FIELD_COMMAND_PREFIX)
-        }
-        "taint_source" => Some(FIELD_TAINT_SOURCE),
-        "taints_var_write" => Some(FIELD_TAINTS_VAR_WRITE),
-        "variable_scope" => Some(FIELD_VARIABLE_SCOPE),
-        "script_timing" => Some(FIELD_SCRIPT_TIMING),
-        "script_timing_resolver" => Some(FIELD_SCRIPT_TIMING_RESOLVER),
-        "callback_taint_inputs" => Some(FIELD_CALLBACK_TAINT_INPUTS),
-        "method_prefix_matching" => Some(FIELD_METHOD_PREFIX_MATCHING),
-        "command_forms" => Some(FIELD_COMMAND_FORMS),
-        "subcommand_forms" => Some(FIELD_SUBCOMMAND_FORMS),
-        "tk_geometry"
-        | "container_policy"
-        | "container_option"
-        | "direct_form"
-        | "placement_subcommand"
-        | "release_subcommands" => Some(FIELD_TK_GEOMETRY),
-        "taint_transform" | "taint_double_encode_colour" => Some(FIELD_TAINT_TRANSFORM),
-        "taint_output_sink"
-        | "taint_output_sink_subcommands"
-        | "taint_log_sink"
-        | "taint_network_sink_args"
-        | "taint_code_sink_args"
-        | "taint_interp_eval_subcommands"
-        | "taint_sink_safe_colour"
-        | "taint_sink_gate" => Some(FIELD_TAINT_SINK),
-        _ => group_template(group),
-    }
+/// The example for one spec field.
+///
+/// Exhaustive by test: `every_group_and_field_has_a_valid_example` fails by
+/// name for a field with no entry. There is deliberately no group-level
+/// fallback — inheriting the group's snippet is how a hundred settings shipped
+/// showing something other than themselves (#1714).
+fn field_template(key: &str) -> Option<Example> {
+    fields_core::ENTRIES
+        .iter()
+        .chain(fields_behaviour::ENTRIES)
+        .find(|(entry, _)| *entry == key)
+        .map(|(_, example)| *example)
 }
-
-const CATALOGUE_ARG_ROLE: Example = Example {
-    code: "mycommand ARGUMENT",
-    focuses: &[focus(0, "ARGUMENT", "classifies this argument word")],
-};
-const CATALOGUE_TYPE: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(0, "$value", "describes the value at this position")],
-};
-const CATALOGUE_PRESENTATION: Example = Example {
-    code: "mycommand {script body}",
-    focuses: &[focus(
-        0,
-        "{script body}",
-        "controls how this script is laid out",
-    )],
-};
-const CATALOGUE_EFFECT: Example = Example {
-    code: "mycommand $state",
-    focuses: &[focus(
-        0,
-        "mycommand $state",
-        "classifies the effect of this invocation",
-    )],
-};
-const CATALOGUE_HOOK: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "selects special handling for this call",
-    )],
-};
-const CATALOGUE_TAINT: Example = Example {
-    code: "set checked [validate $user_input]\nmy_sink $checked",
-    focuses: &[
-        focus(0, "$user_input", "starts as data that may be untrusted"),
-        focus(1, "$checked", "carries the selected proof into this sink"),
-    ],
-};
-const CATALOGUE_DIALECT: Example = Example {
-    code: "mycommand value",
-    focuses: &[focus(
-        0,
-        "mycommand",
-        "is available in the selected language surface",
-    )],
-};
-const CATALOGUE_OPTION: Example = Example {
-    code: "mycommand -option VALUE",
-    focuses: &[focus(
-        0,
-        "-option VALUE",
-        "controls these option value words",
-    )],
-};
-const CATALOGUE_PREFIX: Example = Example {
-    code: "mycommand callback\nproc callback {appended args} { ... }",
-    focuses: &[focus(
-        0,
-        "callback",
-        "receives the selected appended-argument shape",
-    )],
-};
 
 fn catalogue_template(id: &str) -> Option<Example> {
     match id {
@@ -542,8 +190,8 @@ fn registry_example_json(example: DocumentationExample, subject: &str) -> Value 
 
 /// Annotated example for a field's **?** panel and Reference row.
 #[must_use]
-pub fn field_example(key: &str, label: &str, group: &str) -> Option<Value> {
-    field_template(key, group).map(|example| example_json(example, label))
+pub fn field_example(key: &str, label: &str) -> Option<Value> {
+    field_template(key).map(|example| example_json(example, label))
 }
 
 /// Annotated example for a group heading's **?** panel.
@@ -564,18 +212,61 @@ pub fn catalogue_example(id: &str, title: &str) -> Option<Value> {
 #[must_use]
 pub fn variant_example(id: &str, key: &str, doc: &str) -> Option<Value> {
     let subject = format!("{key}: {doc}");
+    let owned = |example: DocumentationExample| registry_example_json(example, &subject);
     match id {
-        "traits" => Trait::from_name(key)
-            .map(Trait::example)
-            .map(|example| registry_example_json(example, &subject)),
+        "traits" => Trait::from_name(key).map(Trait::example).map(owned),
         "taintColour" => TaintColourAtom::from_name(key)
             .map(TaintColourAtom::example)
-            .map(|example| registry_example_json(example, &subject)),
+            .map(owned),
         "sideEffectTarget" => SideEffectTarget::from_name(key)
             .map(SideEffectTarget::example)
-            .map(|example| registry_example_json(example, &subject)),
+            .map(owned),
+        "argRole" => named(ArgRole::ALL, key).map(ArgRole::example).map(owned),
+        // Payload-carrying, so there is no `ALL` to search: the catalogue
+        // names the shape and the payload here is only a stand-in for it.
+        "appendedArity" => match key {
+            "Exactly" => Some(AppendedArity::Exactly(2)),
+            "OneOf" => Some(AppendedArity::OneOf(AppendedAritySet::from_sorted_unique(
+                &[2, 4],
+            ))),
+            "AtLeast" => Some(AppendedArity::AtLeast(1)),
+            "Unknown" => Some(AppendedArity::Unknown),
+            _ => None,
+        }
+        .map(AppendedArity::example)
+        .map(owned),
+        "tclType" => named(TclType::ALL, key).map(TclType::example).map(owned),
+        "storageType" => named(StorageType::ALL, key)
+            .map(StorageType::example)
+            .map(owned),
+        "connectionSide" => named(ConnectionSide::ALL, key)
+            .map(ConnectionSide::example)
+            .map(owned),
+        "byteArrayEffect" => named(ByteArrayEffect::ALL, key)
+            .map(ByteArrayEffect::example)
+            .map(owned),
+        "patternType" => named(PatternType::ALL, key)
+            .map(PatternType::example)
+            .map(owned),
+        "formatType" => named(FormatType::ALL, key)
+            .map(FormatType::example)
+            .map(owned),
         _ => catalogue_template(id).map(|example| example_json(example, &subject)),
     }
+}
+
+/// Resolve a catalogue key back to the enum variant it names.
+///
+/// `catalogue::Variant::key` is documented as the Rust variant spelling, which
+/// is what `Debug` prints — so the catalogue and the enum agree by
+/// construction, and no per-enum `from_name` has to be written and kept in
+/// step. A payload-carrying variant prints as `Exactly(2)`; the catalogue
+/// names the shape, so the payload is cut off.
+fn named<T: Copy + std::fmt::Debug>(all: &[T], key: &str) -> Option<T> {
+    all.iter().copied().find(|item| {
+        let printed = format!("{item:?}");
+        printed.split('(').next().unwrap_or(printed.as_str()) == key
+    })
 }
 
 #[cfg(test)]
@@ -606,6 +297,7 @@ mod tests {
                 errors.push(format!("{owner} has an empty arrow label"));
             }
         }
+        errors.extend(causal_order_errors(annotations, &lines, owner));
         if let Some(carrier) = example.get("carrier") {
             let line = usize::try_from(carrier["line"].as_u64().expect("carrier line"))
                 .expect("carrier line fits usize");
@@ -619,6 +311,90 @@ mod tests {
             }
             if carrier["label"].as_str().is_none_or(str::is_empty) {
                 errors.push(format!("{owner} has an empty carrier label"));
+            }
+        }
+        errors
+    }
+
+    /// Arrows are numbered by their position in the array and drawn as
+    /// numbered steps, so their order is a claim about *when things happen*
+    /// (#1714). Three rules follow, all checkable against the source:
+    ///
+    /// 1. **Numbering runs forwards through the program.** An arrow on an
+    ///    earlier line may not be numbered after one on a later line — that
+    ///    tells the reader the consequence before the cause.
+    /// 2. **A substitution is numbered before the word that consumes it.**
+    ///    `[gets stdin]` inside `puts [gets stdin]` is evaluated first, so it
+    ///    is step 1. This is why left-to-right is deliberately *not* the rule:
+    ///    `error` before `catch` on one line is right, and only containment
+    ///    can say so. Only a `[…]` or `$…` needle counts — a `%b` inside a
+    ///    braced format string is contained but not substituted, and Tcl's own
+    ///    rule is the one to follow here.
+    /// 3. **Two arrows on a line may not start at the same column.** The
+    ///    browser finds a needle with `indexOf` and draws its bracket from
+    ///    there, so `$item` on a line holding `$items`, or `set local` beside
+    ///    `set local value`, stack two brackets on one token and at least one
+    ///    label describes something the reader is not being shown.
+    ///
+    /// Spans that merely overlap, or sit side by side, are left alone: their
+    /// order is the author's knowledge of the flow, which no rule here can
+    /// recover.
+    fn causal_order_errors(annotations: &[Value], lines: &[&str], owner: &str) -> Vec<String> {
+        fn needle(annotation: &Value) -> &str {
+            annotation["needle"].as_str().unwrap_or_default()
+        }
+        let mut errors = Vec::new();
+        let at = |annotation: &Value| {
+            usize::try_from(annotation["line"].as_u64().expect("line")).expect("line fits usize")
+        };
+        // The span the browser will actually bracket: the needle's first
+        // occurrence, which is what `indexOf` finds.
+        let span = |annotation: &Value| -> Option<(usize, usize)> {
+            let text = lines.get(at(annotation))?;
+            let start = text.find(needle(annotation))?;
+            Some((start, start + needle(annotation).len()))
+        };
+
+        for pair in annotations.windows(2) {
+            if at(&pair[0]) > at(&pair[1]) {
+                errors.push(format!(
+                    "{owner}: an arrow on line {} is numbered after one on line {} — \
+                     number them in execution order",
+                    at(&pair[1]),
+                    at(&pair[0])
+                ));
+            }
+        }
+
+        for (index, first) in annotations.iter().enumerate() {
+            for second in &annotations[index + 1..] {
+                if at(first) != at(second) {
+                    continue;
+                }
+                let (Some(outer), Some(inner)) = (span(first), span(second)) else {
+                    continue;
+                };
+                if outer.0 == inner.0 {
+                    errors.push(format!(
+                        "{owner}: {:?} and {:?} both bracket line {} from column {} — the \
+                         browser finds a needle by its first occurrence, so the two arrows \
+                         land on one token",
+                        needle(first),
+                        needle(second),
+                        at(first),
+                        outer.0
+                    ));
+                } else if outer.0 < inner.0
+                    && inner.1 <= outer.1
+                    && (needle(second).starts_with('[') || needle(second).starts_with('$'))
+                {
+                    errors.push(format!(
+                        "{owner}: {:?} is substituted before {:?} consumes it, so it must be \
+                         the earlier arrow",
+                        needle(second),
+                        needle(first)
+                    ));
+                }
             }
         }
         errors
@@ -639,12 +415,12 @@ mod tests {
             .iter()
             .chain(schema::SUBCOMMAND_FIELDS)
         {
-            let example = field_example(field.key, field.label, field.group)
+            let example = field_example(field.key, field.label)
                 .unwrap_or_else(|| panic!("no example for {}", field.key));
             assert_valid(&example, field.key);
         }
         for field in schema::NESTED_FIELDS {
-            let example = field_example(field.key, field.label, field.group)
+            let example = field_example(field.key, field.label)
                 .unwrap_or_else(|| panic!("no example for {}", field.key));
             assert_valid(&example, field.key);
         }

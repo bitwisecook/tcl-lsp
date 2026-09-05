@@ -227,7 +227,10 @@ impl NestedFieldSchema {
             "owner": self.owner,
             "group": self.group,
             "help": crate::help::field_help(self.key).unwrap_or(self.doc),
-            "example": crate::examples::field_example(self.key, self.label, self.group),
+            "example": crate::examples::field_example(self.key, self.label),
+            // Which other settings this one is read with, so the help surface
+            // can link them rather than describe the field as standalone.
+            "related": crate::relations::to_json(self.key),
         })
     }
 }
@@ -320,7 +323,10 @@ impl FieldSchema {
             "doc": self.doc,
             "group": self.group,
             "help": crate::help::field_help(self.key).unwrap_or(self.doc),
-            "example": crate::examples::field_example(self.key, self.label, self.group),
+            "example": crate::examples::field_example(self.key, self.label),
+            // Which other settings this one is read with, so the help surface
+            // can link them rather than describe the field as standalone.
+            "related": crate::relations::to_json(self.key),
             "kind": self.kind.to_json(),
         })
     }
@@ -2039,6 +2045,11 @@ fn custom_catalogues() -> [(&'static str, Value); 5] {
                     "appendedArity",
                     "Exactly",
                     "exactly N arguments are appended"
+                ),
+                custom_variant(
+                    "appendedArity",
+                    "OneOf",
+                    "one count from a finite set is appended, and every count in it must be accepted"
                 ),
                 custom_variant(
                     "appendedArity",
