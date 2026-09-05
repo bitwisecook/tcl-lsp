@@ -27,7 +27,7 @@
 
 use serde_json::{Value, json};
 
-use tcl_registry::arg_role::{AppendedArity, ArgRole};
+use tcl_registry::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
 use tcl_registry::byte_array_effect::ByteArrayEffect;
 use tcl_registry::documentation::DocumentationExample;
 use tcl_registry::patterns::{FormatType, PatternType};
@@ -226,6 +226,9 @@ pub fn variant_example(id: &str, key: &str, doc: &str) -> Option<Value> {
         // names the shape and the payload here is only a stand-in for it.
         "appendedArity" => match key {
             "Exactly" => Some(AppendedArity::Exactly(2)),
+            "OneOf" => Some(AppendedArity::OneOf(AppendedAritySet::from_sorted_unique(
+                &[2, 4],
+            ))),
             "AtLeast" => Some(AppendedArity::AtLeast(1)),
             "Unknown" => Some(AppendedArity::Unknown),
             _ => None,

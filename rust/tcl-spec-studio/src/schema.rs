@@ -2048,6 +2048,11 @@ fn custom_catalogues() -> [(&'static str, Value); 5] {
                 ),
                 custom_variant(
                     "appendedArity",
+                    "OneOf",
+                    "one count from a finite set is appended, and every count in it must be accepted"
+                ),
+                custom_variant(
+                    "appendedArity",
                     "AtLeast",
                     "at least N arguments are appended"
                 ),

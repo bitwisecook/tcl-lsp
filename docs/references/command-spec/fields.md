@@ -996,6 +996,7 @@ For callback command prefixes: how many arguments the command appends when it in
 | Value | Meaning |
 |---|---|
 | `Exactly` | exactly N arguments are appended |
+| `OneOf` | one count from a finite set is appended, and every count in it must be accepted |
 | `AtLeast` | at least N arguments are appended |
 | `Unknown` | indeterminate — no arity check |
 
