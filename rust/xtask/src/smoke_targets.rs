@@ -50,7 +50,7 @@ struct Target {
     source: PathBuf,
     available: bool,
     testable: bool,
-    runtime_packages: BTreeSet<String>,
+    link_path_packages: BTreeSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -446,7 +446,7 @@ fn package_environment(package: &Package) -> Result<BTreeMap<OsString, OsString>
     Ok(environment)
 }
 
-fn runtime_package_closures(metadata: &Metadata) -> HashMap<String, BTreeSet<String>> {
+fn link_path_package_closures(metadata: &Metadata) -> HashMap<String, BTreeSet<String>> {
     let nodes: HashMap<&str, &ResolveNode> = metadata
         .resolve
         .nodes
@@ -476,10 +476,14 @@ fn runtime_package_closures(metadata: &Metadata) -> HashMap<String, BTreeSet<Str
                     continue;
                 };
                 for dependency in &node.deps {
-                    let is_runtime = dependency.dep_kinds.iter().any(|kind| {
-                        kind.kind.is_none() || (include_dev && kind.kind.as_deref() == Some("dev"))
+                    let contributes_link_paths = dependency.dep_kinds.iter().any(|kind| {
+                        kind.kind.is_none()
+                            || kind.kind.as_deref() == Some("build")
+                            || (include_dev && kind.kind.as_deref() == Some("dev"))
                     });
-                    if !is_runtime || procedural_macros.contains(dependency.pkg.as_str()) {
+                    if !contributes_link_paths
+                        || procedural_macros.contains(dependency.pkg.as_str())
+                    {
                         continue;
                     }
                     if seen.insert(dependency.pkg.clone()) {
@@ -499,7 +503,7 @@ fn load_targets(
 ) -> Result<(HashMap<String, PathBuf>, PackageEnvironments, Vec<Target>)> {
     let metadata = metadata(root, target)?;
     let features = workspace_target_features(&metadata, target, root)?;
-    let runtime_packages = runtime_package_closures(&metadata);
+    let link_path_packages = link_path_package_closures(&metadata);
     let members: HashSet<&str> = metadata
         .workspace_members
         .iter()
@@ -522,9 +526,9 @@ fn load_targets(
         let enabled = features
             .get(&package.name)
             .with_context(|| format!("missing feature context for {}", package.name))?;
-        let package_runtime = runtime_packages
-            .get(&package.id)
-            .with_context(|| format!("missing runtime dependency closure for {}", package.name))?;
+        let package_link_paths = link_path_packages.get(&package.id).with_context(|| {
+            format!("missing link-path dependency closure for {}", package.name)
+        })?;
         for raw_target in &package.targets {
             let available = raw_target
                 .required_features
@@ -539,7 +543,7 @@ fn load_targets(
                     source: raw_target.src_path.clone(),
                     available,
                     testable: raw_target.test,
-                    runtime_packages: package_runtime.clone(),
+                    link_path_packages: package_link_paths.clone(),
                 });
             }
         }
@@ -1626,8 +1630,11 @@ impl CargoTestArtifacts {
         }
         let variable = OsString::from(dynamic_library_variable());
         let preserves_dynamic_library_path = environment.contains_key(&variable);
+        // Cargo's test-harness environment sorts qualifying link-search paths;
+        // this is distinct from the linker-directive order seen by rustc.
+        // The fixture below differentially checks this ordering against Cargo.
         let linked_paths: BTreeSet<PathBuf> = target
-            .runtime_packages
+            .link_path_packages
             .iter()
             .flat_map(|package_id| {
                 self.build_environments
@@ -1676,7 +1683,7 @@ impl CargoTestArtifacts {
                 .parent()
                 .and_then(Path::parent)
                 .context("test executable has no Cargo profile directory")?;
-            for package_id in &target.runtime_packages {
+            for package_id in &target.link_path_packages {
                 let Some(candidates) = self.build_environments.get(package_id) else {
                     continue;
                 };
@@ -2179,7 +2186,7 @@ const CARGO_FIXTURE_FILES: &[(&str, &str)] = &[
     (
         "Cargo.toml",
         r#"[workspace]
-members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r"]
 resolver = "2"
 "#,
     ),
@@ -2268,6 +2275,9 @@ links = "fixture-e"
 c = { path = "../c" }
 f = { path = "../f" }
 
+[build-dependencies]
+r = { path = "../r" }
+
 [features]
 host_only = []
 "#,
@@ -2276,7 +2286,7 @@ host_only = []
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::env::var_os(\"CARGO_MANIFEST_LINKS\").is_none()); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::env::var_os(\"CARGO_MANIFEST_LINKS\").is_none()); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r-\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
@@ -2499,6 +2509,19 @@ edition = "2024"
         "q/build.rs",
         "fn main() { let out = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()); let custom = out.join(\"custom\"); let linked = out.join(\"linked\"); std::fs::create_dir_all(&custom).unwrap(); std::fs::create_dir_all(&linked).unwrap(); let target = std::env::var(\"CARGO_CFG_TARGET_OS\").unwrap(); let variable = if target == \"windows\" { \"PATH\" } else if target == \"macos\" { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let mut paths = vec![custom]; if let Some(existing) = std::env::var_os(variable) { paths.extend(std::env::split_paths(&existing)); } let override_value = std::env::join_paths(paths).unwrap(); println!(\"cargo::rustc-link-search=native={}\", linked.display()); println!(\"cargo::rustc-env={variable}={}\", override_value.to_string_lossy()); println!(\"cargo::rustc-env=CARGO_MANIFEST_LINKS=emitted\"); }\n",
     ),
+    (
+        "r/Cargo.toml",
+        r#"[package]
+name = "r"
+version = "0.1.0"
+edition = "2024"
+"#,
+    ),
+    ("r/src/lib.rs", "pub fn value() -> bool { true }\n"),
+    (
+        "r/build.rs",
+        "fn main() { let native = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()).join(\"build-only-native\"); std::fs::create_dir_all(&native).unwrap(); println!(\"cargo::rustc-link-search=native={}\", native.display()); }\n",
+    ),
 ];
 
 fn verify_fixture_metadata(fixture: &Fixture, targets: &[Target]) -> Result<()> {
@@ -2563,6 +2586,7 @@ fn verify_fixture_runtime_environment(
             "e-aaa-native",
             "e-native",
             "f-native",
+            "r-build-only-native",
             "e-shared-native",
         ]
     {
@@ -2620,6 +2644,8 @@ fn fixture_linked_path_order(paths: &[PathBuf]) -> Vec<&'static str> {
                 Some("c-native")
             } else if path.contains("/build/f-") && path.ends_with("/out/native") {
                 Some("f-native")
+            } else if path.contains("/build/r-") && path.ends_with("/out/build-only-native") {
+                Some("r-build-only-native")
             } else if path.ends_with("/shared-native") {
                 Some("e-shared-native")
             } else {
@@ -3180,7 +3206,7 @@ fn literal_include_scanner_self_test() -> Result<()> {
             source: fixture.root.join("src/lib.rs"),
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         },
         Target {
             package_id: "included".to_owned(),
@@ -3190,7 +3216,7 @@ fn literal_include_scanner_self_test() -> Result<()> {
             source: fixture.root.join("src/main.rs"),
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         },
     ];
     let mut inventory = SmokeInventory::default();
@@ -3435,7 +3461,7 @@ fn multi_owner_inventory_self_test() -> Result<()> {
             source: source.clone(),
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         })
         .collect();
     let mut inventory = SmokeInventory::default();
@@ -3484,7 +3510,7 @@ fn multi_owner_inventory_self_test() -> Result<()> {
             source,
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         },
     ];
     let mut same_package_inventory = SmokeInventory::default();
@@ -3560,7 +3586,7 @@ fn self_test() -> Result<()> {
             source: root.join("src/lib.rs"),
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         },
         Target {
             package_id: "example".to_owned(),
@@ -3570,7 +3596,7 @@ fn self_test() -> Result<()> {
             source: root.join("src/main.rs"),
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         },
         Target {
             package_id: "example".to_owned(),
@@ -3580,7 +3606,7 @@ fn self_test() -> Result<()> {
             source: root.join("tests/new.rs"),
             available: true,
             testable: true,
-            runtime_packages: BTreeSet::new(),
+            link_path_packages: BTreeSet::new(),
         },
     ];
     let owners = best_owners(&root.join("tests/new.rs"), &targets);
@@ -3611,7 +3637,7 @@ fn self_test() -> Result<()> {
         source: root.join("tests/file_smoke.rs"),
         available: true,
         testable: false,
-        runtime_packages: BTreeSet::new(),
+        link_path_packages: BTreeSet::new(),
     };
     let convention_named_integration = Target {
         name: "file_smoke".to_owned(),

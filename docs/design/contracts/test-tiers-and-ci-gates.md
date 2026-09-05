@@ -111,7 +111,9 @@ behind it.
    an owning build script's explicit platform dynamic-library-path variable
    verbatim, without appending the reconstructed profile/sysroot suffix;
    only packages without that override receive reconstructed qualifying
-   `rustc-link-search` paths.
+   `rustc-link-search` paths. Those paths include normal, development, and
+   build-only dependency closures because Cargo exposes build-dependency
+   search paths to a test harness even under resolver v2.
 
 ## CI redundancy contract
 
