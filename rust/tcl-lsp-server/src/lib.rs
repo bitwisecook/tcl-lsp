@@ -8438,10 +8438,23 @@ impl Backend {
                 drop(self.workspace_index.write().await);
                 continue;
             };
+            docs.retag("did_open_publish_complete: rehomed_source_seeds.try_lock");
+            let Ok(mut seeds) = self.rehomed_source_seeds.try_lock() else {
+                drop(index);
+                drop(docs);
+                drop(self.rehomed_source_seeds.lock().await);
+                continue;
+            };
             index.replace_document(uri.as_str(), analysis);
+            // This is a standalone replacement. Invalidate any source-site
+            // view marker in the same rehoming transaction so the next
+            // workspace query reapplies its qualified views.
+            seeds.remove(uri.as_str());
             docs.get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
                 .publication = DocumentPublication::Indexed;
+            drop(seeds);
+            drop(index);
             drop(docs);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -8475,10 +8488,20 @@ impl Backend {
                 drop(self.workspace_index.write().await);
                 continue;
             };
+            docs.retag("did_change_publish_complete: rehomed_source_seeds.try_lock");
+            let Ok(mut seeds) = self.rehomed_source_seeds.try_lock() else {
+                drop(index);
+                drop(docs);
+                drop(self.rehomed_source_seeds.lock().await);
+                continue;
+            };
             index.replace_document(uri.as_str(), analysis);
+            seeds.remove(uri.as_str());
             docs.get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
                 .publication = DocumentPublication::Indexed;
+            drop(seeds);
+            drop(index);
             drop(docs);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -41892,6 +41915,80 @@ proc p {} {
                 .await
                 .workspace_command_exists("::current"),
             "Indexed readiness must include replacement facts under the new dialect",
+        );
+    }
+
+    /// Exact-head review of #1854: a dialect rebuild first publishes a
+    /// standalone index view. Its old source-site seed marker must disappear
+    /// atomically with that replacement, or reconciliation mistakes the old
+    /// qualified view for the one still present and never reapplies it.
+    #[tokio::test]
+    async fn dialect_change_invalidates_rehoming_seed_before_reconciliation_1854() {
+        let backend = test_backend();
+        let caller = Uri::from_str("file:///dialect-rehome/a.tcl").unwrap();
+        let sourced = Uri::from_str("file:///dialect-rehome/b.tcl").unwrap();
+        let sourced_text = "proc helper {} {}\n";
+        register(&backend, &sourced, sourced_text).await;
+        register(&backend, &caller, "namespace eval ::ns { source b.tcl }\n").await;
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .get(sourced.as_str())
+                .cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "precondition: the sourced file carries its applied namespace seed",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::ns::helper"),
+            "precondition: the qualified source-site view is published",
+        );
+
+        {
+            let mut docs = backend.documents.lock("test").await;
+            let doc = docs.get_mut(&sourced).expect("the sourced buffer is open");
+            doc.dialect = "tcl9.0".to_owned();
+            doc.publication = DocumentPublication::Pending;
+        }
+        assert!(
+            backend
+                .commit_live_dialect("test_dialect_rehome", &sourced, sourced_text, "tcl9.0", 0,)
+                .await,
+            "the current dialect revision must publish",
+        );
+        assert!(
+            !backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .contains_key(sourced.as_str()),
+            "standalone replacement and seed invalidation are one transaction",
+        );
+
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .get(sourced.as_str())
+                .cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "the next reconciliation must reapply the namespace seed",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::ns::helper"),
+            "qualified definitions survive the dialect change",
         );
     }
 
