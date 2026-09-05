@@ -659,6 +659,19 @@ pub struct ProcDef {
     pub body_line_base: u32,
 }
 
+/// Whether a command trace hangs off the token being deleted. Generations are
+/// minted in binding order across the whole interpreter, so anything at or
+/// below the dying token's generation is part of its list, and a trace on a
+/// later token bound at the same name is not. `None` on either side means the
+/// binding carried no identity (a hidden command, or a caller with no token to
+/// discriminate by) and the whole name is taken.
+fn cmd_trace_owned_by(token: Option<u64>, dying: Option<u64>) -> bool {
+    match (token, dying) {
+        (Some(token), Some(dying)) => token <= dying,
+        _ => true,
+    }
+}
+
 /// A `Tcl_Interp` handle. Cheap to clone (an `Rc` bump); all clones share one
 /// [`InterpState`].
 ///
@@ -2118,13 +2131,7 @@ impl Interp {
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
         self.invalidate_command_environment();
-        let qn = self.namespaces.borrow().qualified_name(ns);
-        let mut fqn = qn.clone();
-        if qn != b"::" {
-            fqn.extend_from_slice(b"::");
-        }
-        fqn.extend_from_slice(tail);
-        self.on_command_replaced(&fqn);
+        self.on_bound_command_replaced(ns, tail);
         self.namespaces.borrow_mut().bind(ns, tail, command);
     }
 
@@ -2137,6 +2144,33 @@ impl Interp {
     /// while one it registers on a replacement it bound at the same name lives
     /// on that new token.
     fn on_command_replaced(&mut self, fqn: &[u8]) {
+        let dying = self.resolve_cmd_token(fqn);
+        self.fire_delete_traces_of_token(fqn, dying);
+    }
+
+    /// [`on_command_replaced`] for an exact binding the caller already holds.
+    /// A fully-qualified name is not a token identity once a retained
+    /// namespace and a same-named recreation both hold `::N::q`: resolving the
+    /// name again would find the live one and fire its traces instead. An
+    /// unbound slot has no token, so — like C's `TclCreateObjCommandInNs`,
+    /// which only deletes when `Tcl_FindHashEntry` found an entry — nothing
+    /// fires and nothing is dropped.
+    pub(crate) fn on_bound_command_replaced(&mut self, ns: NsId, tail: &[u8]) {
+        let (fqn, dying) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.command_fqn_at(ns, tail),
+                namespaces.command_generation(ns, tail),
+            )
+        };
+        if dying.is_none() {
+            return;
+        }
+        self.fire_delete_traces_of_token(&fqn, dying);
+    }
+
+    /// Fire `fqn`'s `delete` traces and drop the ones the dying token owned.
+    fn fire_delete_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
         if self
             .traces
             .borrow()
@@ -2146,8 +2180,7 @@ impl Interp {
         {
             return;
         }
-        let dying = self.resolve_cmd_token(fqn);
-        self.fire_cmd_trace(fqn, b"", crate::cmd_trace::ops::DELETE);
+        self.fire_cmd_trace_of_token(fqn, b"", crate::cmd_trace::ops::DELETE, dying);
         self.remove_cmd_traces_of_token(fqn, dying);
     }
 
@@ -2170,13 +2203,9 @@ impl Interp {
     fn remove_cmd_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
         let mut traces = self.traces.borrow_mut();
         let old_len = traces.cmd_traces.len();
-        traces.cmd_traces.retain(|t| {
-            t.name != fqn
-                || match (t.token, dying) {
-                    (Some(token), Some(dying)) => token > dying,
-                    _ => false,
-                }
-        });
+        traces
+            .cmd_traces
+            .retain(|t| t.name != fqn || !cmd_trace_owned_by(t.token, dying));
         let removed = traces.cmd_traces.len() != old_len;
         drop(traces);
         if removed {
@@ -2323,16 +2352,41 @@ impl Interp {
         }
     }
 
+    /// Record the activation `Tcl_PushCallFrame` adds to the namespace token a
+    /// new call frame runs in. Every frame counts — proc, `apply`, TclOO
+    /// method, `namespace eval`/`inscope` — and a namespace deleted while the
+    /// count is non-zero keeps its contents until the matching pop.
+    pub(crate) fn enter_namespace_activation(&self, ns: NsId) {
+        self.namespaces.borrow_mut().activation_enter(ns);
+    }
+
+    /// Give back the activation a popped frame held. When it was the last one
+    /// holding a namespace whose deletion waited on it, the teardown runs here,
+    /// exactly as C's `Tcl_PopCallFrame` calls `Tcl_DeleteNamespace` again —
+    /// with the frame already gone and the caller's namespace current.
+    pub(crate) fn leave_namespace_activation(&mut self, popped: Option<NsId>) {
+        let Some(ns) = popped else { return };
+        if self.namespaces.borrow_mut().activation_leave(ns) {
+            self.delete_namespace_by_id(ns);
+        }
+    }
+
     /// Enter a generated procedure body using the ordinary Tcl variable frame.
     pub(crate) fn codegen_frame_push(&mut self) {
-        self.frames.borrow_mut().push(self.current_ns.get());
+        let ns = self.current_ns.get();
+        self.enter_namespace_activation(ns);
+        self.frames.borrow_mut().push(ns);
     }
 
     /// Leave a generated procedure body and restore its caller's namespace.
     pub(crate) fn codegen_frame_pop(&mut self) {
-        let mut frames = self.frames.borrow_mut();
-        frames.pop();
-        self.current_ns.set(frames.frame_ns(frames.current_level()));
+        let popped = {
+            let mut frames = self.frames.borrow_mut();
+            let popped = frames.pop();
+            self.current_ns.set(frames.frame_ns(frames.current_level()));
+            popped
+        };
+        self.leave_namespace_activation(popped);
     }
 
     /// Associate an indexed generated local with its name-addressable Tcl cell.
@@ -2741,6 +2795,7 @@ impl Interp {
         // namespace (so `set`/`variable`/`upvar 0` inside `namespace eval` —
         // including when nested in a proc — target the namespace, not the
         // enclosing proc's locals).
+        self.enter_namespace_activation(target);
         self.frames.borrow_mut().push_namespace(target);
         let (kind, file, line_base) = match loc {
             Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
@@ -2770,8 +2825,9 @@ impl Interp {
             let fqn = self.namespaces.borrow().qualified_name(target);
             self.append_namespace_eval_frame(&fqn);
         }
-        self.frames.borrow_mut().pop();
+        let popped = self.frames.borrow_mut().pop();
         self.current_ns.set(saved);
+        self.leave_namespace_activation(popped);
         code
     }
 
@@ -3701,6 +3757,23 @@ impl Interp {
     /// per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`); the interp result is
     /// preserved across the callbacks.
     fn fire_cmd_trace(&mut self, old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
+        self.fire_cmd_trace_of_token(old_fqn, new_fqn, op_bit, None);
+    }
+
+    /// [`fire_cmd_trace`] restricted to one command token's own trace list.
+    /// C walks `cmdPtr->tracePtr`, so a trace registered on a *later* token
+    /// bound at the same name — a replacement, or a same-named command in a
+    /// namespace that took the retained one's spelling — never fires for the
+    /// token being deleted. `dying` is `None` when the caller has no token to
+    /// discriminate by, and then the whole name fires (rename, and hidden
+    /// commands, which carry no generation).
+    fn fire_cmd_trace_of_token(
+        &mut self,
+        old_fqn: &[u8],
+        new_fqn: &[u8],
+        op_bit: u8,
+        dying: Option<u64>,
+    ) {
         if self
             .traces
             .borrow()
@@ -3720,7 +3793,9 @@ impl Interp {
             .cmd_traces
             .iter()
             .rev()
-            .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
+            .filter(|t| {
+                t.name == old_fqn && (t.ops & op_bit) != 0 && cmd_trace_owned_by(t.token, dying)
+            })
             .map(|t| t.command.clone())
             .collect();
         if cmds.is_empty() {
@@ -4006,12 +4081,77 @@ impl Interp {
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
         self.invalidate_command_environment();
+        if self.defer_namespace_teardown(ns) {
+            return;
+        }
         let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
         self.delete_namespace_token(ns);
         self.sweep_dying_namespace(ns, &teardown_ids);
         self.namespaces
             .borrow_mut()
             .finish_namespace_teardown(&teardown_ids);
+    }
+
+    /// C's `activationCount > (nsPtr == globalNsPtr)` branch of
+    /// `Tcl_DeleteNamespace`: a token a call frame is still running in retires
+    /// its owned ensembles and drops its public name now, but keeps its command
+    /// table, variables and children for those frames. `Tcl_PopCallFrame` calls
+    /// the deletion again once the last of them goes away. Reports whether the
+    /// teardown was deferred.
+    fn defer_namespace_teardown(&mut self, ns: NsId) -> bool {
+        if !self.namespaces.borrow().namespace_is_active(ns) {
+            return false;
+        }
+        self.retire_namespace_owned_ensembles(ns);
+        self.namespaces.borrow_mut().defer_namespace(ns);
+        true
+    }
+
+    /// The same token teardown, entered the way C's
+    /// `TclDeleteNamespaceChildren` enters it — through `Tcl_DeleteNamespace`,
+    /// so a child with its own live frame defers in turn.
+    fn delete_namespace_token_checked(&mut self, ns: NsId) {
+        if self.defer_namespace_teardown(ns) {
+            return;
+        }
+        self.delete_namespace_token(ns);
+    }
+
+    /// Retire the ensemble tokens configured against `ns`, and the imports of
+    /// the commands they were bound to. C pops `nsPtr->ensembles` before it
+    /// looks at the activation count, so an owned ensemble dies immediately
+    /// even when the namespace itself is retained.
+    fn retire_namespace_owned_ensembles(&mut self, ns: NsId) {
+        let ids = std::collections::HashSet::from([ns]);
+        let mut deleted_origins: std::collections::HashSet<Vec<u8>> =
+            std::collections::HashSet::new();
+        let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&ids);
+        let hidden_tokens: Vec<(Vec<u8>, Rc<crate::ensemble::EnsembleToken>)> = self
+            .hidden
+            .borrow()
+            .iter()
+            .filter_map(|(name, command)| match command {
+                Command::Ensemble(token) if ids.contains(&token.config().ns) => {
+                    let mut fqn = b"::".to_vec();
+                    fqn.extend_from_slice(name);
+                    Some((fqn, Rc::clone(token)))
+                }
+                _ => None,
+            })
+            .collect();
+        ensemble_victims.extend(hidden_tokens);
+        let mut deleted_tokens = Vec::with_capacity(ensemble_victims.len());
+        for (fqn, token) in ensemble_victims {
+            if deleted_tokens.iter().any(|seen| Rc::ptr_eq(seen, &token)) {
+                continue;
+            }
+            deleted_origins.insert(fqn.clone());
+            if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
+                deleted_origins.insert(live_fqn);
+            }
+            deleted_tokens.push(token);
+        }
+        self.remove_imports_for_deleted_origins(deleted_origins, &deleted_tokens);
     }
 
     /// Tear down one exact namespace token in Tcl's recursive order. Its owned
@@ -4027,38 +4167,7 @@ impl Interp {
         // their binding lives elsewhere (for example the default global `::ns`
         // command), so they retire before this token is marked dying. Every
         // other command in the table retires one token at a time below.
-        {
-            let ids = std::collections::HashSet::from([ns]);
-            let mut deleted_origins: std::collections::HashSet<Vec<u8>> =
-                std::collections::HashSet::new();
-            let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&ids);
-            let hidden_tokens: Vec<(Vec<u8>, Rc<crate::ensemble::EnsembleToken>)> = self
-                .hidden
-                .borrow()
-                .iter()
-                .filter_map(|(name, command)| match command {
-                    Command::Ensemble(token) if ids.contains(&token.config().ns) => {
-                        let mut fqn = b"::".to_vec();
-                        fqn.extend_from_slice(name);
-                        Some((fqn, Rc::clone(token)))
-                    }
-                    _ => None,
-                })
-                .collect();
-            ensemble_victims.extend(hidden_tokens);
-            let mut deleted_tokens = Vec::with_capacity(ensemble_victims.len());
-            for (fqn, token) in ensemble_victims {
-                if deleted_tokens.iter().any(|seen| Rc::ptr_eq(seen, &token)) {
-                    continue;
-                }
-                deleted_origins.insert(fqn.clone());
-                if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
-                    deleted_origins.insert(live_fqn);
-                }
-                deleted_tokens.push(token);
-            }
-            self.remove_imports_for_deleted_origins(deleted_origins, &deleted_tokens);
-        }
+        self.retire_namespace_owned_ensembles(ns);
         self.namespaces.borrow_mut().begin_namespace_teardown(ns);
         self.namespaces.borrow_mut().clear_namespace_token(ns);
         self.fire_unset_callbacks(victims);
@@ -4070,7 +4179,7 @@ impl Interp {
         let children = self.namespaces.borrow().children_hash_order(ns);
         for child in children {
             if self.namespaces.borrow().namespace_is_live(child) {
-                self.delete_namespace_token(child);
+                self.delete_namespace_token_checked(child);
             }
         }
     }
@@ -4098,7 +4207,7 @@ impl Interp {
                     continue;
                 }
                 let fqn = self.namespaces.borrow().command_fqn_at(ns, &tail);
-                self.on_command_replaced(&fqn);
+                self.on_bound_command_replaced(ns, &tail);
                 if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
                     // The callback deleted this token, or redefined the name:
                     // its own deletion already unlinked the entry, and any
@@ -4120,17 +4229,37 @@ impl Interp {
         }
     }
 
+    /// `root`'s subtree with every retained token's subtree stepped over — the
+    /// nodes this teardown still owns.
+    fn retained_teardown_ids(&self, root: NsId) -> Vec<NsId> {
+        let namespaces = self.namespaces.borrow();
+        namespaces
+            .descendant_ids(root)
+            .into_iter()
+            .filter(|id| !namespaces.under_deferred_token(*id))
+            .collect()
+    }
+
     /// Finish commands created re-entrantly while a namespace's original
     /// delete callbacks ran. The detached namespace remains command-addressable
     /// during this sweep, but never reappears in the visible namespace tree.
     fn sweep_dying_namespace(&mut self, root: NsId, retained_ids: &[NsId]) {
-        let mut ids = retained_ids.to_vec();
-        let mut traced = std::collections::HashSet::<Vec<u8>>::new();
+        // A child whose own frame was still running deferred its teardown; it
+        // and its subtree keep every binding they had until that frame pops.
+        let mut ids: Vec<NsId> = {
+            let namespaces = self.namespaces.borrow();
+            retained_ids
+                .iter()
+                .copied()
+                .filter(|id| !namespaces.under_deferred_token(*id))
+                .collect()
+        };
+        let mut traced = std::collections::HashSet::<(NsId, Vec<u8>)>::new();
         let mut origins = std::collections::HashSet::<Vec<u8>>::new();
         let mut tokens = Vec::<Rc<crate::ensemble::EnsembleToken>>::new();
 
         loop {
-            for id in self.namespaces.borrow().descendant_ids(root) {
+            for id in self.retained_teardown_ids(root) {
                 if !ids.contains(&id) {
                     ids.push(id);
                 }
@@ -4164,20 +4293,19 @@ impl Interp {
                 tokens.push(token);
             }
 
-            let fqns = self.namespaces.borrow().command_fqns_in_ids(&ids);
-            let new_fqns: Vec<Vec<u8>> = fqns
-                .iter()
-                .filter(|fqn| !traced.contains(*fqn))
-                .cloned()
+            let slots = self.namespaces.borrow().command_slots_in_ids(&ids);
+            let new_slots: Vec<(NsId, Vec<u8>)> = slots
+                .into_iter()
+                .filter(|slot| !traced.contains(slot))
                 .collect();
-            for fqn in &new_fqns {
+            for (id, tail) in &new_slots {
                 // Callback-created command traces fire while the command is
                 // still addressable through the dying namespace token.
-                self.on_command_replaced(fqn);
-                traced.insert(fqn.clone());
+                self.on_bound_command_replaced(*id, tail);
+                traced.insert((*id, tail.clone()));
             }
 
-            for id in self.namespaces.borrow().descendant_ids(root) {
+            for id in self.retained_teardown_ids(root) {
                 if !ids.contains(&id) {
                     ids.push(id);
                 }
@@ -4185,10 +4313,10 @@ impl Interp {
             origins.extend(self.namespaces.borrow().command_fqns_in_ids(&ids));
             self.remove_imports_for_deleted_origins(origins.iter().cloned(), &tokens);
 
-            let remaining = self.namespaces.borrow().command_fqns_in_ids(&ids);
+            let remaining = self.namespaces.borrow().command_slots_in_ids(&ids);
             if !found_new_token
-                && new_fqns.is_empty()
-                && remaining.iter().all(|f| traced.contains(f))
+                && new_slots.is_empty()
+                && remaining.iter().all(|slot| traced.contains(slot))
             {
                 break;
             }
@@ -4196,7 +4324,7 @@ impl Interp {
 
         // Import delete callbacks may have added a new child under the detached
         // root during the last fixed-point pass.
-        for id in self.namespaces.borrow().descendant_ids(root) {
+        for id in self.retained_teardown_ids(root) {
             if !ids.contains(&id) {
                 ids.push(id);
             }
@@ -7620,6 +7748,7 @@ impl Interp {
         }
         self.recursion_depth.set(self.recursion_depth.get() + 1);
 
+        self.enter_namespace_activation(ns);
         if meta.same_level {
             self.frames.borrow_mut().push_same_level(ns);
         } else {
@@ -7665,14 +7794,16 @@ impl Interp {
                     }
                 }
             } else {
-                self.frames.borrow_mut().pop();
+                let popped = self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
+                self.leave_namespace_activation(popped);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
                 return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
             };
             if stored.is_err() {
-                self.frames.borrow_mut().pop();
+                let popped = self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
+                self.leave_namespace_activation(popped);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
                 return self.error(b"proc parameter binding failed");
             }
@@ -7744,12 +7875,13 @@ impl Interp {
         } else {
             self.frame_teardown_unset_traces(proc_level)
         };
-        self.frames.borrow_mut().pop();
+        let popped = self.frames.borrow_mut().pop();
         if !self.traces.borrow().traces.is_empty() {
             self.clear_frame_var_traces(proc_level);
         }
         self.current_ns.set(saved_ns);
         self.fire_unset_callbacks(teardown);
+        self.leave_namespace_activation(popped);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an

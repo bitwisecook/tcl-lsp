@@ -317,11 +317,14 @@ impl Frames for Interp {
     fn push(&mut self, ns: NsId) -> FrameId {
         // The contract's `NsId` is a `u32` newtype; the runtime's is a `usize`
         // arena index (`ROOT_NS`/`GLOBAL` both 0).
-        FrameId(self.frames.borrow_mut().push(ns.0 as usize))
+        let ns = ns.0 as usize;
+        self.enter_namespace_activation(ns);
+        FrameId(self.frames.borrow_mut().push(ns))
     }
 
     fn pop(&mut self) {
-        self.frames.borrow_mut().pop();
+        let popped = self.frames.borrow_mut().pop();
+        self.leave_namespace_activation(popped);
     }
 
     fn current(&self) -> FrameId {

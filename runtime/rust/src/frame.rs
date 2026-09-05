@@ -667,12 +667,15 @@ impl FrameStack {
     /// Pop the current (top) frame, releasing its locals (via `VarTable::drop`),
     /// and restore the active level to whatever was in effect when it was pushed
     /// (correct even under an `uplevel` redirection). The global level is never
-    /// popped.
-    pub fn pop(&mut self) {
+    /// popped. Returns the namespace the popped frame was running in — the
+    /// activation C's `Tcl_PopCallFrame` gives back to the namespace token.
+    pub fn pop(&mut self) -> Option<NsId> {
         if self.frames.len() > 1 {
             let f = self.frames.pop().expect("non-global frame");
             self.active_level = f.saved_active;
+            return Some(f.ns);
         }
+        None
     }
 
     /// The stack index of the topmost frame with logical `level` (levels are not
