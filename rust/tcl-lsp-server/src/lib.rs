@@ -341,6 +341,15 @@ impl DocumentState {
         self.version = Some(version);
         self.publication = DocumentPublication::Pending;
     }
+
+    /// Invalidate derived state without changing the editor's text version.
+    /// A dialect-only change is still a new analysis generation: diagnostics
+    /// and index workers captured under the previous dialect must fail their
+    /// revision currency check before they can publish.
+    fn bump_analysis_generation(&mut self) {
+        self.revision = self.revision.saturating_add(1);
+        self.publication = DocumentPublication::Pending;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9114,7 +9123,7 @@ impl Backend {
                     continue; // a newer edit/re-resolve owns this document
                 }
                 doc.dialect.clone_from(&new_dialect);
-                doc.publication = DocumentPublication::Pending;
+                doc.bump_analysis_generation();
                 (doc.text.clone(), doc.revision)
             };
             if !self
@@ -19188,9 +19197,10 @@ impl Backend {
     /// (or a test) searches for something they just opened (#1179).  A new
     /// untitled buffer has the same gap until its first publish.
     ///
-    /// Bounded by the open-document set and empty in steady state; the
-    /// analysis is normally read from the salsa memo the pending publish
-    /// computes anyway, so nothing is analysed twice.
+    /// Bounded by the open-document set and empty in steady state. Once Salsa
+    /// names the live revision, analysis normally comes from its memo. A
+    /// publication-pending open deliberately analyses its captured buffer
+    /// afresh because Salsa may still memoise the pre-open disk source.
     ///
     /// A **cancelled** memo read must not be read as "this document has no
     /// symbols".  [`Self::cached_analysis`] answers `None` for two unrelated
@@ -19204,9 +19214,11 @@ impl Backend {
     /// salsa write unwinds every in-flight read.  Lose that race and the
     /// picker answered *nothing* for the file the user had just opened —
     /// intermittently, and precisely the #1179 symptom this path was added to
-    /// remove.  So a URI that **has** an input falls back to an off-database
-    /// analysis of its own buffer ([`Self::analysis_for`]), which no
-    /// concurrent write can cancel.
+    /// remove.  So a URI that **has** an input falls back to analysis of its
+    /// own buffer, which no concurrent write can cancel. Before live Salsa
+    /// publication it uses [`Self::fresh_analysis_for`] directly; afterwards
+    /// [`Self::analysis_for`] provides the same off-database fallback on a
+    /// cancelled memo read.
     ///
     /// A URI with **no** input keeps contributing nothing, deliberately: an
     /// open buffer whose file was deleted out from under it has its input
@@ -19219,27 +19231,42 @@ impl Backend {
         query: &str,
         limit: usize,
     ) -> Vec<core_workspace_symbols::IndexedWorkspaceSymbol> {
-        let unindexed: Vec<(Uri, Arc<str>, String)> = {
+        let unindexed: Vec<(Uri, Arc<str>, String, DocumentPublication)> = {
             // `documents` → `workspace_index`, the lock order `did_open`
             // establishes.
             let docs = self.documents.lock("open_but_unindexed_symbols").await;
             let index = self.workspace_index.read().await;
             docs.iter()
                 .filter(|(uri, _)| !index.contains_document(uri.as_str()))
-                .map(|(uri, doc)| (uri.clone(), Arc::clone(&doc.text), doc.dialect.clone()))
+                .map(|(uri, doc)| {
+                    (
+                        uri.clone(),
+                        Arc::clone(&doc.text),
+                        doc.dialect.clone(),
+                        doc.publication,
+                    )
+                })
                 .collect()
         };
         if unindexed.is_empty() {
             return Vec::new();
         }
         let mut pending = new_workspace_index();
-        for (uri, text, dialect) in unindexed {
+        for (uri, text, dialect, publication) in unindexed {
             // Retired / never-registered input: see the doc comment — this
             // document is meant to be absent, not rescued.
             if !self.db_files.lock().await.contains_key(&uri) {
                 continue;
             }
-            let analysis = self.analysis_for(&uri, text, dialect).await;
+            // Before the Salsa boundary, a cache hit still describes the
+            // pre-open disk source. Analyse the captured authoritative buffer
+            // directly; once Salsa is ready, the memoised path is current and
+            // remains the cheaper fallback for a cancelled read.
+            let analysis = if publication == DocumentPublication::Pending {
+                self.fresh_analysis_for(&uri, text, dialect).await
+            } else {
+                self.analysis_for(&uri, text, dialect).await
+            };
             pending.add_document(uri.as_str(), &analysis);
         }
         pending.symbols_matching(query, limit)
@@ -20439,7 +20466,7 @@ impl LanguageServer for Backend {
                         return;
                     }
                     entry.dialect.clone_from(&new_dialect);
-                    entry.publication = DocumentPublication::Pending;
+                    entry.bump_analysis_generation();
                     (entry.text.clone(), entry.revision)
                 };
                 if !self
@@ -41875,6 +41902,95 @@ proc p {} {
             .get("::IconList")
             .unwrap_or_else(|| panic!("the factory-made class must be indexed: {analysis:?}"));
         assert!(class.methods.contains_key("GetSpecs"), "{class:?}");
+    }
+
+    /// Exact-head review of #1854: while a cold open is pending, Salsa still
+    /// contains the scanned disk source. The workspace-symbol fallback must
+    /// analyse the authoritative live bytes instead of accepting that stale
+    /// cache hit.
+    #[tokio::test]
+    async fn pending_open_workspace_symbols_use_live_text_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///pending-symbols-1854.tcl").unwrap();
+        let disk_text = "proc obsolete_disk_symbol {} {}\n";
+        let live_text = "proc current_live_symbol {} {}\n";
+        backend
+            .db_set_source(&uri, disk_text, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(live_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+        backend
+            .workspace_index
+            .write()
+            .await
+            .remove_document(uri.as_str());
+
+        let current = backend.open_but_unindexed_symbols("current_live", 10).await;
+        assert_eq!(current.len(), 1, "the live-only proc must be searchable");
+        assert_eq!(current[0].name, "current_live_symbol");
+        assert!(
+            backend
+                .open_but_unindexed_symbols("obsolete_disk", 10)
+                .await
+                .is_empty(),
+            "the pre-open disk proc must not survive through a Salsa cache hit",
+        );
+    }
+
+    /// Exact-head review of #1854: a diagnostics worker that captured the
+    /// current text under the old dialect must lose publication authority when
+    /// a configuration-only dialect change starts a new analysis generation.
+    #[tokio::test]
+    async fn dialect_change_invalidates_in_flight_diagnostics_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dialect-diag-generation-1854.tcl").unwrap();
+        let text = "proc helper {} {}\n";
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        let old_revision = backend
+            .documents
+            .lock("test")
+            .await
+            .get(&uri)
+            .expect("the document is open")
+            .revision;
+        let old_delivery = DeliveryCtx {
+            client: &backend.client,
+            diagnostic_publisher: &backend.diagnostic_publisher,
+            documents: &backend.documents,
+            store: &backend.store,
+            diag_slots: &backend.diag_slots,
+            pull_diag_cache: &backend.pull_diag_cache,
+            closed_diag_gen: &backend.closed_diag_gen,
+            uri: &uri,
+            currency: DiagCurrency::Open(old_revision),
+            version: Some(1),
+            client_supports_pull: false,
+        };
+
+        *backend.default_dialect.lock().await = "tcl9.0".to_owned();
+        backend.reresolve_open_document_dialects().await;
+
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the document remains open");
+        assert_eq!(current.dialect, "tcl9.0");
+        assert_eq!(current.version, Some(1), "the editor version is unchanged");
+        assert!(
+            current.revision > old_revision,
+            "a dialect-only change must advance analysis currency",
+        );
+        assert!(
+            !old_delivery.is_current(&docs).await,
+            "old-dialect diagnostics must not publish after the change",
+        );
     }
 
     /// Exact-head review of #1854: changing dialect retires facts analysed
