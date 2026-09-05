@@ -112,8 +112,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::NOT_PROC_FACTORY
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
-            | Traits::NEVER_INLINE_BODY
-            | Traits::HAS_SWITCH_BODY,
+            | Traits::NEVER_INLINE_BODY,
         // Floor of 2: `case string {patList body ...}`, the shortest legal
         // call (tclsh 8.6.14 rejects a bare `case x` with "wrong # args").
         // No upper bound and no parity rule, because the optional `in` word

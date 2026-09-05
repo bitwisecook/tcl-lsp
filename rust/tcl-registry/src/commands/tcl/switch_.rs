@@ -204,8 +204,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
-            | Traits::NEVER_INLINE_BODY
-            | Traits::HAS_SWITCH_BODY,
+            | Traits::NEVER_INLINE_BODY,
         // `string pattern body ?pattern body ...?` (an odd count from 3)
         // — OR the single-braced-body shorthand, `string {pattern body
         // ...}` (exactly 2) — confirmed against tclsh 8.6.14: `switch $s
