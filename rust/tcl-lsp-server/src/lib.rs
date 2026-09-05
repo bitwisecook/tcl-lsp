@@ -9367,8 +9367,10 @@ impl Backend {
     ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
         // Analyse outside Salsa with the same per-folder config the cached path
         // would have used, so the result still honours folder-scoped
-        // suppression without retaining a database snapshot.
+        // suppression and cross-file factory oracle without retaining a
+        // database snapshot.
         let config = self.resolved_db_config(uri).await;
+        let workspace_class_factories = self.class_factories_for(uri).await;
         let (disabled, na_mode, extra, pack_key, resource) = {
             let db = self.db.lock().await;
             (
@@ -9380,9 +9382,11 @@ impl Backend {
             )
         };
         crate::rt::spawn_blocking(move || {
+            let analysis_text = tcl_lexer::normalise_lone_cr(&text);
             let mut analyser =
-                Self::configured_analyser(disabled, na_mode, extra, pack_key, resource);
-            Arc::new(analyser.analyse(&text, &dialect))
+                Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
+                    .with_workspace_class_factories(workspace_class_factories);
+            Arc::new(analyser.analyse(&analysis_text, &dialect))
         })
         .await
         .unwrap_or_default()
@@ -41755,6 +41759,87 @@ proc p {} {
                 .expect("the open index publisher must not panic"),
             "the still-current open seed must publish",
         );
+    }
+
+    /// Exact-head review of #1854: the independent index seed must consume the
+    /// same analysis text as Salsa. A raw old-Mac buffer leaves the proc inside
+    /// the preceding comment; normalising lone CRs makes it a real command.
+    #[tokio::test]
+    async fn fresh_open_index_seed_normalises_lone_cr_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///fresh-old-mac-1854.tcl").unwrap();
+        let analysis = backend
+            .fresh_analysis_for(
+                &uri,
+                Arc::from("# note\rproc current {} {}\r"),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        assert!(
+            analysis.all_procs.contains_key("::current"),
+            "the fresh index seed must parse the same normalised source as Salsa",
+        );
+    }
+
+    /// Exact-head review of #1854: an index seed is independent of Salsa's
+    /// snapshot lifetime, not independent of the source's cross-file inputs.
+    /// Carry the current factory oracle so a class made by another file's
+    /// metaclass exists in the first published live index.
+    #[tokio::test]
+    async fn fresh_open_index_seed_carries_workspace_class_factories_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///fresh-metaclass-consumer-1854.tcl").unwrap();
+        let consumer = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let oracle = {
+            let mut analyser = Analyser::new();
+            Arc::new(
+                analyser
+                    .analyse(
+                        concat!(
+                            "oo::class create ::tk::MegawidgetClass {}\n",
+                            "oo::class create ::tk::Megawidget {\n",
+                            "    superclass oo::class\n",
+                            "    self method create {name superclasses body} {\n",
+                            "        next $name [list superclass ::tk::MegawidgetClass",
+                            " {*}$superclasses]\\;$body\n",
+                            "    }\n",
+                            "}\n",
+                        ),
+                        "tcl9.0",
+                    )
+                    .class_factories(),
+            )
+        };
+        assert!(
+            oracle.contains_key("::tk::Megawidget"),
+            "the test oracle must contain the cross-file metaclass",
+        );
+        backend
+            .db_set_source(&uri, consumer, "tcl9.0".to_owned())
+            .await;
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = *files.get(&uri).expect("the consumer is a Salsa input");
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(Arc::clone(&oracle)));
+        }
+
+        let analysis = backend
+            .fresh_analysis_for(&uri, Arc::from(consumer), "tcl9.0".to_owned())
+            .await;
+        let class = analysis
+            .all_classes
+            .get("::IconList")
+            .unwrap_or_else(|| panic!("the factory-made class must be indexed: {analysis:?}"));
+        assert!(class.methods.contains_key("GetSpecs"), "{class:?}");
     }
 
     /// Fresh review of #1854: a cold `didOpen` index seed must not own either
