@@ -41,20 +41,28 @@ case "$(cat "$WORKFLOW")" in
         ;;
 esac
 
-hosted_condition="github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true'"
+hosted_condition="(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.rust_tests_runner == 'hosted')"
 
-case "$rust_tests_job" in
-    *"runs-on:"*"$hosted_condition"*"&& 'ubuntu-26.04' || 'tank'"*) ;;
+case "$(cat "$WORKFLOW")" in
+    *'rust_tests_runner:'*'type: choice'*'- tank'*'- hosted'*) ;;
     *)
-        echo "rust-tests must keep fork and runner-policy PRs off the self-hosted tank host" >&2
+        echo "manual CI dispatch must offer tank and hosted Rust runner choices" >&2
         exit 1
         ;;
 esac
 
 case "$rust_tests_job" in
-    *"group: rust-tests-"*"$hosted_condition"*"format('hosted-{0}', github.run_id)"*"|| 'tank'"*) ;;
+    *"runs-on:"*"($hosted_condition)"*"&& 'ubuntu-26.04' || 'tank'"*) ;;
     *)
-        echo "rust-tests must serialize trusted jobs in one tank group and keep hosted jobs unique" >&2
+        echo "rust-tests must keep fork, hosted dispatch, and runner-policy PRs off tank" >&2
+        exit 1
+        ;;
+esac
+
+case "$rust_tests_job" in
+    *"group: rust-tests-"*"($hosted_condition)"*"format('hosted-{0}', github.run_id)"*"|| 'tank'"*) ;;
+    *)
+        echo "rust-tests must serialize tank jobs and keep hosted jobs unique" >&2
         exit 1
         ;;
 esac
