@@ -3,8 +3,9 @@
 The Tcl 9 semantics for ``rename`` and ``interp alias`` in the WASM runtime
 (`runtime/rust`), built on the namespace tree from
 [`namespace-tree.md`](namespace-tree.md).  Source of truth for the C semantics
-is ``tmp/tcl9.0.3/generic/tclBasic.c`` (``TclRenameCommand``) and
-``tmp/tcl9.0.3/generic/tclInterp.c`` (``AliasCreate`` / ``AliasDelete``).
+is ``tmp/tcl9.0.4/generic/tclBasic.c`` (``TclRenameCommand``, ``:3152``)
+and ``tmp/tcl9.0.4/generic/tclInterp.c`` (``AliasCreate`` /
+``AliasDelete`` / ``OPT_TARGET``, ``:1121``).
 
 The command-layer *contract* this implements — and its compiler-side
 consequences — is
@@ -26,6 +27,8 @@ In:
   child, which installs a child→parent alias (§4.5).
 - ``interp aliases ?path?`` — every alias command's name in the
   addressed interpreter.
+- ``interp target path alias`` — the interpreter path to the
+  interpreter an alias resolves its target in (§4.3).
 - Alias dispatch trampoline wired into the one command-dispatch
   switch so aliases are transparent to callers.  Resolution is by
   *stored target name* on each dispatch, anchored at the global
@@ -35,6 +38,16 @@ In:
 - C's ``TclPreventAliasLoop`` gate on both alias creation and
   ``rename``: an alias that would close a cycle is refused with
   ``cannot define or rename alias "X": would create a loop`` (§4.6).
+
+Out, deliberately: ``interp cancel``, ``interp share`` and ``interp
+transfer`` are neither implemented nor *advertised*.  They need
+infrastructure this runtime has none of — a cancellation flag the eval
+loop polls (C's ``Tcl_CancelEval``) and a channel table shared between
+interpreters — so the ``bad option`` list names only what actually
+dispatches, rather than repeating tclsh's full list and naming three
+subcommands that would then fail with the wrong error (issue #1412
+item 3).  That is a knowing divergence from tclsh's advertised list;
+see [`child-interp.md`](child-interp.md) §1.
 
 Covered by sibling documents:
 
@@ -89,8 +102,10 @@ Two consequences differ from a flags-and-payload layout:
 |-----------------------------------|-----------------------------------------------------------------------------------------------|
 | ``rename old new``                | Move the `Command` out of the namespace where ``old`` *resolves* and insert it under ``new`` (relative to the current namespace, absolute when ``::``-led). |
 | ``rename old ""``                 | Delete ``old``: drop the table entry, tear down a suspended coroutine of that name, remove the command's traces. |
-| ``rename foo foo``                | No-op — remove then reinsert under the same key.                                              |
-| ``rename nosuch x``               | ``can't rename "nosuch": command doesn't exist``.                                              |
+| ``rename foo foo``                | Refused — ``can't rename to "foo": command already exists`` (`TCL OPERATION RENAME TARGET_EXISTS`); the source still occupies the slot when the destination is checked, so a self-rename is *not* a no-op. |
+| ``rename a b`` with ``b`` bound   | Refused with the same message and errorcode; **both** commands survive intact.                |
+| ``rename nosuch x``               | ``can't rename "nosuch": command doesn't exist`` (`TCL LOOKUP COMMAND nosuch`).                |
+| ``rename nosuch ""``              | ``can't delete "nosuch": command doesn't exist`` (`TCL LOOKUP COMMAND nosuch`) — the verb follows the requested operation, not the failure. |
 
 Any command may be renamed, builtins included: C Tcl has no protected
 list at this layer, and `rename ::return ::myreturn` succeeds on real
@@ -113,10 +128,20 @@ The command table is a `BTreeMap<Vec<u8>, Command>` per namespace, so
 removal is a real removal; there are no tombstones and no probe chains
 to preserve.
 
+Occupancy of the destination is decided one layer above the table
+operation, in `Interp::rename_command`, via
+`Namespaces::destination_occupant_fqn` — and *before* any command trace
+fires, matching C, which checks ``newNsPtr->cmdTable`` before it touches
+the source (``tclBasic.c:3213``).  `Namespaces::rename` itself stays the
+unconditional table op and refuses nothing; occupancy protection is the
+caller's job.  One destination that looks occupied but is not: a
+release-gated TclOO root, which `Interp::is_gate_hidden_object_root`
+reads as free because the emulated release does not carry it.
+
 ### 3.3 What follows the command
 
 `Interp::rename_command` is the layer above the table operation, and it
-carries four things across the move:
+carries five things across the move:
 
 - **Command traces** fire *before* the mutation (C's `TclRenameCommand`
   semantics — the command still exists under its old name during the
@@ -135,6 +160,13 @@ carries four things across the move:
   first, so the suspended worker is torn down rather than orphaned.
 - **TclOO objects.**  When the OO registry is non-empty, a renamed or
   deleted object command updates (or is removed from) it.
+- **Proc home.**  A cross-namespace rename re-homes the proc:
+  `Namespaces::rehome_proc` builds a fresh `Rc<ProcDef>` with the
+  destination's namespace and FQN, so ``namespace current`` inside the
+  body reports the *destination* (C assigns ``cmdPtr->nsPtr =
+  newNsPtr``, ``tclBasic.c:3239``).  Frames already on the stack keep the
+  snapshot they captured, so a rename during an active call does not
+  re-home that call.
 
 A delete-trace callback may itself delete the command — by deleting the
 object's namespace, say.  C captured the command token before the
@@ -142,14 +174,24 @@ callback, so the deletion still succeeds; the runtime reproduces that by
 treating "existed at entry, gone now, ``new`` empty" as a normal delete
 rather than reporting ``command doesn't exist``.
 
-### 3.4 No protected-command list
+### 3.4 No protected-command list, three refusals
 
 `Namespaces::rename` is the pure table operation and refuses nothing.
-The `rename` builtin above it refuses nothing either.  This is the
-tclsh-pinned behaviour described in §3.1: renaming a builtin, including
-``return`` and ``error``, succeeds.  C's ``TclProtectedCommandsList``
-is not mirrored — the pin is the observed tclsh result, not the C data
+There is no protected-command list above it either: renaming a builtin,
+including ``return`` and ``error``, succeeds, which is the tclsh-pinned
+behaviour described in §3.1.  C's ``TclProtectedCommandsList`` is not
+mirrored — the pin is the observed tclsh result, not the C data
 structure.
+
+What the `rename` builtin *does* refuse is not about the source command
+but about the move itself, and there are exactly three cases:
+
+- an **occupied destination** — ``can't rename to "X": command already
+  exists`` (§3.1), self-rename included;
+- a **rename that would close an alias cycle** — ``cannot define or
+  rename alias "X": would create a loop`` (§4.6);
+- a **release-gated builtin**, which the emulated release does not
+  carry and so cannot be moved (#1462 / #1463).
 
 ### 3.5 Invalidation
 
@@ -218,6 +260,7 @@ is live too and is documented in [`child-interp.md`](child-interp.md).
 | ``interp alias {} new``                        | Result is the ``target ?arg…?`` list; ``alias "new" not found`` if it is not an alias |
 | ``interp alias {} new {}``                     | Delete the binding; empty result                  |
 | ``interp aliases ?path?``                      | Tcl list of every alias name in the addressed interp |
+| ``interp target path alias``                   | The interp path (from this interp) to the interpreter ``alias`` resolves its target in: ``{}`` for a same-interp alias, ``path`` minus its last element for a child→parent one.  ``alias "X" in path "P" not found`` (`TCL LOOKUP ALIAS X`) when the addressed interp has no such alias |
 
 ### 4.4 Performance
 
@@ -340,7 +383,13 @@ Two layers:
    interpreter; `interp.rs`'s `mod tests` plants a cycle straight into
    the command table to prove the dispatch bound catches what the gate
    cannot see.
-2. **Upstream `.test` coverage** (``rename.test``, the single-interp subset of
+2. **Oracle-pinned integration tests** —
+   `runtime/rust/tests/rename_interp_semantics.rs` runs whole `rename` /
+   `interp` sheets through a live `Interp` and asserts the exact bytes a
+   pinned `tclsh` produced, message and ``-errorcode`` together.  Each
+   test quotes the sheet it pins, so a reader can paste it into a real
+   tclsh and re-derive the expectation.
+3. **Upstream `.test` coverage** (``rename.test``, the single-interp subset of
    ``interp.test``) runs through the tcltest harness; where it sits on the
    capability ladder is [`tcl-test-tiers.md`](tcl-test-tiers.md), and the
    per-stem numbers are [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md).
@@ -360,12 +409,22 @@ comparable `Command` enum (`Alias(Rc<Vec<Value>>)` and a `CrossAlias`
 carrying an `InterpId`), and runs the same ``TclPreventAliasLoop`` gate
 on alias creation and rename (§4.6), walking its alias graph across the
 whole interpreter tree by `InterpId` because its aliases really can span
-interpreters.  It still goes further on one point C Tcl also covers and
-this runtime does not: it refuses a rename onto an existing name
-(``can't rename to "X": command already exists``), where this runtime's
-`rename` overwrites the destination instead — so
-``proc b …; interp alias {} a {} b; rename a b`` is refused here by the
-alias-loop gate rather than by the destination check, with the same
-surviving table state but a different message.  The VM also re-homes a
-renamed proc — the `ProcDef`'s namespace and name follow the move, so
-``namespace current`` inside the body reports the destination.
+interpreters.  On the two points this document used to record as
+VM-only, the engines now agree: both refuse a rename onto an occupied
+destination (``can't rename to "X": command already exists``) and both
+re-home a renamed proc, so ``namespace current`` inside the body reports
+the destination.
+
+The divergences that remain are the VM's, and belong to `rust/tcl-vm`
+rather than here:
+
+- its ``interp`` option list advertises ``cancel`` and ``target`` with
+  no arm behind either, and accepts ``share`` / ``transfer`` as silent
+  no-ops (this runtime implements ``target`` and advertises neither of
+  the other three — §1);
+- its ``$child`` option list advertises ``transfer``, which C's child
+  command object does not, and omits ``debug``, which it does;
+- its ``interp invokehidden`` has no ``-global`` at all and skips
+  ``-namespace ns`` and any unknown flag silently, instead of switching
+  evaluation context and refusing
+  ([`command-introspection.md`](command-introspection.md) §2.5).

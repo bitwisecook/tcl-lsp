@@ -6802,8 +6802,11 @@ impl Interp {
         }
     }
 
-    /// `interp hide name`: move command `name` out of the command table into the
-    /// hidden table. Returns whether it existed.
+    /// `interp hide name`: move command `name` out of the command table into
+    /// the hidden table under `hidden_name`. `Missing` when `name` does not
+    /// resolve, `Collision` when `hidden_name` is already hidden, `Moved` on
+    /// success — never a bare success flag, because the caller has to word
+    /// three different diagnostics.
     pub(crate) fn hide_command(
         &mut self,
         name: &[u8],
