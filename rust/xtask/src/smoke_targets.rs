@@ -42,6 +42,7 @@ static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct Target {
+    package_id: String,
     package: String,
     kind: String,
     name: String,
@@ -97,6 +98,19 @@ struct ManifestRow {
 struct CargoRuntime {
     target: String,
     runner: Option<PathAndArgs>,
+    rustc: PathAndArgs,
+}
+
+#[derive(Debug)]
+struct BuildEnvironment {
+    out_dir: PathBuf,
+    values: BTreeMap<OsString, OsString>,
+}
+
+#[derive(Debug, Default)]
+struct CargoTestArtifacts {
+    executables: HashMap<TargetKey, PathBuf>,
+    build_environments: HashMap<String, Vec<BuildEnvironment>>,
 }
 
 struct HarnessContext<'a> {
@@ -160,6 +174,7 @@ fn cargo_runtime(root: &Path) -> Result<CargoRuntime> {
     Ok(CargoRuntime {
         target: target.triple().to_owned(),
         runner,
+        rustc: config.rustc().clone(),
     })
 }
 
@@ -390,6 +405,7 @@ fn load_targets(
                 .all(|feature| enabled.contains(feature));
             for kind in canonical_target_kinds(&raw_target.kind) {
                 targets.push(Target {
+                    package_id: package.id.clone(),
                     package: package.name.clone(),
                     kind,
                     name: raw_target.name.clone(),
@@ -755,7 +771,7 @@ fn cargo_test_executables(
     root: &Path,
     args: &[String],
     extra_env: &BTreeMap<OsString, OsString>,
-) -> Result<HashMap<TargetKey, PathBuf>> {
+) -> Result<CargoTestArtifacts> {
     let mut command = Command::new("cargo");
     command
         .args(args)
@@ -765,10 +781,47 @@ fn cargo_test_executables(
     let output = command_output(&mut command)?;
     let stdout = String::from_utf8(output.stdout).context("Cargo JSON output is not UTF-8")?;
     let mut executables = HashMap::new();
+    let mut build_environments: HashMap<String, Vec<BuildEnvironment>> = HashMap::new();
     for line in stdout.lines() {
         let Ok(message) = serde_json::from_str::<Value>(line) else {
             continue;
         };
+        if message.get("reason").and_then(Value::as_str) == Some("build-script-executed") {
+            let package_id = message
+                .get("package_id")
+                .and_then(Value::as_str)
+                .context("build-script result has no package ID")?;
+            let out_dir = message
+                .get("out_dir")
+                .and_then(Value::as_str)
+                .context("build-script result has no OUT_DIR")?;
+            let mut values = BTreeMap::from([(OsString::from("OUT_DIR"), OsString::from(out_dir))]);
+            for pair in message
+                .get("env")
+                .and_then(Value::as_array)
+                .context("build-script result has no environment array")?
+            {
+                let pair = pair
+                    .as_array()
+                    .filter(|pair| pair.len() == 2)
+                    .context("build-script environment row is not a key/value pair")?;
+                let key = pair[0]
+                    .as_str()
+                    .context("build-script environment key is not a string")?;
+                let value = pair[1]
+                    .as_str()
+                    .context("build-script environment value is not a string")?;
+                values.insert(OsString::from(key), OsString::from(value));
+            }
+            build_environments
+                .entry(package_id.to_owned())
+                .or_default()
+                .push(BuildEnvironment {
+                    out_dir: PathBuf::from(out_dir),
+                    values,
+                });
+            continue;
+        }
         if message.get("reason").and_then(Value::as_str) != Some("compiler-artifact")
             || message.pointer("/profile/test").and_then(Value::as_bool) != Some(true)
         {
@@ -803,12 +856,59 @@ fn cargo_test_executables(
             );
         }
     }
-    Ok(executables)
+    Ok(CargoTestArtifacts {
+        executables,
+        build_environments,
+    })
 }
 
-fn rust_runtime_library(root: &Path, host: &str) -> Result<PathBuf> {
-    let mut command = Command::new("rustc");
-    command.arg("--print").arg("sysroot").current_dir(root);
+impl CargoTestArtifacts {
+    fn executable(&self, target: &Target) -> Option<&PathBuf> {
+        self.executables.get(&target_key(target))
+    }
+
+    fn build_environment(
+        &self,
+        target: &Target,
+        executable: &Path,
+    ) -> Result<BTreeMap<OsString, OsString>> {
+        let Some(candidates) = self.build_environments.get(&target.package_id) else {
+            return Ok(BTreeMap::new());
+        };
+        let profile_dir = executable
+            .parent()
+            .and_then(Path::parent)
+            .context("test executable has no Cargo profile directory")?;
+        let matching: Vec<&BTreeMap<OsString, OsString>> = candidates
+            .iter()
+            .filter(|candidate| candidate.out_dir.starts_with(profile_dir))
+            .map(|candidate| &candidate.values)
+            .collect();
+        let Some(first) = matching.first() else {
+            bail!(
+                "no build-script environment for {} matches {}",
+                target.package,
+                executable.display()
+            );
+        };
+        if matching.iter().any(|candidate| *candidate != *first) {
+            bail!(
+                "multiple build-script environments for {} match {}",
+                target.package,
+                executable.display()
+            );
+        }
+        Ok((*first).clone())
+    }
+}
+
+fn rust_runtime_library(root: &Path, target: &str, rustc: &PathAndArgs) -> Result<PathBuf> {
+    let mut command = Command::new(&rustc.path);
+    command
+        .args(&rustc.args)
+        .arg("--print")
+        .arg("sysroot")
+        .current_dir(root);
     let output = command_output(&mut command)?;
     let sysroot = String::from_utf8(output.stdout)
         .context("rustc sysroot output is not UTF-8")?
@@ -817,7 +917,7 @@ fn rust_runtime_library(root: &Path, host: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(sysroot)
         .join("lib")
         .join("rustlib")
-        .join(host)
+        .join(target)
         .join("lib"))
 }
 
@@ -982,7 +1082,7 @@ fn execute_manifest(
     list_only: bool,
 ) -> Result<()> {
     let groups = target_groups(rows, targets);
-    let rust_runtime_library = rust_runtime_library(root, &runtime.target)?;
+    let rust_runtime_library = rust_runtime_library(root, &runtime.target, &runtime.rustc)?;
     let extra_env = BTreeMap::new();
     let regular_groups: Vec<&[Target]> = groups
         .iter()
@@ -990,7 +1090,7 @@ fn execute_manifest(
         .map(Vec::as_slice)
         .collect();
     let regular_executables = if regular_groups.is_empty() {
-        HashMap::new()
+        CargoTestArtifacts::default()
     } else {
         let args = combined_cargo_target_args(&regular_groups);
         println!("==> cargo test --workspace selected smoke targets --no-run");
@@ -1019,7 +1119,7 @@ fn execute_manifest(
             &regular_executables
         };
         for target in &group {
-            let executable = executables.get(&target_key(target)).with_context(|| {
+            let executable = executables.executable(target).with_context(|| {
                 format!(
                     "Cargo did not produce a test executable for {} {}:{}",
                     target.package, target.kind, target.name
@@ -1028,12 +1128,14 @@ fn execute_manifest(
             let package_root = package_roots
                 .get(&target.package)
                 .with_context(|| format!("missing package root for {}", target.package))?;
-            let package_environment = package_environments
+            let mut package_environment = package_environments
                 .get(&target.package)
-                .with_context(|| format!("missing package environment for {}", target.package))?;
+                .with_context(|| format!("missing package environment for {}", target.package))?
+                .clone();
+            package_environment.extend(executables.build_environment(target, executable)?);
             let context = HarnessContext {
                 package_root,
-                package_environment,
+                package_environment: &package_environment,
                 rust_runtime_library: &rust_runtime_library,
                 runner: runtime.runner.as_ref(),
             };
@@ -1075,12 +1177,64 @@ impl Fixture {
         }
         fs::write(&path, contents).with_context(|| format!("writing {}", path.display()))
     }
+
+    #[cfg(unix)]
+    fn write_executable(&self, relative: &str, contents: &str) -> Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        self.write(relative, contents)?;
+        let path = self.root.join(relative);
+        let mut permissions = fs::metadata(&path)?.permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&path, permissions)
+            .with_context(|| format!("making {} executable", path.display()))
+    }
 }
 
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.root);
     }
+}
+
+#[cfg(unix)]
+fn rustc_probe_config(fixture: &Fixture) -> Result<String> {
+    let probe = fixture.root.join("rustc-probe.sh");
+    let marker = fixture.root.join("rustc-sysroot-queried");
+    fixture.write_executable(
+        "rustc-probe.sh",
+        &format!(
+            "#!/bin/sh\nif [ \"$1\" = --print ] && [ \"$2\" = sysroot ]; then : > \"{}\"; fi\nexec rustc \"$@\"\n",
+            marker.display()
+        ),
+    )?;
+    Ok(format!("rustc = {}\n", serde_json::to_string(&probe)?))
+}
+
+#[cfg(not(unix))]
+fn rustc_probe_config(_fixture: &Fixture) -> Result<String> {
+    Ok(String::new())
+}
+
+fn reset_rustc_probe(fixture: &Fixture) -> Result<()> {
+    let marker = fixture.root.join("rustc-sysroot-queried");
+    if marker.exists() {
+        fs::remove_file(&marker).with_context(|| format!("removing {}", marker.display()))?;
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_rustc_probe(fixture: &Fixture) -> Result<()> {
+    if !fixture.root.join("rustc-sysroot-queried").is_file() {
+        bail!("configured Cargo rustc was not used for the sysroot query");
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_rustc_probe(_fixture: &Fixture) -> Result<()> {
+    Ok(())
 }
 
 fn fixture_target<'a>(targets: &'a [Target], package: &str, name: &str) -> Result<&'a Target> {
@@ -1181,10 +1335,14 @@ f = { path = "../f" }
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); assert!(std::env::var(\"OUT_DIR\").unwrap().replace(char::from(92), \"/\").contains(\"/build/e-\")); if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
+    ),
+    (
+        "e/build.rs",
+        "fn main() { println!(\"cargo::rustc-env=TCL_LSP_BUILD_ENV=owned\"); }\n",
     ),
     (
         "f/Cargo.toml",
@@ -1336,38 +1494,34 @@ fn verify_fixture_libraries(
     }
 
     let library_args = cargo_target_args("lib", "", false);
-    let library_executables = cargo_test_executables(&fixture.root, &library_args, extra_env)?;
+    let library_artifacts = cargo_test_executables(&fixture.root, &library_args, extra_env)?;
     let e_target = fixture_target(targets, "e", "e")?;
+    let e_executable = library_artifacts
+        .executable(e_target)
+        .context("fixture package e has no library executable")?;
+    let mut e_environment = package_environments["e"].clone();
+    e_environment.extend(library_artifacts.build_environment(e_target, e_executable)?);
     let e_context = HarnessContext {
         package_root: &package_roots["e"],
-        package_environment: &package_environments["e"],
+        package_environment: &e_environment,
         rust_runtime_library: runtime_library,
         runner: runtime.runner.as_ref(),
     };
-    let e_selected = run_harness(
-        e_target,
-        &library_executables[&target_key(e_target)],
-        &e_context,
-        false,
-        true,
-    )?;
+    let e_selected = run_harness(e_target, e_executable, &e_context, false, true)?;
     if e_selected != [("smoke_dependency".to_owned(), "test".to_owned())] {
         bail!("exact nextest-name selection self-test failed");
     }
     let h_target = fixture_target(targets, "h", "library_smoke")?;
+    let h_executable = library_artifacts
+        .executable(h_target)
+        .context("fixture package h has no library executable")?;
     let h_context = HarnessContext {
         package_root: &package_roots["h"],
         package_environment: &package_environments["h"],
         rust_runtime_library: runtime_library,
         runner: runtime.runner.as_ref(),
     };
-    let h_selected = run_harness(
-        h_target,
-        &library_executables[&target_key(h_target)],
-        &h_context,
-        false,
-        true,
-    )?;
+    let h_selected = run_harness(h_target, h_executable, &h_context, false, true)?;
     if h_selected != [("ordinary_library_test".to_owned(), "test".to_owned())] {
         bail!("smoke-named library artifact self-test failed");
     }
@@ -1389,8 +1543,10 @@ fn verify_fixture_collision_and_bench(
     }
     let automatic_args = cargo_target_args("example", "demo_smoke", true);
     let automatic = cargo_test_executables(&fixture.root, &automatic_args, extra_env)?;
-    if !automatic.contains_key(&target_key(demo_target))
-        || automatic.contains_key(&target_key(fixture_target(targets, "j", "demo_smoke")?))
+    if automatic.executable(demo_target).is_none()
+        || automatic
+            .executable(fixture_target(targets, "j", "demo_smoke")?)
+            .is_some()
     {
         bail!("automatic Cargo target eligibility self-test failed");
     }
@@ -1402,7 +1558,9 @@ fn verify_fixture_collision_and_bench(
     };
     run_harness(
         demo_target,
-        &automatic[&target_key(demo_target)],
+        automatic
+            .executable(demo_target)
+            .context("fixture package i has no example executable")?,
         &demo_context,
         false,
         true,
@@ -1419,7 +1577,9 @@ fn verify_fixture_collision_and_bench(
     };
     run_harness(
         bench_target,
-        &benches[&target_key(bench_target)],
+        benches
+            .executable(bench_target)
+            .context("fixture package k has no bench executable")?,
         &bench_context,
         false,
         true,
@@ -1438,8 +1598,9 @@ fn cargo_fixture_self_test() -> Result<()> {
     } else {
         vec!["env", "TCL_LSP_SMOKE_RUNNER=used"]
     };
+    let rustc_config = rustc_probe_config(&fixture)?;
     let config = format!(
-        "[build]\ntarget = {}\n\n[target.{}]\nrunner = {}\n",
+        "[build]\ntarget = {}\n{rustc_config}\n[target.{}]\nrunner = {}\n",
         serde_json::to_string(&host)?,
         serde_json::to_string(&host)?,
         serde_json::to_string(&runner)?,
@@ -1466,7 +1627,9 @@ fn cargo_fixture_self_test() -> Result<()> {
             OsString::from("-C prefer-dynamic"),
         ),
     ]);
-    let runtime_library = rust_runtime_library(&fixture.root, &runtime.target)?;
+    reset_rustc_probe(&fixture)?;
+    let runtime_library = rust_runtime_library(&fixture.root, &runtime.target, &runtime.rustc)?;
+    verify_rustc_probe(&fixture)?;
     verify_fixture_libraries(
         &fixture,
         &package_roots,
@@ -1491,6 +1654,7 @@ fn self_test() -> Result<()> {
     let root = Path::new("/repo/example");
     let targets = vec![
         Target {
+            package_id: "example".to_owned(),
             package: "example".to_owned(),
             kind: "lib".to_owned(),
             name: "example".to_owned(),
@@ -1499,6 +1663,7 @@ fn self_test() -> Result<()> {
             testable: true,
         },
         Target {
+            package_id: "example".to_owned(),
             package: "example".to_owned(),
             kind: "bin".to_owned(),
             name: "example".to_owned(),
@@ -1507,6 +1672,7 @@ fn self_test() -> Result<()> {
             testable: true,
         },
         Target {
+            package_id: "example".to_owned(),
             package: "example".to_owned(),
             kind: "test".to_owned(),
             name: "new".to_owned(),
