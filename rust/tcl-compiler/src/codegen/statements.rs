@@ -24,7 +24,7 @@
 
 use crate::ir::Statement;
 
-use super::cmd_subst::{has_command_separator, parse_cmd_parts};
+use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts};
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
@@ -632,8 +632,11 @@ impl CodegenCtx<'_> {
     /// keep the literal + `subst_word` path, which the inline command-parser
     /// cannot match on escaped brackets.
     fn assign_value_inlines_cmd_subst(value: &str) -> bool {
-        value.starts_with('[')
-            && value.ends_with(']')
+        // `is_pure_cmd_subst`, not "starts and ends with a bracket": the inline
+        // emitter strips the outer brackets and word-splits the rest, so
+        // `set r [llength $a]:[join $a ,]` — three concatenated parts — would
+        // be mangled into one bogus command.
+        is_pure_cmd_subst(value)
             && value.len() > 2
             && value[1..value.len() - 1].contains(' ')
             && !value.starts_with("[list ")

@@ -31,6 +31,7 @@
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 
+use super::super::cmd_subst::is_pure_cmd_subst;
 use super::super::{CodegenCtx, Op, Operand};
 use super::ordering::fold_const_branch;
 
@@ -193,7 +194,12 @@ impl CodegenCtx<'_> {
         // Stamp the return's source span onto its instructions.
         self.current_span = term.span();
         let val = value.as_deref().unwrap_or("");
-        let is_cmd_subst = expr.is_none() && val.starts_with('[') && val.ends_with(']');
+        // The *whole* value must be one balanced `[…]`: the inline emitter
+        // strips the outer brackets and word-splits what is left, so a value
+        // that merely begins and ends with a bracket (`[llength $a]:[join $a ,]`
+        // — a three-part concatenation) would be mangled into a single bogus
+        // command. `is_pure_cmd_subst` matches the bracket, not the ends.
+        let is_cmd_subst = expr.is_none() && is_pure_cmd_subst(val);
         let is_final = next_block.is_none();
 
         // startCommand count: 2 when return wraps [expr {...}]

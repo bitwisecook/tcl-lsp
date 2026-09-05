@@ -250,6 +250,48 @@ fn skip_word_seps(bytes: &[u8], n: usize, mut i: usize) -> usize {
     i
 }
 
+/// Strip the outer `{…}` from a body word, as the inline body emitters do.
+///
+/// The inlining *guard* and the emitter must look at the same text, so both go
+/// through this.
+#[must_use]
+pub fn strip_body_braces(body_text: &str) -> &str {
+    let body = body_text.trim();
+    if body.starts_with('{') && body.ends_with('}') {
+        &body[1..body.len() - 1]
+    } else {
+        body
+    }
+}
+
+/// Whether `body` is a body the *single-command* inline emitters
+/// ([`CodegenCtx::emit_catch_body`], [`CodegenCtx::emit_try_handler_body`])
+/// can compile.
+///
+/// Those emitters split the body into *words* with [`parse_cmd_parts`] and emit
+/// one command from them, so anything else — two commands separated by `;` or a
+/// newline, or a comment — is flattened into a single bogus invocation
+/// (`[catch {set y 1; set z 2} m]` emitted `set y 1 set z 2`). Ask the
+/// segmenter, the same command splitter lowering uses, rather than re-deriving
+/// the separator rules here.
+///
+/// An empty body is inlinable — the emitters push the empty result for it. A
+/// comment-only body is not: it segments to no command at all, while the word
+/// splitter would take the `#` for a command name.
+///
+/// `config` is the compile's own lexer config: command separation is
+/// dialect-dependent (iRules' `}{` ghost separator), and answering under the
+/// default grammar would under-count an iRules body's commands and inline one
+/// this emitter cannot compile.
+#[must_use]
+pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> bool {
+    match crate::segmenter::segment_commands_with_offset_and_config(body, 0, config).len() {
+        0 => body.trim().is_empty(),
+        1 => true,
+        _ => false,
+    }
+}
+
 /// Parse a command-substitution body into `(text, braced)` parts.
 /// `braced=true` means the text was a `{...}` literal — the caller
 /// should not interpolate it.  Strips the outer `[...]` if present.
@@ -886,7 +928,16 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::DictGet) if args.len() >= 3 => {
                 self.emit_inline_dict_get(args);
             }
-            Some(InlineCodegenHookId::Catch) if self.is_proc && (1..=3).contains(&args.len()) => {
+            // The inline form compiles the body as one command, so it is only
+            // reachable for a body that *is* one command (`is_single_command_body`).
+            Some(InlineCodegenHookId::Catch)
+                if self.is_proc
+                    && (1..=3).contains(&args.len())
+                    && is_single_command_body(
+                        strip_body_braces(&args[0].0),
+                        self.lexer_config(),
+                    ) =>
+            {
                 let result_var = args.get(1).map(|(s, _)| s.as_str());
                 if result_var.is_some_and(|v| v.starts_with("::")) {
                     self.used_inline_cmd_subst = false;

@@ -871,7 +871,10 @@ pub struct InterpState {
     /// a similarly named command. The registry decides when this table applies;
     /// this map merely retains the registered implementation.
     fixed_math_builtins: HashMap<String, BuiltinFn>,
-    /// Pre-compiled proc bodies from the module(s), keyed by qualified name.
+    /// Pre-compiled proc bodies from the module(s). Unlike every other table
+    /// here, this one mirrors a compiler artefact and is keyed the compiler's
+    /// way — `ModuleAsm::procedures`' **rooted** qnames (`::p`, `::a::p`) —
+    /// not the unrooted command key. `cmd_proc` roots its lookup to match.
     module_procs: HashMap<String, Rc<FunctionAsm>>,
     /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
     /// top governs `proc`/command/variable name resolution. `namespace eval`
@@ -7141,12 +7144,37 @@ impl Vm {
         self.module_procs.get(qname).cloned()
     }
 
-    /// Compile a proc body at runtime (for `proc` with a dynamically-built
-    /// body that wasn't pre-compiled into a module). The body is compiled as a
-    /// script; its parameters resolve through the call frame (`loadStk`), so a
-    /// top-level compilation runs correctly as a proc body. Any procs the body
-    /// itself defines are merged into the registry.
+    /// Compile a **script** at runtime — a unit that is entered the way the
+    /// top level of a file is, not through a call frame of its own (the
+    /// `coroutine` wrapper). Any procs the script itself defines are merged
+    /// into the pre-compiled body cache.
+    pub(crate) fn compile_dynamic_script(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
+        self.compile_dynamic(src, |module| module.top_level)
+    }
+
+    /// Compile a **body** at runtime — a `proc` body the compiler did not
+    /// pre-compile, an `apply` lambda, a `TclOO` method — as a *procedure*
+    /// rather than as a top-level script.
+    ///
+    /// The shape is not cosmetic. A script-shaped body reaches every variable
+    /// through the dispatched `*Stk` forms, so it never executes the
+    /// specialised arms (`STORE_SCALAR1`, `INCR_SCALAR1`,
+    /// `LAPPEND_{SCALAR,ARRAY}`, the compiled `unset`) an AOT-compiled proc
+    /// body runs — and those arms carry semantics of their own, so the same
+    /// source would observe different variable traces depending only on
+    /// whether the compiler happened to pre-compile it. See
+    /// [`ModuleAsm::top_level_body`](tcl_bytecode::ModuleAsm::top_level_body).
     pub(crate) fn compile_dynamic_body(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
+        self.compile_dynamic(src, |module| module.top_level_body)
+    }
+
+    /// Compile `src` for the interpreter's current profile and take one of the
+    /// module's two top-level shapes, merging any procs it defines.
+    fn compile_dynamic(
+        &mut self,
+        src: &str,
+        shape: fn(ModuleAsm) -> FunctionAsm,
+    ) -> Option<Rc<FunctionAsm>> {
         let module = self
             .compiler
             .as_ref()?
@@ -7154,7 +7182,7 @@ impl Vm {
             .ok()?;
         self.validate_module_profile(&module).ok()?;
         self.merge_procs(&module.procedures);
-        Some(Rc::new(module.top_level))
+        Some(Rc::new(shape(module)))
     }
 
     /// Enforce the bytecode artifact's exact profile at every consumption
@@ -7217,7 +7245,11 @@ impl Vm {
         }
         self.merge_procs(&module.procedures);
         let mut fresh = (*proc).clone();
-        fresh.body = Rc::new(module.top_level);
+        // A proc body, not a script: keep the recompile on the same shape the
+        // definition-time compile produced (see [`Self::compile_dynamic_body`]),
+        // so crossing a trace-deopt or profile generation cannot silently
+        // demote a body out of its `is_proc` forms.
+        fresh.body = Rc::new(module.top_level_body);
         fresh.compiled_epoch = want_epoch;
         fresh.compiled_profile_generation = want_profile;
         Rc::new(fresh)
@@ -7567,12 +7599,6 @@ impl Vm {
             Some(Command::Proc(p)) => Some(p),
             _ => None,
         }
-    }
-
-    /// Whether `name` is already a defined user proc — distinguishes a `proc`
-    /// redefinition (which must recompile its body) from a first definition.
-    pub(crate) fn is_proc_defined(&self, name: &str) -> bool {
-        matches!(self.lookup_command(name), Some(Command::Proc(_)))
     }
 
     /// The invocation argv of the frame at absolute `level` (`info level N`).

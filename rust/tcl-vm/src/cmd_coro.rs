@@ -242,7 +242,9 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // quoting preserves the words exactly), dispatched through the compiled
     // `INVOKE` path so a proc call stays on the coroutine's explicit stack.
     let body_src = Value::list(words).to_str();
-    let Some(body) = vm.compile_dynamic_body(&body_src) else {
+    // A *script*, not a proc body: the wrapper runs as the coroutine's own
+    // top-level activation, not through a call frame of its own.
+    let Some(body) = vm.compile_dynamic_script(&body_src) else {
         if let Some(p) = &temp_proc {
             vm.take_command_unchecked(p);
         }

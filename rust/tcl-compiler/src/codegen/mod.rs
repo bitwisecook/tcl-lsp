@@ -306,6 +306,14 @@ impl<'r> CodegenCtx<'r> {
         }
     }
 
+    /// The compile's own lexer config — the dialect grammar every nested
+    /// re-lex in codegen (a re-lowered body, a segmented catch body) must use,
+    /// rather than the default grammar.
+    #[must_use]
+    pub fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_profile(self.registry.profile())
+    }
+
     /// Set the module source text (see [`Self::source`]) so emitted instructions
     /// carry their command's surface text for `errorInfo`.
     pub fn set_source(&mut self, source: &str) {
@@ -451,6 +459,7 @@ impl<'r> CodegenCtx<'r> {
             labels,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            proc_body_src: None,
             error_regions: Vec::new(),
         }
     }

@@ -195,6 +195,12 @@ pub fn codegen_module(
         command_bindings: &command_bindings,
     };
     let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], &module, 0);
+    // The same top level as a *procedure body*. A body compiled at run time
+    // (`proc` on a cache miss, an `apply` lambda, a method) reaches the
+    // compiler as a bare script, so without this it would run script-shaped and
+    // lose every `is_proc` specialisation its AOT-compiled twin gets — see
+    // [`ModuleAsm::top_level_body`].
+    let top_body = codegen_function_src(&cfg_module.top_level, &[], true, &[], &module, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -216,14 +222,24 @@ pub fn codegen_module(
                 .line
                 .saturating_add(1)
         });
-        procs.insert(
-            qname.clone(),
-            codegen_function_src(cfg_func, &params, true, &[], &module, base_line),
-        );
+        let mut asm = codegen_function_src(cfg_func, &params, true, &[], &module, base_line);
+        // The body word this assembly was compiled from, so a runtime consumer
+        // keyed by name can tell it apart from another `proc` of the same name
+        // (see `FunctionAsm::proc_body_src`). Recorded as the word *value*, not
+        // as the source text: lowering keeps the written word, but the value a
+        // runtime `proc` is handed has had the one substitution braces permit
+        // applied — a `\<newline>` continuation folded to a space — and the
+        // comparison is against that. Without the fold, every body holding a
+        // continuation missed.
+        asm.proc_body_src = ir_proc
+            .and_then(|p| p.body_source.as_deref())
+            .map(|body| module.word_rules.collapse_braced_word(body).into_owned());
+        procs.insert(qname.clone(), asm);
     }
     ModuleAsm {
         profile: emit_profile(dialect).unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
         top_level: top,
+        top_level_body: top_body,
         procedures: procs,
     }
 }

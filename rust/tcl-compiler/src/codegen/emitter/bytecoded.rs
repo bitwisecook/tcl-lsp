@@ -543,6 +543,22 @@ fn is_compilable_local(ctx: &CodegenCtx, var: &str) -> bool {
     ctx.is_proc && !is_qualified(var) && !var.starts_with('$') && !var.starts_with('[')
 }
 
+/// [`is_compilable_local`] restricted to a *scalar*: an `arr(k)`-shaped name is
+/// rejected too.
+///
+/// The link commands (`global`, `upvar`) take this stricter gate, mirroring C's
+/// `LocalScalar` (`tclCompCmds.c` — `TclPushVarName` with `TCL_NO_ELEMENT`,
+/// which answers -1 and abandons the compile for an element-looking name). It
+/// is not a nicety: the link is the *point* at which C reports `bad variable
+/// name "…": can't create a scalar variable that looks like an array element`,
+/// and that report lives in the commands. Compiling these names to
+/// `nsupvar`/`upvar` would silently create the mislinked variable instead.
+/// `append`/`lappend`/`unset` keep the looser gate — they have real element
+/// opcodes.
+fn is_compilable_scalar_local(ctx: &CodegenCtx, var: &str) -> bool {
+    is_compilable_local(ctx, var) && split_array_ref(var).is_none()
+}
+
 /// `append varName value ...` — statement-position specialisation for a
 /// proc-local variable. A single value emits `appendScalar`/`appendArray`;
 /// multiple scalar values push all, `reverse N`, then `appendScalar; pop`
@@ -801,10 +817,7 @@ fn global_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.is_proc || args.is_empty() {
         return false;
     }
-    if args
-        .iter()
-        .any(|n| is_qualified(n) || n.starts_with('$') || n.starts_with('['))
-    {
+    if !args.iter().all(|n| is_compilable_scalar_local(ctx, n)) {
         return false;
     }
     ctx.push_lit("::");
@@ -853,10 +866,10 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if pairs.is_empty() || pairs.len() % 2 != 0 {
         return false;
     }
-    // Every `local` (the odd-indexed words) must be a simple compiled local.
+    // Every `local` (the odd-indexed words) must be a simple compiled *scalar*
+    // local. The `other` side may legally be an element (`upvar 0 arr(k) v`).
     for pair in pairs.as_chunks::<2>().0 {
-        let local = &pair[1];
-        if is_qualified(local) || local.starts_with('$') || local.starts_with('[') {
+        if !is_compilable_scalar_local(ctx, &pair[1]) {
             return false;
         }
     }

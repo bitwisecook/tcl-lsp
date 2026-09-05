@@ -837,6 +837,7 @@ fn finalize_function(
         labels,
         loop_targets,
         body_base_line: 0,
+        proc_body_src: None,
         error_regions,
     }
 }
