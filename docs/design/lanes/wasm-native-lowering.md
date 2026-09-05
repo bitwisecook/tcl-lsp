@@ -16,6 +16,7 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
 | `p1-runtime-abi` | P1 runtime ABI v2 groundwork | `runtime/rust/src/{codegen_abi,frame,vars,interp,obj,bignum,builtins,expr}.rs`, `rust/tcl-runtime-api/src/codegen_abi.rs` | open |
 | `p2-executable-ir` | P2 executable IR total | `rust/tcl-compiler/src/executable_ir.rs` and its consumers | landed (see below) |
 | `p3-native-lowering` | P3 NLIR + native T0/T1 | `rust/tcl-registry/src/native_lowering.rs`, `rust/tcl-compiler/src/native_lowering/`, `codegen/wasm/{native_emit,ir,pipeline,backend}.rs`, `runtime/rust/src/codegen_native.rs` | landed (see below) |
+| `p5-native-procs` | P5-lite native proc dispatch (#1774) | `runtime/rust/{build.rs,src/{interp,codegen_abi}.rs}`, `rust/tcl-runtime-api/src/codegen_abi.rs`, `rust/tcl-compiler/src/codegen/wasm/ir.rs` | in flight — PR-A (runtime + transport) below |
 
 ## Decisions
 
@@ -1202,3 +1203,30 @@ is the design: no emitter reads a compatibility string.
   `puts` sites survive it.
 - Type hints (`LoweringInput::type_hints`) are threaded but unused; the
   interval proofs come from literals and `incr` deltas only.
+
+## p5-native-procs
+
+Issue #1774, phase P5-lite. Split in two: **PR-A** (this section) is the
+runtime and transport half — the runtime can define, dispatch, decline,
+redefine, rename and step-trace a native proc entry, and the WASM IR can
+encode the table plumbing — and emits **no** module change. PR-B is the
+emitter half (proc-entry function shape, `::top` table install, the
+`Definition` lowering, `errorInfo` error-edge logging) and closes the issue.
+
+### Shared vocabulary (delivered)
+
+`rust/tcl-runtime-api/src/codegen_abi.rs` gains three imports and three
+constants, so neither side spells any of them twice:
+
+| Name | Signature | Meaning |
+|---|---|---|
+| `tcl_codegen_proc_define_native` | 7 × i32 → i32 | `proc_register` plus a trailing `entry` (a wasm32 function-table index; `0` = source body only) |
+| `tcl_codegen_log_command` | 3 × i32 → () | one `while executing` / `invoked from within` `errorInfo` frame for a compiled statement: body-relative line, source ptr/len |
+| `tcl_codegen_native_proc_dispatches` | () → i32 | test counter, like `tcl_codegen_call_frame_outstanding` |
+
+`WASM32_FUNCTION_TABLE_IMPORT` is wasm-ld's `__indirect_function_table`;
+`NATIVE_PROC_STATUS_RAN` / `_DECLINED` are the entry's i32 result.
+
+`tcl_codegen_proc_register` stays exactly as it is — `entry = 0` is its
+documented equivalent — because already-emitted legacy-tier modules import it.
+

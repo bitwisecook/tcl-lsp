@@ -55,6 +55,7 @@ const I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 3];
 const I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 4];
 const I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 5];
 const I32_I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 6];
+const I32_I32_I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 7];
 const I32_I32_I32_I32_I64_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I32,
     CodegenAbiValueType::I32,
@@ -258,6 +259,32 @@ pub enum CodegenAbiImportId {
     /// ordinary command dispatch over `argc` borrowed arguments (an argv
     /// pointer), writing the completion triple.
     MathFunc,
+    /// Define a Tcl procedure whose body may run natively.
+    ///
+    /// Parameters are the name pointer and length, the formal-parameter text
+    /// pointer and length, the body-source pointer and length, and `entry` —
+    /// a wasm32 function-table index for the compiled body, or `0` for none.
+    /// The i32 result is a Tcl completion code.
+    ///
+    /// `entry = 0` is exactly [`Self::ProcRegister`]: a source-only proc. The
+    /// two spellings define the same proc, and this one subsumes the older,
+    /// which stays for already-emitted legacy-tier modules.
+    ProcDefineNative,
+    /// Log one `while executing` / `invoked from within` `errorInfo` frame for
+    /// a compiled statement that completed with an error.
+    ///
+    /// Parameters are the statement's 1-based line relative to the enclosing
+    /// body and the statement's exact source text (pointer and length). No
+    /// result: the runtime owns the `already_logged` protocol, so a statement
+    /// already logged deeper in the same body is a no-op.
+    LogCommand,
+    /// The number of proc bodies dispatched through a native entry.
+    ///
+    /// A test boundary, like [`Self::CallFrameAlloc`]'s outstanding-frame
+    /// counter: it lets a linked test prove the native entry actually ran
+    /// rather than the source body, which is otherwise unobservable because
+    /// both produce the same Tcl result.
+    NativeProcDispatches,
 }
 
 impl CodegenAbiImportId {
@@ -339,9 +366,43 @@ impl CodegenAbiImportId {
             Self::ExprEval => tcl_import("tcl_codegen_expr_eval", I32_I32, I32),
             Self::MathOp => tcl_import("tcl_codegen_mathop", I32_I32_I32_I32_I32, I32),
             Self::MathFunc => tcl_import("tcl_codegen_mathfunc", I32_I32_I32_I32_I32, I32),
+            Self::ProcDefineNative => tcl_import(
+                "tcl_codegen_proc_define_native",
+                I32_I32_I32_I32_I32_I32_I32,
+                I32,
+            ),
+            Self::LogCommand => tcl_import("tcl_codegen_log_command", I32_I32_I32, NONE),
+            Self::NativeProcDispatches => {
+                tcl_import("tcl_codegen_native_proc_dispatches", NONE, I32)
+            }
         }
     }
 }
+
+/// The runtime's exported wasm32 indirect function table.
+///
+/// A wasm32 function pointer is an index into this table, so a module that
+/// wants the runtime to call one of its own functions installs a `ref.func`
+/// here and hands the runtime the index. `wasm-ld` picks the name; the runtime
+/// publishes it with `--export-table` (`runtime/rust/build.rs`). This constant
+/// is the single spelling both sides use, so a toolchain rename is one edit.
+pub const WASM32_FUNCTION_TABLE_IMPORT: &str = "__indirect_function_table";
+
+/// A native proc entry ran and wrote its completion output.
+///
+/// The body's own Tcl error is reported as `code == 1` in that completion, not
+/// through this status.
+pub const NATIVE_PROC_STATUS_RAN: i32 = 0;
+
+/// A native proc entry declined, **before any observable effect**, and left
+/// its completion output untouched.
+///
+/// The runtime then runs the proc's source body in the call frame it has
+/// already prepared. That is only observationally identical because nothing
+/// happened yet, so an entry must decline before its first ABI call that
+/// writes a cell, dispatches a command, or sets a result — never part-way
+/// through a body.
+pub const NATIVE_PROC_STATUS_DECLINED: i32 = 1;
 
 /// wasm32 linear-memory pointer width.
 pub const WASM32_POINTER_BYTES: i32 = 4;
@@ -384,12 +445,13 @@ pub const WASM32_GUARD_IDENTITY_ALIGN: i32 = 8;
 #[cfg(test)]
 mod tests {
     use super::{
-        CodegenAbiImportId, CodegenAbiValueType, I32, I64, WASM32_COMPLETION_ALIGN,
-        WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
-        WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_GUARD_DOMAINS_SIZE,
-        WASM32_GUARD_IDENTITY_ALIGN, WASM32_GUARD_IDENTITY_NAMESPACE_OFFSET,
-        WASM32_GUARD_IDENTITY_SIZE, WASM32_GUARD_IDENTITY_VALUE_OFFSET, WASM32_GUARD_TOKEN_ALIGN,
-        WASM32_GUARD_TOKEN_SIZE, WASM32_INTRINSIC_ID_SIZE,
+        CodegenAbiImportId, CodegenAbiValueType, I32, I64, NATIVE_PROC_STATUS_DECLINED,
+        NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET,
+        WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE,
+        WASM32_FUNCTION_TABLE_IMPORT, WASM32_GUARD_DOMAINS_SIZE, WASM32_GUARD_IDENTITY_ALIGN,
+        WASM32_GUARD_IDENTITY_NAMESPACE_OFFSET, WASM32_GUARD_IDENTITY_SIZE,
+        WASM32_GUARD_IDENTITY_VALUE_OFFSET, WASM32_GUARD_TOKEN_ALIGN, WASM32_GUARD_TOKEN_SIZE,
+        WASM32_INTRINSIC_ID_SIZE,
     };
 
     #[test]
@@ -681,6 +743,52 @@ mod tests {
             assert!(descriptor.parameters.iter().all(|value| *value == I32));
             assert_eq!(descriptor.results, &[I32][..], "{id:?}");
         }
+    }
+
+    #[test]
+    fn native_proc_dispatch_imports_carry_the_entry_index_and_a_test_counter() {
+        use CodegenAbiValueType::I32;
+
+        // The definition import is `proc_register` plus one trailing entry
+        // index, so a module that binds a native body and one that does not
+        // emit the same call with `entry = 0`.
+        let define = CodegenAbiImportId::ProcDefineNative.descriptor();
+        assert_eq!(define.module, "tcl");
+        assert_eq!(define.name, "tcl_codegen_proc_define_native");
+        assert_eq!(define.parameters, &[I32; 7][..]);
+        assert_eq!(define.results, &[I32][..]);
+        let register = CodegenAbiImportId::ProcRegister.descriptor();
+        assert_eq!(
+            define.parameters.len(),
+            register.parameters.len() + 1,
+            "proc_define_native is proc_register plus the entry index"
+        );
+        assert_eq!(define.results, register.results);
+
+        // The error-edge logger returns nothing: the runtime owns the
+        // `already_logged` protocol, so the emitter has no decision to make.
+        let log = CodegenAbiImportId::LogCommand.descriptor();
+        assert_eq!(log.module, "tcl");
+        assert_eq!(log.name, "tcl_codegen_log_command");
+        assert_eq!(log.parameters, &[I32; 3][..]);
+        assert!(log.results.is_empty());
+
+        let dispatches = CodegenAbiImportId::NativeProcDispatches.descriptor();
+        assert_eq!(dispatches.module, "tcl");
+        assert_eq!(dispatches.name, "tcl_codegen_native_proc_dispatches");
+        assert!(dispatches.parameters.is_empty());
+        assert_eq!(dispatches.results, &[I32][..]);
+    }
+
+    #[test]
+    fn native_proc_entry_statuses_and_the_table_import_name_have_one_spelling() {
+        // `0` is "ran" so a zeroed status word is never mistaken for a
+        // decline, matching every other ABI status in this file.
+        assert_eq!(NATIVE_PROC_STATUS_RAN, 0);
+        assert_eq!(NATIVE_PROC_STATUS_DECLINED, 1);
+        assert_ne!(NATIVE_PROC_STATUS_RAN, NATIVE_PROC_STATUS_DECLINED);
+        // wasm-ld's name for the table `--export-table` publishes.
+        assert_eq!(WASM32_FUNCTION_TABLE_IMPORT, "__indirect_function_table");
     }
 
     #[test]
