@@ -351,6 +351,18 @@ impl DocumentState {
 /// is not open (issue #1707 review).
 struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
 
+/// A source-rehoming read that never waits for live publication while holding
+/// [`Backend::rehoming_gate`].
+enum RehomingDocumentSnapshot {
+    /// Published source bytes, plus the open revision to re-check before the
+    /// index write (`None` means the source was closed and came from Salsa).
+    Ready(DocumentState, Option<u64>),
+    /// An open revision is waiting to acquire the rehoming gate and publish.
+    Pending,
+    /// The URI has neither an open buffer nor a tracked Salsa source.
+    Missing,
+}
+
 impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
     fn text(&self, path: &Path) -> Option<Arc<str>> {
         self.0.get(path).map(Arc::clone)
@@ -18636,6 +18648,66 @@ impl Backend {
     /// convention.
     const STANDALONE_SEED: &'static str = "::";
 
+    /// Capture a source for rehoming without calling [`Self::read_document`].
+    /// The latter waits for `source_published`, which would deadlock here: the
+    /// pending publisher needs the rehoming gate its caller already owns.
+    async fn rehoming_document_snapshot(&self, uri: &Uri) -> RehomingDocumentSnapshot {
+        let docs = self.documents.lock("refresh_source_rehoming").await;
+        match docs.get(uri) {
+            Some(doc) if !doc.source_published => RehomingDocumentSnapshot::Pending,
+            Some(doc) => RehomingDocumentSnapshot::Ready(
+                doc.clone().normalised_for_analysis(),
+                Some(doc.revision),
+            ),
+            None => {
+                let db = self.db.lock().await;
+                let files = self.db_files.lock().await;
+                let Some(file) = files.get(uri).copied() else {
+                    return RehomingDocumentSnapshot::Missing;
+                };
+                RehomingDocumentSnapshot::Ready(
+                    DocumentState::new(file.text(&*db).clone(), file.dialect(&*db).clone())
+                        .normalised_for_analysis(),
+                    None,
+                )
+            }
+        }
+    }
+
+    /// Replace one rehomed index view only if the source snapshot is still the
+    /// authoritative published revision. On index contention, join its fair
+    /// queue while holding no document-map guard, then re-check currency.
+    async fn publish_rehomed_if_current(
+        &self,
+        uri: &Uri,
+        open_revision: Option<u64>,
+        analyses: &[AnalysisResult],
+    ) -> bool {
+        loop {
+            let docs = self.documents.lock("refresh_source_rehoming_publish").await;
+            let current = match open_revision {
+                Some(revision) => docs.get(uri).is_some_and(|current| {
+                    current.source_published && current.revision == revision
+                }),
+                None => !docs.contains_key(uri),
+            };
+            if !current {
+                return false;
+            }
+            docs.retag("refresh_source_rehoming_publish: workspace_index.try_write");
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(docs);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            index.remove_document(uri.as_str());
+            for analysis in analyses {
+                index.add_document(uri.as_str(), analysis);
+            }
+            return true;
+        }
+    }
+
     /// Whether a seed set is exactly the standalone view — i.e. the document is
     /// **not** re-homed and [`Self::rehomed_source_seeds`] must hold no entry
     /// for it.
@@ -18704,8 +18776,17 @@ impl Backend {
                 let Ok(uri) = Uri::from_str(&uri_s) else {
                     continue;
                 };
-                let Some(doc) = self.read_document(&uri).await else {
-                    continue;
+                // Never call `read_document` while holding `rehoming_gate`:
+                // that reader waits for a publication-pending open document,
+                // while live publication needs this same gate to finish. Read
+                // a published open snapshot directly, or the tracked Salsa
+                // source for a closed document. A pending live revision makes
+                // this pass retire immediately so its publisher can take the
+                // gate; the next query reconciles the newly published view.
+                let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await {
+                    RehomingDocumentSnapshot::Ready(doc, revision) => (doc, revision),
+                    RehomingDocumentSnapshot::Pending => return,
+                    RehomingDocumentSnapshot::Missing => continue,
                 };
                 let text = doc.text.clone();
                 let dialect = doc.dialect.clone();
@@ -18731,12 +18812,11 @@ impl Backend {
                 else {
                     continue;
                 };
+                if !self
+                    .publish_rehomed_if_current(&uri, open_revision, &analyses)
+                    .await
                 {
-                    let mut index = self.workspace_index.write().await;
-                    index.remove_document(&uri_s);
-                    for analysis in &analyses {
-                        index.add_document(&uri_s, analysis);
-                    }
+                    return;
                 }
                 if Self::is_standalone_view(&seeds) {
                     self.rehomed_source_seeds.lock().await.remove(&uri_s);
@@ -21702,7 +21782,11 @@ impl LanguageServer for Backend {
         // below: the enriched reads landed inside the budget (so this response
         // *is* the enriched viewport), versus the document having no analysis
         // handles at all.
-        let served_enriched = cached_cu.is_some() || cached_analysis.is_some();
+        // Both inputs are required for the complete enriched tier. A Salsa
+        // write can cancel one read after its sibling completed; that partial
+        // result is useful for this response but remains retryable rather than
+        // being mislabeled final (#1854 automated review).
+        let served_enriched = cached_cu.is_some() && cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.  The text goes in behind an `Arc` so the
         // convergence continuation below shares this buffer instead of taking a
@@ -41235,6 +41319,69 @@ proc p {} {
         assert!(
             refs.iter().any(|l| l.uri == a),
             "the sourcing document's qualified call must still resolve: {refs:?}"
+        );
+    }
+
+    /// Automated review of #1854: reconciliation owns `rehoming_gate`, while
+    /// a pending live publication needs that gate to mark its document ready.
+    /// Waiting through `read_document` here therefore formed a direct cycle.
+    /// A pass that encounters the pending sourced document must retire, release
+    /// the gate, and let the next pass reconcile the published revision.
+    #[tokio::test]
+    async fn rehoming_never_waits_for_live_publication_that_needs_its_gate_1854() {
+        let backend = test_backend();
+        let parent = Uri::from_str("file:///rehoming-publication/a.tcl").unwrap();
+        let sourced = Uri::from_str("file:///rehoming-publication/b.tcl").unwrap();
+        register(&backend, &sourced, "proc helper {} {}\n").await;
+        register(
+            &backend,
+            &parent,
+            "namespace eval ::live { source b.tcl }\n",
+        )
+        .await;
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&sourced)
+            .expect("the sourced document is open")
+            .source_published = false;
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(1),
+            backend.refresh_source_rehoming(),
+        )
+        .await
+        .expect("rehoming must release its gate instead of waiting for publication");
+        assert!(
+            backend.rehoming_gate.try_lock().is_ok(),
+            "the pending publisher must be able to acquire the released gate",
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::live::helper"),
+            "a pending revision must not publish a stale re-homed view",
+        );
+
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&sourced)
+            .expect("the sourced document remains open")
+            .source_published = true;
+        backend.live_publication_advanced.notify_waiters();
+        backend.refresh_source_rehoming().await;
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::live::helper"),
+            "the next pass must reconcile the published live revision",
         );
     }
 
