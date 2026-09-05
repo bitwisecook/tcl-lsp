@@ -56,8 +56,8 @@
 //! *lowering*: turning the owner's borrow-free spans into this crate's
 //! borrow-based `Command`/`Word` tree, and applying the eval-facing
 //! word-delimiter rules on the way (`{braced}` is literal; `"quoted"` must
-//! close; text welded onto a close-brace is C's `extra characters after
-//! close-brace`).
+//! close; text welded onto a close-brace or a close-quote is C's `extra
+//! characters after close-brace` / `…close-quote`).
 //!
 //! This crate used to carry its own copy of the decomposer (`scan_parts`,
 //! `scan_var_name`, `skip_command_subst`, `parse_var_ref`) with `subst.rs`
@@ -411,12 +411,15 @@ fn script_parse_error(
 /// C's parse errors for the word delimiters this module owns — spelled by
 /// the shared owner, not re-typed here.
 ///
-/// The lexer itself stays lenient about all three — it is shared with the LSP,
+/// The lexer itself stays lenient about all four — it is shared with the LSP,
 /// which must keep tokenizing broken source — so this eval-facing parser is
 /// the one that fails closed, carrying the failure as a
 /// [`WordPart::ParseError`] the evaluator raises when it reaches the word
 /// (issues #1576, #1586).
-use tcl_lexer::word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE};
+use tcl_lexer::{
+    word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE},
+    EXTRA_AFTER_CLOSE_QUOTE,
+};
 
 /// Whether a `Str` token that **opens a brace** never found its closing `}`
 /// before end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the
@@ -473,6 +476,23 @@ fn build_word<'s>(
             kind,
             expand,
             body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_BRACE)]),
+            start,
+        };
+    }
+    // The sibling shape on a quote (`"a"b`, `""b`, `"a"$b`, `"a"[b]`,
+    // `"a"{b}`, `"a$x"b`, `"a[x]"c`) is C's `extra characters after
+    // close-quote`, also raised while the command is parsed — measured on
+    // 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0, `list [sfx inner] "a"b`
+    // reports it without running `sfx`. `tcl_lexer::first_parse_cut` already
+    // answered it from source; this engine concatenated to `ab` instead, the
+    // one divergence `tests/parse_cut_agreement.rs` had to pin (#1828). Same
+    // order as the brace: before anything else in the word, because C stops
+    // at the `"`.
+    if word.welded_after_close_quote {
+        return Word {
+            kind,
+            expand,
+            body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_QUOTE)]),
             start,
         };
     }
@@ -1076,6 +1096,28 @@ mod tests {
             WordBody::Literal(b) => assert!(std::ptr::eq(b.as_ptr(), src.as_ptr())),
             _ => panic!("expected zero-copy Literal"),
         }
+    }
+
+    /// The welded close-quote is a `ParseError` part, ahead of anything else
+    /// in the word — and `"$"` is still the text `$`, not a weld (the #527
+    /// empty-content clamp; see `tcl_lexer::script`).
+    #[test]
+    fn a_welded_close_quote_is_a_parse_error_part() {
+        for src in [
+            &b"set y \"a\"b"[..],
+            b"set y \"\"b",
+            b"set y \"a$x\"b",
+            b"set y \"a\"$b",
+        ] {
+            let c = nth(src, 0);
+            assert_eq!(
+                parts(&c.words[2]),
+                &[WordPart::ParseError(EXTRA_AFTER_CLOSE_QUOTE)],
+                "{}",
+                String::from_utf8_lossy(src)
+            );
+        }
+        assert_eq!(lit(&nth(b"puts \"$\"", 0).words[1]), b"$");
     }
 
     #[test]
