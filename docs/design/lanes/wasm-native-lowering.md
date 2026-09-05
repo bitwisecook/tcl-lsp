@@ -1435,6 +1435,40 @@ materialisation, `puts "[branch 1]|[branch 0]<"` fails without the decline, and
 `a_native_entry_that_writes_no_result_answers_with_the_empty_string` fails
 without the reset.
 
+### The pending return state (P1 review finding (a))
+
+**Found by review, reproduced before fixing.** `NativeOp::Complete { code:
+Return }` set the completion code and nothing else, but the `return` command
+also records `(-level 1, -code ok)`, and `Interp::settle_return` consumes that
+state whether or not anything set it. `catch` reports a deferred return's code
+without crossing a boundary, so `catch {return -level 2 -code error boom}`
+leaves `(2, Error)` behind — and the next compiled `return` had its level
+counted down from 2 instead of 1 and propagated code 2 to its caller.
+
+Measured before the fix on `37_return_state.tcl`: tclsh 9.0.4, tclsh 8.6.16,
+`run_script` and the default plan all answer `0 v / 0 v / 0 {}`; the native
+plan answered `2 v / 2 v / 2 {}`. **Compiled-only, and native-tier-only** —
+every other tier reaches the runtime `return` command.
+
+The fix is the write itself, at the completion site: a new ABI import
+`tcl_codegen_return_state(level, code)` mirroring `Interp::set_return_state`,
+emitted for every `Complete { code: Return }`. Only the plain `return` /
+`return value` forms reach that op — every `-code`/`-level` form keeps the
+generic invocation, which records the state itself, and `settle_return` ignores
+every completion code but `Return`. Both directions are pinned, at the ABI
+(`a_compiled_return_records_the_state_the_return_command_records`, which runs a
+stub with and without the write) and at the emitter
+(`a_compiled_return_records_the_pending_return_state`, which also checks the
+option-carrying form does *not* double-write).
+
+Not the same shape as the reused result slot, and worth saying so: the result
+slot was a function-local reused across executions of one statement, so its
+exposure was loop-shaped. The pending return state is global interpreter state,
+so it is *call*-shaped — stale across unrelated statements and calls, and no
+loop is needed to reach it. Writing it at the completion site rather than at
+function entry is what makes it correct however many times the statement runs,
+and leaves the runtime's decline path untouched.
+
 ### The table install (delivered)
 
 `::top`'s prologue, spliced ahead of everything else in `backend.rs`:
@@ -1569,6 +1603,7 @@ control: both have procedures that lower and are admissible, but their `proc`
 statements sit after a `namespace eval` / a widening command, so no definition
 takes the native shape, nothing is bound, and their numbers do not move.
 
-Two rows are new: `35_native_dispatch_matrix`
+Three rows are new: `37_return_state` (1/0/8/0),
+`35_native_dispatch_matrix`
 (`eval_code / expr_bool / invoke_argv / native_i64_f64` = 0/0/62/29) and
 `36_proc_error_info` (0/0/17/0).

@@ -52,6 +52,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use tcl_core_types::Code as CompletionCode;
 use tcl_runtime_api::codegen_abi::{
     CodegenAbiImportId, NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_CODE_OFFSET,
     WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
@@ -115,6 +116,7 @@ pub(super) struct NativeImports {
     mathfunc: u32,
     proc_define_native: u32,
     log_command: u32,
+    return_state: u32,
 }
 
 /// Declare every import the native tier uses.
@@ -156,6 +158,7 @@ pub(super) fn add_native_imports(
         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
         proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
         log_command: add(wasm, CodegenAbiImportId::LogCommand),
+        return_state: add(wasm, CodegenAbiImportId::ReturnState),
     }
 }
 
@@ -370,6 +373,9 @@ const PROC_ENTRY_PARAMS: u64 = 3;
 
 /// The Tcl completion code an `errorInfo` frame is logged for.
 const TCL_ERROR: i64 = 1;
+
+/// The `-level` a plain `return` records: one enclosing boundary consumes it.
+const PLAIN_RETURN_LEVEL: i64 = 1;
 
 /// Local slots reserved before the NLIR values.
 const LOCAL_FRAME: u64 = 0;
@@ -1525,6 +1531,20 @@ impl Emitter<'_, '_> {
             }
             NativeOp::Complete { code, result } => {
                 let code_local = self.code_local(completion);
+                // A compiled `return` *is* the `return` command, so it records
+                // the pending return state that command records for its plain
+                // form. Without it the enclosing procedure's return boundary
+                // (`Interp::settle_return`) consumes whatever an earlier
+                // `return -level N` left behind, and the call propagates code
+                // 2 — or a stale requested code — instead of its value. Only
+                // `return` reaches this arm: every option-carrying form keeps
+                // the generic invocation, which records the state itself, and
+                // `settle_return` ignores every completion code but `Return`.
+                if *code == CompletionCode::Return {
+                    self.i32(PLAIN_RETURN_LEVEL);
+                    self.i32(i64::from(CompletionCode::Ok.as_int()));
+                    self.call(self.imports.return_state);
+                }
                 self.i32(code.as_int());
                 self.set(code_local);
                 if let Some(result) = result {

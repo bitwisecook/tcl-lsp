@@ -1452,6 +1452,31 @@ pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, 
     unsafe { (*interp).log_command_bytes(line, src) };
 }
 
+/// Record the pending `return -level`/`-code` state, exactly as the `return`
+/// command records it.
+///
+/// A compiled `return` completes with code `2` without dispatching the `return`
+/// command, so without this nothing writes the state and the procedure's return
+/// boundary ([`Interp::settle_return`]) consumes whatever an earlier
+/// `return -level N` left behind — a caught `return -level 2` anywhere ahead of
+/// the call would make the procedure propagate code `2`, or a stale requested
+/// code, instead of returning its value. The emitter therefore writes
+/// `(level = 1, code = Ok)` at every compiled plain `return`, which is exactly
+/// what `return`'s own implementation writes for that form.
+///
+/// An out-of-range `level` is clamped at zero and an unknown `code` becomes an
+/// error code, the same way the `return` command's own parsing bounds them.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_return_state(level: i32, code: i32) {
+    let interp = current_interp();
+    if interp.is_null() {
+        return;
+    }
+    let level = usize::try_from(level).unwrap_or(0);
+    // SAFETY: the bootstrap installed a live current interpreter.
+    unsafe { (*interp).set_return_state(level, crate::interp::Code::from_int(code)) };
+}
+
 /// The number of proc bodies the current interpreter has run through a native
 /// entry rather than their source body; `-1` with no current interpreter.
 ///
@@ -3721,6 +3746,41 @@ mod tests {
         NATIVE_PROC_STATUS_RAN
     }
 
+    /// A stub in the shape the emitter produces for a plain `return v`: it
+    /// records the pending return state the `return` command records, then
+    /// completes with the raw `Code::Return` the interpreted body reports.
+    unsafe extern "C" fn stub_plain_return(
+        _argv: *const *mut TclObj,
+        _argc: i32,
+        out: *mut TclCompletionAbi,
+    ) -> i32 {
+        STUB_CALLS.with(|calls| calls.set(calls.get() + 1));
+        tcl_codegen_return_state(1, Code::Ok.as_int() as i32);
+        // SAFETY: `out` is the runtime's own zeroed completion storage, and
+        // `owned_word` hands over one owned reference on the result.
+        unsafe {
+            (*out).code = Code::Return.as_int() as i32;
+            (*out).result = owned_word(b"v");
+        }
+        NATIVE_PROC_STATUS_RAN
+    }
+
+    /// The same stub without the state write — what an emitter that treated
+    /// `Code::Return` as nothing but a completion code would produce.
+    unsafe extern "C" fn stub_return_without_state(
+        _argv: *const *mut TclObj,
+        _argc: i32,
+        out: *mut TclCompletionAbi,
+    ) -> i32 {
+        STUB_CALLS.with(|calls| calls.set(calls.get() + 1));
+        // SAFETY: as above.
+        unsafe {
+            (*out).code = Code::Return.as_int() as i32;
+            (*out).result = owned_word(b"v");
+        }
+        NATIVE_PROC_STATUS_RAN
+    }
+
     /// A stub that declines before doing anything at all — the only shape a
     /// decline may take, since the runtime then runs the source body in the
     /// frame it already prepared.
@@ -4209,6 +4269,39 @@ mod tests {
                 assert_eq!(
                     eval(interp, "list [set marker] [quiet]").1,
                     b"abc {}".to_vec()
+                );
+            });
+        });
+    }
+
+    /// A compiled `return` has to record the pending return state, because
+    /// the return boundary consumes it whether or not anything set it.
+    ///
+    /// `catch {return -level 2 …}` leaves `(level 2, code error)` behind:
+    /// `catch` reports the code without crossing a boundary, so nothing
+    /// decrements it. An entry that then completes with `Code::Return` and no
+    /// state write has its level counted down from 2 instead of 1, and the
+    /// call propagates `Code::Return` to its caller instead of returning `v`.
+    /// tclsh 9.0.4 and 8.6.16 both answer `0 v` here.
+    #[test]
+    fn a_compiled_return_records_the_state_the_return_command_records() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                define_native(b"p", b"", b"return source", Some(stub_plain_return));
+                define_native(b"bad", b"", b"return source", Some(stub_return_without_state));
+
+                // Poison the pending state exactly as a caught deferred
+                // return does, then ask each entry for its answer.
+                let poison = "catch {return -level 2 -code error boom}";
+                assert_eq!(eval(interp, poison).1, b"2");
+                assert_eq!(eval(interp, "list [catch {p} m] $m").1, b"0 v");
+
+                assert_eq!(eval(interp, poison).1, b"2");
+                assert_eq!(
+                    eval(interp, "list [catch {bad} m] $m").1,
+                    b"2 v",
+                    "without the state write the boundary consumes the stale \
+                     level and the call propagates a return"
                 );
             });
         });

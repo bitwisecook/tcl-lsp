@@ -1357,3 +1357,40 @@ set r [grow hi]
         Some(tcl_compiler::native_lowering::ProcEntryDecline::UndeterminedResult)
     );
 }
+
+/// A compiled `return` calls the pending-return-state ABI, because completing
+/// with code 2 is only half of what the `return` command does.
+///
+/// The other half — `-level 1, -code ok` — is what the enclosing procedure's
+/// return boundary consumes. Without it a caught `return -level 2` earlier in
+/// the program makes the call propagate a return instead of its value.
+#[test]
+fn a_compiled_return_records_the_pending_return_state() {
+    let module = compile_native("proc p {} { return v }\nproc q {} { return }\nset r [p]\n");
+    let state = import_index(&module, CodegenAbiImportId::ReturnState);
+    for name in ["::p", "::q"] {
+        let entry = module
+            .functions
+            .iter()
+            .find(|function| function.name == name)
+            .unwrap_or_else(|| panic!("the tier emits {name}"));
+        assert!(
+            call_targets(entry).contains(&state),
+            "{name} completes with a return, so it must record the state"
+        );
+    }
+    // An option-carrying `return` keeps the generic invocation, which records
+    // the state itself — so the emitter must not double-write it there.
+    let options = compile_native("proc r {} { return -code error boom }\nset a 1\n");
+    let entry = options
+        .functions
+        .iter()
+        .find(|function| function.name == "::r")
+        .expect("the tier emits ::r");
+    let targets = call_targets(entry);
+    assert!(
+        !targets.contains(&import_index(&options, CodegenAbiImportId::ReturnState)),
+        "an option-carrying `return` reaches the runtime command"
+    );
+    assert!(targets.contains(&import_index(&options, CodegenAbiImportId::InvokeArgv)));
+}

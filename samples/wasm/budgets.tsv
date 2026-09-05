@@ -83,6 +83,9 @@ t3-procs	35_native_dispatch_matrix	native	0	0	62	29
 t3-procs	36_proc_error_info	default	15	0	0	0
 t3-procs	36_proc_error_info	analysis	3	0	16	0
 t3-procs	36_proc_error_info	native	0	0	17	0
+t3-procs	37_return_state	default	15	0	0	0
+t3-procs	37_return_state	analysis	5	0	8	0
+t3-procs	37_return_state	native	1	0	8	0
 t4-scopes	40_global_variable	default	12	0	0	0
 t4-scopes	40_global_variable	analysis	3	0	7	0
 t4-scopes	40_global_variable	native	0	0	10	0

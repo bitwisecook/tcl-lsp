@@ -276,6 +276,15 @@ to bind** a body whose returned completion determines no result at all: an
 body is still emitted; it is simply not installed, and the definition keeps its
 source body. `FunctionReport.binding` records which, and the Explorer shows it.
 
+A compiled `return` is the `return` command, not merely its completion code:
+it records the pending `-level 1 -code ok` state through
+`tcl_codegen_return_state` before completing with `Return`. The enclosing
+procedure's return boundary consumes that state whether or not anything set
+it, so without the write a `catch {return -level 2 …}` anywhere earlier in the
+program leaves a level behind and the *next* compiled `return` propagates a
+return instead of its value. Every option-carrying `return` keeps the generic
+invocation, which records the state itself.
+
 Each statement also logs its own `errorInfo` frame on its error edge
 (`tcl_codegen_log_command`, with the statement's exact text and its line within
 the body it was compiled from). Generated code reaches no eval loop, so without
