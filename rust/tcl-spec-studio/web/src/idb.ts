@@ -41,6 +41,13 @@ export interface Session {
   dialect: string;
   /** The Test tab's sample code — as much a part of the work as the pack. */
   sample?: string;
+  /**
+   * The registry browser's opened pack sections.
+   *
+   * Absent in a record written before packs were the browser's top level,
+   * which restores as "nothing opened" rather than as a failure to restore.
+   */
+  expanded?: string[];
 }
 
 const DB_NAME = "tcl-spec-studio";
@@ -131,6 +138,9 @@ export async function load(): Promise<Session | null> {
         open: typeof row.open === "string" ? row.open : null,
         dialect: typeof row.dialect === "string" ? row.dialect : "tcl9.0",
         sample: typeof row.sample === "string" ? row.sample : undefined,
+        expanded: Array.isArray(row.expanded)
+          ? row.expanded.filter((id): id is string => typeof id === "string")
+          : undefined,
       });
     };
     request.onerror = () => resolve(null);

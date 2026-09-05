@@ -926,7 +926,13 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         interp.restore_line_base(old);
     }
     match result {
-        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.msg)),
+        // The boolean-context refusal keeps its own `-errorcode` (tclsh:
+        // `set x o; if {$x} {}` is `TCL VALUE NUMBER`, a NaN condition is
+        // `TCL VALUE DOUBLE NAN`), exactly as the eval failure below does.
+        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        }),
         // A propagated sub-eval code unwinds the condition: an error keeps its
         // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
         // `[cmd]` substitution carries that code out of the loop/`if`.

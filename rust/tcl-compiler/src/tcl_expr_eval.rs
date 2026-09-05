@@ -2522,6 +2522,33 @@ mod tests {
         assert_eq!(eval_str("round(2.5)"), Some(TclValue::Int(3)));
     }
 
+    /// The fold is C's `modf` form, not `floor(d + 0.5)`, which rounds twice
+    /// and would bake `1` and `4503599627370498` into the compiled code where
+    /// tclsh 8.6.16/9.0.4 answer `0` and `4503599627370497`.
+    #[test]
+    fn math_round_folds_the_exact_value_not_d_plus_a_half() {
+        assert_eq!(
+            eval_str("round(0.49999999999999994)"),
+            Some(TclValue::Int(0))
+        );
+        assert_eq!(
+            eval_str("round(-0.49999999999999994)"),
+            Some(TclValue::Int(0))
+        );
+        assert_eq!(
+            eval_str("round(4503599627370497.0)"),
+            Some(TclValue::Int(4_503_599_627_370_497))
+        );
+        assert_eq!(
+            eval_str("round(-4503599627370497.0)"),
+            Some(TclValue::Int(-4_503_599_627_370_497))
+        );
+        assert_eq!(
+            eval_str("round(2251799813685248.5)"),
+            Some(TclValue::Int(2_251_799_813_685_249))
+        );
+    }
+
     #[test]
     fn math_ceil_and_floor_return_floats() {
         assert_eq!(eval_str("ceil(1.2)"), Some(TclValue::Float(2.0)));

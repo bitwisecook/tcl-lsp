@@ -142,6 +142,17 @@ pub fn command_index(dialect: &str) -> Value {
                 "subcommands": spec.subcommands.len(),
                 "options": spec.options.len(),
                 "deprecated": spec.deprecated_replacement.is_some(),
+                // Provenance: the `commands/<pack>/` module this very spec is
+                // declared in. Asked with the resolved spec, not the name, so
+                // a dialect that re-declares a core command is filed under the
+                // declaration it actually registered.
+                "pack": tcl_registry::registry::spec_pack_of(spec),
+                // The other packs that declare the same name, when there are
+                // any — `close` is authored in `tcl`, `expect` and `irules`.
+                "also_in": tcl_registry::registry::spec_packs_of(name)
+                    .iter()
+                    .filter(|id| Some(**id) != tcl_registry::registry::spec_pack_of(spec))
+                    .collect::<Vec<_>>(),
             }))
         })
         .collect();
@@ -157,6 +168,41 @@ pub fn load_command(name: &str, dialect: &str) -> Option<Value> {
     let mut d = draft::from_command_spec(spec);
     d.insert(draft::SOURCE_DIALECT_KEY.to_owned(), json!(dialect));
     Some(Value::Object(d))
+}
+
+/// The authoring packs `dialect` actually browses, with the commands each
+/// contributes — the studio's top-level navigation.
+///
+/// Only packs that reach this dialect are listed, so the Tcl 8.4 picker does
+/// not offer an empty **F5 iRules** heading. Ordering is
+/// [`SPEC_PACKS`](tcl_registry::commands::SPEC_PACKS)': core language, then
+/// the libraries that layer on it, then the vendor and authoring surfaces.
+#[must_use]
+pub fn pack_catalogue(dialect: &str) -> Value {
+    let registry = environment::store_for_dialect(dialect);
+    let mut counts: std::collections::HashMap<&'static str, usize> =
+        std::collections::HashMap::new();
+    for name in registry.command_names() {
+        if let Some(spec) = registry.get(name)
+            && let Some(pack) = tcl_registry::registry::spec_pack_of(spec)
+        {
+            *counts.entry(pack).or_default() += 1;
+        }
+    }
+    let packs: Vec<Value> = tcl_registry::commands::SPEC_PACKS
+        .iter()
+        .filter_map(|pack| {
+            let commands = counts.get(pack.id).copied()?;
+            Some(json!({
+                "id": pack.id,
+                "label": pack.label,
+                "blurb": pack.blurb,
+                "commands": commands,
+                "path": format!("rust/tcl-registry/src/commands/{}", pack.id),
+            }))
+        })
+        .collect();
+    json!({ "dialect": dialect, "packs": packs })
 }
 
 /// The dialect list the studio's picker shows.
@@ -201,6 +247,61 @@ mod tests {
         }
         assert_eq!(loaded["name"], json!("lappend"));
         assert_eq!(loaded[draft::SOURCE_DIALECT_KEY], json!("tcl9.0"));
+    }
+
+    #[test]
+    fn every_indexed_command_names_the_pack_that_declares_it() {
+        for dialect in ["tcl9.0", "f5-irules", "spectcl"] {
+            let index = command_index(dialect);
+            for entry in index["commands"].as_array().expect("commands array") {
+                assert!(
+                    entry["pack"].is_string(),
+                    "{} has no pack in {dialect}",
+                    entry["name"]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_pack_catalogue_covers_every_indexed_command() {
+        for dialect in ["tcl8.4", "tcl9.0", "f5-irules"] {
+            let catalogue = pack_catalogue(dialect);
+            let packs = catalogue["packs"].as_array().expect("packs array");
+            assert!(!packs.is_empty(), "{dialect} browses no packs");
+            let total: usize = packs
+                .iter()
+                .map(|p| {
+                    assert!(
+                        p["commands"].as_u64().unwrap_or(0) > 0,
+                        "{dialect} lists an empty pack {}",
+                        p["id"]
+                    );
+                    usize::try_from(p["commands"].as_u64().unwrap_or(0)).unwrap_or(0)
+                })
+                .sum();
+            let indexed = command_index(dialect)["commands"]
+                .as_array()
+                .expect("commands array")
+                .len();
+            assert_eq!(total, indexed, "{dialect} pack counts miss commands");
+        }
+    }
+
+    /// iRules declares its own `close`, so browsing iRules files it under
+    /// `irules` while Tcl 9.0 still files the core one under `tcl`.
+    #[test]
+    fn a_redeclared_command_follows_the_dialect_that_registered_it() {
+        let pack_of = |dialect: &str, name: &str| {
+            command_index(dialect)["commands"]
+                .as_array()
+                .expect("commands array")
+                .iter()
+                .find(|entry| entry["name"] == name)
+                .map(|entry| entry["pack"].as_str().unwrap_or("").to_owned())
+        };
+        assert_eq!(pack_of("tcl9.0", "close").as_deref(), Some("tcl"));
+        assert_eq!(pack_of("f5-irules", "close").as_deref(), Some("irules"));
     }
 
     #[test]

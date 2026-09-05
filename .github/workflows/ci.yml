@@ -565,9 +565,11 @@ jobs:
         id: vscode-version
         run: |
           set -uo pipefail
-          ver=$(curl -fsSL --max-time 20 \
-            https://update.code.visualstudio.com/api/update/linux-x64/stable/latest \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])' 2>/dev/null || true)
+          ver=""
+          if curl -fsSL --max-time 20 -o /tmp/vscode-stable.json \
+               https://update.code.visualstudio.com/api/update/linux-x64/stable/latest; then
+            ver=$(python3 -c 'import json; print(json.load(open("/tmp/vscode-stable.json"))["name"])' 2>/dev/null || true)
+          fi
           if [ -z "$ver" ]; then
             ver="unresolved-$(date -u +%Y-%m-%d)"
             echo "::warning::could not resolve VS Code stable version; using $ver"
@@ -658,7 +660,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_EXT_WEB == 'true'
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: wasm-bindgen-cli@0.2.127
 
@@ -711,9 +713,11 @@ jobs:
         id: vscode-web-version
         run: |
           set -uo pipefail
-          ver=$(curl -fsSL --max-time 20 \
-            https://update.code.visualstudio.com/api/update/web-standalone/insider/latest \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null || true)
+          ver=""
+          if curl -fsSL --max-time 20 -o /tmp/vscode-web.json \
+               https://update.code.visualstudio.com/api/update/web-standalone/insider/latest; then
+            ver=$(python3 -c 'import json; print(json.load(open("/tmp/vscode-web.json"))["version"])' 2>/dev/null || true)
+          fi
           if [ -z "$ver" ]; then
             ver="unresolved-$(date -u +%Y-%m-%d)"
             echo "::warning::could not resolve the VS Code web build; using $ver"
@@ -871,7 +875,7 @@ jobs:
           version: v0.16.0
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: nextest
 
@@ -963,7 +967,7 @@ jobs:
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: nextest
 
@@ -1107,7 +1111,7 @@ jobs:
       # under test drift without a commit.
       - name: Install the wasmtime CLI
         if: needs.channel.outputs.docs_only != 'true'
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: wasmtime@47.0.3
 
@@ -1197,7 +1201,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_LSP_WASM == 'true'
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: wasm-bindgen-cli@0.2.127
 
@@ -1277,7 +1281,7 @@ jobs:
       # (RELEASE_WASI without RUN_LSP_WASI) never downloads it.
       - name: Install the wasmtime CLI
         if: env.RUN_LSP_WASI == 'true'
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: wasmtime@47.0.3
 
@@ -1349,7 +1353,7 @@ jobs:
           version: v0.16.0
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: nextest
 
@@ -1388,7 +1392,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: cargo-deny@0.20.2
 
@@ -1451,13 +1455,22 @@ jobs:
           key: ${{ runner.os }}-venv-typecheck-${{ steps.pykey.outputs.pyver }}-${{ hashFiles('rust/bigip-report-gen/python/**') }}
 
       # Pinned installer rather than a floating action, so the uv that resolves
-      # the pinned tool versions is itself pinned.
+      # the pinned tool versions is itself pinned.  The installer is fetched to
+      # a file and checked against its digest before it runs — a version tag
+      # alone still trusts whatever astral.sh serves under it.  If Astral
+      # regenerates the script this fails loudly; re-pin with
+      # `curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum`.
       - name: Install uv
         if: env.RUN_PY == 'true'
         env:
           UV_VERSION: "0.11.28"
+          UV_INSTALLER_SHA256: "b7b3fe80cad1142a2a5794050b7db7b3291d1bac1423b0732571dd9366e8ca8b"
         run: |
-          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          set -euo pipefail
+          curl -LsSf --max-time 120 -o /tmp/uv-installer.sh \
+            "https://astral.sh/uv/${UV_VERSION}/install.sh"
+          echo "${UV_INSTALLER_SHA256}  /tmp/uv-installer.sh" | sha256sum -c -
+          sh /tmp/uv-installer.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Verify uv version
@@ -1936,7 +1949,7 @@ jobs:
       # The VSIX embeds the spec studio, whose real LSP worker is built from
       # Rust to wasm32 and post-processed with the version matching its lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: wasm-bindgen-cli@0.2.127
 
@@ -2149,7 +2162,7 @@ jobs:
       # The JetBrains plugin embeds the same spec studio as the VSIX. Keep the
       # CLI pinned to the wasm-bindgen crate version in the standalone lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: wasm-bindgen-cli@0.2.127
 

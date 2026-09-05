@@ -65,8 +65,51 @@ updates:
         exclude-patterns:
           - "npm"
 
+  # Every npm project in the tree needs its own entry — Dependabot does not
+  # walk sub-directories.  The spec-studio web app was the gap that let four
+  # DOMPurify advisories sit unnoticed (they only surfaced through the
+  # Scorecard `Vulnerabilities` check, which reads the lockfiles directly).
+  - package-ecosystem: npm
+    directory: /rust/tcl-spec-studio/web
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /rust/bigip-report-gen/frontend
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  # Every cargo root in the tree, not just the workspace at `/`.  The root
+  # `[workspace] exclude` list (Cargo.toml) holds each target that cannot
+  # inherit the workspace lints or targets wasm32 — every one is a separate
+  # crate with its own Cargo.lock, so Dependabot has to be pointed at it
+  # explicitly.  Only `editors/zed` was tracked, which left the shipped `.pyz`
+  # bindings, the report and query WASM builds, both browser/WASI language
+  # server transports and the VM unmonitored.  `directories` keeps that as one
+  # grouped PR a week rather than twelve.  Keep this list in step with
+  # `[workspace] exclude`; `git ls-files '*Cargo.lock'` is the check.
   - package-ecosystem: cargo
-    directory: /editors/zed
+    directories:
+      - /
+      - /runtime/rust
+      - /editors/zed
+      - /rust/bigip-query-wasm
+      - /rust/bigip-report-gen/python
+      - /rust/bigip-report-gen/wasm
+      - /rust/tcl-explorer-wasm
+      - /rust/tcl-lsp-server-wasi
+      - /rust/tcl-lsp-server-wasm
+      - /rust/tcl-spec-studio-wasm
+      - /rust/tcl-vm-wasm
+      - /rust/zed-query-check
     schedule:
       interval: weekly
     groups:

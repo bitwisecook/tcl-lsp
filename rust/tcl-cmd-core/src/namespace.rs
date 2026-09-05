@@ -538,10 +538,13 @@ pub fn children<O: ValueOps + Namespaces>(
 
 /// The observable order owner for Tcl's `TCL_STRING_KEYS` hash table.
 ///
-/// Namespace adapters keep one instance per namespace instead of reconstructing
-/// it from the live children: Tcl quadruples the bucket array at a 3:1 load
-/// factor and never shrinks it when entries are deleted, while each resize also
-/// reverses bucket chains. Both facts affect `Tcl_FirstHashEntry` order.
+/// Namespace adapters keep one instance per namespace child table *and* one per
+/// namespace command table instead of reconstructing either from the live
+/// entries: Tcl quadruples the bucket array at a 3:1 load factor and never
+/// shrinks it when entries are deleted, while each resize also reverses bucket
+/// chains. Both facts affect `Tcl_FirstHashEntry` order, which
+/// `TclDeleteNamespaceChildren` and `TclTeardownNamespace` snapshot before
+/// deleting each token.
 #[derive(Clone, Debug)]
 pub struct TclStringHashOrder {
     buckets: Vec<Vec<Vec<u8>>>,
@@ -581,6 +584,27 @@ impl TclStringHashOrder {
             self.rebuild();
         }
         true
+    }
+
+    /// Re-create `key`'s entry at its bucket head, as C's
+    /// `TclCreateObjCommandInNs` does when it redefines an existing command:
+    /// the old hash entry is deleted and a fresh one created, which moves the
+    /// name to the front of its chain.
+    pub fn reinsert(&mut self, key: &[u8]) {
+        self.remove(key);
+        self.insert(key);
+    }
+
+    /// Live entry count (`Tcl_HashTable.numEntries`).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries
+    }
+
+    /// Whether the table holds no live entries.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries == 0
     }
 
     /// Delete `key` without shrinking or rebuilding the bucket array.
@@ -740,6 +764,73 @@ mod tests {
     }
 
     #[test]
+    fn tcl_string_hash_order_matches_command_growth_oracles() {
+        // TclTeardownNamespace snapshots cmdTable in Tcl_FirstHashEntry order,
+        // so a namespace's command-delete traces expose every rebuild the
+        // table went through. Exact tclsh 9.0.4 oracle results (identical on
+        // 8.6.16).
+        let order_of = |count: usize, prefix: &str| -> Vec<String> {
+            let mut table = TclStringHashOrder::default();
+            for index in 0..count {
+                assert!(table.insert(format!("{prefix}{index}").as_bytes()));
+            }
+            assert_eq!(table.len(), count);
+            table
+                .keys()
+                .into_iter()
+                .map(|key| String::from_utf8(key.to_vec()).unwrap())
+                .collect()
+        };
+        // 13 entries cross the 12-entry threshold: 4 buckets become 16.
+        assert_eq!(
+            order_of(13, "c"),
+            [
+                "c5", "c6", "c7", "c8", "c9", "c0", "c1", "c10", "c2", "c11", "c12", "c3", "c4",
+            ]
+        );
+        // 49 entries cross the 48-entry threshold too: 16 buckets become 64.
+        let mut expected: Vec<String> = (10..49).map(|index| format!("k{index}")).collect();
+        expected.extend((0..10).map(|index| format!("k{index}")));
+        assert_eq!(order_of(49, "k"), expected);
+    }
+
+    #[test]
+    fn tcl_string_hash_order_reinsert_moves_the_key_to_its_bucket_head() {
+        // Redefining a command deletes its hash entry and creates a new one
+        // (TclCreateObjCommandInNs), so the name moves to the chain head.
+        // Exact tclsh 9.0.4 oracle result for `proc ::N::one` redefined after
+        // the other nine.
+        let names = [
+            "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        ];
+        let mut table = TclStringHashOrder::default();
+        for name in names {
+            assert!(table.insert(name.as_bytes()));
+        }
+        table.reinsert(b"one");
+        assert_eq!(table.len(), names.len());
+        let actual: Vec<_> = table
+            .keys()
+            .into_iter()
+            .map(|key| core::str::from_utf8(key).unwrap())
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                "six", "four", "three", "eight", "seven", "one", "nine", "five", "two", "ten",
+            ]
+        );
+        // A plain insert of a live key is a no-op: C finds the entry and never
+        // relocates it.
+        assert!(!table.insert(b"one"));
+        assert_eq!(
+            table.keys().first().copied(),
+            Some(b"six".as_slice()),
+            "insert must not move a live key"
+        );
+    }
+
+    #[test]
     fn tcl_string_hash_order_retains_resize_after_deletion() {
         let mut table = TclStringHashOrder::default();
         for index in 0..12 {
@@ -749,5 +840,22 @@ mod tests {
             assert!(table.remove(format!("a{index}").as_bytes()));
         }
         assert_eq!(table.keys(), [b"a0".as_slice(), b"a3".as_slice()]);
+        assert_eq!(table.len(), 2);
+        // Fresh entries land in the retained 16-bucket array, so they precede
+        // the survivors rather than interleaving with them. Exact tclsh 9.0.4
+        // oracle result for the same sequence of `proc`/`rename` commands.
+        for name in ["b1", "b2", "b3"] {
+            assert!(table.insert(name.as_bytes()));
+        }
+        assert_eq!(
+            table.keys(),
+            [
+                b"b1".as_slice(),
+                b"b2".as_slice(),
+                b"b3".as_slice(),
+                b"a0".as_slice(),
+                b"a3".as_slice(),
+            ]
+        );
     }
 }

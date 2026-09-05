@@ -278,13 +278,6 @@ struct CmdFrame {
 /// entry) — see [`Interp::arg_locs`].
 type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
 
-/// One command-trace callback collected during namespace teardown: the
-/// command's FQN and the trace's command prefix. The name doubles as the
-/// grouping key in [`Interp::group_newest_first_per_entity`]. Command traces
-/// have no deprecated spelling, so their op word is always the full `delete`
-/// (C's `TCL_TRACE_OLD_STYLE` is a variable-trace flag only).
-type CmdTeardownCallback = (Vec<u8>, Vec<u8>);
-
 /// One variable-trace callback collected during namespace teardown: the
 /// variable's reported name (including any `(element)`), the trace's command
 /// prefix, and whether it was registered through the deprecated 8.x
@@ -1779,6 +1772,9 @@ impl Interp {
         // it captured here, not whatever the name holds when the callback
         // returns — so the binding is captured alongside the name.
         let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
+        // The token whose trace list this deletion frees, captured before the
+        // callbacks can bind a replacement at the same name.
+        let dying_token = self.resolve_cmd_token(old);
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
@@ -1874,9 +1870,12 @@ impl Interp {
                         self.oo_command_renamed(&of, Some(&nf));
                     }
                 }
-                // The command is gone; its traces and OO registry entry go too.
+                // The command is gone; the dying token's traces and OO
+                // registry entry go with it. A replacement the delete callback
+                // bound at the same name keeps its own traces (C frees only
+                // `cmdPtr->tracePtr`).
                 RenameOutcome::Deleted => {
-                    self.remove_cmd_traces(&of);
+                    self.remove_cmd_traces_of_token(&of, dying_token);
                     let tokens: Vec<_> = ensemble_token.into_iter().collect();
                     let mut origins = vec![of.clone()];
                     if let Some(removed_fqn) = removed_import_fqn {
@@ -2132,6 +2131,11 @@ impl Interp {
     /// A command at `fqn` is being replaced or deleted: fire its `delete`
     /// command traces, then drop every command/execution trace on it (the
     /// command — and its trace list — go away). No-op when it has no traces.
+    ///
+    /// Only the *dying token's* traces are dropped. C frees `cmdPtr->tracePtr`,
+    /// so a trace the callback adds to the command being deleted dies with it,
+    /// while one it registers on a replacement it bound at the same name lives
+    /// on that new token.
     fn on_command_replaced(&mut self, fqn: &[u8]) {
         if self
             .traces
@@ -2142,8 +2146,42 @@ impl Interp {
         {
             return;
         }
+        let dying = self.resolve_cmd_token(fqn);
         self.fire_cmd_trace(fqn, b"", crate::cmd_trace::ops::DELETE);
-        self.remove_cmd_traces(fqn);
+        self.remove_cmd_traces_of_token(fqn, dying);
+    }
+
+    /// The generation of the command token `name` resolves to — the identity a
+    /// command trace hangs off.
+    pub(crate) fn resolve_cmd_token(&self, name: &[u8]) -> Option<u64> {
+        self.namespaces
+            .borrow()
+            .resolve_generation(self.current_ns.get(), name)
+    }
+
+    /// Drop the command/execution traces on `fqn` that belonged to the token
+    /// being deleted — C's "free the whole `cmdPtr->tracePtr` list".
+    ///
+    /// Generations are minted in binding order, so a trace registered on a
+    /// replacement the delete callback bound at this same name compares
+    /// greater and survives. An unidentifiable dying token (an unbound or
+    /// hidden name) takes the whole list, as it did before tokens were
+    /// tracked.
+    fn remove_cmd_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
+        let mut traces = self.traces.borrow_mut();
+        let old_len = traces.cmd_traces.len();
+        traces.cmd_traces.retain(|t| {
+            t.name != fqn
+                || match (t.token, dying) {
+                    (Some(token), Some(dying)) => token > dying,
+                    _ => false,
+                }
+        });
+        let removed = traces.cmd_traces.len() != old_len;
+        drop(traces);
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
     }
 
     /// The reported `line` of the command currently executing at the top of the
@@ -3659,10 +3697,17 @@ impl Interp {
     /// Fire matching command traces (`rename`/`delete`) as `command oldName
     /// newName op` (C's `TraceCommandProc`). `new_fqn` is empty for a delete.
     /// Callback errors are **ignored** (C: "We ignore errors in these traced
-    /// commands"). Re-entrant firing is suppressed (`exec_firing`); the interp
-    /// result is preserved across the callbacks.
+    /// commands"). Re-entrant firing on *this* command is suppressed (C's
+    /// per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`); the interp result is
+    /// preserved across the callbacks.
     fn fire_cmd_trace(&mut self, old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
-        if self.traces.borrow().exec_firing > 0 {
+        if self
+            .traces
+            .borrow()
+            .firing_cmd_traces
+            .iter()
+            .any(|firing| firing == old_fqn)
+        {
             return;
         }
         // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
@@ -3690,7 +3735,11 @@ impl Interp {
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
-        self.traces.borrow_mut().exec_firing += 1;
+        {
+            let mut traces = self.traces.borrow_mut();
+            traces.exec_firing += 1;
+            traces.firing_cmd_traces.push(old_fqn.to_vec());
+        }
         for cmd in cmds {
             // Append `oldName newName op` as properly-quoted list elements.
             let args = crate::list::new_list_obj(&[
@@ -3704,7 +3753,11 @@ impl Interp {
             drop_fresh(args);
             let _ = self.eval_str(&line);
         }
-        self.traces.borrow_mut().exec_firing -= 1;
+        {
+            let mut traces = self.traces.borrow_mut();
+            traces.exec_firing -= 1;
+            traces.firing_cmd_traces.pop();
+        }
 
         unsafe {
             obj::decr_ref_count(self.result.get());
@@ -3832,11 +3885,16 @@ impl Interp {
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
     fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+        // C moves the `Command` itself, so its trace list travels with the
+        // token. Re-stamp to whatever token now stands at the destination, so
+        // a later deletion there still tells this list from a replacement's.
+        let token = self.resolve_cmd_token(new_fqn);
         let mut traces = self.traces.borrow_mut();
         let mut moved = false;
         for t in traces.cmd_traces.iter_mut() {
             if t.name == old_fqn {
                 t.name = new_fqn.to_vec();
+                t.token = token;
                 moved = true;
             }
         }
@@ -3965,18 +4023,14 @@ impl Interp {
         // while the token is live, then callbacks run after this exact token is
         // marked dying (C's order; oo-11.8).
         let victims = self.take_ns_unset_traces(ns);
-        // Every command binding directly in this namespace is a true source
-        // deletion. Ensemble commands are additionally tied to their configured
-        // namespace, even when their binding lives elsewhere (for example the
-        // default global `::ns` command).
+        // Ensemble commands are tied to their configured namespace, even when
+        // their binding lives elsewhere (for example the default global `::ns`
+        // command), so they retire before this token is marked dying. Every
+        // other command in the table retires one token at a time below.
         {
             let ids = std::collections::HashSet::from([ns]);
-            let mut deleted_origins: std::collections::HashSet<Vec<u8>> = self
-                .namespaces
-                .borrow()
-                .command_fqns_in_ids(&[ns])
-                .into_iter()
-                .collect();
+            let mut deleted_origins: std::collections::HashSet<Vec<u8>> =
+                std::collections::HashSet::new();
             let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&ids);
             let hidden_tokens: Vec<(Vec<u8>, Rc<crate::ensemble::EnsembleToken>)> = self
                 .hidden
@@ -4005,16 +4059,10 @@ impl Interp {
             }
             self.remove_imports_for_deleted_origins(deleted_origins, &deleted_tokens);
         }
-        // The remaining commands in the namespace tree are deleted too:
-        // collect+remove their command traces (firing the `delete` ones after
-        // the namespace disappears). Namespace-owned ensembles were handled
-        // above because their deletion callback observes the command still
-        // live, even when its binding is outside the subtree.
-        let cmd_victims = self.take_ns_cmd_traces(ns);
         self.namespaces.borrow_mut().begin_namespace_teardown(ns);
         self.namespaces.borrow_mut().clear_namespace_token(ns);
         self.fire_unset_callbacks(victims);
-        self.fire_deleted_cmd_callbacks(cmd_victims);
+        self.tear_down_command_table(ns);
 
         // Tcl snapshots and recursively deletes children only after this
         // token's ordinary command callbacks have completed. A callback may
@@ -4023,6 +4071,51 @@ impl Interp {
         for child in children {
             if self.namespaces.borrow().namespace_is_live(child) {
                 self.delete_namespace_token(child);
+            }
+        }
+    }
+
+    /// Delete one dying namespace's command table the way `TclTeardownNamespace`
+    /// does: snapshot `cmdTable` in `Tcl_FirstHashEntry` order, then delete each
+    /// snapshotted token in turn, repeating while the table is non-empty.
+    ///
+    /// Each token's `delete` traces fire while its entry is still in the table
+    /// (`Tcl_DeleteCommandFromToken` calls `CallCommandTraces` before
+    /// `Tcl_DeleteHashEntry`), and its imports retire depth-first straight
+    /// after — not in a bulk pass over the whole namespace. A callback that
+    /// deletes or redefines a snapshotted entry changes its generation; C's
+    /// `CMD_DYING` early return then leaves the replacement to the next
+    /// snapshot.
+    fn tear_down_command_table(&mut self, ns: NsId) {
+        loop {
+            let snapshot = self.namespaces.borrow().command_hash_order(ns);
+            if snapshot.is_empty() {
+                break;
+            }
+            let mut retired_any = false;
+            for (tail, generation) in snapshot {
+                if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
+                    continue;
+                }
+                let fqn = self.namespaces.borrow().command_fqn_at(ns, &tail);
+                self.on_command_replaced(&fqn);
+                if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
+                    // The callback deleted this token, or redefined the name:
+                    // its own deletion already unlinked the entry, and any
+                    // replacement is a distinct token for the next snapshot.
+                    retired_any = true;
+                    continue;
+                }
+                let ensemble_tokens = match self.namespaces.borrow().command_in(ns, &tail) {
+                    Some(Command::Ensemble(token)) => vec![token],
+                    _ => Vec::new(),
+                };
+                self.namespaces.borrow_mut().remove_in(ns, &tail);
+                self.remove_imports_for_deleted_origins([fqn], &ensemble_tokens);
+                retired_any = true;
+            }
+            if !retired_any {
+                break;
             }
         }
     }
@@ -4116,55 +4209,6 @@ impl Interp {
         }
     }
 
-    /// Remove and return the `(fqn, command)` of every command trace on a command
-    /// directly in `ns`. Recursive namespace teardown calls this once per token,
-    /// so children keep their trace sidecars until their own lifecycle begins.
-    /// Only `delete`-op traces are returned for firing; `rename`-only traces are
-    /// removed silently (a deletion isn't a rename).
-    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<CmdTeardownCallback> {
-        if self.traces.borrow().cmd_traces.is_empty() {
-            return Vec::new();
-        }
-        // A command trace belongs to this exact table iff its home qualifier is
-        // this namespace's fully-qualified prefix.
-        let namespace_qual: Vec<u8> = {
-            let ns_ref = self.namespaces.borrow();
-            let mut q = ns_ref.qualified_name(ns);
-            if q != b"::" {
-                q.extend_from_slice(b"::");
-            }
-            q
-        };
-        let mut victims = Vec::new();
-        let mut traces = self.traces.borrow_mut();
-        let old_len = traces.cmd_traces.len();
-        traces.cmd_traces.retain(|t| {
-            // The command's home-namespace prefix: everything up to and
-            // including the last `::` (global commands are `::cmd` → `::`).
-            let command_qual: &[u8] = match t.name.windows(2).rposition(|w| w == b"::") {
-                Some(0) => b"::",
-                Some(i) => &t.name[..i + 2],
-                None => b"",
-            };
-            if namespace_qual == command_qual {
-                if (t.ops & crate::cmd_trace::ops::DELETE) != 0 {
-                    victims.push((t.name.clone(), t.command.clone()));
-                }
-                false // drop every trace on a command that is going away
-            } else {
-                true
-            }
-        });
-        let removed = traces.cmd_traces.len() != old_len;
-        drop(traces);
-        if removed {
-            self.invalidate_guard_domain(GuardDomain::CommandTrace);
-        }
-        // Grouped per command, newest-first inside each group — see
-        // [`Self::group_newest_first_per_entity`]. Issue #1440.
-        Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
-    }
-
     /// The unset-trace callbacks a **cell** contributes when it is destroyed,
     /// newest-first — C walks the `Var`'s prepended trace list head to tail.
     /// Non-destructive: the caller's own sweep drops the traces.
@@ -4194,35 +4238,6 @@ impl Interp {
                 )
             })
             .collect()
-    }
-
-    /// Fire collected command `delete`-trace callbacks as `command oldName {}
-    /// delete` after the namespace has been torn down (errors ignored — a delete
-    /// trace's result is discarded, matching C).
-    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<CmdTeardownCallback>) {
-        if victims.is_empty() || self.traces.borrow().exec_firing > 0 {
-            return;
-        }
-        let saved = self.result.get();
-        unsafe { obj::incr_ref_count(saved) };
-        self.traces.borrow_mut().exec_firing += 1;
-        for (name, cmd) in victims {
-            let args = crate::list::new_list_obj(&[
-                new_string(&name),
-                new_string(b""),
-                new_string(b"delete"),
-            ]);
-            let mut line = cmd;
-            line.push(b' ');
-            line.extend_from_slice(&obj_bytes(args));
-            drop_fresh(args);
-            let _ = self.eval_str(&line);
-        }
-        self.traces.borrow_mut().exec_firing -= 1;
-        unsafe {
-            obj::decr_ref_count(self.result.get());
-            self.result.set(saved);
-        }
     }
 
     /// Remove and return the `(fullName, command)` of every *unset* variable

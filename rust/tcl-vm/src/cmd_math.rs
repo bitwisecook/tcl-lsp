@@ -18,12 +18,9 @@
 
 //! `expr` math functions, registered as `tcl::mathfunc::*` (the names the
 //! compiler invokes and `ExprEval::call` routes to).
-// The math functions intentionally coerce between i64 and f64 (`int`/`round`/
-// `entier`/… follow Tcl's expr numeric conversions, not lossless casts).
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 use num_bigint::BigInt;
-use num_traits::{FromPrimitive, Signed, ToPrimitive};
+use num_traits::Signed;
 use tcl_runtime_api::Completion;
 use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, try_dispatch_with_backend_int_width};
 use tcl_syntax::number::{self, Number};
@@ -72,26 +69,6 @@ fn num_or_nan(v: &Value) -> Result<f64, String> {
     }
 }
 
-fn finite_num_arg(v: &Value) -> Result<f64, String> {
-    let f = num_or_nan(v)?;
-    if f.is_nan() {
-        return Err("floating point value is Not a Number".to_string());
-    }
-    if f.is_infinite() {
-        return Err("integer value too large to represent".to_string());
-    }
-    Ok(f)
-}
-
-fn exact_trunc(f: f64) -> BigInt {
-    BigInt::from_f64(f.trunc()).unwrap_or_default()
-}
-
-fn wide_window(b: &BigInt) -> i64 {
-    let low = b & &BigInt::from(u64::MAX);
-    low.to_u64().map_or(0, u64::cast_signed)
-}
-
 /// The message and `errorCode` C raises (`tclExecute.c`, errno `EDOM`) when a
 /// math function's argument is out of range — `sqrt(-1)`, `acos(2)`, `fmod(x,0)`,
 /// … . `isqrt` of a negative reuses the same code with its own message.
@@ -117,9 +94,9 @@ fn math_func_err(e: tcl_syntax::expr::mathfunc::MathFuncError) -> Completion<Val
     err_with_code(message, e.error_code())
 }
 
-/// A `finite_num_arg` / `num_or_nan` failure as a completion, with C's
-/// `-errorcode`: the VM had the right message text for a NaN and an infinity
-/// but left `errorCode` as `NONE` (#1581).
+/// A [`num_or_nan`] failure as a completion, with C's `-errorcode`: the VM
+/// had the right message text for a NaN and an infinity but left `errorCode`
+/// as `NONE` (#1581).
 fn num_err(message: String) -> Completion<Value> {
     use tcl_syntax::expr::errors;
     if message == errors::NAN_MESSAGE {
@@ -198,23 +175,23 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
 ///
 /// Most functions fall through to [`shared_math`], which drives
 /// `tcl_syntax::expr::mathfunc::dispatch_with_backend` — the same shared
-/// implementation `expr` itself uses. The arms named here are the ones whose
-/// VM bodies are deliberately *not* the shared ones: the integer conversions
-/// retain the VM's exact finite-double-to-bignum path (the shared value seam
-/// has no float-to-arbitrary-integer operation, so routing them through it
-/// would turn `int(1e300)` and `round(1e300)` into spurious domain errors),
-/// and `rand`/`srand` carry interpreter state.
+/// implementation `expr` itself uses. The integer conversions
+/// (`int`/`wide`/`entier`/`round`/`isqrt`) are shared arms too since
+/// #1382/#1795 gave the shared seam an exact float-to-bignum operation
+/// (`BigIntOps::from_f64_trunc`), so `int(1e300)` and `round(1e300)` keep
+/// their exact answers there.
+///
+/// The arms named here are the ones whose VM bodies are deliberately *not*
+/// the shared ones: `abs` takes an i128 fast path before the bignum rung,
+/// `double` is the VM's own value coercion, `bool` accepts a boolean *word*
+/// operand (`bool(tru)` is `1`, which `shared_math`'s numeric operand
+/// conversion would refuse), and `rand`/`srand` carry interpreter state.
 fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let invoked = vm.invoked_name().unwrap_or_default();
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
     match name.as_str() {
         "abs" => m_abs(args),
-        "int" => m_int(vm, args),
-        "wide" => m_wide(args),
-        "entier" => m_entier(args),
         "double" => m_double(args),
-        "round" => m_round(args),
-        "isqrt" => m_isqrt(args),
         "bool" => m_bool(args),
         "srand" => m_srand(vm, args),
         "rand" => m_rand(vm, args),
@@ -283,47 +260,6 @@ fn m_abs(args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn m_wide(args: &[Value]) -> Completion<Value> {
-    int_window(args, "wide")
-}
-
-/// `int(x)` — the one **release-split** conversion. Tcl 9.0 binds `int` and
-/// `entier` to the same unbounded `ExprIntFunc` (`tclBasic.c`), so
-/// `int(1e20)` is `100000000000000000000` and `int(2**64+1)` is
-/// `18446744073709551617`; Tcl 8.4-8.6 keep `int`'s signed-64-bit window, so
-/// the same two are `7766279631452241920` and `1`. Measured against
-/// tclsh8.6.16 and tclsh9.0.4 (#1382). The width itself is the shared owner's
-/// ([`IntWidth`]), so the VM and the WASM runtime cannot disagree about which
-/// release windows.
-fn m_int(vm: &Vm, args: &[Value]) -> Completion<Value> {
-    match IntWidth::for_tcl_version(vm.runtime_version()) {
-        IntWidth::Unbounded => entier_named(args, "int"),
-        IntWidth::Windowed | IntWidth::Unresolved => int_window(args, "int"),
-    }
-}
-
-/// `int(x)` / `wide(x)` — one conversion since 8.6 (`int` is no longer the
-/// narrower "long"): an integer of any magnitude is taken modulo 2^64,
-/// two's-complement folded (`int(2**64 + 1)` is `1`, `int(-(2**64 + 1))` is
-/// `-1`); a double truncates toward zero first, then wraps the same way
-/// (`int(1e300)` is `0` — 10^300 divides by 2^64). The integer path is exact —
-/// never round-tripped through `f64`, which would lose precision above 2^53
-/// (`int(9007199254740993)` must stay `…993`).
-fn int_window(args: &[Value], name: &str) -> Completion<Value> {
-    let x = match one(args, name) {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    // `as_wide` is exactly this window for integer inputs of any size.
-    if let Ok(n) = x.as_wide() {
-        return ok(Value::int(n));
-    }
-    match finite_num_arg(x) {
-        Ok(f) => ok(Value::int(wide_window(&exact_trunc(f)))),
-        Err(m) => num_err(m),
-    }
-}
-
 fn m_double(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "double") {
         Ok(v) => v,
@@ -344,109 +280,6 @@ fn m_double(args: &[Value]) -> Completion<Value> {
             }
             err(e.message)
         }
-    }
-}
-
-fn m_round(args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "round") {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    // Integers of any magnitude pass through exactly (tclsh: `round(2**200)`
-    // is 2^200 itself).
-    if let Ok(n) = x.as_int() {
-        return ok(Value::int(n));
-    }
-    if let Some(b) = crate::expr::value_as_bigint(x) {
-        return ok(crate::expr::big_value(&b));
-    }
-    // Round half away from zero, then keep the result *exact*: tclsh's
-    // `round(1e300)` is the full 309-digit integer, not a saturated wide.
-    match finite_num_arg(x) {
-        Ok(f) => ok(crate::expr::big_value(
-            &num_bigint::BigInt::from_f64(f.round()).unwrap_or_default(),
-        )),
-        Err(m) => num_err(m),
-    }
-}
-
-/// VM-facing `isqrt` keeps Tcl's specialised negative-argument diagnostic;
-/// the exact positive bignum root is the same shared tower operation used by
-/// the other backends.
-fn m_isqrt(args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "isqrt") {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    if let Ok(n) = x.as_int() {
-        if n < 0 {
-            return err_with_code("square root of negative argument", DOMAIN_CODE);
-        }
-        return ok(Value::int(isqrt_i64(n)));
-    }
-    if let Some(b) = crate::expr::value_as_bigint(x) {
-        if b.is_negative() {
-            return err_with_code("square root of negative argument", DOMAIN_CODE);
-        }
-        return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
-    }
-    // `finite_num_arg`, not `num_arg`: an infinity is `ARITH IOVERFLOW` and a
-    // NaN is `TCL VALUE DOUBLE NAN` here, exactly as for the other integer
-    // conversions (tclsh: `isqrt(Inf)` / `isqrt(NaN)`) — #1581.
-    let f = match finite_num_arg(x) {
-        Ok(f) => f,
-        Err(m) => return num_err(m),
-    };
-    if f < 0.0 {
-        return err_with_code("square root of negative argument", DOMAIN_CODE);
-    }
-    // Truncate exactly first: `isqrt(1e300)` is a 151-digit integer, not the
-    // root of a saturated wide (tclsh 8.6.16/9.0.4).
-    ok(crate::expr::big_value(&num_integer::Roots::sqrt(
-        &exact_trunc(f),
-    )))
-}
-
-fn isqrt_i64(n: i64) -> i64 {
-    if n < 2 {
-        return n;
-    }
-    let nn = i128::from(n);
-    let mut r = (n as f64).sqrt() as i64;
-    while r > 0 && i128::from(r) * i128::from(r) > nn {
-        r -= 1;
-    }
-    while i128::from(r + 1) * i128::from(r + 1) <= nn {
-        r += 1;
-    }
-    r
-}
-
-/// `entier(x)` — the exact integer value of `x`, truncated toward zero and
-/// **unbounded** (TIP 237): an integer of any magnitude passes through; a
-/// double becomes the full exact integer (`entier(1e300)` is all 309 digits),
-/// with no 64-bit window — that wrap is `int`/`wide`'s ([`int_window`]).
-fn m_entier(args: &[Value]) -> Completion<Value> {
-    entier_named(args, "entier")
-}
-
-/// [`m_entier`]'s body under a caller-chosen function name, so Tcl 9.0's
-/// `int()` — which C binds to the same unbounded `ExprIntFunc` as `entier`
-/// (`tclBasic.c`) — reuses it while keeping its own arity wording.
-fn entier_named(args: &[Value], name: &str) -> Completion<Value> {
-    let x = match one(args, name) {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    if let Ok(n) = x.as_int() {
-        return ok(Value::int(n));
-    }
-    if let Some(b) = crate::expr::value_as_bigint(x) {
-        return ok(crate::expr::big_value(&b));
-    }
-    match finite_num_arg(x) {
-        Ok(f) => ok(crate::expr::big_value(&exact_trunc(f))),
-        Err(m) => num_err(m),
     }
 }
 

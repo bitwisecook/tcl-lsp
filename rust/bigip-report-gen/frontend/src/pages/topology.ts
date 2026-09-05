@@ -192,21 +192,20 @@ import { initArchEditor } from "../arch/editor";
       var nodes = ix.d.graph.nodes.slice().sort(function (a, b) {
         return (a.type + a.name).localeCompare(b.type + b.name);
       });
-      srcSel.innerHTML = nodes.map(function (n) {
-        return '<option value="' + n.oid + '"' + (n.oid === selectedOid ? " selected" : "") + ">" +
-          esc(optLabel(ix, n.oid)) + "</option>";
-      }).join("");
+      srcSel.textContent = "";
+      nodes.forEach(function (n) {
+        srcSel.appendChild(optionEl(n.oid, optLabel(ix, n.oid), n.oid === selectedOid));
+      });
     }
     function fillDests(ix) {
       var reach = reachableFrom(ix, srcSel.value)
         .map(function (o) { return { oid: o, label: optLabel(ix, o) }; })
         .sort(function (a, b) { return a.label.localeCompare(b.label); });
+      dstSel.textContent = "";
       if (!reach.length) {
-        dstSel.innerHTML = '<option value="">(nothing reachable downstream)</option>';
+        dstSel.appendChild(optionEl("", "(nothing reachable downstream)", false));
       } else {
-        dstSel.innerHTML = reach.map(function (r) {
-          return '<option value="' + r.oid + '">' + esc(r.label) + "</option>";
-        }).join("");
+        reach.forEach(function (r) { dstSel.appendChild(optionEl(r.oid, r.label, false)); });
       }
       build();
     }
@@ -267,9 +266,14 @@ import { initArchEditor } from "../arch/editor";
   }
   var IDX = MODEL.devices.map(indexDevice);
 
-  function activeDeviceIndex() {
-    var el = document.querySelector(".device.active");
-    return el ? parseInt(el.dataset.dev, 10) : 0;
+  // Build a <select> option as an element rather than as markup: the value and
+  // the label are both config-derived, so neither may be parsed as HTML.
+  function optionEl(value, label, selected) {
+    var o = document.createElement("option");
+    o.value = value;
+    o.textContent = label;
+    if (selected) o.selected = true;
+    return o;
   }
 
   // Escape HTML metacharacters — these strings are config-derived (object names,
@@ -287,6 +291,18 @@ import { initArchEditor } from "../arch/editor";
   // its line breaks must survive.
   function escConf(s) {
     return String(s).replace(/[&<>"]/g, function (c) { return ESC_MAP[c]; });
+  }
+
+  // The model's pre-highlighted iRule body is the one field the report hands us
+  // as markup instead of text. The highlighter emits nothing but
+  // `<span class="tk-...">` wrappers around escaped text, so hold it to that
+  // here rather than trusting it: every other tag, entity or stray
+  // metacharacter is escaped back to literal text.
+  var SAFE_MARKUP = /^(?:<\/span>|<span class="tk-[\w -]+">|&(?:amp|lt|gt|quot);)$/;
+  function sanitiseHtml(markup) {
+    return String(markup).replace(/<[^<>]*>|&[^\s&;]*;?|[<>"]/g, function (m0) {
+      return SAFE_MARKUP.test(m0) ? m0 : escConf(m0);
+    });
   }
 
   // Extract one object's raw bigip.conf stanza (brace-matched) from the device
@@ -336,7 +352,7 @@ import { initArchEditor } from "../arch/editor";
     if (n.type === "rule") {
       var r = ruleByPath(ix, n.fullPath);
       if (r && (r.bodyHtml || r.body)) {
-        return '<pre class="code tcl">' + (r.bodyHtml || escConf(r.body || "")) + "</pre>";
+        return '<pre class="code tcl">' + (r.bodyHtml ? sanitiseHtml(r.bodyHtml) : escConf(r.body || "")) + "</pre>";
       }
     }
     var stanza = stanzaFor(ix.d.configText, n.fullPath);
@@ -558,8 +574,7 @@ import { initArchEditor } from "../arch/editor";
     var proxyIdx = steps.length;
     steps.push({ t: "proxy", l: "Proxy · client ⇄ server" });
     eventsIn("lb").forEach(function (e) { steps.push({ t: "event", l: e }); });
-    var poolIdx = -1;
-    if (vs.pool) { poolIdx = steps.length; steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool }); }
+    if (vs.pool) steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
     eventsIn("server").forEach(function (e) { steps.push({ t: "event", l: e }); });
     if (l7label) steps.push({ t: "prof", l: l7label });
     serverSSL.forEach(function (p) { steps.push({ t: "ssl", l: p.name, oid: p.oid }); });
@@ -721,13 +736,13 @@ import { initArchEditor } from "../arch/editor";
     var typeBoxes = panel.querySelectorAll(".topo-type");
 
     // populate focus selector
-    var opts = ['<option value="">— whole estate —</option>'];
+    focusSel.textContent = "";
+    focusSel.appendChild(optionEl("", "— whole estate —", false));
     ix.d.graph.nodes.slice().sort(function (a, b) {
       return (a.type + a.name).localeCompare(b.type + b.name);
     }).forEach(function (n) {
-      opts.push('<option value="' + n.oid + '">' + TYPE_LABEL[n.type] + ": " + esc(n.name) + "</option>");
+      focusSel.appendChild(optionEl(n.oid, TYPE_LABEL[n.type] + ": " + n.name, false));
     });
-    focusSel.innerHTML = opts.join("");
 
     function activeTypes() {
       var t = {};
@@ -772,8 +787,12 @@ import { initArchEditor } from "../arch/editor";
     var drawer = document.getElementById("objDrawer");
     var body = drawer.querySelector(".drawer-body");
     var titleEl = drawer.querySelector(".drawer-title");
-    titleEl.innerHTML =
-      '<span class="tag ' + n.type + '">' + TYPE_LABEL[n.type] + "</span> " + esc(n.name);
+    var titleTag = document.createElement("span");
+    titleTag.className = "tag " + n.type;
+    titleTag.textContent = TYPE_LABEL[n.type];
+    titleEl.textContent = "";
+    titleEl.appendChild(titleTag);
+    titleEl.appendChild(document.createTextNode(" " + n.name));
     drawer.querySelector(".drawer-sub").textContent = n.fullPath;
     // When this object type has a listing tab, make the title a link that jumps
     // to the object's expanded row there (e.g. iRule popover -> iRules tab).
@@ -842,8 +861,8 @@ import { initArchEditor } from "../arch/editor";
     var v = findVirtual(ix, oid); if (!v) return "";
     var L = v.listener || {};
     var rows = [
-      ["Destination", esc(L.address || "-") + (L.prefix != null && L.prefix < L.maxPrefix ? "/" + L.prefix : "") +
-        (L.routeDomain ? " %" + L.routeDomain : "")],
+      ["Destination", esc(L.address || "-") + (L.prefix != null && L.prefix < L.maxPrefix ? "/" + esc(L.prefix) : "") +
+        (L.routeDomain ? " %" + esc(L.routeDomain) : "")],
       ["Port", esc(L.portRaw || "-")],
       ["Protocol", esc(L.protocol || "-")],
       ["Source", esc(L.source || "-")],
@@ -1238,8 +1257,6 @@ import { initArchEditor } from "../arch/editor";
 
   function simulate(ix, v, req) {
     var stages = [];
-    var L = v.listener || {};
-    var isHttp = (v.profiles || []).some(function (p) { return /\/http\b|http$/.test(p) || /_http/.test(p); });
 
     // 1. client SSL
     var ssl = pickSslProfile(ix, v, req.sni);
@@ -1346,7 +1363,6 @@ import { initArchEditor } from "../arch/editor";
   function renderSim(ix, v, host) {
     var L = v.listener || {};
     var hasSsl = !!pickSslProfile(ix, v, "");
-    var isHttp = (v.profiles || []).some(function (p) { return /http/.test(p); });
     var h = ['<div class="sim-head"><b>Processing for ' + esc(v.name) + '</b> <span class="mono muted">' +
       esc(L.address) + ":" + esc(L.portRaw) + " · " + esc(L.protocol) + '</span></div>'];
     h.push('<div class="sim-req">');
@@ -1443,14 +1459,14 @@ import { initArchEditor } from "../arch/editor";
       html.push('<div class="tiers">');
       tiers.forEach(function (t, ti) {
         html.push('<div class="tier' + (ti === 0 ? " match" : "") + '">');
-        html.push('<div class="tier-key">/' + t.prefix + ' · ' + (t.port ? "port " + t.port : "any port") + '</div>');
+        html.push('<div class="tier-key">/' + esc(t.prefix) + ' · ' + (t.port ? "port " + esc(t.port) : "any port") + '</div>');
         html.push('<div class="tier-vs">');
         t.vs.forEach(function (v) {
           var L = v.listener;
           html.push('<button class="lm-card" data-fp="' + esc(v.fullPath) + '"' + (v === focus ? ' data-focus="1"' : "") + '>' +
             '<span class="lm-name">' + esc(v.name) + (v === focus ? ' <span class="tag green">match</span>' : "") + '</span>' +
-            '<span class="lm-dest mono">' + esc(L.address) + (L.prefix < L.maxPrefix ? "/" + L.prefix : "") +
-            (L.routeDomain ? "%" + L.routeDomain : "") + ':' + esc(L.portRaw) + '</span>' +
+            '<span class="lm-dest mono">' + esc(L.address) + (L.prefix < L.maxPrefix ? "/" + esc(L.prefix) : "") +
+            (L.routeDomain ? "%" + esc(L.routeDomain) : "") + ':' + esc(L.portRaw) + '</span>' +
             '<span class="lm-meta mono">' + esc(L.protocol) + (v.pool ? " → " + esc(v.pool.split("/").pop()) : " · no pool") + '</span>' +
             '</button>');
         });
@@ -1586,11 +1602,6 @@ import { initArchEditor } from "../arch/editor";
   (function initSearch() {
     var search = document.getElementById("globalSearch");
     if (!search) return;
-
-    function detailOf(row) {
-      var d = row.nextElementSibling;
-      return (d && d.classList.contains("detail")) ? d : null;
-    }
 
     // Parse "ip" or "ip/prefix" (v4/v6) into a network, else null.
     function toNet(s) {
@@ -1797,7 +1808,7 @@ import { initArchEditor } from "../arch/editor";
           var r = ruleByPath(ix, n.fullPath);
           if (r) {
             if (r.flowchart) html += '<div class="app-obj-flow diag-host" data-flow="' + esc(encodeURIComponent(r.flowchart)) + '">flow…</div>';
-            html += '<pre class="code tcl">' + (r.bodyHtml || esc(r.body || "")) + "</pre>";
+            html += '<pre class="code tcl">' + (r.bodyHtml ? sanitiseHtml(r.bodyHtml) : esc(r.body || "")) + "</pre>";
           }
         } else {
           var stanza = stanzaFor(ix.d.configText, n.fullPath);

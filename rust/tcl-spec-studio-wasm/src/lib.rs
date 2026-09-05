@@ -88,6 +88,14 @@ pub fn command_index(dialect: &str) -> String {
     to_string(&tcl_spec_studio::command_index(dialect))
 }
 
+/// The authoring packs `dialect` browses, with a command count each — the
+/// studio's top-level navigation.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_catalogue(dialect: &str) -> String {
+    to_string(&tcl_spec_studio::pack_catalogue(dialect))
+}
+
 /// A draft seeded from the live registry's spec for `name` under `dialect`.
 #[wasm_bindgen]
 #[must_use]

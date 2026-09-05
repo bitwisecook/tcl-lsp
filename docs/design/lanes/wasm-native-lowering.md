@@ -976,6 +976,15 @@ sheets live as tests, so a reader can re-derive any row in a real shell.
   `tcl_vm::expr::arith`/`unary`, which bytecode opcodes call with no
   interpreter in hand; `errors::ambient_release()` reads the same ambient both
   engines already install with `number::set_runtime_syntax`.
+- **`round()` is `f64::round`, not `floor(d + 0.5)`.** C's `ExprRoundFunc`
+  splits the operand with `modf` and steps the integer part by one when the
+  fraction reaches one half in magnitude. The shared arm originally spelled
+  that as `floor(d + 0.5)` / `ceil(d - 0.5)`, which rounds twice: tclsh
+  8.6.16/9.0.4 answer `round(0.49999999999999994)` with `0` and
+  `round(4503599627370497.0)` with `4503599627370497`, where the doubled
+  rounding gives `1` and `4503599627370498`. `f64::round` is the `modf` form
+  computed exactly, and the const-folder was baking the wrong constants in
+  until it landed.
 - **`dispatch` keeps its `Option` adapter; the fallible entry point is
   additive.** `try_dispatch_with_backend_int_width` returns
   `Result<_, MathFuncError>`; `dispatch*` map `Err` to `None`. The const-folder
@@ -1022,12 +1031,20 @@ before you trust a buffer.
   accepts a *typed* double NaN as an arithmetic operand. That is an
   operand-acceptance gap, not an error-taxonomy one, so the row is dropped
   from the #1581 sheet with a note at the call site rather than fixed here.
-- The VM's `int`/`wide`/`entier`/`round`/`isqrt` are still VM-local functions
-  rather than the shared arms (#1430's re-type). They now agree with the
-  shared arms row for row and read the same release axis, so they cannot drift
-  on the covered semantics.
 - `srand`'s 9.0 empty-message quirk (C hands `TclGetWideBitsFromObj` a NULL
   interp) is not reproduced; both engines use 8.6's wording at every release.
+- `isqrt(-Inf)` answers `integer value too large to represent`
+  (`ARITH IOVERFLOW`) on both engines, where tclsh 8.6.16/9.0.4 answer
+  `square root of negative argument` (`ARITH DOMAIN`). C's `ExprIsqrtFunc`
+  tests `d < 0` before it reaches `Tcl_InitBignumFromDouble`, while the shared
+  `try_dispatch_with_backend_int_width` runs its non-finite operand loop
+  before `isqrt`'s own sign refusal. One reordering in the shared arm (after
+  the NaN check, which C also takes first) fixes both engines at once.
+- `::tcl::mathfunc::entier 0x10` and `round 0x10` return `16` on the VM where
+  tclsh returns `0x10` (9.0.4 also keeps the spelling for `int`; 8.6.16 does
+  not). The VM's `Value::int` drops the operand's string rep; the runtime
+  keeps it for `int`/`entier` through its integer fast path but not for
+  `round`. A string-rep-preservation axis, not a numeric one.
 
 ## p3-native-lowering
 

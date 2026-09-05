@@ -530,6 +530,25 @@ fn expand_after_close_brace_takes_the_segmenter_boundary() {
             .collect();
         assert_eq!(flags, expected, "{src:?}");
     }
+
+    // Its sibling: `extra characters after close-quote` (#1828). `{*}` after
+    // a closed quote is ordinary content, so `foo "q"{*}$z` is one welded
+    // quoted word — the row the brace loop above reads as `false, false`.
+    for (src, expected) in [
+        ("foo \"q\"{*}$z", vec![false, true]),
+        ("{a}{*}$b", vec![false, false]),
+        ("foo {*}$b", vec![false, false]),
+    ] {
+        let config = LexerConfig::default();
+        let tokens = Lexer::with_config(src, config).tokenise_all().unwrap();
+        let grouped = group_commands(&tokens, src, config);
+        let flags: Vec<bool> = grouped[0]
+            .words
+            .iter()
+            .map(|w| w.welded_after_close_quote)
+            .collect();
+        assert_eq!(flags, expected, "{src:?}");
+    }
 }
 
 // ---------------------------------------------------------------------

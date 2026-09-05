@@ -1158,7 +1158,19 @@ let lastSource = '';
 let lastDialect = '';
 
 // Message handler (replaces web worker)
+// The extension host posts through the frame embedding this webview, and that
+// frame's origin is a per-webview \`vscode-webview://<id>\` rather than a
+// constant, so it is checked against this document's own origin and against the
+// embedder's identity. The JetBrains host instead dispatches a synthetic event
+// straight into the document, which carries an empty origin. Anything else is
+// ignored.
+const hostFrame = window.parent === window ? null : window.parent;
 window.addEventListener('message', function(event) {
+  const fromHost =
+    event.origin === '' ||
+    event.origin === window.location.origin ||
+    (hostFrame !== null && event.source === hostFrame);
+  if (!fromHost) return;
   const msg = event.data;
   switch (msg.type) {
     case 'sourceUpdate':
@@ -1401,26 +1413,37 @@ function setupOptDiffHover(pane) {
   container.addEventListener('mouseleave',()=>{clearOptHighlights(container);vscode.postMessage({type:'clearHighlight'});});
 }
 
+// One warning row, built as DOM rather than an HTML string: the code, message
+// and range all arrive from the host, so none of them is ever parsed as markup.
+function warningRow(w, itemClass, codeClass) {
+  const row=document.createElement('div');
+  row.className=itemClass;
+  if(w.range){row.dataset.start=w.range.startOffset;row.dataset.end=w.range.endOffset;}
+  const code=document.createElement('span');
+  code.className=codeClass;
+  code.textContent=w.code==null?'':String(w.code);
+  const label=document.createElement('span');
+  label.style.color='var(--text-dim)';
+  label.style.fontSize='10px';
+  label.textContent='['+spanLabel(w.range)+']';
+  row.append(code,' '+(w.message==null?'':String(w.message))+' ',label);
+  return row;
+}
+
 // Consumer hook: renderShimmer (simplified — no involved lines view)
 function renderShimmer() {
   const pane=$('#pane-shimmer');
   if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
-  let html='';
-  for(const w of data.shimmer){
-    html+=\`<div class="shimmer-item shimmer-\${w.code}"\${sourceRangeAttrs(w.range)}><span class="shimmer-code">\${esc(w.code)}</span> \${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[\${spanLabel(w.range)}]</span></div>\`;
-  }
-  pane.innerHTML=html;setupHoverHighlighting(pane);
+  pane.replaceChildren(...data.shimmer.map(w=>warningRow(w,'shimmer-item shimmer-'+w.code,'shimmer-code')));
+  setupHoverHighlighting(pane);
 }
 
 // Consumer hook: renderIrulesFlow (simplified — no mermaid graph)
 function renderIrulesFlow() {
   const pane=$('#pane-irules-flow');
   if(!data.irulesFlow.length){pane.innerHTML='<div class="empty-state">No iRules flow warnings (only active in f5-irules dialect)</div>';return;}
-  let html='';
-  for(const w of data.irulesFlow){
-    html+=\`<div class="irules-flow-item"\${sourceRangeAttrs(w.range)}><span class="irules-code">\${esc(w.code)}</span> \${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[\${spanLabel(w.range)}]</span></div>\`;
-  }
-  pane.innerHTML=html;setupHoverHighlighting(pane);
+  pane.replaceChildren(...data.irulesFlow.map(w=>warningRow(w,'irules-flow-item','irules-code')));
+  setupHoverHighlighting(pane);
 }
 
 // Edge redraw event listeners
