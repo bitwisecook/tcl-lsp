@@ -203,7 +203,7 @@ So the vocabulary follows three rules:
 |---------|----------------|
 | `HAS_SWITCH_BODY` | `case_list`; derived as `CommandSpec::has_switch_body` |
 | `HAS_DESTRUCTIVE_OPS` | `SubCommand::destructive`; derived as `CommandSpec::has_destructive_ops` |
-| `HAS_INTERP_EVAL` | `taint_interp_eval_subcommands`, which is consumed and disagreed with the flag in both directions (`send` had the flag without the list; Tk's `console` the list without the flag); `send` carries `EVALUATES_CODE` on its own |
+| `HAS_INTERP_EVAL` | `taint_interp_eval_subcommands`, which is consumed and disagreed with the flag in both directions; `send` carries `EVALUATES_CODE` on its own |
 | `CONFIGURES_CHANNEL` | the `FileIo` side effect with `reads` and `writes` that both carriers, `chan` and `fconfigure`, already declare |
 | `STRING_LIST_CONFUSION` | nothing — an authoring hint about `append`, not a behavioural fact |
 
@@ -216,16 +216,17 @@ not.
 
 `HAS_LOOP_BODY` is the trait the first rule would have retired and did not:
 nothing else in the model says a body may run more than once
-(`NEVER_INLINE_BODY` marks a different set — `dict for`, `dict map` and
-`timerate` are loops without it). It was given the consumer it should have
-had instead. Whether a command is a loop is `CommandRegistry::is_loop_command`,
-and the W240/W241/W242 termination checks read the condition, body, init and
-step positions off its declared argument roles (the `Expr` word, the `Body`
-words around it), so a pack shipping its own loop construct is analysed
-under whatever name it has; a loop with no boolean condition (`foreach`,
-`lmap`) has no termination shape to check. The literal `while` / `for`
-positions survive only as the registry-less fallback, the same shape
-`is_loop_exit_command` already documents.
+(`NEVER_INLINE_BODY` marks a different set — `timerate` and `array for` are
+loops without it, and `switch` has it without being one). It was given the
+consumer it should have had instead. Whether a command is a loop is
+`CommandRegistry::is_loop_command`, and the W240/W241/W242 termination
+checks read the condition, body, init and step positions off its declared
+argument roles (the `Expr` word, the `Body` words around it), so a pack
+shipping its own loop construct is analysed under whatever name it has; a
+loop with no boolean condition (`foreach`, `lmap`) has no termination shape
+to check. The literal `while` / `for` positions survive only as the
+registry-less fallback, the same shape `is_loop_exit_command` already
+documents.
 
 #### Purity and optimisation
 

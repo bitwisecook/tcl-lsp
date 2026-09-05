@@ -4727,8 +4727,10 @@ impl CommandRegistry {
     /// The single answer for a consumer that needs "is this a loop?" without
     /// naming `while` / `for` / `foreach`, so a pack-declared loop command
     /// joins loop analysis with no consumer edit. Nothing else in the model
-    /// says it: `NEVER_INLINE_BODY` marks a different, non-coextensive set
-    /// (`dict for`, `dict map` and `timerate` are loops without it).
+    /// says it: `NEVER_INLINE_BODY` marks a different, non-coextensive set —
+    /// `timerate` and `array for` are loops without it, and consumers read the
+    /// command's bits unioned with the resolved subcommand's, so `dict for`
+    /// carries it from `dict` itself.
     #[must_use]
     pub fn is_loop_command(&self, name: &str) -> bool {
         self.get(name)

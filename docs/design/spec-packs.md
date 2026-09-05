@@ -479,11 +479,10 @@ let packs survive releases without rebuilds:
   that `CommandSpec::has_switch_body` is the derived answer, rather than
   that the word is unknown. The rest of the `traits` list and the command
   still load, and the word itself does nothing — the replacement is a
-  descriptor the pack already writes, so there is no shim to carry. The
-  table is `RETIRED_TRAITS` in `rust/tcl-registry/src/traits.rs`; when a
-  trait is retired at all is
-  [command-registry.md](compiler/command-registry.md#retiring-a-trait)'s
-  rule.
+  descriptor the pack already writes, so there is no compatibility shim.
+  The table is `RETIRED_TRAITS` in `rust/tcl-registry/src/traits.rs`; the
+  rule for retiring a trait is in
+  [command-registry.md](compiler/command-registry.md#retiring-a-trait).
 - **Except where dropping the word would strengthen the answer.** Since
   `SpecTcl` 2.0 (redesign §6.1, review B13) an unknown word in a pack
   declaring a vocabulary this build postdates is classified by its
