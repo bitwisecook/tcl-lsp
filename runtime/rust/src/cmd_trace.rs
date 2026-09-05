@@ -238,6 +238,16 @@ pub struct TraceTable {
     /// deletion), not interpreter-wide: a callback that deletes a *different*
     /// command still fires that command's own delete traces, nested.
     pub firing_cmd_traces: Vec<Vec<u8>>,
+    /// Source→destination FQN pairs for the `rename` windows currently open,
+    /// innermost last. C creates the destination hash entry, fires the
+    /// `rename` traces and only then deletes the source, and *both* entries
+    /// reference the one `Command` — so for the callbacks' duration the
+    /// vacating name **is** the destination command: it answers `trace info`,
+    /// takes `trace add`/`remove`, and a `rename` or delete through it moves
+    /// or destroys the destination (tclsh 8.6.16 and 9.0.4 identical). Our
+    /// registries are keyed by name, so each open window records that
+    /// equivalence; [`crate::interp::Interp::renamed_cmd_key`] reads it.
+    pub rename_windows: Vec<(Vec<u8>, Vec<u8>)>,
     /// The error message a read/write variable-trace callback left, captured so
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
@@ -457,6 +467,10 @@ fn cmd_trace_add_remove(
     let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
         return interp.unknown_command(&name);
     };
+    // Inside a rename's callbacks the vacating name reaches the destination's
+    // list: C hangs the traces off the shared `Command`, not off either hash
+    // entry, so both names edit the one list.
+    let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
     let command = obj_bytes(argv[5]);
     if is_add {
         // The trace belongs to the token standing at `fqn` now, not to the
@@ -518,6 +532,9 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
     let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
         return interp.unknown_command(&name);
     };
+    // As in `cmd_trace_add_remove`: a rename's vacating name answers with the
+    // destination's list, because C keeps one list on the shared `Command`.
+    let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
     // (bit, label) pairs in C's print order for each category.
     let order: &[(u8, &[u8])] = if category == ops::EXEC_ANY {
         &[

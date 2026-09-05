@@ -98,42 +98,53 @@ Both entries reference the one `Command`, and the traces hang off that, not
 off either entry. So for the callbacks' duration the vacating name **is** the
 destination command:
 
-- both names resolve and are callable;
+- both names resolve and are callable, and the command is already re-homed
+  (`cmdPtr->nsPtr = newNsPtr` happens before the firing), so a body invoked
+  through the vacating name reports the *destination's* `namespace current` —
+  and likewise a TclOO object, an ensemble, an import redirect and a live
+  coroutine all still dispatch through the vacating name, because C reaches
+  each of them through the one `Command` (in `runtime/rust`,
+  `Namespaces::rehome_command` re-points the identity our `Command` variants
+  carry in its stead);
 - `trace info command <old>` and `… <new>` answer the same list, and a
   `trace add` or `trace remove` through either name edits it;
 - a `rename` or a delete through *either* name moves or destroys that one
   command — and C's `CMD_TRACE_ACTIVE` keeps the pass's remaining callbacks
   from re-firing when it does.
 
-The VM reproduces that window rather than the naive "mutate, then fire":
-`cmd_rename` registers the destination, `on_command_renamed_traces` moves the
-sidecars to the destination key and fires from there (passing the old
-fully-qualified name for the callback's first word), and only afterwards does
-`retire_renamed_command_source` drop the source entry — the VM's spelling of
-`Tcl_DeleteHashEntry(oldHPtr)`, a plain table removal that fires no `delete`
-trace.
+**Both** runtimes reproduce that window rather than the naive "mutate, then
+fire", by the same three steps: publish the destination, move everything the
+command carries to the destination key and fire from there — passing the old
+fully-qualified name for the callback's first word — and only afterwards drop
+the source's table entry, which is `Tcl_DeleteHashEntry(oldHPtr)`: a plain
+removal that fires no `delete` trace.
 
-The VM has no shared command object to hang that equivalence on, so an open
-window records it as a source→destination pair (`rename_windows`, a stack, one
-frame per nested rename). `renamed_command_key` resolves a key through it —
-used by `trace add`/`remove`/`info` and by `prepare_command_rename`, which is
-what makes a callback's `rename <old> <third>` and `rename <old> {}` act on
-the destination. A nested rename would otherwise strand that state on the key
-it just vacated, so `relocate_rename_state` retargets every enclosing window
-*and* every `firing_cmd_traces` record — the key-addressed stand-in for
+| | publish | fire from | retire the source |
+|---|---|---|---|
+| `runtime/rust` | `Namespaces::publish_rename_destination` (writes the re-homed command into *both* slots) | `Interp::move_bound_command`, after moving the trace list, the import redirects, the TclOO registration and the coroutine | `Namespaces::retire_rename_source` |
+| `rust/tcl-vm` | `cmd_rename` registers the destination | `on_command_renamed_traces`, after moving the sidecars | `retire_renamed_command_source` |
+
+Neither has a shared command object to hang that equivalence on, so an open
+window is recorded as a source→destination pair — `TraceTable::rename_windows`
+in the tree-walker, `rename_windows` in the VM, a stack either way with one
+frame per nested rename. `Interp::renamed_cmd_key` / `renamed_command_key`
+resolves a name through it: used by `trace add`/`remove`/`info`, by the
+tree-walker's execution-trace lookup and coroutine registry, and by
+`Interp::rename_command` / `prepare_command_rename`, which is what makes a
+callback's `rename <old> <third>` and `rename <old> {}` act on the
+destination. A nested rename would otherwise strand that state on the key it
+just vacated, so `relocate_rename_state` retargets every enclosing window
+*and* every `firing_cmd_traces` record — the name-addressed stand-in for
 `CMD_TRACE_ACTIVE`, which C gets for free from the `Command` being one object.
 
-Two residues of that same missing shared identity are not emulated, both
-because C's own behaviour there is a torn-state artefact rather than a
-contract: re-*creating* the vacating name from a callback (`proc <old> {} …`)
-kills the destination in C but not in the VM, and 8.6 and 9.0 disagree with
-each other on what `info commands <old>` reports after a callback deletes the
-command.
+Two residues of that same missing shared identity are not emulated by either
+engine, both because C's own behaviour there is a torn-state artefact rather
+than a contract: re-*creating* the vacating name from a callback
+(`proc <old> {} …`) leaves C deleting a freed hash entry and killing the
+destination with it, where both engines leave the command standing under its
+new name; and 8.6 and 9.0 disagree with each other on what
+`info commands <old>` reports after a callback deletes the command.
 
-**Known gap:** `runtime/rust` fires the `rename` traces *before* any table
-mutation, so a callback there sees the old name but not yet the new one — the
-mirror image of the divergence the VM used to have. Its window has not been
-brought onto C's ordering yet.
 
 ## Callback shape and firing order
 
@@ -290,5 +301,6 @@ not here.
 | `runtime/rust/src/frame.rs` | per-frame variable cells the variable-trace key resolves against |
 | `rust/tcl-vm/src/cmd_trace.rs` | the `trace` command for the bytecode VM |
 | `rust/tcl-vm/src/interp.rs` | VM trace tables, the step-trace epoch, `cmd_trace_entries` |
+| `runtime/rust/tests/trace_semantics.rs` | tclsh-pinned transcripts for the tree-walker, including the `rename` window |
 | `rust/tcl-vm/tests/command_traces_e2e.rs` | tclsh-pinned command/execution/variable trace vectors, including firing order |
 | `rust/tcl-vm/tests/legacy_variable_traces_e2e.rs` | tclsh-pinned cross-version vectors for `trace variable`/`vdelete`/`vinfo` |

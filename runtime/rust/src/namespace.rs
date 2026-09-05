@@ -48,7 +48,7 @@ pub type NsId = usize;
 /// The global namespace `::`.
 pub const GLOBAL: NsId = 0;
 
-/// The result of a [`Namespaces::rename`].
+/// The result of a [`crate::interp::Interp::rename_command`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenameOutcome {
     /// `old` was moved to `new`.
@@ -67,6 +67,18 @@ pub enum RenameOutcome {
     /// that slot at check time); both `old` and the occupant at `new` are
     /// left untouched (issue #1412 item 1).
     TargetExists,
+}
+
+/// The half-finished `rename` a [`Namespaces::publish_rename_destination`]
+/// leaves behind: the command stands under *both* names until
+/// [`Namespaces::retire_rename_source`] drops the source's table entry.
+pub(crate) struct RenamePublication {
+    /// The source table slot — C's `oldHPtr`, which `TclRenameCommand` holds
+    /// across the `rename` traces and deletes at the very end.
+    source: (NsId, Vec<u8>),
+    /// The destination's fully-qualified name: the key the command's traces,
+    /// imports and TclOO registration move to, and the callbacks' second word.
+    pub(crate) destination_fqn: Vec<u8>,
 }
 
 /// One namespace's command table: the `BTreeMap` the resolver looks names up
@@ -151,6 +163,17 @@ impl CommandTable {
     fn restore_slot(&mut self, key: Vec<u8>, slot: (u64, Command)) -> Option<(u64, Command)> {
         self.order.insert(&key);
         self.entries.insert(key, slot)
+    }
+
+    /// Swap `key`'s binding without disturbing its hash entry, so the slot
+    /// keeps its generation and its bucket position. C's `TclRenameCommand`
+    /// never touches the source entry until the very end, but it does re-home
+    /// the one `Command` both entries point at, so the vacating name reports
+    /// the destination's namespace for the callbacks' duration.
+    fn rebind_slot(&mut self, key: &[u8], command: Command) {
+        if let Some((_, bound)) = self.entries.get_mut(key) {
+            *bound = command;
+        }
     }
 
     /// Create `key`'s hash entry ahead of the binding that fills it — C's
@@ -440,46 +463,74 @@ impl Namespaces {
         self.arena[ns].commands.remove(&simple)
     }
 
-    /// `rename old new`: move the command bound to `old` to `new` (both resolved
-    /// relative to `current`, absolute when `::`-led); `new == ""` deletes it.
-    /// Occupancy protection is the caller's job (see
-    /// [`Self::destination_occupant_fqn`]) — a script-visible "already
-    /// exists" refusal needs release-gate context (a TclOO root this release
-    /// hides is not really taken) that this table-only layer does not have,
-    /// so this unconditionally overwrites whatever is at the destination,
-    /// same as [`Self::insert_bound`].
+    /// Publish the destination half of `rename old new` — both names resolved
+    /// relative to `current`, absolute when `::`-led — and leave the source's
+    /// table entry standing. C's `TclRenameCommand` creates the destination
+    /// hash entry, fires the `rename` traces, and only then deletes the source
+    /// one, with *both* entries referencing the one `Command`; the caller
+    /// closes that window with [`Self::retire_rename_source`]. `None` when
+    /// `old` names no command (or `new` has no tail to bind).
     ///
     /// A command moved across namespaces is re-homed: a `Command::Proc`'s
-    /// `ns`/`fqn` are updated to the destination so `namespace current`
-    /// inside its body reports the new namespace, mirroring C's
-    /// `cmdPtr->nsPtr` reassignment.
+    /// `ns`/`fqn` are updated to the destination so `namespace current` inside
+    /// its body reports the new namespace, mirroring C's `cmdPtr->nsPtr`
+    /// reassignment — and because C re-homes the shared `Command` before the
+    /// traces run, the vacating name reports the *destination's* namespace for
+    /// the callbacks' duration too (tclsh 8.6/9.0-pinned).
     ///
-    /// Built-in protection lives in the `rename` builtin, not here — this is the
-    /// pure table operation.
-    pub fn rename(&mut self, current: NsId, old: &[u8], new: &[u8]) -> RenameOutcome {
-        let Some((old_ns, old_simple)) = self.home_of(current, old) else {
-            return RenameOutcome::NoSuchCommand;
-        };
-        if new.is_empty() {
-            // SAFETY of unwrap: `home_of` reported the binding exists.
-            let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
-            Self::mark_command_deleted(&cmd);
-            return RenameOutcome::Deleted;
-        }
-        let Some((ns, simple)) = self.destination_of(current, new) else {
-            // Unreachable for a non-empty, non-separator-terminated name;
-            // nothing has moved yet, so there is nothing to put back.
-            return RenameOutcome::NoSuchCommand;
-        };
+    /// Occupancy protection is the caller's job (see
+    /// [`Self::destination_occupant_fqn`]) — a script-visible "already exists"
+    /// refusal needs release-gate context (a TclOO root this release hides is
+    /// not really taken) that this table-only layer does not have, so this
+    /// unconditionally overwrites whatever is at the destination, same as
+    /// [`Self::insert_bound`].
+    ///
+    /// Built-in protection lives in the `rename` builtin, not here — this is
+    /// the pure table operation, as is the `rename old ""` deletion
+    /// ([`Self::delete`]).
+    pub(crate) fn publish_rename_destination(
+        &mut self,
+        current: NsId,
+        old: &[u8],
+        new: &[u8],
+    ) -> Option<RenamePublication> {
+        let (old_ns, old_simple) = self.home_of(current, old)?;
+        // Unreachable for a non-empty, non-separator-terminated name; nothing
+        // has moved yet, so there is nothing to put back.
+        let (ns, simple) = self.destination_of(current, new)?;
         // C's `TclRenameCommand` creates the destination hash entry *before*
         // deleting the source's, so the transient extra entry can trigger a
         // rebuild a delete-first order would not.
         self.arena[ns].commands.reserve_entry(&simple);
-        // SAFETY of unwrap: `home_of` reported the binding exists.
-        let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
-        let cmd = Self::rehome_proc(cmd, ns, &self.command_fqn(ns, &simple));
+        // SAFETY of expect: `home_of` reported the binding exists.
+        let cmd = self.arena[old_ns]
+            .commands
+            .get(&old_simple)
+            .cloned()
+            .expect("home_of reported a binding at the rename source");
+        let destination_fqn = self.command_fqn(ns, &simple);
+        let cmd = Self::rehome_command(cmd, ns, &destination_fqn);
+        // One command under two names, as C has it: the source slot takes the
+        // re-homed binding too, and an ensemble token is shared outright.
+        self.arena[old_ns]
+            .commands
+            .rebind_slot(&old_simple, cmd.clone());
         self.insert_bound(ns, simple, cmd);
-        RenameOutcome::Renamed
+        Some(RenamePublication {
+            source: (old_ns, old_simple),
+            destination_fqn,
+        })
+    }
+
+    /// Delete the source entry [`Self::publish_rename_destination`] left
+    /// standing — C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of
+    /// `TclRenameCommand`. A plain table removal: no `delete` trace fires and
+    /// no token dies, because the command lives on under its new name. A
+    /// callback may have removed or rebound the slot itself, so whatever is
+    /// there goes and an already-vacated entry is not an error.
+    pub(crate) fn retire_rename_source(&mut self, publication: &RenamePublication) {
+        let (ns, simple) = &publication.source;
+        self.arena[*ns].commands.remove(simple);
     }
 
     /// The fully-qualified name of whatever is currently bound at the
@@ -508,10 +559,18 @@ impl Namespaces {
             .then(|| self.command_fqn(ns, &simple))
     }
 
-    /// Re-home a `Command::Proc` moved by `rename` to its new binding site.
-    /// Every other `Command` variant carries no namespace of its own and
-    /// passes through unchanged.
-    fn rehome_proc(command: Command, ns: NsId, fqn: &[u8]) -> Command {
+    /// Re-point a command that carries its own binding identity at the site a
+    /// `rename` moved it to — C's `cmdPtr->nsPtr` reassignment, which happens
+    /// to the one shared `Command` and so is visible through *both* names for
+    /// the `rename` traces' duration.
+    ///
+    /// A `Command::Proc` carries its home namespace and FQN, so `namespace
+    /// current` inside its body reports the new namespace. A
+    /// `Command::OoObject` carries the FQN it is registered under in
+    /// [`crate::cmd_oo::OoState`], so dispatch reaches the object the
+    /// accompanying `Interp::oo_command_renamed` moved. Every other variant
+    /// carries no site of its own and passes through unchanged.
+    fn rehome_command(command: Command, ns: NsId, fqn: &[u8]) -> Command {
         match command {
             Command::Proc(def) if def.ns != ns => {
                 let mut def = (*def).clone();
@@ -519,6 +578,7 @@ impl Namespaces {
                 def.fqn = fqn.to_vec();
                 Command::Proc(std::rc::Rc::new(def))
             }
+            Command::OoObject(_) => Command::OoObject(fqn.to_vec()),
             other => other,
         }
     }

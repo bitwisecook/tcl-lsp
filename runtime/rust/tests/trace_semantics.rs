@@ -836,3 +836,225 @@ fn a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return() {
         assert_eq!(got, "mangled\n|\nmangled\n|", "{version:?}");
     }
 }
+
+// -- The `rename` trace window: one command under two names ------------------
+//
+// C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
+// entry, fires the `rename` traces, and only *then* deletes the source one —
+// and the traces hang off the shared `Command` rather than off either entry.
+// So for the callbacks' duration the vacating name **is** the destination
+// command. The runtime used to fire before touching the table, so a callback
+// saw the old name but not yet the new one. Every sheet below is identical on
+// tclsh 8.6.16 and 9.0.4.
+
+/// Both names resolve, both are callable, and `trace info command` /
+/// `trace info execution` answer the same list through either of them.
+#[test]
+fn a_rename_callback_sees_the_command_under_both_names() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc E args {}\n\
+         proc R {old new op} {\n\
+         \x20   lappend ::log [list R $old $new $op]\n\
+         \x20   lappend ::log \"live: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]]\"\n\
+         \x20   lappend ::log \"call: [victim] [victim2]\"\n\
+         \x20   lappend ::log \"cmd: [trace info command victim] | \
+         [trace info command victim2]\"\n\
+         \x20   lappend ::log \"exec: [trace info execution victim] | \
+         [trace info execution victim2]\"\n\
+         }\n\
+         trace add command victim rename R\n\
+         trace add execution victim enter E\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R ::victim ::victim2 rename\n\
+         live: 1 1\n\
+         call: V V\n\
+         cmd: {rename R} | {rename R}\n\
+         exec: {enter E} | {enter E}\n\
+         after: 0 1"
+    );
+}
+
+/// There is one trace list, so a callback's `trace remove` through the
+/// vacating name edits the list the rest of the pass — and the surviving
+/// command — is reading.
+#[test]
+fn a_rename_callback_edits_one_trace_list_through_either_name() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc C1 {old new op} {\n\
+         \x20   trace remove command victim rename C1\n\
+         \x20   lappend ::log \"C1: [trace info command victim]\"\n\
+         }\n\
+         proc C2 {old new op} { lappend ::log \"C2: [trace info command victim2]\" }\n\
+         trace add command victim rename C2\n\
+         trace add command victim rename C1\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [trace info command victim2]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "C1: {rename C2}\nC2: {rename C2}\nafter: {rename C2}");
+}
+
+/// The other direction: a `trace add` through the vacating name lands on the
+/// one command, so it is still there under the new name afterwards.
+#[test]
+fn a_trace_added_through_the_vacating_name_follows_the_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc D {old new op} { lappend ::log [list D $old $new $op] }\n\
+         proc R {old new op} { trace add command victim delete D }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"info: [trace info command victim2]\"\n\
+         rename victim2 {}\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "info: {delete D} {rename R}\nD ::victim2 {} delete");
+}
+
+/// A callback that renames *through* the vacating name moves that one command
+/// on again — it does not leave a second copy behind — and C's
+/// `CMD_TRACE_ACTIVE` keeps the pass's remaining callbacks from re-firing when
+/// it does (`C2` runs once, with no nested `C1`/`C2` pass).
+#[test]
+fn a_rename_callback_renaming_the_vacating_name_moves_the_one_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc C1 {old new op} { lappend ::log C1; rename victim victim3 }\n\
+         proc C2 {old new op} { lappend ::log C2 }\n\
+         trace add command victim rename C2\n\
+         trace add command victim rename C1\n\
+         rename victim victim2\n\
+         lappend ::log \"live: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]] [llength [info commands ::victim3]]\"\n\
+         lappend ::log \"info: [trace info command victim3] | [victim3]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "C1\nC2\nlive: 0 0 1\ninfo: {rename C1} {rename C2} | V"
+    );
+}
+
+/// And a callback that *deletes* through the vacating name destroys the one
+/// command: neither name is left standing.
+#[test]
+fn a_rename_callback_deleting_the_vacating_name_destroys_the_one_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc R {old new op} { rename victim {} }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"live: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "live: 0 0");
+}
+
+/// A nested rename must retarget the enclosing window: after the callback
+/// moves the command to a third name, the outermost vacating name still
+/// reaches it, and a `trace add` through that name lands on the survivor.
+#[test]
+fn a_nested_rename_keeps_the_vacating_name_on_the_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc D {old new op} { lappend ::log [list D $old $new $op] }\n\
+         proc R {old new op} {\n\
+         \x20   rename victim2 victim3\n\
+         \x20   lappend ::log \"in: [trace info command victim] | \
+         [trace info command victim3]\"\n\
+         \x20   trace add command victim delete D\n\
+         }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [trace info command victim3]\"\n\
+         rename victim3 {}\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "in: {rename R} | {rename R}\n\
+         after: {delete D} {rename R}\n\
+         D ::victim3 {} delete"
+    );
+}
+
+/// C re-homes the one `Command` (`cmdPtr->nsPtr = newNsPtr`) before it fires,
+/// so a body invoked through the vacating name already reports the
+/// *destination's* namespace.
+#[test]
+fn the_vacating_name_reports_the_destinations_namespace() {
+    let got = transcript(
+        "set ::log {}\n\
+         namespace eval a { proc p {} { return [namespace current] } }\n\
+         namespace eval b {}\n\
+         proc R {old new op} {\n\
+         \x20   lappend ::log [list R $old $new $op]\n\
+         \x20   lappend ::log \"old: [a::p]\"\n\
+         \x20   lappend ::log \"new: [b::q]\"\n\
+         }\n\
+         trace add command a::p rename R\n\
+         rename a::p ::b::q\n\
+         lappend ::log \"after: [b::q]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R ::a::p ::b::q rename\nold: ::b\nnew: ::b\nafter: ::b"
+    );
+}
+
+/// The window covers the redirect kinds that carry their own binding identity
+/// too: a TclOO object embeds the FQN its registry entry lives under, an
+/// ensemble token its name, and an import its source. C re-homes the one
+/// `Command` and lets both hash entries reach it, so each is callable under
+/// the vacating name *and* the destination for the callbacks' duration.
+#[test]
+fn the_rename_window_covers_objects_ensembles_and_imports() {
+    let got = transcript(
+        "set ::log {}\n\
+         oo::class create C { method m {} { return M } }\n\
+         C create obj\n\
+         namespace eval e { proc sub {} { return S }; namespace export sub; \
+         namespace ensemble create }\n\
+         namespace eval src { proc f {} { return F }; namespace export f }\n\
+         namespace eval dst { namespace import ::src::f }\n\
+         proc R {old new op} {\n\
+         \x20   lappend ::log [list R $old $new $op]\n\
+         \x20   lappend ::log \"oo: [obj m] [obj2 m]\"\n\
+         }\n\
+         proc RE {old new op} { lappend ::log \"ens: [e sub] [e2 sub]\" }\n\
+         proc RI {old new op} { lappend ::log \"imp: [dst::f] [src::f] [src::g]\" }\n\
+         trace add command obj rename R\n\
+         trace add command e rename RE\n\
+         trace add command src::f rename RI\n\
+         rename obj obj2\n\
+         rename e e2\n\
+         rename ::src::f ::src::g\n\
+         lappend ::log \"after: [obj2 m] [e2 sub] [dst::f]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R ::obj ::obj2 rename\n\
+         oo: M M\n\
+         ens: S S\n\
+         imp: F F F\n\
+         after: M S F"
+    );
+}
