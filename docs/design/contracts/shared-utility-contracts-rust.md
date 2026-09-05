@@ -37,6 +37,7 @@ entry point, or gate moves without this contract being updated.
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `worded_parse_error` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
+| word values (brace / list axes, braced-word recognition) | `rust/tcl-syntax/src/word_rules.rs` | `WordValueRules`; `collapse_braced_word`; `split_list`; `split_list_tolerant`; `split_word_names`; `whole_braced_word` | `LexerGrammar::brace_backslash_newline` and `list_parse` per dialect, carried together because a word-shaped list asks both; brace *balance* is release-invariant, so `whole_braced_word` takes no rules | none |
 | numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
 | backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
@@ -184,6 +185,16 @@ entry point, or gate moves without this contract being updated.
   and the first-seed policy are per engine (#1432).
 - `backslash` — the byte-slice convenience over the lexer's decoder
   (see next); deliberately no second decode implementation.
+- `word_rules` — what a *word* means as a value: `WordValueRules` carries
+  the brace-continuation and list-parse axes together (a word-shaped list
+  asks both at once), and `whole_braced_word` answers "is this word a braced
+  literal". That last one is release-invariant and so takes no rules, but it
+  is shared for the same reason the axes are: the VM's `subst_word` strips
+  such a word's braces and suppresses all substitution, and codegen has to
+  decide the identical question about the identical word before it emits.
+  While the two were separate, codegen tested the *necessary* condition only
+  (`{` first, `}` last), so it stripped `{}${z}` to the unbalanced `}${z}`
+  and `switch -- "{}$z" …` refused a script both oracles run.
 
 ### `tcl-dialect` — foundational expression grammar
 

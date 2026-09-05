@@ -36,6 +36,14 @@
 //! owner's `SubstFlags::compiled_word()` rather than a private scanner.
 
 use tcl_runtime_api::Code;
+// A braced literal suppresses *all* substitution, so the codegen marks such
+// words by keeping their outer `{...}` braces (see `emit_one_proc_def` /
+// `emit_cmd_subst_arg`); `subst_word` strips them and returns the content
+// verbatim, mirroring the reference VM's `PUSH` handling. The balance walk is
+// shared with the codegen side, which has to answer the same question about
+// the same word — a second copy is how `{}${z}` came to be stripped to `}${z}`
+// there while the VM read it correctly.
+use tcl_syntax::word_rules::whole_braced_word as whole_braced;
 
 use crate::error::TclError;
 use crate::interp::Vm;
@@ -78,46 +86,6 @@ fn command_end(
         config,
     )
     .map(|end| end - 1)
-}
-
-/// If `word` is a single balanced brace group spanning the whole word
-/// (`{` … matching `}` at the final byte), return the inner slice. A braced
-/// literal suppresses *all* substitution, so the codegen marks such words by
-/// keeping their outer `{...}` braces (see `emit_one_proc_def` /
-/// `emit_cmd_subst_arg`); the runtime strips them here and returns the content
-/// verbatim, mirroring the reference VM's `PUSH` handling.
-fn whole_braced(word: &str) -> Option<&str> {
-    let b = word.as_bytes();
-    let n = b.len();
-    if n < 2 || b[0] != b'{' || b[n - 1] != b'}' {
-        return None;
-    }
-    let mut depth = 0usize;
-    let mut i = 0usize;
-    while i < n {
-        match b[i] {
-            b'\\' => {
-                i += 2;
-                continue;
-            }
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                // A premature return to depth 0 means the leading `{` does not
-                // match the trailing `}`, so this is not a whole-word literal.
-                if depth == 0 && i != n - 1 {
-                    return None;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    if depth == 0 {
-        Some(&word[1..n - 1])
-    } else {
-        None
-    }
 }
 
 fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
