@@ -105,9 +105,11 @@ rung 3 needs no separate state.
 
 ### Bundle discipline
 
-The controller (~113 KB) is what every visitor loads; the editor chunk (~2.7 MB
-minified, ~680 KB gzipped) and the server wasm (~5.6 MB gzipped) load only when
-an editor tab is opened. esbuild's code splitting cannot express this — it needs
+The controller (~180 KB) is what every visitor loads; the editor chunk (~3.2 MB
+minified) and the server wasm (~5.6 MB gzipped) load only when an editor tab is
+opened. The controller grew from ~113 KB with the pack navigator, the
+documentation dock and the open-command strip — all of which a first paint
+needs, which is why they are in it rather than deferred. esbuild's code splitting cannot express this — it needs
 `format: "esm"` for the whole build and the controller must stay a classic
 script — so `build.mjs` runs two builds and `studio.ts` reaches the second one
 through a dynamic `import()` of a **runtime-built** URL, which is what stops
