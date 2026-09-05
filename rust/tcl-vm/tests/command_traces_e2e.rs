@@ -423,6 +423,53 @@ const VECTORS: &[Vector] = &[
                ---\n\
                l2 info: {leave l2}",
     },
+    // A **delete** walk is handed the dying token's own trace list
+    // (`CallCommandTraces`, `tclBasic.c` 9.0.4:3972-3993), so a callback that
+    // re-creates the command under the same name takes the *name-keyed* entry
+    // over while the rest of that list still fires. Only an explicit
+    // `trace remove` cancels a pending callback — and once a replacement holds
+    // the name, `trace remove` reaches the replacement's (empty) list instead,
+    // so it cancels nothing. Measured on tclsh 8.6.16 and 9.0.4; the VM used to
+    // decide liveness by table membership, which a re-creation silently
+    // emptied, so every older callback was skipped.
+    Vector {
+        name: "a delete callback that re-creates the command does not cancel the rest of the walk",
+        script: "proc foo {} { return FOO }\n\
+                 proc OLD {old new op} { puts \"OLD $old $new $op\" }\n\
+                 proc NEW {old new op} { puts \"NEW $old $new $op\"\n\
+                 proc foo {} { return FOO2 } }\n\
+                 trace add command foo delete OLD\n\
+                 trace add command foo delete NEW\n\
+                 rename foo {}\n\
+                 puts \"exists:[info commands foo] call:[foo] traces:[trace info command foo]\"\n\
+                 puts ---\n\
+                 proc A1 {o n op} { puts A1 }\n\
+                 proc A2 {o n op} { puts A2\n\
+                 trace remove command a delete A1 }\n\
+                 proc a {} {}\n\
+                 trace add command a delete A1\n\
+                 trace add command a delete A2\n\
+                 rename a {}\n\
+                 puts ---\n\
+                 proc B1 {o n op} { puts B1 }\n\
+                 proc B2 {o n op} { puts B2\n\
+                 proc b {} {}\n\
+                 trace remove command b delete B1 }\n\
+                 proc b {} {}\n\
+                 trace add command b delete B1\n\
+                 trace add command b delete B2\n\
+                 rename b {}\n\
+                 puts \"b-exists:[info commands b] b-traces:[trace info command b]\"\n",
+        want: "NEW ::foo  delete\n\
+               OLD ::foo  delete\n\
+               exists:foo call:FOO2 traces:\n\
+               ---\n\
+               A2\n\
+               ---\n\
+               B2\n\
+               B1\n\
+               b-exists:b b-traces:",
+    },
     // Row 9: `Tcl_DeleteCommandFromToken` marks the command `CMD_DYING`
     // (`tclBasic.c` 9.0.4:3760), fires the delete traces while its hash entry
     // still exists (:3793), and removes that entry only through

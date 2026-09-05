@@ -465,6 +465,57 @@ fn a_command_or_execution_trace_removed_during_firing_does_not_fire() {
     );
 }
 
+/// A **delete** walk is handed the dying token's own trace list
+/// (`CallCommandTraces`, `tclBasic.c` 9.0.4:3972-3993), so a callback that
+/// re-creates the command under the same name takes the *name-keyed* entry over
+/// while the rest of that list still fires. Only an explicit `trace remove`
+/// cancels a pending callback, and once a replacement holds the name a
+/// `trace remove` reaches the replacement's empty list and cancels nothing.
+///
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below. Deciding liveness
+/// by name-keyed table membership skipped `OLD` and `B1`, because the
+/// callback's `proc` emptied the entry the walk was consulting.
+#[test]
+fn a_delete_callback_recreating_the_command_does_not_cancel_the_walk() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc foo {} { return FOO }\n\
+         proc OLD {o n op} { lappend ::log [list OLD $o $n $op] }\n\
+         proc NEW {o n op} { lappend ::log [list NEW $o $n $op]\n\
+         \x20   proc foo {} { return FOO2 } }\n\
+         trace add command foo delete OLD\n\
+         trace add command foo delete NEW\n\
+         rename foo {}\n\
+         lappend ::log \"call:[foo]\" \"traces:[trace info command foo]\"\n\
+         proc A1 {o n op} { lappend ::log A1 }\n\
+         proc A2 {o n op} { lappend ::log A2\n\
+         \x20   trace remove command a delete A1 }\n\
+         proc a {} {}\n\
+         trace add command a delete A1\n\
+         trace add command a delete A2\n\
+         rename a {}\n\
+         proc B1 {o n op} { lappend ::log B1 }\n\
+         proc B2 {o n op} { lappend ::log B2\n\
+         \x20   proc b {} {}\n\
+         \x20   trace remove command b delete B1 }\n\
+         proc b {} {}\n\
+         trace add command b delete B1\n\
+         trace add command b delete B2\n\
+         rename b {}\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "NEW ::foo {} delete\n\
+         OLD ::foo {} delete\n\
+         call:FOO2\n\
+         traces:\n\
+         A2\n\
+         B2\n\
+         B1"
+    );
+}
+
 /// A command-delete trace whose callback re-creates the command leaves the
 /// *new* command standing: C deletes the token it captured before the callback
 /// (`CMD_DYING`, its hash entry taken over by the new command), not whatever

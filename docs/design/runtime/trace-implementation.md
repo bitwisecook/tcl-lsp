@@ -130,12 +130,30 @@ over our oldest-first Vecs), as do the teardown paths that collect a
 namespace's unset and command-delete traces before firing them.
 
 Every firing loop walks **live** state rather than a snapshot: it collects the
-registrations' ids up front, in the order above, and re-finds each one in the
-table immediately before running it. That is C's `active.nextTracePtr` /
-`nextPtr` walk, which `Tcl_UntraceVar2` and `Tcl_UntraceCommand` rewrite as
-they unlink a record — so a trace a callback removes does not fire in the same
-pass, while one it adds waits for the next access (C prepends, behind the
-walk). An unset is the exception, and for the same reason: it takes the
+registrations' identities up front, in the order above, and re-checks each one
+immediately before running it. That is C's `active.nextTracePtr` / `nextPtr`
+walk, which `Tcl_UntraceVar2` and `Tcl_UntraceCommand` rewrite as they unlink a
+record — so a trace a callback removes does not fire in the same pass, while
+one it adds waits for the next access (C prepends, behind the walk).
+
+*What* the re-check consults differs by kind, because C's walks hold different
+things:
+
+| walk | holds | a callback that redefines the traced command |
+|---|---|---|
+| variable | the cell's list | — |
+| execution (`enter`/`leave`/step) | the list of whatever command the name holds now | stops the rest of the walk |
+| command (`rename`/`delete`) | the dying **token's** own list | does not stop it |
+
+So the execution loops re-read the name-keyed table, while the command loops
+consult a per-registration "untraced" mark that only `trace remove` sets: a
+callback's `proc foo …` takes the table entry over without touching the list
+the walk is following, and the remaining callbacks still run. Once a
+replacement holds the name, a `trace remove` inside a later callback reaches
+*its* list and so cancels nothing. All three shapes are pinned against tclsh
+8.6.16 and 9.0.4.
+
+An unset is the variable-side exception, and for the same reason: it takes the
 variable's own list out of the table before firing (C moves it to a dummy
 `Var`), so nothing can remove those callbacks any more, and a variable a
 callback revives carries no traces.

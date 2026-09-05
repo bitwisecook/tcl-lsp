@@ -1204,6 +1204,17 @@ pub(crate) struct CmdTraceEntry {
     pub(crate) ops: Vec<String>,
     pub(crate) callback: String,
     firing: std::cell::Cell<bool>,
+    /// Set by [`Vm::remove_cmd_trace`] when it unlinks this registration, so a
+    /// walk already under way skips it — C's `Tcl_UntraceCommand` unlinks from
+    /// the list the walk is following (`tclBasic.c` 9.0.4:4020-4045).
+    ///
+    /// The flag, rather than the entry's presence in `cmd_traces`, is what
+    /// cancels a pending callback: a **delete** walk holds the dying token's
+    /// list, and a callback that re-creates the command under the same name
+    /// takes the *table* entry over without touching that list, so the
+    /// remaining callbacks still run. Table membership cannot tell those two
+    /// apart. Measured on tclsh 8.6.16 and 9.0.4.
+    untraced: std::cell::Cell<bool>,
 }
 
 impl CmdTraceEntry {
@@ -1212,7 +1223,14 @@ impl CmdTraceEntry {
             ops,
             callback,
             firing: std::cell::Cell::new(false),
+            untraced: std::cell::Cell::new(false),
         }
+    }
+
+    /// Whether `trace remove` has unlinked this registration (see
+    /// [`Self::untraced`]).
+    pub(crate) fn untraced(&self) -> bool {
+        self.untraced.get()
     }
 
     /// Whether this entry fires for `op`.
@@ -5749,6 +5767,9 @@ impl Vm {
                 .iter()
                 .rposition(|t| t.ops == ops && t.callback == callback)
             {
+                // Mark before dropping the handle: a firing walk holds its own
+                // `Rc` and consults the flag, not the table.
+                list[index].untraced.set(true);
                 list.remove(index);
                 removed = true;
             }
@@ -5856,16 +5877,14 @@ impl Vm {
             if !entry.ops.iter().any(|o| o == op) {
                 continue;
             }
-            // C's `CallCommandTraces` walks the live list through `nextPtr`
-            // (tclBasic.c 9.0.4:3972-3993) and `Tcl_UntraceCommand` unlinks a
-            // record at once, so a trace an earlier callback removed does not
-            // fire in this pass. Re-check identity against the table, exactly
-            // as the execution-trace loop already does. Issue #1633 row 8.
-            if !self
-                .cmd_traces
-                .get(key)
-                .is_some_and(|live| live.iter().any(|l| Rc::ptr_eq(l, &entry)))
-            {
+            // C's `CallCommandTraces` walks the list hanging off the token it
+            // was handed (tclBasic.c 9.0.4:3972-3993) and `Tcl_UntraceCommand`
+            // unlinks a record at once, so a trace an earlier callback removed
+            // does not fire in this pass (issue #1633 row 8) — but a callback
+            // that re-creates the command under this name only takes the
+            // *table* entry over, leaving the dying token's list to finish
+            // firing. Hence the per-entry flag rather than a table lookup.
+            if entry.untraced() {
                 continue;
             }
             let _ = self.run_cmd_trace_callback(
@@ -7310,14 +7329,62 @@ impl Vm {
         name: &str,
         value: Value,
     ) -> Result<Value, Completion<Value>> {
+        if let Some((base, key)) = elem_ref(name) {
+            let (base, key) = (base.to_owned(), key.to_owned());
+            return self.store_elem_result(&base, &key, value);
+        }
         if self.var_traces.is_empty() {
             // With no traces nothing can have moved the cell: the read-back is
             // the stored value, so skip the second resolution.
-            self.var_set(name, value.clone())?;
+            self.set_var(name, value.clone())?;
             return Ok(value);
         }
-        self.var_set(name, value)?;
-        Ok(self.var_get(name).unwrap_or_else(Value::empty))
+        // Resolve the cell *once*, as C does: `TclObjLookupVarEx` hands
+        // `TclPtrSetVarIdx` a `Var *`, and the read-back is that same `Var`.
+        // Re-running the name lookup would let a write callback steer it
+        // elsewhere — at 8.x a callback that creates `ns::x` beside the `::x`
+        // a bare name had reached through the namespace fallback, or that
+        // unsets the `ns::x` the name did reach, moves the second lookup to a
+        // different variable. Measured on tclsh 8.6.16. Issue #1633 row 1.
+        let cell = self.resolved_cell(name);
+        self.set_var(name, value)?;
+        Ok(self.read_resolved_cell(&cell).unwrap_or_else(Value::empty))
+    }
+
+    /// The frame + key a scalar name resolves to **right now** — C's `Var *`.
+    /// Mirrors the resolution [`write_scalar_raw`](Self::write_scalar_raw) and
+    /// [`write_array_raw`](Self::write_array_raw) perform, so a cell captured
+    /// before a store is exactly the one the store wrote.
+    fn resolved_cell(&self, name: &str) -> (usize, String) {
+        let resolved = self.ns_var_fallback(name);
+        self.locate(resolved.as_deref().unwrap_or(name))
+    }
+
+    /// Read the scalar at an already-resolved [`resolved_cell`](Self::resolved_cell) —
+    /// the tail of [`get_var`](Self::get_var) with the name lookup already done.
+    fn read_resolved_cell(&self, (lvl, nm): &(usize, String)) -> Option<Value> {
+        if let Some((base, key)) = elem_ref(nm) {
+            // The resolved name is itself an element (a link into an array).
+            let (blvl, bnm) = self.locate_key_from(base, *lvl);
+            return match self.frames.get(blvl)?.locals.get(&bnm) {
+                Some(Local::Array(m)) => m.get(key).cloned(),
+                _ => None,
+            };
+        }
+        match self.frames.get(*lvl)?.locals.get(nm) {
+            Some(Local::Scalar(v)) => Some(v.clone()),
+            _ => None,
+        }
+    }
+
+    /// [`read_resolved_cell`](Self::read_resolved_cell) for element `key` of an
+    /// already-resolved array cell — the tail of
+    /// [`get_array_elem`](Self::get_array_elem).
+    fn read_resolved_elem(&self, (lvl, nm): &(usize, String), key: &str) -> Option<Value> {
+        match self.frames.get(*lvl)?.locals.get(nm) {
+            Some(Local::Array(m)) => m.get(key).cloned(),
+            _ => None,
+        }
     }
 
     /// [`store_var_result`](Self::store_var_result) for an already-split
@@ -7333,8 +7400,13 @@ impl Vm {
             self.set_array_elem(name, key, value.clone())?;
             return Ok(value);
         }
+        // The array's own cell is resolved once, for the same reason
+        // [`store_var_result`](Self::store_var_result) explains.
+        let cell = self.resolved_cell(name);
         self.set_array_elem(name, key, value)?;
-        Ok(self.get_array_elem(name, key).unwrap_or_else(Value::empty))
+        Ok(self
+            .read_resolved_elem(&cell, key)
+            .unwrap_or_else(Value::empty))
     }
 
     /// Read `name` for a **read-modify-write** command (`incr`, and the

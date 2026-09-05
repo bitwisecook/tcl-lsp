@@ -3661,16 +3661,19 @@ impl Interp {
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
         // newest-last. Issue #1440.
-        let ids: Vec<u64> = self
+        // The callbacks are captured up front, not re-read per step: this walk
+        // owns the dying token's list, which a callback's re-creation of the
+        // command detaches from the name. See [`Self::cmd_trace_untraced`].
+        let entries: Vec<(u64, Vec<u8>)> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .rev()
             .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
-            .map(|t| t.id)
+            .map(|t| (t.id, t.command.clone()))
             .collect();
-        if ids.is_empty() {
+        if entries.is_empty() {
             return;
         }
         let op: &[u8] = if op_bit == crate::cmd_trace::ops::RENAME {
@@ -3683,10 +3686,10 @@ impl Interp {
         unsafe { obj::incr_ref_count(saved) };
 
         self.traces.borrow_mut().exec_firing += 1;
-        for id in ids {
-            let Some(cmd) = self.live_cmd_trace(id) else {
+        for (id, cmd) in entries {
+            if self.cmd_trace_untraced(id) {
                 continue;
-            };
+            }
             // Append `oldName newName op` as properly-quoted list elements.
             let args = crate::list::new_list_obj(&[
                 new_string(old_fqn),
@@ -3699,7 +3702,12 @@ impl Interp {
             drop_fresh(args);
             let _ = self.eval_str(&line);
         }
-        self.traces.borrow_mut().exec_firing -= 1;
+        let mut traces = self.traces.borrow_mut();
+        traces.exec_firing -= 1;
+        if traces.exec_firing == 0 {
+            traces.untraced_cmd_trace_ids.clear();
+        }
+        drop(traces);
 
         unsafe {
             obj::decr_ref_count(self.result.get());
@@ -3711,6 +3719,13 @@ impl Interp {
     /// when a callback has since removed it. C walks the trace list through
     /// `nextPtr` and `Tcl_UntraceCommand` unlinks a record at once, so a trace
     /// removed mid-firing never fires in that pass. Issue #1633 row 8.
+    ///
+    /// This is the **execution** rule: `TclCheckExecutionTraces` follows the
+    /// list of whatever command the name now holds, so a callback that
+    /// redefines the traced command stops the rest of the walk — measured on
+    /// tclsh 8.6.16 and 9.0.4, where `proc t {}` inside an `enter` callback
+    /// keeps the older `enter` callback from running. The delete walk answers
+    /// differently; see [`Self::cmd_trace_untraced`].
     fn live_cmd_trace(&self, id: u64) -> Option<Vec<u8>> {
         self.traces
             .borrow()
@@ -3718,6 +3733,17 @@ impl Interp {
             .iter()
             .find(|t| t.id == id)
             .map(|t| t.command.clone())
+    }
+
+    /// Whether `trace remove` has unlinked command trace `id` since this walk
+    /// began. `CallCommandTraces` is handed the dying token's own list
+    /// (`tclBasic.c` 9.0.4:3972-3993), so a callback that re-creates the
+    /// command under the same name takes the name-keyed table entry over while
+    /// the remaining callbacks still run; only an explicit untrace cancels one.
+    /// Measured on tclsh 8.6.16 and 9.0.4: with two `delete` traces whose newer
+    /// callback runs `proc foo …`, **both** fire.
+    fn cmd_trace_untraced(&self, id: u64) -> bool {
+        self.traces.borrow().untraced_cmd_trace_ids.contains(&id)
     }
 
     /// Fire `enter` execution traces on `fqn` (creation order), invoking each as

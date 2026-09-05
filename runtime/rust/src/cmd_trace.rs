@@ -200,6 +200,13 @@ pub struct TraceTable {
     /// The id the next command/execution-trace registration takes (see
     /// [`CmdTrace::id`]).
     pub next_cmd_trace_id: u64,
+    /// Ids `trace remove` has unlinked while a walk was in flight. The
+    /// **delete** walk holds the dying token's list, so a callback that
+    /// re-creates the command under the same name takes the name-keyed table
+    /// entry over without cancelling the remaining callbacks; only an explicit
+    /// untrace does. Recorded only while `exec_firing > 0` and cleared when the
+    /// outermost walk ends, so it never grows unbounded.
+    pub untraced_cmd_trace_ids: Vec<u64>,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
@@ -452,7 +459,13 @@ fn cmd_trace_add_remove(
             .iter()
             .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
-            interp.traces.borrow_mut().cmd_traces.remove(i);
+            let mut traces = interp.traces.borrow_mut();
+            if traces.exec_firing > 0 {
+                let id = traces.cmd_traces[i].id;
+                traces.untraced_cmd_trace_ids.push(id);
+            }
+            traces.cmd_traces.remove(i);
+            drop(traces);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
         }
     }
