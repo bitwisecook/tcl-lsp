@@ -176,6 +176,13 @@ interface State {
    */
   expandedPacks: Set<string>;
   draft: Draft | null;
+  /**
+   * The sentence above the form, kept so the provenance beside it can be
+   * redrawn without reloading the draft — a dialect switch can change which
+   * pack wins a name (`close` is `tcl`'s in Tcl 9.0 and `irules`' in iRules)
+   * without changing the draft at all.
+   */
+  editorOrigin: string;
   files: StagedFile[];
   imported: InferredCommand[];
   pack: PackState;
@@ -957,7 +964,8 @@ function loadDraft(draft: Draft, origin: string, packCommand: string | null = nu
   state.draft = draft;
   state.pack.open = packCommand;
   formDirty = false;
-  renderEditorSource(origin, typeof draft.name === "string" ? draft.name : null);
+  state.editorOrigin = origin;
+  renderEditorSource();
 
   renderUnrenderableWarning(draft);
 
@@ -974,10 +982,11 @@ function loadDraft(draft: Draft, origin: string, packCommand: string | null = nu
  * which pack ships this name, and — the thing a spec author cannot guess —
  * which other packs declare it too.
  */
-function renderEditorSource(origin: string, name: string | null): void {
+function renderEditorSource(): void {
   const node = byId("editorSource");
   clear(node);
-  node.appendChild(document.createTextNode(origin));
+  node.appendChild(document.createTextNode(state.editorOrigin));
+  const name = typeof state.draft?.name === "string" ? state.draft.name : null;
   const entry = name ? state.index.find((candidate) => candidate.name === name) : undefined;
   if (!entry) return;
   node.appendChild(document.createTextNode(" "));
@@ -2379,6 +2388,9 @@ function loadDialect(): void {
   state.packById = packIndex(state.packs);
   state.byPack = groupByPack(state.index);
   renderList();
+  // Which pack wins a name is the dialect's choice, so the chip beside the
+  // open command is stale the moment the picker moves.
+  renderEditorSource();
 }
 
 /**
@@ -2450,6 +2462,7 @@ function boot(): void {
         byPack: new Map(),
         expandedPacks: new Set(),
         draft: null,
+        editorOrigin: "Pick a command on the left, or start a new one.",
         files: [],
         imported: [],
         pack: { source: "", view: null, open: null },
