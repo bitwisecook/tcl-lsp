@@ -8799,7 +8799,9 @@ impl Backend {
     /// This is the indexed counterpart of [`Self::commit_live_source`]. It is
     /// used after the document map has recorded a dialect change, never while
     /// an edit-order turn or document-map guard is held. The revision/text/
-    /// dialect check makes a newer edit, close, or re-open authoritative.
+    /// dialect check makes a newer edit, close, or re-open authoritative. The
+    /// old index slot is removed at the Salsa boundary, then independently
+    /// rebuilt before ordinary workspace-aware readers are released.
     async fn commit_live_dialect(
         &self,
         operation: &'static str,
@@ -8808,7 +8810,7 @@ impl Backend {
         dialect: &str,
         revision: u64,
     ) -> bool {
-        let _publication = self.live_publication_gate.lock().await;
+        let publication = self.live_publication_gate.lock().await;
         let since = crate::rt::Instant::now();
         let mut retries = 0_u64;
         let mut reported = false;
@@ -8894,10 +8896,20 @@ impl Backend {
             {
                 return false;
             }
-            doc.publication = DocumentPublication::Indexed;
+            doc.publication = DocumentPublication::Salsa;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
-            return true;
+            // Fresh analysis must not retain the live-publication gate: a
+            // newer edit is authoritative and must be able to supersede this
+            // seed while it runs, exactly as on the cold-open path.
+            drop(publication);
+            let text: Arc<str> = Arc::from(text);
+            let analysis = self
+                .fresh_analysis_for(uri, Arc::clone(&text), dialect.to_owned())
+                .await;
+            return self
+                .publish_live_index_if_current(uri, &text, dialect, revision, &analysis)
+                .await;
         }
     }
 
@@ -41840,6 +41852,47 @@ proc p {} {
             .get("::IconList")
             .unwrap_or_else(|| panic!("the factory-made class must be indexed: {analysis:?}"));
         assert!(class.methods.contains_key("GetSpecs"), "{class:?}");
+    }
+
+    /// Exact-head review of #1854: changing dialect retires facts analysed
+    /// under the old grammar. The document may become Salsa-ready immediately,
+    /// but it is not Indexed until replacement facts for that same live
+    /// revision have been published.
+    #[tokio::test]
+    async fn dialect_change_rebuilds_index_before_indexed_readiness_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dialect-reindex-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl9.0".to_owned(), 2)
+                .with_publication_pending(),
+        );
+
+        assert!(
+            backend
+                .commit_live_dialect("test_dialect_reindex", &uri, text, "tcl9.0", 0)
+                .await,
+            "the current dialect revision must publish",
+        );
+        assert_eq!(
+            backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("the document remains live")
+                .publication,
+            DocumentPublication::Indexed,
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::current"),
+            "Indexed readiness must include replacement facts under the new dialect",
+        );
     }
 
     /// Fresh review of #1854: a cold `didOpen` index seed must not own either
