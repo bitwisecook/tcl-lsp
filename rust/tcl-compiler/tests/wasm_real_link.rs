@@ -988,6 +988,229 @@ fn run_boot_only(runtime: &Path, tag: &str, wat: &str) -> Result<String, String>
     }
 }
 
+/// Like [`bootstrap_wat`], plus the one thing a behavioural assertion cannot
+/// see: how many procedure bodies actually ran through a native entry.
+///
+/// The compiled body and the source body of a procedure produce the same Tcl
+/// answer by construction, so without this counter a binding that silently
+/// stopped taking effect would keep every result assertion green. Below
+/// `minimum` the module traps instead of printing, so the case fails loudly
+/// rather than quietly proving nothing.
+fn native_dispatch_bootstrap_wat(query: &str, minimum: i32) -> String {
+    let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
+    let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
+        .descriptor()
+        .name;
+    let object_new_string = CodegenAbiImportId::ObjectNewString.descriptor().name;
+    let object_release = CodegenAbiImportId::ObjectRelease.descriptor().name;
+    let dispatches = CodegenAbiImportId::NativeProcDispatches.descriptor().name;
+    format!(
+        r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "{create}" (func $create (result i32)))
+  (import "tcl" "{set_current}" (func $setcur (param i32)))
+  (import "tcl" "{object_new_string}" (func $box (param i32 i32) (result i32)))
+  (import "tcl" "tcl_eval" (func $eval (param i32) (result i32)))
+  (import "tcl" "{object_release}" (func $rel (param i32)))
+  (import "tcl" "{dispatches}" (func $dispatches (result i32)))
+  (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
+  (import "user" "::top" (func $top))
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (export "memory" (memory 0))
+  (func (export "_start")
+    (local $interp i32) (local $result i32) (local $strptr i32) (local $len i32)
+    (local.set $interp (call $create))
+    (call $setcur (local.get $interp))
+    (call $top)
+    (if (i32.lt_s (call $dispatches) (i32.const {minimum})) (then unreachable))
+    (local.set $result (call $eval (call $box (i32.const 0x180000) (i32.const {qlen}))))
+    (local.set $strptr (call $getstr (local.get $result) (i32.const 0x190000)))
+    (local.set $len (i32.load (i32.const 0x190000)))
+    (i32.store (i32.const 0x190008) (local.get $strptr))
+    (i32.store (i32.const 0x19000C) (local.get $len))
+    (drop (call $fd_write (i32.const 1) (i32.const 0x190008) (i32.const 1) (i32.const 0x190010)))
+    (call $rel (local.get $result)))
+  (data (i32.const 0x180000) "{query}"))
+"#,
+        qlen = query.len(),
+    )
+}
+
+/// Compile under the native tier and prove, before anything runs, that the
+/// module really binds `entries` compiled bodies: it imports the runtime's
+/// shared table, declares exactly that many functions for `ref.func`, and
+/// calls the definition ABI at least once.
+fn compile_native_bound(program: &str, entries: usize) -> Vec<u8> {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let mut output = compile_wasm(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked().native_tier(),
+    );
+    assert!(
+        output.module.import_table,
+        "{program:?} must import the runtime's shared function table"
+    );
+    assert_eq!(
+        output.module.elem_declared.len(),
+        entries,
+        "{program:?} must declare {entries} installable bodies"
+    );
+    assert_eq!(
+        output.module.globals.len(),
+        1,
+        "{program:?} must keep exactly one table-base global"
+    );
+    let define = CodegenAbiImportId::ProcDefineNative.descriptor().name;
+    let index = output
+        .module
+        .imports
+        .iter()
+        .position(|import| import.name == define)
+        .expect("the native tier imports the definition ABI");
+    let wat = output.module.to_wat();
+    let call = format!("call {index}");
+    assert!(
+        wat.lines().any(|line| line.trim() == call),
+        "{program:?} must call {define}; without it nothing binds an entry"
+    );
+    output.to_bytes()
+}
+
+/// Link a native-tier module, run it, and require `minimum` native proc
+/// dispatches before the query is even evaluated.
+fn run_real_native_proc(
+    runtime: &Path,
+    tag: &str,
+    program: &str,
+    entries: usize,
+    query: &str,
+    minimum: i32,
+) -> String {
+    let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
+    let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
+    std::fs::write(&user, compile_native_bound(program, entries)).expect("write user module");
+    std::fs::write(&boot, native_dispatch_bootstrap_wat(query, minimum)).expect("write bootstrap");
+    let out = Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", runtime.display()))
+        .arg("--preload")
+        .arg(format!("user={}", user.display()))
+        .arg(&boot)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&user);
+    let _ = std::fs::remove_file(&boot);
+    assert!(
+        out.status.success(),
+        "the native proc link trapped for {program:?} (fewer than {minimum} \
+         native dispatches, or a table install that did not take):\n--- stdout ---\n{}\n\
+         --- stderr ---\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    String::from_utf8(out.stdout).expect("stdout is utf-8")
+}
+
+/// A compiled procedure body reaches the interpreter through the shared
+/// function table, and answers what tclsh answers.
+///
+/// The `::top` prologue grows the runtime's table, keeps the base in its own
+/// global and writes one `ref.func` per bound body; `tcl_codegen_proc_define_native`
+/// hands each index to the definition. Everything after that is the runtime's
+/// (`run_proc` -> `run_native_body` -> `call_indirect`), and the counter in the
+/// bootstrap is what proves the compiled body — not the source body sitting
+/// beside it on the same `ProcDef` — is the one that ran.
+///
+/// Verified against `tmp/tcl9.0.4/unix/tclsh` and `tmp/tcl8.6.16/unix/tclsh`.
+#[test]
+fn a_compiled_proc_body_runs_through_the_runtimes_function_table() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    // Two bodies, one calling the other, so the table holds more than one
+    // entry and a slot-arithmetic slip cannot pass.
+    let program = "\
+proc add {a b} { return [expr {$a + $b}] }
+proc twice {x} { return [add $x $x] }
+set answer [twice 21]
+set level [add 1 1]
+";
+    assert_eq!(
+        run_real_native_proc(
+            &runtime,
+            "native_proc_table",
+            program,
+            2,
+            "list $answer $level",
+            3,
+        ),
+        "42 2",
+    );
+}
+
+/// `info level` from inside a compiled body reports the frame `run_proc`
+/// pushed — the detector for the double-frame mistake.
+///
+/// A proc entry that emitted the module-function prologue would push a second,
+/// nameless frame at the caller's namespace: `info level` would answer one
+/// deeper and `info level 0` would have no words at all. Both are checked
+/// here through the whole linked stack, not just against a Rust stub.
+#[test]
+fn a_compiled_proc_body_sees_the_frame_run_proc_pushed() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let program = "\
+proc lvl {} { return [list [info level] [info level 0]] }
+proc outer {x} { return [lvl] }
+set answer [outer 7]
+";
+    assert_eq!(
+        run_real_native_proc(&runtime, "native_proc_frame", program, 2, "set answer", 2,),
+        "2 lvl",
+    );
+}
+
+/// Recursion through the native path refuses at the same eval depth the
+/// interpreted body does, with the eval loop's own message.
+///
+/// The accounting this pins: one Tcl level through a compiled body costs
+/// exactly two eval-depth units — `run_native_body`'s activation and the
+/// recursive call's own `tcl_invoke_argv`. An entry that took an activation of
+/// its own would refuse a third sooner; one that dropped the runtime's would
+/// run past the bound. Measured on this exact script: `runtime/rust`'s
+/// `run_script` answers `ok` through depth 61 and refuses at 62, and so does
+/// this. Both are the #996 divergence from tclsh 9.0.4 and 8.6.16, which run
+/// every depth here — that gap belongs to the native eval-depth limit, not to
+/// this issue, and is deliberately left visible.
+///
+/// `probe` keeps the `catch` out of `::top`: a top-level `catch` declines the
+/// entry point's own lowering, and nothing binds in a module whose `::top`
+/// never runs the table install.
+#[test]
+fn recursion_through_a_compiled_body_refuses_at_the_interpreted_depth() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let program = "\
+proc d {n} { if {$n} { d [expr {$n - 1}] } ; return ok }
+proc probe {n} { if {[catch {d $n} m]} { return $m } ; return ok }
+set r60 [probe 60]
+set r61 [probe 61]
+set r62 [probe 62]
+set answer [list $r60 $r61 $r62]
+";
+    let printed = run_real_native_proc(&runtime, "native_proc_depth", program, 2, "set answer", 50);
+    assert_eq!(
+        printed, "ok ok {too many nested evaluations (infinite loop?)}",
+        "the compiled body must refuse at the interpreted runtime's own depth, \
+         with the eval loop's own message"
+    );
+}
+
 /// The runtime exports its indirect function table, and that table grows.
 ///
 /// `runtime/rust/build.rs` passes `--export-table --growable-table` for every
