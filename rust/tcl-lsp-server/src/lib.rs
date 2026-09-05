@@ -364,6 +364,20 @@ impl DocumentState {
         self.publication = DocumentPublication::Pending;
     }
 
+    fn matches_open_publication(&self, text: &str, dialect: &str, version: i32) -> bool {
+        self.version == Some(version)
+            && self.text.as_ref() == text
+            && self.dialect.as_str() == dialect
+            && !self.backing_file_deleted
+    }
+
+    fn matches_live_publication(&self, text: &str, dialect: &str, revision: u64) -> bool {
+        self.revision == revision
+            && self.text.as_ref() == text
+            && self.dialect.as_str() == dialect
+            && !self.backing_file_deleted
+    }
+
     fn mark_dialect_resolution_dirty(&mut self) {
         self.dialect_resolution_generation = self.dialect_resolution_generation.saturating_add(1);
     }
@@ -8499,10 +8513,7 @@ impl Backend {
         let Some(doc) = docs.get_mut(uri) else {
             return false;
         };
-        if doc.version != Some(version)
-            || doc.text.as_ref() != text
-            || doc.dialect.as_str() != dialect
-        {
+        if !doc.matches_open_publication(text, dialect, version) {
             return false;
         }
         doc.publication = DocumentPublication::Salsa;
@@ -8533,12 +8544,9 @@ impl Backend {
                 continue;
             }
             let mut docs = self.documents.lock("did_open_publish_complete").await;
-            let current = docs.get(uri).is_some_and(|doc| {
-                doc.version == Some(version)
-                    && doc.text.as_ref() == text
-                    && doc.dialect.as_str() == dialect
-                    && !doc.backing_file_deleted
-            });
+            let current = docs
+                .get(uri)
+                .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
             if !current {
                 return false;
             }
@@ -8593,12 +8601,9 @@ impl Backend {
                 continue;
             }
             let mut docs = self.documents.lock("did_change_publish_complete").await;
-            let current = docs.get(uri).is_some_and(|doc| {
-                doc.revision == revision
-                    && doc.text.as_ref() == text
-                    && doc.dialect.as_str() == dialect
-                    && !doc.backing_file_deleted
-            });
+            let current = docs
+                .get(uri)
+                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
             if !current {
                 return false;
             }
@@ -8733,11 +8738,9 @@ impl Backend {
             let mut reported = false;
             loop {
                 if let Some(docs) = self.documents.try_lock("did_open_currency")
-                    && !docs.get(uri).is_some_and(|doc| {
-                        doc.version == Some(version)
-                            && doc.text.as_ref() == text
-                            && doc.dialect.as_str() == dialect
-                    })
+                    && !docs
+                        .get(uri)
+                        .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
                 {
                     return false;
                 }
@@ -8773,11 +8776,9 @@ impl Backend {
                     continue;
                 };
 
-                let current = docs.get(uri).is_some_and(|doc| {
-                    doc.version == Some(version)
-                        && doc.text.as_ref() == text
-                        && doc.dialect.as_str() == dialect
-                });
+                let current = docs
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
                 if !current {
                     return false;
                 }
@@ -8850,11 +8851,9 @@ impl Backend {
         let mut reported = false;
         loop {
             if let Some(docs) = self.documents.try_lock(operation)
-                && !docs.get(uri).is_some_and(|doc| {
-                    doc.revision == revision
-                        && doc.text.as_ref() == text
-                        && doc.dialect.as_str() == dialect
-                })
+                && !docs
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
             {
                 return false;
             }
@@ -8888,11 +8887,9 @@ impl Backend {
                 .await;
                 continue;
             };
-            let current = docs.get(uri).is_some_and(|doc| {
-                doc.revision == revision
-                    && doc.text.as_ref() == text
-                    && doc.dialect.as_str() == dialect
-            });
+            let current = docs
+                .get(uri)
+                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
             if !current {
                 return false;
             }
@@ -8919,10 +8916,7 @@ impl Backend {
             let Some(doc) = docs.get_mut(uri) else {
                 return false;
             };
-            if doc.revision != revision
-                || doc.text.as_ref() != text
-                || doc.dialect.as_str() != dialect
-            {
+            if !doc.matches_live_publication(text, dialect, revision) {
                 return false;
             }
             doc.publication = if index_needs_seed {
@@ -8959,11 +8953,9 @@ impl Backend {
         let mut reported = false;
         loop {
             if let Some(docs) = self.documents.try_lock(operation)
-                && !docs.get(uri).is_some_and(|doc| {
-                    doc.revision == revision
-                        && doc.text.as_ref() == text
-                        && doc.dialect.as_str() == dialect
-                })
+                && !docs
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
             {
                 return false;
             }
@@ -8997,11 +8989,9 @@ impl Backend {
                 .await;
                 continue;
             };
-            let current = docs.get(uri).is_some_and(|doc| {
-                doc.revision == revision
-                    && doc.text.as_ref() == text
-                    && doc.dialect.as_str() == dialect
-            });
+            let current = docs
+                .get(uri)
+                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
             if !current {
                 return false;
             }
@@ -9033,10 +9023,7 @@ impl Backend {
             let Some(doc) = docs.get_mut(uri) else {
                 return false;
             };
-            if doc.revision != revision
-                || doc.text.as_ref() != text
-                || doc.dialect.as_str() != dialect
-            {
+            if !doc.matches_live_publication(text, dialect, revision) {
                 return false;
             }
             doc.publication = DocumentPublication::Salsa;
@@ -42057,6 +42044,179 @@ proc p {} {
                 .expect("the open index publisher must not panic"),
             "the still-current open seed must publish",
         );
+    }
+
+    async fn mark_open_buffer_deleted_while_publication_waits_1854(
+        backend: &Arc<Backend>,
+        uri: &Uri,
+    ) -> crate::rt::JoinHandle<()> {
+        let deleting = crate::rt::spawn({
+            let backend = Arc::clone(backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(uri)
+                    .is_some_and(|doc| {
+                        doc.backing_file_deleted && doc.publication == DocumentPublication::Indexed
+                    });
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the watcher must settle the open buffer as an orphan");
+        deleting
+    }
+
+    async fn assert_orphaned_publication_stays_retired_1854(
+        backend: &Backend,
+        uri: &Uri,
+        text: &str,
+        label: &str,
+        publishing: crate::rt::JoinHandle<bool>,
+        deleting: crate::rt::JoinHandle<()>,
+    ) {
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the obsolete source publisher must finish")
+                .expect("the obsolete source publisher must not panic"),
+            "the {label} publisher must reject the orphan",
+        );
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the watched deletion must finish")
+            .expect("the watched deletion must not panic");
+
+        let current = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(uri),
+        )
+        .await
+        .expect("an orphaned open buffer must not wait for a rejected index seed")
+        .expect("the orphaned open buffer remains locally readable");
+        assert_eq!(current.text.as_ref(), text);
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+        assert!(current.backing_file_deleted);
+        assert!(!backend.db_files.lock().await.contains_key(uri));
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the {label} publisher must not resurrect the deleted index slot",
+        );
+    }
+
+    #[derive(Clone, Copy)]
+    enum OrphanedPublicationKind {
+        Open,
+        Change,
+        Dialect,
+    }
+
+    /// Exact-head automated review of #1854: a watched deletion can overtake
+    /// any deferred live-source publisher before its Salsa setter. didOpen,
+    /// didChange, and dialect publication must all reject the orphan rather
+    /// than recreate its source and move settled readiness back to Salsa.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_cancels_queued_live_source_publications_1854() {
+        for (label, kind) in [
+            ("open", OrphanedPublicationKind::Open),
+            ("change", OrphanedPublicationKind::Change),
+            ("dialect", OrphanedPublicationKind::Dialect),
+        ] {
+            let backend = Arc::new(test_backend());
+            let uri = Uri::from_str(&format!("file:///deleted-{label}-source-1854.tcl")).unwrap();
+            let text = "proc ghost {} {}\n";
+            backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+            let analysis = {
+                let mut analyser = Analyser::new();
+                Arc::new(analyser.analyse(text, "tcl8.6").clone())
+            };
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(uri.as_str(), &analysis);
+            backend.documents.lock("test").await.insert(
+                uri.clone(),
+                DocumentState::with_version(text.to_owned(), "tcl9.0".to_owned(), 1)
+                    .with_language_id("tcl".to_owned())
+                    .with_publication_pending(),
+            );
+
+            let db_held = backend.db.lock().await;
+            let publishing = crate::rt::spawn({
+                let backend = Arc::clone(&backend);
+                let uri = uri.clone();
+                let seed = FreshAnalysisSeed {
+                    analysis,
+                    class_factory_generation: 0,
+                };
+                async move {
+                    match kind {
+                        OrphanedPublicationKind::Open => {
+                            backend
+                                .commit_open_document_with_seed(
+                                    &uri,
+                                    text,
+                                    "tcl9.0",
+                                    1,
+                                    async move { seed },
+                                )
+                                .await
+                        }
+                        OrphanedPublicationKind::Change => {
+                            backend
+                                .commit_live_source("test_change", &uri, text, "tcl9.0", 0, true)
+                                .await
+                        }
+                        OrphanedPublicationKind::Dialect => {
+                            backend
+                                .commit_live_dialect("test_dialect", &uri, text, "tcl9.0", 0)
+                                .await
+                        }
+                    }
+                }
+            });
+            crate::rt::timeout(std::time::Duration::from_secs(5), async {
+                loop {
+                    if backend.live_publication_gate.try_lock().is_err() {
+                        break;
+                    }
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .expect("the source publisher must wait behind the held database");
+
+            let deleting =
+                mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+            drop(db_held);
+            assert_orphaned_publication_stays_retired_1854(
+                &backend, &uri, text, label, publishing, deleting,
+            )
+            .await;
+        }
     }
 
     /// Exact-head automated review of #1854: a watched deletion can overtake
