@@ -2496,6 +2496,9 @@ struct DiagnosticMailboxState {
 struct DiagnosticPublisher {
     client: Client,
     state: std::sync::Mutex<DiagnosticMailboxState>,
+    /// The pack-load notices standing on each URI, unioned into every set
+    /// published for it — see [`DiagnosticPublisher::with_pack_notices`].
+    pack_notices: std::sync::Mutex<HashMap<Uri, Vec<tower_lsp_server::ls_types::Diagnostic>>>,
     ready: tokio::sync::Notify,
     started: std::sync::atomic::AtomicBool,
 }
@@ -2505,15 +2508,89 @@ impl DiagnosticPublisher {
         Self {
             client,
             state: std::sync::Mutex::new(DiagnosticMailboxState::default()),
+            pack_notices: std::sync::Mutex::new(HashMap::new()),
             ready: tokio::sync::Notify::new(),
             started: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    /// `diagnostics` unioned with the pack-load notices standing on `uri`.
+    ///
+    /// A `.tclspec` is both a spec pack and — `.tclspec` being a Tcl source
+    /// extension — an analysed document, and `publishDiagnostics` replaces a
+    /// URI's whole set. Two independent producers publishing the same URI
+    /// therefore overwrite each other, and editing an open pack used to show
+    /// the analyser's view alone until the next reload restored the loader's
+    /// notices. Making this the one place a URI's set is assembled means the
+    /// two are merged rather than raced: whichever producer moved last, the
+    /// other's findings survive it.
+    ///
+    /// The notices are the *pack* layer; everything else a document produces
+    /// is the analysed layer and stays owned by the diagnostics pipeline. A
+    /// URI with no notices — every document that is not a pack file, and every
+    /// pack that loaded cleanly — pays one hash lookup and keeps its vector.
+    fn with_pack_notices(
+        &self,
+        uri: &Uri,
+        mut diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let notices = self
+            .pack_notices
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(standing) = notices.get(uri) {
+            diagnostics.extend(standing.iter().cloned());
+        }
+        diagnostics
+    }
+
+    /// Replace the standing pack notices with `by_uri` and report which URIs
+    /// changed — the ones whose published set has to be reassembled.
+    fn set_pack_notices(
+        &self,
+        by_uri: HashMap<Uri, Vec<tower_lsp_server::ls_types::Diagnostic>>,
+    ) -> Vec<Uri> {
+        let mut notices = self
+            .pack_notices
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut touched: Vec<Uri> = notices
+            .keys()
+            .filter(|uri| !by_uri.contains_key(*uri))
+            .cloned()
+            .collect();
+        // Only a URI whose notices actually moved needs its set reassembled: a
+        // reload that finds the same problems must not restate them, or every
+        // unrelated watched-file event would republish every pack file.
+        touched.extend(
+            by_uri
+                .iter()
+                .filter(|(uri, fresh)| notices.get(*uri) != Some(*fresh))
+                .map(|(uri, _)| uri.clone()),
+        );
+        *notices = by_uri;
+        touched
     }
 
     /// Commit one publication and return an acknowledgement for its eventual
     /// delivery. A superseded pending item is explicitly settled as such, so
     /// its caller cannot emit a completion marker for a state never delivered.
     fn enqueue(
+        self: &Arc<Self>,
+        uri: Uri,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        version: Option<i32>,
+        client_supports_pull: bool,
+        announce: bool,
+    ) -> tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome> {
+        let diagnostics = self.with_pack_notices(&uri, diagnostics);
+        self.enqueue_assembled(uri, diagnostics, version, client_supports_pull, announce)
+    }
+
+    /// [`Self::enqueue`] for a set the caller has already assembled — the pull
+    /// path, which has to cache the same bytes it publishes and so merges the
+    /// pack notices in itself.
+    fn enqueue_assembled(
         self: &Arc<Self>,
         uri: Uri,
         diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -2734,6 +2811,11 @@ impl DeliveryCtx<'_> {
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
     ) -> tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome> {
+        // Assemble once, before the cache entry is taken: a pulled report and
+        // a pushed one are the same set, so a `.tclspec`'s pack-load notices
+        // have to be in the bytes the cache serves as well as in the ones the
+        // publisher sends.
+        let diags = self.diagnostic_publisher.with_pack_notices(self.uri, diags);
         self.documents
             .retag_held("cache_and_enqueue: pull_diag_cache");
         self.pull_diag_cache.lock().await.insert(
@@ -2744,7 +2826,7 @@ impl DeliveryCtx<'_> {
                 diagnostics: diags.clone(),
             },
         );
-        self.diagnostic_publisher.enqueue(
+        self.diagnostic_publisher.enqueue_assembled(
             self.uri.clone(),
             diags,
             self.version,
@@ -5965,9 +6047,6 @@ pub struct Backend {
     /// one published, so whichever runs last re-reads the true state. It costs
     /// nothing on the common path: reloads are workspace-scoped, not per-edit.
     spec_pack_reload: Arc<Mutex<()>>,
-    /// URIs currently carrying published pack-load diagnostics, so a reload
-    /// that fixes a pack clears the badge it left behind.
-    spec_pack_diagnostic_uris: Arc<Mutex<HashSet<Uri>>>,
     /// Absolute watch globs currently registered for pack directories that lie
     /// **outside every workspace folder** — the per-user tier, and any
     /// absolute `tclLsp.specPacks` entry.
@@ -7359,7 +7438,6 @@ impl Backend {
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
-            spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
@@ -9649,10 +9727,6 @@ impl Backend {
             closed_diag_gen: _,
             closed_diag_order: _,
             semantic_tokens_convergence: _,
-            // Keyed by pack-file URI, owned by the SpecTcl reload path: a
-            // pack's notices are cleared when the *pack* changes, never when a
-            // document is retired (the pack file may not even be open).
-            spec_pack_diagnostic_uris: _,
             // Owned by the SpecTcl reload path: watch registrations track the
             // configured pack roots, not any document's lifetime.
             external_pack_watch_globs: _,
@@ -16310,7 +16384,26 @@ impl Backend {
         diagnostics
     }
 
+    /// The pull path's whole report for `uri` — the analysed set, unioned with
+    /// any pack-load notices standing on the file.
+    ///
+    /// The union is what the push path publishes (see
+    /// [`DiagnosticPublisher::with_pack_notices`]), and a pulled report has to
+    /// match a pushed one diagnostic for diagnostic.
     async fn full_diagnostics_for(
+        &self,
+        uri: &Uri,
+        text: Arc<str>,
+        dialect: String,
+        language_id: &str,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let analysed = self
+            .analysed_diagnostics_for(uri, text, dialect, language_id)
+            .await;
+        self.diagnostic_publisher.with_pack_notices(uri, analysed)
+    }
+
+    async fn analysed_diagnostics_for(
         &self,
         uri: &Uri,
         text: Arc<str>,
@@ -17492,17 +17585,18 @@ impl Backend {
     /// "unknown property `arty` dropped" on the line they typed it, in the
     /// editor they typed it in, exactly as they would a diagnostic on Tcl code.
     ///
-    /// # Known limitation: an *open* pack file
+    /// # An *open* pack file
     ///
     /// `.tclspec` is in `TCL_SOURCE_EXTENSIONS` (a pack is one Tcl script), so
     /// an open pack buffer is also an analysed document, and `publishDiagnostics`
-    /// replaces a URI's whole set. The two publishers therefore overwrite each
-    /// other: whichever ran last wins, so editing an open pack shows the
-    /// analyser's view until the next reload restores the notices. Fixing it
-    /// properly means merging pack notices into the document's diagnostic set
-    /// on both the push and the pull path (which has its own cache) rather than
-    /// publishing them separately — worth doing, and deliberately not smuggled
-    /// into this change.
+    /// replaces a URI's whole set. So this is not a second publisher: it hands
+    /// the notices to [`DiagnosticPublisher::set_pack_notices`], which unions
+    /// them into every set published for that URI — the push path, the fast
+    /// tier, and the pull cache alike. A URI nobody has open is then published
+    /// straight from here (its analysed layer is empty, so the union is the
+    /// notices); an open one is rescheduled instead, so the set that lands
+    /// carries the analyser's findings *and* the loader's rather than
+    /// whichever producer ran last.
     async fn publish_spec_pack_notices(
         &self,
         packs: &tcl_spectcl::PackSet,
@@ -17522,48 +17616,63 @@ impl Backend {
             by_uri.entry(uri).or_default().push(Diagnostic {
                 range: whole_line_range(self.store.as_ref(), &notice.path, notice.line),
                 severity: Some(severity),
-                code: Some(NumberOrString::String(SPEC_PACK_DIAGNOSTIC_CODE.to_owned())),
+                code: Some(NumberOrString::String(
+                    core_code_actions::SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+                )),
                 source: Some("tcl-lsp".to_owned()),
                 message: format!("{}: {}", notice.context, notice.message),
                 ..Diagnostic::default()
             });
         }
 
-        // `tclLsp.diagnostics.exclude` (#1556) promises *no* diagnostics for a
-        // matching file, and pack notices publish outside the analyser
-        // pipeline's exclusion gate, so filter them here too. A newly excluded
-        // URI drops out of `by_uri`, joins the stale set below, and has its
-        // previously published notices cleared on this rescan (adding an
-        // exclusion reloads packs via `ReloadTrigger::Config`).
+        // The settings that promise *no* diagnostics for a file —
+        // `tclLsp.features.diagnostics = false` and a `tclLsp.diagnostics.exclude`
+        // match (#1556) — are honoured here, where the notice layer is set,
+        // rather than at the two sites that union it in
+        // ([`DiagnosticPublisher::with_pack_notices`], reached from both the
+        // pull report and every push). A layer that does not stand cannot be
+        // unioned back by either, so the pulled report and the pushed set agree
+        // by construction instead of by two checks that have to be kept in
+        // step; the alternative — gating the unions — left whichever site was
+        // missed republishing the squiggles the switch had just cleared.
+        //
+        // A URI a setting now silences drops out of `by_uri`, joins the stale
+        // set below and has its standing notices cleared on this pass; either
+        // setting moving reloads packs (`ReloadTrigger::Config`), so the flip
+        // itself is what runs it, and flipping back restores them the same way.
         let candidates: Vec<Uri> = by_uri.keys().cloned().collect();
         for uri in candidates {
-            if self.diagnostics_excluded(&uri).await {
+            if !self.feature_enabled("diagnostics", &uri).await
+                || self.diagnostics_excluded(&uri).await
+            {
                 by_uri.remove(&uri);
             }
         }
 
-        // Files that had notices last time and do not now must be cleared, or
-        // a fixed pack keeps its badge until the editor restarts.
-        let stale: Vec<Uri> = {
-            let mut tracked = self.spec_pack_diagnostic_uris.lock().await;
-            let stale = tracked
+        // A file that had notices last time and does not now must be cleared,
+        // or a fixed pack keeps its badge until the editor restarts — which
+        // `set_pack_notices` reports as a touched URI just as a new notice is.
+        let touched = self.diagnostic_publisher.set_pack_notices(by_uri);
+        // Which of them the editor has open, taken once: an open buffer's set
+        // belongs to the diagnostics pipeline, and publishing the notices
+        // alone here would drop the analyser's findings until the next edit.
+        // Rescheduling makes the pipeline reassemble both, through the same
+        // union every other publish for this URI now goes through.
+        let open: HashMap<Uri, String> = {
+            let docs = self.documents.lock("publish_spec_pack_notices").await;
+            touched
                 .iter()
-                .filter(|uri| !by_uri.contains_key(*uri))
-                .cloned()
-                .collect();
-            *tracked = by_uri.keys().cloned().collect();
-            stale
+                .filter_map(|uri| docs.get(uri).map(|doc| (uri.clone(), doc.dialect.clone())))
+                .collect()
         };
-        for uri in stale {
+        for uri in touched {
+            if let Some(dialect) = open.get(&uri) {
+                self.reschedule_diagnostics(uri, dialect.clone()).await;
+                continue;
+            }
             let receipt = self
                 .diagnostic_publisher
                 .enqueue(uri, Vec::new(), None, false, false);
-            let _ = receipt.await;
-        }
-        for (uri, diagnostics) in by_uri {
-            let receipt = self
-                .diagnostic_publisher
-                .enqueue(uri, diagnostics, None, false, false);
             let _ = receipt.await;
         }
     }
@@ -18596,26 +18705,45 @@ async fn log_range_convergence_settled(
 /// extract-rule actions: the generic Tcl code-action path yields nothing
 /// useful on a non-Tcl config, so these extend rather than replace it —
 /// mirroring the references / document-links BIG-IP routing.  iRules
-/// additionally gets the `# Profiles:` header source action.
+/// additionally gets the `# Profiles:` header source action, and an authoring
+/// dialect whose loader dropped a word gets the did-you-mean rewrite for it.
 fn push_dialect_code_actions(
     actions: &mut Vec<core_code_actions::CodeAction>,
     source: &str,
     range: core_definition::LspRange,
-    uri_str: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    analysis: &tcl_compiler::analyser::AnalysisResult,
-    registry: &tcl_registry::CommandRegistry,
+    inputs: &DialectActionInputs<'_>,
 ) {
-    if Backend::is_bigip_dialect(dialect.name) {
+    if Backend::is_bigip_dialect(inputs.dialect.name) {
         actions.extend(core_code_actions::bigip_code_actions(
-            source, range, uri_str,
+            source, range, inputs.uri,
         ));
     }
-    if dialect.is_irules()
-        && let Some(a) = core_code_actions::profiles_action(source, analysis, registry)
+    if inputs.dialect.is_irules()
+        && let Some(a) =
+            core_code_actions::profiles_action(source, inputs.analysis, inputs.registry)
     {
         actions.push(a);
     }
+    // A pack's load notices reach here on the request's context diagnostics,
+    // like any other finding the editor is showing: they are published on the
+    // pack file's own URI, merged into its set by the publisher.
+    actions.extend(core_code_actions::spec_pack_quick_fixes(
+        source,
+        inputs.dialect,
+        inputs.context_diags,
+    ));
+}
+
+/// What the dialect-specific code actions read and the generic Tcl set does
+/// not — grouped so a new dialect's inputs do not change every call site.
+struct DialectActionInputs<'a> {
+    uri: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    registry: &'a tcl_registry::CommandRegistry,
+    /// The diagnostics the editor is currently showing on the document — the
+    /// channel a notice published outside the analyser pipeline arrives on.
+    context_diags: &'a [core_code_actions::ContextDiagnostic],
 }
 
 /// The context-diagnostic actions, plus the fuzzy `package require`
@@ -21326,15 +21454,14 @@ impl LanguageServer for Backend {
                 &analysis,
                 &context_diags,
             );
-            push_dialect_code_actions(
-                &mut actions,
-                &doc.text,
-                range,
-                &uri_str,
-                tcl_lsp_core::profile_for_dialect(&dialect),
-                &analysis,
-                &registry,
-            );
+            let dialect_inputs = DialectActionInputs {
+                uri: &uri_str,
+                dialect: tcl_lsp_core::profile_for_dialect(&dialect),
+                analysis: &analysis,
+                registry: &registry,
+                context_diags: &context_diags,
+            };
+            push_dialect_code_actions(&mut actions, &doc.text, range, &dialect_inputs);
             let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &doc.text,
                 &registry,
@@ -24954,14 +25081,6 @@ fn compute_source_inheritance(
         unresolvable_source,
     }
 }
-
-/// The diagnostic code every `SpecTcl` pack-load notice carries.
-///
-/// One code for the family rather than one per notice kind: the notices are
-/// *degradations* the loader chose to report, not a diagnostic catalogue with
-/// per-code documentation and quick fixes behind it. A user who does not want
-/// them silences the family.
-const SPEC_PACK_DIAGNOSTIC_CODE: &str = "SPECTCL";
 
 /// A range covering line `line` (1-based) of `path`, for a pack-load notice.
 ///
@@ -31423,7 +31542,6 @@ mod tests {
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
-            spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),

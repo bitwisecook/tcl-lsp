@@ -187,12 +187,13 @@ def main() -> int:
     with args.manifest.open("rb") as fh:
         manifest = tomllib.load(fh)
 
-    if args.all:
-        tags = sorted(manifest["versions"]["tags"], key=version_key)
-    elif args.tag:
-        tags = [args.tag]
-    else:
+    if not (args.all or args.tag):
         ap.error("pass --tag or --all")
+    tags = (
+        sorted(manifest["versions"]["tags"], key=version_key)
+        if args.all
+        else [args.tag]
+    )
 
     missing = []
     for tag in tags:

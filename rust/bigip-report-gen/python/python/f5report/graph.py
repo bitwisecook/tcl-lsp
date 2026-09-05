@@ -121,7 +121,6 @@ def parse_listener(v: dict[str, Any]) -> dict[str, Any]:
     port = 0 if port_raw in ("", "0", "any", "*") else _port_num(port_raw)
 
     src = v.get("source", "") or ("::/0" if is_v6 else "0.0.0.0/0")
-    src_addr, src_rd = _split_rd(src.split("/")[0])
     try:
         src_net = ipaddress.ip_network(_normalise_cidr(src), strict=False)
         src_prefix = src_net.prefixlen

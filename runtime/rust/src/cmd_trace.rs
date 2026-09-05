@@ -115,6 +115,20 @@ pub mod ops {
 /// One registered command or execution trace (C's `TraceCommandInfo`; both
 /// kinds hang off the same command, distinguished by their op category).
 pub struct CmdTrace {
+    /// This registration's identity, unique for the life of the interpreter —
+    /// the command/execution twin of [`VarTrace::id`], and for the same reason:
+    /// C's `CallCommandTraces` and `TclCheckExecutionTraces` walk the live list
+    /// through `nextPtr`, and `Tcl_UntraceCommand` unlinks a record as soon as
+    /// a callback removes it, so a snapshot of callback strings would keep
+    /// firing traces that are already gone. Ids are never reused.
+    ///
+    /// Distinct from [`Self::token`], and deliberately so: the token says which
+    /// *list* an entry belongs to — which entries a deletion frees — while the
+    /// id says which *registration* a walk is about to run, so an explicit
+    /// untrace can cancel it. A delete walk needs both: it fires the dying
+    /// token's list to the end even as a callback rebinds the name, and still
+    /// skips whatever that callback untraced.
+    pub id: u64,
     /// The generation of the command **token** this trace hangs off, or `None`
     /// when the binding had none (a hidden command).
     ///
@@ -200,6 +214,16 @@ pub struct TraceTable {
     pub step_active: Vec<StepActive>,
     /// The id the next variable-trace registration takes (see [`VarTrace::id`]).
     pub next_var_trace_id: u64,
+    /// The id the next command/execution-trace registration takes (see
+    /// [`CmdTrace::id`]).
+    pub next_cmd_trace_id: u64,
+    /// Ids `trace remove` has unlinked while a walk was in flight. The
+    /// **delete** walk holds the dying token's list, so a callback that
+    /// re-creates the command under the same name takes the name-keyed table
+    /// entry over without cancelling the remaining callbacks; only an explicit
+    /// untrace does. Recorded only while `exec_firing > 0` and cleared when the
+    /// outermost walk ends, so it never grows unbounded.
+    pub untraced_cmd_trace_ids: Vec<u64>,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
@@ -436,12 +460,17 @@ fn cmd_trace_add_remove(
         // The trace belongs to the token standing at `fqn` now, not to the
         // name (C hangs it off `cmdPtr->tracePtr`).
         let token = interp.resolve_cmd_token(&fqn);
-        interp.traces.borrow_mut().cmd_traces.push(CmdTrace {
+        let mut traces = interp.traces.borrow_mut();
+        traces.next_cmd_trace_id += 1;
+        let id = traces.next_cmd_trace_id;
+        traces.cmd_traces.push(CmdTrace {
+            id,
             token,
             name: fqn,
             ops: flags,
             command,
         });
+        drop(traces);
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
         // Remove the first trace matching exact ops + command string, where
@@ -455,7 +484,13 @@ fn cmd_trace_add_remove(
             .iter()
             .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
-            interp.traces.borrow_mut().cmd_traces.remove(i);
+            let mut traces = interp.traces.borrow_mut();
+            if traces.exec_firing > 0 {
+                let id = traces.cmd_traces[i].id;
+                traces.untraced_cmd_trace_ids.push(id);
+            }
+            traces.cmd_traces.remove(i);
+            drop(traces);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
         }
     }

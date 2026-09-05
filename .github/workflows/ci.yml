@@ -17,6 +17,15 @@ on:
   # Dispatching against a `v*` tag therefore re-runs create-release and the
   # marketplace publishes. Dispatch against a branch unless you mean that.
   workflow_dispatch:
+    inputs:
+      rust_tests_runner:
+        description: Runner for the broad Rust suite
+        required: true
+        default: tank
+        type: choice
+        options:
+          - tank
+          - hosted
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -835,17 +844,19 @@ jobs:
     # broken scheduler edit cannot strand the protected host.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
-    # stay on GitHub-hosted; everything else (push, dispatch, and PRs from
-    # branches in this repo, which only collaborators can create) goes to `tank`.
+    # stay on GitHub-hosted. Trusted PRs prefer `tank`; a maintainer can dispatch
+    # the workflow against the same head with `rust_tests_runner=hosted` when
+    # the tank queue is overloaded. Pushes stay on `tank`, and runner-policy
+    # changes prove themselves on hosted capacity.
     needs: [channel]
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && 'ubuntu-26.04' || 'tank' }}
+    runs-on: ${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.rust_tests_runner == 'hosted')) && 'ubuntu-26.04' || 'tank' }}
     # The action starts the sccache server during setup, so the backend must be
     # configured at job scope rather than only on the later Cargo steps.
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
     concurrency:
-      group: rust-tests-${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && format('hosted-{0}', github.run_id) || 'tank' }}
+      group: rust-tests-${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.rust_tests_runner == 'hosted')) && format('hosted-{0}', github.run_id) || 'tank' }}
       queue: max
       cancel-in-progress: false
     steps:

@@ -16,6 +16,7 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
 | `p1-runtime-abi` | P1 runtime ABI v2 groundwork | `runtime/rust/src/{codegen_abi,frame,vars,interp,obj,bignum,builtins,expr}.rs`, `rust/tcl-runtime-api/src/codegen_abi.rs` | open |
 | `p2-executable-ir` | P2 executable IR total | `rust/tcl-compiler/src/executable_ir.rs` and its consumers | landed (see below) |
 | `p3-native-lowering` | P3 NLIR + native T0/T1 | `rust/tcl-registry/src/native_lowering.rs`, `rust/tcl-compiler/src/native_lowering/`, `codegen/wasm/{native_emit,ir,pipeline,backend}.rs`, `runtime/rust/src/codegen_native.rs` | landed (see below) |
+| `p5-native-procs` | P5-lite native proc dispatch (#1774) | `runtime/rust/{build.rs,src/{interp,codegen_abi}.rs}`, `rust/tcl-runtime-api/src/codegen_abi.rs`, `rust/tcl-compiler/src/codegen/wasm/ir.rs` | in flight — PR-A (runtime + transport) below |
 
 ## Decisions
 
@@ -1202,3 +1203,167 @@ is the design: no emitter reads a compatibility string.
   `puts` sites survive it.
 - Type hints (`LoweringInput::type_hints`) are threaded but unused; the
   interval proofs come from literals and `incr` deltas only.
+
+## p5-native-procs
+
+Issue #1774, phase P5-lite. Split in two: **PR-A** (this section) is the
+runtime and transport half — the runtime can define, dispatch, decline,
+redefine, rename and step-trace a native proc entry, and the WASM IR can
+encode the table plumbing — and emits **no** module change. PR-B is the
+emitter half (proc-entry function shape, `::top` table install, the
+`Definition` lowering, `errorInfo` error-edge logging) and closes the issue.
+
+### Shared vocabulary (delivered)
+
+`rust/tcl-runtime-api/src/codegen_abi.rs` gains three imports and three
+constants, so neither side spells any of them twice:
+
+| Name | Signature | Meaning |
+|---|---|---|
+| `tcl_codegen_proc_define_native` | 7 × i32 → i32 | `proc_register` plus a trailing `entry` (a wasm32 function-table index; `0` = source body only) |
+| `tcl_codegen_log_command` | 3 × i32 → () | one `while executing` / `invoked from within` `errorInfo` frame for a compiled statement: body-relative line, source ptr/len |
+| `tcl_codegen_native_proc_dispatches` | () → i32 | test counter, like `tcl_codegen_call_frame_outstanding` |
+
+`WASM32_FUNCTION_TABLE_IMPORT` is wasm-ld's `__indirect_function_table`;
+`NATIVE_PROC_STATUS_RAN` / `_DECLINED` are the entry's i32 result.
+
+`tcl_codegen_proc_register` stays exactly as it is — `entry = 0` is its
+documented equivalent — because already-emitted legacy-tier modules import it.
+
+### The table (delivered)
+
+`runtime/rust/build.rs` adds `--export-table` and `--growable-table` beside
+the existing `--global-base`, for every wasm target. Verified on the linked
+`tcl_runtime.wasm`: `(table $0 814 funcref)` — no maximum — and
+`(export "__indirect_function_table" (table $0))`.
+
+`wasm_real_link.rs::the_runtime_exports_a_growable_indirect_function_table`
+is the gate: a bootstrap imports the table, `table.grow`s one slot,
+`ref.func`s a function of its own into it, and `call_indirect`s it back.
+Checked in both directions — with the two flags removed from `build.rs` the
+case fails (wasmtime cannot even instantiate the bootstrap), so it is not
+vacuous.
+
+Neither flag changes an existing module: the runtime's own indirect calls
+index below the initial size, nothing emitted imports the table yet, and
+`wasm-merge` preserves both properties.
+
+### Runtime dispatch (delivered)
+
+`ProcDef` gains `native: Option<NativeProcEntry>` — the compiled body, an
+`unsafe extern "C" fn(argv, argc, out: *mut TclCompletionAbi) -> i32`. The
+nullable-function-pointer ABI is what makes the whole half testable natively:
+wasm sees one i32, and a `cargo test` passes a real Rust function.
+
+**Owner of proc → entry: the `ProcDef` itself**, reached only through
+`define_proc_native`, the single field-by-field construction site (`proc`
+reaches it via `define_proc` with `None`). There is no side table and nothing
+to invalidate — redefinition builds a fresh definition with no entry, `rename`
+clones the definition and carries it, `rename p ""` / `namespace delete` drop
+it with the definition. Each of those is pinned by a test.
+
+`run_proc` is unchanged above and below the body: arity and `wrong # args`,
+the recursion bound, the frame push in `def.ns`, `set_words`, by-name formal
+binding, then teardown, `settle_return`, `make_proc_error` and the TIP 348
+`CALL` entry. Only the single `eval_framed` line becomes a choice, and it
+falls back to the source body in two cases:
+
+- **`traces.step_active` is non-empty.** `dispatch_traced` installs the proc's
+  own `enterstep`/`leavestep` before dispatching, so one read covers both this
+  proc and an outer step trace. A natively lowered `set` never reaches
+  `dispatch`, so it would fire no step trace at all.
+- **the entry returns `DECLINED`**, which it may do only before any observable
+  effect, so the fallback is not a partial re-run.
+
+`run_native_body` is `eval_framed` + `eval_script_mode` minus the parse and
+the command loop: `proc_line_base = line_base`, one `codegen_activation_enter`
+(refusal is `eval_script_mode`'s, verbatim), push the `CmdFrame`, call the
+entry, pop, adopt `out.result` into the result, release `out.options` (a
+snapshot; `settle_return` reads the runtime's own `return_level`/`return_code`),
+`codegen_activation_leave(code)`.
+
+**The double-frame contract, stated in the code so PR-B cannot get it wrong:**
+`run_proc` owns the Tcl variable frame, `info level`'s words and the formal
+binding; `run_native_body` owns the activation and the `CmdFrame`; the entry
+owns **neither**. A native-tier *module function* is not this shape — its
+prologue calls `activation_enter` + `frame_push` (`pushes_frame = !top_level`)
+— so PR-B must give a proc entry its own prologue-free shape rather than reuse
+that one. `info level 0` from inside the entry is the detector, and is pinned.
+
+Measured, not asserted: through the native path a Tcl level costs exactly two
+eval-depth units (`run_native_body` plus the body's own `tcl_invoke_argv`), so
+unbounded recursion refuses at depth **63** with the eval loop's own
+`too many nested evaluations (infinite loop?)`. That number is asserted; a
+level costing more or less moves it.
+
+### Ledgered for PR-B (step 6)
+
+A compiled statement calls no `log_command_info`, and that single absence has
+**two** visible consequences for an error out of a compiled body — the plan
+anticipated one:
+
+- no `while executing "<source text>"` frame, and `error_line` never advances,
+  so `(procedure "boom" line N)` reads the stale `line 1`;
+- **no TIP 348 `CALL` entry either.** `run_proc` does call
+  `error_stack_push_call`, but it deliberately refuses to chain a `CALL` onto
+  an error stack with no inner context yet (`reset_error_stack`,
+  `interp.rs:5497`), so `-errorstack` holds only the caller's own `INNER`.
+
+Both close together when the emitter calls `tcl_codegen_log_command` on a
+statement's error edge. Both are pinned by
+`an_error_from_the_native_body_unwinds_through_the_procedure_frame`, which
+therefore fails in both directions.
+
+### The error-edge logger (delivered)
+
+`log_command_info` is split into `log_command_bytes(raw_line, cmd_bytes)`, the
+one implementation of C's `TclLogCommandInfo`, called by the eval loop and by
+`tcl_codegen_log_command`. `error_line` keeps its single writer and both
+callers get the same `already_logged` protocol, error-stack entry and
+150-byte truncation instead of a second, drifting copy.
+
+The ABI's `line` is the statement's 1-based line **within the body it was
+compiled from** — the same raw line the eval loop reads off the script text —
+so the enclosing frame's `line_base`/`proc_line_base` turn it into `errorLine`
+with no special case.
+
+Proved with a stub in the emitter's place
+(`a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one`):
+with the site logged, a compiled body's `-errorinfo` *and* `-errorstack` are
+byte-identical to the interpreted body's, which is tclsh 9.0.4's and
+8.6.16's. So step 6 is now a call site in the emitter, not an open question.
+
+### WASM IR (delivered)
+
+`WasmModule` gains `import_table: bool`, `globals: Vec<WasmGlobal>` and
+`elem_declared: Vec<u32>`, plus the reference-type ops `ref.null`, `ref.func`,
+`table.set` and `table.grow`. All three fields default off, so a module that
+binds no native proc emits byte-identical output — pinned by
+`a_module_that_installs_nothing_keeps_its_previous_shape`, and confirmed by
+`budgets.tsv` being unchanged.
+
+Three details worth carrying into PR-B:
+
+- **`ref.null func` was missing from the plan's op list.** `table.grow` takes
+  an init *reference* and a delta, so the module cannot grow the table without
+  it. It is `WasmOp::RefNull` (`0xD0`) with the `funcref` heap type as its
+  operand byte.
+- **`table.grow` is `0xFC`-prefixed** and `WasmOp` is `repr(u8)`, so the
+  discriminant is the prefix alone and the operand bytes carry the sub-opcode
+  `0x0F` ahead of the table index. `WasmInstruction::table_grow` is the only
+  constructor, so no caller has to know that.
+- **Function imports stay in `imports`.** A table import occupies the table
+  index space, not the function one, so `top_idx = wasm.imports.len()` and the
+  budgets walker are untouched.
+
+The table import declares `(table 0 funcref)` — minimum 0, no maximum — so it
+matches whatever size the runtime actually linked.
+
+`wasm_execute.rs::an_emitted_module_installs_a_function_into_the_hosts_table`
+runs the encoded module under wasmtime: it grows a host table, keeps the base
+in a global, installs a function of its own and has the host call it back
+through the table, answering 42. The installed function is deliberately **not**
+exported, so the declarative element segment is the only thing making its
+`ref.func` legal — removing the segment fails validation, and a fixed-size host
+table traps, so neither half of the case is decorative.
+
