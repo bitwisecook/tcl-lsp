@@ -19313,7 +19313,7 @@ impl Backend {
     ) -> WorkspaceSymbolCandidates {
         const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
         for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
-            let (unindexed, mut indexed_hits, mut sources, closed_revisions) = {
+            let (unindexed, mut indexed_hits, mut sources, mut closed_revisions) = {
                 // `documents` → `workspace_index`, the lock order `did_open`
                 // establishes.
                 let docs = self.documents.lock("open_but_unindexed_symbols").await;
@@ -19353,6 +19353,46 @@ impl Backend {
                 (unindexed, indexed_hits, sources, closed_revisions)
             };
 
+            let mut pending = new_workspace_index();
+            let mut fallback_sources = HashMap::new();
+            for (uri, doc) in unindexed {
+                // A published document with no input is a deliberately retired
+                // orphan (see the doc comment), but a pending brand-new/untitled
+                // buffer has not created its first Salsa handle yet and is still
+                // authoritative for its own live symbols.
+                if doc.publication != DocumentPublication::Pending
+                    && !self.db_files.lock().await.contains_key(&uri)
+                {
+                    continue;
+                }
+                // Before the Salsa boundary, a cache hit still describes the
+                // pre-open disk source. Analyse the captured authoritative buffer
+                // directly; once Salsa is ready, the memoised path is current and
+                // remains the cheaper fallback for a cancelled read.
+                let analysis = if doc.publication == DocumentPublication::Pending {
+                    self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                        .await
+                } else {
+                    self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                        .await
+                };
+                pending.add_document(uri.as_str(), &analysis);
+                fallback_sources
+                    .insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
+            }
+            let fallback_hits = pending.symbols_matching(query, limit);
+
+            // Fallback hits have priority in the final response. Do not read
+            // closed sources for indexed candidates that cannot fit after
+            // them: broad queries can otherwise turn one pending open buffer
+            // into hundreds of serial disk reads that are immediately thrown
+            // away by the caller.
+            indexed_hits.truncate(limit.saturating_sub(fallback_hits.len()));
+            let selected_indexed_uris: HashSet<String> =
+                indexed_hits.iter().map(|hit| hit.uri.clone()).collect();
+            sources.retain(|uri, _| selected_indexed_uris.contains(uri));
+            closed_revisions.retain(|uri, _| selected_indexed_uris.contains(uri));
+
             for uri_s in closed_revisions.keys() {
                 let loaded = match Uri::from_str(uri_s) {
                     Ok(uri) => self.closed_workspace_symbol_source(&uri).await,
@@ -19382,34 +19422,9 @@ impl Backend {
                     sources.remove(&uri);
                 }
             }
-
-            let mut pending = new_workspace_index();
-            for (uri, doc) in unindexed {
-                // A published document with no input is a deliberately retired
-                // orphan (see the doc comment), but a pending brand-new/untitled
-                // buffer has not created its first Salsa handle yet and is still
-                // authoritative for its own live symbols.
-                if doc.publication != DocumentPublication::Pending
-                    && !self.db_files.lock().await.contains_key(&uri)
-                {
-                    continue;
-                }
-                // Before the Salsa boundary, a cache hit still describes the
-                // pre-open disk source. Analyse the captured authoritative buffer
-                // directly; once Salsa is ready, the memoised path is current and
-                // remains the cheaper fallback for a cancelled read.
-                let analysis = if doc.publication == DocumentPublication::Pending {
-                    self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                        .await
-                } else {
-                    self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                        .await
-                };
-                pending.add_document(uri.as_str(), &analysis);
-                sources.insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
-            }
+            sources.extend(fallback_sources);
             return WorkspaceSymbolCandidates {
-                fallback_hits: pending.symbols_matching(query, limit),
+                fallback_hits,
                 indexed_hits,
                 sources,
             };
@@ -42441,6 +42456,54 @@ proc p {} {
         fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
             Ok(())
         }
+    }
+
+    /// Exact-head review of #1854: fallback matches take response priority, so
+    /// a full fallback result must not read closed indexed sources whose hits
+    /// cannot be returned.
+    #[tokio::test]
+    async fn workspace_symbols_skip_closed_reads_after_fallback_limit_1854() {
+        use std::sync::atomic::Ordering;
+
+        let closed_text = "proc capacity_symbol_closed {} {}\n";
+        let store = Arc::new(ClosedSymbolRaceStore::new(closed_text));
+        // Avoid wedging the regression if the unwanted read returns: the
+        // assertion below, rather than a timeout, diagnoses that behaviour.
+        store.release_first_read();
+        let mut backend = test_backend();
+        backend.store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
+        let pending_uri = Uri::from_str("untitled:capacity-limit-1854").unwrap();
+        let closed_uri = Uri::from_str("file:///capacity-limit-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            pending_uri,
+            DocumentState::with_version(
+                "proc capacity_symbol_pending {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        let closed_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(closed_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(closed_uri.as_str(), &closed_analysis);
+
+        let candidates = backend
+            .open_but_unindexed_symbols("capacity_symbol", 1)
+            .await;
+        assert_eq!(candidates.fallback_hits.len(), 1);
+        assert!(candidates.indexed_hits.is_empty());
+        assert_eq!(
+            store.reads.load(Ordering::SeqCst),
+            0,
+            "an indexed hit beyond the remaining result capacity must not load its source",
+        );
     }
 
     /// Exact-head review of #1854: a closed source read must be revalidated
