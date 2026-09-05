@@ -266,6 +266,11 @@ fn both_at(body: &str, want: &str, version: tcl_dialect::TclVersion) {
     );
 }
 
+/// `round()` is half away from zero on the *exact* operand — not
+/// `floor(d + 0.5)`, which rounds twice (tclsh 8.6.16/9.0.4:
+/// `round(0.49999999999999994)` is `0` while `floor(0.49999999999999994+0.5)`
+/// is `1.0`). `both` runs the braced form too, so these rows also pin the
+/// const-folder's answer.
 #[test]
 fn entier_and_round_of_a_beyond_wide_float_are_exact() {
     both("entier(1e300)", &format!("ok {E1E300}"));
@@ -276,8 +281,16 @@ fn entier_and_round_of_a_beyond_wide_float_are_exact() {
     both("entier(2**64+1)", "ok 18446744073709551617");
     both("round(1e300)", &format!("ok {E1E300}"));
     both("round(1e20)", "ok 100000000000000000000");
+    both("round(0.5)", "ok 1");
+    both("round(1.5)", "ok 2");
     both("round(2.5)", "ok 3");
     both("round(-2.5)", "ok -3");
+    both("round(0.49999999999999994)", "ok 0");
+    both("round(-0.49999999999999994)", "ok 0");
+    both("round(4503599627370497.0)", "ok 4503599627370497");
+    both("round(-4503599627370497.0)", "ok -4503599627370497");
+    both("round(4503599627370497.5)", "ok 4503599627370498");
+    both("round(2251799813685248.5)", "ok 2251799813685249");
 }
 
 #[test]

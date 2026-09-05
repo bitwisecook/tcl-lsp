@@ -342,7 +342,7 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 match dict_filter_bool(interp.get_obj_result()) {
                     Ok(true) => kept.push((k, v)),
                     Ok(false) => {}
-                    Err(msg) => return interp.set_error(&msg),
+                    Err(e) => return interp.error_with_code(&e.message, e.code),
                 }
             }
             Code::Continue => {}
@@ -354,21 +354,12 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// Coerce a `dict filter -filter script` body result to a boolean like C's
-/// `Tcl_GetBooleanFromObj`, returning the C error message bytes on a non-boolean.
-/// On the numeric-tower build this is the canonical `expr`
-/// parser (arbitrary-precision non-zero test); the degraded no-`tommath` wasm
-/// build (where `expr` is compiled out) falls back to the boolean keywords plus a
-/// `parse_whole` numeric non-zero test — enough to keep `dict filter` building and
-/// working for the common results in that reduced runtime.
-#[cfg(have_tommath)]
-fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
-    crate::expr::to_bool(o).map_err(|e| e.msg)
-}
-
-#[cfg(not(have_tommath))]
-fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
-    crate::typed_value::boolean(o).map_err(|e| e.message)
+/// Coerce a `dict filter … script` body result to a boolean like C's
+/// `Tcl_GetBooleanFromObj` — the runtime's one typed-read owner, so this
+/// accepts exactly what `if` and `expr` do, and refuses with the same
+/// message and `-errorcode` (tclsh: `TCL VALUE NUMBER` for a non-boolean).
+fn dict_filter_bool(o: *mut TclObj) -> Result<bool, crate::typed_value::TypedError> {
+    crate::typed_value::boolean(o)
 }
 
 // -- variable-mutating subcommands (copy-on-write) -------------------------
