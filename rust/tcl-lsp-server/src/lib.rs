@@ -266,6 +266,15 @@ struct DocumentState {
     /// revision. Semantic tokens need the Salsa boundary; cross-document
     /// providers need the indexed boundary (#829, #1849, #1854 review).
     publication: DocumentPublication,
+    /// Monotonic request to re-resolve `dialect` from the current language id,
+    /// text hints, folder settings, and session default. A later edit carries
+    /// an unresolved generation forward instead of losing the earlier change.
+    dialect_resolution_generation: u64,
+    /// Last [`Self::dialect_resolution_generation`] resolved against this
+    /// exact document revision. Inequality is the persistent dirty bit; using
+    /// a generation prevents two racing configuration changes from clearing
+    /// each other's work.
+    resolved_dialect_generation: u64,
 }
 
 impl DocumentState {
@@ -284,6 +293,8 @@ impl DocumentState {
             version: None,
             backing_file_deleted: false,
             publication: DocumentPublication::Indexed,
+            dialect_resolution_generation: 0,
+            resolved_dialect_generation: 0,
         }
     }
 
@@ -302,6 +313,8 @@ impl DocumentState {
             version: Some(version),
             backing_file_deleted: false,
             publication: DocumentPublication::Indexed,
+            dialect_resolution_generation: 0,
+            resolved_dialect_generation: 0,
         }
     }
 
@@ -349,6 +362,14 @@ impl DocumentState {
     fn bump_analysis_generation(&mut self) {
         self.revision = self.revision.saturating_add(1);
         self.publication = DocumentPublication::Pending;
+    }
+
+    fn mark_dialect_resolution_dirty(&mut self) {
+        self.dialect_resolution_generation = self.dialect_resolution_generation.saturating_add(1);
+    }
+
+    fn dialect_resolution_pending(&self) -> bool {
+        self.dialect_resolution_generation != self.resolved_dialect_generation
     }
 }
 
@@ -9077,68 +9098,82 @@ impl Backend {
         }
     }
 
-    /// Re-resolve every open document's dialect after a session-default
-    /// change and reschedule diagnostics for those whose dialect actually
-    /// moved. An explicit `languageId` / BIG-IP basename / per-folder
-    /// override still wins (it did at `didOpen`), so only documents that
-    /// fell back to the session default change.
-    async fn reresolve_open_document_dialects(&self) {
-        // Snapshot `(uri, language_id, current dialect)` first — the async
-        // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
-        // so they must not run while the `documents` lock is held.
-        let snapshot: Vec<(Uri, String, String, Arc<str>, u64)> = {
-            let docs = self
-                .documents
-                .lock("reresolve_open_document_dialects")
-                .await;
-            docs.iter()
-                .map(|(uri, doc)| {
-                    (
-                        uri.clone(),
-                        doc.language_id.clone(),
-                        doc.dialect.clone(),
-                        doc.text.clone(),
-                        doc.revision,
-                    )
-                })
-                .collect()
-        };
-        for (uri, language_id, old_dialect, text, revision) in snapshot {
-            let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
-            if new_dialect == old_dialect {
-                continue;
-            }
-            let (text, revision) = {
-                let mut docs = self
-                    .documents
-                    .lock("reresolve_open_document_dialects")
-                    .await;
-                let Some(doc) = docs.get_mut(&uri) else {
-                    continue; // closed between snapshot and commit
+    /// Resolve one dirty open document against its **current** identity.
+    ///
+    /// Both the dialect resolver and live publication await other stores, so
+    /// an edit or a second configuration change can overtake either phase. The
+    /// per-document generation makes that visible: a mismatched snapshot is
+    /// retried, and resolving generation N cannot clear generation N+1.
+    async fn resolve_dirty_open_document_dialect(&self, uri: &Uri, operation: &'static str) {
+        loop {
+            let (language_id, old_dialect, text, revision, generation) = {
+                let docs = self.documents.lock(operation).await;
+                let Some(doc) = docs.get(uri) else {
+                    return;
+                };
+                if !doc.dialect_resolution_pending() {
+                    return;
+                }
+                (
+                    doc.language_id.clone(),
+                    doc.dialect.clone(),
+                    doc.text.clone(),
+                    doc.revision,
+                    doc.dialect_resolution_generation,
+                )
+            };
+            let new_dialect = self.dialect_for_open(uri, &language_id, &text).await;
+            let changed = {
+                let mut docs = self.documents.lock(operation).await;
+                let Some(doc) = docs.get_mut(uri) else {
+                    return;
                 };
                 if doc.revision != revision
                     || doc.text.as_ref() != text.as_ref()
                     || doc.dialect != old_dialect
+                    || doc.dialect_resolution_generation != generation
                 {
-                    continue; // a newer edit/re-resolve owns this document
+                    continue;
+                }
+                doc.resolved_dialect_generation = generation;
+                if new_dialect == old_dialect {
+                    return;
                 }
                 doc.dialect.clone_from(&new_dialect);
                 doc.bump_analysis_generation();
                 (doc.text.clone(), doc.revision)
             };
-            if !self
-                .commit_live_dialect(
-                    "reresolve_open_document_dialects",
-                    &uri,
-                    &text,
-                    &new_dialect,
-                    revision,
-                )
+            if self
+                .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
                 .await
             {
-                continue;
+                self.reschedule_diagnostics(uri.clone(), new_dialect).await;
+                return;
             }
-            self.reschedule_diagnostics(uri, new_dialect).await;
+            // A newer edit that overtook publication inherited the resolved
+            // dialect above. A newer configuration change advances the dirty
+            // generation and this loop resolves it; a close exits next round.
+        }
+    }
+
+    /// Re-resolve every open document's dialect after a session/folder-default
+    /// change. Mark all documents first so a concurrent edit carries the work
+    /// forward; each resolver then retries until it consumes the exact current
+    /// generation or the document closes.
+    async fn reresolve_open_document_dialects(&self) {
+        let uris = {
+            let mut docs = self
+                .documents
+                .lock("reresolve_open_document_dialects")
+                .await;
+            for doc in docs.values_mut() {
+                doc.mark_dialect_resolution_dirty();
+            }
+            docs.keys().cloned().collect::<Vec<Uri>>()
+        };
+        for uri in uris {
+            self.resolve_dirty_open_document_dialect(&uri, "reresolve_open_document_dialects")
+                .await;
         }
     }
 
@@ -19220,12 +19255,15 @@ impl Backend {
     /// [`Self::analysis_for`] provides the same off-database fallback on a
     /// cancelled memo read.
     ///
-    /// A URI with **no** input keeps contributing nothing, deliberately: an
-    /// open buffer whose file was deleted out from under it has its input
-    /// retired ([`Self::retire_db_source`]) precisely so it stops answering
-    /// workspace queries under a path that no longer exists, while the buffer
-    /// itself keeps working.  Resurrecting it from `documents` here would
-    /// re-ghost every proc in the picker under the dead URI.
+    /// A **published** URI with no input keeps contributing nothing,
+    /// deliberately: an open buffer whose file was deleted out from under it
+    /// has its input retired ([`Self::retire_db_source`]) precisely so it stops
+    /// answering workspace queries under a path that no longer exists, while
+    /// the buffer itself keeps working. Resurrecting it from `documents` here
+    /// would re-ghost every proc in the picker under the dead URI. A pending
+    /// URI is different: a brand-new or untitled buffer may simply not have
+    /// reached its first Salsa publication, so its captured live text remains
+    /// authoritative even without an input handle.
     async fn open_but_unindexed_symbols(
         &self,
         query: &str,
@@ -19253,9 +19291,13 @@ impl Backend {
         }
         let mut pending = new_workspace_index();
         for (uri, text, dialect, publication) in unindexed {
-            // Retired / never-registered input: see the doc comment — this
-            // document is meant to be absent, not rescued.
-            if !self.db_files.lock().await.contains_key(&uri) {
+            // A published document with no input is a deliberately retired
+            // orphan (see the doc comment), but a pending brand-new/untitled
+            // buffer has not created its first Salsa handle yet and is still
+            // authoritative for its own live symbols.
+            if publication != DocumentPublication::Pending
+                && !self.db_files.lock().await.contains_key(&uri)
+            {
                 continue;
             }
             // Before the Salsa boundary, a cache hit still describes the
@@ -20333,7 +20375,7 @@ impl LanguageServer for Backend {
             return;
         }
         let change_version = params.text_document.version;
-        let (text, dialect, language_id, dialect_hint_may_have_changed, revision, index_needs_seed) = {
+        let (text, dialect, language_id, revision, index_needs_seed) = {
             // Phase marker — see `EditTurn::at`.
             turn.at("did_change: documents.lock");
             let mut docs = self.documents.lock("did_change").await;
@@ -20392,18 +20434,17 @@ impl LanguageServer for Backend {
             // bytes that established the old report. Do not carry an encoding
             // verdict across even a no-op-looking edit.
             entry.decode_report = None;
+            if dialect_hint_may_have_changed {
+                // Persist this across deferred publication. If a later edit
+                // supersedes this handler, that authoritative handler must
+                // still resolve the combined buffer's hint.
+                entry.mark_dialect_resolution_dirty();
+            }
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             let language_id = entry.language_id.clone();
             let revision = entry.revision;
-            (
-                text,
-                dialect,
-                language_id,
-                dialect_hint_may_have_changed,
-                revision,
-                index_needs_seed,
-            )
+            (text, dialect, language_id, revision, index_needs_seed)
         };
         // The ordered operation is the buffer splice. Hand the global turn on
         // before Salsa publication: a setter can wait for a snapshot, and the
@@ -20425,58 +20466,12 @@ impl LanguageServer for Backend {
         // was removed; there are no previous facts to retain, so it restores a
         // current view before advertising indexed readiness.
         self.schedule_diagnostics(uri.clone(), dialect).await;
-        // Re-resolve in-source dialect hints (a `# tcl-dialect:` directive, a
-        // `#!…tclshX.Y` shebang, or `package require Tcl X.Y`) after the edit —
-        // adding or changing one in an already-open buffer must take effect
-        // without reopening.  Only a generically-opened `tcl` buffer consults
-        // the source (an explicit versioned / non-Tcl languageId is fixed), and
-        // only the source hint is edit-sensitive, so this is the sole case that
-        // can change.  When it does, commit the new dialect and re-analyse.
-        //
-        // `dialect_hint_may_have_changed` (computed above, alongside the
-        // splice) gates the whole-source `detect_dialect` re-scan and its
-        // text clone: the overwhelming majority of keystrokes land well past
-        // the directive/shebang lines and contain none of the content-signature
-        // marker words, so they cannot have changed what `detect_dialect`
-        // would return — re-running it on every such edit was pure waste.
-        if language_id == "tcl" && dialect_hint_may_have_changed {
-            // Read the open buffer directly rather than through
-            // `read_document`, which would wait for edits this one no longer
-            // holds up and answer from a buffer this handler has already
-            // superseded.  The *current* dialect comes from the same read: with
-            // the turn handed on, a newer edit may have re-resolved it already,
-            // and comparing against this handler's own captured value would
-            // re-commit a dialect that is no longer news.
-            let (text, current_dialect, revision) =
-                match self.documents.lock("did_change").await.get(&uri) {
-                    Some(entry) => (entry.text.clone(), entry.dialect.clone(), entry.revision),
-                    None => return,
-                };
-            let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
-            if new_dialect != current_dialect {
-                let (text, revision) = {
-                    let mut docs = self.documents.lock("did_change").await;
-                    let Some(entry) = docs.get_mut(&uri) else {
-                        return;
-                    };
-                    if entry.revision != revision
-                        || entry.text.as_ref() != text.as_ref()
-                        || entry.dialect != current_dialect
-                    {
-                        return;
-                    }
-                    entry.dialect.clone_from(&new_dialect);
-                    entry.bump_analysis_generation();
-                    (entry.text.clone(), entry.revision)
-                };
-                if !self
-                    .commit_live_dialect("did_change_dialect", &uri, &text, &new_dialect, revision)
-                    .await
-                {
-                    return;
-                }
-                self.reschedule_diagnostics(uri, new_dialect).await;
-            }
+        // Resolve a hint dirtied by this edit **or any superseded predecessor**.
+        // The helper is a no-op when no generation is pending, so the ordinary
+        // no-hint keystroke path still avoids a whole-document detector pass.
+        if language_id == "tcl" {
+            self.resolve_dirty_open_document_dialect(&uri, "did_change_dialect")
+                .await;
         }
     }
 
@@ -41939,6 +41934,211 @@ proc p {} {
                 .is_empty(),
             "the pre-open disk proc must not survive through a Salsa cache hit",
         );
+    }
+
+    /// Exact-head review of #1854: a brand-new or untitled pending buffer has
+    /// no scanned disk input and may not have created its first Salsa handle.
+    /// Its authoritative live declarations must still reach workspace/symbol.
+    #[tokio::test]
+    async fn pending_new_workspace_symbols_need_no_salsa_handle_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("untitled:pending-symbols-1854").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(
+                "proc brand_new_live_symbol {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        assert!(
+            !backend.db_files.lock().await.contains_key(&uri),
+            "precondition: no Salsa handle exists",
+        );
+
+        let found = backend.open_but_unindexed_symbols("brand_new", 10).await;
+        assert_eq!(found.len(), 1, "the pending live proc must be searchable");
+        assert_eq!(found[0].name, "brand_new_live_symbol");
+    }
+
+    /// Exact-head review of #1854: a session-default change that snapshots a
+    /// document just before an edit must retry against that edit's current
+    /// text/revision instead of silently abandoning the configuration change.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn default_dialect_change_retries_after_concurrent_edit_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///default-dialect-edit-race-1854.tcl").unwrap();
+        let initial = "set x 1\n";
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("plaintext".to_owned()),
+        );
+
+        let mut default = backend.default_dialect.lock().await;
+        *default = "tcl9.0".to_owned();
+        let resolving = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { backend.reresolve_open_document_dialects().await }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(DocumentState::dialect_resolution_pending)
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("configuration re-resolution must mark the document dirty");
+
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "set x 2\n".to_owned(),
+                }],
+            })
+            .await;
+        drop(default);
+        crate::rt::timeout(std::time::Duration::from_secs(5), resolving)
+            .await
+            .expect("dialect resolution must retry after the edit")
+            .expect("dialect resolver panicked");
+
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the document remains open");
+        assert_eq!(current.version, Some(2));
+        assert_eq!(current.text.as_ref(), "set x 2\n");
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(!current.dialect_resolution_pending());
+    }
+
+    /// Exact-head review of #1854: if a hint-changing edit loses deferred
+    /// publication to a later unrelated edit, the later revision must inherit
+    /// and resolve the dirty hint rather than leaving the combined buffer on
+    /// the old dialect.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn superseding_edit_carries_dialect_hint_dirtiness_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///hint-edit-race-1854.tcl").unwrap();
+        let initial = "set x 1\n";
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        let publication = backend.live_publication_gate.lock().await;
+        let hinted = format!("# tcl-dialect: tcl9.0\n{}set x 1\n", "\n".repeat(24));
+        let first = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let hinted = hinted.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: hinted,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let ready = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.version == Some(2) && doc.dialect_resolution_pending());
+                if ready {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the hint edit must become visible and dirty before publication");
+
+        let second = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 3 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: Some(Range::new(Position::new(25, 7), Position::new(25, 7))),
+                            range_length: Some(0),
+                            text: "\nset y 2".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.version == Some(3))
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the unrelated edit must supersede the stalled hint edit");
+        drop(publication);
+        crate::rt::timeout(std::time::Duration::from_secs(5), first)
+            .await
+            .expect("the superseded hint handler must finish")
+            .expect("the hint handler panicked");
+        crate::rt::timeout(std::time::Duration::from_secs(5), second)
+            .await
+            .expect("the authoritative edit must finish")
+            .expect("the authoritative edit panicked");
+
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the document remains open");
+        assert_eq!(current.version, Some(3));
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(current.text.contains("set y 2"));
+        assert!(!current.dialect_resolution_pending());
     }
 
     /// Exact-head review of #1854: a diagnostics worker that captured the
