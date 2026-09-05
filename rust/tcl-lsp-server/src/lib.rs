@@ -6659,6 +6659,11 @@ pub struct Backend {
     /// deferred publication. `DocumentState::publication` is the condition;
     /// this notify supplies only the race-free wakeup edge.
     live_publication_advanced: Arc<tokio::sync::Notify>,
+    /// Cancels a deferred publisher's periodic wait in a contended lock queue
+    /// when any authoritative live-document identity changes. `notify_one`
+    /// deliberately retains a permit if the publisher has not registered yet,
+    /// closing the currency-check-to-queue-registration race.
+    live_publication_invalidated: Arc<tokio::sync::Notify>,
     /// Serialises the deferred source/index commits after document-sync turns
     /// have been released. This preserves edit order without making the gate a
     /// request barrier or retaining the document map while Salsa cancels old
@@ -7889,6 +7894,7 @@ impl Backend {
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
+            live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store,
         }
@@ -8264,34 +8270,67 @@ impl Backend {
         }
         // `try_lock` correctly avoids retaining a partial bundle, but Tokio's
         // fair mutexes do not let a try-lock barge past queued waiters. Join
-        // the exact dependency's fair queue periodically while holding
-        // nothing, then drop it immediately and retry the whole bundle. This
-        // bounds starvation without reintroducing a lock-order cycle.
+        // the exact dependency's fair queue periodically, then drop it and
+        // retry the whole bundle. A newer live-document identity cancels the
+        // queue wait: callers retain the publication gate here, so letting a
+        // stale publisher remain queued would stop the authoritative publisher
+        // behind that gate. `notify_one` retains an earlier invalidation as a
+        // permit, covering a change between the caller's currency check and
+        // this registration (#1854 review).
         if retries.is_multiple_of(1024) {
             match wait {
-                LivePublicationWait::Database => drop(self.db.lock().await),
-                LivePublicationWait::Files => drop(self.db_files.lock().await),
-                LivePublicationWait::Tombstones => drop(self.db_tombstones.lock().await),
-                LivePublicationWait::Project => drop(self.db_project.lock().await),
+                LivePublicationWait::Database => {
+                    self.join_live_publication_queue(self.db.lock()).await;
+                }
+                LivePublicationWait::Files => {
+                    self.join_live_publication_queue(self.db_files.lock()).await;
+                }
+                LivePublicationWait::Tombstones => {
+                    self.join_live_publication_queue(self.db_tombstones.lock())
+                        .await;
+                }
+                LivePublicationWait::Project => {
+                    self.join_live_publication_queue(self.db_project.lock())
+                        .await;
+                }
                 // The census is not an async lock with a queue to join. The
                 // bounded sleep below is its fair retry point; every snapshot
                 // retires synchronously when its worker finishes.
                 LivePublicationWait::SalsaSnapshots => {}
-                LivePublicationWait::WorkspaceIndex => drop(self.workspace_index.write().await),
-                LivePublicationWait::DiagnosticsSlots => drop(self.diag_slots.lock().await),
+                LivePublicationWait::WorkspaceIndex => {
+                    self.join_live_publication_queue(self.workspace_index.write())
+                        .await;
+                }
+                LivePublicationWait::DiagnosticsSlots => {
+                    self.join_live_publication_queue(self.diag_slots.lock())
+                        .await;
+                }
                 LivePublicationWait::SemanticTokens => {
-                    drop(self.last_semantic_tokens.lock().await);
+                    self.join_live_publication_queue(self.last_semantic_tokens.lock())
+                        .await;
                 }
                 LivePublicationWait::SemanticRefreshRequests => {
-                    drop(self.semantic_tokens_refresh_asked.lock().await);
+                    self.join_live_publication_queue(self.semantic_tokens_refresh_asked.lock())
+                        .await;
                 }
                 LivePublicationWait::WorkspaceClassAnalyses => {
-                    drop(self.workspace_class_analyses.lock().await);
+                    self.join_live_publication_queue(self.workspace_class_analyses.lock())
+                        .await;
                 }
-                LivePublicationWait::Documents => drop(self.documents.lock(operation).await),
+                LivePublicationWait::Documents => {
+                    self.join_live_publication_queue(self.documents.lock(operation))
+                        .await;
+                }
             }
         }
         crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+    }
+
+    async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>) {
+        tokio::select! {
+            guard = lock => drop(guard),
+            () = self.live_publication_invalidated.notified() => {}
+        }
     }
 
     /// Atomically publish disk-backed analyses to salsa and the workspace
@@ -9169,6 +9208,7 @@ impl Backend {
                 doc.bump_analysis_generation();
                 (doc.text.clone(), doc.revision)
             };
+            self.live_publication_invalidated.notify_one();
             if self
                 .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
                 .await
@@ -11048,6 +11088,7 @@ impl Backend {
             warm_task: _,
             edit_order: _,
             live_publication_advanced: _,
+            live_publication_invalidated: _,
             live_publication_gate: _,
             store: _,
         } = self;
@@ -20407,6 +20448,7 @@ impl LanguageServer for Backend {
         let mut documents = self.documents.lock("did_open").await;
         documents.insert(uri.clone(), state);
         drop(documents);
+        self.live_publication_invalidated.notify_one();
 
         // Poll the index writer once while the edit turn still excludes new
         // requests. If the lock is busy this registers our writer in Tokio's
@@ -20564,6 +20606,7 @@ impl LanguageServer for Backend {
             let revision = entry.revision;
             (text, dialect, language_id, revision, index_needs_seed)
         };
+        self.live_publication_invalidated.notify_one();
         // The ordered operation is the buffer splice. Hand the global turn on
         // before Salsa publication: a setter can wait for a snapshot, and the
         // v2.2.2 incident demonstrated that retaining this turn across such a
@@ -20667,6 +20710,7 @@ impl LanguageServer for Backend {
             let mut docs = self.documents.lock("did_close").await;
             docs.remove(uri);
         }
+        self.live_publication_invalidated.notify_one();
         drop(turn);
         self.live_publication_advanced.notify_waiters();
 
@@ -32997,6 +33041,7 @@ mod tests {
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
+            live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store: Arc::new(vfs::NativeStore),
         }
@@ -41936,6 +41981,104 @@ proc p {} {
                 .expect("the open index publisher must not panic"),
             "the still-current open seed must publish",
         );
+    }
+
+    /// Final automated review of #1854: the periodic fair-queue join must not
+    /// retain `live_publication_gate` after a newer edit invalidates the
+    /// publisher. Otherwise the current edit publishes its buffer, then waits
+    /// behind that gate while the stale publisher remains queued on `db`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn stale_fair_queue_wait_yields_to_newer_edit_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///stale-fair-queue-1854.tcl").unwrap();
+        let initial = "set value old\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let stale_publisher = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                let _publication = backend.live_publication_gate.lock().await;
+                let mut reported = false;
+                backend
+                    .pause_open_publication(
+                        "did_open",
+                        &uri,
+                        LivePublicationWait::Database,
+                        1024,
+                        crate::rt::Instant::now(),
+                        &mut reported,
+                    )
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.db.contention().contains("1 queued waiter") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the stale publisher must join the held database's fair queue");
+
+        let changed_text = "set value current\n";
+        let current_publisher = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: changed_text.to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let changed = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.version == Some(2) && doc.text.as_ref() == changed_text);
+                if changed {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the newer edit must publish its authoritative buffer");
+        crate::rt::timeout(std::time::Duration::from_millis(500), stale_publisher)
+            .await
+            .expect("the invalidated publisher must leave the fair queue while db remains held")
+            .expect("the stale publisher must not panic");
+
+        drop(database);
+        crate::rt::timeout(std::time::Duration::from_secs(5), current_publisher)
+            .await
+            .expect("the current publisher must finish once db is released")
+            .expect("the current publisher must not panic");
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the edited document remains open");
+        assert_eq!(current.publication, DocumentPublication::Indexed);
     }
 
     /// Exact-head review of #1854: the independent index seed must consume the
