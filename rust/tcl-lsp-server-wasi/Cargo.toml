@@ -77,7 +77,7 @@ serde_json = "1"
 tokio = { version = "1", default-features = false, features = ["rt", "time"] }
 # Raw wasi_snapshot_preview1 bindings, for the one syscall Rust's std does not
 # expose: `poll_oneoff`. See `src/wasi_poll.rs`.
-wasi = "0.14"
+wasi = "0.11"
 
 [profile.release]
 # Size matters here too — a VSIX ships this module — but not at the cost of the
