@@ -448,3 +448,47 @@ fn step_trace_over_observes_a_tailcall_target_vm_divergence() {
         "the VM keeps observing tgt's body after the tailcall; C Tcl stops at the tailcall itself"
     );
 }
+
+/// A step-capable execution trace forces every procedure to recompile at its
+/// next entry, and the refreshed body is memoised back into the table its
+/// binding lives in. A retained namespace's procedure is not in the flat
+/// command map at all, so memoising it there would republish it under a
+/// spelling a recreation already owns (#1751). Exact tclsh 9.0.4 oracle results
+/// (identical on 8.6.16).
+#[test]
+fn a_recompiled_retained_procedure_is_not_republished() {
+    assert_eq!(
+        vm_output(
+            r"proc step {args} {}
+namespace eval N {
+    proc q {} {return Q}
+    proc p {} {
+        namespace delete ::N
+        namespace eval ::N {proc other {} {return O}}
+        list [q] [info commands ::N::*]
+    }
+}
+trace add execution ::N::p enterstep step
+set r [::N::p]
+puts [list $r [info commands ::N::*] [namespace exists ::N]]"
+        ),
+        "{Q ::N::other} ::N::other 1"
+    );
+    assert_eq!(
+        vm_output(
+            r"proc step {args} {}
+namespace eval N {
+    proc q {} {return Q}
+    proc p {} {
+        namespace delete ::N
+        namespace eval ::N {proc q {} {return NEW}}
+        list [q] [namespace current]
+    }
+}
+trace add execution ::N::p enterstep step
+set r [::N::p]
+puts [list $r [info commands ::N::*] [namespace exists ::N]]"
+        ),
+        "{Q ::N} ::N::q 1"
+    );
+}

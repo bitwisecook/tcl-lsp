@@ -128,9 +128,11 @@ impl Vm {
                 "procedure \"{name}\": could not compile body"
             )));
         };
+        let ns_id = self.definition_namespace_token(&namespace);
         self.define_proc(crate::command::ProcDef {
             name: registered,
             namespace,
+            ns_id,
             params: parameters,
             has_args,
             body: compiled,

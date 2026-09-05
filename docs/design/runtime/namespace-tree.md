@@ -540,6 +540,26 @@ them the way C does — `TclGetNamespaceForQualName` walking from
 global namespace, where a same-named recreation lives, so the two tokens never
 answer for each other.
 
+Once a recreation exists, **a namespace spelling is not a namespace identity**,
+and every place that enters or reads a namespace has to say which token it
+means:
+
+- entering a **procedure** uses the token its binding lives in — C hands
+  `Tcl_PushCallFrame` the `Namespace *` from `procPtr->cmdPtr->nsPtr`, and the
+  VM carries the same thing as `ProcDef::ns_id`. A retained procedure called
+  after its namespace was recreated still runs in the retained token; one
+  reached by absolute name in the recreation runs in that one;
+- `namespace eval` / `inscope` follow the qualifier: a **relative** name walks
+  from the frame's own namespace and so reaches the retained children, an
+  **absolute** one is rooted at the global namespace and builds a fresh tree
+  under that spelling;
+- `namespace path` and `namespace export` hang off the `Namespace`, so they
+  follow the token; `unknownHandlerPtr` does not survive at all, because
+  `Tcl_DeleteNamespace` frees it before it looks at the activation count;
+- a body recompiled on demand (a step-capable trace forces one at the next
+  entry) is memoised back into the table its binding came from, never into the
+  flat map under a spelling a recreation owns.
+
 Deliberate C-parity gaps: no `CMD_VIA_RESOLVER` (no resolvers, §4) and no
 `cmdEpoch` rehash (there is no cache to stale). tclsh's `ResolvedCmdName`
 object cache is also **not** modelled: C only invalidates it when the

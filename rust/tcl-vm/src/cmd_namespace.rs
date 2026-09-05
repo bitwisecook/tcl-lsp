@@ -40,7 +40,13 @@ use tcl_dialect::model::surface_admits;
 /// and `uplevel`/`upvar` from a proc called within reach it (and its namespace
 /// variables). `call_argv` is the invoking command (e.g. `namespace eval ::ns
 /// {…}`) for `info level N`.
-fn eval_in_ns(vm: &mut Vm, target: String, body: &str, call_argv: Vec<Value>) -> Completion<Value> {
+fn eval_in_ns(
+    vm: &mut Vm,
+    written: &str,
+    target: String,
+    body: &str,
+    call_argv: Vec<Value>,
+) -> Completion<Value> {
     // A token in its *synchronous* delete window is no longer found by
     // `TclGetNamespaceForQualName`, so `NamespaceEvalCmd` tries to create it —
     // and `Tcl_CreateNamespace` still sees the child entry, which
@@ -54,9 +60,24 @@ fn eval_in_ns(vm: &mut Vm, target: String, body: &str, call_argv: Vec<Value>) ->
             display_ns(&target)
         ));
     }
-    vm.declare_namespace(&target);
-    vm.push_ns_eval_frame(&target, call_argv);
-    vm.push_ns(target);
+    // `TclGetNamespaceForQualName` walks a *relative* name from the frame's own
+    // namespace, so from a retained token it reaches that token's retained
+    // children; an *absolute* one is rooted at the global namespace, where a
+    // recreation lives. tclsh 9.0.4 and 8.6.16 both make the difference
+    // visible: from a retained `::N`, `namespace eval C` runs the retained
+    // `::N::C` and leaves both names absent, while `namespace eval ::N::C`
+    // builds fresh `::N` and `::N::C` that have none of its commands.
+    let retained_target = (!written.starts_with("::"))
+        .then(|| vm.retained_token_named(&target))
+        .flatten();
+    if let Some(id) = retained_target {
+        vm.push_ns_eval_frame(&target, call_argv);
+        vm.push_ns_token(target, id);
+    } else {
+        vm.declare_namespace(&target);
+        vm.push_ns_eval_frame(&target, call_argv);
+        vm.push_ns(target);
+    }
     vm.enter_ns_script();
     let result = vm.eval_source(body);
     vm.leave_ns_script();
@@ -785,11 +806,12 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((script, extra)) = parts.split_first() else {
         return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
     };
-    let target = canon_ns(vm, &ns.to_str());
+    let written = ns.to_str().to_string();
+    let target = canon_ns(vm, &written);
     let body = inscope_script(vm, script, extra);
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, target, &body, call_argv)
+    eval_in_ns(vm, &written, target, &body, call_argv)
 }
 
 /// The script `namespace inscope ns script ?arg ...?` evaluates:
@@ -839,7 +861,8 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if body_parts.is_empty() {
         return err("wrong # args: should be \"namespace eval name arg ?arg ...?\"");
     }
-    let child = canon_ns(vm, &ns.to_str());
+    let written = ns.to_str().to_string();
+    let child = canon_ns(vm, &written);
     // Multiple body args are concatenated with spaces, as a script.
     let body = body_parts
         .iter()
@@ -848,5 +871,5 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .join(" ");
     let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, child, &body, call_argv)
+    eval_in_ns(vm, &written, child, &body, call_argv)
 }

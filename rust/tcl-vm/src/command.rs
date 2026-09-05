@@ -71,6 +71,12 @@ pub struct ProcDef {
     pub name: String,
     /// The namespace the body executes in (canonical; `""` = global).
     pub namespace: String,
+    /// That namespace's **token** — C's `procPtr->cmdPtr->nsPtr`, which is what
+    /// `TclProcInterpProc` hands `Tcl_PushCallFrame`. The spelling alone is not
+    /// the identity: a namespace deleted while this procedure's frame was
+    /// running is retained under its old token while a wholly separate one may
+    /// already answer to the same name, and the body belongs to the first.
+    pub ns_id: tcl_core_types::NsId,
     /// Formal parameters in order.
     pub params: Vec<Param>,
     /// Whether the last parameter is the `args` catch-all.
@@ -431,9 +437,11 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
     }
 
     let name = fresh_apply_name();
+    let ns_id = vm.definition_namespace_token(&namespace);
     vm.define_proc(ProcDef {
         name: name.clone(),
         namespace,
+        ns_id,
         params: params_vec,
         has_args,
         body: body_asm,
@@ -1210,9 +1218,11 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             None => return err(format!("proc \"{name_s}\": could not compile body")),
         },
     };
+    let ns_id = vm.definition_namespace_token(&namespace);
     vm.define_proc(ProcDef {
         name: reg_name,
         namespace,
+        ns_id,
         params: params_vec,
         has_args,
         body,

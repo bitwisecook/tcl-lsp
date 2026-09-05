@@ -1397,9 +1397,11 @@ fn run_step_inner(
         })
         .collect();
 
+    let ns_id = vm.definition_namespace_token(&obj_ns);
     let proc = ProcDef {
         name: format!("{obj_ns}::{method}"),
         namespace: obj_ns,
+        ns_id,
         params: m.params.clone(),
         has_args: m.has_args,
         body: Rc::clone(&m.body),

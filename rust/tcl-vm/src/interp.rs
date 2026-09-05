@@ -4380,8 +4380,10 @@ impl Vm {
     /// Get the current namespace's command resolution path (`namespace path`)
     /// as a list of canonical names (no leading `::`); empty by default.
     pub(crate) fn ns_path_get(&self) -> Vec<String> {
-        self.ns_paths
-            .get(self.current_ns())
+        let current = self.current_ns();
+        self.retained_current_record()
+            .and_then(|record| record.paths.get(current))
+            .or_else(|| self.ns_paths.get(current))
             .cloned()
             .unwrap_or_default()
     }
@@ -4391,14 +4393,25 @@ impl Vm {
     pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
         self.bump_cmd_epoch();
         let cur = self.current_ns().to_string();
-        self.ns_paths.insert(cur, path);
+        match self.retained_owner_of_namespace(&cur) {
+            Some(root) => {
+                if let Some(record) = self.ns_deferral.retained.get_mut(&root) {
+                    record.paths.insert(cur, path);
+                }
+            }
+            None => {
+                self.ns_paths.insert(cur, path);
+            }
+        }
     }
 
     /// The current namespace's `namespace unknown` handler prefix, or empty
     /// when unset (the caller reports the `::unknown` default).
     pub(crate) fn ns_unknown_get(&self) -> Vec<Value> {
-        self.ns_unknowns
-            .get(self.current_ns())
+        let current = self.current_ns();
+        self.retained_current_record()
+            .and_then(|record| record.unknowns.get(current))
+            .or_else(|| self.ns_unknowns.get(current))
             .cloned()
             .unwrap_or_default()
     }
@@ -4407,10 +4420,17 @@ impl Vm {
     /// `namespace unknown` handler prefix.
     pub(crate) fn ns_unknown_set(&mut self, handler: Vec<Value>) {
         let cur = self.current_ns().to_string();
+        let retained = self
+            .retained_owner_of_namespace(&cur)
+            .and_then(|root| self.ns_deferral.retained.get_mut(&root));
+        let table = match retained {
+            Some(record) => &mut record.unknowns,
+            None => &mut self.ns_unknowns,
+        };
         if handler.is_empty() {
-            self.ns_unknowns.remove(&cur);
+            table.remove(&cur);
         } else {
-            self.ns_unknowns.insert(cur, handler);
+            table.insert(cur, handler);
         }
     }
 
@@ -4424,8 +4444,10 @@ impl Vm {
         if self.ns_unknown_depth > 0 {
             return None;
         }
-        self.ns_unknowns
-            .get(self.current_ns())
+        let current = self.current_ns();
+        self.retained_current_record()
+            .and_then(|record| record.unknowns.get(current))
+            .or_else(|| self.ns_unknowns.get(current))
             .or_else(|| self.ns_unknowns.get(""))
             .cloned()
     }
@@ -4628,10 +4650,10 @@ impl InterpState {
         // (a same-named recreation would share every key), so the record
         // answers for it. An absolute name skips this: it is rooted at the
         // global namespace, where the recreation lives.
-        let retained = (!name.starts_with("::")
-            && cxt == self.ns_stack.last().map_or("", String::as_str))
-        .then(|| self.retained_current_record())
-        .flatten();
+        let cxt_record = (cxt == self.ns_stack.last().map_or("", String::as_str))
+            .then(|| self.retained_current_record())
+            .flatten();
+        let retained = (!name.starts_with("::")).then_some(cxt_record).flatten();
         if let Some(record) = retained {
             let candidate = if cxt.is_empty() {
                 name.to_string()
@@ -4654,8 +4676,12 @@ impl InterpState {
         // recording — so flipping `set_runtime_version` mid-life re-applies
         // the correct tier to paths recorded earlier.
         let rooted: Vec<String> = if self.runtime_version.has_namespace_path() {
-            self.ns_paths
-                .get(cxt)
+            // A retained token keeps its own `namespace path`: C's
+            // `commandPathArray` hangs off the `Namespace`, and its entries
+            // point at namespaces that are still live.
+            cxt_record
+                .and_then(|record| record.paths.get(cxt))
+                .or_else(|| self.ns_paths.get(cxt))
                 .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect())
         } else {
             Vec::new()
@@ -4735,6 +4761,30 @@ impl Vm {
         // resolve it without minting.
         let id = self.intern_ns(&ns);
         self.push_ns_token(ns, id);
+    }
+
+    /// The namespace token a command bound in `holder` belongs to — C's
+    /// `cmdPtr->nsPtr`. A definition the current frame can only make through a
+    /// retained token belongs to that token, whose spelling may meanwhile have
+    /// been taken by a wholly separate namespace.
+    pub(crate) fn definition_namespace_token(&mut self, holder: &str) -> NsId {
+        self.retained_token_named(holder)
+            .unwrap_or_else(|| self.intern_ns(holder))
+    }
+
+    /// Enter the namespace token a procedure's body runs in.
+    /// `TclProcInterpProc` hands `Tcl_PushCallFrame` a `Namespace *`, so a
+    /// procedure retained past its namespace's deletion runs in the retained
+    /// token — not in whatever now answers to that spelling. Only a retained
+    /// token is entered by id; every live one still goes through the ordinary
+    /// name path, which creates the namespace if a rename left the procedure
+    /// homed in a deleted one.
+    pub(crate) fn push_proc_ns(&mut self, name: &str, id: NsId) {
+        if self.ns_deferral.owners.contains_key(&id) {
+            self.push_ns_token(name.to_owned(), id);
+            return;
+        }
+        self.push_ns(name.to_owned());
     }
 
     /// Push one namespace token onto the resolution stack, counting the
@@ -5003,7 +5053,13 @@ impl Vm {
     /// still reports `a`.
     pub(crate) fn add_exports(&mut self, patterns: &[String]) {
         let ns = self.current_ns().to_string();
-        let entry = self.ns_exports.entry(ns).or_default();
+        let retained = self
+            .retained_owner_of_namespace(&ns)
+            .and_then(|root| self.ns_deferral.retained.get_mut(&root));
+        let entry = match retained {
+            Some(record) => record.exports.entry(ns).or_default(),
+            None => self.ns_exports.entry(ns).or_default(),
+        };
         for pattern in patterns {
             if !entry.iter().any(|existing| existing == pattern) {
                 entry.push(pattern.clone());
@@ -5014,8 +5070,10 @@ impl Vm {
     /// The current namespace's `namespace export` pattern list (C's
     /// `Tcl_AppendExportList`, the `namespace export` query form).
     pub(crate) fn exports_get(&self) -> Vec<String> {
-        self.ns_exports
-            .get(self.current_ns())
+        let current = self.current_ns();
+        self.retained_current_record()
+            .and_then(|record| record.exports.get(current))
+            .or_else(|| self.ns_exports.get(current))
             .cloned()
             .unwrap_or_default()
     }
@@ -5024,7 +5082,16 @@ impl Vm {
     /// `namespace export -clear` makes (`Tcl_Export`'s `resetListFirst`).
     pub(crate) fn clear_exports(&mut self) {
         let ns = self.current_ns().to_string();
-        self.ns_exports.remove(&ns);
+        match self.retained_owner_of_namespace(&ns) {
+            Some(root) => {
+                if let Some(record) = self.ns_deferral.retained.get_mut(&root) {
+                    record.exports.remove(&ns);
+                }
+            }
+            None => {
+                self.ns_exports.remove(&ns);
+            }
+        }
     }
 
     /// The unqualified names of the current namespace's commands that
@@ -5881,9 +5948,13 @@ impl Vm {
             if let Some(path) = self.ns_paths.remove(name) {
                 record.paths.insert(name.clone(), path);
             }
-            if let Some(unknown) = self.ns_unknowns.remove(name) {
-                record.unknowns.insert(name.clone(), unknown);
-            }
+            // `Tcl_DeleteNamespace` frees `unknownHandlerPtr` before it looks
+            // at the activation count, so a retained token has no handler of
+            // its own (tclsh 9.0.4 and 8.6.16: an unresolvable command in the
+            // retained frame reaches the interpreter default, not the handler
+            // the namespace had). A handler installed *after* deferral belongs
+            // to the retained token and is kept in the record.
+            self.ns_unknowns.remove(name);
         }
         let keys: Vec<String> = self
             .commands
@@ -5923,7 +5994,7 @@ impl Vm {
 
     /// The retained token `name` denotes, reachable only from the frames that
     /// hold the record it lives in.
-    fn retained_token_named(&self, name: &str) -> Option<NsId> {
+    pub(crate) fn retained_token_named(&self, name: &str) -> Option<NsId> {
         self.retained_current_record()?.subtree.get(name).copied()
     }
 
@@ -6878,15 +6949,34 @@ impl Vm {
                     .insert(token.clone(), Command::Proc(Rc::clone(&fresh)));
             }
             Some(CommandSidecarKey::Visible(name)) => {
-                self.commands
-                    .insert(name.clone(), Command::Proc(Rc::clone(&fresh)));
+                let name = name.clone();
+                self.memoise_visible_proc(&name, &fresh);
             }
             None => {
-                self.commands
-                    .insert(fresh.name.clone(), Command::Proc(Rc::clone(&fresh)));
+                let name = fresh.name.clone();
+                self.memoise_visible_proc(&name, &fresh);
             }
         }
         fresh
+    }
+
+    /// Store a refreshed procedure back in the table its binding lives in. The
+    /// procedure's own token says which that is (C's `cmdPtr->nsPtr`): one
+    /// whose namespace is retained is not in the flat command map at all, and
+    /// writing it there would republish it under a spelling a recreation may
+    /// already own.
+    fn memoise_visible_proc(&mut self, name: &str, fresh: &Rc<ProcDef>) {
+        let command = Command::Proc(Rc::clone(fresh));
+        match self.ns_deferral.owners.get(&fresh.ns_id).copied() {
+            Some(root) => {
+                if let Some(record) = self.ns_deferral.retained.get_mut(&root) {
+                    record.commands.insert(name.to_owned(), command);
+                }
+            }
+            None => {
+                self.commands.insert(name.to_owned(), command);
+            }
+        }
     }
 
     // -- frames --
