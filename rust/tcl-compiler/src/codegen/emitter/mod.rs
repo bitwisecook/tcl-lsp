@@ -87,10 +87,10 @@ pub fn codegen_function_with_procs(
 /// name resolves to). Bundled rather than threaded as parallel parameters —
 /// the argument list is already at `clippy::too_many_arguments`'s ceiling, and
 /// these always travel together.
-#[derive(Clone, Copy)]
 struct ModuleEmit<'a> {
     registry: &'a CommandRegistry,
-    source: &'a str,
+    source: std::rc::Rc<str>,
+    line_index: tcl_lexer::LineIndex,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     numbers: tcl_dialect::NumberSyntax,
     escapes: tcl_dialect::EscapeSyntax,
@@ -113,7 +113,7 @@ fn codegen_function_src(
     params: &[&str],
     is_proc: bool,
     proc_defs: &[IrProcedure],
-    module: ModuleEmit<'_>,
+    module: &ModuleEmit<'_>,
     base_line: u32,
 ) -> FunctionAsm {
     let mut ctx = CodegenCtx::new(is_proc, params, module.registry);
@@ -124,24 +124,13 @@ fn codegen_function_src(
     ctx.expr_grammar = module.expr_grammar;
     ctx.dialect = module.dialect;
     ctx.command_bindings = Some(module.command_bindings);
-    ctx.set_source(module.source);
+    ctx.set_indexed_source(
+        std::rc::Rc::clone(&module.source),
+        module.line_index.clone(),
+    );
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
     asm
-}
-
-/// The 1-based line of byte offset `off` within `source`.
-fn line_of(source: &str, off: u32) -> u32 {
-    let end = (off as usize).min(source.len());
-    1 + u32::try_from(
-        source
-            .get(..end)
-            .unwrap_or("")
-            .bytes()
-            .filter(|&b| b == b'\n')
-            .count(),
-    )
-    .unwrap_or(0)
 }
 
 /// Resolve the compile's dialect name to the profile [`ModuleEmit`] carries.
@@ -173,7 +162,8 @@ pub fn codegen_module(
     ir_module: &IrModule,
     registry: &CommandRegistry,
 ) -> ModuleAsm {
-    let src = &ir_module.source;
+    let source: std::rc::Rc<str> = ir_module.source.as_str().into();
+    let line_index = tcl_lexer::LineIndex::new(&source);
     // The compile's target release: a named dialect's own numeric grammar, else
     // the permissive 9.x default.
     let dialect = ir_module.dialect.as_deref();
@@ -194,7 +184,8 @@ pub fn codegen_module(
         crate::command_binding::scan_module_command_mutations(ir_module, registry);
     let module = ModuleEmit {
         registry,
-        source: src,
+        source,
+        line_index,
         dialect: emit_profile(dialect),
         numbers,
         escapes,
@@ -203,7 +194,7 @@ pub fn codegen_module(
         expr_grammar,
         command_bindings: &command_bindings,
     };
-    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], module, 0);
+    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], &module, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -218,10 +209,16 @@ pub fn codegen_module(
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
         // The proc's definition line drives proc-relative `errorInfo` lines.
-        let base_line = ir_proc.map_or(0, |p| line_of(src, p.span.start()));
+        let base_line = ir_proc.map_or(0, |p| {
+            module
+                .line_index
+                .position_at(p.span.start())
+                .line
+                .saturating_add(1)
+        });
         procs.insert(
             qname.clone(),
-            codegen_function_src(cfg_func, &params, true, &[], module, base_line),
+            codegen_function_src(cfg_func, &params, true, &[], &module, base_line),
         );
     }
     ModuleAsm {
