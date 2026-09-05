@@ -74,22 +74,15 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
     // contract), so e.g. `namespace exist` → `exists`.
     let raw = obj_bytes(argv[1]);
-    let sub: &[u8] = if let Some(c) = NAMESPACE_SUBS.iter().find(|c| **c == raw.as_slice()) {
-        c
-    } else {
-        let mut it = NAMESPACE_SUBS
-            .iter()
-            .filter(|c| c.starts_with(raw.as_slice()));
-        match (it.next(), it.next()) {
-            (Some(c), None) => c,
-            _ => {
-                let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-                m.extend_from_slice(&raw);
-                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which");
-                return interp.set_error(&m);
-            }
-        }
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(NAMESPACE_SUBS, &raw, true) else {
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            NAMESPACE_SUBS,
+            &raw,
+            true,
+            b"::tcl::namespace",
+        ));
     };
+    let sub: &[u8] = NAMESPACE_SUBS[index];
     match sub {
         b"current" => ns_current(interp, argv),
         b"delete" => ns_delete(interp, argv),
@@ -1081,6 +1074,40 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    /// Issue #1607: `namespace` is a `TclMakeEnsemble` command, so its
+    /// exact-then-unique-prefix scan and its whole miss sentence belong to
+    /// `tcl_cmd_core::ensemble` — both were hand-rolled here, the 19-entry
+    /// enumeration as a literal beside the table it duplicates.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   namespace cu -> ::
+    ///   namespace {} -> unknown or ambiguous subcommand "": must be children,
+    ///                   code, current, delete, ensemble, eval, exists, export,
+    ///                   forget, import, inscope, origin, parent, path,
+    ///                   qualifiers, tail, unknown, upvar, or which
+    ///   namespace e  -> unknown or ambiguous subcommand "e": must be <same>
+    ///                   (ensemble/eval/exists/export)
+    #[test]
+    fn namespace_ensemble_miss_comes_from_the_owner() {
+        const MUST: &str = "must be children, code, current, delete, ensemble, eval, exists, \
+                            export, forget, import, inscope, origin, parent, path, qualifiers, \
+                            tail, unknown, upvar, or which";
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace cu"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::");
+            assert_eq!(i.eval_str(b"namespace {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"namespace e"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("unknown or ambiguous subcommand \"e\": {MUST}").as_bytes()
+            );
+        });
     }
 
     #[test]

@@ -518,7 +518,9 @@ entry point, or gate moves without this contract being updated.
   agree only because that list has three entries — and their `dict` and
   `array` ensembles, where resolving the word first is also what makes
   `array e a` fire the variable's `array` trace under the canonical
-  name.
+  name — and their `binary`, `binary encode`/`decode` (the one
+  `prefixes = false` pair, whose miss is `unknown subcommand`),
+  `encoding`, `chan`, `zlib` and `namespace` ensembles.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -896,6 +898,12 @@ helper without reading the rationale:
   test modules in `runtime/rust`, plus
   `prefix.rs::dict_filter_type_noun_and_abbreviations` for the owner's
   own `filterType` row.
+- `rust/tcl-vm/tests/builtins_e2e.rs`
+  (`ensemble_subcommand_words_resolve_like_tclsh`) and the
+  `cmd_binary.rs`, `cmd_misc.rs`, `cmd_zlib.rs`, `cmd_namespace.rs`
+  test modules in `runtime/rust` — the `binary`/`encoding`/`zlib`/
+  `namespace` surfaces, including `zlib gzip`'s and `gunzip`'s option
+  tables (C's order is `-header, -level`, not alphabetical).
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

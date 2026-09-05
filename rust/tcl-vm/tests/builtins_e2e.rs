@@ -730,6 +730,70 @@ fn interp_debug_option_uses_c_noun_and_abbreviates() {
     );
 }
 
+/// Issue #1607: `binary`, `binary encode`/`decode`, `encoding` and `namespace`
+/// are `TclMakeEnsemble` commands. `binary encode`/`decode` run with
+/// **`-prefixes` off**, so nothing abbreviates there and the miss is worded
+/// `unknown subcommand`, never `unknown or ambiguous`.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   binary e hex a       -> 61     ;  binary en hex a -> 61
+///   binary {}            -> unknown or ambiguous subcommand "": must be
+///                           decode, encode, format, or scan
+///   binary encode h a    -> unknown subcommand "h": must be base64, hex, or uuencode
+///   binary encode {} a   -> unknown subcommand "": must be <same>
+///   binary decode b YQ== -> unknown subcommand "b": must be <same>
+///   encoding s           -> the system encoding
+///   encoding c           -> unknown or ambiguous subcommand "c": must be …
+///   namespace cu         -> ::
+#[test]
+fn ensemble_subcommand_words_resolve_like_tclsh() {
+    const FORMATS: &str = "must be base64, hex, or uuencode";
+    const ENC_MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    // `binary` abbreviates; its encode/decode format tables do not.
+    assert_eq!(run("binary e hex a").1, "61");
+    assert_eq!(run("binary en hex a").1, "61");
+    assert_eq!(
+        msg("binary {}"),
+        "unknown or ambiguous subcommand \"\": must be decode, encode, format, or scan"
+    );
+    assert_eq!(
+        msg("binary encode h a"),
+        format!("unknown subcommand \"h\": {FORMATS}")
+    );
+    assert_eq!(
+        msg("binary encode {} a"),
+        format!("unknown subcommand \"\": {FORMATS}")
+    );
+    assert_eq!(
+        msg("binary decode b YQ=="),
+        format!("unknown subcommand \"b\": {FORMATS}")
+    );
+    // `encoding`: this engine advertises only what it implements (9.0 also has
+    // `profiles` and `user`), but the verdicts are tclsh's.
+    assert_eq!(run("encoding s").1, "utf-8");
+    assert_eq!(
+        msg("encoding c"),
+        format!("unknown or ambiguous subcommand \"c\": {ENC_MUST}")
+    );
+    assert_eq!(
+        msg("encoding {}"),
+        format!("unknown or ambiguous subcommand \"\": {ENC_MUST}")
+    );
+    // `namespace`'s miss sentence now comes from the same owner.
+    assert_eq!(run("namespace cu").1, "::");
+    assert_eq!(
+        msg("namespace {}"),
+        "unknown or ambiguous subcommand \"\": must be children, code, current, delete, \
+         ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, \
+         qualifiers, tail, unknown, upvar, or which"
+    );
+}
+
 /// Issue #1607: `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
 /// "option", 0)` table (`pkgOptions[]`, `tclPkg.c`) — both engines said
 /// `unknown or ambiguous subcommand "x"` with no list, which is the *ensemble*

@@ -165,11 +165,13 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let sub = obj_bytes(argv[1]);
     let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
     let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&names, &sub, true) else {
-        let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-        m.extend_from_slice(&sub);
-        m.extend_from_slice(b"\": must be ");
-        m.extend_from_slice(&tcl_cmd_core::ensemble::subcommand_choices(&names));
-        return interp.set_error(&m);
+        // The whole sentence, not just its enumeration, is the owner's.
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            &names,
+            &sub,
+            true,
+            b"::tcl::chan",
+        ));
     };
     // `argv[1..]` is `subcommand args…`; each target reads its arguments from
     // `argv[1..]` and uses `argv[0]` (the subcommand word) only for error text.

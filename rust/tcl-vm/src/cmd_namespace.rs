@@ -110,14 +110,18 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             })
             .map(|candidate| candidate.name)
             .collect();
-        let choices = match available.as_slice() {
-            [] => String::new(),
-            [only] => (*only).to_string(),
-            [head @ .., last] => format!("{}, or {last}", head.join(", ")),
-        };
-        return err(format!(
-            "unknown or ambiguous subcommand \"{sub_word}\": must be {choices}"
-        ));
+        // The sentence — including the ensemble's comma before `or`, even for
+        // two entries — belongs to `tcl_cmd_core::ensemble`, not to a local
+        // join beside it.
+        return err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                &available,
+                sub_word.as_bytes(),
+                true,
+                b"::tcl::namespace",
+            ))
+            .into_owned(),
+        );
     };
     match subcommand.name {
         "eval" => ns_eval(vm, rest),

@@ -45,21 +45,34 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
     interp.set_error(msg)
 }
 
+/// `binary`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+const BINARY_SUBS: &[&[u8]] = &[b"decode", b"encode", b"format", b"scan"];
+
+/// `binary encode`/`binary decode`'s format set. These two are ensembles with
+/// **`-prefixes` off**, so nothing abbreviates and the miss is worded
+/// `unknown subcommand`, never `unknown or ambiguous` (tclsh: `binary encode
+/// h a` → `unknown subcommand "h": must be base64, hex, or uuencode`).
+const BINARY_FORMATS: &[&[u8]] = &[b"base64", b"hex", b"uuencode"];
+
 fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"binary subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    let word = obj_bytes(argv[1]);
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(BINARY_SUBS, &word, true) else {
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            BINARY_SUBS,
+            &word,
+            true,
+            b"::tcl::binary",
+        ));
+    };
+    match BINARY_SUBS[index] {
         b"format" => binary_format(interp, argv),
         b"scan" => binary_scan(interp, argv),
         b"encode" => binary_encode(interp, argv),
-        b"decode" => binary_decode(interp, argv),
-        other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be decode, encode, format, or scan");
-            interp.set_error(&m)
-        }
+        // Unreachable: `BINARY_SUBS` has exactly the four arms here.
+        _ => binary_decode(interp, argv),
     }
 }
 
@@ -91,10 +104,12 @@ fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn binary_encode_bad(interp: &mut Interp, fmt: &[u8]) -> Code {
-    let mut m = b"unknown subcommand \"".to_vec();
-    m.extend_from_slice(fmt);
-    m.extend_from_slice(b"\": must be base64, hex, or uuencode");
-    interp.set_error(&m)
+    interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+        BINARY_FORMATS,
+        fmt,
+        false,
+        b"::tcl::binary::encode",
+    ))
 }
 
 /// `binary encode base64|uuencode ?-maxlen n? ?-wrapchar c? data`.
@@ -303,6 +318,48 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `binary` is a `TclMakeEnsemble` command, while
+    /// `binary encode`/`binary decode` are ensembles with **`-prefixes` off**
+    /// — nothing abbreviates there and the miss is worded `unknown
+    /// subcommand`, never `unknown or ambiguous`. All three matched exactly
+    /// and spelled their sentences by hand.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   binary e hex a       -> 61
+    ///   binary {}            -> unknown or ambiguous subcommand "": must be
+    ///                           decode, encode, format, or scan
+    ///   binary encode h a    -> unknown subcommand "h": must be base64, hex,
+    ///                           or uuencode
+    ///   binary decode b YQ== -> unknown subcommand "b": must be <same>
+    #[test]
+    fn binary_ensembles_resolve_like_tclsh() {
+        const FORMATS: &str = "must be base64, hex, or uuencode";
+        leak_free(|i| {
+            let err_of = |i: &mut Interp, src: &[u8]| {
+                assert_eq!(i.eval_str(src), Code::Error, "expected an error");
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            assert_eq!(ok(i, b"binary e hex a"), b"61");
+            assert_eq!(ok(i, b"binary en hex a"), b"61");
+            assert_eq!(
+                err_of(i, b"binary {}"),
+                "unknown or ambiguous subcommand \"\": must be decode, encode, format, or scan"
+            );
+            assert_eq!(
+                err_of(i, b"binary encode h a"),
+                format!("unknown subcommand \"h\": {FORMATS}")
+            );
+            assert_eq!(
+                err_of(i, b"binary encode {} a"),
+                format!("unknown subcommand \"\": {FORMATS}")
+            );
+            assert_eq!(
+                err_of(i, b"binary decode b YQ=="),
+                format!("unknown subcommand \"b\": {FORMATS}")
+            );
+        });
     }
 
     #[test]
