@@ -115,9 +115,13 @@ pub fn spec() -> CommandSpec {
 Registration is a declaration, not a decorator: add `mod puts_;` to the
 pack's `mod.rs` and `puts_::spec(),` to the list its `<pack>_command_specs()`
 collector returns. (The trailing underscore avoids clashing with a Rust
-keyword or a std name.) The registry keys duplicates by name and picks per
-dialect, so one command may have several specs — see the note on
-`best_visible` under the TclOO helpers below.
+keyword or a std name.) A pack built in the [spec
+studio](../contracts/command-spec-studio.md#the-export-is-the-pack) exports
+that `mod.rs` beside its `.rs` files, each `mod` line matching the stem it
+chose; a contributor writing Rust by hand still writes both lines. The
+registry keys duplicates by name and picks per dialect, so one command may
+have several specs — see the note on `best_visible` under the TclOO helpers
+below.
 
 ### CommandSpec field reference
 
@@ -1634,7 +1638,9 @@ is what that looks like from the outside.
   `rust/tcl-registry/src/commands/<pack>/` whose `spec()` returns a
   `CommandSpec` ending in `..CommandSpec::DEFAULT`, then declare it (`mod
   foo_;`) and list `foo_::spec(),` in the pack's `<pack>_command_specs()`
-  collector.  For a new dialect pack, add its collector to
+  collector.  The spec studio's **Export** renders that `mod.rs` for a pack
+  built there; by hand, both lines are yours to write.  For a new dialect
+  pack, add its collector to
   `CommandRegistry::load_dialect`, a `SPEC_PACKS` row in `commands/mod.rs`,
   and an `authored_groups` entry in `registry.rs` —
   `tests/spec_pack_provenance.rs` fails by command name until both exist.
@@ -1697,8 +1703,9 @@ Spec Studio's DSL tab are likewise designed, not shipped.
 
 The [Command Spec Studio](../contracts/command-spec-studio.md) is the other
 non-Rust route today: a browser front-end over this registry that browses
-the live command surface, edits every field described above, and renders
-the result back out as a drop-in `.rs` module or a stub. Each field carries
+the live command surface, edits every field described above, and exports
+the pack it builds as drop-in `.rs` modules — one per command, with the
+`mod.rs` that collects them — or as a stub. Each field carries
 a plain-language explanation written for Tcl developers with a worked Tcl
 example of that field, and a Reference tab searches the whole vocabulary —
 every field, trait, argument role, and taint colour, each with its own.

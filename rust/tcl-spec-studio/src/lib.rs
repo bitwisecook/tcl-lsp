@@ -224,8 +224,10 @@ pub fn pack_catalogue(dialect: &str) -> Value {
 /// [`command-registry.md`](../../../docs/design/compiler/command-registry.md),
 /// "to add a command"), and the dialect stub in both spellings.
 ///
-/// `losses` carries what a renderer could not say, per file, rather than
-/// letting a silent gap reach a pull request.
+/// The reply names the document's `speclib` and the dialect, lists the
+/// commands, and carries every file with the `kind` that says which surface
+/// reads it. `pack` is the registry directory, not the pack's name: it
+/// decides where the `.rs` files land and what the collector is called.
 #[must_use]
 pub fn pack_export(source: &str, pack: &str, dialect: &str) -> Value {
     let store = store::PackStore::from_source(source);

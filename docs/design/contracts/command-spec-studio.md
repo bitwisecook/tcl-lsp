@@ -2,9 +2,10 @@
 
 The spec studio is a browser front-end over `tcl-registry`: it browses the
 live command surface pack by pack, edits every field of a `CommandSpec`, and
-renders the result back to a registry `.rs` module or a Tcl dialect stub.
-This document describes the contract between its layers and the invariants
-that keep it from drifting away from the registry it edits.
+exports the pack it builds — one registry `.rs` module per command, the
+`mod.rs` that collects them, and a Tcl dialect stub. This document describes
+the contract between its layers and the invariants that keep it from
+drifting away from the registry it edits.
 
 Related: [`command-registry.md`](../compiler/command-registry.md) (the field
 reference), [`dialect-stubs.md`](dialect-stubs.md) (the stub language),
@@ -15,7 +16,7 @@ reference), [`dialect-stubs.md`](dialect-stubs.md) (the stub language),
 | Layer | Crate / path | Role |
 |---|---|---|
 | Provenance | `rust/tcl-registry` (`commands/mod.rs`, `registry.rs`) | `SPEC_PACKS`, the table of `commands/<id>/` authoring modules, and `spec_pack_of`, which of them declares a resolved spec. The registry's, not the studio's: the studio reads it through `command_index` and `pack_catalogue`. |
-| Schema + renderers | `rust/tcl-spec-studio` | One table describing every spec field; the draft model; the `.rs` and stub renderers; package inference. No browser, no WASM. |
+| Schema + renderers | `rust/tcl-spec-studio` | One table describing every spec field; the draft model; the `.rs`, `mod.rs`, SpecTcl, and stub renderers, and `pack_export`, which runs them over one document; package inference. No browser, no WASM. |
 | WASM facade | `rust/tcl-spec-studio-wasm` | `wasm-bindgen` cdylib. Every export takes and returns a JSON string. Excluded from the workspace (the glue needs `unsafe`). |
 | Front-end | `rust/tcl-spec-studio/web` | Strict TypeScript, bundled by esbuild into two files: the controller (an IIFE, inlined into the page) and the editor chunk (an ES module, loaded on demand). Generates its form from the schema; knows no field names. |
 | Language server | `rust/tcl-lsp-server-wasm` | The **real** `tcl-lsp-server` `LspService`, compiled to wasm and driven over `postMessage` from a Web Worker. The studio's editors are a client of it. |
@@ -684,6 +685,25 @@ valid Rust — all four bugs above passed them. The real check is to render the
 specs into the registry and build it; the procedure is documented at the top
 of that test file. Running it found and fixed all four.
 
+### The pack module
+
+`render_rs::render_pack_module` emits `commands/<pack>/mod.rs`: the banner,
+a `mod <stem>;` per command, and a `<pack>_command_specs()` collector
+returning `vec![<stem>::spec(), …]`, stems sorted and deduplicated. It is
+the one file in a pack contribution that is pure bookkeeping, and the one
+[`command-registry.md`](../compiler/command-registry.md#decision-rule) had a
+contributor write by hand — each `mod` line having to match the stem
+`suggested_path` chose for the `.rs`. Two places to get wrong for no
+judgement gained, so one `module_stem` feeds both.
+
+It carries no `#![allow(non_snake_case)]`, though every hand-written pack
+does. Theirs spell a `::` as a double underscore — `HTTP::header` is
+`http__header.rs` — and rustc's lint rejects consecutive underscores;
+`suggested_path` lower-cases and collapses each run of separators to one,
+so every stem it produces (`http_header`) is already snake case and the
+allowance would silence a lint that cannot fire. An empty pack gets no
+`mod.rs`: a collector of nothing is a file with no reason to exist.
+
 ## Stub renderer contract
 
 `render_stub` emits the `stub NAME {params} ?flags?` line of
@@ -698,6 +718,68 @@ named as falling back to `value`.
 
 Roles map through the inverse of `tcl_registry::model::role_for_word`, so a stub the
 studio renders parses back to the roles the draft declared.
+
+Both deliveries are rendered on every export; the pane offers one at a time.
+
+## The export is the pack
+
+The studio's outputs were per-command: a **Rendered .rs** pane and a **Tcl
+stub** pane rendering whichever draft the form held, and a **Files & issue**
+tray fed by an *Add to files* on each. The unit of work is the pack — an
+author builds a library command by command and ships the set — and
+assembling it by opening every command in turn was the transcription the
+studio exists to remove, with the `mod.rs` left to memory.
+
+`pack_export(source, pack, dialect)` renders every artefact one document
+produces, in one call:
+
+| `kind` | Path | Source |
+|---|---|---|
+| `spectcl` | `<name>.tclspec` | `PackStore::canonical` — the pack re-rendered from its drafts, not the text as typed; the DSL pane's own download is the text |
+| `rs`, one per command | `suggested_path(command, pack)` | `render_rs::render`, with `command` beside it |
+| `rs-mod` | `rust/tcl-registry/src/commands/<pack>/mod.rs` | `render_pack_module`; absent for an empty pack |
+| `stub-file` | `<dialect>.tcl.stubs` | `render_stub`, `Mode::File` |
+| `stub-inline` | `stubs.tcl` | `render_stub`, `Mode::Inline` |
+
+`pack` is the registry directory the `.rs` files are filed under and the
+collector is named after; the reply's `pack` is the document's `speclib`
+name. Two facts, kept apart on the page: the directory is `#packDir` in the
+pack panel, beside the name, because it is about every `.rs` and the
+`mod.rs` rather than the command that happens to be open.
+
+One **Export** tab replaces the two panes. `web/src/packExport.ts` decides
+— the groups and their order, a kind's label and surface, the summary line,
+which file stays selected — as pure functions of the reply, and `studio.ts`
+paints, as with the dock and the strip. The groups are the order a
+contribution is read (Spec pack, Registry sources, Dialect stub), a group
+with nothing in it is dropped, and the selection is held by *path*, so a
+recompute leaves the reader on the file they had open. Every write to the
+document — form, DSL keystroke, import — schedules a re-export behind the
+same 120 ms settle as the form's write-back.
+
+**Two surfaces, not three.** Every artefact is Rust or Tcl, and the two
+read-only editors the old panes used are exactly those: the Rust one has no
+language server behind it; the Tcl one opens its document under the
+`spectcl` dialect, so the `.tclspec` is really analysed. `showExportFile`
+swaps `hidden` between them by the file's kind and calls `layout()` only
+when the surface actually changed — Monaco measures a hidden container at
+zero, and this runs on every settled edit.
+
+**Both stub spellings, one row.** The export carries both; `#stubMode` kept
+its id and became a view toggle over which the list offers. Listing both
+would invite a choice between two files that say the same thing, and
+staging both would put the same signatures twice in one issue.
+
+**Download all is a loop, not a zip.** The page must work offline and from
+`file://`, so there is no server to ask for an archive, a zip encoder would
+be shipped bytes for one button, and the browser's own multi-file save is
+not scriptable. `downloadAll` fires one `download` per file, 120 ms apart.
+The stagger is the load-bearing part: several `click()`s in one task read
+to a browser as one gesture and collapse into a single save. What it costs
+is the browser's "download several files?" prompt, once. **Files & issue**
+is fed by *Stage every file* — the listed set, refreshing paths already in
+the tray — and its own download uses the same helper; the issue composer
+and its `MAX_ISSUE_URL` fallback are unchanged.
 
 ## Inference contract
 
