@@ -9053,6 +9053,22 @@ impl Backend {
         files.get(uri)?.workspace_class_factories(&*db).clone()
     }
 
+    /// The widest class-factory oracle currently published anywhere in the
+    /// project, for standalone analysis that may run before `uri` has its
+    /// first Salsa handle.
+    ///
+    /// Unlike [`Self::class_factories_for`], this deliberately is not keyed by
+    /// the consumer URI: the oracle is a project-wide fact, and a brand-new or
+    /// untitled pending buffer is entitled to the same view as existing files
+    /// even though it cannot carry that view on a `SourceFile` yet.
+    async fn published_class_factories_for_fresh_analysis(
+        &self,
+    ) -> Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>> {
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        Self::published_class_factories(&db, &files)
+    }
+
     /// This document's cross-file call-site evidence, cloned out of the salsa
     /// db so a `spawn_blocking` build can carry it (issue #977).
     ///
@@ -9449,7 +9465,7 @@ impl Backend {
         // suppression and cross-file factory oracle without retaining a
         // database snapshot.
         let config = self.resolved_db_config(uri).await;
-        let workspace_class_factories = self.class_factories_for(uri).await;
+        let workspace_class_factories = self.published_class_factories_for_fresh_analysis().await;
         let (disabled, na_mode, extra, pack_key, resource) = {
             let db = self.db.lock().await;
             (
@@ -41961,6 +41977,75 @@ proc p {} {
         let found = backend.open_but_unindexed_symbols("brand_new", 10).await;
         assert_eq!(found.len(), 1, "the pending live proc must be searchable");
         assert_eq!(found[0].name, "brand_new_live_symbol");
+    }
+
+    /// Exact-head review of #1854: a pending no-handle buffer still belongs to
+    /// the project and must consume its published class-factory oracle. Looking
+    /// up the oracle through the missing consumer handle would silently omit
+    /// the class manufactured by this cross-file metaclass.
+    #[tokio::test]
+    async fn pending_new_workspace_symbols_use_project_factory_oracle_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let factory_uri = Uri::from_str("file:///published-factory-1854.tcl").unwrap();
+        let consumer_uri = Uri::from_str("untitled:pending-factory-consumer-1854").unwrap();
+        let consumer = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let oracle = {
+            let mut analyser = Analyser::new();
+            Arc::new(
+                analyser
+                    .analyse(
+                        concat!(
+                            "oo::class create ::tk::MegawidgetClass {}\n",
+                            "oo::class create ::tk::Megawidget {\n",
+                            "    superclass oo::class\n",
+                            "    self method create {name superclasses body} {\n",
+                            "        next $name [list superclass ::tk::MegawidgetClass",
+                            " {*}$superclasses]\\;$body\n",
+                            "    }\n",
+                            "}\n",
+                        ),
+                        "tcl9.0",
+                    )
+                    .class_factories(),
+            )
+        };
+        backend
+            .db_set_source(
+                &factory_uri,
+                "# published oracle carrier\n",
+                "tcl9.0".to_owned(),
+            )
+            .await;
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = *files
+                .get(&factory_uri)
+                .expect("the existing project file is a Salsa input");
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(oracle));
+        }
+        backend.documents.lock("test").await.insert(
+            consumer_uri.clone(),
+            DocumentState::with_version(consumer.to_owned(), "tcl9.0".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+        assert!(
+            !backend.db_files.lock().await.contains_key(&consumer_uri),
+            "precondition: the pending consumer has no Salsa handle",
+        );
+
+        let found = backend.open_but_unindexed_symbols("IconList", 10).await;
+        assert_eq!(found.len(), 1, "the manufactured class must be searchable");
+        assert_eq!(found[0].name, "IconList");
+        assert_eq!(found[0].kind, CoreWorkspaceSymbolKind::Class);
     }
 
     /// Exact-head review of #1854: a session-default change that snapshots a
