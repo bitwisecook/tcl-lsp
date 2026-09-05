@@ -18,7 +18,7 @@
 
 //! Side-effect metadata for structured effect analysis.
 
-use crate::documentation::{DocumentationAnnotation, DocumentationExample};
+use crate::documentation::{DocumentationAnnotation, DocumentationCarrier, DocumentationExample};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use tcl_dialect::model::SpecSurface;
 
@@ -490,6 +490,52 @@ pub enum ConnectionSide {
     Global,
 }
 
+impl ConnectionSide {
+    /// Every connection side, in declaration order.
+    pub const ALL: &'static [Self] = &[
+        Self::None,
+        Self::Client,
+        Self::Server,
+        Self::Both,
+        Self::Global,
+    ];
+
+    /// Registry-owned program showing a shipped command whose effect declares
+    /// this side, inside the event that gives the side its meaning, and where
+    /// the effect then lands. The carrier is the effect-declaring command.
+    /// This exhaustive match is the compile gate for connection-side
+    /// documentation.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        macro_rules! sided {
+            ($code:literal; carrier ($cline:literal, $cneedle:literal); $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {
+                {
+                    const ANNOTATIONS: &[DocumentationAnnotation] =
+                        &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+                    DocumentationExample::with_carrier($code, DocumentationCarrier::new($cline, $cneedle), ANNOTATIONS)
+                }
+            };
+        }
+        match self {
+            Self::None => {
+                sided!("set report /tmp/report.txt\nfile delete $report\nputs \"removed $report\""; carrier (1, "file delete"); (0, "/tmp/report.txt", "names a file that belongs to no connection"), (1, "file delete", "writes file state; plain Tcl has no client or server side to attribute it to"), (2, "removed $report", "runs after the side-neutral effect"))
+            }
+            Self::Client => {
+                sided!("when HTTP_REQUEST {\n    HTTP::redirect https://[HTTP::host][HTTP::uri]\n}"; carrier (1, "HTTP::redirect"); (0, "HTTP_REQUEST", "fires on the client-facing half of the connection"), (1, "HTTP::host", "reads request state"), (1, "HTTP::redirect", "commits a response to the client, so client-side effect views list it"))
+            }
+            Self::Server => {
+                sided!("when HTTP_RESPONSE {\n    if {[HTTP::status] == 503} { HTTP::retry [HTTP::request] }\n}"; carrier (1, "HTTP::retry"); (0, "HTTP_RESPONSE", "fires when the server-facing half answers"), (1, "HTTP::status", "reads the upstream status"), (1, "HTTP::retry", "re-sends the request towards the server, so the effect lands on that side"))
+            }
+            Self::Both => {
+                sided!("when CLIENT_DATA {\n    TCP::collect 64\n    TCP::release\n}"; carrier (1, "TCP::collect"); (0, "CLIENT_DATA", "places this handler on the client side"), (1, "TCP::collect", "declares an effect valid on either side, so the enclosing event decides"), (2, "TCP::release", "must release on that same side, or IRULE1007 fires"))
+            }
+            Self::Global => {
+                sided!("when CLIENT_ACCEPTED {\n    if {[class match [IP::client_addr] equals blocklist]} { reject }\n}"; carrier (1, "class match"); (0, "CLIENT_ACCEPTED", "runs for one connection"), (1, "class match", "reads a data group shared by every connection, so the effect belongs to no side"), (1, "reject", "acts on this connection alone"))
+            }
+        }
+    }
+}
+
 /// The side context a nesting-script command establishes.
 ///
 /// This is separate from [`ConnectionSide`]: `Peer` is a direction relative
@@ -587,4 +633,70 @@ pub enum StorageType {
     List,
     /// Array.
     Array,
+}
+
+impl StorageType {
+    /// Every storage shape, in declaration order.
+    pub const ALL: &'static [Self] = &[Self::Dict, Self::List, Self::Array];
+
+    /// Registry-owned program showing a shipped writer whose
+    /// `inferred_storage_type` declares this shape, the variable it creates,
+    /// and a later read of that shape. The carrier is the writer. This
+    /// exhaustive match is the compile gate for storage-shape documentation.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        macro_rules! shaped {
+            ($code:literal; carrier ($cline:literal, $cneedle:literal); $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {
+                {
+                    const ANNOTATIONS: &[DocumentationAnnotation] =
+                        &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+                    DocumentationExample::with_carrier($code, DocumentationCarrier::new($cline, $cneedle), ANNOTATIONS)
+                }
+            };
+        }
+        match self {
+            Self::Dict => {
+                shaped!("dict set config port 8080\ndict incr config hits\nputs [dict get $config port]"; carrier (0, "dict set"); (0, "dict set config", "creates config, and its variable effect is recorded with dict shape"), (1, "dict incr config", "reads and writes the same dict"), (2, "dict get $config", "reads one key back"))
+            }
+            Self::List => {
+                shaped!("lappend names alice\nlappend names bob\nputs [llength $names]"; carrier (0, "lappend"); (0, "lappend names", "creates names, and its variable effect is recorded with list shape"), (1, "lappend names bob", "appends a second element"), (2, "llength $names", "observes 2"))
+            }
+            Self::Array => {
+                shaped!("array set colours {red #f00 blue #00f}\nset colours(green) #0f0\nputs $colours(red)"; carrier (0, "array set"); (0, "array set colours", "creates colours, and its variable effect is recorded as an array"), (1, "colours(green)", "adds an element to the same array"), (2, "$colours(red)", "reads one element back"))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::example_checks::assert_examples_valid;
+
+    #[test]
+    fn every_connection_side_has_a_distinct_source_aligned_example() {
+        let examples: Vec<_> = ConnectionSide::ALL
+            .iter()
+            .map(|&side| (format!("{side:?}"), side.example()))
+            .collect();
+        assert_examples_valid("ConnectionSide", &examples);
+    }
+
+    #[test]
+    fn every_storage_type_has_a_distinct_source_aligned_example() {
+        let examples: Vec<_> = StorageType::ALL
+            .iter()
+            .map(|&shape| (format!("{shape:?}"), shape.example()))
+            .collect();
+        assert_examples_valid("StorageType", &examples);
+    }
+
+    #[test]
+    fn every_side_effect_target_has_a_distinct_source_aligned_example() {
+        let examples: Vec<_> = SideEffectTarget::ALL
+            .iter()
+            .map(|&target| (target.name().to_owned(), target.example()))
+            .collect();
+        assert_examples_valid("SideEffectTarget", &examples);
+    }
 }

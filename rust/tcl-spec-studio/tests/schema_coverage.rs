@@ -262,7 +262,7 @@ fn invocation_refinements_are_structured_not_an_opaque_rust_expression() {
             gap(key).is_none(),
             "the renderer writes {key}, so it declares no gap for it"
         );
-        let example = tcl_spec_studio::examples::field_example(key, field.label, field.group)
+        let example = tcl_spec_studio::examples::field_example(key, field.label)
             .unwrap_or_else(|| panic!("{key} must have an annotated form-selection example"));
         let code = example["code"].as_str().expect("example code");
         let annotations = example["annotations"]

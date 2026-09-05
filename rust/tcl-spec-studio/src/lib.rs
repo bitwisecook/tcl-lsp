@@ -37,6 +37,9 @@
 //! - [`coverage`] — the same idea one level down: exhaustive *destructurings*
 //!   of the `CommandSpec` family, so a new registry **field** breaks the build
 //!   until it is surfaced in the studio (or explicitly excluded).
+//! - [`relations`] — which settings are read together, so a help surface
+//!   can link a field to the rest of its cluster rather than describing it
+//!   as though it stood alone.
 //! - [`draft`] — the JSON draft model, and seeding a draft from a live spec.
 //! - [`render_rs`] — draft → registry `.rs` source, copyright banner included.
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
@@ -74,6 +77,7 @@ pub mod examples;
 pub mod help;
 pub mod infer;
 pub mod reference;
+pub mod relations;
 pub mod render_rs;
 pub mod render_spectcl;
 pub mod render_stub;

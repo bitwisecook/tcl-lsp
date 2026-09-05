@@ -18,6 +18,31 @@
 
 //! Argument roles — what role each argument plays in a command.
 
+use crate::documentation::{DocumentationAnnotation, DocumentationCarrier, DocumentationExample};
+
+/// Build one registry-owned worked example.
+///
+/// The first form names the carrier — the one word in the snippet that *is*
+/// the thing being described. The second is for a flow with no single
+/// carrying token. Both keep the annotation table in a `const` so the whole
+/// example is a compile-time value.
+macro_rules! worked_example {
+    ($code:literal; carrier ($carrier_line:literal, $carrier_needle:literal); $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {{
+        const ANNOTATIONS: &[DocumentationAnnotation] =
+            &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+        DocumentationExample::with_carrier(
+            $code,
+            DocumentationCarrier::new($carrier_line, $carrier_needle),
+            ANNOTATIONS,
+        )
+    }};
+    ($code:literal; $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {{
+        const ANNOTATIONS: &[DocumentationAnnotation] =
+            &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+        DocumentationExample::new($code, ANNOTATIONS)
+    }};
+}
+
 /// What role an argument plays in a command invocation.
 ///
 /// Used by the compiler, analyser, and LSP features to understand
@@ -498,6 +523,209 @@ impl ArgRole {
     pub const fn has_script_timing(self) -> bool {
         matches!(self, Self::Body | Self::LambdaLiteral | Self::CommandPrefix)
     }
+
+    /// A registry-owned Tcl program showing what a word in this role
+    /// *causes* — which cell the analyser now knows is written, which word it
+    /// follows into a body, which name it resolves, which diagnostic fires
+    /// when it is wrong.
+    ///
+    /// The match is exhaustive on purpose: a role added later cannot compile
+    /// until someone writes its example, so the Spec Studio never falls back
+    /// to a generic snippet for it. Where one word in the snippet *is* the
+    /// role-bearing word it is named as the carrier.
+    #[must_use]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one exhaustive closed-vocabulary documentation table; splitting it would weaken the compile gate"
+    )]
+    pub const fn example(self) -> DocumentationExample {
+        match self {
+            Self::Body => worked_example!(
+                "set ready 1\nif {$ready} { set outcome accepted }\nputs $outcome";
+                carrier (1, "{ set outcome accepted }");
+                (0, "ready 1", "supplies the tested value"),
+                (1, "{ set outcome accepted }", "is re-segmented and analysed as script in this frame"),
+                (2, "$outcome", "resolves to the write found inside it"),
+            ),
+            Self::OpaqueScript => worked_example!(
+                "check legacy-suite {\n    predicate { [string match *RC4* $suite] }\n}";
+                carrier (1, "{ [string match *RC4* $suite] }");
+                (0, "check legacy-suite", "opens the declarative block"),
+                (1, "predicate", "stores the braced word verbatim and never evaluates it"),
+                (1, "[string match *RC4* $suite]", "folds like code but is analysed as data: no reference, no call site, no W123"),
+            ),
+            Self::Expr => worked_example!(
+                "set count 4\nset doubled [expr {$count * 2}]\nputs $doubled";
+                carrier (1, "{$count * 2}");
+                (0, "count 4", "supplies the operand"),
+                (1, "{$count * 2}", "is braced, yet evaluated in the caller's frame, so $count is a read here"),
+                (2, "$doubled", "receives the numeric answer"),
+            ),
+            Self::VarWrite => worked_example!(
+                "set pair {3 4}\nlassign $pair width height\nputs [expr {$width * $height}]";
+                carrier (1, "width");
+                (0, "{3 4}", "supplies the values"),
+                (1, "width height", "name the cells this call writes, so both are defined from here"),
+                (2, "$width * $height", "reads resolve to those writes rather than reporting W210"),
+            ),
+            Self::VarRead => worked_example!(
+                "set token secret\nset present [info exists token]\nputs $present";
+                carrier (1, "token");
+                (0, "token secret", "writes the cell"),
+                (1, "token", "is a bare use of that cell, exactly as $token would be, so the write is not a W220 dead store"),
+                (2, "$present", "observes 1"),
+            ),
+            Self::LoopVarList => worked_example!(
+                "set pairs {a 1 b 2}\nforeach {key value} $pairs { puts \"$key=$value\" }";
+                carrier (1, "{key value}");
+                (0, "{a 1 b 2}", "supplies the elements"),
+                (1, "{key value}", "is split into names, each rebound once per iteration"),
+                (1, "$key=$value", "reads the cells the list declared"),
+            ),
+            Self::ParamList => worked_example!(
+                "proc area {width height} { expr {$width * $height} }\nputs [area 3 4]";
+                carrier (0, "{width height}");
+                (0, "{width height}", "declares the locals the body may read"),
+                (0, "$width * $height", "reads those locals"),
+                (1, "area 3 4", "must supply exactly two words or reports E002/E003"),
+            ),
+            Self::Name => worked_example!(
+                "proc greet {who} { puts \"hello $who\" }\ngreet Ada";
+                carrier (0, "greet");
+                (0, "proc", "adds a definition"),
+                (0, "greet", "is the symbol it is registered under, not a value"),
+                (1, "greet Ada", "resolves to that definition instead of reporting W123"),
+            ),
+            Self::Pattern => worked_example!(
+                "set host [gets stdin]\nif {[regexp {^[a-z.]+$} $host]} { puts valid }";
+                carrier (1, "{^[a-z.]+$}");
+                (0, "[gets stdin]", "supplies the subject"),
+                (1, "{^[a-z.]+$}", "is parsed as regex syntax, so its $ anchors rather than substitutes, and is checked for W303 backtracking"),
+                (1, "puts valid", "runs only on a match"),
+            ),
+            Self::Option => worked_example!(
+                "command lsort {\n    option -integer -detail {Compare as integers.}\n}";
+                carrier (1, "-integer");
+                (0, "command lsort", "describes the command the flag belongs to"),
+                (1, "-integer", "is the flag word itself, matched by its dash-led spelling and never read as a value"),
+                (1, "{Compare as integers.}", "becomes its hover text"),
+            ),
+            Self::Value => worked_example!(
+                "values sort-modes {\n    value ascii -detail {Compare as strings.}\n    value integer -min-tcl 8.5\n}";
+                carrier (1, "ascii");
+                (0, "values sort-modes", "opens a closed vocabulary"),
+                (1, "ascii", "is plain data: not a script, a variable, or a reference, so nothing is resolved or recursed"),
+                (2, "-min-tcl 8.5", "gates the second member by version"),
+            ),
+            Self::Subcommand => worked_example!(
+                "set word hello\nputs [string length $word]";
+                carrier (1, "length");
+                (1, "string", "is an ensemble"),
+                (1, "length", "selects the member to run; a misspelling reports W001"),
+                (1, "$word", "is that member's own first argument"),
+            ),
+            Self::OptionTerminator => worked_example!(
+                "set mode [gets stdin]\nswitch -- $mode { -v {puts verbose} default {puts plain} }";
+                carrier (1, "--");
+                (0, "[gets stdin]", "may begin with a dash"),
+                (1, "--", "ends option scanning, so the next word is the subject whatever it starts with; omit it and W304 fires"),
+                (1, "-v {puts verbose}", "can then match a dash-led subject instead of being read as a flag"),
+            ),
+            Self::FormatString => worked_example!(
+                "set count 5\nset text [format {%d items, %b in binary} $count $count]\nputs $text";
+                carrier (1, "{%d items, %b in binary}");
+                (0, "count 5", "supplies the values"),
+                (1, "{%d items, %b in binary}", "is parsed as %-conversions, each consuming one following word"),
+                (1, "%b", "needs Tcl 8.6+ and reports W138 below that floor"),
+                (2, "$text", "carries the rendered text"),
+            ),
+            Self::ScanFormat => worked_example!(
+                "set line \"42 apples\"\nscan $line {%d %s} count fruit\nputs \"$count $fruit\"";
+                carrier (1, "{%d %s}");
+                (0, "42 apples", "supplies the input text"),
+                (1, "{%d %s}", "is parsed as conversions that read the input rather than render it"),
+                (1, "count fruit", "are written, one per conversion"),
+                (2, "$count $fruit", "observe 42 and apples"),
+            ),
+            Self::Channel => worked_example!(
+                "set log [open events.log w]\nputs $log started\nclose $log";
+                carrier (1, "$log");
+                (0, "open events.log w", "returns a handle"),
+                (1, "$log", "must be an open handle here; any other value reports W126"),
+                (2, "close $log", "releases it"),
+            ),
+            Self::Index => worked_example!(
+                "command lassign {\n    arg 0 -role Value\n    arg 1 -role VarWrite\n}";
+                carrier (1, "0");
+                (1, "arg", "declares the facts about one position"),
+                (1, "0", "is a position, counted from just after the command name, not a value"),
+                (2, "1", "addresses the next position"),
+            ),
+            Self::Keyword => worked_example!(
+                "set ready 0\nif {$ready} { puts go } else { puts wait }";
+                carrier (1, "else");
+                (0, "ready 0", "supplies the tested value"),
+                (1, "else", "is a fixed structural word, highlighted as such and never read as a string or a script"),
+                (1, "{ puts wait }", "is the block that word introduces"),
+            ),
+            Self::CommandPrefix => worked_example!(
+                "proc byLength {a b} { expr {[string length $a] - [string length $b]} }\nputs [lsort -command byLength {pear fig apple}]";
+                carrier (1, "byLength");
+                (0, "{a b}", "accepts the two words each call appends"),
+                (1, "byLength", "is a callable reference, not a script: recorded as a call site, so find-references reaches the proc"),
+                (1, "lsort -command", "appends two elements per comparison, and the arity checker holds the reference to that"),
+            ),
+            Self::CommandName => worked_example!(
+                "proc greet {} { puts hello }\nputs [info body greet]";
+                carrier (1, "greet");
+                (0, "proc greet", "defines the command"),
+                (1, "greet", "is the whole name held as data, never invoked: rename and go-to-definition still reach it"),
+                (1, "info body", "reads that proc, so the name must exist or W123 reports it"),
+            ),
+            Self::CommandNameProbe => worked_example!(
+                "if {[namespace which -command helper] eq \"\"} { proc helper {} {} }\nhelper";
+                carrier (0, "helper");
+                (0, "-command helper", "asks whether the command exists; an empty answer is legitimate, so W123 stays silent"),
+                (0, "proc helper {} {}", "defines it only when missing"),
+                (1, "helper", "calls it, and find-references from here reaches the probed word too"),
+            ),
+            Self::LambdaLiteral => worked_example!(
+                "set n 21\nputs [apply {{x} {expr {$x * 2}}} $n]";
+                carrier (1, "{{x} {expr {$x * 2}}}");
+                (1, "{x}", "element 0 is walked as a parameter list, not as script"),
+                (1, "$n", "is bound to x when the lambda runs"),
+                (1, "{expr {$x * 2}}", "element 1 is the body, run in a fresh frame where x is that parameter"),
+            ),
+            Self::NamespaceName => worked_example!(
+                "namespace eval ::app { variable ready 1 }\nputs [namespace exists ::app]";
+                carrier (1, "::app");
+                (0, "namespace eval ::app", "declares the namespace"),
+                (1, "::app", "resolves in the namespace symbol space, so go-to-definition reaches that eval block and never a same-named proc or variable"),
+                (1, "namespace exists", "answers 1"),
+            ),
+            Self::Boolean => worked_example!(
+                "set sock [socket example.test 80]\nfconfigure $sock -blocking yes\nputs [fconfigure $sock -blocking]";
+                carrier (1, "yes");
+                (0, "[socket example.test 80]", "opens the channel"),
+                (1, "yes", "is read only through Tcl_GetBoolean, so true, 1 and on mean the same here and the formatter may canonicalise it"),
+                (2, "fconfigure $sock -blocking", "reports the canonical 1"),
+            ),
+            Self::NumericOrBoolean => worked_example!(
+                "watchdog -validate 1\nwatchdog -validate yes";
+                carrier (0, "1");
+                (0, "-validate", "accepts a count or a truth value at the same position (no shipped command declares one, so watchdog stands in)"),
+                (0, "1", "fits both readings, so no rewrite may touch it"),
+                (1, "yes", "can only be a truth value, so canonical-boolean formatting may normalise it"),
+            ),
+            Self::Result => worked_example!(
+                "proc make {w} { return $w }\nputs [make .top]";
+                carrier (0, "$w");
+                (0, "{w}", "binds the parameter"),
+                (0, "$w", "is handed back unchanged as what the procedure yields"),
+                (1, "[make .top]", "is therefore provably .top"),
+            ),
+        }
+    }
 }
 
 /// A canonical finite set of exact callback argument counts.
@@ -606,11 +834,124 @@ impl AppendedArity {
         };
         Some(single.into_iter().chain(alternatives.iter().copied()))
     }
+
+    /// A registry-owned Tcl program showing what this arity shape lets the
+    /// checker say about a callback: a fixed count it must accept, a set it
+    /// must fit, a floor it is held to, or nothing at all.
+    ///
+    /// The match is exhaustive on purpose — `#[non_exhaustive]` binds only
+    /// downstream crates, so a shape added here cannot compile until it has
+    /// an example. These are flows rather than single words, so no carrier.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        match self {
+            Self::Exactly(_) => worked_example!(
+                "proc byLength {a b} { expr {[string length $a] - [string length $b]} }\nlsort -command byLength {kiwi fig banana}";
+                (0, "{a b}", "declares two parameters"),
+                (1, "lsort -command", "appends two elements on every call, no more and no fewer"),
+                (1, "byLength", "must accept that count or reports E002/E003"),
+            ),
+            Self::OneOf(_) => worked_example!(
+                "proc greet {who} { puts \"hi $who\" }\nproc audit {args} { puts [llength $args] }\ntrace add execution greet {enter leave} audit\ngreet Ada";
+                (1, "{args}", "accepts any count"),
+                (2, "{enter leave}", "registers two operations that append different counts"),
+                (2, "audit", "receives 2 words on enter and 4 on leave, so a fixed parameter list must fit both"),
+                (3, "greet Ada", "fires both"),
+            ),
+            Self::AtLeast(_) => worked_example!(
+                "set in [open a.bin r]\nset out [open b.bin w]\nproc done {count args} { puts \"copied $count\" }\nfcopy $in $out -command done";
+                (2, "{count args}", "accepts one word plus an optional error message"),
+                (3, "-command", "appends the count, plus an error message on failure: one argument is the floor, not the ceiling"),
+                (3, "done", "is checked only against that lower bound"),
+            ),
+            Self::Unknown => worked_example!(
+                "proc greet {who} { puts \"hi $who\" }\ninterp alias {} hello {} greet\nhello Ada";
+                (1, "interp alias", "forwards hello to the target"),
+                (1, "greet", "is referenced, so navigation reaches it, but its count is not checked"),
+                (2, "hello Ada", "appends whatever the caller supplies, an indeterminate count"),
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::{AppendedArity, AppendedAritySet, ArgRole};
+    use crate::documentation::DocumentationExample;
+
+    /// The source-alignment checks the Spec Studio applies to every worked
+    /// example, run here at the source so a broken example fails in the crate
+    /// that owns it: each arrow's needle must occur on its declared line, no
+    /// label may be empty, and a declared carrier must be on its line too.
+    fn alignment_errors(owner: &str, example: DocumentationExample) -> Vec<String> {
+        let mut errors = Vec::new();
+        let code = example.code;
+        let lines: Vec<&str> = code.lines().collect();
+        if example.annotations.len() < 2 {
+            errors.push(format!("{owner} has too little flow"));
+        }
+        for annotation in example.annotations {
+            let (line, needle) = (annotation.line, annotation.needle);
+            if !lines.get(line).is_some_and(|text| text.contains(needle)) {
+                errors.push(format!(
+                    "{owner}: line {line} does not contain {needle:?} in {code:?}"
+                ));
+            }
+            if annotation.label.is_empty() {
+                errors.push(format!("{owner} has an empty arrow label"));
+            }
+        }
+        if let Some(carrier) = example.carrier {
+            let (line, needle) = (carrier.line, carrier.needle);
+            if needle.is_empty() {
+                errors.push(format!("{owner} has an empty carrier token"));
+            } else if !lines.get(line).is_some_and(|text| text.contains(needle)) {
+                errors.push(format!(
+                    "{owner}: carrier line {line} does not contain {needle:?} in {code:?}"
+                ));
+            }
+        }
+        errors
+    }
+
+    #[test]
+    fn every_arg_role_example_is_distinct_and_source_aligned() {
+        let mut errors = Vec::new();
+        let mut programs = HashSet::new();
+        for &role in ArgRole::ALL {
+            let example = role.example();
+            if !programs.insert(example.code) {
+                errors.push(format!("{role:?} reuses another role's worked example"));
+            }
+            errors.extend(alignment_errors(&format!("{role:?}"), example));
+        }
+        assert!(errors.is_empty(), "{}", errors.join("\n"));
+    }
+
+    /// One witness per shape. Coverage of the shapes themselves is the
+    /// exhaustive `match` in `AppendedArity::example`, which a new variant
+    /// breaks at compile time; this only checks what each witness says.
+    #[test]
+    fn every_appended_arity_example_is_distinct_and_source_aligned() {
+        const SHAPES: [AppendedArity; 4] = [
+            AppendedArity::Exactly(2),
+            AppendedArity::OneOf(AppendedAritySet::from_sorted_unique(&[2, 4])),
+            AppendedArity::AtLeast(1),
+            AppendedArity::Unknown,
+        ];
+        let mut errors = Vec::new();
+        let mut programs = HashSet::new();
+        for shape in SHAPES {
+            let example = shape.example();
+            if !programs.insert(example.code) {
+                errors.push(format!("{shape:?} reuses another shape's worked example"));
+            }
+            errors.extend(alignment_errors(&format!("{shape:?}"), example));
+        }
+        assert!(errors.is_empty(), "{}", errors.join("\n"));
+    }
 
     #[test]
     fn finite_appended_arity_sets_preserve_non_contiguous_counts() {
