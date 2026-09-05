@@ -17625,15 +17625,26 @@ impl Backend {
             });
         }
 
-        // `tclLsp.diagnostics.exclude` (#1556) promises *no* diagnostics for a
-        // matching file, and pack notices publish outside the analyser
-        // pipeline's exclusion gate, so filter them here too. A newly excluded
-        // URI drops out of `by_uri`, joins the stale set below, and has its
-        // previously published notices cleared on this rescan (adding an
-        // exclusion reloads packs via `ReloadTrigger::Config`).
+        // The settings that promise *no* diagnostics for a file —
+        // `tclLsp.features.diagnostics = false` and a `tclLsp.diagnostics.exclude`
+        // match (#1556) — are honoured here, where the notice layer is set,
+        // rather than at the two sites that union it in
+        // ([`DiagnosticPublisher::with_pack_notices`], reached from both the
+        // pull report and every push). A layer that does not stand cannot be
+        // unioned back by either, so the pulled report and the pushed set agree
+        // by construction instead of by two checks that have to be kept in
+        // step; the alternative — gating the unions — left whichever site was
+        // missed republishing the squiggles the switch had just cleared.
+        //
+        // A URI a setting now silences drops out of `by_uri`, joins the stale
+        // set below and has its standing notices cleared on this pass; either
+        // setting moving reloads packs (`ReloadTrigger::Config`), so the flip
+        // itself is what runs it, and flipping back restores them the same way.
         let candidates: Vec<Uri> = by_uri.keys().cloned().collect();
         for uri in candidates {
-            if self.diagnostics_excluded(&uri).await {
+            if !self.feature_enabled("diagnostics", &uri).await
+                || self.diagnostics_excluded(&uri).await
+            {
                 by_uri.remove(&uri);
             }
         }

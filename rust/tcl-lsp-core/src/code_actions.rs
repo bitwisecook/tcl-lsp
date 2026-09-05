@@ -1947,14 +1947,18 @@ pub fn spec_pack_quick_fixes(
         let Some((line_text, word_start)) = word_site(source, d.range.start_line, word) else {
             continue;
         };
-        let head = line_text.split_whitespace().next().unwrap_or_default();
         let offset = line_index.line_start(d.range.start_line)
             + u32::try_from(word_start).unwrap_or(u32::MAX);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar);
+        let Some(head) = statement_head_at(source, offset, config) else {
+            continue;
+        };
+        let head = head.as_str();
         let grammar = crate::oo_body::definition_grammar_at(
             source,
             offset,
             registry,
-            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+            config,
             Some(dialect.surface_query()),
         );
         let candidates: Vec<&str> = if head == word {
@@ -2012,6 +2016,69 @@ fn quoted_word(message: &str) -> Option<&str> {
     let rest = message.split_once('`')?.1;
     let (word, _) = rest.split_once('`')?;
     (!word.is_empty() && !word.contains(char::is_whitespace)).then_some(word)
+}
+
+/// The keyword of the statement `offset` falls inside.
+///
+/// A statement is not a line: Tcl ends one at `;` as readily as at a newline,
+/// so on `arity 1; arty 2` the line's first word names the *neighbouring* row
+/// and every candidate set derived from it is the wrong one. The segmenter is
+/// what knows where a row begins, and the descent into braced words is what
+/// brings a nested row — every row of a pack is nested at least twice — within
+/// its reach.
+///
+/// `None` when no statement covers the offset (a word inside a comment, a
+/// nest deeper than the walk follows), which costs an action rather than
+/// offering one computed against the wrong row.
+fn statement_head_at(source: &str, offset: u32, config: tcl_lexer::LexerConfig) -> Option<String> {
+    fn walk(
+        source: &str,
+        slice: &str,
+        base: u32,
+        offset: u32,
+        depth: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<String> {
+        // The same bound every other walk over a nested body carries.
+        if depth > 32 {
+            return None;
+        }
+        for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            slice,
+            base,
+            config.at_depth(depth),
+        ) {
+            if offset < cmd.span.start() || offset >= cmd.span.end() {
+                continue;
+            }
+            // A braced word holding the offset is a script of its own, and the
+            // row the notice points at is one of *its* statements.
+            for tok in cmd.argv.iter().skip(1) {
+                if tok.kind != tcl_lexer::TokenType::Str {
+                    continue;
+                }
+                let inner_start = tok
+                    .span
+                    .start()
+                    .saturating_add(u32::from(tok.content_offset));
+                let inner_end = tok
+                    .span
+                    .end()
+                    .min(u32::try_from(source.len()).unwrap_or(u32::MAX));
+                if inner_start > inner_end || offset < inner_start || offset >= inner_end {
+                    continue;
+                }
+                let Some(inner) = source.get(inner_start as usize..inner_end as usize) else {
+                    continue;
+                };
+                return walk(source, inner, inner_start, offset, depth + 1, config);
+            }
+            return Some(cmd.name().to_owned());
+        }
+        None
+    }
+
+    walk(source, source, 0, offset, 0, config)
 }
 
 /// `line`'s text and the byte offset of `word` within it, when the word really
@@ -3539,6 +3606,45 @@ mod tests {
                 start_character: 0,
                 end_line: 2,
                 end_character: 23,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits[0].new_text, "-role");
+    }
+
+    /// Two rows on one line: `;` ends a statement, so the row a word sits on
+    /// is the segmenter's answer and not the line's first word — which here
+    /// names the *neighbour* and would offer nothing at all.
+    #[test]
+    fn a_row_sharing_its_line_is_corrected_against_its_own_head() {
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1; arty 2\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "mylib::x: unknown property `arty` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 23,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits[0].new_text, "arity");
+        assert_eq!(actions[0].edits[0].range.start_character, 17);
+
+        // …and the flag case, whose option table comes from the head of the
+        // row the flag was written on (`arg`), not the line's (`arity`).
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1; arg 0 -rle Body\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown flag `-rle` on `arg` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 32,
             },
         }];
         let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);

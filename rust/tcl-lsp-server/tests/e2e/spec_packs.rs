@@ -1475,3 +1475,54 @@ fn a_pack_include_row_is_a_document_link() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// `tclLsp.features.diagnostics = false` clears a pack's load notices too.
+///
+/// The notices are a layer the publisher unions into every set a `.tclspec`
+/// gets — the pushed one and the pulled one alike — so a master switch that
+/// only emptied the *analysed* set left the squiggles standing, which is the
+/// one thing that switch promises not to do. Both paths are asserted, and
+/// re-enabling has to bring the notice back: a clear that cannot be undone is
+/// as wrong as one that never happens.
+#[test]
+fn the_diagnostics_master_switch_clears_a_packs_notices() {
+    let pack = "speclib mylib 1 {\n    command mylib::x {\n        arty 1\n    }\n}\n";
+    let (root, mut lsp, uri) = open_pack("master-switch-notices", pack);
+
+    let has_notice = |diags: &[Value]| {
+        diags
+            .iter()
+            .any(|d| d.get("code").and_then(Value::as_str) == Some("SPECTCL"))
+    };
+    let pushed =
+        lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(15), has_notice);
+    assert!(has_notice(&pushed), "{pushed:#?}");
+    let pulled = lsp.pull_diagnostics(&uri);
+    assert!(
+        has_notice(&pulled),
+        "the pull path carries it too: {pulled:#?}"
+    );
+
+    let since = lsp.notification_cursor();
+    lsp.apply_configuration(json!({ "features": { "diagnostics": false } }));
+    assert_eq!(
+        lsp.await_diagnostics_master_off(&uri, std::time::Duration::from_secs(20), since),
+        Vec::<Value>::new(),
+        "the push path must clear the notice"
+    );
+    let pulled = lsp.pull_diagnostics(&uri);
+    assert_eq!(
+        pulled,
+        Vec::<Value>::new(),
+        "…and the pull path must agree with it: {pulled:#?}"
+    );
+
+    lsp.apply_configuration(json!({ "features": { "diagnostics": true } }));
+    let pushed =
+        lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(20), has_notice);
+    assert!(has_notice(&pushed), "re-enabling restores it: {pushed:#?}");
+    let pulled = lsp.pull_diagnostics(&uri);
+    assert!(has_notice(&pulled), "…on both paths: {pulled:#?}");
+
+    let _ = std::fs::remove_dir_all(&root);
+}
