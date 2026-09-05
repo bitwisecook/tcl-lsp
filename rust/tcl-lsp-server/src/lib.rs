@@ -373,11 +373,10 @@ impl DocumentState {
     }
 }
 
-/// Symbols synthesized for open documents whose current revision is not in
-/// the workspace index yet, together with the exact live snapshots their byte
-/// spans were analysed against. Keeping the snapshots beside the hits avoids
-/// re-entering the Indexed-readiness wait while mapping a pending hit to an LSP
-/// range (#1854 review).
+/// Symbols captured from one workspace-index snapshot, together with the exact
+/// open-document snapshots their byte spans were analysed against. Keeping the
+/// snapshots beside both fallback and indexed hits avoids mapping an old span
+/// through newer live text after fallback analysis has awaited (#1854 review).
 struct WorkspaceSymbolCandidates {
     fallback_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
     indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
@@ -19296,7 +19295,7 @@ impl Backend {
         query: &str,
         limit: usize,
     ) -> WorkspaceSymbolCandidates {
-        let (unindexed, indexed_hits) = {
+        let (unindexed, indexed_hits, mut sources) = {
             // `documents` → `workspace_index`, the lock order `did_open`
             // establishes.
             let docs = self.documents.lock("open_but_unindexed_symbols").await;
@@ -19312,17 +19311,30 @@ impl Backend {
             // second time would mix two revisions, duplicate a hit, and map a
             // new span through the fallback's older source snapshot.
             let indexed_hits = index.symbols_matching(query, limit);
-            (unindexed, indexed_hits)
+            // An indexed hit names the bytes current at this index snapshot.
+            // Capture any matching open source before dropping `documents` as
+            // well: fresh fallback analysis below may await, during which an
+            // unrelated open URI can publish newer text. Mapping the old hit
+            // through that newer text would manufacture the wrong LSP range.
+            let sources = indexed_hits
+                .iter()
+                .filter_map(|hit| {
+                    let uri = Uri::from_str(&hit.uri).ok()?;
+                    docs.get(&uri)
+                        .cloned()
+                        .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
+                })
+                .collect();
+            (unindexed, indexed_hits, sources)
         };
         if unindexed.is_empty() {
             return WorkspaceSymbolCandidates {
                 fallback_hits: Vec::new(),
                 indexed_hits,
-                sources: HashMap::new(),
+                sources,
             };
         }
         let mut pending = new_workspace_index();
-        let mut sources = HashMap::new();
         for (uri, doc) in unindexed {
             // A published document with no input is a deliberately retired
             // orphan (see the doc comment), but a pending brand-new/untitled
@@ -42185,6 +42197,105 @@ proc p {} {
         assert_eq!(found[0].name, "race_symbol");
         assert_eq!(found[0].location.range.start.line, 0);
         assert_eq!(found[0].location.range.start.character, 5);
+    }
+
+    /// Exact-head review of #1854: an indexed hit and its open source must be
+    /// captured together. An unrelated pending document can make fallback
+    /// analysis await while the indexed document publishes a newer revision;
+    /// the old byte span must still be mapped through the old source.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_symbols_map_indexed_hits_through_captured_sources_1854() {
+        let backend = Arc::new(test_backend());
+        let pending_uri = Uri::from_str("untitled:pending-snapshot-1854").unwrap();
+        let indexed_uri = Uri::from_str("file:///indexed-snapshot-1854.tcl").unwrap();
+        let old_indexed_text = "set pad 1\nproc indexed_snapshot_symbol {} {}\n";
+        let new_indexed_text = "proc indexed_snapshot_symbol {} {}\n";
+        backend.documents.lock("test").await.insert(
+            pending_uri,
+            DocumentState::with_version(
+                "proc pending_snapshot_symbol {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        backend.documents.lock("test").await.insert(
+            indexed_uri.clone(),
+            DocumentState::with_version(old_indexed_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        let old_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(old_indexed_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(indexed_uri.as_str(), &old_analysis);
+
+        // Hold configuration so the pending document's fresh analysis pauses
+        // after the documents/index/source snapshot has been taken.
+        let config = backend.db_config.lock().await;
+        let acquisitions = backend.documents.contention().acquisitions;
+        let request = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .symbol(WorkspaceSymbolParams {
+                        query: "snapshot_symbol".to_owned(),
+                        work_done_progress_params: WorkDoneProgressParams::default(),
+                        partial_result_params: PartialResultParams::default(),
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.documents.contention().acquisitions > acquisitions {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("workspace/symbol must capture its document/index snapshot");
+
+        // Publish a shorter revision for the already-indexed document while
+        // the unrelated fallback analysis is blocked. The request still owns
+        // the old index hit, whose name starts on line one in its old source.
+        backend.documents.lock("test").await.insert(
+            indexed_uri.clone(),
+            DocumentState::with_version(new_indexed_text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned()),
+        );
+        let new_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(new_indexed_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(indexed_uri.as_str(), &new_analysis);
+        drop(config);
+
+        let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("workspace/symbol must finish")
+            .expect("workspace/symbol task must not panic")
+            .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected captured workspace symbols, got {found:?}");
+        };
+        let indexed = found
+            .iter()
+            .find(|symbol| symbol.location.uri == indexed_uri)
+            .expect("the indexed document must contribute its captured hit");
+        assert_eq!(indexed.name, "indexed_snapshot_symbol");
+        assert_eq!(indexed.location.range.start.line, 1);
+        assert_eq!(indexed.location.range.start.character, 5);
     }
 
     /// Exact-head review of #1854: a session-default change that snapshots a
