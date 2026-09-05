@@ -773,12 +773,27 @@ entry point, or gate moves without this contract being updated.
 
 ## Known deliberate exceptions
 
-- `string match` / `string map` `-nocase`: C hand-rolls a
-  `length > 1` prefix test (`strncmp`) instead of
-  `Tcl_GetIndexFromObj`, which differs from the table rule on a lone
-  `-` (`string match - a b` is `bad option`, where the table rule
-  would call it ambiguous) — kept hand-rolled, with the probe cited at
-  the site (`tcl-cmd-core::string`).
+- `string match` / `string map` / `string compare` / `string equal`
+  option words: C hand-rolls a `length > 1` prefix test (`strncmp`,
+  `StringCmpOpts`) instead of `Tcl_GetIndexFromObj`, which differs from
+  the table rule on the empty word and a lone `-` (`string match - a b`
+  and `string compare "" a b` are both `bad option`, where the table
+  rule would call them ambiguous) — kept hand-rolled, with the probe
+  cited at the site (`tcl-cmd-core::string`).
+- `try`'s completion codes (`TclGetCompletionCodeFromObj`) are
+  `TCL_EXACT` with a custom `…, or an integer` trailer, and `after`'s
+  subcommand scan is a NULL-interp lookup whose miss falls through to
+  an integer parse: both compose their own sentence, so only the
+  matcher — never an `OptionTable` message — is shared.
+- TclOO method dispatch, `oo::define`'s slot ops, and its body-command
+  lookup are hash probes, not tables: only the **join**
+  (`prefix::tcloo_choice_list_bytes`) is shared.
+- `tcl_registry::abbrev::KeywordTable` is a fourth prefix matcher (it
+  supports `min_abbrev` and carries the ambiguous candidates), reached
+  through `CommandSpec::resolve_subcommand_word` by the WASM runtime's
+  `file` dispatch and the VM's `namespace`. It is out of scope for the
+  "new command modules MUST resolve through `OptionTable`" rule above;
+  reconciling the two matchers is its own piece of work (#1607).
 
 Each of these is a *documented* divergence — keep the comment at the
 site pointing back here, and do not "fix" them onto the canonical
