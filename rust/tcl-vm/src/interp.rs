@@ -7148,6 +7148,90 @@ impl Vm {
         self.set_var(name, value)
     }
 
+    /// Store `value` in `name` and return the value the variable **reads back**
+    /// afterwards, which is what `set`/`append`/`lappend`/`incr` evaluate to.
+    /// A write trace that rewrites the variable therefore changes the command's
+    /// result, and one that unsets it — or turns it into an array — makes the
+    /// result empty: C returns `varPtr->value.objPtr` only while the variable
+    /// is still a defined scalar and the interp's empty object otherwise
+    /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:2050-2065; 8.6.16:2006-2012).
+    /// Named after the runtime's `Interp::store_var_result` so both engines'
+    /// read-back owners are greppable together. Issue #1633 row 1.
+    pub(crate) fn store_var_result(
+        &mut self,
+        name: &str,
+        value: Value,
+    ) -> Result<Value, Completion<Value>> {
+        if self.var_traces.is_empty() {
+            // With no traces nothing can have moved the cell: the read-back is
+            // the stored value, so skip the second resolution.
+            self.var_set(name, value.clone())?;
+            return Ok(value);
+        }
+        self.var_set(name, value)?;
+        Ok(self.var_get(name).unwrap_or_else(Value::empty))
+    }
+
+    /// [`store_var_result`](Self::store_var_result) for an already-split
+    /// `name(key)` element, so a key holding parentheses never round-trips
+    /// through an `a(k)` spelling.
+    pub(crate) fn store_elem_result(
+        &mut self,
+        name: &str,
+        key: &str,
+        value: Value,
+    ) -> Result<Value, Completion<Value>> {
+        if self.var_traces.is_empty() {
+            self.set_array_elem(name, key, value.clone())?;
+            return Ok(value);
+        }
+        self.set_array_elem(name, key, value)?;
+        Ok(self.get_array_elem(name, key).unwrap_or_else(Value::empty))
+    }
+
+    /// Read `name` for a **read-modify-write** command (`incr`, and the
+    /// `lappend` paths that reach C's `TclPtrGetVarIdx`): fire the read trace
+    /// and treat an error it raises as "no current value" rather than as a
+    /// failure — `TclPtrIncrObjVarIdx` substitutes 0 for the `NULL` fetch
+    /// (`tclVar.c` 9.0.4:2262-2272) and `Tcl_LappendObjCmd` builds the list
+    /// from the new values alone (:2944-2957, bug 3057639). The swallowed
+    /// error stays logged: tclsh 8.6.16 and 9.0.4 both leave `::errorInfo`
+    /// ending in the `(read trace on "x")` frame while the `incr` succeeds.
+    /// Mirror of the runtime's `Interp::read_for_update`. Issue #1633 rows 3/4.
+    pub(crate) fn read_for_update(&mut self, name: &str) -> Option<Value> {
+        if !self.var_traces.is_empty() && self.fire_var_traces(name, "read").is_err() {
+            self.publish_swallowed_trace_error();
+            return None;
+        }
+        self.var_get(name)
+    }
+
+    /// [`read_for_update`](Self::read_for_update) for an already-split
+    /// `name(key)` element.
+    pub(crate) fn read_elem_for_update(&mut self, name: &str, key: &str) -> Option<Value> {
+        if !self.var_traces.is_empty()
+            && self
+                .fire_var_traces(&format!("{name}({key})"), "read")
+                .is_err()
+        {
+            self.publish_swallowed_trace_error();
+            return None;
+        }
+        self.get_array_elem(name, key)
+    }
+
+    /// Publish the `errorInfo` a read trace left behind when the
+    /// read-modify-write command that fired it swallowed the error. C mirrors
+    /// `iPtr->errorInfo` into the global as each frame is added
+    /// (`TclLogCommandInfo`), so the chain stays visible even though the
+    /// command went on to succeed; the interp's own accumulator is then reset
+    /// so the next error starts a fresh trace.
+    fn publish_swallowed_trace_error(&mut self) {
+        if let Some(info) = self.take_error_info() {
+            self.publish_error_info(&info);
+        }
+    }
+
     // -- arrays (link-aware via `locate`) --
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
@@ -7434,11 +7518,18 @@ impl Vm {
 
     /// Publish `errorInfo` / `errorCode` into the global frame.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
+        self.publish_error_info(info);
+        if let Some(g) = self.frames.first_mut() {
+            g.locals
+                .insert("errorCode".to_owned(), Local::Scalar(code.clone()));
+        }
+    }
+
+    /// Publish the `errorInfo` global alone, leaving `errorCode` as it is.
+    pub(crate) fn publish_error_info(&mut self, info: &str) {
         if let Some(g) = self.frames.first_mut() {
             g.locals
                 .insert("errorInfo".to_owned(), Local::Scalar(Value::string(info)));
-            g.locals
-                .insert("errorCode".to_owned(), Local::Scalar(code.clone()));
         }
     }
 

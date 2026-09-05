@@ -82,6 +82,22 @@ Where C commits the operation around the trace, the runtime must too:
   *during* teardown and their errors are ignored (#4). The variable is gone
   regardless — a subsequent read must error `no such variable`.
 
+* **The result is the value read back *after* the write traces**, not the
+  value the store was handed: C's `TclPtrSetVarIdx` returns
+  `varPtr->value.objPtr` only while the variable is still a defined scalar and
+  the interp's empty object otherwise, so a callback that rewrites the variable
+  changes what `set`/`append`/`lappend`/`incr` evaluate to, and one that unsets
+  it — or turns it into an array — makes the result empty.
+* **`incr`, and the `lappend` paths that reach `TclPtrGetVarIdx`, fire `read`
+  before `write`**; `append` with values never does (its no-value form is a
+  plain read and does). The `lappend` split is C's, not the command's: the
+  dispatched `Tcl_LappendObjCmd` and the multi-value `INST_LAPPEND_LIST*`
+  opcodes fire `read`, while the single-value in-proc opcodes
+  `INST_LAPPEND_{SCALAR,ARRAY,STK,ARRAY_STK}` omit `TCL_TRACE_READS` and fire
+  `write` only. Such a read treats a trace error as "no current value" — the
+  command still succeeds (`incr` counts from 0, `lappend` discards the old
+  value) and the swallowed error stays visible in `errorInfo`.
+
 **Rule:** never gate the mutation on the trace's success.
 
 ## Re-entrancy and aliasing
