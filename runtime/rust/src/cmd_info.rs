@@ -86,9 +86,9 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A miss reports here rather than falling through with the raw word: the
     // arms below match on the canonical name, so a word the *pinned release*
     // does not have (`info cmdtype` under 8.6) would otherwise still dispatch.
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &raw, true) else {
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &raw, true) else {
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            &subs,
+            subs,
             &raw,
             true,
             b"::tcl::info",

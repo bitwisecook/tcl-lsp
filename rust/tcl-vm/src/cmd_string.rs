@@ -145,7 +145,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "string",
         STRING_SUBS,
     );
-    let canon = match resolve_string_sub(&subs, &sub.to_str()) {
+    let canon = match resolve_string_sub(subs, &sub.to_str()) {
         Ok(c) => c,
         Err(e) => return err(e),
     };

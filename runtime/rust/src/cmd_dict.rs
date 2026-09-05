@@ -54,9 +54,9 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         "dict",
         DICT_SUBS,
     );
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &word, true) else {
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            &subs,
+            subs,
             &word,
             true,
             b"::tcl::dict",

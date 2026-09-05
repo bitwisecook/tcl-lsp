@@ -67,7 +67,7 @@ fn array_name_index(sub: &[u8]) -> Option<usize> {
 /// take the emulated release's slice of the table — under an 8.6 pin `array f`
 /// must not reach `for`, and `array d` must not be made ambiguous by
 /// `default`.
-fn subcommand_names(interp: &Interp) -> Vec<&'static [u8]> {
+fn subcommand_names(interp: &Interp) -> &'static [&'static [u8]] {
     let table: Vec<&'static [u8]> = SUBCOMMANDS.iter().map(|(name, _)| *name).collect();
     crate::environment::release_subcommands(
         interp.runtime_version().dialect_profile_name(),
@@ -79,7 +79,7 @@ fn subcommand_names(interp: &Interp) -> Vec<&'static [u8]> {
 fn unknown_subcommand(interp: &mut Interp, sub: &[u8]) -> Code {
     let names = subcommand_names(interp);
     interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-        &names,
+        names,
         sub,
         true,
         b"::tcl::array",
@@ -95,7 +95,7 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `array e a` reaches `exists` *and* fires its `array` trace under the
     // canonical name, as C does.
     let names = subcommand_names(interp);
-    let sub: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(&names, &word, true) {
+    let sub: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(names, &word, true) {
         Some(index) => names[index],
         None => return unknown_subcommand(interp, &word),
     };

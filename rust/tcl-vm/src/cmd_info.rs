@@ -98,10 +98,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A miss reports here rather than falling through with the raw word: the
     // arms below match on the canonical name, so a word the *pinned release*
     // does not have (`info cmdtype` under 8.6) would otherwise still dispatch.
-    let Some(canon) = canonical_info_sub(&subs, &sub_str) else {
+    let Some(canon) = canonical_info_sub(subs, &sub_str) else {
         return err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                &subs,
+                subs,
                 sub_str.as_bytes(),
                 true,
                 INFO_NS,
@@ -271,7 +271,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // resolved to a subcommand this engine does not implement.
         other => err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                &subs,
+                subs,
                 other.as_bytes(),
                 true,
                 INFO_NS,

@@ -67,11 +67,11 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "array",
         ARRAY_SUBS,
     );
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, word.as_bytes(), true)
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, word.as_bytes(), true)
     else {
         return err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                &subs,
+                subs,
                 word.as_bytes(),
                 true,
                 b"::tcl::array",

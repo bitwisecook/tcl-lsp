@@ -170,10 +170,10 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         "chan",
         SUBS,
     );
-    let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&names, &sub, true) else {
+    let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(names, &sub, true) else {
         // The whole sentence, not just its enumeration, is the owner's.
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            &names,
+            names,
             &sub,
             true,
             b"::tcl::chan",

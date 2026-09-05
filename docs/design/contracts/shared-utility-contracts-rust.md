@@ -526,7 +526,26 @@ entry point, or gate moves without this contract being updated.
   `tcl::prefix match -message property`, so it abbreviates),
   `definitionnamespace`'s `kind`, and `method`'s `export flag` — while
   every *method* list is joined by `tcloo_choice_list_bytes`, which
-  drops the Oxford comma the option tables keep.
+  drops the Oxford comma the option tables keep. Resolving the word is
+  only half of each of these: `info object isa` then checks an **exact**
+  count per resolved category (`InfoObjectIsACmd` checks the argument
+  count twice — once before the category resolves, once after), and the
+  `$child` shorthand words every arity message from `invoked_word` while
+  the *option* identity comes from the table.
+
+  **The table a scan runs over is release-gated.** A `TclMakeEnsemble`
+  subcommand set is a release fact, both engines are release-selectable,
+  and a name from the wrong release changes prefix verdicts for words
+  that have nothing to do with it (`dict g` is `get` on 8.6, ambiguous
+  on 9.0 once `getdef`/`getwithdefault` exist). Each engine's
+  `environment::release_subcommands` filters its table through the
+  selected release's registry surface — removal only, so the engine
+  still owns which names it dispatches and their order — and it is
+  memoised per `(command, release)` because it sits on the `dict` /
+  `string` / `info` dispatch path. A resolution miss must then *report*
+  rather than fall through with the raw word: dispatch arms match
+  canonical names, so an exact 9-only spelling would otherwise still
+  run under an 8.6 pin.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with

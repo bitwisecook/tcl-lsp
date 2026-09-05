@@ -132,13 +132,13 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         "string",
         STRING_SUBCOMMANDS,
     );
-    let canonical: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(&subs, &sub, true) {
+    let canonical: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(subs, &sub, true) {
         Some(index) => subs[index],
         // The whole sentence — including the ensemble's comma before `or` —
         // belongs to the owner, not to a literal beside the table.
         None => {
             return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                &subs,
+                subs,
                 &sub,
                 true,
                 b"::tcl::string",

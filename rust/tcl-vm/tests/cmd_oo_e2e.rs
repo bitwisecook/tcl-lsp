@@ -334,12 +334,12 @@ fn tip558_configurable_property_abbreviates() {
 #[test]
 fn info_object_isa_enforces_the_per_category_arity() {
     const SETUP: &str = "oo::class create C { method m {} {return 1} }\nC create o\n";
+    const GENERIC: &str = "wrong # args: should be \"info object isa category objName ?arg ...?\"";
     let msg = |tail: &str| {
         let (ok, result, _) = run(&format!("{SETUP}{tail}"));
         assert!(!ok, "expected an error for {tail}");
         result
     };
-    const GENERIC: &str = "wrong # args: should be \"info object isa category objName ?arg ...?\"";
     assert_eq!(msg("info object isa"), GENERIC);
     assert_eq!(msg("info object isa object"), GENERIC);
     for (tail, want) in [
