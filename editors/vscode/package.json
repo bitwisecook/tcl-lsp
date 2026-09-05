@@ -9502,9 +9502,9 @@
   "devDependencies": {
     "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.4.0",
-    "@types/vscode": "~1.95.0",
-    "@typescript-eslint/eslint-plugin": "^8.68.0",
+    "@types/node": "^26.4.1",
+    "@types/vscode": "~1.134.0",
+    "@typescript-eslint/eslint-plugin": "^8.69.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/test-web": "^0.0.81",
@@ -9514,7 +9514,7 @@
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "glob": "^13.0.6",
-    "mocha": "^11.8.0",
+    "mocha": "^12.0.0",
     "ovsx": "^1.1.1",
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
@@ -9524,7 +9524,7 @@
   "dependencies": {
     "@vscode/wasm-wasi": "^1.0.2",
     "@vscode/wasm-wasi-lsp": "0.1.0-pre.9",
-    "vscode-languageclient": "^10.1.0"
+    "vscode-languageclient": "^10.1.1"
   },
   "overrides": {
     "@typescript-eslint/typescript-estree": {

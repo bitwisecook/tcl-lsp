@@ -35,7 +35,6 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE
-            | Traits::STRING_LIST_CONFUSION
             | Traits::FIRST_ARG_VARNAME,
         arity: Arity::at_least(1),
         // S110: string-concatenates onto the target variable, coercing a

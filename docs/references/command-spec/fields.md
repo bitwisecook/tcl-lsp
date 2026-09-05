@@ -1397,11 +1397,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `PERFORMS_SUBSTITUTION` | performs Tcl substitution |
 | `OPENS_CHANNEL` | opens an I/O channel |
 | `SOURCES_FILE` | sources another file |
-| `HAS_SWITCH_BODY` | takes a switch-style clause list |
-| `STRING_LIST_CONFUSION` | at risk of string/list confusion |
-| `CONFIGURES_CHANNEL` | configures a channel |
-| `HAS_INTERP_EVAL` | evaluates code in another interpreter |
-| `HAS_DESTRUCTIVE_OPS` | has irreversible operations |
 | `IS_EVENT_HANDLER` | an iRules event handler |
 | `UNNORMALISED_HTTP_GETTER` | returns unnormalised HTTP data |
 | `REQUIRES_HTTP_CONTEXT` | requires an uncommitted HTTP transaction |

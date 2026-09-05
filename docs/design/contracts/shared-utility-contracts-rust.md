@@ -32,7 +32,7 @@ entry point, or gate moves without this contract being updated.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
-| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes`; `TclStringHashOrder` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `worded_parse_error` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
@@ -760,20 +760,25 @@ helper without reading the rationale:
   substitution shape — not the stricter `::`-segmented
   `tcl_syntax::naming::is_bare_var_name` that quick fixes use to keep
   `${x}` ↔ `$x` rewrites meaning-preserving. It is `pub(crate)`, and
-  `codegen::values::whole_var_reference` is the **single owner** of the
-  `$name` / `${name}` whole-word extractor built on it: given a word, the
-  exact variable name it refers to, or `None` when the word is not one
-  simple reference. `codegen::wasm::backend` (`emit_word_value`, the
-  `ChannelWrite` argument guard) and `codegen::wasm::leaf_invoke`
-  (`plan_variable`) consume it; each carried a byte-identical private copy
-  until issue #1459.
+  `native_lowering::cells` is the **single owner** of everything built on
+  it: `whole_reference` (given a word, the exact variable name it refers
+  to, or `None` when the word is not one simple reference),
+  `variable_word_place` (which cell that word reads), and `cell_place`
+  (which cell a statically spelled *name* word denotes). The wasm
+  backend's `AssignConst` gate, its leaf-invocation planner
+  (`plan_variable`), and the native lowering all consume those three;
+  each carried a private copy of one or another until issues #1459 and
+  #1772.
   The braced and bare spellings are validated **differently** and must
   stay that way: `${…}` accepts any non-empty name verbatim (braces are
   Tcl's own escape for a name the bare charset cannot express), while a
   bare `$name` must be a whole `is_bare_var_name` run. Routing the braced
   arm through the charset check as well changes behaviour, not just
   duplication — pinned by
-  `whole_var_reference_accepts_any_non_empty_braced_name`.
+  `whole_reference_accepts_any_non_empty_braced_name`.
+  The element split those helpers apply is never hand-rolled either: it
+  is `tcl_syntax::naming::split_element_ref` / `split_array_name_braced`,
+  so a zero-length array name (`set (x) 5`) keeps working.
   The release-aware `${…}` *close* rule is a separate question, owned by
   `tcl_lexer::ranges::braced_var_name_end` and consumed by the decoders
   (`parse_simple_var_ref`, `parse_subst_template`), not here.
@@ -813,7 +818,10 @@ helper without reading the rationale:
   doctests; `rust/tcl-syntax/tests/command_resolution_conformance.rs`
   (tclsh-pinned; `tcl-compiler` and `tcl-vm` each carry a same-named suite
   for their own layer).
-- `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`.
+- `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`,
+  and the `tcl_string_hash_order_*` suite pinning the retained
+  `TCL_STRING_KEYS` table both namespace child and namespace command
+  teardown enumerate.
 - `rust/tcl-cmd-core/src/prefix.rs` — C-parity unit tests (empty-key,
   empty-entry, exact-mode wording).
 - `rust/tcl-cmd-core/src/ensemble.rs` — the two option tables, the
@@ -910,9 +918,10 @@ helper without reading the rationale:
   was considered and rejected — it would make `runtime/rust` re-lex every
   command it evaluates, and its parse is infallible by design where the
   owner's returns an `Option`. This differential is what keeps the two
-  applications one policy; it runs under `make runtime-rust-test`, and it
-  pins the close-quote weld (`"a"b`) as the one shape they still answer
-  differently.
+  applications one policy; it runs under `make runtime-rust-test`. It once
+  pinned the close-quote weld (`"a"b`) as the one shape the two answered
+  differently; #1828 closed that through
+  `WordSpan::welded_after_close_quote`, and no divergence is pinned.
 
 ## Discoverability
 
