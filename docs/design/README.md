@@ -264,19 +264,20 @@ proof, and the entry contract that together gate stable-call CSE (`O105`).
   in `cmd_proc.rs` / `interp.rs`).
 - [runtime/rename-alias.md](runtime/rename-alias.md) — layout + flow
   for `rename` and single-interp `interp alias`, layered on top of the
-  namespace tree.  Covers `CMD_ALIAS` flag, `AliasRec`, dispatch
-  trampoline, and the compiled-proc name-slot preservation
-  caveat.
+  namespace tree.  Covers the `Command` enum (no flags word, no
+  type-punned payload), the dispatch trampoline, the
+  `TclPreventAliasLoop` gate, the occupied-destination refusal, and
+  proc re-homing across a cross-namespace rename.
 - [runtime/command-introspection.md](runtime/command-introspection.md)
-  — interpreter-wide hidden-commands table, `interp hide` / `expose`
-  semantics, the `OFF_EXPORT_NAME_BUCKET` sidecar that unblocks
-  compiled-proc rename, and the `info commands` / `info procs` /
-  `namespace which -command` walkers.
+  — interpreter-wide hidden-commands table, `interp hide` / `expose` /
+  `invokehidden` semantics and C's observable check order, and the
+  `info commands` / `info procs` / `namespace which -command`
+  walkers.
 - [runtime/child-interp.md](runtime/child-interp.md) — child-
   interpreter primitives (`interp create` / `eval` / `exists` /
-  `slaves` / `delete`), the `Interp` struct + per-interp hidden
-  table, the `enter` / `leave` swap pair for nested eval, and the
-  compiler's conservative proc-index flush on `interp create` /
+  `slaves` / `delete`), the `Interp` handle + per-interp hidden
+  table, `with_child` as the re-entrancy guard for nested eval, and
+  the compiler's conservative proc-index flush on `interp create` /
   `eval` / `delete`.
 - [runtime/memory-management.md](runtime/memory-management.md) —
   TclObj refcount discipline, `OBJ_STR_CAP` ownership, the

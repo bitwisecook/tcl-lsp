@@ -123,7 +123,7 @@ tower-lsp-server = { version = "0.23", default-features = false, features = ["ru
 # `macros` are all the browser arm needs, and both are runtime-free.
 tokio = { version = "1", default-features = false, features = ["sync", "macros"] }
 wasm-bindgen-futures = "0.4"
-gloo-timers = { version = "0.3", features = ["futures"] }
+gloo-timers = { version = "0.4", features = ["futures"] }
 js-sys = "0.3"
 
 # WASI (wasm32-wasip1). No threads either, but there *is* an OS: a real

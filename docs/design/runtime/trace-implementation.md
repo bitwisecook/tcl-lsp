@@ -110,6 +110,14 @@ list head→tail: the **newest** trace fires first for variable `read`/`write`/
 newest-last, so each firing site iterates reversed; `trace info` also lists
 newest-first, so it iterates reversed too.
 
+From Tcl 9.0 an access whose spelling names no element but whose resolved
+variable *is* one (`upvar #0 a(k) e; set e 5`) recovers the containing array —
+so its traces run as well — and the element's key, reported as `name2`; an
+element unset named by the one-part `a(k)` spelling likewise reports that whole
+spelling as `name1`. 8.4/8.5/8.6 do neither. The release axis is the dialect
+fact `TclVersion::traces_recover_linked_array_element`, which both engines read
+rather than comparing versions beside their trace loops.
+
 For an array-element access the two lists are walked as **groups**: the
 containing array's traces first, then the element's own (`TclCallVarTraces`
 runs its `arrayPtr` loop before its `varPtr` loop). Registration order does
@@ -157,6 +165,43 @@ only the stamps that are later than the dying one:
 
 A hide, expose or rename moves the list with its token and re-stamps it,
 because C moves the `Command` itself rather than creating a new one.
+
+Every firing loop walks **live** state rather than a snapshot: it collects the
+registrations' identities up front, in the order above, and re-checks each one
+immediately before running it. That is C's `active.nextTracePtr` / `nextPtr`
+walk, which `Tcl_UntraceVar2` and `Tcl_UntraceCommand` rewrite as they unlink a
+record — so a trace a callback removes does not fire in the same pass, while
+one it adds waits for the next access (C prepends, behind the walk).
+
+*What* the re-check consults differs by kind, because C's walks hold different
+things:
+
+| walk | holds | a callback that redefines the traced command |
+|---|---|---|
+| variable | the cell's list | — |
+| execution (`enter`/`leave`/step) | the list of whatever command the name holds now | stops the rest of the walk |
+| command (`rename`/`delete`) | the dying **token's** own list | does not stop it |
+
+So the execution loops re-read the name-keyed table, while the command loops
+consult a per-registration "untraced" mark that only `trace remove` sets: a
+callback's `proc foo …` takes the table entry over without touching the list
+the walk is following, and the remaining callbacks still run. Once a
+replacement holds the name, a `trace remove` inside a later callback reaches
+*its* list and so cancels nothing. All three shapes are pinned against tclsh
+8.6.16 and 9.0.4.
+
+The token stamp above and this untraced mark answer different questions and
+both are needed: the stamp says which registrations a **deletion frees** once
+the walk is over, the mark says which the **walk skips** while it is still
+running. A delete callback that rebinds the name exercises both at once — the
+rebinding must not cut the walk short (the mark's job), and the dying token's
+list must still go when the walk ends, without taking the replacement's own
+registrations with it (the stamp's job).
+
+An unset is the variable-side exception, and for the same reason: it takes the
+variable's own list out of the table before firing (C moves it to a dummy
+`Var`), so nothing can remove those callbacks any more, and a variable a
+callback revives carries no traces.
 
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
 `active_var_scopes` for the duration of the callback, so a callback touching

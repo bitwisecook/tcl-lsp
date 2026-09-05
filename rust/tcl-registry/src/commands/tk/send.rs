@@ -129,7 +129,6 @@ pub fn spec() -> CommandSpec {
         script_timing_resolver: Some(send_script_timing),
         traits: Traits::EVALUATES_CODE
             | Traits::SCRIPT_CONCATENATES_ARGS
-            | Traits::HAS_INTERP_EVAL
             | Traits::TAINT_SINK
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::DYNAMIC_EVAL_BODY,

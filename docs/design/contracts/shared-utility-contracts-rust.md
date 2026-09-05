@@ -760,20 +760,25 @@ helper without reading the rationale:
   substitution shape — not the stricter `::`-segmented
   `tcl_syntax::naming::is_bare_var_name` that quick fixes use to keep
   `${x}` ↔ `$x` rewrites meaning-preserving. It is `pub(crate)`, and
-  `codegen::values::whole_var_reference` is the **single owner** of the
-  `$name` / `${name}` whole-word extractor built on it: given a word, the
-  exact variable name it refers to, or `None` when the word is not one
-  simple reference. `codegen::wasm::backend` (`emit_word_value`, the
-  `ChannelWrite` argument guard) and `codegen::wasm::leaf_invoke`
-  (`plan_variable`) consume it; each carried a byte-identical private copy
-  until issue #1459.
+  `native_lowering::cells` is the **single owner** of everything built on
+  it: `whole_reference` (given a word, the exact variable name it refers
+  to, or `None` when the word is not one simple reference),
+  `variable_word_place` (which cell that word reads), and `cell_place`
+  (which cell a statically spelled *name* word denotes). The wasm
+  backend's `AssignConst` gate, its leaf-invocation planner
+  (`plan_variable`), and the native lowering all consume those three;
+  each carried a private copy of one or another until issues #1459 and
+  #1772.
   The braced and bare spellings are validated **differently** and must
   stay that way: `${…}` accepts any non-empty name verbatim (braces are
   Tcl's own escape for a name the bare charset cannot express), while a
   bare `$name` must be a whole `is_bare_var_name` run. Routing the braced
   arm through the charset check as well changes behaviour, not just
   duplication — pinned by
-  `whole_var_reference_accepts_any_non_empty_braced_name`.
+  `whole_reference_accepts_any_non_empty_braced_name`.
+  The element split those helpers apply is never hand-rolled either: it
+  is `tcl_syntax::naming::split_element_ref` / `split_array_name_braced`,
+  so a zero-length array name (`set (x) 5`) keeps working.
   The release-aware `${…}` *close* rule is a separate question, owned by
   `tcl_lexer::ranges::braced_var_name_end` and consumed by the decoders
   (`parse_simple_var_ref`, `parse_subst_template`), not here.

@@ -281,8 +281,8 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             vm.var_get(&n).map_or_else(|| err(vm.read_miss_msg(&n)), ok)
         }
-        [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
-            Ok(()) => ok(value.clone()),
+        [name, value] => match vm.store_var_result(&name.to_str(), value.clone()) {
+            Ok(stored) => ok(stored),
             Err(e) => e,
         },
         _ => err("wrong # args: should be \"set varName ?newValue?\""),
@@ -1110,17 +1110,18 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [name, inc] => (name.to_str(), inc.clone()),
         _ => return err("wrong # args: should be \"incr varName ?increment?\""),
     };
-    // `var_get`/`var_set` parse `base(key)` themselves; an unset variable reads
-    // as `None`, which `int_add` treats as zero.
-    let cur = vm.var_get(&name);
+    // `read_for_update`/`store_var_result` parse `base(key)` themselves; an
+    // unset variable — or one whose read trace errored — reads as `None`, which
+    // `int_add` treats as zero.
+    let cur = vm.read_for_update(&name);
     let sum = match tcl_syntax::value::ValueOps::int_add(vm, cur.as_ref(), &amount) {
         Ok(v) => v,
         Err(e) => return err(e.message()),
     };
-    if let Err(e) = vm.var_set(&name, sum.clone()) {
-        return e;
+    match vm.store_var_result(&name, sum) {
+        Ok(stored) => ok(stored),
+        Err(e) => e,
     }
-    ok(sum)
 }
 
 /// `expr arg ?arg ...?` — concatenate the args and evaluate as an expression.

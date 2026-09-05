@@ -1952,10 +1952,13 @@ impl Vm {
         let lits = asm.literals.entries();
         let lvt = asm.lvt.entries();
 
+        // Unwrap a fallible step, unwinding the instruction on an error. The
+        // value form lets a store arm push what the variable reads back.
         macro_rules! try_op {
             ($e:expr) => {
-                if let Err(c) = $e {
-                    return Tick::Return(c);
+                match $e {
+                    Ok(v) => v,
+                    Err(c) => return Tick::Return(c),
                 }
             };
         }
@@ -1969,12 +1972,15 @@ impl Vm {
         // triggering `set x 1`).
         macro_rules! try_cmd {
             ($e:expr) => {
-                if let Err(c) = $e {
-                    let cmd_text = instr.source_cmd_text.clone();
-                    let line = instr.source_line;
-                    let msg = c.result.to_str().to_string();
-                    self.log_command_info(&cmd_text, &msg, line);
-                    return Tick::Return(c);
+                match $e {
+                    Ok(v) => v,
+                    Err(c) => {
+                        let cmd_text = instr.source_cmd_text.clone();
+                        let line = instr.source_line;
+                        let msg = c.result.to_str().to_string();
+                        self.log_command_info(&cmd_text, &msg, line);
+                        return Tick::Return(c);
+                    }
                 }
             };
         }
@@ -2097,8 +2103,8 @@ impl Vm {
             Op::STORE_STK | Op::STORE_SCALAR_STK => {
                 let value = pop(f);
                 let name = pop(f).to_str();
-                try_cmd!(self.set_var(&name, value.clone()));
-                f.stack.push(value);
+                let stored = try_cmd!(self.store_var_result(&name, value));
+                f.stack.push(stored);
             }
             Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
                 let name = pop(f).to_str();
@@ -2129,8 +2135,8 @@ impl Vm {
             Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 let value = pop(f);
-                try_op!(self.set_var(&name, value.clone()));
-                f.stack.push(value);
+                let stored = try_op!(self.store_var_result(&name, value));
+                f.stack.push(stored);
             }
             Op::INCR_SCALAR1 => {
                 let name = lvt_name(imm0(instr));
@@ -2227,10 +2233,8 @@ impl Vm {
                 let value = pop(f);
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
-                if let Err(e) = self.set_array_elem(&name, &key, value.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(value);
+                let stored = try_op!(self.store_elem_result(&name, &key, value));
+                f.stack.push(stored);
             }
             Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
@@ -2249,10 +2253,8 @@ impl Vm {
                 let name = lvt_name(imm0(instr));
                 let value = pop(f);
                 let key = pop(f).to_str();
-                if let Err(e) = self.set_array_elem(&name, &key, value.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(value);
+                let stored = try_op!(self.store_elem_result(&name, &key, value));
+                f.stack.push(stored);
             }
             Op::ARRAY_EXISTS_IMM => {
                 let name = lvt_name(imm0(instr));
@@ -2400,8 +2402,8 @@ impl Vm {
                     .unwrap_or_default();
                 s.push_str(&v.to_str());
                 let nv = Value::string(s);
-                try_op!(self.set_var(&name, nv.clone()));
-                f.stack.push(nv);
+                let stored = try_op!(self.store_var_result(&name, nv));
+                f.stack.push(stored);
             }
             Op::APPEND_ARRAY1 | Op::APPEND_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
@@ -2413,10 +2415,8 @@ impl Vm {
                     .unwrap_or_default();
                 s.push_str(&v.to_str());
                 let nv = Value::string(s);
-                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(nv);
+                let stored = try_op!(self.store_elem_result(&name, &key, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_SCALAR1 | Op::LAPPEND_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
@@ -2430,8 +2430,8 @@ impl Vm {
                 };
                 items.push(v);
                 let nv = Value::list(items);
-                try_op!(self.set_var(&name, nv.clone()));
-                f.stack.push(nv);
+                let stored = try_op!(self.store_var_result(&name, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_ARRAY1 | Op::LAPPEND_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
@@ -2446,20 +2446,21 @@ impl Vm {
                 };
                 items.push(v);
                 let nv = Value::list(items);
-                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(nv);
+                let stored = try_op!(self.store_elem_result(&name, &key, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_LIST => {
                 // Append each element of the popped list to the scalar var's list.
+                // The `lappendList` opcodes fetch through `TclPtrGetVarIdx`
+                // (`tclExecute.c` 9.0.4:3391), so unlike their single-value
+                // siblings they fire the read trace first.
                 let name = lvt_name(imm0(instr));
                 let add = pop(f);
                 let add_items = match add.as_list() {
                     Ok(l) => l,
                     Err(e) => return Tick::Return(err(e.message)),
                 };
-                let mut items = match self.get_var(&name) {
+                let mut items = match self.read_for_update(&name) {
                     Some(cur) => match cur.as_list() {
                         Ok(l) => (*l).clone(),
                         Err(e) => return Tick::Return(err(e.message)),
@@ -2468,8 +2469,8 @@ impl Vm {
                 };
                 items.extend(add_items.iter().cloned());
                 let nv = Value::list(items);
-                try_op!(self.set_var(&name, nv.clone()));
-                f.stack.push(nv);
+                let stored = try_op!(self.store_var_result(&name, nv));
+                f.stack.push(stored);
             }
 
             // -- append / lappend (stack form, by name) --
@@ -2484,8 +2485,8 @@ impl Vm {
                     .unwrap_or_default();
                 s.push_str(&v.to_str());
                 let nv = Value::string(s);
-                try_cmd!(self.set_var(&name, nv.clone()));
-                f.stack.push(nv);
+                let stored = try_cmd!(self.store_var_result(&name, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_STK => {
                 let v = pop(f);
@@ -2499,8 +2500,8 @@ impl Vm {
                 };
                 items.push(v);
                 let nv = Value::list(items);
-                try_cmd!(self.set_var(&name, nv.clone()));
-                f.stack.push(nv);
+                let stored = try_cmd!(self.store_var_result(&name, nv));
+                f.stack.push(stored);
             }
             Op::APPEND_ARRAY_STK => {
                 let v = pop(f);
@@ -2512,10 +2513,8 @@ impl Vm {
                     .unwrap_or_default();
                 s.push_str(&v.to_str());
                 let nv = Value::string(s);
-                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(nv);
+                let stored = try_op!(self.store_elem_result(&name, &key, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_ARRAY_STK => {
                 let v = pop(f);
@@ -2530,10 +2529,8 @@ impl Vm {
                 };
                 items.push(v);
                 let nv = Value::list(items);
-                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(nv);
+                let stored = try_op!(self.store_elem_result(&name, &key, nv));
+                f.stack.push(stored);
             }
             // The `lappendList*` family appends *each* element of the popped list
             // (`lappend v {*}$list`); an unparsable list errors before any write.
@@ -2544,7 +2541,7 @@ impl Vm {
                     Ok(l) => l,
                     Err(e) => return Tick::Return(err(e.message)),
                 };
-                let mut items = match self.get_var(&name) {
+                let mut items = match self.read_for_update(&name) {
                     Some(cur) => match cur.as_list() {
                         Ok(l) => (*l).clone(),
                         Err(e) => return Tick::Return(err(e.message)),
@@ -2553,8 +2550,8 @@ impl Vm {
                 };
                 items.extend(add_items.iter().cloned());
                 let nv = Value::list(items);
-                try_cmd!(self.set_var(&name, nv.clone()));
-                f.stack.push(nv);
+                let stored = try_cmd!(self.store_var_result(&name, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_LIST_ARRAY => {
                 let name = lvt_name(imm0(instr));
@@ -2564,7 +2561,7 @@ impl Vm {
                     Ok(l) => l,
                     Err(e) => return Tick::Return(err(e.message)),
                 };
-                let mut items = match self.get_array_elem(&name, &key) {
+                let mut items = match self.read_elem_for_update(&name, &key) {
                     Some(cur) => match cur.as_list() {
                         Ok(l) => (*l).clone(),
                         Err(e) => return Tick::Return(err(e.message)),
@@ -2573,10 +2570,8 @@ impl Vm {
                 };
                 items.extend(add_items.iter().cloned());
                 let nv = Value::list(items);
-                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(nv);
+                let stored = try_op!(self.store_elem_result(&name, &key, nv));
+                f.stack.push(stored);
             }
             Op::LAPPEND_LIST_ARRAY_STK => {
                 let add = pop(f);
@@ -2586,7 +2581,7 @@ impl Vm {
                     Ok(l) => l,
                     Err(e) => return Tick::Return(err(e.message)),
                 };
-                let mut items = match self.get_array_elem(&name, &key) {
+                let mut items = match self.read_elem_for_update(&name, &key) {
                     Some(cur) => match cur.as_list() {
                         Ok(l) => (*l).clone(),
                         Err(e) => return Tick::Return(err(e.message)),
@@ -2595,10 +2590,8 @@ impl Vm {
                 };
                 items.extend(add_items.iter().cloned());
                 let nv = Value::list(items);
-                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
-                    return Tick::Return(e);
-                }
-                f.stack.push(nv);
+                let stored = try_op!(self.store_elem_result(&name, &key, nv));
+                f.stack.push(stored);
             }
 
             // -- const (TIP 677) --
@@ -5055,12 +5048,12 @@ impl Vm {
                 "can't incr \"{name}\": variable is a constant"
             )));
         }
-        let cur = self.var_get(name);
+        let cur = self.read_for_update(name);
         let inc = Value::int(amount);
         let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
             .map_err(|e| err(e.message()))?;
-        self.var_set(name, next.clone())?;
-        f.stack.push(next);
+        let stored = self.store_var_result(name, next)?;
+        f.stack.push(stored);
         Ok(())
     }
 }

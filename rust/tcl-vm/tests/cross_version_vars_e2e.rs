@@ -310,6 +310,39 @@ const VECTORS: &[Vector] = &[
         want_8x: "trace:g:write\nX",
         want_90: "foo",
     },
+    // A store returns the variable read back *after* its write traces
+    // (`TclPtrSetVarIdx`, issue #1633 row 1) — and C reads back the very `Var`
+    // it wrote, not the name a second time. Only 8.x can tell the two apart,
+    // because only 8.x lets a callback change which cell a bare name reaches:
+    // here the write lands on `::x` through the fallback, and the callback
+    // creates `::n::x` beside it. Re-resolving would answer `NSVAL`.
+    Vector {
+        name: "a write callback creating the namespace cell cannot move the read-back",
+        script: "proc mk {n1 n2 op} { set ::n::x NSVAL }\n\
+                 set ::x GLOBAL\n\
+                 namespace eval n {}\n\
+                 trace add variable ::x write mk\n\
+                 namespace eval n { puts [set x V] }\n\
+                 puts [set ::x]:[info exists ::n::x]\n",
+        want_8x: "V\nV:1",
+        want_90: "V\nGLOBAL:1",
+    },
+    // The mirror image: the name reaches `::m::y` and the callback unsets it,
+    // so the read-back finds the cell gone and the store is empty at both
+    // releases. Re-resolving would fall back to `::y` at 8.x and answer
+    // `GLOBAL2`.
+    Vector {
+        name: "a write callback unsetting the cell leaves the store empty, with no fallback",
+        script: "proc rm {n1 n2 op} { unset ::m::y }\n\
+                 set ::y GLOBAL2\n\
+                 namespace eval m {}\n\
+                 set ::m::y NSVAL2\n\
+                 trace add variable ::m::y write rm\n\
+                 namespace eval m { puts <[set y V]> }\n\
+                 puts [info exists ::m::y]:[set ::y]\n",
+        want_8x: "<>\n0:GLOBAL2",
+        want_90: "<>\n0:GLOBAL2",
+    },
 ];
 
 #[test]

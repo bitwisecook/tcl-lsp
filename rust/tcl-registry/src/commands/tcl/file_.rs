@@ -658,10 +658,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
         surface: Some(SpecSurface::ALL_TCL),
-        traits: Traits::BYTE_COMPILED
-            | Traits::HAS_DESTRUCTIVE_OPS
-            | Traits::RETURNS_PATH
-            | Traits::SAFE_INTERP_HIDDEN,
+        traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {

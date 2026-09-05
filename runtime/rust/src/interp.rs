@@ -497,10 +497,18 @@ impl CoroContext {
 #[derive(Default)]
 pub struct ImportToken;
 
+/// Why a hidden-table move did or did not happen. The variants are in C's
+/// own check order, which is observable when more than one applies —
+/// `finish_command_visibility` is the only thing that words them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandVisibilityOutcome {
     Moved,
+    /// The source did not resolve (hide) or is not in the hidden table
+    /// (expose).
     Missing,
+    /// The source resolved outside the global namespace (hide only).
+    NonGlobal,
+    /// The destination is already taken.
     Collision,
 }
 
@@ -3213,13 +3221,9 @@ impl Interp {
     }
 
     /// Whether this release recovers an array element from the resolved `Var`
-    /// when the access spelling names none.
-    ///
-    /// Tcl 9.0 added it in two places at once: `TclCallVarTraces` fills `part2`
-    /// from the element's hash key (`tclTrace.c` 9.0.4:2560-2565) and
-    /// `UnsetVarStruct` does the same before calling the traces
-    /// (`tclVar.c`:2634-2640). 8.4/8.5/8.6 have neither block. The visible
-    /// consequences, both pinned in `tests/trace_semantics.rs`:
+    /// when the access spelling names none — the release axis itself lives in
+    /// `tcl-dialect`, beside `namespace_var_global_fallback`. The two visible
+    /// consequences are pinned in `tests/trace_semantics.rs`:
     ///
     /// - `upvar #0 a(k) e; set e 5` fires the array's traces *and* the
     ///   element's with `name2 = k` at 9.0; at 8.6 only the element's own, with
@@ -3227,12 +3231,8 @@ impl Interp {
     /// - `unset a(k)` reports `name1 = a(k)` at 9.0 (the recovered `part2`
     ///   stops `TclCallVarTraces` re-splitting the name) and `name1 = a` at
     ///   8.6.
-    ///
-    /// This is a release axis and belongs in `tcl-dialect` beside
-    /// `namespace_var_global_fallback`; it is derived here while that crate is
-    /// outside this lane.
     fn traces_recover_the_linked_element(&self) -> bool {
-        self.runtime_version() >= tcl_dialect::TclVersion::V9_0
+        self.runtime_version().traces_recover_linked_array_element()
     }
 
     /// The unset-trace callbacks a proc frame's locals contribute as the frame
@@ -3787,18 +3787,26 @@ impl Interp {
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
         // newest-last. Issue #1440.
-        let cmds: Vec<Vec<u8>> = self
+        // The callbacks are captured up front, not re-read per step: this walk
+        // owns the dying token's list, which a callback's re-creation of the
+        // command detaches from the name. See [`Self::cmd_trace_untraced`].
+        let entries: Vec<(u64, Vec<u8>)> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .rev()
+            // Both mechanisms are needed and neither can do the other's
+            // job: the token generation says which registrations this
+            // deletion *owns* (a callback's re-creation binds a different
+            // token under the same name), while the id lets the walk skip a
+            // registration an explicit `trace remove` cancelled mid-walk.
             .filter(|t| {
                 t.name == old_fqn && (t.ops & op_bit) != 0 && cmd_trace_owned_by(t.token, dying)
             })
-            .map(|t| t.command.clone())
+            .map(|t| (t.id, t.command.clone()))
             .collect();
-        if cmds.is_empty() {
+        if entries.is_empty() {
             return;
         }
         let op: &[u8] = if op_bit == crate::cmd_trace::ops::RENAME {
@@ -3815,7 +3823,10 @@ impl Interp {
             traces.exec_firing += 1;
             traces.firing_cmd_traces.push(old_fqn.to_vec());
         }
-        for cmd in cmds {
+        for (id, cmd) in entries {
+            if self.cmd_trace_untraced(id) {
+                continue;
+            }
             // Append `oldName newName op` as properly-quoted list elements.
             let args = crate::list::new_list_obj(&[
                 new_string(old_fqn),
@@ -3832,12 +3843,46 @@ impl Interp {
             let mut traces = self.traces.borrow_mut();
             traces.exec_firing -= 1;
             traces.firing_cmd_traces.pop();
+            if traces.exec_firing == 0 {
+                traces.untraced_cmd_trace_ids.clear();
+            }
         }
 
         unsafe {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
+    }
+
+    /// The callback prefix of the live command/execution trace `id`, or `None`
+    /// when a callback has since removed it. C walks the trace list through
+    /// `nextPtr` and `Tcl_UntraceCommand` unlinks a record at once, so a trace
+    /// removed mid-firing never fires in that pass. Issue #1633 row 8.
+    ///
+    /// This is the **execution** rule: `TclCheckExecutionTraces` follows the
+    /// list of whatever command the name now holds, so a callback that
+    /// redefines the traced command stops the rest of the walk — measured on
+    /// tclsh 8.6.16 and 9.0.4, where `proc t {}` inside an `enter` callback
+    /// keeps the older `enter` callback from running. The delete walk answers
+    /// differently; see [`Self::cmd_trace_untraced`].
+    fn live_cmd_trace(&self, id: u64) -> Option<Vec<u8>> {
+        self.traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.command.clone())
+    }
+
+    /// Whether `trace remove` has unlinked command trace `id` since this walk
+    /// began. `CallCommandTraces` is handed the dying token's own list
+    /// (`tclBasic.c` 9.0.4:3972-3993), so a callback that re-creates the
+    /// command under the same name takes the name-keyed table entry over while
+    /// the remaining callbacks still run; only an explicit untrace cancels one.
+    /// Measured on tclsh 8.6.16 and 9.0.4: with two `delete` traces whose newer
+    /// callback runs `proc foo …`, **both** fire.
+    fn cmd_trace_untraced(&self, id: u64) -> bool {
+        self.traces.borrow().untraced_cmd_trace_ids.contains(&id)
     }
 
     /// Fire `enter` execution traces on `fqn` (creation order), invoking each as
@@ -3848,23 +3893,26 @@ impl Interp {
         use crate::cmd_trace::ops;
         // C fires `enter` newest-first (the trace list is prepended; the loop
         // walks it head→tail). Our Vec pushes newest-last, so iterate reversed.
-        let cmds: Vec<Vec<u8>> = self
+        let ids: Vec<u64> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .rev()
             .filter(|t| t.name == fqn && (t.ops & ops::ENTER) != 0)
-            .map(|t| t.command.clone())
+            .map(|t| t.id)
             .collect();
-        if cmds.is_empty() {
+        if ids.is_empty() {
             return None;
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         self.traces.borrow_mut().exec_firing += 1;
         let mut abort: Option<Code> = None;
-        for cmd in cmds {
+        for id in ids {
+            let Some(cmd) = self.live_cmd_trace(id) else {
+                continue;
+            };
             let args = crate::list::new_list_obj(&[new_string(cmd_word), new_string(b"enter")]);
             let mut line = cmd;
             line.push(b' ');
@@ -3897,15 +3945,15 @@ impl Interp {
         use crate::cmd_trace::ops;
         // C fires `leave` oldest-first (reverse-scan of the prepended list). Our
         // Vec pushes newest-last, so iterate forward.
-        let cmds: Vec<Vec<u8>> = self
+        let ids: Vec<u64> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .filter(|t| t.name == fqn && (t.ops & ops::LEAVE) != 0)
-            .map(|t| t.command.clone())
+            .map(|t| t.id)
             .collect();
-        if cmds.is_empty() {
+        if ids.is_empty() {
             return code;
         }
         // Save the command's result once; restore it after the callbacks (C's
@@ -3919,7 +3967,10 @@ impl Interp {
 
         self.traces.borrow_mut().exec_firing += 1;
         let mut override_code: Option<Code> = None;
-        for cmd in cmds {
+        for id in ids {
+            let Some(cmd) = self.live_cmd_trace(id) else {
+                continue;
+            };
             let result_bytes = obj_bytes(self.result.get());
             let args = crate::list::new_list_obj(&[
                 new_string(cmd_word),
@@ -6636,18 +6687,57 @@ impl Interp {
             .resolve_fqn(self.current_ns.get(), name)
     }
 
+    /// The `wrong # args: should be "<child><tail>"` message for the `$child
+    /// <sub>` shorthand. C's `NRChildCmd` builds every one of its arity errors
+    /// with `Tcl_WrongNumArgs(interp, 1, objv, …)`, so the noun is **`objv[0]`
+    /// — the word this call was written with**, never the `interp` ensemble and
+    /// never the child's table key.
+    ///
+    /// The two spellings diverge whenever the command is not reached under the
+    /// name it was created with: after `interp create kid; rename kid foo`,
+    /// `foo hidden extra` reports `"foo hidden"`, and the qualified `::foo
+    /// hidden extra` reports `"::foo hidden"` (tclsh 8.6.16 / 9.0.4-pinned).
+    /// Only the child *lookup* keeps using the table key.
+    ///
+    /// One spelling this does not yet recover: reached through an `interp
+    /// alias`, C reports the *alias*' name, because `AliasObjCmd` installs an
+    /// ensemble rewrite (`TclInitRewriteEnsemble`, tclInterp.c) that
+    /// `Tcl_WrongNumArgs` reads back. This runtime's alias trampoline records no
+    /// such rewrite, so `bar hidden extra` reports the target's name rather than
+    /// `bar` — a separate gap in alias dispatch, not in this seam.
+    fn child_wrong_args(&mut self, argv: &[*mut TclObj], tail: &[u8]) -> Code {
+        let mut message = b"wrong # args: should be \"".to_vec();
+        message.extend_from_slice(&invoked_word(argv));
+        message.extend_from_slice(tail);
+        message.push(b'"');
+        self.error(&message)
+    }
+
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
     /// child is addressable like the `interp` ensemble restricted to it.
+    ///
+    /// The `hide` / `expose` / `invokehidden` arms hand off to
+    /// [`crate::cmd_alias::hidectl_in`] / [`crate::cmd_alias::invokehidden_in`],
+    /// the same owners `interp hide|expose|invokehidden path …` calls — C's
+    /// `NRChildCmd` and `NRInterpCmd` share `ChildHide` / `ChildExpose` /
+    /// `ChildInvokeHidden` the same way. Only the arity check and its noun
+    /// differ between the two entry points.
     fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
         if argv.len() < 2 {
-            return self.error(b"wrong # args: should be \"interp cmd ?arg ...?\"");
+            return self.child_wrong_args(argv, b" cmd ?arg ...?");
         }
         match obj_bytes(argv[1]).as_slice() {
             b"eval" => {
+                if argv.len() < 3 {
+                    return self.child_wrong_args(argv, b" eval arg ?arg ...?");
+                }
                 let script = join_words(&argv[2..]);
                 self.eval_in_child(name, &script)
             }
             b"issafe" => {
+                if argv.len() != 2 {
+                    return self.child_wrong_args(argv, b" issafe");
+                }
                 let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
                 self.set_result_bytes(if safe { b"1" } else { b"0" });
                 Code::Ok
@@ -6657,13 +6747,28 @@ impl Interp {
                 self.set_result_bytes(b"");
                 Code::Ok
             }
-            b"hide" | b"expose" if argv.len() == 3 => {
+            // Both forms are `$child hide|expose name ?other?`. The one-word
+            // form spells source and destination the same, which is what makes
+            // C's asymmetric checks visible here: `kid hide ::foo::bar` is a
+            // qualified *token* and `kid expose ::foo::bar` a qualified
+            // *destination*, so the two report different errors.
+            b"hide" | b"expose" => {
                 let hide = obj_bytes(argv[1]) == b"hide";
                 let op = if hide {
                     CommandVisibilityOp::Hide
                 } else {
                     CommandVisibilityOp::Expose
                 };
+                if argv.len() != 3 && argv.len() != 4 {
+                    return self.child_wrong_args(
+                        argv,
+                        if hide {
+                            b" hide cmdName ?hiddenCmdName?"
+                        } else {
+                            b" expose hiddenCmdName ?cmdName?"
+                        },
+                    );
+                }
                 // A safe interpreter may not touch any hidden-command table
                 // (checked on the executing interp).
                 if self.is_safe() {
@@ -6673,40 +6778,19 @@ impl Interp {
                         b"permission denied: safe interpreter cannot expose commands"
                     });
                 }
-                let cmd = obj_bytes(argv[2]);
-                let outcome = self
-                    .with_child(name, |c| match op {
-                        CommandVisibilityOp::Hide => c.hide_command(&cmd, &cmd),
-                        CommandVisibilityOp::Expose => c.expose_command(&cmd, &cmd),
-                    })
-                    .unwrap_or(CommandVisibilityOutcome::Missing);
-                self.finish_command_visibility(op, &cmd, &cmd, outcome)
+                crate::cmd_alias::hidectl_in(self, &[name.to_vec()], op, &argv[2..])
             }
-            b"invokehidden" if argv.len() >= 3 => {
-                if self.is_safe() {
-                    return self
-                        .error(b"not allowed to invoke hidden commands from safe interpreter");
-                }
-                let cmd = obj_bytes(argv[2]);
-                let hidden_argv: Vec<*mut TclObj> = argv[2..].to_vec();
-                for &a in &hidden_argv {
-                    unsafe { obj::incr_ref_count(a) };
-                }
-                let out = self.with_child(name, |c| {
-                    (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
-                });
-                for &a in &hidden_argv {
-                    unsafe { obj::decr_ref_count(a) };
-                }
-                match out {
-                    Some((code, res)) => {
-                        self.set_result_bytes(&res);
-                        code
-                    }
-                    None => self.error(b"could not find interpreter"),
-                }
+            b"invokehidden" => {
+                let mut usage = invoked_word(argv);
+                usage.extend_from_slice(
+                    b" invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?",
+                );
+                crate::cmd_alias::invokehidden_in(self, &[name.to_vec()], &argv[2..], &usage)
             }
             b"hidden" => {
+                if argv.len() != 2 {
+                    return self.child_wrong_args(argv, b" hidden");
+                }
                 let names = self
                     .with_child(name, |c| c.hidden_names())
                     .unwrap_or_default();
@@ -6716,6 +6800,9 @@ impl Interp {
                 Code::Ok
             }
             b"aliases" => {
+                if argv.len() != 2 {
+                    return self.child_wrong_args(argv, b" aliases");
+                }
                 let names = self
                     .with_child(name, |c| c.alias_names())
                     .unwrap_or_default();
@@ -6738,10 +6825,7 @@ impl Interp {
             // `$child recursionlimit ?newlimit?` — the path-less child form.
             b"recursionlimit" => {
                 if argv.len() > 3 {
-                    let mut m = b"wrong # args: should be \"".to_vec();
-                    m.extend_from_slice(name);
-                    m.extend_from_slice(b" recursionlimit ?newlimit?\"");
-                    return self.error(&m);
+                    return self.child_wrong_args(argv, b" recursionlimit ?newlimit?");
                 }
                 let newlimit = argv.get(2).map(|&a| obj_bytes(a));
                 match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
@@ -6756,11 +6840,8 @@ impl Interp {
             // `$child bgerror ?cmdPrefix?` — get/set the child's background-error
             // handler.
             b"bgerror" => {
-                if argv.len() < 2 || argv.len() > 3 {
-                    let mut m = b"wrong # args: should be \"".to_vec();
-                    m.extend_from_slice(name);
-                    m.extend_from_slice(b" bgerror ?cmdPrefix?\"");
-                    return self.error(&m);
+                if argv.len() > 3 {
+                    return self.child_wrong_args(argv, b" bgerror ?cmdPrefix?");
                 }
                 let prefix = argv.get(2).copied();
                 match self.with_child(name, |c| c.bgerror_apply(prefix)) {
@@ -6784,11 +6865,10 @@ impl Interp {
             }
             // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
             b"debug" => {
-                let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 if argv.len() > 4 {
-                    return self
-                        .error(b"wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+                    return self.child_wrong_args(argv, b" debug ?-frame ?bool??");
                 }
+                let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 match self.with_child(name, |c| c.debug_apply(&opts)) {
                     Some(Ok(o)) => {
                         self.set_result(o);
@@ -6802,10 +6882,7 @@ impl Interp {
             // child's commands/time limit.
             b"limit" => {
                 if argv.len() < 3 {
-                    let mut m = b"wrong # args: should be \"".to_vec();
-                    m.extend_from_slice(name);
-                    m.extend_from_slice(b" limit limitType ?-option value ...?\"");
-                    return self.error(&m);
+                    return self.child_wrong_args(argv, b" limit limitType ?-option value ...?");
                 }
                 let ltype = obj_bytes(argv[2]);
                 let opts: Vec<*mut TclObj> = argv[3..].to_vec();
@@ -6945,22 +7022,39 @@ impl Interp {
         }
     }
 
-    /// `interp hide name`: move command `name` out of the command table into the
-    /// hidden table. Returns whether it existed.
+    /// `interp hide name`: move command `name` out of the command table into
+    /// the hidden table under `hidden_name`. `Missing` when `name` does not
+    /// resolve, `NonGlobal` when it resolves outside the global namespace,
+    /// `Collision` when `hidden_name` is already hidden, `Moved` on success —
+    /// never a bare success flag, because the caller has to word four
+    /// different diagnostics, and C's order between them is observable.
     pub(crate) fn hide_command(
         &mut self,
         name: &[u8],
         hidden_name: &[u8],
     ) -> CommandVisibilityOutcome {
-        if self.hidden.borrow().contains_key(hidden_name) {
-            return CommandVisibilityOutcome::Collision;
-        }
         // Gated: a builtin the emulated release does not carry is not there to
         // be hidden, so `interp hide` cannot park it in the hidden table where
         // `interp invokehidden` would reach it past the surface check.
         let resolved = self.resolve_dispatchable(GLOBAL, name);
         match resolved {
             Some(cmd) => {
+                // C's order, and it is observable: `Tcl_HideCommand` resolves
+                // the source before it rejects a non-global one, and rejects a
+                // non-global one before it refuses an occupied token
+                // (tclBasic.c:2325, :2339, :2365). `interp hide kid nosuch
+                // taken` is therefore `unknown command "nosuch"`, not the
+                // collision.
+                //
+                // The global test goes through the shared namespace owner, so a
+                // run of colons collapses the way `TclGetNamespaceForQualName`
+                // collapses it: `::::foo` names the global `foo` (tclsh-pinned).
+                if !tcl_cmd_core::namespace::qualifiers(name).is_empty() {
+                    return CommandVisibilityOutcome::NonGlobal;
+                }
+                if self.hidden.borrow().contains_key(hidden_name) {
+                    return CommandVisibilityOutcome::Collision;
+                }
                 self.invalidate_interpreter_policy();
                 let old_fqn = self.namespaces.borrow().resolve_fqn(GLOBAL, name);
                 self.namespaces.borrow_mut().take(GLOBAL, name);
@@ -6991,6 +7085,13 @@ impl Interp {
         hidden_name: &[u8],
         name: &[u8],
     ) -> CommandVisibilityOutcome {
+        // C's order: `Tcl_ExposeCommand` looks the token up (tclBasic.c:2486)
+        // before it examines the destination (:2525), so `interp expose kid
+        // nosuchtok taken` is `unknown hidden command "nosuchtok"`, not the
+        // collision.
+        if !self.hidden.borrow().contains_key(hidden_name) {
+            return CommandVisibilityOutcome::Missing;
+        }
         if self.namespaces.borrow().resolve_fqn(GLOBAL, name).is_some() {
             return CommandVisibilityOutcome::Collision;
         }
@@ -7057,6 +7158,18 @@ impl Interp {
                     error_code_list(&[b"TCL", b"LOOKUP", b"HIDDENTOKEN", source]),
                 )
             }
+            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::NonGlobal) => (
+                b"can only hide global namespace commands (use rename then hide)".to_vec(),
+                b"TCL HIDE NON_GLOBAL".to_vec(),
+            ),
+            // C keeps this branch behind its own "theoretically impossible"
+            // comment (tclBasic.c:2500): only `Tcl_HideCommand` fills the
+            // hidden table, and it already refused a non-global source, so
+            // `expose_command` never reports it either.
+            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::NonGlobal) => (
+                b"trying to expose a non-global command namespace command".to_vec(),
+                b"NONE".to_vec(),
+            ),
             (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => {
                 let mut message = b"hidden command named \"".to_vec();
                 message.extend_from_slice(destination);
@@ -8733,6 +8846,16 @@ fn proc_usage(called: &[u8], params: &[Param], quote_name: bool) -> Vec<u8> {
     }
     m.push(b'"');
     m
+}
+
+/// The word a call was written with — `argv[0]`, C's `objv[0]`.
+///
+/// This is what `Tcl_WrongNumArgs` prints, and it is deliberately *not* the
+/// name a command is filed under: the two differ after a `rename`, under a
+/// qualified spelling, and through an alias. Empty for an argv with no words,
+/// which no dispatch path produces.
+fn invoked_word(argv: &[*mut TclObj]) -> Vec<u8> {
+    argv.first().map_or_else(Vec::new, |&word| obj_bytes(word))
 }
 
 /// Discard a freshly created (`rc 0`) object that is not going to be stored
