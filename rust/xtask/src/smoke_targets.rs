@@ -951,10 +951,57 @@ fn collect_smoke_test_sources(
                     }
                 }
             }
+            syn::Item::Macro(item_macro)
+                if item_macro.mac.path.segments.len() == 1
+                    && item_macro.mac.path.segments[0].ident.unraw() == "include" =>
+            {
+                if let Ok(literal) = syn::parse2::<syn::LitStr>(item_macro.mac.tokens.clone()) {
+                    collect_literal_include(
+                        source,
+                        &literal.value(),
+                        inside_smoke_module,
+                        visited,
+                        found,
+                    )?;
+                }
+            }
             _ => {}
         }
     }
     Ok(())
+}
+
+fn collect_literal_include(
+    source: &Path,
+    path: &str,
+    inside_smoke_module: bool,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    found: &mut BTreeSet<PathBuf>,
+) -> Result<()> {
+    let parent = source
+        .parent()
+        .with_context(|| format!("Rust source has no parent: {}", source.display()))?;
+    let included_path = lexically_normalise(&parent.join(path));
+    if !included_path.is_file() {
+        return Ok(());
+    }
+    let included_text = fs::read_to_string(&included_path)
+        .with_context(|| format!("reading Rust include {}", included_path.display()))?;
+    if syn::parse_file(&included_text).is_err() {
+        // An expression- or statement-only include cannot add a top-level
+        // libtest item.
+        return Ok(());
+    }
+    let child_directory = included_path
+        .parent()
+        .map_or_else(|| parent.to_path_buf(), Path::to_path_buf);
+    collect_source_smoke_tests_at(
+        &included_path,
+        &child_directory,
+        inside_smoke_module,
+        visited,
+        found,
+    )
 }
 
 fn collect_source_smoke_tests(
@@ -995,33 +1042,6 @@ fn collect_source_smoke_tests_at(
     if markers.target {
         found.insert(source.to_path_buf());
     }
-    if let Some(parent) = source.parent() {
-        for path in source_includes.literal_paths {
-            let included_path = lexically_normalise(&parent.join(path));
-            if !included_path.is_file() {
-                continue;
-            }
-            let included_text = fs::read_to_string(&included_path)
-                .with_context(|| format!("reading Rust include {}", included_path.display()))?;
-            if syn::parse_file(&included_text).is_err() {
-                // An expression- or statement-only include cannot add a
-                // top-level libtest item. Parseable item includes are walked
-                // regardless of whether they occur directly or inside a
-                // macro body.
-                continue;
-            }
-            let child_directory = included_path
-                .parent()
-                .map_or_else(|| directory.to_path_buf(), Path::to_path_buf);
-            collect_source_smoke_tests_at(
-                &included_path,
-                &child_directory,
-                inside_smoke_module,
-                visited,
-                found,
-            )?;
-        }
-    }
     collect_smoke_test_sources(
         source,
         directory,
@@ -1029,7 +1049,14 @@ fn collect_source_smoke_tests_at(
         inside_smoke_module,
         visited,
         found,
-    )
+    )?;
+    for path in source_includes.literal_paths {
+        // The AST walk above preserves inline-module context for direct item
+        // includes. This source-wide fallback also covers parseable includes
+        // nested in macro bodies.
+        collect_literal_include(source, &path, inside_smoke_module, visited, found)?;
+    }
+    Ok(())
 }
 
 fn source_smoke_markers(text: &str) -> Result<SmokeMarkers> {
@@ -3146,6 +3173,28 @@ fn smoke_module_scanner_self_test() -> Result<()> {
     }
     nested_path_module_scanner_self_test()?;
     literal_include_scanner_self_test()?;
+    inline_smoke_module_include_self_test()?;
+    Ok(())
+}
+
+fn inline_smoke_module_include_self_test() -> Result<()> {
+    let fixture = Fixture::new()?;
+    fixture.write(
+        "src/lib.rs",
+        "include!(\"outside.rs\");\nmod smoke { include!(\"inside.rs\"); }\n",
+    )?;
+    fixture.write("src/outside.rs", "#[test]\nfn ordinary() {}\n")?;
+    fixture.write("src/inside.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([fixture.root.join("src/inside.rs")]) {
+        bail!("inline smoke-module include context self-test failed: {found:?}");
+    }
     Ok(())
 }
 

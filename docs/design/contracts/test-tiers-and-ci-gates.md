@@ -85,9 +85,12 @@ behind it.
    Cargo target paths may refer to workspace sources outside their package
    directory. Literal `include!` sources retain the Cargo target that reaches
    them; modules and further includes declared there resolve beside the
-   included file, matching rustc. A test source filename is not a separate
-   selection rule when the manifest explicitly gives its Cargo target another
-   name. Attribute macros and unresolved `include!` expressions that generate
+   included file, matching rustc. A direct literal include inside an inline
+   smoke-named module also inherits that module's smoke selection context;
+   the source-wide lexical fallback continues to cover includes in macro
+   bodies. A test source filename is not a separate selection rule when the
+   manifest explicitly gives its Cargo target another name. Attribute macros
+   and unresolved `include!` expressions that generate
    a smoke test cannot be inferred from tracked Rust syntax; this includes
    non-literal paths and literal files that do not exist until `build.rs` runs.
    Mark their declaring source with an exact standalone

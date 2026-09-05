@@ -41,12 +41,14 @@ source, as described by the
 [test-tier contract](../design/contracts/test-tiers-and-ci-gates.md). Marker
 or include text inside a string or comment does not count. The check covers
 lexically present invocations nested in macro bodies and expressions as well
-as item-level invocations. An unresolved include is either non-literal or a
-literal file that does not exist until a build script generates it. If another
-macro constructs the `include!` only during expansion, treat it like any other
-macro-generated test and mark the declaring source as smoke-bearing. A source
-with exactly one unresolved include that is known to generate no tests instead
-needs the exact standalone
+as item-level invocations. A direct literal include inside an inline
+smoke-named module inherits that module's smoke selection, including for an
+ordinarily named test in the included file. An unresolved include is either
+non-literal or a literal file that does not exist until a build script generates
+it. If another macro constructs the `include!` only during expansion, treat it
+like any other macro-generated test and mark the declaring source as
+smoke-bearing. A source with exactly one unresolved include that is known to
+generate no tests instead needs the exact standalone
 `// tcl-lsp-no-smoke-include` classification. Do not use that classification
 for a source with multiple unresolved includes; split the data include or mark
 the whole target as smoke-bearing.
