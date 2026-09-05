@@ -671,7 +671,7 @@ jobs:
         if: env.RUN_EXT_WEB == 'true'
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: wasm-bindgen-cli@0.2.127
+          tool: wasm-bindgen-cli@0.2.128
 
       - name: Set up Node.js
         if: env.RUN_EXT_WEB == 'true'
@@ -702,13 +702,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      # `@vscode/test-web` depends on `@playwright/browser-chromium`, so `npm
-      # ci` installs the browser it drives; there is no separate download step.
-      # (A sandbox with Playwright pre-installed elsewhere sets
-      # PLAYWRIGHT_BROWSERS_PATH instead — see INSTALL-editors.md.)
+      # `@vscode/test-web` depends on `@playwright/browser-chromium`, but npm's
+      # install script is not a reliable browser provisioner on hosted runners.
+      # Install the exact lockfile-resolved Chromium revision explicitly so a
+      # Playwright update cannot leave test-web pointing at a missing binary.
       - name: Install npm dependencies
         if: env.RUN_EXT_WEB == 'true'
-        run: cd editors/vscode && npm ci
+        run: |
+          cd editors/vscode
+          npm ci
+          npx playwright install --with-deps chromium
 
       # `@vscode/test-web` downloads a VS Code *web* build on every run, the way
       # `@vscode/test-electron` downloads a desktop one in `test-ext`. Key on
@@ -757,6 +760,7 @@ jobs:
       # Headless Chromium needs no X server, so no xvfb here.
       - name: Run the web extension-host smoke test
         if: env.RUN_EXT_WEB == 'true'
+        timeout-minutes: 10
         run: cd editors/vscode && npm run test:web
 
   # Rust product gate.  ci.yml triggers on `rust`, so one
@@ -883,12 +887,12 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
-          version: v0.16.0
+          version: v0.17.0
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: nextest
+          tool: nextest@0.9.143
 
       # The real-tclsh conformance binaries fail closed when no manifest-pinned
       # interpreter is available. Provision the shared Tcl 9.0 gold-standard
@@ -980,7 +984,7 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: nextest
+          tool: nextest@0.9.143
 
       # Same skip/downgrade contract as rust-tests — see the channel job header.
       # tcl-fuzz lives here, not in rust-tests: its wasmtime/cranelift
@@ -1124,7 +1128,7 @@ jobs:
         if: needs.channel.outputs.docs_only != 'true'
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: wasmtime@47.0.3
+          tool: wasmtime@48.0.1
 
       # wasi-sdk supplies the `clang` that compiles libtommath's C sources to
       # wasm objects.  The test finds it at the default /opt/wasi-sdk, so no
@@ -1137,9 +1141,9 @@ jobs:
       - name: Install wasi-sdk
         if: needs.channel.outputs.docs_only != 'true'
         env:
-          WASI_SDK_VERSION: '33'
-          WASI_SDK_RELEASE: '33.0'
-          WASI_SDK_SHA256: '0ba8b5bfaeb2adf3f29bab5841d76cf5318ab8e1642ea195f88baba1abd47bce'
+          WASI_SDK_VERSION: '34'
+          WASI_SDK_RELEASE: '34.0'
+          WASI_SDK_SHA256: 'b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4'
         run: |
           set -euo pipefail
           asset="wasi-sdk-${WASI_SDK_RELEASE}-x86_64-linux.tar.gz"
@@ -1214,7 +1218,7 @@ jobs:
         if: env.RUN_LSP_WASM == 'true'
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: wasm-bindgen-cli@0.2.127
+          tool: wasm-bindgen-cli@0.2.128
 
       - name: Set up Node.js
         if: env.RUN_LSP_WASM == 'true'
@@ -1294,7 +1298,7 @@ jobs:
         if: env.RUN_LSP_WASI == 'true'
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: wasmtime@47.0.3
+          tool: wasmtime@48.0.1
 
       # binaryen supplies `wasm-opt`, which build-wasi.sh runs (safely — this
       # module has no wasm-bindgen externref table to mis-rebind).  The script
@@ -1361,12 +1365,12 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
-          version: v0.16.0
+          version: v0.17.0
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: nextest
+          tool: nextest@0.9.143
 
       # The integration tests spawn the real `tcl-lsp-server` binary via
       # `CARGO_BIN_EXE_tcl-lsp-server` (cargo builds it as a test dependency)
@@ -1474,8 +1478,8 @@ jobs:
       - name: Install uv
         if: env.RUN_PY == 'true'
         env:
-          UV_VERSION: "0.11.28"
-          UV_INSTALLER_SHA256: "b7b3fe80cad1142a2a5794050b7db7b3291d1bac1423b0732571dd9366e8ca8b"
+          UV_VERSION: "0.12.10"
+          UV_INSTALLER_SHA256: "a3196b75f697a1adaa5e4af34ffba7629c710931ab1dac33bab59ecf228080bb"
         run: |
           set -euo pipefail
           curl -LsSf --max-time 120 -o /tmp/uv-installer.sh \
@@ -1489,7 +1493,7 @@ jobs:
         run: |
           actual="$(uv --version | awk '{print $2}')"
           echo "uv $actual"
-          [ "$actual" = "0.11.28" ] || { echo "::error::expected uv 0.11.28, got $actual"; exit 1; }
+          [ "$actual" = "0.12.10" ] || { echo "::error::expected uv 0.12.10, got $actual"; exit 1; }
 
       - name: ruff (format --check + check)
         if: env.RUN_PY == 'true'
@@ -1962,7 +1966,7 @@ jobs:
       - name: Install wasm-bindgen CLI
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: wasm-bindgen-cli@0.2.127
+          tool: wasm-bindgen-cli@0.2.128
 
       # No Python setup: the VSIX bundles native binaries and the build
       # (compile + filter-readme + vsce) is Node-only.
@@ -2175,7 +2179,7 @@ jobs:
       - name: Install wasm-bindgen CLI
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
-          tool: wasm-bindgen-cli@0.2.127
+          tool: wasm-bindgen-cli@0.2.128
 
       - name: Set up Java 17
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0

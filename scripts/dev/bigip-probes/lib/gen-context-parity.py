@@ -10,12 +10,12 @@ asked.
 Usage: gen-context-parity.py <cases-file> <outdir>
 """
 
-import os
 import sys
+from pathlib import Path
 
 cases = []
-with open(sys.argv[1]) as fh:
-    for line in fh:
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for line in handle:
         if line.startswith("#") or not line.strip():
             continue
         cid, cat, src = line.rstrip("\n").split("\t")
@@ -29,8 +29,8 @@ with open(sys.argv[1]) as fh:
             .replace("\\n", "\n")
         )
         cases.append((cid, cat, src))
-out = sys.argv[2]
-os.makedirs(out, exist_ok=True)
+out = Path(sys.argv[2])
+out.mkdir(parents=True, exist_ok=True)
 
 # Shared Tcl body. $EMIT is replaced per context with a one-argument logger.
 BODY = r"""
@@ -64,42 +64,41 @@ foreach chunkstart [list 0 8 16 24 32 40] {
 
 
 def body_for(ctxname, emit):
-    lit = "".join("    {%s} {%s} {%s} \\\n" % (c, k, s) for c, k, s in cases)
+    lit = "".join(f"    {{{c}}} {{{k}}} {{{s}}} \\\n" for c, k, s in cases)
     b = BODY.replace("%CASES%", lit).replace("CTXNAME", ctxname)
     return b.replace("EMIT ", emit + " ")
 
 
 # 1. iRule — RULE_INIT, logs to /var/log/ltm
-with open(os.path.join(out, "ctx_irule.conf"), "w") as fh:
-    fh.write(
-        "ltm rule __tcl_lsp_probe_ctx_irule {\nwhen RULE_INIT {"
-        + body_for("TmmIRule", "log local0.")
-        + "}\n}\n"
-    )
+(out / "ctx_irule.conf").write_text(
+    "ltm rule __tcl_lsp_probe_ctx_irule {\nwhen RULE_INIT {"
+    + body_for("TmmIRule", "log local0.")
+    + "}\n}\n",
+    encoding="utf-8",
+)
 
 # 2. tmsh cli script — puts to stdout
-with open(os.path.join(out, "ctx_cli.conf"), "w") as fh:
-    fh.write(
-        "cli script __tcl_lsp_probe_ctx_cli {\nproc script::run {} {"
-        + body_for("TmshCliScript", "puts")
-        + "}\n}\n"
-    )
+(out / "ctx_cli.conf").write_text(
+    "cli script __tcl_lsp_probe_ctx_cli {\nproc script::run {} {"
+    + body_for("TmshCliScript", "puts")
+    + "}\n}\n",
+    encoding="utf-8",
+)
 
 # 3. iApp implementation — tmsh::log err (info level never reaches /var/log/ltm)
-with open(os.path.join(out, "ctx_iapp.conf"), "w") as fh:
-    fh.write(
-        "sys application template __tcl_lsp_probe_ctx_iapp {\n  actions {\n    definition {\n"
-        "      implementation {"
-        + body_for("IAppImplementation", "tmsh::log err")
-        + "      }\n      presentation {\n      }\n    }\n  }\n}\n"
-    )
-with open(os.path.join(out, "ctx_iapp_svc.conf"), "w") as fh:
-    fh.write(
-        "sys application service __tcl_lsp_probe_ctx_iapp_svc {\n"
-        "  template __tcl_lsp_probe_ctx_iapp\n}\n"
-    )
+(out / "ctx_iapp.conf").write_text(
+    "sys application template __tcl_lsp_probe_ctx_iapp {\n  actions {\n    definition {\n"
+    "      implementation {"
+    + body_for("IAppImplementation", "tmsh::log err")
+    + "      }\n      presentation {\n      }\n    }\n  }\n}\n",
+    encoding="utf-8",
+)
+(out / "ctx_iapp_svc.conf").write_text(
+    "sys application service __tcl_lsp_probe_ctx_iapp_svc {\n"
+    "  template __tcl_lsp_probe_ctx_iapp\n}\n",
+    encoding="utf-8",
+)
 
 # 4. host tclsh control
-with open(os.path.join(out, "ctx_host.tcl"), "w") as fh:
-    fh.write(body_for("HostShellTcl", "puts"))
-print("wrote 5 wrappers for %d cases -> %s" % (len(cases), out))
+(out / "ctx_host.tcl").write_text(body_for("HostShellTcl", "puts"), encoding="utf-8")
+print(f"wrote 5 wrappers for {len(cases)} cases -> {out}")

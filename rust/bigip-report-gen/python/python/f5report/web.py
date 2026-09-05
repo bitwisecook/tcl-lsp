@@ -82,7 +82,7 @@ def _input_page() -> str:
 
 
 class Part:
-    __slots__ = ("name", "filename", "data")
+    __slots__ = ("data", "filename", "name")
 
     def __init__(self, name: str, filename: str | None, data: bytes) -> None:
         self.name = name
@@ -206,7 +206,7 @@ class _Handler(BaseHTTPRequestHandler):
             p.name: p.data.decode("utf-8", "replace") for p in parts if not p.filename
         }
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         route = urlparse(self.path)
         if route.path in ("/", "/index.html"):
             self._text(200, _input_page(), "text/html; charset=utf-8")
@@ -217,7 +217,7 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._text(404, "not found")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         route = urlparse(self.path)
         ctype = self.headers.get("Content-Type", "")
         body = self._read_body()

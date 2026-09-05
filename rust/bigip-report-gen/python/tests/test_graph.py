@@ -162,8 +162,9 @@ ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 pool /Common/used_pool
 
 
 def test_attach_reach_patterns():
-    from f5report import _engine
     import json
+
+    from f5report import _engine
 
     reach = json.loads(
         _engine.irule_attach_patterns(

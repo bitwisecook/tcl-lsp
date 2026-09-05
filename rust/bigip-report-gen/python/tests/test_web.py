@@ -10,7 +10,6 @@ import time
 import urllib.request
 
 import pytest
-
 from f5report import web
 
 

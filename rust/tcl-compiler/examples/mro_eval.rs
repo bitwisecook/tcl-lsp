@@ -36,7 +36,7 @@
 //!
 //! ```text
 //! cargo run -p tcl-compiler --example mro_eval -- \
-//!     experiments/corpus tmp/tcllib-2.0 tmp/tcl8.6.16/tests
+//!     experiments/corpus tmp/tcllib-2.0 tmp/tcl8.6.18/tests
 //! ```
 //!
 //! With no arguments it scans a default corpus set (the vendored
@@ -243,7 +243,7 @@ fn corpus_roots(args: &[String]) -> Vec<PathBuf> {
         [
             "experiments/corpus",
             "tmp/tcllib-2.0",
-            "tmp/tcl8.6.16/tests",
+            "tmp/tcl8.6.18/tests",
             "tmp/tcl9.0.4/tests",
         ]
         .iter()

@@ -120,7 +120,7 @@ fn resolve_roots() -> Vec<PathBuf> {
         [
             "experiments/corpus",
             "tmp/tcllib-2.0",
-            "tmp/tcl8.6.16/tests",
+            "tmp/tcl8.6.18/tests",
             "tmp/tcl9.0.4/tests",
         ]
         .iter()

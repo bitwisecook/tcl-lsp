@@ -37,7 +37,7 @@ updates:
           - "*"
 
   - package-ecosystem: pip
-    directory: /
+    directory: /rust/bigip-report-gen/python
     schedule:
       interval: weekly
     groups:
@@ -64,6 +64,10 @@ updates:
           - "*"
         exclude-patterns:
           - "npm"
+    ignore:
+      # typescript-eslint 8.69 supports TypeScript only below 6.1.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
 
   # Every npm project in the tree needs its own entry — Dependabot does not
   # walk sub-directories.  The spec-studio web app was the gap that let four
@@ -74,18 +78,36 @@ updates:
     schedule:
       interval: weekly
     groups:
+      npm-cli:
+        patterns:
+          - "npm"
       npm:
         patterns:
           - "*"
+        exclude-patterns:
+          - "npm"
+    ignore:
+      # typescript-eslint 8.69 supports TypeScript only below 6.1.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
 
   - package-ecosystem: npm
     directory: /rust/bigip-report-gen/frontend
     schedule:
       interval: weekly
     groups:
+      npm-cli:
+        patterns:
+          - "npm"
       npm:
         patterns:
           - "*"
+        exclude-patterns:
+          - "npm"
+    ignore:
+      # typescript-eslint 8.69 supports TypeScript only below 6.1.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
 
   # Every cargo root in the tree, not just the workspace at `/`.  The root
   # `[workspace] exclude` list (Cargo.toml) holds each target that cannot
@@ -116,6 +138,11 @@ updates:
       cargo:
         patterns:
           - "*"
+    ignore:
+      # This is the Preview 1 errno API. wasi 0.12+ is a component-model API
+      # with a different surface and cannot replace it in place.
+      - dependency-name: wasi
+        versions: [">=0.12.0"]
 
   - package-ecosystem: gradle
     directory: /editors/jetbrains

@@ -44,6 +44,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import platform
@@ -53,15 +54,16 @@ import subprocess
 import sys
 import threading
 import time
-import tomllib
 from pathlib import Path
 from typing import Any
+
+import tomllib
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 sys.path.insert(0, str(REPO_ROOT / ".claude/skills/lsp-client"))
 
-from lsp_client import (  # noqa: E402
+from lsp_client import (
     SEMANTIC_TOKEN_MODIFIERS,
     SEMANTIC_TOKEN_TYPES,
     LspClient,
@@ -272,10 +274,8 @@ class Watchdog(threading.Thread):
         # sweep). Best-effort: the process may already be gone, or this may
         # itself be part of what's wedged.
         if client is not None and client.process is not None:
-            try:
+            with contextlib.suppress(Exception):
                 client.process.kill()
-            except Exception:  # noqa: BLE001
-                pass
         # A daemon thread cannot unwind the main thread's call stack, and the
         # main thread may be blocked in a call this fix does not (or cannot)
         # bound — os._exit is the one escape that does not depend on it
@@ -566,7 +566,6 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
                 },
             )
         c.collect_notifications("textDocument/publishDiagnostics", timeout=2.0)
-        return None
 
     bench.check(
         "edit.storm", f"Typing storm ({EDIT_COUNT} edits, no requests)", edit_storm
@@ -778,7 +777,6 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
                 "textDocument/didClose", {"textDocument": {"uri": s["uri"]}}
             )
         c.collect_notifications("textDocument/publishDiagnostics", timeout=2.0)
-        return None
 
     bench.check("close.docs", "Close all documents", close_all)
 
@@ -1023,10 +1021,8 @@ def _run(args: argparse.Namespace, progress: Progress) -> int:
     finally:
         progress.phase = "teardown"
         sampler.stop()
-        try:
+        with contextlib.suppress(Exception):
             client.shutdown()
-        except Exception:  # noqa: BLE001
-            pass
         shutil.rmtree(stage, ignore_errors=True)
 
     result = {

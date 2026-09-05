@@ -100,12 +100,12 @@ fn main() {
     let named = [
         "tcllib-2.0/modules/pki/pki.tcl",
         "tcllib-2.0/modules/page/parse_lemon.tcl",
-        "tcl8.6.16/library/init.tcl",
-        "tcl8.6.16/library/safe.tcl",
+        "tcl8.6.18/library/init.tcl",
+        "tcl8.6.18/library/safe.tcl",
     ];
     let mut files: Vec<PathBuf> = named.iter().map(|f| root.join(f)).collect();
     let mut corpus = Vec::new();
-    for v in ["tcl8.6.16/library", "tcllib-2.0/modules"] {
+    for v in ["tcl8.6.18/library", "tcllib-2.0/modules"] {
         gather(&root.join(v), &mut corpus, 400);
     }
 

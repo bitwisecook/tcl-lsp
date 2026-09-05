@@ -178,7 +178,7 @@ function loadMermaid() {
         el.onerror = () => reject(new Error('failed to load bundled mermaid'));
         document.head.appendChild(el);
       })
-    : import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs').then(
+    : import('https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs').then(
         (m) => m.default,
       );
   return mermaidPromise;
