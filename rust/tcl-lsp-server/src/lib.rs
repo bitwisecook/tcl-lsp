@@ -8460,14 +8460,14 @@ impl Backend {
     /// held, and only after the tracked snapshot census is empty. Because the
     /// acquired bundle already contains `db`, that zero remains stable through
     /// the setter and it cannot block in `cancel_others` while owning db/files.
-    /// A per-publication gate preserves edit order; currency checks before and
-    /// after the commit make a newer edit/close authoritative. The stale disk
-    /// view was retired before the edit turn advanced; replacing it here with
-    /// the live analysis before marking publication `Indexed` means a
-    /// cross-document request drained behind `didOpen` cannot lose the opened
-    /// file's facts. Semantic tokens proceed earlier at the `Salsa` state and
-    /// retain their bounded coarse fallback; other documents remain
-    /// serviceable throughout.
+    /// A per-publication gate preserves source edit order; currency checks
+    /// before and after the index seed make a newer edit/close authoritative.
+    /// The stale disk view was retired before the edit turn advanced;
+    /// replacing it with live analysis before marking publication `Indexed`
+    /// means a cross-document request drained behind `didOpen` cannot lose
+    /// the opened file's facts. Semantic tokens proceed earlier at the
+    /// `Salsa` state and retain their bounded coarse fallback; other documents
+    /// remain serviceable throughout.
     async fn commit_open_document(
         &self,
         uri: &Uri,
@@ -8475,105 +8475,133 @@ impl Backend {
         dialect: &str,
         version: i32,
     ) -> bool {
-        let _publication = self.live_publication_gate.lock().await;
-        let since = crate::rt::Instant::now();
-        let mut retries = 0_u64;
-        let mut reported = false;
-        loop {
-            if let Some(docs) = self.documents.try_lock("did_open_currency")
-                && !docs.get(uri).is_some_and(|doc| {
-                    doc.version == Some(version)
-                        && doc.text.as_ref() == text
-                        && doc.dialect.as_str() == dialect
-                })
-            {
-                return false;
-            }
-            let locks = match self.try_live_source_locks() {
-                Ok(locks) => locks,
-                Err(wait) => {
+        self.commit_open_document_with_seed(
+            uri,
+            text,
+            dialect,
+            version,
+            self.fresh_analysis_for(uri, Arc::from(text), dialect.to_owned()),
+        )
+        .await
+    }
+
+    /// Commit the source tier, release its serialisation gate, then await the
+    /// supplied independent index analysis and publish it if still current.
+    ///
+    /// Taking the seed as a future makes the supersession boundary directly
+    /// testable: neither the publication gate nor a Salsa snapshot may live
+    /// while this future is pending (#1854 automated review).
+    async fn commit_open_document_with_seed<F>(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+        seed: F,
+    ) -> bool
+    where
+        F: Future<Output = Arc<AnalysisResult>>,
+    {
+        {
+            let _publication = self.live_publication_gate.lock().await;
+            let since = crate::rt::Instant::now();
+            let mut retries = 0_u64;
+            let mut reported = false;
+            loop {
+                if let Some(docs) = self.documents.try_lock("did_open_currency")
+                    && !docs.get(uri).is_some_and(|doc| {
+                        doc.version == Some(version)
+                            && doc.text.as_ref() == text
+                            && doc.dialect.as_str() == dialect
+                    })
+                {
+                    return false;
+                }
+                let locks = match self.try_live_source_locks() {
+                    Ok(locks) => locks,
+                    Err(wait) => {
+                        retries = retries.saturating_add(1);
+                        self.pause_open_publication(
+                            "did_open",
+                            uri,
+                            wait,
+                            retries,
+                            since,
+                            &mut reported,
+                        )
+                        .await;
+                        continue;
+                    }
+                };
+
+                let Some(docs) = self.documents.try_lock("did_open") else {
+                    drop(locks);
                     retries = retries.saturating_add(1);
                     self.pause_open_publication(
                         "did_open",
                         uri,
-                        wait,
+                        LivePublicationWait::Documents,
                         retries,
                         since,
                         &mut reported,
                     )
                     .await;
                     continue;
+                };
+
+                let current = docs.get(uri).is_some_and(|doc| {
+                    doc.version == Some(version)
+                        && doc.text.as_ref() == text
+                        && doc.dialect.as_str() == dialect
+                });
+                if !current {
+                    return false;
                 }
-            };
+                drop(docs);
 
-            let Some(docs) = self.documents.try_lock("did_open") else {
-                drop(locks);
-                retries = retries.saturating_add(1);
-                self.pause_open_publication(
-                    "did_open",
-                    uri,
-                    LivePublicationWait::Documents,
-                    retries,
-                    since,
-                    &mut reported,
-                )
-                .await;
-                continue;
-            };
-
-            let current = docs.get(uri).is_some_and(|doc| {
-                doc.version == Some(version)
-                    && doc.text.as_ref() == text
-                    && doc.dialect.as_str() == dialect
-            });
-            if !current {
-                return false;
-            }
-            drop(docs);
-
-            {
-                let LiveSourceLocks {
-                    mut db,
-                    mut files,
-                    mut tombstones,
-                    mut project,
-                } = locks;
-                let membership_changed = Self::set_db_sources_locked(
-                    &mut db,
-                    &mut files,
-                    &mut tombstones,
-                    std::iter::once((uri, text, dialect)),
-                );
-                if membership_changed {
-                    Self::sync_db_project(&mut db, &files, &mut project);
+                {
+                    let LiveSourceLocks {
+                        mut db,
+                        mut files,
+                        mut tombstones,
+                        mut project,
+                    } = locks;
+                    let membership_changed = Self::set_db_sources_locked(
+                        &mut db,
+                        &mut files,
+                        &mut tombstones,
+                        std::iter::once((uri, text, dialect)),
+                    );
+                    if membership_changed {
+                        Self::sync_db_project(&mut db, &files, &mut project);
+                    }
                 }
-            }
 
-            // Semantic tokens need the current Salsa source, but deliberately
-            // do not need the workspace-index seed below: their enriched read
-            // is budgeted and their fallback tokenises these same live bytes.
-            // Publish that narrower readiness boundary now, so a cold large
-            // file can paint promptly while its cross-document facts finish.
-            if !self
-                .mark_open_salsa_published_if_current(uri, text, dialect, version)
-                .await
-            {
-                return false;
+                // Semantic tokens need the current Salsa source, but deliberately
+                // do not need the workspace-index seed below: their enriched read
+                // is budgeted and their fallback tokenises these same live bytes.
+                // Publish that narrower readiness boundary now, so a cold large
+                // file can paint promptly while its cross-document facts finish.
+                if !self
+                    .mark_open_salsa_published_if_current(uri, text, dialect, version)
+                    .await
+                {
+                    return false;
+                }
+                break;
             }
-
-            // The immediate post-turn retirement above deliberately leaves a
-            // short *missing* index slot rather than a stale one while Salsa is
-            // unavailable. Once the source is published, fill that slot from
-            // the authoritative live analysis before announcing completion.
-            // The diagnostics worker may later replace it with its refined
-            // view; this seed preserves cross-document navigation in the gap.
-            let analysis = self
-                .analysis_for(uri, Arc::from(text), dialect.to_owned())
-                .await;
-            return self
-                .publish_open_index_if_current(uri, text, dialect, version, &analysis)
-                .await;
         }
+
+        // The immediate post-turn retirement above deliberately leaves a
+        // short *missing* index slot rather than a stale one while Salsa is
+        // unavailable. Once the source is published, fill that slot from the
+        // authoritative live analysis before announcing completion. This
+        // future owns no Salsa snapshot and runs after the publication gate is
+        // released, so a newer edit can publish and make this seed obsolete.
+        // The diagnostics worker may later replace it with its refined view.
+        let analysis = seed.await;
+        self.publish_open_index_if_current(uri, text, dialect, version, &analysis)
+            .await
     }
 
     /// Publish the Salsa source for one already-visible live revision.
@@ -9236,9 +9264,24 @@ impl Backend {
         if let Some(cached) = self.cached_analysis(uri).await {
             return cached;
         }
-        // No salsa input for this document (e.g. an unindexed buffer): analyse
-        // fresh with the same per-folder config the cached path would have used,
-        // so the on-demand result still honours folder-scoped suppression.
+        self.fresh_analysis_for(uri, text, dialect).await
+    }
+
+    /// Analyse `text` without taking a Salsa snapshot.
+    ///
+    /// Most request paths should use [`Self::analysis_for`] so they share the
+    /// memoised query. The cold `didOpen` index seed deliberately uses this
+    /// path: a newer edit must be able to publish to Salsa and supersede that
+    /// seed instead of waiting for its old-revision snapshot to retire.
+    async fn fresh_analysis_for(
+        &self,
+        uri: &Uri,
+        text: Arc<str>,
+        dialect: String,
+    ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
+        // Analyse outside Salsa with the same per-folder config the cached path
+        // would have used, so the result still honours folder-scoped
+        // suppression without retaining a database snapshot.
         let config = self.resolved_db_config(uri).await;
         let (disabled, na_mode, extra, pack_key, resource) = {
             let db = self.db.lock().await;
@@ -41556,6 +41599,103 @@ proc p {} {
         .await
         .expect("indexed readiness releases ordinary providers")
         .expect("the live indexed document exists");
+    }
+
+    /// Fresh review of #1854: a cold `didOpen` index seed must not own either
+    /// the live-publication gate or a Salsa snapshot. Otherwise a newer edit
+    /// cannot publish until obsolete whole-file analysis finishes. Hold the
+    /// exact seed future pending, deliver a real `didChange`, and prove the
+    /// newer revision supersedes it immediately.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_supersedes_a_pending_did_open_index_seed_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///open-seed-superseded-1854.tcl").unwrap();
+        let opened_text = "proc obsolete {} {}\n";
+        let edited_text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(opened_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl8.6".to_owned())
+                .with_publication_pending(),
+        );
+
+        let seed_started = Arc::new(tokio::sync::Notify::new());
+        let seed_release = Arc::new(tokio::sync::Notify::new());
+        let started = seed_started.notified();
+        tokio::pin!(started);
+        started.as_mut().enable();
+        let obsolete_analysis = {
+            let mut analyser = Analyser::new();
+            Arc::new(analyser.analyse(opened_text, "tcl8.6").clone())
+        };
+        let opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let seed_started = Arc::clone(&seed_started);
+            let seed_release = Arc::clone(&seed_release);
+            async move {
+                backend
+                    .commit_open_document_with_seed(&uri, opened_text, "tcl8.6", 1, async move {
+                        seed_started.notify_one();
+                        seed_release.notified().await;
+                        obsolete_analysis
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), &mut started)
+            .await
+            .expect("the open source tier must publish before its index seed starts");
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: edited_text.to_owned(),
+                }],
+            }),
+        )
+        .await
+        .expect("the newer edit must not wait for the obsolete open index seed");
+
+        let current = backend
+            .documents
+            .lock("test")
+            .await
+            .get(&uri)
+            .cloned()
+            .expect("the edited document remains open");
+        assert_eq!(current.text.as_ref(), edited_text);
+        assert_eq!(current.version, Some(2));
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(edited_text),
+            "Salsa must contain the superseding edit while the old seed is pending",
+        );
+        drop(files);
+        drop(db);
+
+        seed_release.notify_waiters();
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), opening)
+                .await
+                .expect("the obsolete seed task must finish")
+                .expect("the obsolete seed task must not panic"),
+            "the old seed must lose its final revision check",
+        );
     }
 
     /// A diagnostics run publishes a standalone analysis before the next M9
