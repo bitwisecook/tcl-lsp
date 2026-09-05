@@ -13,7 +13,7 @@ command switch {
     # not through a whole-command dialect gate.
     dialects {all-tcl f5-irules}
     traits {NOT_PROC_FACTORY BYTE_COMPILED CONTROL_FLOW LANGUAGE_KEYWORD
-            NEVER_INLINE_BODY HAS_SWITCH_BODY}
+            NEVER_INLINE_BODY}
 
     # `string pattern body ?pattern body ...?` (an odd count from 3) — OR the
     # single-braced-body shorthand `string {pattern body ...}` (exactly 2).

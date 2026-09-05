@@ -873,7 +873,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
-        traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL | Traits::HAS_DESTRUCTIVE_OPS,
+        traits: Traits::BYTE_COMPILED,
         // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no `chan`
         // entry in the 8.4 command index (confirmed: the 8.4 URL 404s and the
         // 8.4 command index lists only the pre-ensemble standalone commands it
