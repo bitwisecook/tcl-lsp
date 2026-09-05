@@ -730,6 +730,122 @@ fn interp_debug_option_uses_c_noun_and_abbreviates() {
     );
 }
 
+/// Issue #1607: the `interp` ensemble and the child-as-command dispatch are
+/// `Tcl_GetIndexFromObj(…, "option", 0)` tables (`options[]` in `Tcl_InterpObjCmd`
+/// and `NRChildCmd`, `tclInterp.c`), so subcommands abbreviate and the empty
+/// word — a prefix of every entry — is `ambiguous option ""`.
+///
+/// Both lists name only what this engine dispatches (`aliases`, `cancel`, and
+/// `target` need infrastructure the VM has none of), so the enumeration is
+/// shorter than tclsh's. tclsh 9.0.4, for contrast:
+///   interp x  -> bad option "x": must be alias, aliases, bgerror, cancel,
+///                children, create, debug, delete, eval, exists, expose, hide,
+///                hidden, issafe, invokehidden, limit, marktrusted,
+///                recursionlimit, share, target, or transfer
+///   i x       -> bad option "x": must be alias, aliases, bgerror, debug, eval,
+///                expose, hide, hidden, issafe, invokehidden, limit,
+///                marktrusted, or recursionlimit
+///
+/// The abbreviation verdicts are tclsh's exactly (8.6.16 / 9.0.4 agree):
+///   interp cr j        -> j
+///   interp c j         -> ambiguous option "c"
+///   interp ev {set x 1} -> 1   ;  interp e {set x 1} -> ambiguous option "e"
+///   i ev {set x 1}     -> 1    ;  i h / i hi -> ambiguous option "h" / "hi"
+#[test]
+fn interp_subcommand_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be alias, bgerror, children, create, debug, delete, eval, \
+                        exists, expose, hide, hidden, issafe, invokehidden, limit, \
+                        marktrusted, recursionlimit, share, or transfer";
+    const CHILD_MUST: &str = "must be debug, eval, expose, hide, hidden, issafe, \
+                              invokehidden, limit, marktrusted, or recursionlimit";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(msg("interp x\n"), format!("bad option \"x\": {MUST}"));
+    assert_eq!(msg("interp {}\n"), format!("ambiguous option \"\": {MUST}"));
+    assert_eq!(
+        msg("interp c j\n"),
+        format!("ambiguous option \"c\": {MUST}")
+    );
+    assert_eq!(run("interp cr j\n").1, "j");
+    assert_eq!(
+        msg("interp e {set x 1}\n"),
+        format!("ambiguous option \"e\": {MUST}")
+    );
+    assert_eq!(run("interp ev {} {set x 1}\n").1, "1");
+    // The 8.x-only `slaves` spelling still resolves, and still dispatches.
+    assert_eq!(run("interp create i\nllength [interp sl]\n").1, "1");
+    // The child-as-command table.
+    assert_eq!(
+        msg("interp create i\ni x\n"),
+        format!("bad option \"x\": {CHILD_MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ni {}\n"),
+        format!("ambiguous option \"\": {CHILD_MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ni e {set x 1}\n"),
+        format!("ambiguous option \"e\": {CHILD_MUST}")
+    );
+    assert_eq!(run("interp create i\ni ev {set x 1}\n").1, "1");
+    assert_eq!(
+        msg("interp create i\ni h\n"),
+        format!("ambiguous option \"h\": {CHILD_MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ni hi\n"),
+        format!("ambiguous option \"hi\": {CHILD_MUST}")
+    );
+}
+
+/// Issue #1607: `interp create`'s and `interp invokehidden`'s leading options
+/// are `Tcl_GetIndexFromObj(…, "option", 0)` tables (`createOptions[]` /
+/// `hiddenOptions[]`, `tclInterp.c`), so they abbreviate and the lone `-` —
+/// a prefix of every entry — is `ambiguous`, not `bad`.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   interp create -x k          -> bad option "-x": must be -safe or --
+///   interp create - k           -> ambiguous option "-": must be -safe or --
+///   interp create -s k          -> k        ;  interp create -- k -> k
+///   interp invokehidden i -x f  -> bad option "-x": must be -global, -namespace, or --
+///   interp invokehidden i - f   -> ambiguous option "-": must be -global, -namespace, or --
+///   i invokehidden -x f         -> bad option "-x": must be -global, -namespace, or --
+#[test]
+fn interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj() {
+    const CREATE_MUST: &str = "must be -safe or --";
+    const HIDDEN_MUST: &str = "must be -global, -namespace, or --";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("interp create -x k\n"),
+        format!("bad option \"-x\": {CREATE_MUST}")
+    );
+    assert_eq!(
+        msg("interp create - k\n"),
+        format!("ambiguous option \"-\": {CREATE_MUST}")
+    );
+    assert_eq!(run("interp create -s k\n").1, "k");
+    assert_eq!(run("interp create -- k\n").1, "k");
+    assert_eq!(
+        msg("interp create i\ninterp invokehidden i -x foo\n"),
+        format!("bad option \"-x\": {HIDDEN_MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ninterp invokehidden i - foo\n"),
+        format!("ambiguous option \"-\": {HIDDEN_MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ni invokehidden -x foo\n"),
+        format!("bad option \"-x\": {HIDDEN_MUST}")
+    );
+}
+
 /// Issue #1607: `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
 /// "limit type", 0)` (`limitTypes[]`, `tclInterp.c`), so `c`/`t` abbreviate
 /// and the empty word — a prefix of both entries — is `ambiguous`.

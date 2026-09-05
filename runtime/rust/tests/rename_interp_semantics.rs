@@ -127,6 +127,19 @@ fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
     // via the fallthrough).
     assert_eq!(interp.eval_str(b"catch {interp cancel} e; set e"), Code::Ok);
     assert!(interp.result_bytes().starts_with(b"bad option \"cancel\""));
+    // Issue #1607: the list is shortened, but it is still resolved by the one
+    // `Tcl_GetIndexFromObj` matcher, so tclsh's abbreviation and ambiguity
+    // verdicts hold over it.
+    //
+    // tclsh9.0.4:
+    //   interp cr j -> j   ;  interp c j -> ambiguous option "c": must be …
+    //   interp {}   -> ambiguous option "": must be …
+    assert_eq!(interp.eval_str(b"interp cr j"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"j".as_slice());
+    assert_eq!(interp.eval_str(b"catch {interp c j} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"ambiguous option \"c\""));
+    assert_eq!(interp.eval_str(b"catch {interp {}} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"ambiguous option \"\""));
 }
 
 /// item 3: `interp target path alias` — the interp-path from this interp to
@@ -222,6 +235,15 @@ fn child_command_bad_option_matches_the_tclsh_shape() {
           or recursionlimit"
             .as_slice()
     );
+    // Issue #1607: the same table now abbreviates, exactly as tclsh's does.
+    //
+    // tclsh9.0.4:
+    //   kid ev {set x 1} -> 1
+    //   kid h            -> ambiguous option "h": must be …
+    assert_eq!(interp.eval_str(b"kid ev {set x 1}"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"1".as_slice());
+    assert_eq!(interp.eval_str(b"catch {kid h} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"ambiguous option \"h\""));
 }
 
 /// item 4 (fixed before this lane started, pinned here as a regression

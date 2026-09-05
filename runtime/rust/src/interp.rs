@@ -6500,13 +6500,52 @@ impl Interp {
             .resolve_fqn(self.current_ns.get(), name)
     }
 
+    /// The child-as-command subcommand words, in C table order (`options[]` in
+    /// `NRChildCmd`, `tclInterp.c`), resolved with
+    /// `Tcl_GetIndexFromObj(…, "option", 0)` — so `ev` abbreviates `eval` and
+    /// the empty word is `ambiguous option ""`. The child command object
+    /// advertises a *shorter* list than `interp` does (no `children`, `create`,
+    /// `delete`, or `exists`: those are only ever spelled `interp <op> path`),
+    /// and this runtime dispatches all thirteen (issue #1412 item 7).
+    pub(crate) const CHILD_OPTIONS: &[&[u8]] = &[
+        b"alias",
+        b"aliases",
+        b"bgerror",
+        b"debug",
+        b"eval",
+        b"expose",
+        b"hide",
+        b"hidden",
+        b"issafe",
+        b"invokehidden",
+        b"limit",
+        b"marktrusted",
+        b"recursionlimit",
+    ];
+
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
     /// child is addressable like the `interp` ensemble restricted to it.
     fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
         if argv.len() < 2 {
             return self.error(b"wrong # args: should be \"interp cmd ?arg ...?\"");
         }
-        match obj_bytes(argv[1]).as_slice() {
+        let word = obj_bytes(argv[1]);
+        // `$child delete` is this runtime's own extra — C's child table has no
+        // `delete` (it is only ever spelled `interp delete path`) — so it is
+        // matched exactly, never abbreviates, and stays out of the enumeration.
+        let sub: &[u8] = if word == b"delete" {
+            b"delete"
+        } else {
+            match crate::cmd_alias::resolve_interp_option(
+                Self::CHILD_OPTIONS,
+                Self::CHILD_OPTIONS,
+                &word,
+            ) {
+                Ok(canonical) => canonical,
+                Err(m) => return self.error(&m),
+            }
+        };
+        match sub {
             b"eval" => {
                 let script = join_words(&argv[2..]);
                 self.eval_in_child(name, &script)
@@ -6521,8 +6560,18 @@ impl Interp {
                 self.set_result_bytes(b"");
                 Code::Ok
             }
-            b"hide" | b"expose" if argv.len() == 3 => {
-                let hide = obj_bytes(argv[1]) == b"hide";
+            b"hide" | b"expose" => {
+                let hide = sub == b"hide";
+                if argv.len() < 3 || argv.len() > 4 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(if hide {
+                        b" hide cmdName ?hiddenCmdName?\"".as_slice()
+                    } else {
+                        b" expose hiddenCmdName ?cmdName?\"".as_slice()
+                    });
+                    return self.error(&m);
+                }
                 let op = if hide {
                     CommandVisibilityOp::Hide
                 } else {
@@ -6538,15 +6587,24 @@ impl Interp {
                     });
                 }
                 let cmd = obj_bytes(argv[2]);
+                let token = argv.get(3).map_or_else(|| cmd.clone(), |&a| obj_bytes(a));
                 let outcome = self
                     .with_child(name, |c| match op {
-                        CommandVisibilityOp::Hide => c.hide_command(&cmd, &cmd),
-                        CommandVisibilityOp::Expose => c.expose_command(&cmd, &cmd),
+                        CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),
+                        CommandVisibilityOp::Expose => c.expose_command(&cmd, &token),
                     })
                     .unwrap_or(CommandVisibilityOutcome::Missing);
-                self.finish_command_visibility(op, &cmd, &cmd, outcome)
+                self.finish_command_visibility(op, &cmd, &token, outcome)
             }
-            b"invokehidden" if argv.len() >= 3 => {
+            b"invokehidden" => {
+                if argv.len() < 3 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(
+                        b" invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?\"",
+                    );
+                    return self.error(&m);
+                }
                 if self.is_safe() {
                     return self
                         .error(b"not allowed to invoke hidden commands from safe interpreter");
@@ -6591,7 +6649,13 @@ impl Interp {
             // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
             // the child delegating to `targetCmd` in this (parent) interp. (The
             // target is implicitly the parent, so there is no target-path arg.)
-            b"alias" if argv.len() >= 4 => {
+            b"alias" => {
+                if argv.len() < 4 {
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" alias aliasName ?targetName? ?arg ...?\"");
+                    return self.error(&m);
+                }
                 let alias = obj_bytes(argv[2]);
                 let target = obj_bytes(argv[3]);
                 let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
@@ -6686,22 +6750,14 @@ impl Interp {
                     None => self.error(b"could not find interpreter"),
                 }
             }
+            // Unreachable: every name in `Self::CHILD_OPTIONS` has an arm above.
             other => {
-                // Same `bad option` shape as the `interp` ensemble's own
-                // fallthrough (`cmd_alias.rs::interp_cmd`) — the child
-                // command object (`NRChildCmd`, tclInterp.c) advertises a
-                // *shorter* list than `interp` does (no `children`,
-                // `create`, `delete`, or `exists`: those are only ever
-                // spelled `interp <op> path`, never `$child <op>`), but the
-                // shape is the same tclsh `bad option` error, not a
-                // runtime-specific message (issue #1412 item 7).
                 let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(other);
-                m.extend_from_slice(
-                    b"\": must be alias, aliases, bgerror, debug, eval, expose, \
-                      hide, hidden, issafe, invokehidden, limit, marktrusted, \
-                      or recursionlimit",
-                );
+                m.extend_from_slice(b"\": must be ");
+                m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
+                    Self::CHILD_OPTIONS,
+                ));
                 self.error(&m)
             }
         }
