@@ -15,10 +15,12 @@ rename/alias layer ([`rename-alias.md`](rename-alias.md)):
   for interpreted procs.
 - ``info level`` / ``info script``.
 
-Reference Tcl 9 sources: ``tmp/tcl9.0.3/generic/tclInterp.c``
-(``HiddenObjCmd``, ``ExposeObjCmd``, ``Tcl_HideCommand``),
-``tmp/tcl9.0.3/generic/tclNamesp.c`` (``Tcl_NamespaceWhichObjCmd``,
-``Tcl_GetCommandFullName``), and ``tmp/tcl9.0.3/generic/tclCmdIL.c``
+Reference Tcl 9 sources: ``tmp/tcl9.0.4/generic/tclBasic.c``
+(``Tcl_HideCommand`` ``:2270``, ``Tcl_ExposeCommand`` ``:2439`` — both
+live here, not in ``tclInterp.c``, which holds only the ``ChildHide`` /
+``ChildExpose`` / ``ChildInvokeHidden`` argument wrappers),
+``tmp/tcl9.0.4/generic/tclNamesp.c`` (``Tcl_NamespaceWhichObjCmd``,
+``Tcl_GetCommandFullName``), and ``tmp/tcl9.0.4/generic/tclCmdIL.c``
 (``InfoCommandsCmd``, ``InfoProcsCmd``, ``InfoDefaultCmd``).
 
 ## 1. Scope
@@ -69,25 +71,41 @@ the hidden table, and command resolution never probes it.
 The per-interpreter placement, and the path-addressing that follows
 from it, are described in [`child-interp.md`](child-interp.md) §5.
 
-The internal API is four methods on `Interp`:
+The internal API is five methods on `Interp`:
 
 | Method | Purpose |
 |---|---|
-| ``hide_command(name) -> bool`` | Move a command from the table into `hidden`; false if it did not resolve. |
-| ``expose_command(name) -> bool`` | The inverse; false if it was not hidden. |
+| ``hide_command(name, hidden_name) -> CommandVisibilityOutcome`` | Move `name` out of the command table into `hidden` under `hidden_name`. |
+| ``expose_command(hidden_name, name) -> CommandVisibilityOutcome`` | The inverse: `hidden_name` leaves `hidden` and is registered as `name`. |
+| ``finish_command_visibility(op, source, destination, outcome)`` | Turn either outcome into Tcl's message + ``-errorcode``. |
 | ``invoke_hidden(name, argv) -> Code`` | Dispatch a hidden command. |
 | ``hidden_names() -> Vec<Vec<u8>>`` | The sorted listing. |
+
+Neither move reports a bare success flag: `CommandVisibilityOutcome` is
+`Moved` / `Missing` / `NonGlobal` / `Collision`, and
+`finish_command_visibility` is the single seam that words each one, so
+the `interp hide|expose path …` form and the `$child hide|expose …`
+shorthand cannot drift apart.
 
 ### 2.2 `interp hide` semantics
 
 `cmd_alias.rs`'s `interp_hidectl` drives both directions. Before the
 move it enforces the structural rules and the permission check:
 
-| Condition | Message |
-|---|---|
-| the executing interp is safe | `permission denied: safe interpreter cannot hide commands` |
-| the hidden token contains `::` | `cannot use namespace qualifiers in hidden command token (rename)` |
-| the source command is not in the global namespace | `can only hide global namespace commands (use rename then hide)` |
+| Condition | Message | `-errorcode` |
+|---|---|---|
+| the executing interp is safe | `permission denied: safe interpreter cannot hide commands` | — |
+| the hidden token contains `::` | `cannot use namespace qualifiers in hidden command token (rename)` | `TCL VALUE HIDDENTOKEN` |
+| the source command does not resolve | `unknown command "X"` | `TCL LOOKUP COMMAND X` |
+| the source command is not in the global namespace | `can only hide global namespace commands (use rename then hide)` | `TCL HIDE NON_GLOBAL` |
+| the token is already hidden | `hidden command named "X" already exists` | `TCL HIDE ALREADY_HIDDEN` |
+
+Those rows are in C's order, and the order is observable when more than
+one applies: `Tcl_HideCommand` tests the token's qualifiers, then
+resolves the source, then rejects a non-global source, then refuses an
+occupied token. So `interp hide kid ns::nosuch tok` is `unknown command
+"ns::nosuch"` (not the non-global error), and `interp hide kid nosuch
+takentok` is `unknown command "nosuch"` (not the collision error).
 
 The move itself is `hide_command`: resolve the name at the global
 namespace, delete the binding, and insert the `Command` handle into
@@ -103,18 +121,31 @@ does not resolve still reports the interpreter-path error.
 
 ### 2.3 `interp expose` semantics
 
-The inverse, with the mirrored checks:
+The inverse — but *not* a mirror image, because C's checks differ:
 
-| Condition | Message |
-|---|---|
-| the executing interp is safe | `permission denied: safe interpreter cannot expose commands` |
-| the hidden name contains `::` | `cannot use namespace qualifiers in hidden command token (rename)` |
-| the destination is not in the global namespace | `cannot expose to a namespace (use expose to toplevel, then rename)` |
+| Condition | Message | `-errorcode` |
+|---|---|---|
+| the executing interp is safe | `permission denied: safe interpreter cannot expose commands` | — |
+| the destination name contains `::` | `cannot expose to a namespace (use expose to toplevel, then rename)` | `TCL EXPOSE NON_GLOBAL` |
+| the token is not hidden | `unknown hidden command "X"` | `TCL LOOKUP HIDDENTOKEN X` |
+| the destination is already bound | `exposed command "X" already exists` | `TCL EXPOSE COMMAND_EXISTS` |
+
+Again the order is C's and is observable. Two asymmetries against §2.2
+are worth stating because they look like bugs and are not:
+
+- `Tcl_ExposeCommand` has **no** token-qualifier check. A qualified
+  *token* is simply a token that is not in the hidden table, so
+  `interp expose kid ::tok plain` is `unknown hidden command "::tok"`.
+- Its destination test is a raw "contains `::`", so a **leading** `::`
+  fails it too: `interp expose kid tok ::plain` is
+  `cannot expose to a namespace …`. Hide's source test is the opposite —
+  a leading `::`, or any run of colons, is fine there, because that
+  lookup is global-anchored anyway.
 
 `expose_command` removes the entry from `hidden` and re-`register`s it
 in the command table under the exposed name. Exposing a command that is
-not hidden is a silent no-op, and — unlike C — an occupied destination
-is not refused; the `register` overwrites it.
+not hidden raises, and an occupied destination is refused rather than
+overwritten.
 
 ### 2.4 `interp hidden`
 
@@ -133,13 +164,28 @@ raises ``invalid hidden command name "X"``; a safe executing
 interpreter is refused with ``not allowed to invoke hidden commands
 from safe interpreter``.
 
-**The option flags are skipped, not honoured.** The parser walks past
-`-global`, `-namespace ns`, and any other leading `-…` word purely to
-find the command word, so the hidden command always runs in the target
-interpreter's current context. C's `-namespace ns` evaluation context
-and its
-``cannot use -global option and -namespace option together`` rejection
-are not implemented.
+The option flags are honoured. `-global` and `-namespace ns` set the
+addressed interpreter's current namespace for the duration of that one
+call (saved and restored around it), `--` ends the option list, and any
+other leading `-…` word is a hard ``bad option "-x": must be -global,
+-namespace, or --`` rather than a silent skip. `-namespace`'s namespace
+is resolved from the **global** namespace whatever the caller's current
+one is, and is created if unknown — C's ``TCL_GLOBAL_ONLY |
+TCL_CREATE_NS_IF_UNKNOWN`` (tclsh-pinned: `-namespace bar` from inside
+`::foo` still names `::bar`).
+
+Two clarifications, both measured on 8.6.16 and 9.0.4:
+
+- **There is no `cannot use -global option and -namespace option
+  together` error.** Earlier revisions of this document, and issue
+  #1412's own item 5, asserted C rejects the pair; it does not, on
+  either release. `-global` is simply spelled `-namespace ::`
+  internally, so the **last** option given wins:
+  `-global -namespace foo` lands in `::foo`, and
+  `-namespace foo -global` lands in `::`.
+- Option matching here is exact, where C's `Tcl_GetIndexFromObj`
+  accepts unambiguous abbreviations (`-g`, `-n`). That gap is part of
+  the wider option-prefix sweep (#1607), not of this surface.
 
 ## 3. `info commands` / `info procs`
 
@@ -334,23 +380,26 @@ namespace-path resolver, not the introspection surface described here.
 
 ### 8.3 Divergences in the hidden-command surface
 
-Three behaviours differ from C Tcl and are stated here rather than in
-the sections above so they are findable as a set:
+One behavioural gap remains, and it is shared with the rest of the
+`interp` ensemble rather than special to this surface: option words are
+matched **exactly**, where C accepts any unambiguous abbreviation
+(`interp invokehidden {} -g …`, `interp hid …`) and answers the empty
+option word with `ambiguous option ""`. Converting the ensemble's
+hand-spelled option lists to the shared prefix matcher is issue #1607;
+until it lands, only the full spellings are accepted.
 
-- Hiding a non-existent command, exposing a non-hidden one, or
-  addressing a child path that does not resolve is a silent no-op
-  instead of an error.
-- `interp expose` does not refuse an occupied destination; it
-  overwrites the binding.
-- `interp invokehidden`'s `-global` / `-namespace ns` flags are parsed
-  and discarded rather than establishing an evaluation context.
+The three divergences this section used to list — silent hide/expose
+misses, an overwriting `expose` destination, and `invokehidden` flags
+parsed and discarded — are fixed, on both the `interp <op> path` form
+and the `$child <op>` shorthand. §2.2, §2.3 and §2.5 describe what the
+runtime now does.
 
 ## 9. Implementation map
 
 | Piece | Where |
 |---|---|
 | The `hidden` table and `hide_command` / `expose_command` / `invoke_hidden` / `hidden_names` | `runtime/rust/src/interp.rs` |
-| `interp hide` / `expose` / `hidden` / `invokehidden` argument handling and permission checks | `runtime/rust/src/cmd_alias.rs` |
+| `interp hide` / `expose` / `hidden` / `invokehidden` / `target` argument handling and permission checks, and the `hidectl_in` / `invokehidden_in` owners the `$child` shorthand shares | `runtime/rust/src/cmd_alias.rs` |
 | The `info` ensemble's adapters | `runtime/rust/src/cmd_info.rs` |
 | The listing / `info level` / `info body` / `args` / `default` cores | `rust/tcl-cmd-core/src/info.rs` |
 | `namespace which` / `current` and the ensemble's prefix resolution | `runtime/rust/src/cmd_namespace.rs` |

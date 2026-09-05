@@ -8,11 +8,13 @@ table, children registry — plus `interp create` / `eval` / `exists` /
 [`rename-alias.md`](rename-alias.md), and
 [`command-introspection.md`](command-introspection.md).
 
-Reference Tcl 9 sources: `tmp/tcl9.0.3/generic/tclInterp.c`
-(`ChildCreate`, `ChildEval`, `InterpObjCmd` dispatch,
-`OPT_{CREATE,EVAL,EXISTS,SLAVES,DELETE}` branches) and
-`tmp/tcl9.0.3/generic/tclBasic.c` (`Tcl_CreateInterp` /
-`DeleteInterp`).
+Reference Tcl 9 sources: `tmp/tcl9.0.4/generic/tclInterp.c`
+(`NRInterpCmd` dispatch and its `options[]` / `optionsNoSlaves[]`
+tables, `NRChildCmd` and its own shorter `options[]`, `ChildCreate`,
+`ChildEval`, `ChildHide`, `ChildExpose`, `ChildInvokeHidden`) and
+`tmp/tcl9.0.4/generic/tclBasic.c` (`Tcl_CreateInterp` / `DeleteInterp`,
+and `Tcl_HideCommand` / `Tcl_ExposeCommand`, which are here rather than
+in `tclInterp.c`).
 
 ## 1. Scope
 
@@ -35,6 +37,8 @@ In:
 - `interp recursionlimit path ?newlimit?`, `interp limit path
   limitType ?-option value …?`, `interp bgerror path ?cmdPrefix?`,
   and `interp debug path ?-frame ?bool??`.
+- `interp target path alias` — the interpreter path an alias
+  resolves its target in ([`rename-alias.md`](rename-alias.md) §4.3).
 - Child-as-command dispatch: `<child> eval script` resolves
   through `Command::ChildInterp` and routes into the child.
 - Per-interp `InterpState` carrying the namespace tree, frame
@@ -43,28 +47,38 @@ In:
   covered in [`rename-alias.md`](rename-alias.md) §4.5.
 - Conservative compiler-side command-binding distrust when registry-declared
   interpreter or command-table transitions cannot be bounded.
-- tclsh-style error wording for the ensemble: `bad option "X": must be
-  alias, aliases, bgerror, cancel, children, create, debug,
-  delete, eval, exists, expose, hide, hidden, issafe,
-  invokehidden, limit, marktrusted, recursionlimit, share,
-  target, or transfer`; `bad option "-X": must be -safe or --`
-  for `interp create`.
+- tclsh-style error wording, from two separate lists — as in C, where
+  `NRInterpCmd` and `NRChildCmd` carry their own `options[]`.  For the
+  ensemble: `bad option "X": must be alias, aliases, bgerror,
+  children, create, debug, delete, eval, exists, expose, hide,
+  hidden, issafe, invokehidden, limit, marktrusted,
+  recursionlimit, or target`.  For the `$child` shorthand, C's
+  shorter list verbatim: `bad option "X": must be alias, aliases,
+  bgerror, debug, eval, expose, hide, hidden, issafe,
+  invokehidden, limit, marktrusted, or recursionlimit` — no
+  `children`, `create`, `delete` or `exists`, which are only ever
+  spelled `interp <op> path`.  `bad option "-X": must be -safe or
+  --` for `interp create`.
+
+  The ensemble list is a deliberate **subset** of tclsh's: it drops
+  `cancel`, `share` and `transfer` because this runtime does not
+  implement them, on the view that advertising a subcommand that then
+  fails with the wrong error is the worse lie (issue #1412 item 3).
+  8.6's `slaves` is likewise never advertised, matching 9.0.4's
+  `optionsNoSlaves[]` output; the spelling still dispatches.
 
 Known gaps:
 
-- `interp target`, `interp share`, `interp transfer`, and
-  `interp cancel` are not implemented.  They appear in the
-  `bad option` list (which is the verbatim tclsh wording) but have
-  no dispatch arm, so invoking one reports `bad option` naming a
-  subcommand the same message lists as valid.
+- `interp share`, `interp transfer` and `interp cancel` are not
+  implemented, and — unlike `interp target`, which is — are not
+  advertised either.  `share` / `transfer` need a channel table shared
+  between interpreters; `cancel` needs a cancellation flag the eval
+  loop polls (C's `Tcl_CancelEval`).  Neither is in this runtime.
 - The Safe Base (`safe.tcl`) is not present.  `-safe` does the
   `Tcl_MakeSafe` half of the job (§6); what is missing is the Tcl-level
   access-path virtualisation that re-aliases `source` / `load` / `file`
   / `glob` onto token-mapped parent commands, so a safe child cannot
   load packages the way a real safe interpreter can.
-- `$child <sub>` for a subcommand with no arm reports
-  `interp subcommand "X" is not supported in this runtime` rather than
-  the tclsh `bad option` list that the `interp <sub>` path emits.
 - Querying a child alias (`interp alias childPath name`) reports
   `querying a child alias is not yet supported`.
 - Cross-interp aliases only run child→parent.  A non-empty *target*
@@ -168,20 +182,58 @@ The hidden table is a field of `InterpState`, so `hide` / `expose` /
 `hidden` / `invokehidden` naturally address whichever interpreter the
 path resolved to — there is no interpreter argument to thread through.
 
-- `hide_command(name)` resolves `name` at the global namespace, removes
-  the binding, and moves the `Command` into `hidden`.
-- `expose_command(name)` is the inverse: remove from `hidden`,
-  re-`register` in the command table.
+- `hide_command(name, hidden_name) -> CommandVisibilityOutcome`
+  resolves `name` at the global namespace and moves the `Command` into
+  `hidden` under `hidden_name`.
+- `expose_command(hidden_name, name) -> CommandVisibilityOutcome` is
+  the inverse: take `hidden_name` out of `hidden` and `register` it in
+  the command table as `name`.
+- `finish_command_visibility(op, source, destination, outcome)` is the
+  one seam that turns either outcome into Tcl's public diagnostic, so
+  the ensemble form and the `$child` shorthand cannot drift apart in
+  message or `-errorcode`.
 - `invoke_hidden(name, argv)` clones the handle out of `hidden` and
   `invoke`s it, or raises `invalid hidden command name "X"`.
 - `hidden_names()` lists the table (a `BTreeMap`, so the listing is
   sorted and deterministic).
 
-Two structural restrictions are enforced at the command layer, matching
-C: the hidden-command token may not carry namespace qualifiers
-(`cannot use namespace qualifiers in hidden command token (rename)`),
-and only global-namespace commands may be hidden
-(`can only hide global namespace commands (use rename then hide)`).
+Neither move is a silent no-op; each failure is a real Tcl error with
+C's message and errorcode:
+
+| Failure | Message | `-errorcode` |
+|---|---|---|
+| hide, token carries `::` | `cannot use namespace qualifiers in hidden command token (rename)` | `TCL VALUE HIDDENTOKEN` |
+| hide, source does not resolve | `unknown command "X"` | `TCL LOOKUP COMMAND X` |
+| hide, source is not global | `can only hide global namespace commands (use rename then hide)` | `TCL HIDE NON_GLOBAL` |
+| hide, token already hidden | `hidden command named "X" already exists` | `TCL HIDE ALREADY_HIDDEN` |
+| expose, destination contains `::` | `cannot expose to a namespace (use expose to toplevel, then rename)` | `TCL EXPOSE NON_GLOBAL` |
+| expose, token not hidden | `unknown hidden command "X"` | `TCL LOOKUP HIDDENTOKEN X` |
+| expose, destination occupied | `exposed command "X" already exists` | `TCL EXPOSE COMMAND_EXISTS` |
+
+The order of those checks is C's and is observable, because more than
+one can apply at once.  `Tcl_HideCommand` checks the token's qualifiers,
+*then* resolves the source, *then* rejects a non-global source, *then*
+refuses an occupied token; `Tcl_ExposeCommand` checks the destination
+for `::` first, *then* looks the token up, *then* refuses an occupied
+destination.  Two consequences worth stating: expose has **no**
+token-qualifier check at all, so `interp expose kid ::tok plain` is
+`unknown hidden command "::tok"`, not a token error; and expose's
+destination test is a raw "contains `::`", so a *leading* `::` fails it
+too (`interp expose kid tok ::plain`).  Hide's source test is the
+opposite — a leading `::` (or any run of colons) is fine, since the
+lookup is global-anchored anyway.
+
+`interp invokehidden` and `$child invokehidden` take `-global`,
+`-namespace ns` and `--` before the command word, and evaluate the
+hidden command with the interpreter's current namespace switched for
+the duration of that one call (`set_current_ns`, saved and restored).
+`-namespace`'s namespace is resolved from the **global** namespace
+whatever the caller's current one is, and created if unknown — C's
+`TCL_GLOBAL_ONLY | TCL_CREATE_NS_IF_UNKNOWN` — so `-namespace bar` from
+inside `::foo` names `::bar`.  Passing both `-global` and `-namespace`
+is legal and the **last one wins**; C has no mutual-exclusion error
+here.  An unrecognised flag is a hard `bad option "-x": must be
+-global, -namespace, or --`.
 
 The permission checks are on the **executing** interpreter, not the
 target: a safe interpreter may not hide, expose, or invoke hidden
@@ -332,7 +384,8 @@ through the `catch` fallback.
 | Piece | Where |
 |---|---|
 | `InterpState`'s child fields, `with_child` / `with_child_path`, `create_child` / `delete_child` / `eval_in_child`, `make_safe`, the hidden-table ops, `dispatch_child`, `dispatch_parent_alias` | `runtime/rust/src/interp.rs` |
-| The `interp` ensemble's argument handling — `interp_create`, `interp_delete`, `interp_alias`, `interp_aliases`, `interp_hidectl`, `interp_invokehidden`, `interp_limit`, `interp_marktrusted`, `interp_debug`, `interp_path`, `not_found_path` | `runtime/rust/src/cmd_alias.rs` |
+| The `interp` ensemble's argument handling — `interp_create`, `interp_delete`, `interp_alias`, `interp_aliases`, `interp_hidectl`, `interp_invokehidden`, `interp_limit`, `interp_marktrusted`, `interp_debug`, `interp_target`, `interp_path`, `not_found_path` | `runtime/rust/src/cmd_alias.rs` |
+| `alias_target_path` (backing `interp target`) | `runtime/rust/src/interp.rs` |
 | `Command::ChildInterp` / `Command::ParentAlias` | `runtime/rust/src/interp.rs` |
 | Per-interp namespace arena (`Namespaces`) | `runtime/rust/src/namespace.rs` |
 | Compiler-side command-binding proof (`scan_module_command_mutations`, `trusts`, `trusts_proc_binding`) | `rust/tcl-compiler/src/command_binding.rs` |
@@ -348,8 +401,8 @@ architectures:
   as the re-entrancy guard and child→parent aliases (§6). `interp
   create`/`eval`/`delete`/`exists`/`children`/`issafe`/`marktrusted`/`hide`/
   `expose`/`hidden`/`invokehidden`/`recursionlimit`/`limit`/`bgerror`/`debug`
-  are implemented; the Safe Base and `interp target`/`share`/`transfer`/
-  `cancel` are the gaps listed in §1.
+  are implemented, as is `interp target`; the Safe Base and `interp
+  share`/`transfer`/`cancel` are the gaps listed in §1.
 
 - **`tcl-vm`** (bytecode VM) is an engine (`Vm`) driving a tree of
   interpreters in one arena: each interpreter's state (`InterpState`) lives
