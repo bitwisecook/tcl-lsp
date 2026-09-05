@@ -46,15 +46,23 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let word = obj_bytes(argv[1]);
     // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
     // prefix, so `dict k` is `dict keys` (this matched exactly before #1607).
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(DICT_SUBS, &word, true) else {
+    // `getdef`/`getwithdefault` are Tcl 9 (TIP 342), so the table is the
+    // emulated release's: under an 8.6 pin they must neither resolve nor make
+    // `dict g` — a word that has nothing to do with them — ambiguous.
+    let subs = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "dict",
+        DICT_SUBS,
+    );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &word, true) else {
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            DICT_SUBS,
+            &subs,
             &word,
             true,
             b"::tcl::dict",
         ));
     };
-    let sub = DICT_SUBS[index];
+    let sub = subs[index];
     // Pure dict subcommands now live in the shared command core; the runtime is
     // a thin adapter. Variable-mutating subcommands fall through to the legacy
     // match below.

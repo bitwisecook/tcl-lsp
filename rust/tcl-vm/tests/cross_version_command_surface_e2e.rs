@@ -590,8 +590,8 @@ fn version_mutation_rechecks_an_existing_imports_source_identity() {
     );
     let probe = vm
         .eval_source(
-            "catch {namespace eval imported {set cmd [string cat imported_ lass ign]; $cmd {a b} x}} imported; \\
-             catch {set cmd [string cat es caped]; $cmd {a b} x} escaped; \\
+            "catch {namespace eval imported {set cmd imported_; append cmd lass ign; $cmd {a b} x}} imported; \\
+             catch {set cmd es; append cmd caped; $cmd {a b} x} escaped; \\
              list $imported $escaped\n",
         )
         .expect("8.4 probe compiles");
@@ -1126,7 +1126,11 @@ fn empty_rename_destination_deletes_commands_across_indirections() {
         "rename ::imported::imported {}\n",
         "puts \"owned=[info commands owned] alias=[info commands alias] target=[info commands set] imported=[info commands ::imported::imported] source=[info commands ::source::imported]\"\n",
         "rename lassign {}\n",
-        "set builtin [string cat las sign]\n",
+        // `append`, not `string cat`: the name is still built at runtime (so
+        // the call cannot be folded), but `string cat` is 8.6+ and this vector
+        // runs from 8.5.
+        "set builtin las\n",
+        "append builtin sign\n",
         "puts \"builtin=[catch {$builtin {a b} x} message];$message\"\n",
     );
     let want = concat!(

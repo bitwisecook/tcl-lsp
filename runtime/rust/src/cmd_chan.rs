@@ -163,7 +163,13 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"chan subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
-    let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
+    // `isbinary` is Tcl 9 and `pipe`/`pop`/`push` 8.6, so the table follows the
+    // emulated release rather than pinning 9.0's for every pin.
+    let names = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "chan",
+        SUBS,
+    );
     let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&names, &sub, true) else {
         // The whole sentence, not just its enumeration, is the owner's.
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
@@ -176,7 +182,7 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `argv[1..]` is `subcommand args…`; each target reads its arguments from
     // `argv[1..]` and uses `argv[0]` (the subcommand word) only for error text.
     let rest = &argv[1..];
-    match SUBS[idx] {
+    match names[idx] {
         b"blocked" => fblocked_cmd(interp, rest),
         b"close" => close_cmd(interp, rest),
         b"configure" => fconfigure_cmd(interp, rest),

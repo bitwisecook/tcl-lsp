@@ -125,20 +125,26 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
     // its `trimleft`/`trimright` prefixes via the exact-match rule.
     let sub = obj_bytes(argv[1]);
-    let canonical: &[u8] =
-        match tcl_cmd_core::ensemble::resolve_subcommand(STRING_SUBCOMMANDS, &sub, true) {
-            Some(index) => STRING_SUBCOMMANDS[index],
-            // The whole sentence — including the ensemble's comma before `or` —
-            // belongs to the owner, not to a literal beside the table.
-            None => {
-                return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                    STRING_SUBCOMMANDS,
-                    &sub,
-                    true,
-                    b"::tcl::string",
-                ));
-            }
-        };
+    // `insert` arrives in Tcl 9, so under an earlier pin it must not resolve
+    // and must not make `string in` ambiguous with `index`.
+    let subs = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "string",
+        STRING_SUBCOMMANDS,
+    );
+    let canonical: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(&subs, &sub, true) {
+        Some(index) => subs[index],
+        // The whole sentence — including the ensemble's comma before `or` —
+        // belongs to the owner, not to a literal beside the table.
+        None => {
+            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                &subs,
+                &sub,
+                true,
+                b"::tcl::string",
+            ));
+        }
+    };
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`),
     // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.

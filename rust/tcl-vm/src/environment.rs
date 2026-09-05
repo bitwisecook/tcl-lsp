@@ -61,6 +61,7 @@
 
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 use tcl_registry::CommandRegistry;
 
 /// Resolve a dialect **name** to the profile this VM pins.
@@ -118,4 +119,46 @@ pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'s
 /// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 pub(crate) fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {
     tcl_registry::model::static_document_context_for(name).authoring_query()
+}
+
+/// The subset of an engine ensemble `table` the emulated release actually
+/// has, in the table's own order.
+///
+/// A `TclMakeEnsemble` table is a *release* fact: `dict getwithdefault`,
+/// `array for`, `file tempdir` and `info cmdtype` arrive in Tcl 9, and a
+/// handler that resolves against one release's table under every pin gets
+/// two things wrong at once — it dispatches a subcommand the pinned release
+/// never had, and, worse, a 9-only name silently changes an 8.x prefix
+/// verdict for a name that has nothing to do with it (`dict g` is `get` on
+/// 8.6 and ambiguous on 9.0). The names and their gates belong to the
+/// registry, so this filters the engine's table through the selected
+/// release's surface rather than duplicating the release facts here.
+///
+/// Only *removal* happens: a name the registry does not model (an engine
+/// extra) is kept, so a table stays the engine's own list of what it
+/// dispatches and its enumeration order.
+pub(crate) fn release_subcommands<'a>(
+    dialect_name: &str,
+    command: &str,
+    table: &[&'a str],
+) -> Vec<&'a str> {
+    let profile = profile_for_dialect(dialect_name);
+    let point = surface_point(profile);
+    let Some(spec) = store_for_profile(profile).get(command) else {
+        return table.to_vec();
+    };
+    table
+        .iter()
+        .copied()
+        .filter(|name| {
+            spec.subcommands
+                .iter()
+                .find(|sub| sub.name == *name)
+                .is_none_or(|sub| {
+                    sub.surface
+                        .or(spec.surface)
+                        .is_none_or(|gate| surface_admits(gate, Some(&point)))
+                })
+        })
+        .collect()
 }

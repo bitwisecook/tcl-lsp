@@ -87,6 +87,12 @@ fn path_str(bytes: &[u8]) -> Completion<Value> {
 /// full Tcl 9 table, so ambiguity matches C even for subcommands the VM does
 /// not yet implement (those resolve, then fall through to the
 /// unknown-subcommand arm).
+///
+/// It is filtered to the emulated release before use
+/// ([`crate::environment::release_subcommands`]): `home`, `tempdir` and
+/// `tildeexpand` are Tcl 9 additions, and under an 8.6 pin they must neither
+/// resolve nor take part in the prefix scan — `file te` is a unique prefix of
+/// `tempfile` on 8.6.16 and ambiguous on 9.0.4.
 const FILE_SUBS: &[&str] = &[
     "atime",
     "attributes",
@@ -131,13 +137,12 @@ const FILE_SUBS: &[&str] = &[
 /// message would name (`TclMakeEnsemble`, `tclFileName.c`).
 const FILE_NS: &[u8] = b"::tcl::file";
 
-/// Resolve a `file` subcommand word to its canonical Tcl 9 name through the
-/// shared ensemble owner: exact match wins, else a unique prefix — so
-/// `file ext` resolves to `extension` (cmdAH.test). `None` ⇒ no match or
-/// ambiguous.
-fn canonical_file_sub(sub: &str) -> Option<&'static str> {
-    tcl_cmd_core::ensemble::resolve_subcommand(FILE_SUBS, sub.as_bytes(), true)
-        .map(|index| FILE_SUBS[index])
+/// Resolve a `file` subcommand word to its canonical name through the shared
+/// ensemble owner: exact match wins, else a unique prefix — so `file ext`
+/// resolves to `extension` (cmdAH.test). `subs` is the emulated release's
+/// table ([`file_subcommands`]). `None` ⇒ no match or ambiguous.
+fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
+    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_bytes(), true).map(|index| subs[index])
 }
 
 /// The platform-independent path-text subcommands of `file` (no filesystem
@@ -205,9 +210,24 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let s = |v: &Value| v.to_str().to_string();
     let sub_str = sub.to_str();
-    let canon: &str = match canonical_file_sub(&sub_str) {
-        Some(c) => c,
-        None => &sub_str,
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "file",
+        FILE_SUBS,
+    );
+    // A miss reports here rather than falling through with the raw word: the
+    // arms below match on the canonical name, so a word the *pinned release*
+    // does not have would otherwise still dispatch.
+    let Some(canon) = canonical_file_sub(&subs, &sub_str) else {
+        return err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                &subs,
+                sub_str.as_bytes(),
+                true,
+                FILE_NS,
+            ))
+            .into_owned(),
+        );
     };
     // Pure path-text subcommands (no filesystem access) are handled first; the
     // rest fall through to the filesystem-backed ops below.
@@ -276,7 +296,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // resolved to a subcommand this engine does not implement.
         other => err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                FILE_SUBS,
+                &subs,
                 other.as_bytes(),
                 true,
                 FILE_NS,

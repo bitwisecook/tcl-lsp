@@ -79,11 +79,19 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let word = sub.to_str();
     // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
     // prefix, so `dict k` is `dict keys`.
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(DICT_SUBS, word.as_bytes(), true)
+    // `getdef`/`getwithdefault` are Tcl 9 (TIP 342): under an 8.6 pin they
+    // must not resolve, and — the reason this matters for words that have
+    // nothing to do with them — must not make `dict g` ambiguous either.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "dict",
+        DICT_SUBS,
+    );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, word.as_bytes(), true)
     else {
         return err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                DICT_SUBS,
+                &subs,
                 word.as_bytes(),
                 true,
                 b"::tcl::dict",
@@ -91,7 +99,7 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .into_owned(),
         );
     };
-    dict_op(vm, DICT_SUBS[index], rest)
+    dict_op(vm, subs[index], rest)
 }
 
 /// The dict's **canonical** ordered `(key-string, value)` pairs, from the one

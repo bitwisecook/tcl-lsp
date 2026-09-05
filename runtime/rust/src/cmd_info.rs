@@ -74,10 +74,27 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"vars",
     ];
     let raw = obj_bytes(argv[1]);
-    let sub: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(SUBS, &raw, true) {
-        Some(index) => SUBS[index],
-        None => &raw, // 0 matches or ambiguous → the error arm
+    // The table is a release fact: `cmdtype`/`constant`/`consts` are Tcl 9,
+    // `class`/`coroutine`/`errorstack`/`object` 8.6, `frame` 8.5. Filtered to
+    // the emulated release, `info cm` is `cmdcount` on 8.6 and ambiguous with
+    // `cmdtype` on 9.0, exactly as tclsh has it.
+    let subs = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "info",
+        SUBS,
+    );
+    // A miss reports here rather than falling through with the raw word: the
+    // arms below match on the canonical name, so a word the *pinned release*
+    // does not have (`info cmdtype` under 8.6) would otherwise still dispatch.
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &raw, true) else {
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            &subs,
+            &raw,
+            true,
+            b"::tcl::info",
+        ));
     };
+    let sub: &[u8] = subs[index];
     match sub {
         b"exists" => info_exists(interp, argv),
         // commands/procs route through the shared namespace-aware core (over the

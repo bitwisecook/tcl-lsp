@@ -60,11 +60,18 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let word = sub.to_str();
     // `array` is a `TclMakeEnsemble` command: exact match, else a unique
     // prefix, so `array e a` is `array exists a`.
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(ARRAY_SUBS, word.as_bytes(), true)
+    // `for` is Tcl 9 (as is `default`, which this engine does not dispatch),
+    // so under an earlier pin it must neither run nor claim the prefix `f`.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "array",
+        ARRAY_SUBS,
+    );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, word.as_bytes(), true)
     else {
         return err(
             String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                ARRAY_SUBS,
+                &subs,
                 word.as_bytes(),
                 true,
                 b"::tcl::array",
@@ -72,7 +79,7 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .into_owned(),
         );
     };
-    array_op(vm, ARRAY_SUBS[index], rest)
+    array_op(vm, subs[index], rest)
 }
 
 fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
