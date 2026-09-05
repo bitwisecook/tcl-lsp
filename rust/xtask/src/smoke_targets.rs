@@ -990,7 +990,7 @@ fn collect_source_smoke_tests_at(
         .with_context(|| format!("reading Rust module {}", source.display()))?;
     let parsed = syn::parse_file(&text)
         .with_context(|| format!("parsing Rust module {}", source.display()))?;
-    let (markers, source_includes) = source_smoke_contract(&text)
+    let (markers, source_includes) = source_smoke_contract(source, &text)
         .with_context(|| format!("checking smoke markers in {}", source.display()))?;
     if markers.target {
         found.insert(source.to_path_buf());
@@ -1164,19 +1164,26 @@ fn source_include_macros(text: &str) -> Result<SourceIncludes> {
     Ok(includes)
 }
 
-fn source_smoke_contract(text: &str) -> Result<(SmokeMarkers, SourceIncludes)> {
+fn source_smoke_contract(source: &Path, text: &str) -> Result<(SmokeMarkers, SourceIncludes)> {
     let markers = source_smoke_markers(text)?;
     let includes = source_include_macros(text)?;
-    if markers.no_smoke_include && includes.non_literal_count != 1 {
+    let parent = source
+        .parent()
+        .with_context(|| format!("Rust source has no parent: {}", source.display()))?;
+    let missing_literal_count = includes
+        .literal_paths
+        .iter()
+        .filter(|path| !lexically_normalise(&parent.join(path)).is_file())
+        .count();
+    let unresolved_count = includes.non_literal_count + missing_literal_count;
+    if markers.no_smoke_include && unresolved_count != 1 {
         bail!(
-            "a no-smoke-include marker must classify exactly one non-literal include! invocation; found {}",
-            includes.non_literal_count
+            "a no-smoke-include marker must classify exactly one unresolved include! invocation; found {unresolved_count}"
         );
     }
-    if includes.non_literal_count > 0 && !markers.target && !markers.no_smoke_include {
+    if unresolved_count > 0 && !markers.target && !markers.no_smoke_include {
         bail!(
-            "{} non-literal include! invocation(s) require an exact standalone '// tcl-lsp-smoke-target' or '// tcl-lsp-no-smoke-include' comment",
-            includes.non_literal_count
+            "{unresolved_count} unresolved include! invocation(s) require an exact standalone '// tcl-lsp-smoke-target' or '// tcl-lsp-no-smoke-include' comment"
         );
     }
     Ok((markers, includes))
@@ -1248,7 +1255,7 @@ fn scan_smoke_sources(root: &Path, targets: &[Target]) -> Result<SmokeInventory>
     for relative in tracked_rust_sources(root)? {
         let source = root.join(&relative);
         let text = fs::read_to_string(&source).with_context(|| format!("reading {relative}"))?;
-        if source_smoke_contract(&text)
+        if source_smoke_contract(&source, &text)
             .with_context(|| format!("checking {relative}"))?
             .0
             .target
@@ -1831,7 +1838,6 @@ fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Co
             command.env_remove(name);
         }
     }
-    command.env_remove("CARGO_MANIFEST_LINKS");
     command
         .current_dir(context.package_root)
         .envs(context.package_environment)
@@ -2286,7 +2292,7 @@ host_only = []
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert!(std::env::var_os(\"CARGO_MANIFEST_LINKS\").is_none()); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r-\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r-\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
@@ -2434,7 +2440,7 @@ path = "src/main.rs"
     ("l/src/main.rs", "fn main() {}\n"),
     (
         "l/tests/smoke.rs",
-        "#[test]\nfn smoke_binary_path() { assert!(std::path::Path::new(&std::env::var(\"CARGO_BIN_EXE_helper-tool\").unwrap()).is_file()); }\n",
+        "#[test]\nfn smoke_binary_path() { assert!(std::path::Path::new(&std::env::var(\"CARGO_BIN_EXE_helper-tool\").unwrap()).is_file()); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); }\n",
     ),
     (
         "m/Cargo.toml",
@@ -2625,8 +2631,8 @@ fn verify_fixture_runtime_environment(
     let manifest_links = command
         .get_envs()
         .find_map(|(name, value)| (name == "CARGO_MANIFEST_LINKS").then_some(value));
-    if manifest_links != Some(None) {
-        bail!("absent package links environment self-test failed");
+    if manifest_links.is_some() {
+        bail!("inherited package links environment self-test failed");
     }
     Ok(linked_path_order)
 }
@@ -3265,7 +3271,8 @@ fn cargo_fixture_self_test_subprocess() -> Result<()> {
     let mut command = Command::new(env::current_exe().context("locating xtask executable")?);
     command
         .args(["smoke-targets", "fixture-self-test"])
-        .env("CARGO_HOME", cargo_home.root.join("cargo-home"));
+        .env("CARGO_HOME", cargo_home.root.join("cargo-home"))
+        .env("CARGO_MANIFEST_LINKS", "inherited");
     for (name, _) in env::vars_os() {
         let text = name.to_string_lossy();
         if text.starts_with("CARGO_BUILD_")
@@ -3434,8 +3441,39 @@ fn include_macro_scanner_self_test() -> Result<()> {
     )?;
     found.clear();
     collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut found)?;
-    if found != BTreeSet::from([source]) {
+    if found != BTreeSet::from([source.clone()]) {
         bail!("marked non-literal include source was not selected");
+    }
+    fixture.write("src/lib.rs", "include!(\"generated_tests.rs\");\n")?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("missing literal include without a smoke marker was accepted");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-no-smoke-include\ninclude!(\"generated_tests.rs\");\n",
+    )?;
+    found.clear();
+    collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut found)?;
+    if !found.is_empty() {
+        bail!("non-smoke missing literal include selected a smoke source");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-smoke-target\ninclude!(\"generated_tests.rs\");\n",
+    )?;
+    found.clear();
+    collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut found)?;
+    if found != BTreeSet::from([source.clone()]) {
+        bail!("marked missing literal include source was not selected");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-no-smoke-include\ninclude!(\"one.rs\");\ninclude!(\"two.rs\");\n",
+    )?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("one no-smoke marker classified multiple missing literal includes");
     }
     Ok(())
 }

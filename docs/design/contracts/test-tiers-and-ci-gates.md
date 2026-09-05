@@ -87,15 +87,17 @@ behind it.
    them; modules and further includes declared there resolve beside the
    included file, matching rustc. A test source filename is not a separate
    selection rule when the manifest explicitly gives its Cargo target another
-   name. Attribute macros and non-literal `include!` expressions that generate
-   a smoke test cannot be inferred from tracked Rust syntax; mark their
-   declaring source with an exact standalone `// tcl-lsp-smoke-target` line
-   comment. Every lexically present invocation is checked, including those in
+   name. Attribute macros and unresolved `include!` expressions that generate
+   a smoke test cannot be inferred from tracked Rust syntax; this includes
+   non-literal paths and literal files that do not exist until `build.rs` runs.
+   Mark their declaring source with an exact standalone
+   `// tcl-lsp-smoke-target` line comment. Every lexically present invocation
+   is checked, including those in
    macro bodies and expression or statement contexts. An outer declarative or
    procedural macro that constructs an `include!` invocation during expansion
    is arbitrary generated syntax, like an attribute-generated test, and its
    declaring source carries the smoke-target marker. A source with exactly one
-   non-literal include that is known to generate no tests may instead use
+   unresolved include that is known to generate no tests may instead use
    `// tcl-lsp-no-smoke-include`; adding a second invocation requires an
    explicit reclassification so one data include cannot mask generated tests.
    The checker tokenises Rust, so marker and include text inside strings or
@@ -113,7 +115,9 @@ behind it.
    only packages without that override receive reconstructed qualifying
    `rustc-link-search` paths. Those paths include normal, development, and
    build-only dependency closures because Cargo exposes build-dependency
-   search paths to a test harness even under resolver v2.
+   search paths to a test harness even under resolver v2. The harness also
+   preserves an inherited `CARGO_MANIFEST_LINKS`; an explicit value emitted by
+   the owning build script overrides it, matching Cargo.
 
 ## CI redundancy contract
 
