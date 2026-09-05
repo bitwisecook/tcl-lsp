@@ -385,6 +385,26 @@ the completion output. It retains outbound result and options before releasing
 its private completion, argv values, and frame. ABI constants and layout live
 in `tcl-runtime-api`; compiler and runtime do not maintain copies.
 
+### The shared function table
+
+Calls in the other direction — the runtime calling a function an emitted
+module defines — go through one wasm table the **runtime** owns.
+`runtime/rust/build.rs` links every wasm target with `--export-table` and
+`--growable-table`, so `tcl_runtime.wasm` publishes `wasm-ld`'s indirect
+function table as `__indirect_function_table` (the name
+`WASM32_FUNCTION_TABLE_IMPORT` owns) with no maximum. A module that wants the
+runtime to call one of its functions imports that table, `table.grow`s room
+for its own entries, `ref.func`s them into the new slots, and passes the slot
+index across the ABI — a wasm32 function pointer *is* such an index, so the
+runtime calls it with an ordinary indirect call.
+
+Two link-time failures are worth naming because their symptoms are far apart.
+A runtime linked without `--export-table` fails *instantiation* of any module
+that imports the table (`unknown import`), so a module imports it only when it
+actually installs an entry; one linked without `--growable-table` keeps
+`min == max` and `table.grow` answers `-1`, which the installing module must
+treat as a build error rather than proceeding with a bogus base.
+
 General lowering's generated values are `i32` pointers to owned
 `TclObj` values in shared linear memory. Compiled variables keep an indexed
 slot and their Tcl-visible named cell as two ports onto the same object, so

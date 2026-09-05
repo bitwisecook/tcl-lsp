@@ -41,6 +41,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use tcl_core_types::RecursionLimit;
+use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
@@ -213,6 +214,10 @@ pub(crate) struct CallMeta<'a> {
     /// `apply`/TclOO whose `usage_called`/`usage_prefix` is a pre-joined
     /// multi-word string (`apply lambdaExpr`, `obj method`) that must stay raw.
     pub quote_name: bool,
+    /// The compiled body to run instead of the source one, from
+    /// [`ProcDef::native`]. `None` for `apply` and every TclOO method: only a
+    /// `proc` definition can carry a compiled body.
+    pub native: Option<NativeProcEntry>,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -665,7 +670,56 @@ pub struct ProcDef {
     /// an eval-defined proc, or the defining file line minus one for one defined
     /// in a `source`d file (so its commands report file-absolute lines).
     pub body_line_base: u32,
+    /// The compiled body, when a generated module supplied one
+    /// (`tcl_codegen_proc_define_native`). `None` — the only value the `proc`
+    /// command ever produces — means the source `body` is the only body.
+    ///
+    /// It lives *on the definition*, not in a side table, so every existing
+    /// lifecycle rule already covers it: redefining the proc builds a fresh
+    /// `ProcDef` with `native: None` and the new source body runs interpreted;
+    /// `rename` clones the definition and carries the entry with it;
+    /// `rename p ""` / `namespace delete` drop it with the definition. Nothing
+    /// has to remember to invalidate anything.
+    pub native: Option<NativeProcEntry>,
 }
+
+/// The entry point of a natively lowered proc body — a wasm32 function-table
+/// index on the emitted side, an ordinary function pointer here.
+///
+/// `argv`/`argc` are the bound call arguments. P5-lite bodies do not read them
+/// (they read their formals as named cells, which `run_proc` has already
+/// bound); they are the reserved seam for P5's native formal binder. `out` is
+/// caller-provided, zeroed completion storage — the same [`TclCompletionAbi`]
+/// layout `tcl_invoke_argv` writes in the other direction.
+///
+/// # The frame contract, which only this comment can settle
+///
+/// A native proc entry pushes **neither** an activation **nor** a Tcl call
+/// frame. [`Interp::run_proc`] has already pushed the variable frame in the
+/// proc's own namespace, recorded `info level`'s words and bound the formals
+/// by name, and [`Interp::run_native_body`] holds the compiled activation and
+/// the `CmdFrame` for the body. This is *not* the shape a native-tier function
+/// has when it is emitted as a stand-alone module function: that shape opens
+/// with `tcl_codegen_activation_enter` + `tcl_codegen_frame_push`
+/// (`pushes_frame = !top_level`), and reusing it here would push a second,
+/// nameless frame at the caller's namespace — `namespace current`, `upvar 1`
+/// and `info level` would all be off by one level. The emitter must therefore
+/// give a proc entry its own prologue-free shape; it may not reuse the
+/// module-function one.
+///
+/// Result: [`NATIVE_PROC_STATUS_RAN`] after writing `out` with one owned
+/// reference on each non-null pointer, or [`NATIVE_PROC_STATUS_DECLINED`]
+/// **before any observable effect**, leaving `out` untouched.
+///
+/// # Safety
+/// The implementation must respect the whole contract above: `argv[..argc]`
+/// are borrowed live objects it must not release, and on `RAN` it transfers
+/// one owned reference on `out.result` and `out.options` to the runtime.
+pub type NativeProcEntry = unsafe extern "C" fn(
+    argv: *const *mut TclObj,
+    argc: i32,
+    out: *mut crate::codegen_abi::TclCompletionAbi,
+) -> i32;
 
 /// A `Tcl_Interp` handle. Cheap to clone (an `Rc` bump); all clones share one
 /// [`InterpState`].
@@ -825,6 +879,14 @@ pub struct InterpState {
     var_trace_epoch: Cell<u64>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
+    /// Count of proc bodies run through a native entry
+    /// ([`NativeProcEntry`]) rather than the source body.
+    ///
+    /// A test boundary, like the codegen ABI's outstanding-call-frame ledger:
+    /// the two paths produce identical Tcl results by construction, so without
+    /// a counter no test can tell which one ran, and a binding regression
+    /// would pass every behavioural assertion silently.
+    native_proc_dispatches: Cell<u64>,
     /// The code an `exit` requested, if any. `exit` does **not** terminate the
     /// host process (that would kill the embedding LSP/analysis server); it
     /// records the code here, unwinds uncatchably (`catch` re-propagates while it
@@ -1202,6 +1264,7 @@ impl Interp {
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
+            native_proc_dispatches: Cell::new(0),
             exit_code: Cell::new(None),
             measure_overhead: Cell::new(0.0),
             bgerror: RefCell::new(Vec::new()),
@@ -2076,6 +2139,25 @@ impl Interp {
     /// `name` lands in — **relative to the current namespace** (so `proc next`
     /// inside `namespace eval counter` binds `::counter::next`, not a global).
     pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body_obj: *mut TclObj) {
+        self.define_proc_native(name, params, body_obj, None);
+    }
+
+    /// [`define_proc`](Self::define_proc) with a compiled body entry.
+    ///
+    /// The one funnel that builds a [`ProcDef`] field by field, so `native` has
+    /// exactly one origin: a generated module's
+    /// `tcl_codegen_proc_define_native`. Every other construction site clones
+    /// an existing definition (`rename`'s re-homing, TclOO's namespace copy)
+    /// and carries the entry along with it; the `proc` command reaches this
+    /// through [`define_proc`](Self::define_proc) with `None`, which is what
+    /// makes a redefinition drop back to the source body.
+    pub(crate) fn define_proc_native(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+    ) {
         self.invalidate_command_environment();
         let body = obj_bytes(body_obj);
         let ns = self
@@ -2114,6 +2196,7 @@ impl Interp {
             fqn: fqn.clone(),
             source,
             body_line_base,
+            native,
         });
         self.bind_command_replacement(ns, &tail, Command::Proc(def));
     }
@@ -5061,6 +5144,24 @@ impl Interp {
     /// the first frame, truncates the command to 150 bytes (`...` on overflow),
     /// and sets `already_logged`.
     fn log_command_info(&mut self, src: &[u8], cmd: &parse::Command) {
+        // The same guard [`log_command_bytes`] applies. Repeated here so the
+        // already-logged path — the common one on a deep unwind — skips the
+        // newline scan `line_of` costs.
+        if self.exc.borrow().already_logged {
+            return;
+        }
+        self.log_command_bytes(line_of(src, cmd.start), &src[cmd.start..cmd.end]);
+    }
+
+    /// [`log_command_info`](Self::log_command_info) over the command's bytes
+    /// and its 1-based line within the enclosing script.
+    ///
+    /// The one implementation of C's `TclLogCommandInfo`, shared by the eval
+    /// loop and by `tcl_codegen_log_command` — so `error_line` keeps its
+    /// single writer, and a compiled statement gets the identical
+    /// `already_logged` protocol, error-stack entry, and 150-byte truncation
+    /// rather than a second, drifting copy of them.
+    pub(crate) fn log_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
         // Already logged deeper in the same script (e.g. an inner `[cmd]` subst,
         // or an inline `if`/`while` body): the enclosing command is the same C
         // bytecode frame, so it is *not* re-logged. The flag stays set and is
@@ -5071,16 +5172,17 @@ impl Interp {
         }
         // TIP 348: record this frame's inner context / uplevel boundary into the
         // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
-        self.error_stack_log(&src[cmd.start..cmd.end]);
+        self.error_stack_log(cmd_bytes);
         // errorLine, measured against the enclosing `codePtr->source` (C's
         // `TclLogCommandInfo`): the command's file-absolute line
         // (`line_base + 1 + count('\n')`) minus the proc/eval body's base, so an
         // inline `catch`/`if` body's commands still report their proc-body line.
         // This is the *only* writer of `error_line`; it persists across `catch`
         // and a subsequent `error msg info`.
-        let raw = line_of(src, cmd.start);
-        let line = self.cmd_frames.borrow().last().map_or(raw, |f| {
-            (f.line_base + raw).saturating_sub(f.proc_line_base).max(1)
+        let line = self.cmd_frames.borrow().last().map_or(raw_line, |f| {
+            (f.line_base + raw_line)
+                .saturating_sub(f.proc_line_base)
+                .max(1)
         });
         self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
@@ -5094,7 +5196,6 @@ impl Interp {
         } else {
             b"while executing"
         };
-        let cmd_bytes = &src[cmd.start..cmd.end];
         let overflow = cmd_bytes.len() > 150;
         let slice = if overflow {
             &cmd_bytes[..150]
@@ -7683,6 +7784,7 @@ impl Interp {
                 usage_prefix: None,
                 level_words: None,
                 quote_name: true,
+                native: def.native,
             },
         )
     }
@@ -7838,7 +7940,34 @@ impl Interp {
             oo,
             lambda,
         };
-        let code = self.eval_framed(body, proc_frame);
+        // Run the compiled body when there is one, else the source body. The
+        // two are interchangeable here precisely because everything a body can
+        // observe about its call — the variable frame, its namespace, `info
+        // level`'s words, the bound formals, `wrong # args` — was decided
+        // above, and everything about its completion is decided below.
+        //
+        // Two things force the source body even when a compiled one exists:
+        //
+        // - a live step trace. `dispatch_traced` installs this proc's own
+        //   `enterstep`/`leavestep` into `step_active` *before* dispatching, so
+        //   one read covers both "this proc is step-traced" and "an outer step
+        //   trace is running". A natively lowered `set`/`incr`/`expr` never
+        //   reaches `dispatch`, so it would fire no step trace and the
+        //   transcript would silently lose lines. `enter`/`leave` traces need
+        //   nothing: they fire around the whole call either way.
+        // - the entry declining, which it may only do before any observable
+        //   effect, so falling through to the source body is not a partial
+        //   re-run.
+        let native = meta
+            .native
+            .filter(|_| self.traces.borrow().step_active.is_empty());
+        let code = match native {
+            Some(entry) => match self.run_native_body(entry, call_args, proc_frame) {
+                Ok(code) => code,
+                Err(frame) => self.eval_framed(body, *frame),
+            },
+            None => self.eval_framed(body, proc_frame),
+        };
         // The frame's local variables (and any traces on them) die with it.
         let proc_level = self.frames.borrow().current_level();
         // Capture `[info level 0]` (the invocation words) before the frame is
@@ -7900,6 +8029,87 @@ impl Interp {
             }
         }
         settled
+    }
+
+    /// Run a proc's **compiled** body in the call frame
+    /// [`run_proc`](Self::run_proc) has already prepared — the native-tier
+    /// mirror of [`eval_framed`](Self::eval_framed) +
+    /// [`eval_script_mode`](Self::eval_script_mode), minus the parse and the
+    /// command loop.
+    ///
+    /// Ownership, stated here because the emitted side has to match it
+    /// exactly: `run_proc` owns the Tcl variable frame, `info level`'s words
+    /// and the formal binding; this method owns the compiled activation and
+    /// the body's `CmdFrame`; the entry owns **neither** (see
+    /// [`NativeProcEntry`]).
+    ///
+    /// `Ok(code)` is the body's raw completion — `2` for a body-level
+    /// `return`, exactly as the interpreted body reports it, so `run_proc`'s
+    /// `settle_return` cannot tell the two apart. `Err(frame)` is a decline:
+    /// nothing observable happened, and the untouched frame comes back so the
+    /// source body can run in it. Handing the frame back rather than cloning
+    /// it up front keeps the common path allocation-free; the box is what
+    /// keeps a rarely-taken `Err` from widening every return of this function.
+    fn run_native_body(
+        &mut self,
+        entry: NativeProcEntry,
+        call_args: &[*mut TclObj],
+        mut frame: CmdFrame,
+    ) -> Result<Code, Box<CmdFrame>> {
+        // A freshly pushed frame is its own `codePtr->source`, so `errorLine`
+        // is measured from this body's base (`eval_framed`).
+        frame.proc_line_base = frame.line_base;
+        // The activation the eval loop would hold for this body. A refusal is
+        // `eval_script_mode`'s: the error is already set, no activation is
+        // held, and nothing has been pushed, so `run_proc`'s ordinary error
+        // tail is exactly right — including the `(procedure "p" line N)` frame.
+        if !self.codegen_activation_enter() {
+            return Ok(Code::Error);
+        }
+        self.cmd_frames.borrow_mut().push(frame);
+        let mut out = crate::codegen_abi::TclCompletionAbi {
+            code: 0,
+            result: core::ptr::null_mut(),
+            options: core::ptr::null_mut(),
+        };
+        let argc = i32::try_from(call_args.len()).unwrap_or(i32::MAX);
+        // SAFETY: `entry` was supplied by a generated module through
+        // `tcl_codegen_proc_define_native`; `argv[..argc]` are the live bound
+        // call arguments it borrows; `out` is live, zeroed completion storage.
+        let status = unsafe { entry(call_args.as_ptr(), argc, core::ptr::from_mut(&mut out)) };
+        let popped = self.cmd_frames.borrow_mut().pop();
+        if status == NATIVE_PROC_STATUS_DECLINED {
+            self.codegen_activation_leave(Code::Ok);
+            return Err(Box::new(
+                popped.expect("the CmdFrame this method just pushed"),
+            ));
+        }
+        // Counted here, not before the call: a decline is not a native run.
+        self.native_proc_dispatches
+            .set(self.native_proc_dispatches.get().saturating_add(1));
+        let code = Code::from_int(out.code);
+        if !out.result.is_null() {
+            // `set_result` takes the interpreter's own reference, so the
+            // entry's is released after the store rather than transferred.
+            self.set_result(out.result);
+            // SAFETY: the entry transferred one owned reference on `result`.
+            unsafe { obj::decr_ref_count(out.result) };
+        }
+        if !out.options.is_null() {
+            // The options dict is a snapshot of state the runtime already
+            // holds: `return`'s `-code`/`-level` were recorded by the `return`
+            // command when the body invoked it, and `settle_return` below
+            // reads those, not this dict. So it is released, never consulted.
+            // SAFETY: the entry transferred one owned reference on `options`.
+            unsafe { obj::decr_ref_count(out.options) };
+        }
+        self.codegen_activation_leave(code);
+        Ok(code)
+    }
+
+    /// The number of proc bodies dispatched through a [`NativeProcEntry`].
+    pub(crate) fn native_proc_dispatches(&self) -> u64 {
+        self.native_proc_dispatches.get()
     }
 
     /// The ensemble trampoline: resolve `argv[1]` against the subcommand set

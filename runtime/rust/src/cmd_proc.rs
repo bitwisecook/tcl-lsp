@@ -163,6 +163,8 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             usage_prefix: None,
             level_words: Some(level_words),
             quote_name: false,
+            // A lambda has no definition to carry a compiled body on.
+            native: None,
         },
     )
 }

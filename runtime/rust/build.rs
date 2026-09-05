@@ -70,6 +70,27 @@ fn main() {
     // cost is ~1 MiB more zero-init linear memory in the wasm module.
     if is_wasm {
         println!("cargo:rustc-link-arg=--global-base=2097152"); // 0x20_0000
+
+        // Export the wasm indirect function table, and let it grow.
+        //
+        // A wasm32 function pointer *is* an index into this table, so an
+        // emitted module that wants the runtime to call one of its functions
+        // (issue #1774's native proc entries) has to install a `ref.func` into
+        // a table the runtime can `call_indirect` over. `wasm-ld` links the
+        // table private and fixed-size by default (`(table 2 2 funcref)`),
+        // which makes both halves impossible: the module cannot import it, and
+        // `table.grow` on a table at its maximum returns `-1`.
+        //
+        // `--export-table` publishes it as `__indirect_function_table` (the
+        // name `WASM32_FUNCTION_TABLE_IMPORT` in `tcl-runtime-api` owns) and
+        // `--growable-table` drops the maximum so a module can `table.grow`
+        // room for its own entries. Both are inert for a module that never
+        // touches the table: the runtime's own indirect calls index below the
+        // initial size, and an emitted module imports the table only when it
+        // actually binds a native proc, so an older module against this
+        // runtime is unaffected.
+        println!("cargo:rustc-link-arg=--export-table");
+        println!("cargo:rustc-link-arg=--growable-table");
     }
 
     let Some(ltm) = locate_libtommath() else {

@@ -101,7 +101,7 @@ use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 
-use crate::interp::{drop_fresh, obj_bytes, Interp};
+use crate::interp::{drop_fresh, obj_bytes, Interp, NativeProcEntry};
 use crate::obj::{self, new_string_bytes, TclObj};
 #[cfg(target_arch = "wasm32")]
 use tcl_runtime_api::codegen_abi::{
@@ -1345,6 +1345,9 @@ pub unsafe extern "C" fn tcl_codegen_puts(value: *mut TclObj) -> i32 {
 
 /// Register source metadata for a generated procedure without evaluating `proc`.
 ///
+/// Exactly [`tcl_codegen_proc_define_native`] with no entry. It stays because
+/// already-emitted legacy-tier modules import this spelling.
+///
 /// # Safety
 /// All three pointer/length ranges must be readable shared linear memory.
 #[no_mangle]
@@ -1355,6 +1358,43 @@ pub unsafe extern "C" fn tcl_codegen_proc_register(
     params_len: i32,
     body_ptr: *const u8,
     body_len: i32,
+) -> i32 {
+    // SAFETY: the pointer/length ranges are forwarded under this function's
+    // own contract, which is the callee's.
+    unsafe {
+        tcl_codegen_proc_define_native(
+            name_ptr, name_len, params_ptr, params_len, body_ptr, body_len, None,
+        )
+    }
+}
+
+/// Define a Tcl procedure, optionally binding a compiled body to it.
+///
+/// `entry` is the compiled body: a wasm32 function-table index on the emitted
+/// side, a nullable function pointer here — which is why the runtime types it
+/// as `Option<NativeProcEntry>`, so `0` is `None` on wasm and a native test
+/// can pass an ordinary Rust `extern "C"` function. A `None` entry defines an
+/// ordinary source-body proc and is exactly [`tcl_codegen_proc_register`].
+///
+/// The `body` source is always recorded, entry or not: it is what a step trace
+/// forces, what a declining entry falls back to, and what `info body` reports.
+///
+/// The entry binds to *this* definition. Anything that replaces the definition
+/// — re-running `proc`, `rename p ""`, `namespace delete` — drops it with the
+/// definition, so there is nothing to invalidate.
+///
+/// # Safety
+/// All three pointer/length ranges must be readable shared linear memory, and
+/// `entry`, when present, must satisfy [`NativeProcEntry`]'s whole contract.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_proc_define_native(
+    name_ptr: *const u8,
+    name_len: i32,
+    params_ptr: *const u8,
+    params_len: i32,
+    body_ptr: *const u8,
+    body_len: i32,
+    entry: Option<NativeProcEntry>,
 ) -> i32 {
     let interp = current_interp();
     if interp.is_null() {
@@ -1370,10 +1410,65 @@ pub unsafe extern "C" fn tcl_codegen_proc_register(
         Err(message) => return i32::try_from(interp.set_error(&message).as_int()).unwrap_or(1),
     };
     let body_obj = new_string_bytes(body);
-    interp.define_proc(name, params, body_obj);
+    interp.define_proc_native(name, params, body_obj, entry);
     drop_fresh(body_obj);
     interp.set_result_bytes(b"");
     0
+}
+
+/// Log one `while executing` / `invoked from within` `errorInfo` frame for a
+/// compiled statement that completed with an error.
+///
+/// Generated code has no eval loop, so nothing calls `log_command_info` for
+/// it: a compiled statement that fails leaves no `while executing "<source>"`
+/// frame and does not advance `errorLine`, which surfaces as a stale line in
+/// the enclosing `(procedure "p" line N)` and as a missing TIP 348 `CALL`
+/// entry. This is the emitter's way to close both, on a statement's error
+/// edge.
+///
+/// `line` is the statement's 1-based line **within the body it was compiled
+/// from** — the same raw line the eval loop reads off the script text — so the
+/// enclosing frame's `line_base`/`proc_line_base` turn it into `errorLine`
+/// exactly as they do for an interpreted command. `src` is the statement's
+/// exact source text; the runtime applies C's 150-byte truncation to it.
+///
+/// The runtime owns the `already_logged` protocol, so a statement whose error
+/// was already logged deeper in the same body is a no-op here and the emitter
+/// has no decision to make. Hence no result.
+///
+/// # Safety
+/// `src_ptr`/`src_len` must be a readable range of shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, src_len: i32) {
+    let interp = current_interp();
+    if interp.is_null() {
+        return;
+    }
+    let src = unsafe { input_bytes(src_ptr, src_len) };
+    // Lines are 1-based; a caller that has no line still gets a logged frame
+    // rather than a silently dropped one.
+    let line = u32::try_from(line).unwrap_or(1).max(1);
+    // SAFETY: the bootstrap installed a live current interpreter.
+    unsafe { (*interp).log_command_bytes(line, src) };
+}
+
+/// The number of proc bodies the current interpreter has run through a native
+/// entry rather than their source body; `-1` with no current interpreter.
+///
+/// A diagnostic/test boundary, like [`tcl_codegen_call_frame_outstanding`].
+/// The compiled and interpreted bodies of one proc produce the same Tcl result
+/// by construction, so without this counter no test can tell which one ran,
+/// and a binding that silently stopped taking effect would keep every
+/// behavioural assertion green.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_native_proc_dispatches() -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return -1;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let dispatches = unsafe { (*interp).native_proc_dispatches() };
+    i32::try_from(dispatches).unwrap_or(i32::MAX)
 }
 
 /// `tcl_obj_new_string_owned(ptr, len) -> obj` — copy a string from shared
@@ -2010,6 +2105,9 @@ mod tests {
     use super::*;
     use crate::capi::{tcl_runtime_create_interp, tcl_runtime_delete_interp};
     use crate::counters;
+    use crate::interp::Code;
+    use std::cell::RefCell;
+    use tcl_runtime_api::codegen_abi::{NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_RAN};
     use tcl_runtime_api::guard::GuardDomain;
 
     /// Run `body` under the alloc/free counters and assert zero residual — the
@@ -3528,5 +3626,554 @@ mod tests {
             assert_eq!(obj_bytes(word), b"word");
             tcl_obj_release(word);
         });
+    }
+
+    // ---- native proc entries (issue #1774) ---------------------------------
+
+    thread_local! {
+        /// The argv [`stub_body`] dispatches, and how many times a stub ran.
+        static STUB_ARGV: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
+        static STUB_CALLS: Cell<u32> = const { Cell::new(0) };
+        /// `(line, source text)` [`stub_body`] logs on an error completion, as
+        /// the emitter will on a statement's error edge. `None` logs nothing.
+        static STUB_LOG: RefCell<Option<(i32, Vec<u8>)>> = const { RefCell::new(None) };
+    }
+
+    /// Arm the stub with the one command its body runs, and reset the counter.
+    fn stub_argv(words: &[&[u8]]) {
+        STUB_ARGV.with(|argv| {
+            *argv.borrow_mut() = words.iter().map(|word| word.to_vec()).collect();
+        });
+        STUB_LOG.with(|log| *log.borrow_mut() = None);
+        STUB_CALLS.with(|calls| calls.set(0));
+    }
+
+    /// Give the armed stub the statement site it logs when its command fails.
+    fn stub_logs(line: i32, source: &[u8]) {
+        STUB_LOG.with(|log| *log.borrow_mut() = Some((line, source.to_vec())));
+    }
+
+    fn stub_calls() -> u32 {
+        STUB_CALLS.with(Cell::get)
+    }
+
+    /// A stub compiled proc body.
+    ///
+    /// It dispatches one prebuilt argv through the same [`tcl_invoke_argv`] an
+    /// emitted body uses for a statement it could not lower, and forwards that
+    /// completion as its own. Nothing here is test-shaped: the completion
+    /// protocol, the borrowed argv, and the absent frame/activation prologue
+    /// are exactly what `native_emit` must emit for a proc entry.
+    unsafe extern "C" fn stub_body(
+        _argv: *const *mut TclObj,
+        _argc: i32,
+        out: *mut TclCompletionAbi,
+    ) -> i32 {
+        STUB_CALLS.with(|calls| calls.set(calls.get() + 1));
+        let words = STUB_ARGV.with(|argv| argv.borrow().clone());
+        // SAFETY: each word is a valid readable slice; `owned_word` boxes it
+        // and takes the caller-owned reference the borrowed-argv ABI needs.
+        let boxed: Vec<*mut TclObj> = words
+            .iter()
+            .map(|word| unsafe { owned_word(word) })
+            .collect();
+        // SAFETY: `boxed` are live caller-owned words and `out` is the
+        // runtime's own zeroed completion storage.
+        let status = unsafe {
+            tcl_invoke_argv(
+                boxed.as_ptr(),
+                i32::try_from(boxed.len()).expect("stub argv fits i32"),
+                out,
+            )
+        };
+        assert_eq!(status, TCL_INVOKE_ABI_OK);
+        // SAFETY: balances `owned_word`'s reference on each word.
+        unsafe { release_words(&boxed) };
+        // The statement's error edge: an emitted body logs its own source site
+        // here, because nothing else will.
+        // SAFETY: `out` was written by the invoke above.
+        if unsafe { (*out).code } == 1 {
+            if let Some((line, source)) = STUB_LOG.with(|log| log.borrow().clone()) {
+                // SAFETY: `source` is a live readable slice.
+                unsafe {
+                    tcl_codegen_log_command(
+                        line,
+                        source.as_ptr(),
+                        i32::try_from(source.len()).expect("source fits i32"),
+                    );
+                }
+            }
+        }
+        NATIVE_PROC_STATUS_RAN
+    }
+
+    /// A stub that declines before doing anything at all — the only shape a
+    /// decline may take, since the runtime then runs the source body in the
+    /// frame it already prepared.
+    unsafe extern "C" fn stub_declines(
+        _argv: *const *mut TclObj,
+        _argc: i32,
+        _out: *mut TclCompletionAbi,
+    ) -> i32 {
+        STUB_CALLS.with(|calls| calls.set(calls.get() + 1));
+        NATIVE_PROC_STATUS_DECLINED
+    }
+
+    /// The call an emitted module makes for a `proc` statement.
+    unsafe fn define_native(
+        name: &[u8],
+        params: &[u8],
+        body: &[u8],
+        entry: Option<NativeProcEntry>,
+    ) {
+        // SAFETY: all three ranges are live readable slices.
+        let code = unsafe {
+            tcl_codegen_proc_define_native(
+                name.as_ptr(),
+                i32::try_from(name.len()).expect("name fits i32"),
+                params.as_ptr(),
+                i32::try_from(params.len()).expect("params fit i32"),
+                body.as_ptr(),
+                i32::try_from(body.len()).expect("body fits i32"),
+                entry,
+            )
+        };
+        assert_eq!(code, 0, "defining {}", String::from_utf8_lossy(name));
+    }
+
+    /// Evaluate `script` and return its completion code and result text.
+    unsafe fn eval(interp: *mut Interp, script: &str) -> (Code, Vec<u8>) {
+        // SAFETY: the caller holds a live interpreter.
+        unsafe {
+            (
+                (*interp).eval_str(script.as_bytes()),
+                (*interp).result_bytes(),
+            )
+        }
+    }
+
+    /// A fresh interpreter, installed as the current one for the codegen ABI.
+    unsafe fn with_current_interp(body: impl FnOnce(*mut Interp)) {
+        let interp = tcl_runtime_create_interp();
+        // SAFETY: a live interpreter this helper owns for the call's duration.
+        unsafe {
+            tcl_runtime_set_current_interp(interp);
+            body(interp);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        }
+    }
+
+    #[test]
+    fn a_native_entry_runs_instead_of_the_source_body_and_is_counted() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 0);
+                stub_argv(&[b"return", b"native"]);
+                define_native(b"p", b"a", b"return source", Some(stub_body));
+
+                assert_eq!(eval(interp, "p x"), (Code::Ok, b"native".to_vec()));
+                assert_eq!(stub_calls(), 1);
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+
+                // The source body is still the proc's body: it is what a step
+                // trace forces, what a decline falls back to, and what
+                // introspection reports.
+                assert_eq!(eval(interp, "info body p").1, b"return source");
+                assert_eq!(eval(interp, "info args p").1, b"a");
+            });
+        });
+    }
+
+    #[test]
+    fn proc_register_is_proc_define_native_with_no_entry() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                let (name, params, body) = (b"only", b"a", b"return source");
+                assert_eq!(
+                    tcl_codegen_proc_register(
+                        name.as_ptr(),
+                        i32::try_from(name.len()).unwrap(),
+                        params.as_ptr(),
+                        i32::try_from(params.len()).unwrap(),
+                        body.as_ptr(),
+                        i32::try_from(body.len()).unwrap(),
+                    ),
+                    0
+                );
+                assert_eq!(eval(interp, "only x"), (Code::Ok, b"source".to_vec()));
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 0);
+            });
+        });
+    }
+
+    #[test]
+    fn the_native_entry_runs_in_the_call_frame_run_proc_prepared() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                // `info level 0` is the double-frame detector: it reads the
+                // *current* frame's recorded invocation words, and only the
+                // frame `run_proc` pushed has any. An entry that pushed its
+                // own would report the wrong level and have no words at all.
+                stub_argv(&[b"info", b"level", b"0"]);
+                define_native(b"lvl", b"a b", b"return source", Some(stub_body));
+                assert_eq!(eval(interp, "lvl 7 8").1, b"lvl 7 8");
+
+                stub_argv(&[b"info", b"level"]);
+                define_native(b"depth", b"", b"return source", Some(stub_body));
+                assert_eq!(eval(interp, "depth").1, b"1");
+
+                // Formals are bound by name before the entry runs, so the body
+                // reads them as ordinary cells.
+                stub_argv(&[b"set", b"b"]);
+                define_native(b"second", b"a b", b"return source", Some(stub_body));
+                assert_eq!(eval(interp, "second 7 8").1, b"8");
+
+                // The body runs in the proc's defining namespace.
+                assert_eq!(eval(interp, "namespace eval ns {}").0, Code::Ok);
+                stub_argv(&[b"namespace", b"current"]);
+                define_native(b"ns::inner", b"", b"return source", Some(stub_body));
+                assert_eq!(eval(interp, "ns::inner").1, b"::ns");
+            });
+        });
+    }
+
+    #[test]
+    fn wrong_number_of_arguments_never_reaches_the_native_entry() {
+        // The message is `run_proc`'s, produced before any body runs, so the
+        // native and source paths cannot differ. tclsh 9.0.4 and 8.6.16 both
+        // print `wrong # args: should be "greet name"`.
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                stub_argv(&[b"return", b"native"]);
+                define_native(b"greet", b"name", b"return source", Some(stub_body));
+
+                assert_eq!(
+                    eval(interp, "greet"),
+                    (
+                        Code::Error,
+                        b"wrong # args: should be \"greet name\"".to_vec()
+                    )
+                );
+                assert_eq!(
+                    eval(interp, "greet a b"),
+                    (
+                        Code::Error,
+                        b"wrong # args: should be \"greet name\"".to_vec()
+                    )
+                );
+                assert_eq!(stub_calls(), 0, "the entry must never see a bad arity");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 0);
+            });
+        });
+    }
+
+    /// A multi-line body whose error carries a `(procedure ... line N)` frame.
+    const BOOM_BODY: &[u8] = b"\n    set b 1\n    error \"bad $a\"\n";
+
+    #[test]
+    fn a_declining_entry_falls_back_to_the_source_body_observably_unchanged() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                // The same proc, same name, same body — once with a
+                // declining entry and once with none. Comparing under one name
+                // is what makes the comparison total: the proc name appears in
+                // the `(procedure ...)` frame and in the caller's own.
+                stub_argv(&[]);
+                define_native(b"boom", b"a", BOOM_BODY, Some(stub_declines));
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                let declined_msg = eval(interp, "set m").1;
+                let declined_info = eval(interp, "dict get $o -errorinfo").1;
+                let declined_stack = eval(interp, "dict get $o -errorstack").1;
+                let declined_code = eval(interp, "dict get $o -errorcode").1;
+                assert_eq!(stub_calls(), 1, "the entry was asked, and declined");
+                assert_eq!(
+                    tcl_codegen_native_proc_dispatches(),
+                    0,
+                    "a decline is not a native run"
+                );
+
+                define_native(b"boom", b"a", BOOM_BODY, None);
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                assert_eq!(eval(interp, "set m").1, declined_msg);
+                assert_eq!(eval(interp, "dict get $o -errorinfo").1, declined_info);
+                assert_eq!(eval(interp, "dict get $o -errorstack").1, declined_stack);
+                assert_eq!(eval(interp, "dict get $o -errorcode").1, declined_code);
+
+                // And that shared answer is the interpreted one: tclsh 9.0.4
+                // and 8.6.16 print exactly these five lines.
+                assert_eq!(declined_msg, b"bad Q");
+                assert_eq!(
+                    String::from_utf8_lossy(&declined_info),
+                    "bad Q\n    while executing\n\"error \"bad $a\"\"\n    \
+                     (procedure \"boom\" line 3)\n    invoked from within\n\"boom Q\""
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn redefining_the_proc_drops_the_native_entry() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                stub_argv(&[b"return", b"native"]);
+                define_native(b"twice", b"x", b"return source", Some(stub_body));
+                assert_eq!(eval(interp, "twice 4").1, b"native");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+
+                // The `proc` command builds a definition with no entry, so the
+                // new source body runs interpreted. Nothing invalidates
+                // anything: the entry lived on the definition that just went.
+                assert_eq!(
+                    eval(interp, "proc twice {x} {return redefined}").0,
+                    Code::Ok
+                );
+                assert_eq!(eval(interp, "twice 4").1, b"redefined");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+                assert_eq!(stub_calls(), 1);
+            });
+        });
+    }
+
+    #[test]
+    fn rename_carries_the_native_entry_and_deleting_the_proc_drops_it() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                stub_argv(&[b"return", b"native"]);
+                define_native(b"twice", b"x", b"return source", Some(stub_body));
+
+                assert_eq!(eval(interp, "rename twice thrice").0, Code::Ok);
+                assert_eq!(eval(interp, "thrice 4").1, b"native");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+                assert_eq!(eval(interp, "catch {twice 4} m"), (Code::Ok, b"1".to_vec()));
+                assert_eq!(eval(interp, "set m").1, b"invalid command name \"twice\"");
+
+                assert_eq!(eval(interp, "rename thrice {}").0, Code::Ok);
+                assert_eq!(eval(interp, "catch {thrice 4} m").1, b"1");
+                assert_eq!(eval(interp, "set m").1, b"invalid command name \"thrice\"");
+
+                // A whole namespace going away takes its definitions, and the
+                // entries on them, with it.
+                assert_eq!(eval(interp, "namespace eval ns {}").0, Code::Ok);
+                define_native(b"ns::inner", b"", b"return source", Some(stub_body));
+                assert_eq!(eval(interp, "ns::inner").1, b"native");
+                assert_eq!(eval(interp, "namespace delete ns").0, Code::Ok);
+                assert_eq!(eval(interp, "catch {ns::inner} m").1, b"1");
+                assert_eq!(
+                    eval(interp, "set m").1,
+                    b"invalid command name \"ns::inner\""
+                );
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 2);
+            });
+        });
+    }
+
+    #[test]
+    fn a_live_step_trace_forces_the_source_body() {
+        // A natively lowered `set`/`list`/`return` never reaches `dispatch`,
+        // so it would fire no `enterstep` and the transcript would silently
+        // lose lines. `dispatch_traced` installs the proc's own step traces
+        // before dispatching, so one read of `step_active` in `run_proc`
+        // covers both this proc's traces and an outer one's.
+        //
+        // Transcript pinned against tclsh 9.0.4 and 8.6.16: step traces fire
+        // on the *substituted* command, after its `[...]` words have run.
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                stub_argv(&[b"return", b"NATIVE"]);
+                define_native(
+                    b"stepped",
+                    b"x",
+                    b"set y $x; return [list $y $y]",
+                    Some(stub_body),
+                );
+                assert_eq!(eval(interp, "stepped ab").1, b"NATIVE");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+
+                assert_eq!(
+                    eval(
+                        interp,
+                        "trace add execution stepped enterstep \
+                         {apply {{cmd op} {lappend ::steps $cmd}}}"
+                    )
+                    .0,
+                    Code::Ok
+                );
+                assert_eq!(
+                    eval(interp, "stepped ab").1,
+                    b"ab ab",
+                    "the traced call must run the source body"
+                );
+                assert_eq!(
+                    eval(interp, "set ::steps").1,
+                    b"{set y ab} {list ab ab} {return {ab ab}}"
+                );
+                assert_eq!(
+                    tcl_codegen_native_proc_dispatches(),
+                    1,
+                    "the traced call must have run the source body"
+                );
+                assert_eq!(stub_calls(), 1);
+
+                // Removing the trace restores the compiled body.
+                assert_eq!(
+                    eval(
+                        interp,
+                        "trace remove execution stepped enterstep \
+                         {apply {{cmd op} {lappend ::steps $cmd}}}"
+                    )
+                    .0,
+                    Code::Ok
+                );
+                assert_eq!(eval(interp, "stepped ab").1, b"NATIVE");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 2);
+            });
+        });
+    }
+
+    /// An error out of a compiled body takes `run_proc`'s ordinary error tail
+    /// — with the two gaps a compiled statement's missing `log_command_info`
+    /// leaves, both pinned here so PR-B's fix has a gate that fails in both
+    /// directions.
+    #[test]
+    fn an_error_from_the_native_body_unwinds_through_the_procedure_frame() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                stub_argv(&[b"error", b"bad Q"]);
+                define_native(b"boom", b"a", BOOM_BODY, Some(stub_body));
+
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                assert_eq!(eval(interp, "set m").1, b"bad Q");
+                // `run_proc`'s error tail is shared by both bodies: the
+                // `(procedure ...)` frame and the TIP 348 `CALL` entry are
+                // appended exactly as they are for the source body.
+                let info = eval(interp, "dict get $o -errorinfo").1;
+                assert!(
+                    info.starts_with(b"bad Q"),
+                    "errorInfo seeds from the message: {}",
+                    String::from_utf8_lossy(&info)
+                );
+                assert!(
+                    info.windows(26)
+                        .any(|w| w == b"(procedure \"boom\" line 1)\n"),
+                    "errorInfo must carry the procedure frame: {}",
+                    String::from_utf8_lossy(&info)
+                );
+                // LEDGERED (#1774 step 6, PR-B). A compiled statement calls
+                // no `log_command_info`, and that one absence has two visible
+                // consequences here, both closed by `tcl_codegen_log_command`
+                // once the emitter calls it on a statement's error edge:
+                //
+                //  - no `while executing "<source text>"` frame, and
+                //    `error_line` never advances, so the procedure frame reads
+                //    `line 1` where the interpreted body reads `line 3`;
+                //  - no TIP 348 `CALL` entry either. `error_stack_push_call`
+                //    still runs, but it deliberately refuses to chain a `CALL`
+                //    onto an error stack with no inner context yet
+                //    (`reset_error_stack`), so the errorstack holds only the
+                //    caller's own `INNER`.
+                assert!(
+                    !info.windows(16).any(|w| w == b"while executing "),
+                    "unexpected `while executing` frame: {}",
+                    String::from_utf8_lossy(&info)
+                );
+                assert_eq!(eval(interp, "dict get $o -errorstack").1, b"INNER {boom Q}");
+            });
+        });
+    }
+
+    /// With the statement's site logged, a compiled body's error is
+    /// indistinguishable from the interpreted one — the whole point of
+    /// `tcl_codegen_log_command`, proved here with a stub standing in for the
+    /// emitter so the emitter has a target rather than a guess.
+    #[test]
+    fn a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                define_native(b"boom", b"a", BOOM_BODY, None);
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                let source_info = eval(interp, "dict get $o -errorinfo").1;
+                let source_stack = eval(interp, "dict get $o -errorstack").1;
+
+                // `error "bad $a"` is the third line of the body and the exact
+                // text of the failing statement — what the emitter carries.
+                stub_argv(&[b"error", b"bad Q"]);
+                stub_logs(3, b"error \"bad $a\"");
+                define_native(b"boom", b"a", BOOM_BODY, Some(stub_body));
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+
+                assert_eq!(eval(interp, "dict get $o -errorinfo").1, source_info);
+                assert_eq!(eval(interp, "dict get $o -errorstack").1, source_stack);
+                assert_eq!(
+                    String::from_utf8_lossy(&source_info),
+                    "bad Q\n    while executing\n\"error \"bad $a\"\"\n    \
+                     (procedure \"boom\" line 3)\n    invoked from within\n\"boom Q\"",
+                    "and that shared answer is tclsh 9.0.4's and 8.6.16's"
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn a_logged_command_is_truncated_and_deduplicated_like_an_interpreted_one() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                // One `log_command_bytes` protocol for both callers: the first
+                // frame seeds errorInfo from the message and truncates the
+                // command at 150 bytes with `...`; a second call for the same
+                // error is a no-op (`already_logged`).
+                let long = format!("error nope ;# {}", "x".repeat(200));
+                stub_argv(&[b"error", b"nope"]);
+                stub_logs(1, long.as_bytes());
+                define_native(b"long", b"", b"error nope", Some(stub_body));
+                assert_eq!(eval(interp, "catch {long} m o").1, b"1");
+                let info = eval(interp, "dict get $o -errorinfo").1;
+                let expected = format!(
+                    "nope\n    while executing\n\"{}...\"\n    (procedure \"long\" line 1)",
+                    &long[..150]
+                );
+                assert!(
+                    info.starts_with(expected.as_bytes()),
+                    "{}",
+                    String::from_utf8_lossy(&info)
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn the_native_path_holds_one_activation_per_level_and_refuses_at_the_bound() {
+        // `run_native_body` holds the activation the eval loop would hold, and
+        // the body's own `tcl_invoke_argv` holds one more: two eval-depth
+        // units per Tcl level, the same as the interpreted plain-recursion
+        // shape. A level that cost more would fail sooner and one that cost
+        // less would fail later, so the reached depth pins the accounting.
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                stub_argv(&[b"recur"]);
+                define_native(b"recur", b"", b"return source", Some(stub_body));
+
+                assert_eq!(eval(interp, "catch {recur} m").1, b"1");
+                assert_eq!(
+                    eval(interp, "set m").1,
+                    b"too many nested evaluations (infinite loop?)",
+                    "the refusal is the eval loop's own message"
+                );
+                assert_eq!(
+                    tcl_codegen_native_proc_dispatches(),
+                    63,
+                    "the outermost script and the `catch` body cost one \
+                     eval-depth unit each, leaving 126 of the native bound's \
+                     128 for 63 levels at two apiece"
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn the_dispatch_counter_reports_a_missing_interpreter_distinctly() {
+        tcl_runtime_set_current_interp(ptr::null_mut());
+        assert_eq!(tcl_codegen_native_proc_dispatches(), -1);
     }
 }
