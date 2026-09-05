@@ -250,46 +250,48 @@ fn skip_word_seps(bytes: &[u8], n: usize, mut i: usize) -> usize {
     i
 }
 
-/// Strip the outer `{…}` from a body word, as the inline body emitters do.
-///
-/// The inlining *guard* and the emitter must look at the same text, so both go
-/// through this.
-#[must_use]
-pub fn strip_body_braces(body_text: &str) -> &str {
-    let body = body_text.trim();
-    if body.starts_with('{') && body.ends_with('}') {
-        &body[1..body.len() - 1]
-    } else {
-        body
-    }
-}
-
 /// Whether `body` is a body the *single-command* inline emitters
 /// ([`CodegenCtx::emit_catch_body`], [`CodegenCtx::emit_try_handler_body`])
 /// can compile.
 ///
 /// Those emitters split the body into *words* with [`parse_cmd_parts`] and emit
-/// one command from them, so anything else — two commands separated by `;` or a
-/// newline, or a comment — is flattened into a single bogus invocation
-/// (`[catch {set y 1; set z 2} m]` emitted `set y 1 set z 2`). Ask the
-/// segmenter, the same command splitter lowering uses, rather than re-deriving
-/// the separator rules here.
+/// one command from them, so the body must be one command and nothing else.
+/// Two questions, because neither answers the whole thing:
 ///
-/// An empty body is inlinable — the emitters push the empty result for it. A
-/// comment-only body is not: it segments to no command at all, while the word
-/// splitter would take the `#` for a command name.
+/// * [`has_command_separator`] — is there a `;` or newline the *word splitter*
+///   would swallow into a word? A segment count does not catch this: both
+///   `{error boom;}` and `{# note<newline>error boom}` hold one command, while
+///   the splitter reads `boom;` as an argument and `#` as a command name.
+///   This is the same question, and the same owner, that
+///   [`CodegenCtx::emit_inline_cmd_subst`] already asks before deferring a
+///   multi-command substitution to `EVAL_STK`.
+/// * the segmenter — is there exactly one command at all? A body that is only
+///   a comment has no separator and no command, and must not reach an emitter
+///   that would take its `#` for a command name.
 ///
-/// `config` is the compile's own lexer config: command separation is
-/// dialect-dependent (iRules' `}{` ghost separator), and answering under the
-/// default grammar would under-count an iRules body's commands and inline one
-/// this emitter cannot compile.
+/// A `{*}` body is rejected outright: [`parse_cmd_parts`] has no expansion
+/// form, so it reads the prefix as a braced word and the emitters pass a
+/// literal `*` plus the unexpanded list (`catch {cfg {*}$a}` called
+/// `cfg * {-verbose b}`). The value-position dispatcher reaches for
+/// [`parse_cmd_parts_expand`] here; these emitters have no such path, so they
+/// decline instead.
+///
+/// An empty body is inlinable: the emitters push the empty result for it.
+///
+/// The caller must also have established that the body is a **braced** word.
+/// This reads the text the compiler can see, and an unbraced body
+/// (`catch $script`) merely *names* a script whose commands are not known
+/// until run time.
 #[must_use]
 pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> bool {
-    match crate::segmenter::segment_commands_with_offset_and_config(body, 0, config).len() {
-        0 => body.trim().is_empty(),
-        1 => true,
-        _ => false,
+    if body.trim().is_empty() {
+        return true;
     }
+    if has_command_separator(body) || body.contains("{*}") {
+        return false;
+    }
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
+    matches!(segments.as_slice(), [only] if !only.is_partial)
 }
 
 /// Parse a command-substitution body into `(text, braced)` parts.
@@ -930,13 +932,15 @@ impl CodegenCtx<'_> {
             }
             // The inline form compiles the body as one command, so it is only
             // reachable for a body that *is* one command (`is_single_command_body`).
+            // The inline form compiles the body as one command it can see, so it
+            // needs a *braced* body (an unbraced `catch $script` names a script
+            // whose commands are not known until run time) that is exactly one
+            // command.
             Some(InlineCodegenHookId::Catch)
                 if self.is_proc
                     && (1..=3).contains(&args.len())
-                    && is_single_command_body(
-                        strip_body_braces(&args[0].0),
-                        self.lexer_config(),
-                    ) =>
+                    && args[0].1
+                    && is_single_command_body(&args[0].0, self.lexer_config()) =>
             {
                 let result_var = args.get(1).map(|(s, _)| s.as_str());
                 if result_var.is_some_and(|v| v.starts_with("::")) {

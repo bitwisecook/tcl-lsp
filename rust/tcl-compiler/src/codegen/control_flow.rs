@@ -28,7 +28,7 @@ use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 
-use super::cmd_subst::{is_single_command_body, parse_cmd_parts, strip_body_braces};
+use super::cmd_subst::{is_single_command_body, parse_cmd_parts};
 use super::values::is_qualified;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
@@ -690,7 +690,12 @@ impl CodegenCtx<'_> {
         result_var: Option<&str>,
         options_var: Option<&str>,
     ) {
-        let body = strip_body_braces(body_text);
+        // `body_text` is already the body word's *value* — `parse_cmd_parts`
+        // removed the braces that delimited the `catch` argument. Any braces
+        // still here belong to the script: `[catch {{set x 1}} m]` runs the
+        // one-word command `set x 1` and catches `invalid command name`, so
+        // stripping a second layer would compile a successful `set` instead.
+        let body = body_text.trim();
 
         // Pre-intern result_var so it gets a lower LVT slot
         if let Some(rv) = result_var
@@ -838,15 +843,18 @@ impl CodegenCtx<'_> {
                     self.emit_expr(&node);
                 }
             }
-            // Both bodies go to a single-command emitter, so both must be one
-            // command (`is_single_command_body`).
+            // Both bodies go to a single-command emitter, so both must be a
+            // braced word holding exactly one command — the same rule the
+            // value-position `catch` arm applies.
             Some(InlineCodegenHookId::Try)
                 if self.is_proc
                     && body_args.len() == 5
                     && body_args[1].0 == "on"
                     && body_args[2].0 == "error"
-                    && is_single_command_body(strip_body_braces(&body_args[0].0), cfg)
-                    && is_single_command_body(strip_body_braces(&body_args[4].0), cfg) =>
+                    && body_args[0].1
+                    && body_args[4].1
+                    && is_single_command_body(&body_args[0].0, cfg)
+                    && is_single_command_body(&body_args[4].0, cfg) =>
             {
                 let try_sc = self.fresh_label("catch_body_end");
                 self.emit_comment(

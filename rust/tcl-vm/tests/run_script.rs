@@ -1943,6 +1943,81 @@ fn an_inlined_catch_body_substitutes_its_command_name() {
     );
 }
 
+/// The inline `catch` needs a body it can *see*: a braced word holding exactly
+/// one command, and nothing else.
+///
+/// Three ways a body defeats the word splitter that the segment count alone
+/// does not catch. An unbraced body (`catch $script`) only *names* a script —
+/// its commands are not known until run time, so compiling it as one command
+/// invoked the whole script value as a command name. A trailing separator
+/// (`{error boom;}`) and a leading comment (`{# note\nerror boom}`) each still
+/// segment to one command, but the splitter reads `boom;` as an argument and
+/// `#` as a command name. All three now take the dispatched `catch`.
+#[test]
+fn the_inline_catch_needs_a_braced_body_that_is_only_one_command() {
+    // A dynamic body, single- and multi-command alike.
+    assert_eq!(
+        run(
+            "proc p {} { set s {set x 1; set x 2}; set c [catch $s m]; return \"$c/$m\" }\n\
+             puts [p]"
+        )
+        .2,
+        "0/2\n"
+    );
+    assert_eq!(
+        run("proc p {} { set s {set x 9}; set c [catch $s m]; return \"$c/$m\" }\nputs [p]").2,
+        "0/9\n"
+    );
+    // A trailing `;` is a separator, not part of the argument.
+    assert_eq!(
+        run("proc p {} { set c [catch {error boom;} m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/boom\n"
+    );
+    // A leading comment is not the command.
+    assert_eq!(
+        run("proc p {} { set c [catch {# note\nerror boom} m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/boom\n"
+    );
+}
+
+/// A `{*}`-expanded word inside an inlined `catch` body still expands.
+///
+/// The single-command emitters split with `parse_cmd_parts`, which has no
+/// expansion form and reads the `{*}` prefix as a braced word — so
+/// `catch {cfg {*}$a}` called `cfg * {-verbose b}`. That is how `tcltest`'s
+/// option parser came to report `ambiguous option *`.
+#[test]
+fn an_inlined_catch_body_expands_a_star_word() {
+    assert_eq!(
+        run("proc cfg {args} { return \"[llength $args]:$args\" }\n\
+             proc p {} { set a {-verbose b}; set c [catch {cfg {*}$a} m]; return \"$c/$m\" }\n\
+             puts [p]")
+        .2,
+        "0/2:-verbose b\n"
+    );
+    assert_eq!(
+        run("proc cfg {args} { return \"[llength $args]:$args\" }\n\
+             proc p {} { set a {x y}; set c [catch {cfg {*}$a extra} m]; return \"$c/$m\" }\n\
+             puts [p]")
+        .2,
+        "0/3:x y extra\n"
+    );
+}
+
+/// The body word reaching the inline emitter is already the `catch` argument's
+/// *value*, so the braces still in it belong to the script.
+///
+/// `[catch {{set x 1}} m]` runs the one-word command `set x 1` and catches
+/// `invalid command name`; stripping a second brace layer compiled a
+/// successful `set` instead.
+#[test]
+fn an_inlined_catch_body_keeps_the_braces_that_belong_to_its_script() {
+    assert_eq!(
+        run("proc p {} { set c [catch {{set x 1}} m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/invalid command name \"set x 1\"\n"
+    );
+}
+
 /// A braced word inside an inlined command substitution is already the finished
 /// value, so it is pushed verbatim: the VM's word substitution would otherwise
 /// read a value that merely looks like a braced word as one and strip a brace

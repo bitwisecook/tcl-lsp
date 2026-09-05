@@ -284,15 +284,24 @@ const VECTORS: &[Vector] = &[
     // `INST_LAPPEND_{SCALAR,ARRAY,STK,ARRAY_STK}` omit `TCL_TRACE_READS`
     // (`tclExecute.c:3110-3121`) and fire `write` only, and so do this VM's.
     //
-    // Residual, deliberately absent from this sheet: an in-proc *single-value*
-    // `lappend l z` / `lappend arr(k) z` still reaches this VM's dispatched
-    // `lappend` rather than its write-only `LAPPEND_SCALAR`/`LAPPEND_ARRAY`
-    // arms, so it fires `read write` where C fires `write`. The cause is not
-    // the trace code: `cmd_proc` looks the pre-compiled body up under the
-    // *unqualified* `reg_name` while the compiler keys module procedures by
-    // `::name`, so a global proc always misses and its body is recompiled as a
-    // top-level script — losing every `is_proc` specialisation. Fixing that
-    // lookup makes these two spellings correct with no change here.
+    // The in-proc single-value spellings (`proc-local1`, `proc-elem1`) reach
+    // the write-only opcodes and are on this sheet: `cmd_proc` used to look the
+    // pre-compiled body up under the *unqualified* `reg_name` while the
+    // compiler keys module procedures by `::name`, so a global proc always
+    // missed and its body was recompiled as a top-level script, losing every
+    // `is_proc` specialisation. Rooting that lookup made both correct.
+    //
+    // Residual, deliberately absent from this sheet: an in-proc
+    // `eval {lappend l z}`. C has no `eval` compiler — the script becomes its
+    // own unit, where `l` is not a compiled local, so `lappend` dispatches and
+    // fires `read write`. This compiler *relaxes* a literal `eval` body into
+    // the enclosing function (`try_lower_eval_static` → `Statement::Block`),
+    // and the CFG builder flattens it, so inside a proc the body inherits the
+    // proc's compiled locals and fires `write` alone. The divergence is the
+    // relaxation, not the trace code, and it predates the lookup fix — a
+    // script-shaped proc body simply masked it. Closing it means carrying
+    // eval-body provenance through the CFG to codegen, or not relaxing `eval`
+    // inside a proc at all.
     Vector {
         name: "lappend fires read on the dispatched and multi-value paths only",
         script: "proc R {n1 n2 op} { lappend ::log $op }\n\
@@ -325,13 +334,16 @@ const VECTORS: &[Vector] = &[
                  lappend l\n\
                  puts \"proc-local0: $::log\"\n\
                  set ::log {}\n\
-                 eval {lappend l z}\n\
-                 puts \"proc-eval: $::log\"\n\
+                 lappend l z\n\
+                 puts \"proc-local1: $::log\"\n\
                  array set arr {k a}\n\
                  trace add variable arr(k) {read write} R\n\
                  set ::log {}\n\
                  lappend arr(k) a b\n\
                  puts \"proc-elem2: $::log\"\n\
+                 set ::log {}\n\
+                 lappend arr(k) z\n\
+                 puts \"proc-elem1: $::log\"\n\
                  }\n\
                  p\n",
         want: "top-1: read write\n\
@@ -341,8 +353,9 @@ const VECTORS: &[Vector] = &[
                top-if: read write\n\
                proc-local2: read write\n\
                proc-local0: read\n\
-               proc-eval: read write\n\
-               proc-elem2: read write",
+               proc-local1: write\n\
+               proc-elem2: read write\n\
+               proc-elem1: write",
     },
     // Rows 3 + 4: the read a read-modify-write command performs treats a
     // trace error as "no current value" rather than as a failure — `incr`
