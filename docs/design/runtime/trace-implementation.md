@@ -129,6 +129,17 @@ goes. Every removal site therefore searches from the newest end (`rposition`
 over our oldest-first Vecs), as do the teardown paths that collect a
 namespace's unset and command-delete traces before firing them.
 
+Every firing loop walks **live** state rather than a snapshot: it collects the
+registrations' ids up front, in the order above, and re-finds each one in the
+table immediately before running it. That is C's `active.nextTracePtr` /
+`nextPtr` walk, which `Tcl_UntraceVar2` and `Tcl_UntraceCommand` rewrite as
+they unlink a record — so a trace a callback removes does not fire in the same
+pass, while one it adds waits for the next access (C prepends, behind the
+walk). An unset is the exception, and for the same reason: it takes the
+variable's own list out of the table before firing (C moves it to a dummy
+`Var`), so nothing can remove those callbacks any more, and a variable a
+callback revives carries no traces.
+
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
 `active_var_scopes` for the duration of the callback, so a callback touching
 the same variable does not re-fire itself, and command-trace firing is gated on
