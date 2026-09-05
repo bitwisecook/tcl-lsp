@@ -460,6 +460,9 @@ probe two-cmd-brkt  [format {sfx pre; list [sfx one; set y "a$%sbcd"]} $ob]
 probe var-first     [format {sfx pre; list $nosuchvar [set y "a$%sbcd"]} $ob]
 probe runtime-err   {sfx pre; list [sfx inner] [set y $nosuchvar]}
 probe all-well      {sfx pre; list [sfx inner] [list ok]}
+probe quote-weld    {sfx pre; list [sfx inner] "a"b}
+probe empty-quote-weld {sfx pre; list [sfx inner] ""b}
+probe nested-quote-weld {sfx pre; list [sfx inner] [set y "a"b]}
 join $::out \n"#;
 
 /// tclsh 8.6.16 and tclsh 9.0.4, identical.
@@ -473,7 +476,10 @@ nested-weld -> error {extra characters after close-brace} ran {pre}
 two-cmd-brkt -> error {missing close-brace for variable name} ran {pre}
 var-first -> error {missing close-brace for variable name} ran {pre}
 runtime-err -> error {can't read "nosuchvar": no such variable} ran {pre inner}
-all-well -> ok {Sinner ok} ran {pre inner}"#;
+all-well -> ok {Sinner ok} ran {pre inner}
+quote-weld -> error {extra characters after close-quote} ran {pre}
+empty-quote-weld -> error {extra characters after close-quote} ran {pre}
+nested-quote-weld -> error {extra characters after close-quote} ran {pre}"#;
 
 /// Every row of the sheet, against the recorded shells.
 ///
@@ -594,4 +600,109 @@ fn a_brace_that_really_is_one_still_raises() {
     }
     let (code, result, _) = run("set y x{a}{b");
     assert_eq!((code, result.as_str()), (Code::Ok, "x{a}{b"));
+}
+
+// ---------------------------------------------------------------------------
+// #1828 — text welded straight onto a `"…"` word's close-quote, the sibling of
+// the #1786 close-brace weld above. The boundary owner records it as
+// `WordSpan::welded_after_close_quote`; this eval-facing engine turns it into
+// C's hard error. It was the one shape `tests/parse_cut_agreement.rs` had to
+// pin as a known divergence: `tcl_lexer::first_parse_cut` already reported it,
+// and this crate concatenated `"a"b` to `ab`.
+//
+// Oracle, measured on tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1b0, one
+// script per file — every row identical on every release:
+//
+//   "a"b     ""b     "a"$b     "a"[b]     "a"{b}     "a""b"     "a\"b"c
+//   "a[list b]"c     "a$x"b     "$x"b     "a$"b     "a"\ b     "a"]     "a"}
+//   set y "a"b       set y ""b        list [list a] "a"b       list "q"{*}$z
+//     -> code 1, `extra characters after close-quote`, -errorcode NONE
+//
+// and, as for the brace, it is a *parse*-time failure of the whole command:
+// `set ::x "a"[sfx inner]` leaves `x` unset and never runs `sfx`, while the
+// earlier `sfx pre` has run (`Tcl_EvalEx` parses one command at a time).
+//
+// Not welds, and still accepted (measured the same on 8.6.16 / 9.0.4): `"$"`
+// is the text `$` (C's `justADollarSign`) — the empty-content clamp the owner
+// has to read correctly, since the `"$` token's span sits on the `$`, not on a
+// closer; a `"` inside a bare word (`a"b"c`) is literal; a separator or a
+// backslash-newline after the `"` starts a new word; an empty `""` on its own
+// is the empty string.
+// ---------------------------------------------------------------------------
+
+/// Every welded shape raises C's message, with `-errorcode NONE`.
+#[test]
+fn text_welded_onto_a_close_quote_raises_extra_characters() {
+    for sheet in [
+        "\"a\"b",
+        "\"\"b",
+        "\"a\"$b",
+        "\"a\"[b]",
+        "\"a\"{b}",
+        "\"a\"\"b\"",
+        "\"a\\\"b\"c",
+        "\"a[list b]\"c",
+        "set x X\n\"a$x\"b",
+        "set x X\n\"$x\"b",
+        "\"a$\"b",
+        "\"a\"\\ b",
+        "\"a\"]",
+        "\"a\"}",
+        "set y \"a\"b",
+        "set y \"\"b",
+        "list [list a] \"a\"b",
+        "list \"q\"{*}$z",
+    ] {
+        let (code, result, error_code) = run(sheet);
+        assert_eq!(code, Code::Error, "{sheet}");
+        assert_eq!(result, "extra characters after close-quote", "{sheet}");
+        assert_eq!(error_code, "NONE", "{sheet}");
+    }
+}
+
+/// The failure is the command's: nothing it would have substituted runs and
+/// its target stays unset, while the earlier command has run.
+///
+/// Oracle (8.6.16 / 9.0.4): `{extra characters after close-quote} pre 0` for
+/// both the `"a"` and the empty-`""` spelling.
+#[test]
+fn a_welded_close_quote_fails_the_command_before_it_substitutes_anything() {
+    for weld in ["\"a\"", "\"\""] {
+        let sheet = format!(
+            "set ::ran {{}}\n\
+             proc sfx {{t}} {{ lappend ::ran $t; return S$t }}\n\
+             sfx pre\n\
+             catch {{set ::x {weld}[sfx inner]}} e\n\
+             list $e $::ran [info exists ::x]"
+        );
+        let (code, result, _) = run(&sheet);
+        assert_eq!(code, Code::Ok, "{weld}: {result}");
+        assert_eq!(
+            result, "{extra characters after close-quote} pre 0",
+            "{weld}"
+        );
+    }
+}
+
+/// A `"` away from word start, a `$` that names nothing, an empty `""`, and a
+/// real separator after the closer are not welds — none may trip the new
+/// error.
+#[test]
+fn a_quote_away_from_word_start_or_after_a_separator_is_not_a_weld() {
+    for (sheet, want) in [
+        ("string cat a\"b\"c", "a\"b\"c"),
+        ("set a A\nstring cat $a\"b\"c", "A\"b\"c"),
+        ("list \"a\" \"b\"", "a b"),
+        ("list \"a\"", "a"),
+        ("string cat \"$\"", "$"),
+        ("string cat \"a$ b\"", "a$ b"),
+        ("string length \"\"", "0"),
+        ("list \"a\"\\\nb", "a b"),
+        ("set x X\nstring cat \"$x\"", "X"),
+        ("string cat \"a[list b]\"", "ab"),
+    ] {
+        let (code, result, _) = run(sheet);
+        assert_eq!(code, Code::Ok, "{sheet}: {result}");
+        assert_eq!(result, want, "{sheet}");
+    }
 }

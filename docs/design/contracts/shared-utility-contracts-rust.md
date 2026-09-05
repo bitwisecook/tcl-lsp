@@ -910,9 +910,10 @@ helper without reading the rationale:
   was considered and rejected — it would make `runtime/rust` re-lex every
   command it evaluates, and its parse is infallible by design where the
   owner's returns an `Option`. This differential is what keeps the two
-  applications one policy; it runs under `make runtime-rust-test`, and it
-  pins the close-quote weld (`"a"b`) as the one shape they still answer
-  differently.
+  applications one policy; it runs under `make runtime-rust-test`. It once
+  pinned the close-quote weld (`"a"b`) as the one shape the two answered
+  differently; #1828 closed that through
+  `WordSpan::welded_after_close_quote`, and no divergence is pinned.
 
 ## Discoverability
 

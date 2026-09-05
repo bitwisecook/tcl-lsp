@@ -154,67 +154,7 @@ impl<'src> SourceMap<'src> {
     /// inner-content text should use it too.
     #[must_use]
     pub fn token_text(&self, tok: Token) -> &'src str {
-        let raw = self.text(tok.span);
-        // Strip the lexer-computed prefix (`$`, `${`, `[`, `{`, `"`,
-        // etc.) to get to the content.
-        let stripped = &raw[tok.content_offset as usize..];
-        // Kind-specific trailing-strip or empty-clamp rules.
-        match tok.kind {
-            TokenType::Var => {
-                // `${}` degenerate: the span is extended by one byte to
-                // cover the closing `}`, so the only remainder that is a
-                // bare `}` is that empty-name case. A non-degenerate braced
-                // name may legitimately *end* with a `}` — `${a{b}}` names
-                // the variable `a{b}` (brace-nesting), `${a\}b}` names
-                // `a\}b` — and the closing `}` is already excluded from the
-                // span. So, like the `Cmd` / `Str` arms, clear only the
-                // exact 1-character `}` remainder rather than stripping
-                // unconditionally.
-                if stripped == "}" { "" } else { stripped }
-            }
-            TokenType::Cmd => {
-                // `[]` degenerate: span extended by one to cover
-                // the `]`. Non-empty nested commands like
-                // `[+ 1 [inner]]` also end with `]` as a
-                // legitimate inner bracket, so we must NOT
-                // unconditionally strip — check for the exact
-                // 1-character `]` remainder instead.
-                if stripped == "]" { "" } else { stripped }
-            }
-            TokenType::Str => {
-                // `{}` degenerate: same shape as `[]`.
-                if stripped == "}" { "" } else { stripped }
-            }
-            TokenType::Esc => {
-                // Empty-content clamp for quoted sub-tokens.  When the quoted
-                // scanner stops with zero content, the span is extended by one
-                // byte over the terminator — the opening `"` extended over a
-                // following `$` / `[` substitution introducer, or a mid-string
-                // `$` / `[` fragment.  After stripping the opening delimiter
-                // (via `content_offset`), a one-character remainder that is a
-                // terminator (`"` / `$` / `[`) is that empty-body case and
-                // clamps to `""`.
-                //
-                // The clamp fires only for genuine quoted/wrapper tokens: those
-                // that stripped an opening delimiter (`content_offset != 0`) or
-                // sit inside a quoted run (`in_quote`, e.g. a mid-string
-                // introducer before `$var`, or the bare closing quote which
-                // `parse_quoted` marks with `content_offset == 1`).  A *literal*
-                // `"` / `$` / `[` in a bare word is emitted by `parse_esc` with
-                // `content_offset == 0` and `in_quote == false`, so it is left
-                // as its own text — `set x $a"` resolves the trailing `"`, not
-                // `""` (issue 160).
-                if (tok.content_offset != 0 || tok.in_quote)
-                    && stripped.len() == 1
-                    && matches!(stripped.chars().next(), Some('"' | '$' | '['))
-                {
-                    ""
-                } else {
-                    stripped
-                }
-            }
-            _ => stripped,
-        }
+        token_text_in(self.source, tok)
     }
 
     /// Resolve a byte offset to a full `SourcePosition`. O(log n).
@@ -250,6 +190,75 @@ impl<'src> SourceMap<'src> {
         };
         let end = self.position_at(end_offset);
         (start, end)
+    }
+}
+
+/// [`SourceMap::token_text`] without the map: the inner text of `tok` read
+/// straight from `source`, for a caller that holds the source but no line
+/// index — the boundary grouper, which must not build one per call. The
+/// stripping and empty-clamp rules live here and nowhere else; the method
+/// above is this function plus the map's own buffer.
+pub(crate) fn token_text_in(source: &str, tok: Token) -> &str {
+    let raw = &source[tok.span.as_range()];
+    // Strip the lexer-computed prefix (`$`, `${`, `[`, `{`, `"`,
+    // etc.) to get to the content.
+    let stripped = &raw[tok.content_offset as usize..];
+    // Kind-specific trailing-strip or empty-clamp rules.
+    match tok.kind {
+        TokenType::Var => {
+            // `${}` degenerate: the span is extended by one byte to
+            // cover the closing `}`, so the only remainder that is a
+            // bare `}` is that empty-name case. A non-degenerate braced
+            // name may legitimately *end* with a `}` — `${a{b}}` names
+            // the variable `a{b}` (brace-nesting), `${a\}b}` names
+            // `a\}b` — and the closing `}` is already excluded from the
+            // span. So, like the `Cmd` / `Str` arms, clear only the
+            // exact 1-character `}` remainder rather than stripping
+            // unconditionally.
+            if stripped == "}" { "" } else { stripped }
+        }
+        TokenType::Cmd => {
+            // `[]` degenerate: span extended by one to cover
+            // the `]`. Non-empty nested commands like
+            // `[+ 1 [inner]]` also end with `]` as a
+            // legitimate inner bracket, so we must NOT
+            // unconditionally strip — check for the exact
+            // 1-character `]` remainder instead.
+            if stripped == "]" { "" } else { stripped }
+        }
+        TokenType::Str => {
+            // `{}` degenerate: same shape as `[]`.
+            if stripped == "}" { "" } else { stripped }
+        }
+        TokenType::Esc => {
+            // Empty-content clamp for quoted sub-tokens.  When the quoted
+            // scanner stops with zero content, the span is extended by one
+            // byte over the terminator — the opening `"` extended over a
+            // following `$` / `[` substitution introducer, or a mid-string
+            // `$` / `[` fragment.  After stripping the opening delimiter
+            // (via `content_offset`), a one-character remainder that is a
+            // terminator (`"` / `$` / `[`) is that empty-body case and
+            // clamps to `""`.
+            //
+            // The clamp fires only for genuine quoted/wrapper tokens: those
+            // that stripped an opening delimiter (`content_offset != 0`) or
+            // sit inside a quoted run (`in_quote`, e.g. a mid-string
+            // introducer before `$var`, or the bare closing quote which
+            // `parse_quoted` marks with `content_offset == 1`).  A *literal*
+            // `"` / `$` / `[` in a bare word is emitted by `parse_esc` with
+            // `content_offset == 0` and `in_quote == false`, so it is left
+            // as its own text — `set x $a"` resolves the trailing `"`, not
+            // `""` (issue 160).
+            if (tok.content_offset != 0 || tok.in_quote)
+                && stripped.len() == 1
+                && matches!(stripped.chars().next(), Some('"' | '$' | '['))
+            {
+                ""
+            } else {
+                stripped
+            }
+        }
+        _ => stripped,
     }
 }
 
