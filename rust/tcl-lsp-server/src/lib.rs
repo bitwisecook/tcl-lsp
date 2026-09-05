@@ -378,8 +378,9 @@ impl DocumentState {
 /// spans were analysed against. Keeping the snapshots beside the hits avoids
 /// re-entering the Indexed-readiness wait while mapping a pending hit to an LSP
 /// range (#1854 review).
-struct OpenWorkspaceSymbolFallback {
-    hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+struct WorkspaceSymbolCandidates {
+    fallback_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+    indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
     sources: HashMap<String, Option<DocumentState>>,
 }
 
@@ -19294,20 +19295,29 @@ impl Backend {
         &self,
         query: &str,
         limit: usize,
-    ) -> OpenWorkspaceSymbolFallback {
-        let unindexed: Vec<(Uri, DocumentState)> = {
+    ) -> WorkspaceSymbolCandidates {
+        let (unindexed, indexed_hits) = {
             // `documents` → `workspace_index`, the lock order `did_open`
             // establishes.
             let docs = self.documents.lock("open_but_unindexed_symbols").await;
             let index = self.workspace_index.read().await;
-            docs.iter()
+            let unindexed: Vec<(Uri, DocumentState)> = docs
+                .iter()
                 .filter(|(uri, _)| !index.contains_document(uri.as_str()))
                 .map(|(uri, doc)| (uri.clone(), doc.clone()))
-                .collect()
+                .collect();
+            // Snapshot ordinary index hits under the same read lock that
+            // classified fallback URIs. Fresh analysis below may await long
+            // enough for one of those URIs to publish; consulting the index a
+            // second time would mix two revisions, duplicate a hit, and map a
+            // new span through the fallback's older source snapshot.
+            let indexed_hits = index.symbols_matching(query, limit);
+            (unindexed, indexed_hits)
         };
         if unindexed.is_empty() {
-            return OpenWorkspaceSymbolFallback {
-                hits: Vec::new(),
+            return WorkspaceSymbolCandidates {
+                fallback_hits: Vec::new(),
+                indexed_hits,
                 sources: HashMap::new(),
             };
         }
@@ -19337,8 +19347,9 @@ impl Backend {
             pending.add_document(uri.as_str(), &analysis);
             sources.insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
         }
-        OpenWorkspaceSymbolFallback {
-            hits: pending.symbols_matching(query, limit),
+        WorkspaceSymbolCandidates {
+            fallback_hits: pending.symbols_matching(query, limit),
+            indexed_hits,
             sources,
         }
     }
@@ -22262,14 +22273,14 @@ impl LanguageServer for Backend {
         // Bounded by the open-document set, empty in steady state, and the
         // analysis read here is the memoised one the pending publish is
         // already computing.
-        let OpenWorkspaceSymbolFallback {
-            mut hits,
+        let WorkspaceSymbolCandidates {
+            fallback_hits: mut hits,
+            indexed_hits,
             mut sources,
         } = self.open_but_unindexed_symbols(&params.query, limit).await;
         if hits.len() < limit {
             let remaining = limit - hits.len();
-            let index = self.workspace_index.read().await;
-            hits.extend(index.symbols_matching(&params.query, remaining));
+            hits.extend(indexed_hits.into_iter().take(remaining));
         }
         if hits.is_empty() {
             return Ok(None);
@@ -41958,14 +41969,14 @@ proc p {} {
         let current = backend
             .open_but_unindexed_symbols("current_live", 10)
             .await
-            .hits;
+            .fallback_hits;
         assert_eq!(current.len(), 1, "the live-only proc must be searchable");
         assert_eq!(current[0].name, "current_live_symbol");
         assert!(
             backend
                 .open_but_unindexed_symbols("obsolete_disk", 10)
                 .await
-                .hits
+                .fallback_hits
                 .is_empty(),
             "the pre-open disk proc must not survive through a Salsa cache hit",
         );
@@ -42094,6 +42105,86 @@ proc p {} {
         assert_eq!(found[0].name, "IconList");
         assert_eq!(found[0].kind, SymbolKind::CLASS);
         assert_eq!(found[0].location.uri, consumer_uri);
+    }
+
+    /// Exact-head review of #1854: fallback classification and ordinary index
+    /// hits must describe one snapshot. If the pending URI publishes while its
+    /// fresh analysis awaits configuration, a second index read would append
+    /// the new hit and map both revisions through the old captured source.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_symbols_do_not_mix_fallback_and_later_index_hits_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("untitled:workspace-symbol-snapshot-1854").unwrap();
+        let old_text = "proc race_symbol {} {}\n";
+        let new_text = "set pad 1\nproc race_symbol {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(old_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+
+        // Stall fresh analysis just after the atomic documents/index snapshot.
+        let config = backend.db_config.lock().await;
+        let acquisitions = backend.documents.contention().acquisitions;
+        let request = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .symbol(WorkspaceSymbolParams {
+                        query: "race_symbol".to_owned(),
+                        work_done_progress_params: WorkDoneProgressParams::default(),
+                        partial_result_params: PartialResultParams::default(),
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.documents.contention().acquisitions > acquisitions {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("workspace/symbol must capture its document/index snapshot");
+
+        // Publish a newer revision and index entry while the old fresh analysis
+        // is still blocked. The in-flight request must retain only its old
+        // fallback hit, not append this later index hit for the same URI.
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(new_text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned()),
+        );
+        let new_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(new_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &new_analysis);
+        drop(config);
+
+        let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("workspace/symbol must finish")
+            .expect("workspace/symbol task must not panic")
+            .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected the captured fallback symbol, got {found:?}");
+        };
+        assert_eq!(
+            found.len(),
+            1,
+            "later index publication must not duplicate the hit"
+        );
+        assert_eq!(found[0].name, "race_symbol");
+        assert_eq!(found[0].location.range.start.line, 0);
+        assert_eq!(found[0].location.range.start.character, 5);
     }
 
     /// Exact-head review of #1854: a session-default change that snapshots a
