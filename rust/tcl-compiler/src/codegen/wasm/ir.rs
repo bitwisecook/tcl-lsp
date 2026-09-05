@@ -42,6 +42,8 @@ const WASM_MAGIC: [u8; 4] = [0x00, 0x61, 0x73, 0x6D];
 const WASM_VERSION: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 /// Block type for a structured op that yields no value (`block`/`loop`/`if`).
 const BLOCK_VOID: u8 = 0x40;
+/// The runtime's shared function table, spelled once by `tcl-runtime-api`.
+const FUNCTION_TABLE_IMPORT: &str = tcl_runtime_api::codegen_abi::WASM32_FUNCTION_TABLE_IMPORT;
 
 /// WASM value types (their binary encoding bytes).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -175,7 +177,26 @@ pub enum WasmOp {
     F64Mul = 0xA2,
     F64Div = 0xA3,
     F64ConvertI64S = 0xB9,
+    /// `ref.null <heaptype>` — the operand byte is the heap type
+    /// (`0x70` funcref). Build it with [`WasmInstruction::ref_null_func`].
+    RefNull = 0xD0,
+    /// `ref.func <funcidx>` — a first-class reference to a function, which the
+    /// module installs into the runtime's shared table. The function must be
+    /// *declared*: exported, or listed in [`WasmModule::elem_declared`].
+    RefFunc = 0xD2,
+    /// `table.set <tableidx>`.
+    TableSet = 0x26,
+    /// `table.grow <tableidx>` — a **`0xFC`-prefixed** opcode. `WasmOp` is one
+    /// byte, so the discriminant is the `0xFC` prefix alone and the operand
+    /// bytes carry the sub-opcode (`0x0F`) ahead of the table index. Build it
+    /// with [`WasmInstruction::table_grow`], never by hand.
+    TableGrow = 0xFC,
 }
+
+/// The `0xFC` sub-opcode for `table.grow`.
+const TABLE_GROW_SUBOPCODE: u8 = 0x0F;
+/// The `funcref` heap type, as `ref.null`'s operand and in a table type.
+const HEAPTYPE_FUNCREF: u8 = 0x70;
 
 impl WasmOp {
     /// The WAT mnemonic (`i64.add`, `br_if`, `local.get`, …).
@@ -262,6 +283,10 @@ impl WasmOp {
             Self::F64Mul => "f64.mul",
             Self::F64Div => "f64.div",
             Self::F64ConvertI64S => "f64.convert_i64_s",
+            Self::RefNull => "ref.null",
+            Self::RefFunc => "ref.func",
+            Self::TableSet => "table.set",
+            Self::TableGrow => "table.grow",
         }
     }
 
@@ -308,6 +333,33 @@ impl WasmInstruction {
             range: None,
             label: None,
         }
+    }
+
+    /// `ref.null func` — the null funcref `table.grow` fills new slots with.
+    #[must_use]
+    pub fn ref_null_func() -> Self {
+        Self::with_operands(WasmOp::RefNull, vec![HEAPTYPE_FUNCREF])
+    }
+
+    /// `ref.func <func>` — a reference to a defined function.
+    #[must_use]
+    pub fn ref_func(func: u32) -> Self {
+        Self::with_operands(WasmOp::RefFunc, leb128_unsigned(u64::from(func)))
+    }
+
+    /// `table.set <table>`.
+    #[must_use]
+    pub fn table_set(table: u32) -> Self {
+        Self::with_operands(WasmOp::TableSet, leb128_unsigned(u64::from(table)))
+    }
+
+    /// `table.grow <table>` — the one constructor for the `0xFC`-prefixed
+    /// encoding, so no caller has to know the sub-opcode goes in the operands.
+    #[must_use]
+    pub fn table_grow(table: u32) -> Self {
+        let mut operands = vec![TABLE_GROW_SUBOPCODE];
+        operands.extend(leb128_unsigned(u64::from(table)));
+        Self::with_operands(WasmOp::TableGrow, operands)
     }
 
     /// The opcode byte followed by its operand bytes.
@@ -394,6 +446,61 @@ pub struct WasmImport {
     pub type_idx: usize,
 }
 
+/// A module-level global's constant initialiser.
+///
+/// Only integer globals are representable, which is all this backend emits:
+/// making the initialiser carry its own type is what stops a `ValType` and an
+/// `i64` from disagreeing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlobalInit {
+    /// `(i32.const n)`.
+    I32(i32),
+    /// `(i64.const n)`.
+    I64(i64),
+}
+
+impl GlobalInit {
+    /// The global's value type.
+    #[must_use]
+    pub fn val_type(self) -> ValType {
+        match self {
+            Self::I32(_) => ValType::I32,
+            Self::I64(_) => ValType::I64,
+        }
+    }
+
+    /// The constant-expression bytes, `end` included.
+    fn encode(self) -> Vec<u8> {
+        let (op, value) = match self {
+            Self::I32(n) => (WasmOp::I32Const, i64::from(n)),
+            Self::I64(n) => (WasmOp::I64Const, n),
+        };
+        let mut out = vec![op as u8];
+        out.extend(leb128_signed(value));
+        out.push(WasmOp::End as u8);
+        out
+    }
+
+    /// The WAT initialiser, e.g. `(i32.const -1)`.
+    fn to_wat(self) -> String {
+        match self {
+            Self::I32(n) => format!("(i32.const {n})"),
+            Self::I64(n) => format!("(i64.const {n})"),
+        }
+    }
+}
+
+/// A module-level global.
+#[derive(Debug, Clone)]
+pub struct WasmGlobal {
+    /// Name, for WAT rendering only (globals are addressed by index).
+    pub name: String,
+    /// Whether `global.set` may write it.
+    pub mutable: bool,
+    /// The constant initialiser, which also fixes the value type.
+    pub init: GlobalInit,
+}
+
 /// A data segment (string constant pool entry).
 #[derive(Debug, Clone)]
 pub struct WasmData {
@@ -416,6 +523,25 @@ pub struct WasmModule {
     pub memory_pages: u64,
     /// Import linear memory from the runtime rather than defining our own.
     pub import_memory: bool,
+    /// Import the runtime's shared function table
+    /// (`WASM32_FUNCTION_TABLE_IMPORT`) rather than defining our own.
+    ///
+    /// Off by default, and deliberately opt-in per module rather than implied
+    /// by `import_memory`: a runtime linked without `--export-table` cannot
+    /// satisfy the import at all, and instantiation fails hard with `unknown
+    /// import`. So a module asks for the table only when it installs something
+    /// in it, and every module that does not keeps loading against an older
+    /// runtime.
+    pub import_table: bool,
+    /// Module-level globals, in index order.
+    pub globals: Vec<WasmGlobal>,
+    /// Function indices declared by a **declarative** element segment, which
+    /// is what makes them legal `ref.func` operands.
+    ///
+    /// An exported function is already declared, so this is belt and braces
+    /// for the table install — but it is the cheap half: un-exporting a
+    /// function later would otherwise silently invalidate the module.
+    pub elem_declared: Vec<u32>,
     /// Interned function signatures `(params, results)`, in type-index order.
     types: Vec<(Vec<ValType>, Vec<ValType>)>,
 }
@@ -547,7 +673,7 @@ impl WasmModule {
         // a module that only needs runtime memory (e.g. for data segments)
         // must still declare it, or it references memory 0 undefined and
         // fails validation.
-        if !self.imports.is_empty() || self.import_memory {
+        if !self.imports.is_empty() || self.import_memory || self.import_table {
             let mut entries: Vec<Vec<u8>> = self
                 .imports
                 .iter()
@@ -565,6 +691,18 @@ impl WasmModule {
                 e.push(0x02); // memory import
                 e.push(0x00); // limits: no maximum
                 e.extend(leb128_unsigned(self.memory_pages));
+                entries.push(e);
+            }
+            if self.import_table {
+                // A minimum of 0 with no maximum, so the import matches any
+                // table the runtime actually links: import matching only needs
+                // the real table to be at least this big.
+                let mut e = encode_string("tcl");
+                e.extend(encode_string(FUNCTION_TABLE_IMPORT));
+                e.push(0x01); // table import
+                e.push(HEAPTYPE_FUNCREF);
+                e.push(0x00); // limits: no maximum
+                e.extend(leb128_unsigned(0));
                 entries.push(e);
             }
             sections.extend(Self::make_section(
@@ -604,6 +742,24 @@ impl WasmModule {
             sections.extend(Self::make_section(SectionId::Memory, &mem));
         }
 
+        // Global section (id 6, so between Memory and Export).
+        if !self.globals.is_empty() {
+            let entries: Vec<Vec<u8>> = self
+                .globals
+                .iter()
+                .map(|global| {
+                    let mut e = vec![global.init.val_type() as u8];
+                    e.push(u8::from(global.mutable));
+                    e.extend(global.init.encode());
+                    e
+                })
+                .collect();
+            sections.extend(Self::make_section(
+                SectionId::Global,
+                &encode_vector(&entries),
+            ));
+        }
+
         // Export section.
         let mut exports: Vec<Vec<u8>> = Vec::new();
         if !self.import_memory {
@@ -625,6 +781,23 @@ impl WasmModule {
             sections.extend(Self::make_section(
                 SectionId::Export,
                 &encode_vector(&exports),
+            ));
+        }
+
+        // Element section (id 9, so between Export and Code): one declarative
+        // segment naming every function a `ref.func` may name.
+        if !self.elem_declared.is_empty() {
+            let indices: Vec<Vec<u8>> = self
+                .elem_declared
+                .iter()
+                .map(|&index| leb128_unsigned(u64::from(index)))
+                .collect();
+            let mut segment = vec![0x03u8]; // declarative, with an elemkind
+            segment.push(0x00); // elemkind: funcref
+            segment.extend(encode_vector(&indices));
+            sections.extend(Self::make_section(
+                SectionId::Element,
+                &encode_vector(&[segment]),
             ));
         }
 
@@ -706,6 +879,31 @@ impl WasmModule {
                 "  (memory (export \"memory\") {})",
                 self.memory_pages
             ));
+        }
+
+        if self.import_table {
+            lines.push(format!(
+                "  (import \"tcl\" \"{FUNCTION_TABLE_IMPORT}\" (table 0 funcref))"
+            ));
+        }
+
+        for global in &self.globals {
+            let ty = global.init.val_type().wat_name();
+            let ty = if global.mutable {
+                format!("(mut {ty})")
+            } else {
+                ty.to_owned()
+            };
+            lines.push(format!(
+                "  (global ${} {ty} {})",
+                global.name,
+                global.init.to_wat()
+            ));
+        }
+
+        if !self.elem_declared.is_empty() {
+            let indices: Vec<String> = self.elem_declared.iter().map(ToString::to_string).collect();
+            lines.push(format!("  (elem declare func {})", indices.join(" ")));
         }
 
         for func in &self.functions {
@@ -804,7 +1002,9 @@ fn format_wat_instr(instr: &WasmInstruction, indent: usize) -> String {
         | WasmOp::GlobalSet
         | WasmOp::Call
         | WasmOp::Br
-        | WasmOp::BrIf => {
+        | WasmOp::BrIf
+        | WasmOp::RefFunc
+        | WasmOp::TableSet => {
             if instr.operands.is_empty() {
                 format!("{prefix}{name}")
             } else {
@@ -839,6 +1039,15 @@ fn format_wat_instr(instr: &WasmInstruction, indent: usize) -> String {
             Some(offset) => format!("{prefix}{name} offset={offset}"),
             None => format!("{prefix}{name}"),
         },
+        // The `0xFC` sub-opcode leads the operands; only the table index
+        // after it carries information.
+        WasmOp::TableGrow => match instr.operands.get(1..) {
+            Some(table) if !table.is_empty() => {
+                format!("{prefix}{name} {}", decode_leb128_unsigned(table))
+            }
+            _ => format!("{prefix}{name}"),
+        },
+        WasmOp::RefNull => format!("{prefix}{name} func"),
         WasmOp::Block | WasmOp::Loop | WasmOp::If => {
             // Only the void block type is emitted by this backend.
             if instr.operands.first() == Some(&BLOCK_VOID) || instr.operands.is_empty() {
@@ -1021,6 +1230,164 @@ mod tests {
         );
         // Idempotent: serialising again neither grows nor reorders the table.
         assert_eq!(m.type_section(), m.types);
+    }
+
+    /// A module shaped like the one issue #1774 emits: it imports the
+    /// runtime's table, keeps the grown base in a global, and declares the
+    /// function it installs.
+    fn table_install_module() -> WasmModule {
+        let mut m = WasmModule::new();
+        m.import_table = true;
+        m.globals.push(WasmGlobal {
+            name: "table_base".into(),
+            mutable: true,
+            init: GlobalInit::I32(-1),
+        });
+        m.functions.push(WasmFunction {
+            name: "::p".into(),
+            params: vec![],
+            results: vec![],
+            locals: vec![],
+            body: vec![
+                WasmInstruction::ref_null_func(),
+                WasmInstruction::with_operands(WasmOp::I32Const, leb128_signed(1)),
+                WasmInstruction::table_grow(0),
+                WasmInstruction::with_operands(WasmOp::GlobalSet, leb128_unsigned(0)),
+                WasmInstruction::with_operands(WasmOp::GlobalGet, leb128_unsigned(0)),
+                WasmInstruction::ref_func(0),
+                WasmInstruction::table_set(0),
+            ],
+            local_names: vec![],
+            // Deliberately *not* exported, so the declarative element segment
+            // is the only thing making `ref.func 0` legal.
+            exported: false,
+            source_range: None,
+            kind: "proc".into(),
+        });
+        m.elem_declared.push(0);
+        m
+    }
+
+    #[test]
+    fn a_table_installing_module_emits_its_sections_in_ascending_id_order() {
+        let mut m = table_install_module();
+        let bytes = m.to_bytes();
+        let mut seen = Vec::new();
+        let mut i = 8;
+        while i < bytes.len() {
+            let id = bytes[i];
+            let (len, adv) = read_uleb(&bytes[i + 1..]);
+            seen.push(id);
+            i += 1 + adv + len as usize;
+        }
+        // Type(1), Import(2), Function(3), Global(6), Element(9), Code(10).
+        // Global must precede Export and Element must precede Code, or the
+        // module is rejected before any of it runs.
+        assert_eq!(seen, vec![1, 2, 3, 6, 9, 10], "section ids: {seen:?}");
+    }
+
+    #[test]
+    fn the_table_import_matches_any_runtime_table() {
+        let mut m = table_install_module();
+        let bytes = m.to_bytes();
+        // module "tcl", name, 0x01 table, 0x70 funcref, 0x00 no-max, min 0.
+        let mut needle = encode_string("tcl");
+        needle.extend(encode_string(FUNCTION_TABLE_IMPORT));
+        needle.extend([0x01, 0x70, 0x00, 0x00]);
+        assert!(
+            bytes.windows(needle.len()).any(|w| w == needle),
+            "table import must declare `funcref`, no maximum, and a minimum of \
+             0 so it matches whatever the runtime linked"
+        );
+        assert!(m.to_wat().contains(&format!(
+            "(import \"tcl\" \"{FUNCTION_TABLE_IMPORT}\" (table 0 funcref))"
+        )));
+    }
+
+    #[test]
+    fn a_mutable_global_carries_its_type_and_constant_initialiser() {
+        let mut m = table_install_module();
+        let bytes = m.to_bytes();
+        // i32 (0x7F), mutable (0x01), i32.const -1 (0x41 0x7F), end (0x0B).
+        let needle = [0x7Fu8, 0x01, 0x41, 0x7F, 0x0B];
+        assert!(
+            bytes.windows(needle.len()).any(|w| w == needle),
+            "global section must carry (mut i32) (i32.const -1)"
+        );
+        assert!(
+            m.to_wat()
+                .contains("(global $table_base (mut i32) (i32.const -1))")
+        );
+
+        // An immutable i64 global takes the other arm of both encoders.
+        let mut other = WasmModule::new();
+        other.globals.push(WasmGlobal {
+            name: "answer".into(),
+            mutable: false,
+            init: GlobalInit::I64(42),
+        });
+        let bytes = other.to_bytes();
+        let needle = [0x7Eu8, 0x00, 0x42, 0x2A, 0x0B];
+        assert!(
+            bytes.windows(needle.len()).any(|w| w == needle),
+            "an immutable i64 global"
+        );
+        assert!(
+            other
+                .to_wat()
+                .contains("(global $answer i64 (i64.const 42))")
+        );
+    }
+
+    #[test]
+    fn a_declarative_element_segment_names_every_ref_func_target() {
+        let mut m = table_install_module();
+        let bytes = m.to_bytes();
+        // One segment: 0x03 declarative, 0x00 funcref elemkind, vec [0].
+        let needle = [0x01u8, 0x03, 0x00, 0x01, 0x00];
+        assert!(
+            bytes.windows(needle.len()).any(|w| w == needle),
+            "one declarative funcref segment naming function 0"
+        );
+        assert!(m.to_wat().contains("(elem declare func 0)"));
+    }
+
+    #[test]
+    fn the_reference_ops_encode_their_prefixes_and_render_their_operands() {
+        // `table.grow` is the only 0xFC-prefixed op here: one byte of opcode,
+        // then the sub-opcode, then the table index.
+        let grow = WasmInstruction::table_grow(0);
+        assert_eq!(grow.encode(), vec![0xFC, 0x0F, 0x00]);
+        assert_eq!(WasmInstruction::ref_func(3).encode(), vec![0xD2, 0x03]);
+        assert_eq!(WasmInstruction::table_set(0).encode(), vec![0x26, 0x00]);
+        assert_eq!(WasmInstruction::ref_null_func().encode(), vec![0xD0, 0x70]);
+
+        let wat = table_install_module().to_wat();
+        for expected in ["ref.null func", "table.grow 0", "ref.func 0", "table.set 0"] {
+            assert!(wat.contains(expected), "{expected} missing from:\n{wat}");
+        }
+    }
+
+    #[test]
+    fn a_module_that_installs_nothing_keeps_its_previous_shape() {
+        // The three new fields default off, so a module that binds no native
+        // proc emits exactly the bytes it emitted before — which is what lets
+        // it keep loading against a runtime with no exported table.
+        let mut plain = sample_module();
+        assert!(!plain.import_table);
+        assert!(plain.globals.is_empty());
+        assert!(plain.elem_declared.is_empty());
+        let bytes = plain.to_bytes();
+        let mut seen = Vec::new();
+        let mut i = 8;
+        while i < bytes.len() {
+            let id = bytes[i];
+            let (len, adv) = read_uleb(&bytes[i + 1..]);
+            seen.push(id);
+            i += 1 + adv + len as usize;
+        }
+        assert_eq!(seen, vec![1, 2, 3, 7, 10]);
+        assert!(!plain.to_wat().contains(FUNCTION_TABLE_IMPORT));
     }
 
     #[test]

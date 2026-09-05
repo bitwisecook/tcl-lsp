@@ -1333,3 +1333,37 @@ with the site logged, a compiled body's `-errorinfo` *and* `-errorstack` are
 byte-identical to the interpreted body's, which is tclsh 9.0.4's and
 8.6.16's. So step 6 is now a call site in the emitter, not an open question.
 
+### WASM IR (delivered)
+
+`WasmModule` gains `import_table: bool`, `globals: Vec<WasmGlobal>` and
+`elem_declared: Vec<u32>`, plus the reference-type ops `ref.null`, `ref.func`,
+`table.set` and `table.grow`. All three fields default off, so a module that
+binds no native proc emits byte-identical output — pinned by
+`a_module_that_installs_nothing_keeps_its_previous_shape`, and confirmed by
+`budgets.tsv` being unchanged.
+
+Three details worth carrying into PR-B:
+
+- **`ref.null func` was missing from the plan's op list.** `table.grow` takes
+  an init *reference* and a delta, so the module cannot grow the table without
+  it. It is `WasmOp::RefNull` (`0xD0`) with the `funcref` heap type as its
+  operand byte.
+- **`table.grow` is `0xFC`-prefixed** and `WasmOp` is `repr(u8)`, so the
+  discriminant is the prefix alone and the operand bytes carry the sub-opcode
+  `0x0F` ahead of the table index. `WasmInstruction::table_grow` is the only
+  constructor, so no caller has to know that.
+- **Function imports stay in `imports`.** A table import occupies the table
+  index space, not the function one, so `top_idx = wasm.imports.len()` and the
+  budgets walker are untouched.
+
+The table import declares `(table 0 funcref)` — minimum 0, no maximum — so it
+matches whatever size the runtime actually linked.
+
+`wasm_execute.rs::an_emitted_module_installs_a_function_into_the_hosts_table`
+runs the encoded module under wasmtime: it grows a host table, keeps the base
+in a global, installs a function of its own and has the host call it back
+through the table, answering 42. The installed function is deliberately **not**
+exported, so the declarative element segment is the only thing making its
+`ref.func` legal — removing the segment fails validation, and a fixed-size host
+table traps, so neither half of the case is decorative.
+
