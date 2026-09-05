@@ -191,7 +191,11 @@ struct Namespace {
     name: Vec<u8>,
     parent: Option<NsId>,
     children: BTreeMap<Vec<u8>, NsId>,
-    commands: BTreeMap<Vec<u8>, Command>,
+    /// The child table's retained `TCL_STRING_KEYS` bucket order.
+    child_order: TclStringHashOrder,
+    /// Entries + the command table's retained bucket order + a per-entry
+    /// token generation.
+    commands: CommandTable,
     /// `namespace path` — namespaces searched for unqualified commands.
     path: Vec<NsId>,
     /// `namespace export` patterns, matched with `string match` glob.
@@ -218,10 +222,32 @@ Four fields of C's `Namespace` have no counterpart, deliberately:
   emptied, so there is no dying-but-reachable state to describe.
 
 `BTreeMap` (not `HashMap`) throughout gives deterministic storage and makes
-`info commands` / `info vars` stable run to run. `namespace children` is the
-exception where C's `Tcl_HashTable` bucket order is public behavior: the
-adapter supplies child ids in creation order and `tcl-cmd-core::namespace`
-reconstructs the Tcl string-hash enumeration, including resize reversals.
+`info commands` / `info vars` stable run to run. Two places are exceptions,
+where C's `Tcl_HashTable` bucket order is public behaviour: `namespace
+children` and namespace **teardown**. Both read a retained
+[`TclStringHashOrder`] kept beside the map — one per child table, one per
+command table — because Tcl quadruples the bucket array at a 3:1 load factor,
+never shrinks it, and reverses chains on every rebuild, so the order cannot be
+reconstructed from the live entries alone. `TclDeleteNamespaceChildren` and
+`TclTeardownNamespace` snapshot exactly that order before deleting each token,
+and delete traces make it observable.
+
+`CommandTable` also mints a **generation** per entry. It is the one piece of
+C's `Command` identity the table needs: a teardown snapshot names
+`(tail, generation)`, so a token a delete callback deleted or redefined is
+skipped rather than confused with whatever now holds the name — C's
+`CMD_DYING` early return, which leaves the replacement to the next snapshot.
+
+The bytecode VM reaches the same behaviour from a different shape: its command
+table is one flat map keyed by canonical FQN, so it keeps the order owners in
+`ns_command_order`, keyed by each command's holder namespace, and its teardown
+snapshot pairs each key with the `command_generations` entry. One caveat is
+the VM's alone: it registers its builtins in its own bootstrap order rather
+than `Tcl_CreateInterp`'s, so the **global** holder's order — what
+`namespace delete ::` would enumerate — is ours, not C's. Every per-namespace
+user table is exact.
+
+[`TclStringHashOrder`]: ../../../rust/tcl-cmd-core/src/namespace.rs
 
 ### `Command`
 
@@ -278,10 +304,23 @@ implemented, it is implemented differently — the pointer below says where.
 C Tcl uses `refCount`, `activationCount`, `NS_DYING` / `NS_DEAD`,
 `deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`, and
 `Command.cmdEpoch` to sequence a namespace teardown that can be re-entered by
-the very code it is tearing down. None of them is carried: there is no `flags`
-word on either `Namespace` or `Command`, because Rust ownership sequences the
-teardown instead — a removed entry is moved out of its map, so nothing can
-observe a half-dead one.
+the very code it is tearing down. Most of them are not carried: there is no
+`flags` word on either `Namespace` or `Command`, because Rust ownership
+sequences the teardown instead — a removed entry is moved out of its map, so
+nothing can observe a half-dead one.
+
+The one exception is what `CMD_DYING` + `Command.cmdEpoch` together decide:
+*is the thing at this name still the token I snapshotted?* `CommandTable`
+answers that with its per-entry generation, so `delete_namespace_token` can
+run C's loop — snapshot `cmdTable` in hash order, delete each snapshotted
+token in turn while its entry is still visible to its own delete trace, and
+re-snapshot while the table is non-empty. A callback that deletes a
+snapshotted sibling, or redefines the entry the loop is on, changes that
+entry's generation and the loop skips it; a command the callback *created*
+is torn down by the next snapshot.
+
+`activationCount` and the deferred teardown it drives are still not carried
+(#1751).
 
 `namespace delete` **is** implemented (`cmd_namespace.rs::ns_delete`, mirroring
 C's `NamespaceDeleteCmd`): it deletes each named namespace with its children,
@@ -560,6 +599,13 @@ pub fn rename(&mut self, current: NsId, old: &[u8], new: &[u8]) -> RenameOutcome
 pub fn command_names(&self, ns: NsId) -> Vec<&[u8]>;
 pub fn which_command(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>>;
 pub fn command_origin(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>>;
+/// The teardown snapshot: live `(simple name, generation)` slots in
+/// `Tcl_FirstHashEntry` order.
+pub(crate) fn command_hash_order(&self, ns: NsId) -> Vec<(Vec<u8>, u64)>;
+/// The generation currently bound at `(ns, name)` — the snapshot's
+/// still-the-same-token check.
+pub(crate) fn command_generation(&self, ns: NsId, name: &[u8]) -> Option<u64>;
+pub(crate) fn command_fqn_at(&self, ns: NsId, name: &[u8]) -> Vec<u8>;
 ```
 
 ### Variable table
@@ -613,9 +659,13 @@ pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]);
 
 There are no visitor helpers: `command_names`, `var_names`, `proc_names`,
 `const_names`, `children`, and `descendant_ids` each return an owned or
-borrowed listing directly. `children` returns creation order for the shared
-command core's Tcl-hash ordering step; the remaining table listings retain the
-cheap deterministic `BTreeMap` order.
+borrowed listing directly. Two listings are ordered by the retained Tcl hash
+table instead of the map: `children_hash_order` (which
+`TclDeleteNamespaceChildren` and `namespace children` need) and
+`command_hash_order` (which `TclTeardownNamespace` needs). The rest retain the
+cheap deterministic `BTreeMap` order — including `info commands` / `info
+procs`, which C also answers in hash order; that divergence is tracked
+separately and only ever shows through an unsorted listing.
 
 ## 8. Settled design points
 

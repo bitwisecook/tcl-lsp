@@ -433,6 +433,15 @@ fn canonical_ns_name(name: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(join_segments(name))
 }
 
+/// The retained `TCL_STRING_KEYS` tables an interpreter root starts with: the
+/// global holder always has one, empty and at Tcl's four static buckets.
+fn root_hash_order() -> HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder> {
+    HashMap::from([(
+        String::new(),
+        tcl_cmd_core::namespace::TclStringHashOrder::default(),
+    )])
+}
+
 /// [`tcl_syntax::naming::key_holder_and_tail`] for the VM's **unrooted** key
 /// convention: root the key, split by the construction-inverse rule, and
 /// unroot the holder.  Distinct from the written-name colon-run split — an
@@ -778,6 +787,13 @@ pub struct InterpState {
     /// Per-namespace retained `TCL_STRING_KEYS` child-table state. The shared
     /// owner preserves resize and deletion history for `namespace children`.
     ns_child_order: HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder>,
+    /// Per-namespace retained `TCL_STRING_KEYS` command-table state, keyed by
+    /// the holder namespace of each command's canonical key. `commands` is one
+    /// flat map, so the bucket order `TclTeardownNamespace` snapshots lives
+    /// here instead. Builtins are registered in the VM's own bootstrap order
+    /// rather than `Tcl_CreateInterp`'s, so the global holder's order is ours,
+    /// not C's; every per-namespace user table is exact.
+    ns_command_order: HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder>,
     /// Per-namespace command resolution path (`namespace path`): canonical
     /// namespace name (no leading `::`, `""` = global) → the ordered list of
     /// namespaces (canonical) consulted after the current namespace and before
@@ -851,6 +867,11 @@ pub struct InterpState {
     /// doesn't count toward `clippy::struct_excessive_bools` alongside the
     /// interp's genuine bool-valued state (`is_safe`, `debug_frame`, …).
     pub(crate) trace_in_progress: std::cell::Cell<bool>,
+    /// The commands whose `rename`/`delete` traces are currently firing. C
+    /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a
+    /// deletion), not interpreter-wide: a callback that deletes a *different*
+    /// command still fires that command's own traces, nested.
+    firing_cmd_traces: Vec<CommandSidecarKey>,
     /// A traced dispatch that deferred its body to a pushed frame parks its
     /// leave context here for `drive_loop` to move onto that frame — set and
     /// drained within one trampoline step.
@@ -1574,10 +1595,8 @@ impl InterpState {
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             dead_namespaces: HashSet::new(),
-            ns_child_order: HashMap::from([(
-                String::new(),
-                tcl_cmd_core::namespace::TclStringHashOrder::default(),
-            )]),
+            ns_child_order: root_hash_order(),
+            ns_command_order: root_hash_order(),
             ns_paths: HashMap::new(),
             ns_unknowns: HashMap::new(),
             ns_unknown_depth: 0,
@@ -1593,6 +1612,7 @@ impl InterpState {
             exec_step_scopes: Vec::new(),
             trace_deopt_epoch: std::cell::Cell::new(0),
             trace_in_progress: std::cell::Cell::new(false),
+            firing_cmd_traces: Vec::new(),
             pending_exec_leave: None,
             cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
             cmd_epoch: std::cell::Cell::new(0),
@@ -2394,6 +2414,7 @@ impl Vm {
         // immediately after registering, so clearing here cannot unmark them.
         self.registry_object_roots.remove(name);
         self.commands.insert(name.to_owned(), cmd);
+        self.note_command_bound(name, replacing_command);
         let installed_generation = self.mint_command_generation();
         self.command_generations
             .insert(name.to_owned(), installed_generation);
@@ -2441,6 +2462,7 @@ impl Vm {
         let imported = self.imported_commands.contains_key(name);
         let token = self.command_token_identity(&CommandSidecarKey::visible(name));
         if let Some(command) = self.commands.remove(name) {
+            self.note_command_unbound(name);
             self.command_generations.remove(name);
             if !imported && let Some(token) = token {
                 self.retire_real_command(&token, &command);
@@ -2525,6 +2547,13 @@ impl Vm {
         command: Command,
     ) {
         new_key.clone_into(&mut transaction.new_key);
+        // C's `TclRenameCommand` creates the destination hash entry *before*
+        // deleting the source's, so the transient extra entry can trigger a
+        // rebuild a delete-first order would not. Only the retained order
+        // observes that; the removal/registration order below is unchanged.
+        // `register_command` re-inserts the same key, which the order owner
+        // leaves where this call put it.
+        self.note_command_bound(new_key, false);
         // Keep the successful rename's established source-removal then
         // destination-registration order.  The caller has already completed
         // every rejection path, so this is now allowed to fire destination
@@ -2641,6 +2670,15 @@ impl Vm {
 
         let source_token = self.command_token_identity(key)?;
         self.on_command_removed_for(key);
+        if self.command_token_identity(key).as_ref() != Some(&source_token) {
+            // A delete callback deleted this command or redefined it: that
+            // lifecycle already unlinked the entry and re-pointed the source's
+            // imports (C's `CMD_REDEF_IN_PROGRESS` skips the ImportRef walk,
+            // and `Tcl_DeleteCommandFromToken` finds `cmdPtr->hPtr` already
+            // NULL). Whatever holds the name now is a distinct token, left for
+            // the next teardown snapshot.
+            return Some(command);
+        }
         self.retire_real_command(&source_token, &command);
         match key {
             CommandSidecarKey::Visible(name) => {
@@ -2668,7 +2706,11 @@ impl Vm {
         // the destination; leaving it stranded under the vacated name would
         // gate an unrelated command that later takes that name.
         self.registry_object_roots.remove(key);
-        self.commands.remove(key)
+        let command = self.commands.remove(key);
+        if command.is_some() {
+            self.note_command_unbound(key);
+        }
+        command
     }
 
     /// Remove a command by its exact table key (no name resolution) — the
@@ -3607,6 +3649,7 @@ impl Vm {
             let command_generation = self.command_generations.get(c).copied();
             let builtin_identity = self.builtin_identity_for_key(c);
             if let Some(cmd) = self.commands.remove(c) {
+                self.note_command_unbound(c);
                 self.command_generations.remove(c);
                 self.imported_commands.remove(c);
                 self.builtin_identities.remove(c);
@@ -3744,7 +3787,10 @@ impl Vm {
                 self.in_interp(parent, |vm| {
                     vm.children.remove(&name);
                     vm.bump_cmd_epoch();
-                    vm.commands.remove(name.strip_prefix("::").unwrap_or(&name));
+                    let key = name.strip_prefix("::").unwrap_or(&name).to_owned();
+                    if vm.commands.remove(&key).is_some() {
+                        vm.note_command_unbound(&key);
+                    }
                 });
             }
         }
@@ -4538,17 +4584,17 @@ impl Vm {
         })
     }
 
-    /// A dying namespace rejects new members generally, but Tcl permits a
-    /// command delete callback to replace the still-table-visible command
-    /// token currently being torn down. The replacement remains callable for
-    /// the callback and is swept when namespace teardown resumes.
-    pub(crate) fn namespace_accepts_command_definition(
-        &self,
-        namespace: &str,
-        command_key: &str,
-    ) -> bool {
-        self.namespace_exists(namespace)
-            || (self.namespace_is_dying(namespace) && self.commands.contains_key(command_key))
+    /// Whether a qualified command definition may name `namespace` (C's
+    /// `TclGetNamespaceForQualName` finding a non-`NULL` `nsPtr`). A namespace
+    /// in its synchronous delete window still qualifies: the new command
+    /// remains callable for the callback and is swept when teardown resumes.
+    pub(crate) fn namespace_accepts_command_definition(&self, namespace: &str) -> bool {
+        // `TclTeardownNamespace` unlinks the token from its parent's
+        // `childTable` only *after* the command loop, so through the whole
+        // synchronous delete-callback window `TclGetNamespaceForQualName`
+        // still reaches it: a callback may define a brand-new command there,
+        // which the next teardown snapshot then tears down.
+        self.namespace_exists(namespace) || self.namespace_is_dying(namespace)
     }
 
     /// Register an existing namespace (and its ancestors). The name is
@@ -4601,6 +4647,56 @@ impl Vm {
             .entry(parent)
             .or_default()
             .insert(tail.as_bytes());
+    }
+
+    /// Insert a command's tail into its holder namespace's retained Tcl
+    /// string-hash table. `replacing` marks C's redefinition
+    /// (`TclCreateObjCommandInNs` deletes the existing hash entry and creates
+    /// a new one, so the name moves to its bucket head); a fresh name is a
+    /// plain insert.
+    fn note_command_bound(&mut self, key: &str, replacing: bool) {
+        let (holder, tail) = key_holder_and_tail_unrooted(key);
+        let order = self.ns_command_order.entry(holder).or_default();
+        if replacing {
+            order.reinsert(tail.as_bytes());
+        } else {
+            order.insert(tail.as_bytes());
+        }
+    }
+
+    /// Delete a command's hash entry from its holder's retained table. The
+    /// bucket array keeps its capacity (`Tcl_DeleteHashEntry` never shrinks).
+    fn note_command_unbound(&mut self, key: &str) {
+        let (holder, tail) = key_holder_and_tail_unrooted(key);
+        if let Some(order) = self.ns_command_order.get_mut(&holder) {
+            order.remove(tail.as_bytes());
+        }
+    }
+
+    /// One namespace's live command keys with their token generations, in
+    /// `Tcl_FirstHashEntry` order — the snapshot `TclTeardownNamespace` takes
+    /// of `cmdTable` before deleting each token.
+    fn command_table_hash_order(&self, canonical: &str) -> Vec<(String, u64)> {
+        let prefix = if canonical.is_empty() {
+            String::new()
+        } else {
+            format!("{canonical}::")
+        };
+        self.ns_command_order
+            .get(canonical)
+            .map(|order| {
+                order
+                    .keys()
+                    .into_iter()
+                    .filter_map(|tail| {
+                        let tail = core::str::from_utf8(tail).ok()?;
+                        let key = format!("{prefix}{tail}");
+                        let generation = *self.command_generations.get(&key)?;
+                        Some((key, generation))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Record `namespace export` patterns for the current namespace. C's
@@ -5056,7 +5152,9 @@ impl Vm {
         match live_key {
             CommandSidecarKey::Visible(name) => {
                 self.imported_commands.remove(name);
-                self.commands.remove(name);
+                if self.commands.remove(name).is_some() {
+                    self.note_command_unbound(name);
+                }
                 self.command_generations.remove(name);
                 self.builtin_identities.remove(name);
                 self.registry_object_roots.remove(name);
@@ -5250,33 +5348,39 @@ impl Vm {
             })
     }
 
-    /// Retire the real/imported command identities selected for one namespace's
-    /// command-table teardown. Namespace-owned ensembles live in their own
-    /// ordered list and are drained separately.
-    fn retire_namespace_command_bindings(&mut self, removed_commands: &[String]) {
-        // Every visible real command selected by namespace teardown traverses
-        // the complete source lifecycle here. Delete traces/backrefs/sidecars
-        // therefore retire exactly once and cannot attach to a later command
-        // at the same name.
-        let visible_real_commands: Vec<String> = removed_commands
-            .iter()
-            .filter(|key| !self.imported_commands.contains_key(*key))
-            .cloned()
-            .collect();
-        for key in visible_real_commands {
-            self.retire_command_lifecycle_key(&CommandSidecarKey::visible(key));
+    /// Retire one namespace's snapshotted command tokens in the order
+    /// `TclTeardownNamespace` took them. Namespace-owned ensembles live in
+    /// their own ordered list and are drained separately.
+    ///
+    /// Each entry is addressed by `(key, generation)`: a callback fired by an
+    /// earlier entry may have deleted this one (C's snapshot then holds a
+    /// `CMD_DYING` token and `Tcl_DeleteCommandFromToken` returns early) or
+    /// replaced it with a distinct token the current snapshot does not name.
+    /// Both skip; the next snapshot picks a replacement up.
+    ///
+    /// Returns how many snapshotted tokens were still current when the loop
+    /// reached them, so the caller can stop rather than spin if a pass turns
+    /// out to reach nothing at all.
+    fn retire_namespace_command_bindings(&mut self, snapshot: &[(String, u64)]) -> usize {
+        let mut retired = 0;
+        for (key, generation) in snapshot {
+            if self.command_generations.get(key) != Some(generation) {
+                continue;
+            }
+            retired += 1;
+            // An import merely living inside the deleted namespace is removed
+            // at its own hash position and never marks its shared source token
+            // dead; a real command traverses the complete source lifecycle, so
+            // its delete traces, backrefs and sidecars retire exactly once and
+            // cannot attach to a later command at the same name.
+            let key = CommandSidecarKey::visible(key);
+            if self.imported_commands.contains_key(key.name()) {
+                self.retire_import_binding(&key);
+            } else {
+                self.retire_command_lifecycle_key(&key);
+            }
         }
-
-        // Imported bindings that merely live inside the deleted namespace are
-        // removed separately and never mark their shared source token dead.
-        let imported_victims: Vec<String> = removed_commands
-            .iter()
-            .filter(|key| self.imported_commands.contains_key(*key))
-            .cloned()
-            .collect();
-        for key in imported_victims {
-            self.retire_import_binding(&CommandSidecarKey::visible(key));
-        }
+        retired
     }
 
     /// Drain one namespace's ensemble-token list before that namespace is
@@ -5373,16 +5477,19 @@ impl Vm {
         // table/list traversal without an unordered subtree snapshot.
         loop {
             self.retire_namespace_owned_ensembles(canonical);
-            let frontier: Vec<String> = self
-                .commands
-                .iter()
-                .filter(|(key, _)| key_holder_and_tail_unrooted(key).0 == canonical)
-                .map(|(key, _)| key.clone())
-                .collect();
+            // `Tcl_FirstHashEntry` order, not the flat map's iteration order:
+            // the delete traces of a namespace's commands fire in the retained
+            // bucket order of the table they lived in.
+            let frontier = self.command_table_hash_order(canonical);
             if frontier.is_empty() {
                 break;
             }
-            self.retire_namespace_command_bindings(&frontier);
+            if self.retire_namespace_command_bindings(&frontier) == 0 {
+                // A fresh snapshot always names at least one current token, so
+                // this is unreachable; stop rather than spin if the generation
+                // map ever disagrees with the order owner.
+                break;
+            }
         }
 
         if let Some(global) = self.frames.first_mut() {
@@ -5410,12 +5517,11 @@ impl Vm {
 
         self.ns_exports.remove(canonical);
         self.ns_child_order.remove(canonical);
+        self.ns_command_order.remove(canonical);
         if deleting_root {
             self.ns_intern.insert(String::new(), ROOT_NS);
-            self.ns_child_order.insert(
-                String::new(),
-                tcl_cmd_core::namespace::TclStringHashOrder::default(),
-            );
+            self.ns_child_order = root_hash_order();
+            self.ns_command_order = root_hash_order();
         } else {
             self.ns_intern.remove(canonical);
         }
@@ -5799,14 +5905,16 @@ impl Vm {
     /// Callback errors are ignored (C: "Any errors in these traces are
     /// ignored").
     fn fire_command_traces_for(&mut self, key: &CommandSidecarKey, new_display: &str, op: &str) {
-        // C's `INTERP_TRACE_IN_PROGRESS`: a rename/delete triggered by a
-        // trace callback's own body does not itself fire further traces.
-        if self.cmd_traces.is_empty() || self.trace_in_progress.get() {
+        // C's per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`: a rename/delete of
+        // *this* command from inside its own callback does not fire again. A
+        // different command's traces still do.
+        if self.cmd_traces.is_empty() || self.firing_cmd_traces.contains(key) {
             return;
         }
         let Some(entries) = self.cmd_traces.get(key).cloned() else {
             return;
         };
+        self.firing_cmd_traces.push(key.clone());
         let old_display = format!("::{}", key.name());
         // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
@@ -5824,6 +5932,7 @@ impl Vm {
                 );
             }
         }
+        self.firing_cmd_traces.pop();
     }
 
     /// A command at `key` is about to be deleted or overwritten: fire its
@@ -5841,8 +5950,9 @@ impl Vm {
         self.detach_active_sidecars(key);
         let mut removed_trace = false;
         if !self.cmd_traces.is_empty() {
+            let retired = self.cmd_traces.get(key).cloned().unwrap_or_default();
             self.fire_command_traces_for(key, "", "delete");
-            removed_trace |= self.cmd_traces.remove(key).is_some();
+            removed_trace |= self.drop_retired_cmd_traces(key, &retired);
         }
         if !self.exec_traces.is_empty()
             && let Some(removed) = self.exec_traces.remove(key)
@@ -5857,6 +5967,27 @@ impl Vm {
         if removed_trace {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
+    }
+
+    /// Drop the command traces the dying token carried, leaving behind any a
+    /// delete callback registered on a replacement at the same key. C frees the
+    /// `Command`'s own trace list; our sidecars are keyed by location, so the
+    /// `Rc` is the token-scoped identity.
+    fn drop_retired_cmd_traces(
+        &mut self,
+        key: &CommandSidecarKey,
+        retired: &[Rc<CmdTraceEntry>],
+    ) -> bool {
+        let Some(entries) = self.cmd_traces.get_mut(key) else {
+            return false;
+        };
+        let before = entries.len();
+        entries.retain(|entry| !retired.iter().any(|old| Rc::ptr_eq(old, entry)));
+        let removed = entries.len() != before;
+        if entries.is_empty() {
+            self.cmd_traces.remove(key);
+        }
+        removed
     }
 
     /// A command moved `old_key` → `new_key` (`rename`): fire its `rename`

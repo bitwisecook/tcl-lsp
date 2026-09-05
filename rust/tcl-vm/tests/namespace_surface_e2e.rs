@@ -585,6 +585,230 @@ fn child_namespace_teardown_uses_tcl_string_hash_order() {
 }
 
 #[test]
+fn namespace_teardown_uses_command_table_tcl_string_hash_order() {
+    // TclTeardownNamespace snapshots nsPtr->cmdTable with
+    // Tcl_FirstHashEntry/Tcl_NextHashEntry before deleting each token, so the
+    // delete traces fire in the retained TCL_STRING_KEYS bucket order rather
+    // than definition or lexical order. Exact Tcl 9.0.4 oracle result (issue
+    // #1752's own vector).
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {
+                 proc ::N::$n {} {}
+                 trace add command ::N::$n delete rec
+             }
+             namespace delete ::N
+             set log"),
+        "six four three eight seven nine five two one ten"
+    );
+}
+
+#[test]
+fn command_table_hash_order_records_table_growth() {
+    // RebuildTable quadruples the bucket array once numEntries reaches three
+    // times numBuckets and re-pushes each chain head-first, reversing it.
+    // Thirteen commands cross the first threshold. Exact Tcl 9.0.4 oracle
+    // result.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             for {set i 0} {$i < 13} {incr i} {
+                 proc ::N::c$i {} {}
+                 trace add command ::N::c$i delete rec
+             }
+             namespace delete ::N
+             set log"),
+        "c5 c6 c7 c8 c9 c0 c1 c10 c2 c11 c12 c3 c4"
+    );
+}
+
+#[test]
+fn command_table_hash_order_retains_capacity_across_deletions() {
+    // Tcl_DeleteHashEntry never shrinks the bucket array, so commands created
+    // after a bulk deletion land in the grown table and precede the survivors.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             foreach n {a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11} {proc ::N::$n {} {}}
+             foreach i {1 2 4 5 6 7 8 9 10 11} {rename ::N::a$i {}}
+             foreach n {b1 b2 b3} {proc ::N::$n {} {}}
+             foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N
+             set log"),
+        "b1 b2 b3 a0 a3"
+    );
+}
+
+#[test]
+fn command_table_hash_order_moves_a_redefined_command() {
+    // TclCreateObjCommandInNs deletes the existing hash entry and creates a
+    // fresh one, so redefining `one` moves it to its bucket head. Exact Tcl
+    // 9.0.4 oracle result.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {proc ::N::$n {} {}}
+             proc ::N::one {} {return again}
+             foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N
+             set log"),
+        "six four three eight seven one nine five two ten"
+    );
+    // TclRenameCommand creates the destination entry the same way, before it
+    // deletes the source's. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {proc ::N::$n {} {}}
+             rename ::N::one ::N::uno
+             foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N
+             set log"),
+        "six four three eight seven uno nine five two ten"
+    );
+}
+
+#[test]
+fn namespace_teardown_visits_a_callback_created_command_in_the_next_pass() {
+    // TclTeardownNamespace loops while cmdTable is non-empty, so a command a
+    // delete callback creates is torn down by a second snapshot, after every
+    // entry of the first one. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             proc mk {old new op} {
+                 lappend ::log [namespace tail $old]
+                 proc ::N::zz {} {}
+                 trace add command ::N::zz delete rec
+             }
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {
+                 proc ::N::$n {} {}
+                 trace add command ::N::$n delete rec
+             }
+             trace add command ::N::six delete mk
+             namespace delete ::N
+             set log"),
+        "six six four three eight seven nine five two one ten zz"
+    );
+}
+
+#[test]
+fn namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass() {
+    // A redefinition inside the delete callback unlinks the dying token's own
+    // entry (Tcl_DeleteCommandFromToken's CMD_DYING branch), so the
+    // replacement is a distinct token the current snapshot no longer names and
+    // the next snapshot picks up. 9.0: exact tclsh 9.0.4 oracle result; 8.6.16
+    // segfaults on this script.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             proc remake {old new op} {
+                 proc ::N::two {} {}
+                 trace add command ::N::two delete rec
+                 lappend ::log remade
+             }
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {
+                 proc ::N::$n {} {}
+                 trace add command ::N::$n delete rec
+             }
+             trace add command ::N::two delete remake
+             namespace delete ::N
+             set log"),
+        "six four three eight seven nine five remade two one ten two"
+    );
+}
+
+#[test]
+fn namespace_teardown_skips_a_command_a_callback_already_deleted() {
+    // CMD_TRACE_ACTIVE is per Command, not interpreter-wide: `one` fires its
+    // own delete trace nested inside six's callback, and the snapshot entry
+    // for it is gone by the time the loop reaches it. Exact Tcl 9.0.4 oracle
+    // result.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             proc killone {old new op} {rename ::N::one {}; lappend ::log killed-one}
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {
+                 proc ::N::$n {} {}
+                 trace add command ::N::$n delete rec
+             }
+             trace add command ::N::six delete killone
+             namespace delete ::N
+             set log"),
+        "one killed-one six four three eight seven nine five two ten"
+    );
+}
+
+#[test]
+fn namespace_teardown_places_imports_at_their_hash_positions() {
+    // An imported redirect occupies an ordinary cmdTable entry, so it retires
+    // at its own hash position rather than in a separate pass over the
+    // namespace's imports. Exact Tcl 9.0.4 oracle result.
+    let imports = "set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval S {proc s1 {} {}; proc s2 {} {}; namespace export s*}
+             namespace eval N {namespace import ::S::s1 ::S::s2}
+             foreach n {one two three four five six seven eight} {proc ::N::$n {} {}}
+             foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N
+             set log";
+    assert_eq!(
+        run(imports),
+        "six four three s1 eight seven s2 five two one"
+    );
+    // `namespace forget` deletes the entry and the re-import creates a new one
+    // at the same bucket head, so the order is unchanged.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval S {proc s1 {} {}; proc s2 {} {}; namespace export s*}
+             namespace eval N {
+                 namespace import ::S::s1 ::S::s2
+                 namespace forget ::S::s1
+                 namespace import ::S::s1
+             }
+             foreach n {one two three four five six seven eight} {proc ::N::$n {} {}}
+             foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N
+             set log"),
+        "six four three s1 eight seven s2 five two one"
+    );
+}
+
+#[test]
+fn namespace_teardown_retires_each_sources_import_tree_before_the_next_entry() {
+    // Tcl_DeleteCommandFromToken walks the deleted command's ImportRef list
+    // depth-first straight after its own delete trace, so a source's whole
+    // import tree fires before the next cmdTable entry. Exact Tcl 9.0.4 oracle
+    // result.
+    assert_eq!(
+        run("set log {}
+             namespace eval N {proc one {} {}; proc two {} {}; proc six {} {}
+                               namespace export *}
+             namespace eval I {namespace import ::N::one; namespace export *}
+             namespace eval J {namespace import ::I::one}
+             foreach c {::N::one ::N::two ::N::six ::I::one ::J::one} {
+                 trace add command $c delete [list apply {{c old new op} {
+                     lappend ::log $c
+                 }} $c]
+             }
+             namespace delete ::N
+             set log"),
+        "::N::six ::N::two ::N::one ::I::one ::J::one"
+    );
+}
+
+#[test]
 fn deleting_a_namespace_fully_retires_its_visible_ensemble_once() {
     // The ensemble lives in the global command table but is owned by ::N.
     // Namespace teardown fires and removes its delete trace. A later, distinct

@@ -1179,7 +1179,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
-    if name_s.contains("::") && !vm.namespace_accepts_command_definition(&namespace, &reg_name) {
+    if name_s.contains("::") && !vm.namespace_accepts_command_definition(&namespace) {
         return err(format!(
             "can't create procedure \"{name_s}\": unknown namespace"
         ));
