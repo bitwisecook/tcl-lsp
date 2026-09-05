@@ -1005,14 +1005,19 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
              namespace eval imported {namespace import ::src::a}\n\
              catch {rename ::src::a lassign} message\n\
              list $message [namespace origin ::imported::a] \\
-                  [llength [trace info command lassign]] \\
-                  [llength [trace info execution lassign]] [info exists ::events]\n",
+                  [catch {trace info command lassign}] \\
+                  [catch {trace info execution lassign}] [info exists ::events]\n",
         )
         .expect("8.4 setup compiles");
     assert!(setup.code.is_ok());
+    // `lassign` is unavailable at 8.4, so introspecting its traces errors
+    // rather than answering an empty list — C resolves the name with
+    // `TCL_LEAVE_ERR_MSG` first (`TraceCommandObjCmd`, `tclTrace.c`
+    // 9.0.4:661), measured on tclsh 8.4.20 through 9.0.4. The point of the
+    // pair is unchanged: no registration is reachable here, and none fired.
     assert_eq!(
         setup.result.to_str().as_ref(),
-        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a 0 0 0"
+        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a 1 1 0"
     );
 
     vm.set_dialect_profile(

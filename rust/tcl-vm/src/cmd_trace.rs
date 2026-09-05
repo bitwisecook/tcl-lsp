@@ -171,7 +171,7 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match kind {
         core_trace::TraceKind::Variable => ok(var_trace_entries(vm, &name.to_str())),
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
-            ok(vm.cmd_trace_entries(kind == core_trace::TraceKind::Execution, &name.to_str()))
+            vm.cmd_trace_entries(kind == core_trace::TraceKind::Execution, &name.to_str())
         }
     }
 }

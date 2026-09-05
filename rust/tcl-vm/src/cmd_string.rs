@@ -507,9 +507,14 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let n = name.to_str();
     if vals.is_empty() {
-        // `append x` with no values is a read: return the current value, erroring
-        // if the variable is unset (matching tclsh — the old VM wrongly created an
-        // empty variable here). `var_get` parses `a(k)`.
+        // `append x` with no values is a read: it fires the read trace, whose
+        // error aborts the command exactly as for `set x`, and returns the
+        // current value, erroring if the variable is unset (matching tclsh —
+        // the old VM wrongly created an empty variable here). `var_get` parses
+        // `a(k)`.
+        if let Err(c) = vm.fire_var_traces(&n, "read") {
+            return c;
+        }
         return match vm.var_get(&n) {
             Some(v) => ok(v),
             None => err(format!("can't read \"{n}\": no such variable")),
@@ -520,10 +525,10 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // once. The VM's value model never grows in place, so the core rebuilds.
     let cur = vm.var_get(&n);
     let result = tcl_cmd_core::var::append_bytes(vm, cur, vals);
-    if let Err(e) = vm.var_set(&n, result.clone()) {
-        return e;
+    match vm.store_var_result(&n, result) {
+        Ok(stored) => ok(stored),
+        Err(e) => e,
     }
-    ok(result)
 }
 
 #[cfg(test)]
