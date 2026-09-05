@@ -389,10 +389,7 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ltype = obj_bytes(argv[3]);
     // Validate the limit type before the current-interp guard so a bad type is
     // reported ahead of the inaccessibility error (interp-35.3 vs .23).
-    if ltype.as_slice() != b"commands" && ltype.as_slice() != b"time" {
-        let mut m = b"bad limit type \"".to_vec();
-        m.extend_from_slice(&ltype);
-        m.extend_from_slice(b"\": must be commands or time");
+    if let Err(m) = crate::interp::LIMIT_TYPES.index_of(&ltype) {
         return interp.set_error(&m);
     }
     if path.is_empty() {

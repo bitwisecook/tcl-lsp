@@ -247,6 +247,19 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
     Err(format!("expected integer but got \"{s}\""))
 }
 
+/// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
+/// it with `Tcl_GetIndexFromObj(…, "debug option", 0)`, so `-f`/`-fr`
+/// abbreviate and a miss is `bad debug option "…": must be -frame` — a
+/// one-entry table is never `ambiguous`, not even for the empty word.
+const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("debug option", &["-frame"]);
+
+/// `interp limit`'s type word (`limitTypes[]`, `tclInterp.c`): the noun is
+/// `limit type` and the flags are `0`, so `c`/`t` abbreviate and the empty
+/// word — a prefix of both entries — is `ambiguous limit type ""`.
+pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("limit type", &["commands", "time"]);
+
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`,
 /// matching C's `Tcl_GetIndexFromObj` — through the one shared owner.
 ///
@@ -2944,26 +2957,31 @@ impl Vm {
 
     /// `interp debug ?-frame ?bool??` on this interp. `-frame` is a one-way
     /// switch (once on, stays on); returns the settings list / the frame bool.
-    pub(crate) fn debug_apply(&mut self, args: &[Value]) -> Result<Value, String> {
-        match args {
-            [] => Ok(Value::list(vec![
-                Value::string("-frame"),
-                Value::int(i64::from(self.debug_frame)),
-            ])),
-            [opt] if &*opt.to_str() == "-frame" => Ok(Value::int(i64::from(self.debug_frame))),
-            [opt, val] if &*opt.to_str() == "-frame" => {
-                if val.as_bool().unwrap_or(false) {
-                    self.debug_frame = true;
-                }
-                Ok(Value::int(i64::from(self.debug_frame)))
+    ///
+    /// C checks the argument count before the option word, so
+    /// `interp debug i -x 1 2` is `wrong # args`, not `bad debug option`;
+    /// `usage` is the caller's own `should be` text, which differs between the
+    /// `interp debug path …` and `$child debug …` spellings.
+    pub(crate) fn debug_apply(&mut self, args: &[Value], usage: &str) -> Result<Value, String> {
+        let (opt, rest) = match args {
+            [] => {
+                return Ok(Value::list(vec![
+                    Value::string("-frame"),
+                    Value::int(i64::from(self.debug_frame)),
+                ]));
             }
-            _ => Err(format!(
-                "bad option \"{}\": must be -frame",
-                args.first()
-                    .map(|v| v.to_str().to_string())
-                    .unwrap_or_default()
-            )),
+            [opt, rest @ ..] if rest.len() <= 1 => (opt, rest),
+            _ => return Err(format!("wrong # args: should be \"{usage}\"")),
+        };
+        DEBUG_OPTIONS
+            .index_of_str(&opt.to_str())
+            .map_err(tcl_cmd_core::CmdError::into_message)?;
+        if let [val] = rest
+            && val.as_bool().unwrap_or(false)
+        {
+            self.debug_frame = true;
         }
+        Ok(Value::int(i64::from(self.debug_frame)))
     }
 
     /// `interp bgerror ?cmdPrefix?` on this interp — get/set the background-error
@@ -3116,12 +3134,12 @@ impl Vm {
     /// `interp limit limitType ?-option value …?` on this interp (query / set;
     /// enforced for `time`).
     pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, String> {
-        match ltype {
-            "commands" => self.limit_commands(args),
-            "time" => self.limit_time(args),
-            other => Err(format!(
-                "bad limit type \"{other}\": must be commands or time"
-            )),
+        match LIMIT_TYPES
+            .index_of_str(ltype)
+            .map_err(tcl_cmd_core::CmdError::into_message)?
+        {
+            0 => self.limit_commands(args),
+            _ => self.limit_time(args),
         }
     }
 
@@ -4030,6 +4048,16 @@ impl Vm {
             "recursionlimit" => err(format!(
                 "wrong # args: should be \"{name} recursionlimit ?newlimit?\""
             )),
+            // `$child debug ?-frame ?bool??` — the same switch `interp debug
+            // path …` reaches, with the child spelling in the arity message.
+            "debug" => {
+                let dargs = rest.to_vec();
+                let usage = format!("{name} debug ?-frame ?bool??");
+                match self.in_interp(id, |vm| vm.debug_apply(&dargs, &usage)) {
+                    Ok(v) => ok(v),
+                    Err(m) => err(m),
+                }
+            }
             "limit" => self.dispatch_child_limit(name, id, rest),
             other => err(format!(
                 "bad option \"{other}\": must be alias, aliases, bgerror, eval, \

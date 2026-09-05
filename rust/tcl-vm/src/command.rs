@@ -661,10 +661,8 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     // Validate the limit type before the current-interp guard so that a bad
     // type is reported ahead of the inaccessibility error (interp-35.3 vs .23).
-    if &*ltype != "commands" && &*ltype != "time" {
-        return err(format!(
-            "bad limit type \"{ltype}\": must be commands or time"
-        ));
+    if let Err(e) = crate::interp::LIMIT_TYPES.index_of_str(&ltype) {
+        return err(e.into_message());
     }
     if path.is_empty() {
         return err("limits on current interpreter inaccessible");
@@ -763,17 +761,18 @@ fn interp_bgerror_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 /// `interp debug path ?-frame ?bool??` — the per-interp frame-debug switch.
 fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    const USAGE: &str = "interp debug path ?-frame ?bool??";
     let Some((path, dargs)) = rest.split_first() else {
-        return err("wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+        return err(format!("wrong # args: should be \"{USAGE}\""));
     };
     let p = path.to_str();
     let res = if p.is_empty() {
-        vm.debug_apply(dargs)
+        vm.debug_apply(dargs, USAGE)
     } else {
         match vm.resolve_interp_path(&p) {
             Ok(id) => {
                 let dargs = dargs.to_vec();
-                vm.in_interp(id, |vm| vm.debug_apply(&dargs))
+                vm.in_interp(id, |vm| vm.debug_apply(&dargs, USAGE))
             }
             Err(c) => return c,
         }

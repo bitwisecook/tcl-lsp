@@ -525,7 +525,9 @@ entry point, or gate moves without this contract being updated.
   match` `-message`). Consumers: `switch`/`lsort`/`lsearch`/`regexp`/
   `regsub`/`trace`/`string is` option words (this crate), the VM's
   `tcl::prefix match` and `string is`, the WASM runtime's `string`
-  ensemble, `tcl::prefix match`, and OO option tables. New command
+  ensemble, `tcl::prefix match`, OO option tables, and — since #1607 —
+  both engines' `interp debug` option word (noun `debug option`) and
+  `interp limit` type word (noun `limit type`). New command
   modules MUST resolve through `OptionTable` (or `scan` +
   `bad_key_message` where a byte noun or interleaved control flow
   demands composition) — never a hand-rolled scan.
@@ -830,6 +832,11 @@ helper without reading the rationale:
   resolution/creation pinned against tclsh8.6.
 - `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs` — `tcl::prefix` message
   texts pinned against tclsh.
+- `rust/tcl-vm/tests/builtins_e2e.rs` and the `builtins.rs` test module
+  in `runtime/rust` — `interp_debug_option_uses_c_noun_and_abbreviates`
+  and `interp_limit_type_word_resolves_like_tcl_get_index_from_obj`, the
+  `interp` option/type nouns pinned against tclsh 8.6.16 and 9.0.4 on
+  both engines.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

@@ -1089,16 +1089,23 @@ fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
     }
 }
 
-/// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
+/// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
+/// it with `Tcl_GetIndexFromObj(…, "debug option", 0)`, so `-f`/`-fr`
+/// abbreviate and a miss is `bad debug option "…": must be -frame` — a
+/// one-entry table is never `ambiguous`, not even for the empty word. Shared
+/// with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
+const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("debug option", &[b"-frame"]);
+
+/// `interp limit`'s type word (`limitTypes[]`, `tclInterp.c`): the noun is
+/// `limit type` and the flags are `0`, so `c`/`t` abbreviate and the empty
+/// word — a prefix of both entries — is `ambiguous limit type ""`.
+pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("limit type", &[b"commands", b"time"]);
+
+/// Validate an `interp debug` option through the shared owner.
 fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
-    let o = obj_bytes(opt);
-    if !o.is_empty() && b"-frame".starts_with(o.as_slice()) {
-        return Ok(());
-    }
-    let mut m = b"bad debug option \"".to_vec();
-    m.extend_from_slice(&o);
-    m.extend_from_slice(b"\": must be -frame");
-    Err(m)
+    DEBUG_OPTIONS.index_of(&obj_bytes(opt)).map(|_| ())
 }
 
 /// Parse an `interp limit` integer option value (`expected integer but got "X"`).
@@ -6643,8 +6650,12 @@ impl Interp {
             b"debug" => {
                 let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 if argv.len() > 4 {
-                    return self
-                        .error(b"wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+                    // C words the arity message with the child's own command
+                    // name here, not the `interp debug path …` spelling.
+                    let mut m = b"wrong # args: should be \"".to_vec();
+                    m.extend_from_slice(name);
+                    m.extend_from_slice(b" debug ?-frame ?bool??\"");
+                    return self.error(&m);
                 }
                 match self.with_child(name, |c| c.debug_apply(&opts)) {
                     Some(Ok(o)) => {
@@ -7242,15 +7253,9 @@ impl Interp {
         ltype: &[u8],
         opts: &[*mut TclObj],
     ) -> Result<*mut TclObj, Vec<u8>> {
-        match ltype {
-            b"commands" => self.limit_commands(opts),
-            b"time" => self.limit_time(opts),
-            other => {
-                let mut m = b"bad limit type \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be commands or time");
-                Err(m)
-            }
+        match LIMIT_TYPES.index_of(ltype)? {
+            0 => self.limit_commands(opts),
+            _ => self.limit_time(opts),
         }
     }
 

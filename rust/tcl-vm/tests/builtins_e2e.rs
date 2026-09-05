@@ -685,6 +685,96 @@ fn interp_limit_option_words_resolve_like_tcl_get_index_from_obj() {
     assert!(ok);
 }
 
+/// Issue #1607: `interp debug`'s option word is a `Tcl_GetIndexFromObj` table
+/// whose noun is `debug option` (`debugTypes[]`, `tclInterp.c`), so `-f`/`-fr`
+/// abbreviate and the one-entry table never says `ambiguous`. The arity check
+/// runs first, as it does in C.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   interp debug i {}      -> bad debug option "": must be -frame
+///   interp debug i -x      -> bad debug option "-x": must be -frame
+///   interp debug i -f      -> 0
+///   interp debug i -fr 1   -> 1
+///   i debug -f             -> 1   (after the latch)
+///   interp debug i -x 1 2  -> wrong # args: should be "interp debug path ?-frame ?bool??"
+///   i debug -x 1 2         -> wrong # args: should be "i debug ?-frame ?bool??"
+#[test]
+fn interp_debug_option_uses_c_noun_and_abbreviates() {
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("interp create i\ninterp debug i {}\n"),
+        "bad debug option \"\": must be -frame"
+    );
+    assert_eq!(
+        msg("interp create i\ninterp debug i -x\n"),
+        "bad debug option \"-x\": must be -frame"
+    );
+    assert_eq!(run("interp create i\ninterp debug i -f\n").1, "0");
+    assert_eq!(run("interp create i\ninterp debug i -fr 1\n").1, "1");
+    // The child-as-command spelling reaches the same switch.
+    assert_eq!(
+        run("interp create i\ninterp debug i -fr 1\ni debug -f\n").1,
+        "1"
+    );
+    assert_eq!(
+        msg("interp create i\ninterp debug i -x 1 2\n"),
+        "wrong # args: should be \"interp debug path ?-frame ?bool??\""
+    );
+    assert_eq!(
+        msg("interp create i\ni debug -x 1 2\n"),
+        "wrong # args: should be \"i debug ?-frame ?bool??\""
+    );
+}
+
+/// Issue #1607: `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
+/// "limit type", 0)` (`limitTypes[]`, `tclInterp.c`), so `c`/`t` abbreviate
+/// and the empty word — a prefix of both entries — is `ambiguous`.
+///
+/// tclsh 8.6.16 / 9.0.4:
+///   interp limit i {}  -> ambiguous limit type "": must be commands or time
+///   interp limit i x   -> bad limit type "x": must be commands or time
+///   interp limit i c   -> -command {} -granularity 1 -value {}
+///   interp limit i t   -> -command {} -granularity 10 -milliseconds {} -seconds {}
+///   i limit {}         -> ambiguous limit type "": must be commands or time
+#[test]
+fn interp_limit_type_word_resolves_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be commands or time";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("interp create i\ninterp limit i {}\n"),
+        format!("ambiguous limit type \"\": {MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ninterp limit i x\n"),
+        format!("bad limit type \"x\": {MUST}")
+    );
+    assert_eq!(
+        run("interp create i\ninterp limit i c\n").1,
+        "-command {} -granularity 1 -value {}"
+    );
+    assert_eq!(
+        run("interp create i\ninterp limit i t\n").1,
+        "-command {} -granularity 10 -milliseconds {} -seconds {}"
+    );
+    // The child-as-command spelling shares the resolver.
+    assert_eq!(
+        msg("interp create i\ni limit {}\n"),
+        format!("ambiguous limit type \"\": {MUST}")
+    );
+    assert_eq!(
+        run("interp create i\ni limit c\n").1,
+        "-command {} -granularity 1 -value {}"
+    );
+}
+
 #[test]
 fn regexp_regsub() {
     out_eq("puts [regexp {[0-9]+} abc123]\n", "1\n");
