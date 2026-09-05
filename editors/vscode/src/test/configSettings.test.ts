@@ -1254,30 +1254,30 @@ suite("Configuration Settings", () => {
         label: "W100 disabled",
       });
 
-      // Re-trigger: touch the document so the server re-analyses, then
-      // wait for a publish that actually reflects the toggle.
+      // Re-trigger analysis under the new setting, and anchor the read on
+      // the server's own marker for *that* pass.
       //
-      // A bare next-publish barrier is not enough. It resolves on the
-      // first onDidChangeDiagnostics naming this URI, and a publish
-      // computed *before* the toggle can still be in flight and satisfy
-      // it — the server is known to deliver a publish long after the turn
-      // that produced it (#1678, #1849, #1865). The assertion then reads
-      // a pre-toggle set and fails on timing rather than on behaviour.
+      // A bare publish barrier is wrong here twice over. It resolves on the
+      // first onDidChangeDiagnostics naming this URI, so a publish computed
+      // before the toggle and delivered late satisfies it — this server is
+      // known to deliver a publish long after the turn that produced it
+      // (#1678, #1849, #1865). And the config change itself re-analyses open
+      // documents, so a W100-free set can already be published before the
+      // edit is even sent. In the first case the assertion reads a stale
+      // pre-toggle set and fails on timing; in the second it passes without
+      // ever observing the edit, leaving a defective edit-triggered pass free
+      // to republish W100 afterwards.
       //
-      // LSP diagnostics are eventually consistent, so the contract worth
-      // asserting is that suppression converges: retry across publishes
-      // and let the timeout fail the test if W100 never goes away.
-      //
-      // The predicate also requires a non-empty set. `awaitSignal` probes
-      // before it waits, and a transiently cleared set would satisfy a
-      // bare "no W100" immediately — passing without the server having
-      // published anything. The fixture raises many codes besides W100,
-      // so a real post-toggle publish is still non-empty.
+      // `waitForDeepDiagnostics` with `since` captured *before* the edit keys
+      // on the `[timing] deep diagnostics` line from the run the edit caused,
+      // which settles both: the pass is the edit's own, and it has finished
+      // publishing. Same discipline as the optimiser toggle test below, made
+      // that way for the same reason.
       const editor = vscode.window.activeTextEditor!;
+      const sinceEdit = getServerLogSize();
       await setTestContent(editor, editor.document.getText() + " ");
-      const after = await waitForDiagnostics(docUri, {
-        predicate: (diags) => diags.length > 0 && !diags.some((d) => codeOf(d) === "W100"),
-      });
+      await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+      const after = vscode.languages.getDiagnostics(docUri);
       assert.ok(
         !after.some((d) => codeOf(d) === "W100"),
         `W100 should be suppressed when disabled, got [${after.map(codeOf)}]`,
