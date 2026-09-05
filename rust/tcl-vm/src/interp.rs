@@ -7028,7 +7028,7 @@ impl Vm {
     /// the removal: resolution can depend on the cell still existing (issue
     /// #1328). Issue #1633 row 10.
     pub fn unset_var(&mut self, name: &str) -> bool {
-        let key = self.trace_key(name);
+        let key = (!self.var_traces.is_empty()).then(|| self.trace_key(name));
         let (lvl, nm) = self.locate(name);
         let existed = if let Some((rbase, rkey)) = elem_ref(&nm) {
             // The name resolved through a link into an array element
@@ -7049,6 +7049,9 @@ impl Vm {
                 .is_some_and(|f| f.locals.remove(&nm).is_some())
         };
         // A variable's traces go with it, and the taken list is what fires.
+        let Some(key) = key else {
+            return existed;
+        };
         let taken = self.var_traces.remove(&key);
         if taken.is_some() {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
@@ -7512,24 +7515,29 @@ impl Vm {
     }
 
     fn array_unset_elem_reporting(&mut self, name: &str, key: &str, reported: Option<&str>) {
-        let spelling = format!("{name}({key})");
         // As for a scalar: the element goes, and its own traces come out of the
         // table, before the callbacks run. The *array's* traces stay — C leaves
         // them on the array's own `Var` — so they are still live in the walk and
-        // still visible to `trace info`.
-        let trace_key = self.trace_key(&spelling);
+        // still visible to `trace info`. The trace key is resolved while the
+        // element is still present (issue #1328).
+        let traced = (!self.var_traces.is_empty()).then(|| {
+            let spelling = format!("{name}({key})");
+            let trace_key = self.trace_key(&spelling);
+            (spelling, trace_key)
+        });
         let (lvl, nm) = self.locate(name);
         if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
         {
             m.remove(key);
         }
+        let Some((spelling, trace_key)) = traced else {
+            return;
+        };
         let taken = self.var_traces.remove(&trace_key);
         if taken.is_some() {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
-        if !self.var_traces.is_empty() || taken.is_some() {
-            let _ = self.fire_var_traces_taken(&spelling, "unset", reported, taken);
-        }
+        let _ = self.fire_var_traces_taken(&spelling, "unset", reported, taken);
     }
 
     /// Append one `while executing` / `invoked from within` frame for the
