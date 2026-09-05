@@ -5830,6 +5830,9 @@ impl Interp {
                 usage_prefix,
                 level_words,
                 quote_name: false,
+                // A method body is never compiled: only `proc` definitions
+                // carry a native entry.
+                native: None,
             },
         );
         self.oo.borrow_mut().filter_handling = saved_fh;

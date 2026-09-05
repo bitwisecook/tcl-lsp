@@ -70,6 +70,7 @@ fn main() {
     // cost is ~1 MiB more zero-init linear memory in the wasm module.
     if is_wasm {
         println!("cargo:rustc-link-arg=--global-base=2097152"); // 0x20_0000
+
         // Export the wasm indirect function table, and let it grow.
         //
         // A wasm32 function pointer *is* an index into this table, so an

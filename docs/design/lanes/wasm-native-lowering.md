@@ -1248,3 +1248,69 @@ Neither flag changes an existing module: the runtime's own indirect calls
 index below the initial size, nothing emitted imports the table yet, and
 `wasm-merge` preserves both properties.
 
+### Runtime dispatch (delivered)
+
+`ProcDef` gains `native: Option<NativeProcEntry>` — the compiled body, an
+`unsafe extern "C" fn(argv, argc, out: *mut TclCompletionAbi) -> i32`. The
+nullable-function-pointer ABI is what makes the whole half testable natively:
+wasm sees one i32, and a `cargo test` passes a real Rust function.
+
+**Owner of proc → entry: the `ProcDef` itself**, reached only through
+`define_proc_native`, the single field-by-field construction site (`proc`
+reaches it via `define_proc` with `None`). There is no side table and nothing
+to invalidate — redefinition builds a fresh definition with no entry, `rename`
+clones the definition and carries it, `rename p ""` / `namespace delete` drop
+it with the definition. Each of those is pinned by a test.
+
+`run_proc` is unchanged above and below the body: arity and `wrong # args`,
+the recursion bound, the frame push in `def.ns`, `set_words`, by-name formal
+binding, then teardown, `settle_return`, `make_proc_error` and the TIP 348
+`CALL` entry. Only the single `eval_framed` line becomes a choice, and it
+falls back to the source body in two cases:
+
+- **`traces.step_active` is non-empty.** `dispatch_traced` installs the proc's
+  own `enterstep`/`leavestep` before dispatching, so one read covers both this
+  proc and an outer step trace. A natively lowered `set` never reaches
+  `dispatch`, so it would fire no step trace at all.
+- **the entry returns `DECLINED`**, which it may do only before any observable
+  effect, so the fallback is not a partial re-run.
+
+`run_native_body` is `eval_framed` + `eval_script_mode` minus the parse and
+the command loop: `proc_line_base = line_base`, one `codegen_activation_enter`
+(refusal is `eval_script_mode`'s, verbatim), push the `CmdFrame`, call the
+entry, pop, adopt `out.result` into the result, release `out.options` (a
+snapshot; `settle_return` reads the runtime's own `return_level`/`return_code`),
+`codegen_activation_leave(code)`.
+
+**The double-frame contract, stated in the code so PR-B cannot get it wrong:**
+`run_proc` owns the Tcl variable frame, `info level`'s words and the formal
+binding; `run_native_body` owns the activation and the `CmdFrame`; the entry
+owns **neither**. A native-tier *module function* is not this shape — its
+prologue calls `activation_enter` + `frame_push` (`pushes_frame = !top_level`)
+— so PR-B must give a proc entry its own prologue-free shape rather than reuse
+that one. `info level 0` from inside the entry is the detector, and is pinned.
+
+Measured, not asserted: through the native path a Tcl level costs exactly two
+eval-depth units (`run_native_body` plus the body's own `tcl_invoke_argv`), so
+unbounded recursion refuses at depth **63** with the eval loop's own
+`too many nested evaluations (infinite loop?)`. That number is asserted; a
+level costing more or less moves it.
+
+### Ledgered for PR-B (step 6)
+
+A compiled statement calls no `log_command_info`, and that single absence has
+**two** visible consequences for an error out of a compiled body — the plan
+anticipated one:
+
+- no `while executing "<source text>"` frame, and `error_line` never advances,
+  so `(procedure "boom" line N)` reads the stale `line 1`;
+- **no TIP 348 `CALL` entry either.** `run_proc` does call
+  `error_stack_push_call`, but it deliberately refuses to chain a `CALL` onto
+  an error stack with no inner context yet (`reset_error_stack`,
+  `interp.rs:5497`), so `-errorstack` holds only the caller's own `INNER`.
+
+Both close together when the emitter calls `tcl_codegen_log_command` on a
+statement's error edge. Both are pinned by
+`an_error_from_the_native_body_unwinds_through_the_procedure_frame`, which
+therefore fails in both directions.
+
