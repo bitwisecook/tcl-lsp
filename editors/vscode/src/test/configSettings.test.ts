@@ -23,7 +23,6 @@ import {
   getDocUri,
   activate,
   getServerLogSize,
-  nextDiagnosticsPublish,
   pollUntil,
   waitForDeepDiagnostics,
   waitForDiagnostics,
@@ -1255,17 +1254,32 @@ suite("Configuration Settings", () => {
         label: "W100 disabled",
       });
 
-      // Re-trigger: touch the document so the server re-analyses.
-      // Register the publish listener *before* the edit so the fresh
-      // publish event is not missed and we do not read stale
-      // pre-toggle results.
+      // Re-trigger: touch the document so the server re-analyses, then
+      // wait for a publish that actually reflects the toggle.
+      //
+      // A bare next-publish barrier is not enough. It resolves on the
+      // first onDidChangeDiagnostics naming this URI, and a publish
+      // computed *before* the toggle can still be in flight and satisfy
+      // it — the server is known to deliver a publish long after the turn
+      // that produced it (#1678, #1849, #1865). The assertion then reads
+      // a pre-toggle set and fails on timing rather than on behaviour.
+      //
+      // LSP diagnostics are eventually consistent, so the contract worth
+      // asserting is that suppression converges: retry across publishes
+      // and let the timeout fail the test if W100 never goes away.
+      //
+      // The predicate also requires a non-empty set. `awaitSignal` probes
+      // before it waits, and a transiently cleared set would satisfy a
+      // bare "no W100" immediately — passing without the server having
+      // published anything. The fixture raises many codes besides W100,
+      // so a real post-toggle publish is still non-empty.
       const editor = vscode.window.activeTextEditor!;
-      const freshDiags = nextDiagnosticsPublish(docUri);
       await setTestContent(editor, editor.document.getText() + " ");
-      const after = await freshDiags;
-      const hasW100After = after.some((d) => codeOf(d) === "W100");
+      const after = await waitForDiagnostics(docUri, {
+        predicate: (diags) => diags.length > 0 && !diags.some((d) => codeOf(d) === "W100"),
+      });
       assert.ok(
-        !hasW100After,
+        !after.some((d) => codeOf(d) === "W100"),
         `W100 should be suppressed when disabled, got [${after.map(codeOf)}]`,
       );
     } finally {
