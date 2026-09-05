@@ -186,7 +186,7 @@ suite("Semantic Tokens", () => {
     for (const word of ["set", "puts", "expr"]) {
       assert.ok(
         functionWords.has(word),
-        `expected '${word}' as a function token (recursed body), got ${JSON.stringify([
+        `expected '${word}' inside a recursed body as a function token, got ${JSON.stringify([
           ...functionWords,
         ])}`,
       );
@@ -244,9 +244,9 @@ suite("Semantic Tokens", () => {
     for (const word of ["set", "puts"]) {
       assert.ok(
         functionWords.has(word),
-        `expected '${word}' as a function token (recursed uplevel body), got ${JSON.stringify([
-          ...functionWords,
-        ])}`,
+        `expected '${word}' inside a recursed uplevel body as a function token, got ${JSON.stringify(
+          [...functionWords],
+        )}`,
       );
     }
 

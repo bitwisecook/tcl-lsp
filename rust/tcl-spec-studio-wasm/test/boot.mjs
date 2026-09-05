@@ -143,6 +143,27 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+/**
+ * Does this problem message name a URL served by GitHub?
+ *
+ * A message carries its URL somewhere inside a sentence, so each URL-shaped run
+ * is parsed and its host compared. Pattern-matching the sentence for `github.com`
+ * instead would also accept `github.com.example.invalid` or a path segment that
+ * merely mentions it.
+ */
+function mentionsGitHub(message) {
+  for (const candidate of message.match(/https?:\/\/[^\s"'<>)\]]+/g) ?? []) {
+    let host;
+    try {
+      ({ host } = new URL(candidate));
+    } catch {
+      continue;
+    }
+    if (host === "github.com" || host.endsWith(".github.com")) return true;
+  }
+  return false;
+}
+
 async function main() {
   try {
     await stat(join(distDir, "index.html"));
@@ -612,7 +633,7 @@ async function main() {
   }
 
   // A request to GitHub during a boot check would mean the panel is not opt-in.
-  const network = problems.filter((p) => /github\.com/.test(p));
+  const network = problems.filter(mentionsGitHub);
   if (network.length)
     fail(`the page reached GitHub without being asked: ${network.join("; ")}`);
   for (const problem of problems) fail(problem);
