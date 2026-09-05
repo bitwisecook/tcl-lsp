@@ -504,10 +504,18 @@ impl CoroContext {
 #[derive(Default)]
 pub struct ImportToken;
 
+/// Why a hidden-table move did or did not happen. The variants are in C's
+/// own check order, which is observable when more than one applies —
+/// `finish_command_visibility` is the only thing that words them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandVisibilityOutcome {
     Moved,
+    /// The source did not resolve (hide) or is not in the hidden table
+    /// (expose).
     Missing,
+    /// The source resolved outside the global namespace (hide only).
+    NonGlobal,
+    /// The destination is already taken.
     Collision,
 }
 
@@ -6493,18 +6501,43 @@ impl Interp {
             .resolve_fqn(self.current_ns.get(), name)
     }
 
+    /// The `wrong # args: should be "<child><tail>"` message for the `$child
+    /// <sub>` shorthand. C's `NRChildCmd` names the child command itself in
+    /// every one of its arity errors, never the `interp` ensemble, so the noun
+    /// has to come from `name` rather than a literal.
+    fn child_wrong_args(&mut self, name: &[u8], tail: &[u8]) -> Code {
+        let mut message = b"wrong # args: should be \"".to_vec();
+        message.extend_from_slice(name);
+        message.extend_from_slice(tail);
+        message.push(b'"');
+        self.error(&message)
+    }
+
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
     /// child is addressable like the `interp` ensemble restricted to it.
+    ///
+    /// The `hide` / `expose` / `invokehidden` arms hand off to
+    /// [`crate::cmd_alias::hidectl_in`] / [`crate::cmd_alias::invokehidden_in`],
+    /// the same owners `interp hide|expose|invokehidden path …` calls — C's
+    /// `NRChildCmd` and `NRInterpCmd` share `ChildHide` / `ChildExpose` /
+    /// `ChildInvokeHidden` the same way. Only the arity check and its noun
+    /// differ between the two entry points.
     fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
         if argv.len() < 2 {
-            return self.error(b"wrong # args: should be \"interp cmd ?arg ...?\"");
+            return self.child_wrong_args(name, b" cmd ?arg ...?");
         }
         match obj_bytes(argv[1]).as_slice() {
             b"eval" => {
+                if argv.len() < 3 {
+                    return self.child_wrong_args(name, b" eval arg ?arg ...?");
+                }
                 let script = join_words(&argv[2..]);
                 self.eval_in_child(name, &script)
             }
             b"issafe" => {
+                if argv.len() != 2 {
+                    return self.child_wrong_args(name, b" issafe");
+                }
                 let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
                 self.set_result_bytes(if safe { b"1" } else { b"0" });
                 Code::Ok
@@ -6514,13 +6547,28 @@ impl Interp {
                 self.set_result_bytes(b"");
                 Code::Ok
             }
-            b"hide" | b"expose" if argv.len() == 3 => {
+            // Both forms are `$child hide|expose name ?other?`. The one-word
+            // form spells source and destination the same, which is what makes
+            // C's asymmetric checks visible here: `kid hide ::foo::bar` is a
+            // qualified *token* and `kid expose ::foo::bar` a qualified
+            // *destination*, so the two report different errors.
+            b"hide" | b"expose" => {
                 let hide = obj_bytes(argv[1]) == b"hide";
                 let op = if hide {
                     CommandVisibilityOp::Hide
                 } else {
                     CommandVisibilityOp::Expose
                 };
+                if argv.len() != 3 && argv.len() != 4 {
+                    return self.child_wrong_args(
+                        name,
+                        if hide {
+                            b" hide cmdName ?hiddenCmdName?"
+                        } else {
+                            b" expose hiddenCmdName ?cmdName?"
+                        },
+                    );
+                }
                 // A safe interpreter may not touch any hidden-command table
                 // (checked on the executing interp).
                 if self.is_safe() {
@@ -6530,40 +6578,19 @@ impl Interp {
                         b"permission denied: safe interpreter cannot expose commands"
                     });
                 }
-                let cmd = obj_bytes(argv[2]);
-                let outcome = self
-                    .with_child(name, |c| match op {
-                        CommandVisibilityOp::Hide => c.hide_command(&cmd, &cmd),
-                        CommandVisibilityOp::Expose => c.expose_command(&cmd, &cmd),
-                    })
-                    .unwrap_or(CommandVisibilityOutcome::Missing);
-                self.finish_command_visibility(op, &cmd, &cmd, outcome)
+                crate::cmd_alias::hidectl_in(self, &[name.to_vec()], op, &argv[2..])
             }
-            b"invokehidden" if argv.len() >= 3 => {
-                if self.is_safe() {
-                    return self
-                        .error(b"not allowed to invoke hidden commands from safe interpreter");
-                }
-                let cmd = obj_bytes(argv[2]);
-                let hidden_argv: Vec<*mut TclObj> = argv[2..].to_vec();
-                for &a in &hidden_argv {
-                    unsafe { obj::incr_ref_count(a) };
-                }
-                let out = self.with_child(name, |c| {
-                    (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
-                });
-                for &a in &hidden_argv {
-                    unsafe { obj::decr_ref_count(a) };
-                }
-                match out {
-                    Some((code, res)) => {
-                        self.set_result_bytes(&res);
-                        code
-                    }
-                    None => self.error(b"could not find interpreter"),
-                }
+            b"invokehidden" => {
+                let mut usage = name.to_vec();
+                usage.extend_from_slice(
+                    b" invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?",
+                );
+                crate::cmd_alias::invokehidden_in(self, &[name.to_vec()], &argv[2..], &usage)
             }
             b"hidden" => {
+                if argv.len() != 2 {
+                    return self.child_wrong_args(name, b" hidden");
+                }
                 let names = self
                     .with_child(name, |c| c.hidden_names())
                     .unwrap_or_default();
@@ -6573,6 +6600,9 @@ impl Interp {
                 Code::Ok
             }
             b"aliases" => {
+                if argv.len() != 2 {
+                    return self.child_wrong_args(name, b" aliases");
+                }
                 let names = self
                     .with_child(name, |c| c.alias_names())
                     .unwrap_or_default();
@@ -6595,10 +6625,7 @@ impl Interp {
             // `$child recursionlimit ?newlimit?` — the path-less child form.
             b"recursionlimit" => {
                 if argv.len() > 3 {
-                    let mut m = b"wrong # args: should be \"".to_vec();
-                    m.extend_from_slice(name);
-                    m.extend_from_slice(b" recursionlimit ?newlimit?\"");
-                    return self.error(&m);
+                    return self.child_wrong_args(name, b" recursionlimit ?newlimit?");
                 }
                 let newlimit = argv.get(2).map(|&a| obj_bytes(a));
                 match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
@@ -6613,11 +6640,8 @@ impl Interp {
             // `$child bgerror ?cmdPrefix?` — get/set the child's background-error
             // handler.
             b"bgerror" => {
-                if argv.len() < 2 || argv.len() > 3 {
-                    let mut m = b"wrong # args: should be \"".to_vec();
-                    m.extend_from_slice(name);
-                    m.extend_from_slice(b" bgerror ?cmdPrefix?\"");
-                    return self.error(&m);
+                if argv.len() > 3 {
+                    return self.child_wrong_args(name, b" bgerror ?cmdPrefix?");
                 }
                 let prefix = argv.get(2).copied();
                 match self.with_child(name, |c| c.bgerror_apply(prefix)) {
@@ -6641,11 +6665,10 @@ impl Interp {
             }
             // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
             b"debug" => {
-                let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 if argv.len() > 4 {
-                    return self
-                        .error(b"wrong # args: should be \"interp debug path ?-frame ?bool??\"");
+                    return self.child_wrong_args(name, b" debug ?-frame ?bool??");
                 }
+                let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 match self.with_child(name, |c| c.debug_apply(&opts)) {
                     Some(Ok(o)) => {
                         self.set_result(o);
@@ -6659,10 +6682,7 @@ impl Interp {
             // child's commands/time limit.
             b"limit" => {
                 if argv.len() < 3 {
-                    let mut m = b"wrong # args: should be \"".to_vec();
-                    m.extend_from_slice(name);
-                    m.extend_from_slice(b" limit limitType ?-option value ...?\"");
-                    return self.error(&m);
+                    return self.child_wrong_args(name, b" limit limitType ?-option value ...?");
                 }
                 let ltype = obj_bytes(argv[2]);
                 let opts: Vec<*mut TclObj> = argv[3..].to_vec();
@@ -6804,23 +6824,37 @@ impl Interp {
 
     /// `interp hide name`: move command `name` out of the command table into
     /// the hidden table under `hidden_name`. `Missing` when `name` does not
-    /// resolve, `Collision` when `hidden_name` is already hidden, `Moved` on
-    /// success — never a bare success flag, because the caller has to word
-    /// three different diagnostics.
+    /// resolve, `NonGlobal` when it resolves outside the global namespace,
+    /// `Collision` when `hidden_name` is already hidden, `Moved` on success —
+    /// never a bare success flag, because the caller has to word four
+    /// different diagnostics, and C's order between them is observable.
     pub(crate) fn hide_command(
         &mut self,
         name: &[u8],
         hidden_name: &[u8],
     ) -> CommandVisibilityOutcome {
-        if self.hidden.borrow().contains_key(hidden_name) {
-            return CommandVisibilityOutcome::Collision;
-        }
         // Gated: a builtin the emulated release does not carry is not there to
         // be hidden, so `interp hide` cannot park it in the hidden table where
         // `interp invokehidden` would reach it past the surface check.
         let resolved = self.resolve_dispatchable(GLOBAL, name);
         match resolved {
             Some(cmd) => {
+                // C's order, and it is observable: `Tcl_HideCommand` resolves
+                // the source before it rejects a non-global one, and rejects a
+                // non-global one before it refuses an occupied token
+                // (tclBasic.c:2325, :2339, :2365). `interp hide kid nosuch
+                // taken` is therefore `unknown command "nosuch"`, not the
+                // collision.
+                //
+                // The global test goes through the shared namespace owner, so a
+                // run of colons collapses the way `TclGetNamespaceForQualName`
+                // collapses it: `::::foo` names the global `foo` (tclsh-pinned).
+                if !tcl_cmd_core::namespace::qualifiers(name).is_empty() {
+                    return CommandVisibilityOutcome::NonGlobal;
+                }
+                if self.hidden.borrow().contains_key(hidden_name) {
+                    return CommandVisibilityOutcome::Collision;
+                }
                 self.invalidate_interpreter_policy();
                 let old_fqn = self.namespaces.borrow().resolve_fqn(GLOBAL, name);
                 self.namespaces.borrow_mut().take(GLOBAL, name);
@@ -6851,6 +6885,13 @@ impl Interp {
         hidden_name: &[u8],
         name: &[u8],
     ) -> CommandVisibilityOutcome {
+        // C's order: `Tcl_ExposeCommand` looks the token up (tclBasic.c:2486)
+        // before it examines the destination (:2525), so `interp expose kid
+        // nosuchtok taken` is `unknown hidden command "nosuchtok"`, not the
+        // collision.
+        if !self.hidden.borrow().contains_key(hidden_name) {
+            return CommandVisibilityOutcome::Missing;
+        }
         if self.namespaces.borrow().resolve_fqn(GLOBAL, name).is_some() {
             return CommandVisibilityOutcome::Collision;
         }
@@ -6917,6 +6958,18 @@ impl Interp {
                     error_code_list(&[b"TCL", b"LOOKUP", b"HIDDENTOKEN", source]),
                 )
             }
+            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::NonGlobal) => (
+                b"can only hide global namespace commands (use rename then hide)".to_vec(),
+                b"TCL HIDE NON_GLOBAL".to_vec(),
+            ),
+            // C keeps this branch behind its own "theoretically impossible"
+            // comment (tclBasic.c:2500): only `Tcl_HideCommand` fills the
+            // hidden table, and it already refused a non-global source, so
+            // `expose_command` never reports it either.
+            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::NonGlobal) => (
+                b"trying to expose a non-global command namespace command".to_vec(),
+                b"NONE".to_vec(),
+            ),
             (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => {
                 let mut message = b"hidden command named \"".to_vec();
                 message.extend_from_slice(destination);
