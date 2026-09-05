@@ -110,6 +110,14 @@ list head→tail: the **newest** trace fires first for variable `read`/`write`/
 newest-last, so each firing site iterates reversed; `trace info` also lists
 newest-first, so it iterates reversed too.
 
+From Tcl 9.0 an access whose spelling names no element but whose resolved
+variable *is* one (`upvar #0 a(k) e; set e 5`) recovers the containing array —
+so its traces run as well — and the element's key, reported as `name2`; an
+element unset named by the one-part `a(k)` spelling likewise reports that whole
+spelling as `name1`. 8.4/8.5/8.6 do neither. The release axis is the dialect
+fact `TclVersion::traces_recover_linked_array_element`, which both engines read
+rather than comparing versions beside their trace loops.
+
 For an array-element access the two lists are walked as **groups**: the
 containing array's traces first, then the element's own (`TclCallVarTraces`
 runs its `arrayPtr` loop before its `varPtr` loop). Registration order does

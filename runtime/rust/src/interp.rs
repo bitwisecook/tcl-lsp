@@ -3119,13 +3119,9 @@ impl Interp {
     }
 
     /// Whether this release recovers an array element from the resolved `Var`
-    /// when the access spelling names none.
-    ///
-    /// Tcl 9.0 added it in two places at once: `TclCallVarTraces` fills `part2`
-    /// from the element's hash key (`tclTrace.c` 9.0.4:2560-2565) and
-    /// `UnsetVarStruct` does the same before calling the traces
-    /// (`tclVar.c`:2634-2640). 8.4/8.5/8.6 have neither block. The visible
-    /// consequences, both pinned in `tests/trace_semantics.rs`:
+    /// when the access spelling names none — the release axis itself lives in
+    /// `tcl-dialect`, beside `namespace_var_global_fallback`. The two visible
+    /// consequences are pinned in `tests/trace_semantics.rs`:
     ///
     /// - `upvar #0 a(k) e; set e 5` fires the array's traces *and* the
     ///   element's with `name2 = k` at 9.0; at 8.6 only the element's own, with
@@ -3133,12 +3129,8 @@ impl Interp {
     /// - `unset a(k)` reports `name1 = a(k)` at 9.0 (the recovered `part2`
     ///   stops `TclCallVarTraces` re-splitting the name) and `name1 = a` at
     ///   8.6.
-    ///
-    /// This is a release axis and belongs in `tcl-dialect` beside
-    /// `namespace_var_global_fallback`; it is derived here while that crate is
-    /// outside this lane.
     fn traces_recover_the_linked_element(&self) -> bool {
-        self.runtime_version() >= tcl_dialect::TclVersion::V9_0
+        self.runtime_version().traces_recover_linked_array_element()
     }
 
     /// The unset-trace callbacks a proc frame's locals contribute as the frame

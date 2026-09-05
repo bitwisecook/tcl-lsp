@@ -376,6 +376,25 @@ impl TclVersion {
         matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
     }
 
+    /// Whether variable traces recover an array element the access spelling
+    /// does not name.
+    ///
+    /// Tcl 9.0 added it in three places at once — `TclVarFindHiddenArray`
+    /// (`tclInt.h` 9.0.4:866), the `part2` recovery in `TclCallVarTraces`
+    /// (`tclTrace.c` 9.0.4:2560-2565) and the same recovery in
+    /// `UnsetVarStruct` (`tclVar.c` 9.0.4:2638-2642); 8.4/8.5/8.6 have none of
+    /// them. Two consequences are visible from script: an alias into an element
+    /// (`upvar #0 a(k) e; set e 5`) fires the containing array's traces too and
+    /// reports `name2 = k`, and `unset a(k)` reports `name1 = a(k)` rather than
+    /// the split-off base. Measured on tclsh 8.4.20, 8.5.19, 8.6.16 (off) and
+    /// 9.0.4, 9.1b0 (on). This belongs to the version-profile vocabulary so
+    /// runtimes do not each encode a release comparison beside their trace
+    /// dispatcher.
+    #[must_use]
+    pub const fn traces_recover_linked_array_element(self) -> bool {
+        matches!(self, Self::V9_0 | Self::V9_1)
+    }
+
     /// The release-defined conversion used when a string is consumed as raw
     /// binary data. See [`ByteStringEncoding`] for the Tcl 8/Tcl 9 split.
     #[must_use]

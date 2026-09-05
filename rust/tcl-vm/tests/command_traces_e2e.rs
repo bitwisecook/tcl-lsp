@@ -128,6 +128,37 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
+    // `trace info command|execution` resolves the name with `TCL_LEAVE_ERR_MSG`
+    // before reporting (`TraceCommandObjCmd` `tclTrace.c` 9.0.4:661,
+    // `TraceExecutionObjCmd` :454), so a command that does not exist is an
+    // error carrying the name *as written* — unlike `trace info variable`,
+    // which answers the empty list for an untraced or absent variable.
+    // Issue #1633 row 5.
+    Vector {
+        name: "trace info on a nonexistent command errors, as add and remove do",
+        script: "puts [catch {trace info command nosuch} m]|$m\n\
+                 puts [catch {trace info execution nosuch} m]|$m\n\
+                 puts [catch {trace info variable nosuch} m]|$m\n\
+                 puts [catch {trace add command nosuch delete foo} m]|$m\n\
+                 puts [catch {trace remove execution nosuch enter foo} m]|$m\n\
+                 puts [catch {trace remove variable nosuch write foo} m]|$m\n\
+                 puts [catch {trace info command ns::nosuch} m]|$m\n\
+                 puts [catch {trace info command nosuch::nosuch} m]|$m\n\
+                 proc real {} {}\n\
+                 puts [catch {trace info command real} m]|$m\n\
+                 namespace eval nn { proc q {} {} }\n\
+                 puts [catch {trace info command nn::q} m]|$m\n",
+        want: "1|unknown command \"nosuch\"\n\
+               1|unknown command \"nosuch\"\n\
+               0|\n\
+               1|unknown command \"nosuch\"\n\
+               1|unknown command \"nosuch\"\n\
+               0|\n\
+               1|unknown command \"ns::nosuch\"\n\
+               1|unknown command \"nosuch::nosuch\"\n\
+               0|\n\
+               0|",
+    },
     Vector {
         name: "command traces: fully-qualified rename/delete shapes, following the rename",
         script: "proc tracer args { puts \"T:[join $args |]\" }\n\

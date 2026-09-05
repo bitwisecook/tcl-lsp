@@ -161,6 +161,10 @@ interpreter can't see by name can't be traced.
 | Fire-through-`upvar`/`global` links; re-entrancy terminates | **Contract** | Acts on the target cell. |
 | `info exists/vars/locals`, `trace info` reflect live state | **Contract** | Never compile-time-folded. |
 | `(read trace on "x")` errorInfo frame text | **Contract** | Matches C wording. |
+| A store's result is the value read back after its write traces | **Contract** | `set`/`append`/`lappend`/`incr`/`lset`/`ledit`; empty once the variable is no longer a defined scalar. |
+| `incr`, and `lappend` on the paths reaching `TclPtrGetVarIdx`, fire `read` first | **Contract** | A trace error there is "no current value", not a failure; the swallowed error stays in `errorInfo`. |
+| `trace info command\|execution NAME` errors for an unknown command | **Contract** | `unknown command "NAME"`, name as written; `trace info variable` stays empty. |
+| Element recovery through a link, and `unset a(k)`'s `name1` | **Contract, release-split** | 9.0+ only — `TclVersion::traces_recover_linked_array_element`. |
 | Trace storage layout, callback dispatch internals, refcounts | **Incompatible-by-design** | Object-rep probes never match. |
 
 ## See also

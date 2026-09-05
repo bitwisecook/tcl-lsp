@@ -5734,19 +5734,23 @@ impl Vm {
 
     /// The `{ops callback}` pairs registered on command `name` (newest first),
     /// for `trace info command|execution`.
-    pub(crate) fn cmd_trace_entries(&self, execution: bool, name: &str) -> Value {
+    pub(crate) fn cmd_trace_entries(&self, execution: bool, name: &str) -> Completion<Value> {
+        // C resolves the name with `TCL_LEAVE_ERR_MSG` before reporting
+        // (`TraceCommandObjCmd` `tclTrace.c` 9.0.4:661, `TraceExecutionObjCmd`
+        // :454), so introspecting a command that does not exist errors with the
+        // name as written — unlike `trace info variable`, which answers empty.
+        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
+            return err(format!("unknown command \"{name}\""));
+        };
         let table = if execution {
             &self.exec_traces
         } else {
             &self.cmd_traces
         };
-        let Some(list) = self
-            .resolve_command_fqn(self.current_ns(), name)
-            .and_then(|key| table.get(&CommandSidecarKey::visible(key)))
-        else {
-            return Value::empty();
+        let Some(list) = table.get(&CommandSidecarKey::visible(key)) else {
+            return ok(Value::empty());
         };
-        Value::list(
+        ok(Value::list(
             list.iter()
                 .rev()
                 .map(|t| {
@@ -5756,7 +5760,7 @@ impl Vm {
                     ])
                 })
                 .collect(),
-        )
+        ))
     }
 
     /// Run one trace callback with `args` appended (list-quoted), in the
@@ -5965,6 +5969,18 @@ impl Vm {
         name: &str,
         op: &str,
     ) -> Result<(), Completion<Value>> {
+        self.fire_var_traces_reporting(name, op, None)
+    }
+
+    /// [`fire_var_traces`](Self::fire_var_traces) with an explicit `name1` for
+    /// the callbacks. Only the dispatched `unset a(k)` supplies one — see
+    /// [`array_unset_elem_spelled`](Self::array_unset_elem_spelled).
+    fn fire_var_traces_reporting(
+        &mut self,
+        name: &str,
+        op: &str,
+        reported_name1: Option<&str>,
+    ) -> Result<(), Completion<Value>> {
         if self.var_traces.is_empty() {
             return Ok(());
         }
@@ -5985,7 +6001,7 @@ impl Vm {
             return Ok(());
         }
         self.active_traces.insert(active_key.clone());
-        let r = self.fire_var_traces_inner(name, op, &base, &elem);
+        let r = self.fire_var_traces_inner(name, op, reported_name1.unwrap_or(&base), &elem);
         self.active_traces.remove(&active_key);
         r
     }
@@ -5997,7 +6013,7 @@ impl Vm {
         &mut self,
         name: &str,
         op: &str,
-        base: &str,
+        name1: &str,
         elem: &str,
     ) -> Result<(), Completion<Value>> {
         // For an element access C walks the containing array's trace list
@@ -6006,9 +6022,21 @@ impl Vm {
         // `varPtr` loop at :2623) — regardless of which was registered first.
         // Issue #1440.
         let mut keys = Vec::with_capacity(2);
-        if elem_ref(name).is_some() {
+        let mut name2 = elem.to_string();
+        if let Some((base, _)) = elem_ref(name) {
             let (lvl, nm) = self.locate(base);
             keys.push(format!("{lvl}\u{0}{nm}"));
+        } else if self.runtime_version.traces_recover_linked_array_element() {
+            // From Tcl 9.0 an access whose spelling names no element but whose
+            // resolved variable *is* one (`upvar #0 a(k) e; set e 5`) recovers
+            // the containing array — so the array's traces run too — and the
+            // element's key, reported as `name2`. Issue #1633 row 7.
+            let (lvl, nm) = self.locate(name);
+            if let Some((rbase, rkey)) = elem_ref(&nm) {
+                let (blvl, bnm) = self.locate_key_from(rbase, lvl);
+                keys.push(format!("{blvl}\u{0}{bnm}"));
+                name2 = rkey.to_string();
+            }
         }
         keys.push(self.trace_key(name));
         for key in keys {
@@ -6022,8 +6050,8 @@ impl Vm {
                 let script = format!(
                     "{} {} {} {}",
                     tr.command,
-                    tcl_brace(base),
-                    tcl_brace(elem),
+                    tcl_brace(name1),
+                    tcl_brace(&name2),
                     tcl_cmd_core::trace::callback_op_word(op, tr.old_style)
                 );
                 let r = self.eval_source(&script);
@@ -6899,10 +6927,24 @@ impl Vm {
         // Unset traces fire before removal; their errors are ignored.
         let _ = self.fire_var_traces(name, "unset");
         let (lvl, nm) = self.locate(name);
-        let existed = self
-            .frames
-            .get_mut(lvl)
-            .is_some_and(|f| f.locals.remove(&nm).is_some());
+        let existed = if let Some((rbase, rkey)) = elem_ref(&nm) {
+            // The name resolved through a link into an array element
+            // (`upvar #0 a(k) e; unset e`): remove that element, not a cell
+            // spelled `a(k)`, which is what C's resolved `Var` does.
+            let (blvl, bnm) = self.locate_key_from(rbase, lvl);
+            match self
+                .frames
+                .get_mut(blvl)
+                .and_then(|f| f.locals.get_mut(&bnm))
+            {
+                Some(Local::Array(m)) => m.remove(rkey).is_some(),
+                _ => false,
+            }
+        } else {
+            self.frames
+                .get_mut(lvl)
+                .is_some_and(|f| f.locals.remove(&nm).is_some())
+        };
         // A variable's traces are dropped when it is unset.
         if existed {
             let key = self.trace_key(name);
@@ -6926,7 +6968,7 @@ impl Vm {
         complain: bool,
     ) -> Result<(), Completion<Value>> {
         if let Some((array, key)) = elem_ref(name) {
-            self.array_unset_elem(array, key);
+            self.array_unset_elem_spelled(array, key);
             return Ok(());
         }
         // A constant cannot be unset; `-nocomplain` leaves it intact (var-26.12).
@@ -7344,9 +7386,31 @@ impl Vm {
         }
     }
 
+    /// Remove array element `name(key)` through a **two-part** access — C's
+    /// `TclObjUnsetVar2(part1, part2, …)`, which `array unset` and the
+    /// `INST_UNSET_ARRAY*` opcodes use. The traces report `name1 = name`.
     pub(crate) fn array_unset_elem(&mut self, name: &str, key: &str) {
+        self.array_unset_elem_reporting(name, key, None);
+    }
+
+    /// Remove array element `name(key)` named by the **one-part** `a(k)`
+    /// spelling — the dispatched `unset a(k)` and `INST_UNSET_STK`. From Tcl
+    /// 9.0 `UnsetVarStruct` recovers the element's key into `part2`
+    /// (`tclVar.c` 9.0.4:2638-2642), which stops `TclCallVarTraces` splitting
+    /// the spelling, so the callbacks see `name1 = a(k)`; 8.4/8.5/8.6 split it
+    /// and see `name1 = a`. Issue #1633 row 6.
+    pub(crate) fn array_unset_elem_spelled(&mut self, name: &str, key: &str) {
+        if self.runtime_version.traces_recover_linked_array_element() {
+            let spelling = format!("{name}({key})");
+            self.array_unset_elem_reporting(name, key, Some(&spelling));
+        } else {
+            self.array_unset_elem_reporting(name, key, None);
+        }
+    }
+
+    fn array_unset_elem_reporting(&mut self, name: &str, key: &str, reported: Option<&str>) {
         if !self.var_traces.is_empty() {
-            let _ = self.fire_var_traces(&format!("{name}({key})"), "unset");
+            let _ = self.fire_var_traces_reporting(&format!("{name}({key})"), "unset", reported);
         }
         let (lvl, nm) = self.locate(name);
         if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
