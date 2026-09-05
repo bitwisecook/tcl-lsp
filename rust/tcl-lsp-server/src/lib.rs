@@ -373,6 +373,16 @@ impl DocumentState {
     }
 }
 
+/// Symbols synthesized for open documents whose current revision is not in
+/// the workspace index yet, together with the exact live snapshots their byte
+/// spans were analysed against. Keeping the snapshots beside the hits avoids
+/// re-entering the Indexed-readiness wait while mapping a pending hit to an LSP
+/// range (#1854 review).
+struct OpenWorkspaceSymbolFallback {
+    hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+    sources: HashMap<String, Option<DocumentState>>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DocumentPublication {
     /// The live buffer is authoritative, but Salsa still names an older source.
@@ -19284,34 +19294,31 @@ impl Backend {
         &self,
         query: &str,
         limit: usize,
-    ) -> Vec<core_workspace_symbols::IndexedWorkspaceSymbol> {
-        let unindexed: Vec<(Uri, Arc<str>, String, DocumentPublication)> = {
+    ) -> OpenWorkspaceSymbolFallback {
+        let unindexed: Vec<(Uri, DocumentState)> = {
             // `documents` → `workspace_index`, the lock order `did_open`
             // establishes.
             let docs = self.documents.lock("open_but_unindexed_symbols").await;
             let index = self.workspace_index.read().await;
             docs.iter()
                 .filter(|(uri, _)| !index.contains_document(uri.as_str()))
-                .map(|(uri, doc)| {
-                    (
-                        uri.clone(),
-                        Arc::clone(&doc.text),
-                        doc.dialect.clone(),
-                        doc.publication,
-                    )
-                })
+                .map(|(uri, doc)| (uri.clone(), doc.clone()))
                 .collect()
         };
         if unindexed.is_empty() {
-            return Vec::new();
+            return OpenWorkspaceSymbolFallback {
+                hits: Vec::new(),
+                sources: HashMap::new(),
+            };
         }
         let mut pending = new_workspace_index();
-        for (uri, text, dialect, publication) in unindexed {
+        let mut sources = HashMap::new();
+        for (uri, doc) in unindexed {
             // A published document with no input is a deliberately retired
             // orphan (see the doc comment), but a pending brand-new/untitled
             // buffer has not created its first Salsa handle yet and is still
             // authoritative for its own live symbols.
-            if publication != DocumentPublication::Pending
+            if doc.publication != DocumentPublication::Pending
                 && !self.db_files.lock().await.contains_key(&uri)
             {
                 continue;
@@ -19320,14 +19327,20 @@ impl Backend {
             // pre-open disk source. Analyse the captured authoritative buffer
             // directly; once Salsa is ready, the memoised path is current and
             // remains the cheaper fallback for a cancelled read.
-            let analysis = if publication == DocumentPublication::Pending {
-                self.fresh_analysis_for(&uri, text, dialect).await
+            let analysis = if doc.publication == DocumentPublication::Pending {
+                self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                    .await
             } else {
-                self.analysis_for(&uri, text, dialect).await
+                self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                    .await
             };
             pending.add_document(uri.as_str(), &analysis);
+            sources.insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
         }
-        pending.symbols_matching(query, limit)
+        OpenWorkspaceSymbolFallback {
+            hits: pending.symbols_matching(query, limit),
+            sources,
+        }
     }
 
     async fn scan_workspace_folders(&self) {
@@ -22249,7 +22262,10 @@ impl LanguageServer for Backend {
         // Bounded by the open-document set, empty in steady state, and the
         // analysis read here is the memoised one the pending publish is
         // already computing.
-        let mut hits = self.open_but_unindexed_symbols(&params.query, limit).await;
+        let OpenWorkspaceSymbolFallback {
+            mut hits,
+            mut sources,
+        } = self.open_but_unindexed_symbols(&params.query, limit).await;
         if hits.len() < limit {
             let remaining = limit - hits.len();
             let index = self.workspace_index.read().await;
@@ -22262,7 +22278,6 @@ impl LanguageServer for Backend {
         // source, which the index deliberately does not hold.  `hits` arrives
         // grouped by URI, so each document is resolved once — from the open
         // buffer when there is one, else from disk.
-        let mut sources: HashMap<String, Option<DocumentState>> = HashMap::new();
         let mut all: Vec<SymbolInformation> = Vec::with_capacity(hits.len());
         for hit in hits {
             if !sources.contains_key(&hit.uri) {
@@ -41940,13 +41955,17 @@ proc p {} {
             .await
             .remove_document(uri.as_str());
 
-        let current = backend.open_but_unindexed_symbols("current_live", 10).await;
+        let current = backend
+            .open_but_unindexed_symbols("current_live", 10)
+            .await
+            .hits;
         assert_eq!(current.len(), 1, "the live-only proc must be searchable");
         assert_eq!(current[0].name, "current_live_symbol");
         assert!(
             backend
                 .open_but_unindexed_symbols("obsolete_disk", 10)
                 .await
+                .hits
                 .is_empty(),
             "the pre-open disk proc must not survive through a Salsa cache hit",
         );
@@ -41974,9 +41993,24 @@ proc p {} {
             "precondition: no Salsa handle exists",
         );
 
-        let found = backend.open_but_unindexed_symbols("brand_new", 10).await;
+        let found = crate::rt::timeout(
+            std::time::Duration::from_secs(1),
+            backend.symbol(WorkspaceSymbolParams {
+                query: "brand_new".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            }),
+        )
+        .await
+        .expect("workspace/symbol must not wait for Indexed publication")
+        .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected the pending live symbol, got {found:?}");
+        };
         assert_eq!(found.len(), 1, "the pending live proc must be searchable");
         assert_eq!(found[0].name, "brand_new_live_symbol");
+        assert_eq!(found[0].location.uri, uri);
+        assert_eq!(found[0].location.range.start.character, 5);
     }
 
     /// Exact-head review of #1854: a pending no-handle buffer still belongs to
@@ -42042,10 +42076,24 @@ proc p {} {
             "precondition: the pending consumer has no Salsa handle",
         );
 
-        let found = backend.open_but_unindexed_symbols("IconList", 10).await;
+        let found = crate::rt::timeout(
+            std::time::Duration::from_secs(1),
+            backend.symbol(WorkspaceSymbolParams {
+                query: "IconList".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            }),
+        )
+        .await
+        .expect("factory symbol mapping must not wait for Indexed publication")
+        .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected the manufactured pending class, got {found:?}");
+        };
         assert_eq!(found.len(), 1, "the manufactured class must be searchable");
         assert_eq!(found[0].name, "IconList");
-        assert_eq!(found[0].kind, CoreWorkspaceSymbolKind::Class);
+        assert_eq!(found[0].kind, SymbolKind::CLASS);
+        assert_eq!(found[0].location.uri, consumer_uri);
     }
 
     /// Exact-head review of #1854: a session-default change that snapshots a
