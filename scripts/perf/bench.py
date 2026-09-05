@@ -857,6 +857,8 @@ def host_info() -> dict:
                     cpu = line.split(":", 1)[1].strip()
                     break
         except OSError:
+            # /proc is not always readable (container, hardened host); the
+            # `platform.processor()` fallback below covers it.
             pass
         try:
             for line in Path("/proc/meminfo").read_text().splitlines():
@@ -864,6 +866,8 @@ def host_info() -> dict:
                     mem = round(int(line.split()[1]) / 1024**2)
                     break
         except (OSError, ValueError, IndexError):
+            # Same, plus an unexpected MemTotal line: `mem` stays 0, which is
+            # the documented "could not be determined" value.
             pass
     # Machine load at the moment of measurement. A developer laptop has a
     # busy desktop on it (browser, editor, chat) and will never be quiet, so

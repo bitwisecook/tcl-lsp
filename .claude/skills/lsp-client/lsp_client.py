@@ -647,10 +647,13 @@ class LspClient:
                 try:
                     self.send_request("shutdown", {}, timeout=5.0)
                 except Exception:
+                    # Best-effort courtesy: a server that will not answer
+                    # `shutdown` is killed below regardless.
                     pass
                 try:
                     self.send_notification("exit")
                 except Exception:
+                    # Same — a broken pipe here only means `exit` never landed.
                     pass
                 try:
                     self.process.wait(timeout=3.0)
@@ -662,6 +665,7 @@ class LspClient:
                 try:
                     self.process.kill()
                 except Exception:
+                    # Already reaped, which is the outcome this wanted.
                     pass
 
 
@@ -2086,6 +2090,7 @@ examples:
         print(f"LSP error: {e}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:
+        # Ctrl-C is a normal way to stop; `finally` still shuts the server down.
         pass
     finally:
         client.shutdown()

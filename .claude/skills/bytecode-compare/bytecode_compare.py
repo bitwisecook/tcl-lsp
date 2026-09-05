@@ -74,9 +74,6 @@ DEFAULT_VERSION = "9.0"
 # Pattern matching instruction lines: "    (N) opcode ..."
 _INSTR_RE = re.compile(r"^\s*\((\d+)\)\s+(.+)$")
 
-# Pattern for tclsh jumpTable entries: \t\t["pattern"->pc N, ...]
-_JUMPTABLE_RE = re.compile(r"^\s*\[.*->.*\]\s*$")
-
 # Pattern for ByteCode section headers (both our format and tclsh's)
 _BYTECODE_RE = re.compile(r"^ByteCode\s")
 
