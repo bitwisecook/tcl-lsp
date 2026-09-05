@@ -71,11 +71,11 @@ def test_cert_model_and_crossref():
     c = certs[0]
     assert c["name"] == "www.example.com.crt"
     assert c["fullPath"] == "/Common/www.example.com.crt"
-    assert "www.example.com" in c["subject"]
+    assert c["subject"] == "CN=www.example.com,O=Example,C=US"
     assert "Example Root CA" in c["issuer"]
     assert c["expirationDate"] == "1893456000"
     assert "2030" in c["expirationString"]
-    assert "example.com" in c["subjectAlternativeName"]
+    assert c["subjectAlternativeName"] == "DNS:www.example.com, DNS:example.com"
     assert "www_clientssl" in c["usedByProfiles"]
     assert "www_https_vs" in c["usedByVirtuals"]
     assert d["counts"]["certificates"] == 1

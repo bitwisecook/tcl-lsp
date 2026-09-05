@@ -832,6 +832,8 @@ pub struct InterpState {
     /// trace fires regardless of the access path (`upvar` alias, qualified
     /// name, …). Newest trace last; fired newest-first.
     var_traces: HashMap<String, Vec<VarTrace>>,
+    /// Source of [`VarTrace::id`]s; never reused within an interpreter.
+    next_var_trace_id: u64,
     /// `trace add command` registrations (`rename`/`delete` ops), keyed by the
     /// command's table key.  Entries follow the command through `rename` and
     /// are dropped when it is deleted or overwritten (M16.3).
@@ -1181,6 +1183,14 @@ struct CmdArena {
 /// A single registered variable trace.
 #[derive(Clone)]
 struct VarTrace {
+    /// Identity for the firing walk. C walks the live list through
+    /// `active.nextTracePtr` and `Tcl_UntraceVar2` rewrites every active walk
+    /// as it unlinks a record (`tclTrace.c` 9.0.4:2824-2842), so a trace a
+    /// callback removes never fires in that pass. A minted id, never reused,
+    /// survives the `Vec` reshuffling a removal causes where an index would
+    /// not, and identifies one *registration* where a `(ops, command)` pair
+    /// would match its own duplicates. Issue #1633 row 8.
+    id: u64,
     /// Operations this trace fires on (`read`/`write`/`unset`/`array`).
     ops: Vec<String>,
     /// The command prefix invoked as `command name1 name2 op`.
@@ -1191,6 +1201,20 @@ struct VarTrace {
     /// part of the `trace remove`/`trace vdelete` match, exactly as C masks
     /// the flag out there.
     old_style: bool,
+}
+
+/// One group of variable traces a firing walks: the array's or the variable's
+/// own list, still in the table, or a list an unset has already taken out of it.
+enum TraceGroup {
+    Live(String),
+    Taken(Vec<VarTrace>),
+}
+
+/// One step of that walk: a live registration, re-found by id before it runs,
+/// or an already-taken entry, which nothing can remove any more.
+enum Step {
+    Live(u64),
+    Taken(String, bool),
 }
 
 /// One `trace add command|execution` registration: the op set
@@ -1212,6 +1236,17 @@ pub(crate) struct CmdTraceEntry {
     /// rename moves the entry with its token, and re-stamps it.
     token: std::cell::Cell<Option<u64>>,
     firing: std::cell::Cell<bool>,
+    /// Set by [`Vm::remove_cmd_trace`] when it unlinks this registration, so a
+    /// walk already under way skips it — C's `Tcl_UntraceCommand` unlinks from
+    /// the list the walk is following (`tclBasic.c` 9.0.4:4020-4045).
+    ///
+    /// The flag, rather than the entry's presence in `cmd_traces`, is what
+    /// cancels a pending callback: a **delete** walk holds the dying token's
+    /// list, and a callback that re-creates the command under the same name
+    /// takes the *table* entry over without touching that list, so the
+    /// remaining callbacks still run. Table membership cannot tell those two
+    /// apart. Measured on tclsh 8.6.16 and 9.0.4.
+    untraced: std::cell::Cell<bool>,
 }
 
 impl CmdTraceEntry {
@@ -1221,7 +1256,14 @@ impl CmdTraceEntry {
             callback,
             token: std::cell::Cell::new(token),
             firing: std::cell::Cell::new(false),
+            untraced: std::cell::Cell::new(false),
         }
+    }
+
+    /// Whether `trace remove` has unlinked this registration (see
+    /// [`Self::untraced`]).
+    pub(crate) fn untraced(&self) -> bool {
+        self.untraced.get()
     }
 
     /// Whether this entry fires for `op`.
@@ -1618,6 +1660,7 @@ impl InterpState {
             package_unknown: None,
             package_prefer: initial_package_prefer(),
             var_traces: HashMap::new(),
+            next_var_trace_id: 0,
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
             active_sidecar_handles: Vec::new(),
@@ -2624,11 +2667,15 @@ impl Vm {
         // ImportRef list. Both the source and every import therefore remain
         // table-visible during this callback.
         self.on_command_removed_for(&key);
+        // C removes the table entry only through the dying `cmdPtr->hPtr`
+        // (`Tcl_DeleteCommandFromToken`, `tclBasic.c` 9.0.4:3865-3873).
         if self.command_token_identity(&key).as_ref() != Some(&source_token) {
             // The callback deleted this command, or bound a replacement at the
             // same name: its own lifecycle already unlinked the dying token
             // (`Tcl_DeleteCommandFromToken` then finds `cmdPtr->hPtr` NULL), so
             // whatever holds the name now is a distinct token and stands.
+            // Issue #1633 row 9 reached the same rule from the trace side; this
+            // is the stronger form, and its vector still holds.
             return true;
         }
         self.retire_real_command(&source_token, &command);
@@ -5757,7 +5804,10 @@ impl Vm {
         old_style: bool,
     ) {
         let key = self.trace_key(name);
+        self.next_var_trace_id += 1;
+        let id = self.next_var_trace_id;
         self.var_traces.entry(key).or_default().push(VarTrace {
+            id,
             ops,
             command,
             old_style,
@@ -5858,6 +5908,9 @@ impl Vm {
                 .iter()
                 .rposition(|t| t.ops == ops && t.callback == callback)
             {
+                // Mark before dropping the handle: a firing walk holds its own
+                // `Rc` and consults the flag, not the table.
+                list[index].untraced.set(true);
                 list.remove(index);
                 removed = true;
             }
@@ -5879,19 +5932,23 @@ impl Vm {
 
     /// The `{ops callback}` pairs registered on command `name` (newest first),
     /// for `trace info command|execution`.
-    pub(crate) fn cmd_trace_entries(&self, execution: bool, name: &str) -> Value {
+    pub(crate) fn cmd_trace_entries(&self, execution: bool, name: &str) -> Completion<Value> {
+        // C resolves the name with `TCL_LEAVE_ERR_MSG` before reporting
+        // (`TraceCommandObjCmd` `tclTrace.c` 9.0.4:661, `TraceExecutionObjCmd`
+        // :454), so introspecting a command that does not exist errors with the
+        // name as written — unlike `trace info variable`, which answers empty.
+        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
+            return err(format!("unknown command \"{name}\""));
+        };
         let table = if execution {
             &self.exec_traces
         } else {
             &self.cmd_traces
         };
-        let Some(list) = self
-            .resolve_command_fqn(self.current_ns(), name)
-            .and_then(|key| table.get(&CommandSidecarKey::visible(key)))
-        else {
-            return Value::empty();
+        let Some(list) = table.get(&CommandSidecarKey::visible(key)) else {
+            return ok(Value::empty());
         };
-        Value::list(
+        ok(Value::list(
             list.iter()
                 .rev()
                 .map(|t| {
@@ -5901,7 +5958,7 @@ impl Vm {
                     ])
                 })
                 .collect(),
-        )
+        ))
     }
 
     /// Run one trace callback with `args` appended (list-quoted), in the
@@ -5960,16 +6017,27 @@ impl Vm {
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
         // newest-last. Issue #1440.
         for entry in entries.into_iter().rev() {
-            if entry.ops.iter().any(|o| o == op) {
-                let _ = self.run_cmd_trace_callback(
-                    &entry,
-                    &[
-                        Value::string(old_display.clone()),
-                        Value::string(new_display),
-                        Value::string(op),
-                    ],
-                );
+            if !entry.ops.iter().any(|o| o == op) {
+                continue;
             }
+            // C's `CallCommandTraces` walks the list hanging off the token it
+            // was handed (tclBasic.c 9.0.4:3972-3993) and `Tcl_UntraceCommand`
+            // unlinks a record at once, so a trace an earlier callback removed
+            // does not fire in this pass (issue #1633 row 8) — but a callback
+            // that re-creates the command under this name only takes the
+            // *table* entry over, leaving the dying token's list to finish
+            // firing. Hence the per-entry flag rather than a table lookup.
+            if entry.untraced() {
+                continue;
+            }
+            let _ = self.run_cmd_trace_callback(
+                &entry,
+                &[
+                    Value::string(old_display.clone()),
+                    Value::string(new_display),
+                    Value::string(op),
+                ],
+            );
         }
         self.firing_cmd_traces.pop();
     }
@@ -6149,7 +6217,35 @@ impl Vm {
         name: &str,
         op: &str,
     ) -> Result<(), Completion<Value>> {
-        if self.var_traces.is_empty() {
+        self.fire_var_traces_reporting(name, op, None)
+    }
+
+    /// [`fire_var_traces`](Self::fire_var_traces) with an explicit `name1` for
+    /// the callbacks. Only the dispatched `unset a(k)` supplies one — see
+    /// [`array_unset_elem_spelled`](Self::array_unset_elem_spelled).
+    fn fire_var_traces_reporting(
+        &mut self,
+        name: &str,
+        op: &str,
+        reported_name1: Option<&str>,
+    ) -> Result<(), Completion<Value>> {
+        self.fire_var_traces_taken(name, op, reported_name1, None)
+    }
+
+    /// [`fire_var_traces`](Self::fire_var_traces) walking a trace list that has
+    /// already been taken out of the table for the variable's own group — the
+    /// unset path, where C moves the list to a dummy `Var` before the callbacks
+    /// run (`UnsetVarStruct`, `tclVar.c` 9.0.4:2617-2648). The containing
+    /// array's group, which C leaves on the array's own `Var`, is still walked
+    /// live.
+    fn fire_var_traces_taken(
+        &mut self,
+        name: &str,
+        op: &str,
+        reported_name1: Option<&str>,
+        taken: Option<Vec<VarTrace>>,
+    ) -> Result<(), Completion<Value>> {
+        if self.var_traces.is_empty() && taken.is_none() {
             return Ok(());
         }
         let (base, elem) = elem_ref(name).map_or_else(
@@ -6169,7 +6265,7 @@ impl Vm {
             return Ok(());
         }
         self.active_traces.insert(active_key.clone());
-        let r = self.fire_var_traces_inner(name, op, &base, &elem);
+        let r = self.fire_var_traces_inner(name, op, reported_name1.unwrap_or(&base), &elem, taken);
         self.active_traces.remove(&active_key);
         r
     }
@@ -6181,34 +6277,76 @@ impl Vm {
         &mut self,
         name: &str,
         op: &str,
-        base: &str,
+        name1: &str,
         elem: &str,
+        taken: Option<Vec<VarTrace>>,
     ) -> Result<(), Completion<Value>> {
         // For an element access C walks the containing array's trace list
         // first and the element's own list second (`TclCallVarTraces`,
         // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
         // `varPtr` loop at :2623) — regardless of which was registered first.
         // Issue #1440.
-        let mut keys = Vec::with_capacity(2);
-        if elem_ref(name).is_some() {
+        let mut groups = Vec::with_capacity(2);
+        let mut name2 = elem.to_string();
+        if let Some((base, _)) = elem_ref(name) {
             let (lvl, nm) = self.locate(base);
-            keys.push(format!("{lvl}\u{0}{nm}"));
+            groups.push(TraceGroup::Live(format!("{lvl}\u{0}{nm}")));
+        } else if self.runtime_version.traces_recover_linked_array_element() {
+            // From Tcl 9.0 an access whose spelling names no element but whose
+            // resolved variable *is* one (`upvar #0 a(k) e; set e 5`) recovers
+            // the containing array — so the array's traces run too — and the
+            // element's key, reported as `name2`. Issue #1633 row 7.
+            let (lvl, nm) = self.locate(name);
+            if let Some((rbase, rkey)) = elem_ref(&nm) {
+                let (blvl, bnm) = self.locate_key_from(rbase, lvl);
+                groups.push(TraceGroup::Live(format!("{blvl}\u{0}{bnm}")));
+                name2 = rkey.to_string();
+            }
         }
-        keys.push(self.trace_key(name));
-        for key in keys {
-            let Some(traces) = self.var_traces.get(&key).cloned() else {
-                continue;
+        groups.push(match taken {
+            Some(list) => TraceGroup::Taken(list),
+            None => TraceGroup::Live(self.trace_key(name)),
+        });
+        for group in groups {
+            // Walk newest-first (the Vec is oldest-last), by identity: a
+            // callback's `trace remove` unlinks its record from the live list
+            // at once, and C's walk then skips it — so the id is re-found in
+            // the table before every callback rather than trusting a snapshot.
+            // A taken list is nobody's to remove any more, so it fires whole.
+            let steps: Vec<Step> = match &group {
+                TraceGroup::Live(key) => self.var_traces.get(key).map_or_else(Vec::new, |list| {
+                    list.iter().rev().map(|t| Step::Live(t.id)).collect()
+                }),
+                TraceGroup::Taken(list) => list
+                    .iter()
+                    .rev()
+                    .filter(|t| t.ops.iter().any(|o| o == op))
+                    .map(|t| Step::Taken(t.command.clone(), t.old_style))
+                    .collect(),
             };
-            for tr in traces.iter().rev() {
-                if !tr.ops.iter().any(|o| o == op) {
+            let live_key = match &group {
+                TraceGroup::Live(key) => key.as_str(),
+                TraceGroup::Taken(_) => "",
+            };
+            for step in steps {
+                let entry = match step {
+                    Step::Live(id) => self
+                        .var_traces
+                        .get(live_key)
+                        .and_then(|list| list.iter().find(|t| t.id == id))
+                        .filter(|t| t.ops.iter().any(|o| o == op))
+                        .map(|t| (t.command.clone(), t.old_style)),
+                    Step::Taken(command, old_style) => Some((command, old_style)),
+                };
+                let Some((command, old_style)) = entry else {
                     continue;
-                }
+                };
                 let script = format!(
                     "{} {} {} {}",
-                    tr.command,
-                    tcl_brace(base),
-                    tcl_brace(elem),
-                    tcl_cmd_core::trace::callback_op_word(op, tr.old_style)
+                    command,
+                    tcl_brace(name1),
+                    tcl_brace(&name2),
+                    tcl_cmd_core::trace::callback_op_word(op, old_style)
                 );
                 let r = self.eval_source(&script);
                 let failed = match r {
@@ -7079,21 +7217,46 @@ impl Vm {
     }
 
     /// Remove a scalar; returns whether it existed.
+    ///
+    /// C's `UnsetVarStruct` (`tclVar.c` 9.0.4:2560-2745) marks the variable
+    /// undefined and moves its trace list off the cell **before** the unset
+    /// callbacks run, then frees whatever list is left. So a callback sees the
+    /// variable already gone, a value it stores survives the unset, and the
+    /// revived variable carries no traces — not even a write trace that would
+    /// otherwise have fired on that store. The trace key is resolved *before*
+    /// the removal: resolution can depend on the cell still existing (issue
+    /// #1328). Issue #1633 row 10.
     pub fn unset_var(&mut self, name: &str) -> bool {
-        // Unset traces fire before removal; their errors are ignored.
-        let _ = self.fire_var_traces(name, "unset");
+        let key = (!self.var_traces.is_empty()).then(|| self.trace_key(name));
         let (lvl, nm) = self.locate(name);
-        let existed = self
-            .frames
-            .get_mut(lvl)
-            .is_some_and(|f| f.locals.remove(&nm).is_some());
-        // A variable's traces are dropped when it is unset.
-        if existed {
-            let key = self.trace_key(name);
-            if self.var_traces.remove(&key).is_some() {
-                self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        let existed = if let Some((rbase, rkey)) = elem_ref(&nm) {
+            // The name resolved through a link into an array element
+            // (`upvar #0 a(k) e; unset e`): remove that element, not a cell
+            // spelled `a(k)`, which is what C's resolved `Var` does.
+            let (blvl, bnm) = self.locate_key_from(rbase, lvl);
+            match self
+                .frames
+                .get_mut(blvl)
+                .and_then(|f| f.locals.get_mut(&bnm))
+            {
+                Some(Local::Array(m)) => m.remove(rkey).is_some(),
+                _ => false,
             }
+        } else {
+            self.frames
+                .get_mut(lvl)
+                .is_some_and(|f| f.locals.remove(&nm).is_some())
+        };
+        // A variable's traces go with it, and the taken list is what fires.
+        let Some(key) = key else {
+            return existed;
+        };
+        let taken = self.var_traces.remove(&key);
+        if taken.is_some() {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
+        // Unset-trace errors are ignored.
+        let _ = self.fire_var_traces_taken(name, "unset", None, taken);
         existed
     }
 
@@ -7110,7 +7273,7 @@ impl Vm {
         complain: bool,
     ) -> Result<(), Completion<Value>> {
         if let Some((array, key)) = elem_ref(name) {
-            self.array_unset_elem(array, key);
+            self.array_unset_elem_spelled(array, key);
             return Ok(());
         }
         // A constant cannot be unset; `-nocomplain` leaves it intact (var-26.12).
@@ -7332,6 +7495,143 @@ impl Vm {
         self.set_var(name, value)
     }
 
+    /// Store `value` in `name` and return the value the variable **reads back**
+    /// afterwards, which is what `set`/`append`/`lappend`/`incr` evaluate to.
+    /// A write trace that rewrites the variable therefore changes the command's
+    /// result, and one that unsets it — or turns it into an array — makes the
+    /// result empty: C returns `varPtr->value.objPtr` only while the variable
+    /// is still a defined scalar and the interp's empty object otherwise
+    /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:2050-2065; 8.6.16:2006-2012).
+    /// Named after the runtime's `Interp::store_var_result` so both engines'
+    /// read-back owners are greppable together. Issue #1633 row 1.
+    pub(crate) fn store_var_result(
+        &mut self,
+        name: &str,
+        value: Value,
+    ) -> Result<Value, Completion<Value>> {
+        if let Some((base, key)) = elem_ref(name) {
+            let (base, key) = (base.to_owned(), key.to_owned());
+            return self.store_elem_result(&base, &key, value);
+        }
+        if self.var_traces.is_empty() {
+            // With no traces nothing can have moved the cell: the read-back is
+            // the stored value, so skip the second resolution.
+            self.set_var(name, value.clone())?;
+            return Ok(value);
+        }
+        // Resolve the cell *once*, as C does: `TclObjLookupVarEx` hands
+        // `TclPtrSetVarIdx` a `Var *`, and the read-back is that same `Var`.
+        // Re-running the name lookup would let a write callback steer it
+        // elsewhere — at 8.x a callback that creates `ns::x` beside the `::x`
+        // a bare name had reached through the namespace fallback, or that
+        // unsets the `ns::x` the name did reach, moves the second lookup to a
+        // different variable. Measured on tclsh 8.6.16. Issue #1633 row 1.
+        let cell = self.resolved_cell(name);
+        self.set_var(name, value)?;
+        Ok(self.read_resolved_cell(&cell).unwrap_or_else(Value::empty))
+    }
+
+    /// The frame + key a scalar name resolves to **right now** — C's `Var *`.
+    /// Mirrors the resolution [`write_scalar_raw`](Self::write_scalar_raw) and
+    /// [`write_array_raw`](Self::write_array_raw) perform, so a cell captured
+    /// before a store is exactly the one the store wrote.
+    fn resolved_cell(&self, name: &str) -> (usize, String) {
+        let resolved = self.ns_var_fallback(name);
+        self.locate(resolved.as_deref().unwrap_or(name))
+    }
+
+    /// Read the scalar at an already-resolved [`resolved_cell`](Self::resolved_cell) —
+    /// the tail of [`get_var`](Self::get_var) with the name lookup already done.
+    fn read_resolved_cell(&self, (lvl, nm): &(usize, String)) -> Option<Value> {
+        if let Some((base, key)) = elem_ref(nm) {
+            // The resolved name is itself an element (a link into an array).
+            let (blvl, bnm) = self.locate_key_from(base, *lvl);
+            return match self.frames.get(blvl)?.locals.get(&bnm) {
+                Some(Local::Array(m)) => m.get(key).cloned(),
+                _ => None,
+            };
+        }
+        match self.frames.get(*lvl)?.locals.get(nm) {
+            Some(Local::Scalar(v)) => Some(v.clone()),
+            _ => None,
+        }
+    }
+
+    /// [`read_resolved_cell`](Self::read_resolved_cell) for element `key` of an
+    /// already-resolved array cell — the tail of
+    /// [`get_array_elem`](Self::get_array_elem).
+    fn read_resolved_elem(&self, (lvl, nm): &(usize, String), key: &str) -> Option<Value> {
+        match self.frames.get(*lvl)?.locals.get(nm) {
+            Some(Local::Array(m)) => m.get(key).cloned(),
+            _ => None,
+        }
+    }
+
+    /// [`store_var_result`](Self::store_var_result) for an already-split
+    /// `name(key)` element, so a key holding parentheses never round-trips
+    /// through an `a(k)` spelling.
+    pub(crate) fn store_elem_result(
+        &mut self,
+        name: &str,
+        key: &str,
+        value: Value,
+    ) -> Result<Value, Completion<Value>> {
+        if self.var_traces.is_empty() {
+            self.set_array_elem(name, key, value.clone())?;
+            return Ok(value);
+        }
+        // The array's own cell is resolved once, for the same reason
+        // [`store_var_result`](Self::store_var_result) explains.
+        let cell = self.resolved_cell(name);
+        self.set_array_elem(name, key, value)?;
+        Ok(self
+            .read_resolved_elem(&cell, key)
+            .unwrap_or_else(Value::empty))
+    }
+
+    /// Read `name` for a **read-modify-write** command (`incr`, and the
+    /// `lappend` paths that reach C's `TclPtrGetVarIdx`): fire the read trace
+    /// and treat an error it raises as "no current value" rather than as a
+    /// failure — `TclPtrIncrObjVarIdx` substitutes 0 for the `NULL` fetch
+    /// (`tclVar.c` 9.0.4:2262-2272) and `Tcl_LappendObjCmd` builds the list
+    /// from the new values alone (:2944-2957, bug 3057639). The swallowed
+    /// error stays logged: tclsh 8.6.16 and 9.0.4 both leave `::errorInfo`
+    /// ending in the `(read trace on "x")` frame while the `incr` succeeds.
+    /// Mirror of the runtime's `Interp::read_for_update`. Issue #1633 rows 3/4.
+    pub(crate) fn read_for_update(&mut self, name: &str) -> Option<Value> {
+        if !self.var_traces.is_empty() && self.fire_var_traces(name, "read").is_err() {
+            self.publish_swallowed_trace_error();
+            return None;
+        }
+        self.var_get(name)
+    }
+
+    /// [`read_for_update`](Self::read_for_update) for an already-split
+    /// `name(key)` element.
+    pub(crate) fn read_elem_for_update(&mut self, name: &str, key: &str) -> Option<Value> {
+        if !self.var_traces.is_empty()
+            && self
+                .fire_var_traces(&format!("{name}({key})"), "read")
+                .is_err()
+        {
+            self.publish_swallowed_trace_error();
+            return None;
+        }
+        self.get_array_elem(name, key)
+    }
+
+    /// Publish the `errorInfo` a read trace left behind when the
+    /// read-modify-write command that fired it swallowed the error. C mirrors
+    /// `iPtr->errorInfo` into the global as each frame is added
+    /// (`TclLogCommandInfo`), so the chain stays visible even though the
+    /// command went on to succeed; the interp's own accumulator is then reset
+    /// so the next error starts a fresh trace.
+    fn publish_swallowed_trace_error(&mut self) {
+        if let Some(info) = self.take_error_info() {
+            self.publish_error_info(&info);
+        }
+    }
+
     // -- arrays (link-aware via `locate`) --
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
@@ -7444,15 +7744,52 @@ impl Vm {
         }
     }
 
+    /// Remove array element `name(key)` through a **two-part** access — C's
+    /// `TclObjUnsetVar2(part1, part2, …)`, which `array unset` and the
+    /// `INST_UNSET_ARRAY*` opcodes use. The traces report `name1 = name`.
     pub(crate) fn array_unset_elem(&mut self, name: &str, key: &str) {
-        if !self.var_traces.is_empty() {
-            let _ = self.fire_var_traces(&format!("{name}({key})"), "unset");
+        self.array_unset_elem_reporting(name, key, None);
+    }
+
+    /// Remove array element `name(key)` named by the **one-part** `a(k)`
+    /// spelling — the dispatched `unset a(k)` and `INST_UNSET_STK`. From Tcl
+    /// 9.0 `UnsetVarStruct` recovers the element's key into `part2`
+    /// (`tclVar.c` 9.0.4:2638-2642), which stops `TclCallVarTraces` splitting
+    /// the spelling, so the callbacks see `name1 = a(k)`; 8.4/8.5/8.6 split it
+    /// and see `name1 = a`. Issue #1633 row 6.
+    pub(crate) fn array_unset_elem_spelled(&mut self, name: &str, key: &str) {
+        if self.runtime_version.traces_recover_linked_array_element() {
+            let spelling = format!("{name}({key})");
+            self.array_unset_elem_reporting(name, key, Some(&spelling));
+        } else {
+            self.array_unset_elem_reporting(name, key, None);
         }
+    }
+
+    fn array_unset_elem_reporting(&mut self, name: &str, key: &str, reported: Option<&str>) {
+        // As for a scalar: the element goes, and its own traces come out of the
+        // table, before the callbacks run. The *array's* traces stay — C leaves
+        // them on the array's own `Var` — so they are still live in the walk and
+        // still visible to `trace info`. The trace key is resolved while the
+        // element is still present (issue #1328).
+        let traced = (!self.var_traces.is_empty()).then(|| {
+            let spelling = format!("{name}({key})");
+            let trace_key = self.trace_key(&spelling);
+            (spelling, trace_key)
+        });
         let (lvl, nm) = self.locate(name);
         if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
         {
             m.remove(key);
         }
+        let Some((spelling, trace_key)) = traced else {
+            return;
+        };
+        let taken = self.var_traces.remove(&trace_key);
+        if taken.is_some() {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        }
+        let _ = self.fire_var_traces_taken(&spelling, "unset", reported, taken);
     }
 
     /// Append one `while executing` / `invoked from within` frame for the
@@ -7618,11 +7955,18 @@ impl Vm {
 
     /// Publish `errorInfo` / `errorCode` into the global frame.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
+        self.publish_error_info(info);
+        if let Some(g) = self.frames.first_mut() {
+            g.locals
+                .insert("errorCode".to_owned(), Local::Scalar(code.clone()));
+        }
+    }
+
+    /// Publish the `errorInfo` global alone, leaving `errorCode` as it is.
+    pub(crate) fn publish_error_info(&mut self, info: &str) {
         if let Some(g) = self.frames.first_mut() {
             g.locals
                 .insert("errorInfo".to_owned(), Local::Scalar(Value::string(info)));
-            g.locals
-                .insert("errorCode".to_owned(), Local::Scalar(code.clone()));
         }
     }
 

@@ -29,7 +29,8 @@ def tail(qname: str) -> str:
 
 
 def main(path: str) -> None:
-    rows = list(csv.DictReader(open(path)))
+    with open(path) as f:
+        rows = list(csv.DictReader(f))
     labeled = [r for r in rows if r.get("truth_class", "").strip()]
 
     # --- class-resolution precision (resolved rows with a concrete truth) ---

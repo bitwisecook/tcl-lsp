@@ -31,6 +31,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import urllib.request
 
@@ -115,9 +116,11 @@ def _ensure_executable(path):
     if path and os.name != "nt":
         try:
             mode = os.stat(path).st_mode
-            if not (mode & 0o111):
-                os.chmod(path, 0o755)
+            if not (mode & stat.S_IXUSR):
+                os.chmod(path, mode | stat.S_IXUSR)
         except OSError:
+            # Best-effort: a missing or foreign-owned binary cannot be fixed
+            # here, and the launch attempt reports the real problem.
             pass
     return path
 

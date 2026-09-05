@@ -36,7 +36,8 @@ mod semantic_plan;
 pub use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 pub use backend::RESERVED_DATA_BASE;
 pub use ir::{
-    SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
+    GlobalInit, SectionId, ValType, WasmData, WasmFunction, WasmGlobal, WasmImport,
+    WasmInstruction, WasmModule, WasmOp,
 };
 pub use pipeline::WasmSemanticDecline;
 pub use pipeline::{

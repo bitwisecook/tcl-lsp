@@ -89,7 +89,10 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err_wrong_args("lappend varName ?value ...?");
     };
     let n = name.to_str();
-    let cur = vm.var_get(&n);
+    // The dispatched `lappend` is C's `Tcl_LappendObjCmd`, which fetches
+    // through `TclPtrGetVarIdx` in both its forms (`tclVar.c` 9.0.4:2895 and
+    // :2944), so the read trace fires before the store.
+    let cur = vm.read_for_update(&n);
     if vals.is_empty() {
         // `lappend var` with no values returns the variable's current value
         // *unchanged*: Tcl shimmer-validates it as a list (so a malformed value
@@ -101,8 +104,8 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Ok(_) => ok(v),
                 Err(c) => c,
             },
-            None => match vm.var_set(&n, Value::empty()) {
-                Ok(()) => ok(Value::empty()),
+            None => match vm.store_var_result(&n, Value::empty()) {
+                Ok(stored) => ok(stored),
                 Err(e) => e,
             },
         };
@@ -114,10 +117,10 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(e) => return err(e.message()),
     };
-    if let Err(e) = vm.var_set(&n, result.clone()) {
-        return e;
+    match vm.store_var_result(&n, result) {
+        Ok(stored) => ok(stored),
+        Err(e) => e,
     }
-    ok(result)
 }
 
 fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -187,10 +190,10 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(e) => return err(e.into_message()),
     };
-    if let Err(e) = vm.var_set(&n, result.clone()) {
-        return e;
+    match vm.store_var_result(&n, result) {
+        Ok(stored) => ok(stored),
+        Err(e) => e,
     }
-    ok(result)
 }
 
 /// `lset listVar ?index ...? newValue` — the runtime form of `lset` (the
@@ -223,10 +226,10 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(r) => r,
         Err(c) => return c,
     };
-    if let Err(e) = vm.var_set(&n, new.clone()) {
-        return e;
+    match vm.store_var_result(&n, new) {
+        Ok(stored) => ok(stored),
+        Err(e) => e,
     }
-    ok(new)
 }
 
 /// `lpop listVar ?index ...?` — remove and return an element of the list held
