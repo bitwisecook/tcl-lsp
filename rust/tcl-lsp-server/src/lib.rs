@@ -8422,26 +8422,107 @@ impl Backend {
         analysis: &AnalysisResult,
     ) -> bool {
         let _rehoming_guard = self.rehoming_gate.lock().await;
-        let mut docs = self.documents.lock("did_open_publish_complete").await;
-        let current = docs.get(uri).is_some_and(|doc| {
-            doc.version == Some(version)
-                && doc.text.as_ref() == text
-                && doc.dialect.as_str() == dialect
-        });
-        if !current {
+        loop {
+            let mut docs = self.documents.lock("did_open_publish_complete").await;
+            let current = docs.get(uri).is_some_and(|doc| {
+                doc.version == Some(version)
+                    && doc.text.as_ref() == text
+                    && doc.dialect.as_str() == dialect
+            });
+            if !current {
+                return false;
+            }
+            docs.retag("did_open_publish_complete: workspace_index.try_write");
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(docs);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            index.replace_document(uri.as_str(), analysis);
+            docs.get_mut(uri)
+                .expect("the document cannot disappear while its map is locked")
+                .publication = DocumentPublication::Indexed;
+            drop(docs);
+            self.live_publication_advanced.notify_waiters();
+            return true;
+        }
+    }
+
+    /// Publish an edited revision's replacement index view without retaining
+    /// the document map while an existing index reader drains.
+    async fn publish_live_index_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        revision: u64,
+        analysis: &AnalysisResult,
+    ) -> bool {
+        let _rehoming_guard = self.rehoming_gate.lock().await;
+        loop {
+            let mut docs = self.documents.lock("did_change_publish_complete").await;
+            let current = docs.get(uri).is_some_and(|doc| {
+                doc.revision == revision
+                    && doc.text.as_ref() == text
+                    && doc.dialect.as_str() == dialect
+            });
+            if !current {
+                return false;
+            }
+            docs.retag("did_change_publish_complete: workspace_index.try_write");
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(docs);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            index.replace_document(uri.as_str(), analysis);
+            docs.get_mut(uri)
+                .expect("the document cannot disappear while its map is locked")
+                .publication = DocumentPublication::Indexed;
+            drop(docs);
+            self.live_publication_advanced.notify_waiters();
+            return true;
+        }
+    }
+
+    /// Restore the index slot removed by a cold open when an edit supersedes
+    /// that open's seed. Ordinary edits retain their preceding index view.
+    async fn restore_missing_live_index(
+        &self,
+        uri: &Uri,
+        text: &Arc<str>,
+        dialect: &str,
+        revision: u64,
+        index_needs_seed: bool,
+    ) -> bool {
+        if !index_needs_seed {
+            return true;
+        }
+        let analysis = self
+            .fresh_analysis_for(uri, Arc::clone(text), dialect.to_owned())
+            .await;
+        self.publish_live_index_if_current(uri, text, dialect, revision, &analysis)
+            .await
+    }
+
+    /// Publish an edited source and, when it superseded a missing cold-open
+    /// seed, restore that index slot before declaring the edit complete.
+    async fn publish_changed_document(
+        &self,
+        uri: &Uri,
+        text: &Arc<str>,
+        dialect: &str,
+        revision: u64,
+        index_needs_seed: bool,
+    ) -> bool {
+        if !self
+            .commit_live_source("did_change", uri, text, dialect, revision, index_needs_seed)
+            .await
+        {
             return false;
         }
-        docs.retag("did_open_publish_complete: workspace_index.write");
-        self.workspace_index
-            .write()
+        self.restore_missing_live_index(uri, text, dialect, revision, index_needs_seed)
             .await
-            .replace_document(uri.as_str(), analysis);
-        docs.get_mut(uri)
-            .expect("the document cannot disappear while its map is locked")
-            .publication = DocumentPublication::Indexed;
-        drop(docs);
-        self.live_publication_advanced.notify_waiters();
-        true
     }
 
     /// Publish one already-visible editor buffer to Salsa and then seed its
@@ -8618,6 +8699,7 @@ impl Backend {
         text: &str,
         dialect: &str,
         revision: u64,
+        index_needs_seed: bool,
     ) -> bool {
         let _publication = self.live_publication_gate.lock().await;
         let since = crate::rt::Instant::now();
@@ -8700,7 +8782,11 @@ impl Backend {
             {
                 return false;
             }
-            doc.publication = DocumentPublication::Indexed;
+            doc.publication = if index_needs_seed {
+                DocumentPublication::Salsa
+            } else {
+                DocumentPublication::Indexed
+            };
             drop(docs);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -19717,10 +19803,12 @@ impl Backend {
                 Some(analysis) => analysis,
                 None => analysis_handle.await.ok().flatten(),
             };
-            // Both `None` ⇒ the reads were cancelled by a concurrent edit, which
-            // schedules its own token refresh — nothing to converge. Every other
-            // path makes the coarse-vs-enriched decision below.
-            let cancelled = cu.is_none() && analysis.is_none();
+            // Both results are required for an enriched viewport. A concurrent
+            // setter can cancel either read after its sibling finishes; treating
+            // that partial tier as enriched can compare equal to coarse tokens
+            // and strand the viewport. Rearm the deterministic seam and let the
+            // next request retry instead (#1854 convergence stress).
+            let cancelled = cu.is_none() || analysis.is_none();
             let (refreshed, outcome) = if cancelled {
                 (false, RangeSettleOutcome::Cancelled)
             } else {
@@ -20179,7 +20267,7 @@ impl LanguageServer for Backend {
             return;
         }
         let change_version = params.text_document.version;
-        let (text, dialect, language_id, dialect_hint_may_have_changed, revision) = {
+        let (text, dialect, language_id, dialect_hint_may_have_changed, revision, index_needs_seed) = {
             // Phase marker — see `EditTurn::at`.
             turn.at("did_change: documents.lock");
             let mut docs = self.documents.lock("did_change").await;
@@ -20230,6 +20318,7 @@ impl LanguageServer for Backend {
             // `text` and `line_index` are installed together — the snapshot
             // invariant on `DocumentState`: no reader may ever pair text from
             // this revision with an index from the previous one.
+            let index_needs_seed = entry.publication != DocumentPublication::Indexed;
             entry.text = Arc::clone(&text);
             entry.line_index = index;
             entry.has_bare_cr = has_bare_cr;
@@ -20247,6 +20336,7 @@ impl LanguageServer for Backend {
                 language_id,
                 dialect_hint_may_have_changed,
                 revision,
+                index_needs_seed,
             )
         };
         // The ordered operation is the buffer splice. Hand the global turn on
@@ -20257,14 +20347,17 @@ impl LanguageServer for Backend {
         // a newer edit or close wins without being overwritten.
         drop(turn);
         if !self
-            .commit_live_source("did_change", &uri, &text, &dialect, revision)
+            .publish_changed_document(&uri, &text, &dialect, revision, index_needs_seed)
             .await
         {
             return;
         }
-        // The workspace index is deliberately *not* touched here (#1149).
-        // Until diagnostics republishes this revision, its previous published
-        // facts are less misleading than a per-keystroke absence.
+        // An ordinarily indexed document deliberately keeps its previous
+        // workspace facts until diagnostics republishes this revision (#1149):
+        // that is less misleading than a per-keystroke absence. The exception
+        // above is an edit that superseded a cold-open seed after its disk slot
+        // was removed; there are no previous facts to retain, so it restores a
+        // current view before advertising indexed readiness.
         self.schedule_diagnostics(uri.clone(), dialect).await;
         // Re-resolve in-source dialect hints (a `# tcl-dialect:` directive, a
         // `#!…tclshX.Y` shebang, or `package require Tcl X.Y`) after the edit —
@@ -41601,6 +41694,69 @@ proc p {} {
         .expect("the live indexed document exists");
     }
 
+    /// Exact-head review of #1854: publishing the completed open seed may wait
+    /// behind a slow workspace-index reader, but must do so without retaining
+    /// the global document map. Otherwise the next edit holds its ordered turn
+    /// while waiting for that map and restores the whole-server barrier wedge.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn open_index_publish_releases_documents_while_an_index_reader_drains_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///open-index-reader-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let analysis = {
+            let mut analyser = Analyser::new();
+            Arc::new(analyser.analyse(text, "tcl8.6").clone())
+        };
+        let index_reader = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, &analysis)
+                    .await
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.workspace_index.try_read().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the open publisher must queue behind the held index reader");
+        let documents = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("test_index_publish_liveness"),
+        )
+        .await
+        .expect("an index wait must not retain the document map");
+        drop(documents);
+
+        drop(index_reader);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the open index publisher must finish once the reader drains")
+                .expect("the open index publisher must not panic"),
+            "the still-current open seed must publish",
+        );
+    }
+
     /// Fresh review of #1854: a cold `didOpen` index seed must not own either
     /// the live-publication gate or a Salsa snapshot. Otherwise a newer edit
     /// cannot publish until obsolete whole-file analysis finishes. Hold the
@@ -41687,6 +41843,17 @@ proc p {} {
         );
         drop(files);
         drop(db);
+        {
+            let index = backend.workspace_index.read().await;
+            assert!(
+                index.workspace_command_exists("::current"),
+                "indexed readiness must include the superseding revision's facts",
+            );
+            assert!(
+                !index.workspace_command_exists("::obsolete"),
+                "the rejected open seed must not leave obsolete facts",
+            );
+        }
 
         seed_release.notify_waiters();
         assert!(
