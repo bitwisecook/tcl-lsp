@@ -801,6 +801,99 @@ shared_group!(
     crate::commands::sslictcl::sslictcl_command_specs
 );
 
+/// Which authoring pack declares each shipped command, built once from the
+/// same leaked `shared_group!` slices the registry inserts.
+///
+/// Keyed **by spec identity**, not by name. Seventeen names are declared in
+/// two or three packs — `close` in `tcl`, `expect` and `irules`; `send` in
+/// `tk`, `expect` and `irules` — and each dialect registers exactly one of
+/// them. Asking by name could only answer with a fixed winner and would file
+/// the iRules `close` under `tcl` in the iRules dialect; asking with the very
+/// `&'static CommandSpec` the registry handed back cannot be wrong.
+fn spec_pack_by_identity() -> &'static FxHashMap<usize, &'static str> {
+    static INDEX: OnceLock<FxHashMap<usize, &'static str>> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut index = FxHashMap::default();
+        for (pack, specs) in authored_groups() {
+            for spec in specs {
+                index.insert(std::ptr::from_ref(spec) as usize, pack);
+            }
+        }
+        index
+    })
+}
+
+/// Which packs declare each name, in [`SPEC_PACKS`](crate::commands::SPEC_PACKS)
+/// order. Backs the "also declared in" answer, where the question really is
+/// about the name rather than about one resolved spec.
+fn spec_packs_by_name() -> &'static FxHashMap<&'static str, Vec<&'static str>> {
+    static INDEX: OnceLock<FxHashMap<&'static str, Vec<&'static str>>> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut index: FxHashMap<&'static str, Vec<&'static str>> = FxHashMap::default();
+        for (pack, specs) in authored_groups() {
+            for spec in specs {
+                // The same bare-normalisation `all_dialect_command_names`
+                // applies, for the same reason: a caller strips a literal
+                // `::` head before asking.
+                let name = spec.name.strip_prefix("::").unwrap_or(spec.name);
+                let packs = index.entry(name).or_default();
+                if !packs.contains(&pack) {
+                    packs.push(pack);
+                }
+            }
+        }
+        index
+    })
+}
+
+/// Every authored group paired with the pack directory it lives in.
+///
+/// `tmsh_specs` is a filtered view of the same `commands/iapps/` sources, so
+/// it reports `iapps` — the directory a spec author would open.
+fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 14] {
+    [
+        ("tcl", tcl_specs()),
+        ("stdlib", stdlib_specs()),
+        ("tcllib", tcllib_specs()),
+        ("argparse", argparse_specs()),
+        ("ticklecharts", ticklecharts_specs()),
+        ("itcl", itcl_specs()),
+        ("tk", tk_specs()),
+        ("expect", expect_specs()),
+        ("bpf", bpf_specs()),
+        ("irules", irules_specs()),
+        ("iapps", iapps_specs()),
+        ("iapps", tmsh_specs()),
+        ("spectcl", spectcl_specs()),
+        ("sslictcl", sslictcl_specs()),
+    ]
+}
+
+/// The `commands/<pack>/` module that declares `spec`.
+///
+/// `None` for a spec that reached the registry from a `.tclspec` pack — the
+/// bundled EDA libraries, a workspace pack, the document under a spec
+/// author's cursor. Provenance for those is the pack file, which the loader
+/// reports; this deliberately does not guess one.
+#[must_use]
+pub fn spec_pack_of(spec: &'static CommandSpec) -> Option<&'static str> {
+    spec_pack_by_identity()
+        .get(&(std::ptr::from_ref(spec) as usize))
+        .copied()
+}
+
+/// Every authoring pack that declares `name`, in browser order.
+///
+/// Nearly always one, and empty for a pack-loaded name. More than one means
+/// a vendor or DSL surface re-declares the name with its own facts, and a
+/// browser can say so instead of silently filing it under one of them.
+#[must_use]
+pub fn spec_packs_of(name: &str) -> &'static [&'static str] {
+    spec_packs_by_name()
+        .get(name.strip_prefix("::").unwrap_or(name))
+        .map_or(&[][..], |packs| packs.as_slice())
+}
+
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
