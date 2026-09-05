@@ -115,6 +115,13 @@ pub mod ops {
 /// One registered command or execution trace (C's `TraceCommandInfo`; both
 /// kinds hang off the same command, distinguished by their op category).
 pub struct CmdTrace {
+    /// This registration's identity, unique for the life of the interpreter.
+    ///
+    /// C frees exactly the trace list the deleted `Command` carried. Our
+    /// registry is keyed by FQN, so a delete callback that redefines the
+    /// command registers *its* traces under the same name; only an id
+    /// distinguishes them from the ones the deletion just fired.
+    pub id: u64,
     /// The command's resolved FQN (the binding the trace is attached to).
     pub name: Vec<u8>,
     /// The user ops this trace fires on (a [`ops`] bitset).
@@ -190,14 +197,20 @@ pub struct TraceTable {
     pub step_active: Vec<StepActive>,
     /// The id the next variable-trace registration takes (see [`VarTrace::id`]).
     pub next_var_trace_id: u64,
+    /// The id the next command-trace registration takes (see [`CmdTrace::id`]).
+    pub next_cmd_trace_id: u64,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
     /// Non-zero while a command/execution trace callback is running — C's
-    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant command/execution/step
-    /// firing so a callback that renames/invokes the traced command doesn't
-    /// recurse.
+    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant execution/step firing
+    /// so a callback that invokes the traced command doesn't recurse.
     pub exec_firing: usize,
+    /// The commands whose `rename`/`delete` traces are currently firing. C
+    /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a
+    /// deletion), not interpreter-wide: a callback that deletes a *different*
+    /// command still fires that command's own delete traces, nested.
+    pub firing_cmd_traces: Vec<Vec<u8>>,
     /// The error message a read/write variable-trace callback left, captured so
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
@@ -419,11 +432,16 @@ fn cmd_trace_add_remove(
     };
     let command = obj_bytes(argv[5]);
     if is_add {
-        interp.traces.borrow_mut().cmd_traces.push(CmdTrace {
+        let mut table = interp.traces.borrow_mut();
+        let id = table.next_cmd_trace_id;
+        table.next_cmd_trace_id += 1;
+        table.cmd_traces.push(CmdTrace {
+            id,
             name: fqn,
             ops: flags,
             command,
         });
+        drop(table);
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
         // Remove the first trace matching exact ops + command string, where

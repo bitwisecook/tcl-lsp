@@ -69,6 +69,126 @@ pub enum RenameOutcome {
     TargetExists,
 }
 
+/// One namespace's command table: the `BTreeMap` the resolver looks names up
+/// in, plus the retained `TCL_STRING_KEYS` bucket order `TclTeardownNamespace`
+/// snapshots and a per-slot generation.
+///
+/// The order owner is C's `Namespace.cmdTable` itself: its bucket array
+/// quadruples at a 3:1 load factor, never shrinks, and reverses chains on
+/// every rebuild, all of which a namespace's command-delete traces observe.
+/// The generation distinguishes a command a delete callback replaced from the
+/// token the teardown snapshot named, so the replacement waits for the next
+/// pass exactly as C's `CMD_DYING` early return makes it.
+#[derive(Default)]
+struct CommandTable {
+    entries: BTreeMap<Vec<u8>, (u64, Command)>,
+    order: TclStringHashOrder,
+    next_generation: u64,
+}
+
+impl CommandTable {
+    fn get(&self, key: &[u8]) -> Option<&Command> {
+        self.entries.get(key).map(|(_, command)| command)
+    }
+
+    fn contains_key(&self, key: &[u8]) -> bool {
+        self.entries.contains_key(key)
+    }
+
+    fn keys(&self) -> impl Iterator<Item = &Vec<u8>> {
+        self.entries.keys()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&Vec<u8>, &Command)> {
+        self.entries
+            .iter()
+            .map(|(key, (_, command))| (key, command))
+    }
+
+    fn values(&self) -> impl Iterator<Item = &Command> {
+        self.entries.values().map(|(_, command)| command)
+    }
+
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut Command> {
+        self.entries.values_mut().map(|(_, command)| command)
+    }
+
+    /// Bind `command` at `key`, returning whatever it displaced. A live key is
+    /// re-created at its bucket head, as C's `TclCreateObjCommandInNs` does
+    /// when it deletes the old hash entry and creates a fresh one.
+    fn insert(&mut self, key: Vec<u8>, command: Command) -> Option<Command> {
+        let generation = self.next_generation;
+        self.next_generation += 1;
+        match self.entries.insert(key.clone(), (generation, command)) {
+            Some((_, displaced)) => {
+                self.order.reinsert(&key);
+                Some(displaced)
+            }
+            None => {
+                self.order.insert(&key);
+                None
+            }
+        }
+    }
+
+    /// Delete `key`'s entry, returning its binding. The bucket array keeps its
+    /// capacity (`Tcl_DeleteHashEntry` never shrinks).
+    fn remove(&mut self, key: &[u8]) -> Option<Command> {
+        let (_, command) = self.entries.remove(key)?;
+        self.order.remove(key);
+        Some(command)
+    }
+
+    /// Take a slot's binding out while leaving its hash entry in place —
+    /// C's alias-loop probe (`TclRenameCommand`) reassigns `cmdPtr->hPtr` and
+    /// undoes the move without ever deleting the source's entry.
+    fn take_slot(&mut self, key: &[u8]) -> Option<(u64, Command)> {
+        self.entries.remove(key)
+    }
+
+    /// Put a slot taken by [`Self::take_slot`] back, creating the hash entry
+    /// when the probe's destination did not already have one.
+    fn restore_slot(&mut self, key: Vec<u8>, slot: (u64, Command)) -> Option<(u64, Command)> {
+        self.order.insert(&key);
+        self.entries.insert(key, slot)
+    }
+
+    /// Create `key`'s hash entry ahead of the binding that fills it — C's
+    /// `TclRenameCommand` calls `Tcl_CreateHashEntry` on the destination
+    /// before it deletes the source's entry.
+    fn reserve_entry(&mut self, key: &[u8]) {
+        self.order.insert(key);
+    }
+
+    /// Delete a hash entry created by [`Self::reserve_entry`] whose value has
+    /// been taken back — the alias-loop probe's refused destination.
+    fn drop_entry(&mut self, key: &[u8]) {
+        self.order.remove(key);
+    }
+
+    /// `Tcl_DeleteHashTable` + `Tcl_InitHashTable`: the table returns to Tcl's
+    /// four static buckets.
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.order.clear();
+    }
+
+    /// The token generation currently bound at `key`.
+    fn generation(&self, key: &[u8]) -> Option<u64> {
+        self.entries.get(key).map(|(generation, _)| *generation)
+    }
+
+    /// The live `(name, generation)` slots in `Tcl_FirstHashEntry` order — the
+    /// snapshot `TclTeardownNamespace` takes before deleting each token.
+    fn hash_order(&self) -> Vec<(Vec<u8>, u64)> {
+        self.order
+            .keys()
+            .into_iter()
+            .filter_map(|key| Some((key.to_vec(), self.generation(key)?)))
+            .collect()
+    }
+}
+
 /// One namespace: its simple name, its command table, child namespaces, the
 /// `namespace path` search list, and `export` patterns.
 struct Namespace {
@@ -78,7 +198,7 @@ struct Namespace {
     children: BTreeMap<Vec<u8>, NsId>,
     /// The child's `TCL_STRING_KEYS` table, including retained resize history.
     child_order: TclStringHashOrder,
-    commands: BTreeMap<Vec<u8>, Command>,
+    commands: CommandTable,
     /// `namespace path` — namespaces searched for unqualified commands (step b).
     path: Vec<NsId>,
     /// `namespace export` patterns — gate what `import` may pull (matched with
@@ -101,7 +221,7 @@ impl Namespace {
             parent,
             children: BTreeMap::new(),
             child_order: TclStringHashOrder::default(),
-            commands: BTreeMap::new(),
+            commands: CommandTable::default(),
             path: Vec::new(),
             exports: Vec::new(),
             vars: VarTable::default(),
@@ -158,6 +278,9 @@ impl Namespaces {
     /// Install one real command binding. Replacement deletes the displaced
     /// command token; the installed ensemble token acquires this binding's FQN.
     fn insert_bound(&mut self, ns: NsId, simple: Vec<u8>, command: Command) {
+        // C redefines a command by deleting the old hash entry and creating a
+        // new one, so the name moves to its bucket head
+        // (`TclCreateObjCommandInNs`).
         if let Some(displaced) = self.arena[ns].commands.remove(&simple) {
             Self::mark_command_deleted(&displaced);
         }
@@ -220,8 +343,10 @@ impl Namespaces {
     /// holding a borrow on the table.
     #[must_use]
     pub fn resolve(&self, current: NsId, name: &[u8]) -> Option<Command> {
-        self.home_of(current, name)
-            .map(|(ns, simple)| self.arena[ns].commands[&simple].clone())
+        self.home_of(current, name).and_then(|(ns, simple)| {
+            // `home_of` reported this exact slot holds a binding.
+            self.arena[ns].commands.get(&simple).cloned()
+        })
     }
 
     /// Rebind an existing command in place at the namespace where it actually
@@ -305,18 +430,23 @@ impl Namespaces {
         let Some((old_ns, old_simple)) = self.home_of(current, old) else {
             return RenameOutcome::NoSuchCommand;
         };
-        // SAFETY of unwrap: `home_of` reported the binding exists.
-        let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
         if new.is_empty() {
+            // SAFETY of unwrap: `home_of` reported the binding exists.
+            let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
             Self::mark_command_deleted(&cmd);
             return RenameOutcome::Deleted;
         }
         let Some((ns, simple)) = self.destination_of(current, new) else {
             // Unreachable for a non-empty, non-separator-terminated name;
-            // put the command back rather than lose it.
-            self.arena[old_ns].commands.insert(old_simple, cmd);
+            // nothing has moved yet, so there is nothing to put back.
             return RenameOutcome::NoSuchCommand;
         };
+        // C's `TclRenameCommand` creates the destination hash entry *before*
+        // deleting the source's, so the transient extra entry can trigger a
+        // rebuild a delete-first order would not.
+        self.arena[ns].commands.reserve_entry(&simple);
+        // SAFETY of unwrap: `home_of` reported the binding exists.
+        let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
         let cmd = Self::rehome_proc(cmd, ns, &self.command_fqn(ns, &simple));
         self.insert_bound(ns, simple, cmd);
         RenameOutcome::Renamed
@@ -445,19 +575,28 @@ impl Namespaces {
         if (dest_ns, dest_simple.as_slice()) == (old_ns, old_simple.as_slice()) {
             return false; // a self-rename moves nothing
         }
-        let Some(moving) = self.unbind_in(old_ns, &old_simple) else {
+        // C creates the destination's hash entry for the probe and deletes it
+        // again on a refusal, and never touches the source's entry at all
+        // (`TclRenameCommand` deletes `oldHPtr` only once the check passes).
+        // The tentative move therefore carries the slot values only.
+        let Some(moving) = self.arena[old_ns].commands.take_slot(&old_simple) else {
             return false;
         };
         let displaced = self.arena[dest_ns]
             .commands
-            .insert(dest_simple.clone(), moving);
+            .restore_slot(dest_simple.clone(), moving);
         let loops = self.alias_chain_loops(dest_ns, &dest_simple);
-        let moved = self.unbind_in(dest_ns, &dest_simple);
-        if let Some(displaced) = displaced {
-            self.arena[dest_ns].commands.insert(dest_simple, displaced);
+        let moved = self.arena[dest_ns].commands.take_slot(&dest_simple);
+        match displaced {
+            Some(displaced) => {
+                self.arena[dest_ns]
+                    .commands
+                    .restore_slot(dest_simple, displaced);
+            }
+            None => self.arena[dest_ns].commands.drop_entry(&dest_simple),
         }
         if let Some(moved) = moved {
-            self.arena[old_ns].commands.insert(old_simple, moved);
+            self.arena[old_ns].commands.restore_slot(old_simple, moved);
         }
         loops
     }
@@ -516,7 +655,7 @@ impl Namespaces {
     pub fn alias_names(&self) -> Vec<Vec<u8>> {
         let mut found: Vec<(NsId, Vec<u8>)> = Vec::new();
         for (id, ns) in self.arena.iter().enumerate() {
-            for (key, cmd) in &ns.commands {
+            for (key, cmd) in ns.commands.iter() {
                 // Both single-interp aliases and cross-interp (child→parent)
                 // aliases are reported by `interp aliases` / `$child aliases`.
                 if matches!(cmd, Command::Alias { .. } | Command::ParentAlias { .. }) {
@@ -830,6 +969,27 @@ impl Namespaces {
             .collect()
     }
 
+    /// `ns`'s live command slots as `(simple name, generation)` in Tcl
+    /// string-hash enumeration order — the snapshot `TclTeardownNamespace`
+    /// takes of `cmdTable` before deleting each token.
+    pub(crate) fn command_hash_order(&self, ns: NsId) -> Vec<(Vec<u8>, u64)> {
+        self.arena[ns].commands.hash_order()
+    }
+
+    /// The token generation currently bound at `(ns, name)`. A teardown
+    /// snapshot compares it before firing: a different generation means a
+    /// delete callback replaced the token, so the replacement belongs to the
+    /// next pass (C's `Tcl_DeleteCommandFromToken` returns early on
+    /// `CMD_DYING`).
+    pub(crate) fn command_generation(&self, ns: NsId, name: &[u8]) -> Option<u64> {
+        self.arena[ns].commands.generation(name)
+    }
+
+    /// The fully-qualified name of the binding at `(ns, name)`.
+    pub(crate) fn command_fqn_at(&self, ns: NsId, name: &[u8]) -> Vec<u8> {
+        self.command_fqn(ns, name)
+    }
+
     /// `ns`'s `namespace unknown` handler, if one is set (an empty/`None` handler
     /// means "use the interpreter default `::unknown`").
     #[must_use]
@@ -858,7 +1018,7 @@ impl Namespaces {
     ) -> Vec<(Vec<u8>, std::rc::Rc<crate::ensemble::EnsembleToken>)> {
         let mut hits = Vec::new();
         for (id, node) in self.arena.iter().enumerate() {
-            for (name, cmd) in &node.commands {
+            for (name, cmd) in node.commands.iter() {
                 if let Command::Ensemble(token) = cmd {
                     if victims.contains(&token.config().ns) {
                         hits.push((self.command_fqn(id, name), std::rc::Rc::clone(token)));
@@ -907,7 +1067,7 @@ impl Namespaces {
     ) -> Vec<(Vec<u8>, std::rc::Rc<crate::interp::ImportToken>)> {
         let mut hits = Vec::new();
         for (id, node) in self.arena.iter().enumerate() {
-            for (name, command) in &node.commands {
+            for (name, command) in node.commands.iter() {
                 let Command::Imported {
                     source,
                     ensemble,
@@ -1065,8 +1225,9 @@ impl Namespaces {
             fqns.extend(
                 self.arena[id]
                     .commands
-                    .keys()
-                    .map(|name| self.command_fqn(id, name)),
+                    .hash_order()
+                    .into_iter()
+                    .map(|(name, _)| self.command_fqn(id, &name)),
             );
         }
         fqns
@@ -1090,16 +1251,13 @@ impl Namespaces {
         }
     }
 
-    /// Clear one dying namespace's own command/variable table while retaining
-    /// its child links and metadata for the recursive delete callbacks still to
-    /// run. The final fixed-point sweep clears the retained metadata and links.
+    /// Clear one dying namespace's own variable table and drop it from every
+    /// `namespace path`, while retaining its child links and metadata for the
+    /// recursive delete callbacks still to run. The command table is emptied
+    /// one token at a time afterwards, in hash order; the final fixed-point
+    /// sweep clears the retained metadata and links.
     pub(crate) fn clear_namespace_token(&mut self, ns: NsId) {
-        let n = &mut self.arena[ns];
-        for command in n.commands.values() {
-            Self::mark_command_deleted(command);
-        }
-        n.commands.clear();
-        n.vars = VarTable::default();
+        self.arena[ns].vars = VarTable::default();
         for node in &mut self.arena {
             node.path.retain(|entry| *entry != ns);
         }
