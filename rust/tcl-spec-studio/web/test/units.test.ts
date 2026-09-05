@@ -49,7 +49,16 @@ import {
   versionFromFileName,
   type Release,
 } from "../src/releases.js";
+import {
+  alsoInSentence,
+  browserCountLine,
+  groupByPack,
+  packCountLabel,
+  packIndex,
+  packSections,
+} from "../src/packs.js";
 import { mapSelectionThroughFormat } from "../src/textSelection.js";
+import type { IndexEntry, PackRow } from "../src/types.js";
 
 describe("mapSelectionThroughFormat", () => {
   it("keeps a caret after its text when formatting inserts indentation", () => {
@@ -404,5 +413,170 @@ describe("lifecycleOf", () => {
       retired: null,
       deprecated: null,
     });
+  });
+});
+
+/* The registry browser's pack navigator -------------------------------- */
+
+/** One row of the command index, with only the fields the browser reads set. */
+function entry(name: string, pack: string, summary = "", alsoIn: string[] = []): IndexEntry {
+  return {
+    name,
+    summary,
+    synopsis: "",
+    subcommands: 0,
+    options: 0,
+    deprecated: false,
+    pack,
+    also_in: alsoIn,
+  };
+}
+
+/** One catalogue row; only the id and the counts change between them. */
+function pack(id: string, commands: number): PackRow {
+  return {
+    id,
+    label: id.toUpperCase(),
+    blurb: `the ${id} pack`,
+    commands,
+    path: `rust/tcl-registry/src/commands/${id}`,
+  };
+}
+
+describe("groupByPack", () => {
+  it("files each command under the pack that declares it, names ascending", () => {
+    const grouped = groupByPack([
+      entry("lsort", "tcl"),
+      entry("grid", "tk"),
+      entry("append", "tcl"),
+      entry("bind", "tk"),
+    ]);
+    assert.deepEqual(
+      [...grouped.keys()],
+      ["tcl", "tk"],
+      "a pack appears where its first command does",
+    );
+    assert.deepEqual(
+      grouped.get("tcl")?.map((e) => e.name),
+      ["append", "lsort"],
+    );
+    assert.deepEqual(
+      grouped.get("tk")?.map((e) => e.name),
+      ["bind", "grid"],
+    );
+  });
+
+  it("has no pack at all for an empty index", () => {
+    assert.equal(groupByPack([]).size, 0);
+  });
+});
+
+describe("packSections", () => {
+  const index = [
+    entry("append", "tcl"),
+    entry("lsort", "tcl", "sort a list"),
+    entry("grid", "tk", "the grid geometry manager"),
+    entry("spawn", "expect"),
+  ];
+  const catalogue = [pack("tcl", 2), pack("tk", 1), pack("expect", 1), pack("itcl", 0)];
+
+  it("keeps the catalogue's order and drops the packs this dialect never reaches", () => {
+    const sections = packSections(catalogue, groupByPack(index), "");
+    assert.deepEqual(
+      sections.map((s) => s.pack.id),
+      ["tcl", "tk", "expect"],
+    );
+    assert.deepEqual(
+      sections.map((s) => s.matches.length),
+      [2, 1, 1],
+      "an empty filter matches everything",
+    );
+  });
+
+  it("keeps only the packs a filter leaves something in", () => {
+    const sections = packSections(catalogue, groupByPack(index), "sort");
+    assert.deepEqual(
+      sections.map((s) => s.pack.id),
+      ["tcl"],
+    );
+    assert.deepEqual(
+      sections[0].matches.map((e) => e.name),
+      ["lsort"],
+      "a summary match counts as much as a name match",
+    );
+    assert.equal(sections[0].commands.length, 2, "the section still knows its real size");
+  });
+
+  it("still browses a dialect the catalogue does not describe", () => {
+    // An unknown dialect has an empty pack list; showing nothing would be
+    // worse than showing the commands under a bare heading.
+    const sections = packSections([], groupByPack(index), "");
+    assert.deepEqual(
+      sections.map((s) => s.pack.id),
+      ["expect", "tcl", "tk"],
+    );
+    assert.equal(sections[0].pack.blurb, "", "an invented pack claims no documentation");
+  });
+
+  it("files a command with no declared pack rather than losing it", () => {
+    const sections = packSections(
+      [pack("tcl", 1)],
+      groupByPack([entry("append", "tcl"), entry("mystery", "")]),
+      "",
+    );
+    assert.deepEqual(
+      sections.map((s) => s.pack.label),
+      ["TCL", "Other commands"],
+    );
+  });
+});
+
+describe("packIndex", () => {
+  it("answers a chip's question: what is this pack id called, and where is it", () => {
+    const byId = packIndex([pack("tcl", 2), pack("tk", 1)]);
+    assert.equal(byId.get("tk")?.path, "rust/tcl-registry/src/commands/tk");
+    assert.equal(byId.get("nosuch"), undefined);
+  });
+});
+
+describe("packCountLabel", () => {
+  it("names the pack's size when nothing is filtered out", () => {
+    assert.equal(packCountLabel(199, 199), "199 commands");
+    assert.equal(packCountLabel(1, 1), "1 command");
+  });
+
+  it("gives the share of the pack a filter left", () => {
+    assert.equal(packCountLabel(3, 199), "3 of 199");
+    assert.equal(packCountLabel(0, 199), "0 of 199");
+  });
+});
+
+describe("browserCountLine", () => {
+  it("says what is being viewed and where it lives", () => {
+    assert.equal(browserCountLine("Tcl 9.0", 187, 187, 4), "187 Tcl 9.0 commands in 4 packs");
+    assert.equal(browserCountLine("Tcl 9.0", 1, 1, 1), "1 Tcl 9.0 command in 1 pack");
+  });
+
+  it("names the packs a filter matched as well as the commands", () => {
+    assert.equal(browserCountLine("Tcl 9.0", 187, 12, 3), "12 of 187 Tcl 9.0 commands, in 3 packs");
+  });
+
+  it("says so plainly when there is nothing to show", () => {
+    assert.equal(browserCountLine("Tcl 9.0", 187, 0, 0), "no match in 187 Tcl 9.0 commands");
+    assert.equal(browserCountLine("nosuch", 0, 0, 0), "no commands in nosuch");
+  });
+});
+
+describe("alsoInSentence", () => {
+  it("names the other packs that declare the same command", () => {
+    assert.equal(
+      alsoInSentence("close", ["expect", "irules"]),
+      "close is also declared in expect, irules.",
+    );
+  });
+
+  it("says nothing about a name only one pack declares", () => {
+    assert.equal(alsoInSentence("lsort", []), "");
+    assert.equal(alsoInSentence("lsort", [""]), "");
   });
 });

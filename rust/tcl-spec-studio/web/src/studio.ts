@@ -40,6 +40,15 @@ import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "
 import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
 import { initReleasesPanel } from "./importReleases.js";
+import {
+  alsoInSentence,
+  browserCountLine,
+  groupByPack,
+  packCountLabel,
+  packIndex,
+  packSections,
+  type PackSection,
+} from "./packs.js";
 import type {
   CommandIndex,
   CodeExample,
@@ -51,7 +60,9 @@ import type {
   IndexEntry,
   InferredCommand,
   Json,
+  PackCatalogue,
   PackCommandView,
+  PackRow,
   PackStoreView,
   PackWrite,
   Rendered,
@@ -150,6 +161,20 @@ interface State {
   defaultSubcommand: Draft;
   dialect: string;
   index: IndexEntry[];
+  /** The dialect's authoring packs, in the order the browser shows them. */
+  packs: PackRow[];
+  /** The same packs by id, for the chips that name one. */
+  packById: Map<string, PackRow>;
+  /** `state.index` divided between those packs — the browser's own shape. */
+  byPack: Map<string, IndexEntry[]>;
+  /**
+   * Which shipped pack sections the author has opened.
+   *
+   * Kept across dialect switches and reloads: a spec author works in one or
+   * two packs for an afternoon, and re-opening `commands/tk/` on every visit
+   * is a tax on that.
+   */
+  expandedPacks: Set<string>;
   draft: Draft | null;
   files: StagedFile[];
   imported: InferredCommand[];
@@ -407,45 +432,126 @@ function buildField(
 
 /* Registry browser ------------------------------------------------------ */
 
+// Packs are the top level here, not a flat alphabet. A dialect is
+// `commands/tcl/` plus whatever layers on it, and an author browsing for
+// somewhere to put a command is looking for the pack first. The decisions —
+// what is in which pack, what a filter leaves, what the headers say — live in
+// `packs.ts`; this half only paints them.
+
+/** One command row, the same markup the browser has always used. */
+function commandRow(entry: IndexEntry, current: string | null): HTMLElement {
+  const name = el("span", { class: "nm", text: entry.name });
+  if (entry.subcommands || entry.options) {
+    const badge = [
+      entry.subcommands ? `${entry.subcommands} sub` : null,
+      entry.options ? `${entry.options} opt` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    name.appendChild(el("span", { class: "badge", text: ` ${badge}` }));
+  }
+  const button = el(
+    "button",
+    {
+      type: "button",
+      "aria-current": current === entry.name ? "true" : "false",
+      onclick: () => openCommand(entry.name),
+    },
+    [name, el("span", { class: "sm", text: entry.summary || entry.synopsis || "" })],
+  );
+  return el("li", {}, [button]);
+}
+
+/** A chip naming the pack a command is declared in. */
+function packChip(id: string): HTMLElement {
+  const pack = state.packById.get(id);
+  return el("span", {
+    class: "tag pack",
+    text: id,
+    title: pack ? `${pack.label} — ${pack.path}` : `declared in ${id}`,
+  });
+}
+
+/** Record a section's open state, which outlives both filter and dialect. */
+function setPackExpanded(id: string, open: boolean): void {
+  if (open) state.expandedPacks.add(id);
+  else state.expandedPacks.delete(id);
+  scheduleSave();
+}
+
+/**
+ * One pack's section of the browser.
+ *
+ * `rows` is what the cap left room for, which can be fewer than the section
+ * matched; the header always reports the real numbers.
+ */
+function packSectionNode(
+  section: PackSection,
+  rows: IndexEntry[],
+  open: boolean,
+  current: string | null,
+): HTMLElement {
+  const { pack } = section;
+  const summary = el("summary", {}, [
+    document.createTextNode(pack.label),
+    el("span", {
+      class: "n",
+      text: packCountLabel(section.matches.length, section.commands.length),
+    }),
+  ]);
+  const body = el("div", { class: "body" });
+  if (pack.blurb || pack.path) {
+    const blurb = el("div", { class: "helptext packblurb" }, [
+      pack.blurb ? el("span", { text: pack.blurb }) : null,
+      pack.path ? el("code", { text: pack.path }) : null,
+    ]);
+    summary.appendChild(helpButton(blurb, `the ${pack.label} pack`));
+    body.appendChild(blurb);
+  }
+  const list = el("ul", { class: "cmdlist" });
+  for (const entry of rows) list.appendChild(commandRow(entry, current));
+  body.appendChild(list);
+
+  const details = el("details", { class: "group packsection" }, [summary, body]);
+  if (open) details.setAttribute("open", "");
+  // Read from the click rather than the `toggle` event: only a person clicking
+  // (or pressing Enter on) the summary is a preference worth remembering, and
+  // the state has not flipped yet when this runs.
+  summary.addEventListener("click", () => setPackExpanded(pack.id, !details.open));
+  return details;
+}
+
 function renderList(): void {
   const query = byId<HTMLInputElement>("filter").value.trim().toLowerCase();
-  const list = byId("cmdlist");
-  clear(list);
+  const browser = byId("cmdlist");
+  clear(browser);
 
-  const matches = state.index.filter(
-    (entry) =>
-      !query ||
-      entry.name.toLowerCase().includes(query) ||
-      (entry.summary ?? "").toLowerCase().includes(query),
+  const sections = packSections(state.packs, state.byPack, query);
+  const shown = sections.reduce((total, section) => total + section.matches.length, 0);
+  byId("count").textContent = browserCountLine(
+    dialectLabel(state.dialect),
+    state.index.length,
+    shown,
+    sections.length,
   );
 
-  byId("count").textContent =
-    matches.length === state.index.length
-      ? `${state.index.length} commands`
-      : `${matches.length} of ${state.index.length} commands`;
-
   const current = typeof state.draft?.name === "string" ? state.draft.name : null;
-  for (const entry of matches.slice(0, MAX_LISTED)) {
-    const name = el("span", { class: "nm", text: entry.name });
-    if (entry.subcommands || entry.options) {
-      const badge = [
-        entry.subcommands ? `${entry.subcommands} sub` : null,
-        entry.options ? `${entry.options} opt` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      name.appendChild(el("span", { class: "badge", text: ` ${badge}` }));
-    }
-    const button = el(
-      "button",
-      {
-        type: "button",
-        "aria-current": current === entry.name ? "true" : "false",
-        onclick: () => openCommand(entry.name),
-      },
-      [name, el("span", { class: "sm", text: entry.summary || entry.synopsis || "" })],
-    );
-    list.appendChild(el("li", {}, [button]));
+  let room = MAX_LISTED;
+  for (const section of sections) {
+    const rows = section.matches.slice(0, room);
+    room -= rows.length;
+    // A filter has already thrown away the packs with nothing in them, so what
+    // survives it is worth opening; so is the pack holding the open command,
+    // and a dialect with one pack has no navigation to do. A section the cap
+    // left no rows for stays shut whatever else is true — an open, empty
+    // section reads as a bug rather than as "narrow the filter".
+    const open =
+      rows.length > 0 &&
+      (Boolean(query) ||
+        sections.length === 1 ||
+        state.expandedPacks.has(section.pack.id) ||
+        section.commands.some((entry) => entry.name === current));
+    browser.appendChild(packSectionNode(section, rows, open, current));
   }
 
   // Feed the native autocomplete. The list itself matches summaries too, but
@@ -464,15 +570,12 @@ function renderList(): void {
     }
   }
 
-  if (matches.length > MAX_LISTED) {
-    list.appendChild(
-      el("li", {}, [
-        el("span", {
-          class: "sm",
-          style: "display:block;padding:.5rem .3rem",
-          text: `…and ${matches.length - MAX_LISTED} more — narrow the filter`,
-        }),
-      ]),
+  if (shown > MAX_LISTED) {
+    browser.appendChild(
+      el("div", {
+        class: "more",
+        text: `…and ${shown - MAX_LISTED} more — narrow the filter`,
+      }),
     );
   }
 }
@@ -691,9 +794,19 @@ function renderPackList(): void {
   byId("packCount").textContent = rows.length
     ? `${rows.length} command${rows.length === 1 ? "" : "s"}` +
       (view && view.summary.notices ? ` · ${view.summary.notices} notice(s)` : "")
-    : "empty — add a command, or open a .tclspec on the Pack DSL tab";
+    : "empty";
 
-  if (!rows.length) return;
+  if (!rows.length) {
+    list.appendChild(
+      el("li", {}, [
+        el("span", {
+          class: "empty",
+          text: "add a command, or open a .tclspec on the Pack DSL tab",
+        }),
+      ]),
+    );
+    return;
+  }
 
   for (const row of rows) {
     const name = el("span", { class: "nm", text: row.name });
@@ -816,6 +929,7 @@ function scheduleSave(): void {
       open: state.pack.open,
       dialect: state.dialect,
       sample: state.sample,
+      expanded: [...state.expandedPacks],
     });
   }, SAVE_MS);
 }
@@ -843,7 +957,7 @@ function loadDraft(draft: Draft, origin: string, packCommand: string | null = nu
   state.draft = draft;
   state.pack.open = packCommand;
   formDirty = false;
-  byId("editorSource").textContent = origin;
+  renderEditorSource(origin, typeof draft.name === "string" ? draft.name : null);
 
   renderUnrenderableWarning(draft);
 
@@ -853,6 +967,23 @@ function loadDraft(draft: Draft, origin: string, packCommand: string | null = nu
   renderList();
   renderPackList();
   onDraftChanged();
+}
+
+/**
+ * The sentence above the form, plus the provenance the sentence leaves out:
+ * which pack ships this name, and — the thing a spec author cannot guess —
+ * which other packs declare it too.
+ */
+function renderEditorSource(origin: string, name: string | null): void {
+  const node = byId("editorSource");
+  clear(node);
+  node.appendChild(document.createTextNode(origin));
+  const entry = name ? state.index.find((candidate) => candidate.name === name) : undefined;
+  if (!entry) return;
+  node.appendChild(document.createTextNode(" "));
+  node.appendChild(packChip(entry.pack));
+  const also = alsoInSentence(entry.name, entry.also_in ?? []);
+  if (also) node.appendChild(el("span", { class: "alsoin", text: ` ${also}` }));
 }
 
 /**
@@ -1617,7 +1748,7 @@ function renderPalette(): void {
   const query = byId<HTMLInputElement>("paletteInput").value.trim().toLowerCase();
   const packRows = (state.pack.view?.commands ?? [])
     .filter((c) => !query || c.name.toLowerCase().includes(query))
-    .map((c) => ({ name: c.name, where: "pack" as const, summary: c.summary }));
+    .map((c) => ({ name: c.name, where: "pack" as const, summary: c.summary, pack: "" }));
   const registryRows = state.index
     .filter(
       (e) =>
@@ -1625,7 +1756,7 @@ function renderPalette(): void {
         e.name.toLowerCase().includes(query) ||
         (e.summary ?? "").toLowerCase().includes(query),
     )
-    .map((e) => ({ name: e.name, where: "registry" as const, summary: e.summary }));
+    .map((e) => ({ name: e.name, where: "registry" as const, summary: e.summary, pack: e.pack }));
   const rows = [...packRows, ...registryRows].slice(0, MAX_PALETTE);
   paletteRows = rows.map((r) => ({ name: r.name, where: r.where }));
   paletteAt = Math.min(paletteAt, Math.max(0, rows.length - 1));
@@ -1645,6 +1776,9 @@ function renderPalette(): void {
           [
             el("span", { class: "nm", text: row.name }),
             el("span", { class: "sm", text: row.summary || "" }),
+            // A palette row is out of the browser's context, so it says where
+            // the command is declared as well as which model it came from.
+            row.pack ? packChip(row.pack) : null,
             el("span", {
               class: "where",
               text: row.where === "pack" ? "pack" : dialectLabel(state.dialect),
@@ -2057,7 +2191,7 @@ function bindUi(): void {
 
   byId<HTMLSelectElement>("dialect").addEventListener("change", () => {
     state.dialect = byId<HTMLSelectElement>("dialect").value;
-    loadIndex();
+    loadDialect();
     // The dialect decides what a pack collides with, so the merged world has
     // to be recomputed too.
     setPackSource(state.pack.source);
@@ -2231,9 +2365,19 @@ function bindUi(): void {
   });
 }
 
-function loadIndex(): void {
+/**
+ * Read the dialect's command index and its pack catalogue together.
+ *
+ * The two are one fact seen twice — which commands there are, and which packs
+ * declare them — so nothing may hold one without the other.
+ */
+function loadDialect(): void {
   const index = JSON.parse(wasm.command_index(state.dialect)) as CommandIndex;
   state.index = index.commands ?? [];
+  const catalogue = JSON.parse(wasm.pack_catalogue(state.dialect)) as PackCatalogue;
+  state.packs = catalogue.packs ?? [];
+  state.packById = packIndex(state.packs);
+  state.byPack = groupByPack(state.index);
   renderList();
 }
 
@@ -2257,12 +2401,16 @@ async function restoreSession(): Promise<void> {
     byId("liveSave").textContent = "Live save is on: every edit is kept in this browser.";
     return;
   }
+  if (session.expanded) {
+    state.expandedPacks = new Set(session.expanded);
+    renderList();
+  }
   // A session saved before a dialect left the catalogue keeps the default
   // rather than restoring a picker value that no longer exists.
   if (session.dialect && session.dialect !== state.dialect && dialectLabels.has(session.dialect)) {
     state.dialect = session.dialect;
     byId<HTMLSelectElement>("dialect").value = session.dialect;
-    loadIndex();
+    loadDialect();
   }
   setPackSource(session.source);
   if (typeof session.sample === "string") {
@@ -2297,6 +2445,10 @@ function boot(): void {
         defaultSubcommand: JSON.parse(wasm.new_subcommand()) as Draft,
         dialect: "spectcl",
         index: [],
+        packs: [],
+        packById: new Map(),
+        byPack: new Map(),
+        expandedPacks: new Set(),
         draft: null,
         files: [],
         imported: [],
@@ -2335,7 +2487,7 @@ function boot(): void {
       picker.value = state.dialect;
 
       bindUi();
-      loadIndex();
+      loadDialect();
       renderFiles();
       buildReference();
       byId<HTMLTextAreaElement>("testText").value = state.sample;
