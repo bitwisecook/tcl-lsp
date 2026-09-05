@@ -32,7 +32,7 @@ entry point, or gate moves without this contract being updated.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
-| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes`; `TclStringHashOrder` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `worded_parse_error` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
@@ -806,7 +806,10 @@ helper without reading the rationale:
   doctests; `rust/tcl-syntax/tests/command_resolution_conformance.rs`
   (tclsh-pinned; `tcl-compiler` and `tcl-vm` each carry a same-named suite
   for their own layer).
-- `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`.
+- `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`,
+  and the `tcl_string_hash_order_*` suite pinning the retained
+  `TCL_STRING_KEYS` table both namespace child and namespace command
+  teardown enumerate.
 - `rust/tcl-cmd-core/src/prefix.rs` — C-parity unit tests (empty-key,
   empty-entry, exact-mode wording).
 - `rust/tcl-cmd-core/src/ensemble.rs` — the two option tables, the
