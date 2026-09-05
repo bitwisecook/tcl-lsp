@@ -107,7 +107,9 @@ destination command:
   `Namespaces::rehome_command` re-points the identity our `Command` variants
   carry in its stead);
 - `trace info command <old>` and `… <new>` answer the same list, and a
-  `trace add` or `trace remove` through either name edits it;
+  `trace add` or `trace remove` through either name edits it — and dispatching
+  through either name fires the command's one set of `enter`/`leave` traces,
+  with the callback receiving the spelling the caller actually invoked;
 - a `rename` or a delete through *either* name moves or destroys that one
   command — and C's `CMD_TRACE_ACTIVE` keeps the pass's remaining callbacks
   from re-firing when it does.

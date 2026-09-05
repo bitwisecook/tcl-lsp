@@ -6511,7 +6511,15 @@ impl Interp {
     fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
         use crate::cmd_trace::ops;
         let name = obj_bytes(argv[0]);
-        let fqn = self.resolve_cmd_fqn(&name);
+        // Inside a rename's callbacks the vacating name still resolves, but the
+        // one command's trace list has already moved to the destination key —
+        // so look the traces up there, as C reaches them through the shared
+        // `Command` from either hash entry. Only the *key* is canonicalised:
+        // the callback's own words stay the spelling the caller invoked
+        // (`cmd_word` below), which is what tclsh passes.
+        let fqn = self
+            .resolve_cmd_fqn(&name)
+            .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
         let (has_enter, has_leave, has_step) = match &fqn {
             Some(f) => {
                 let t = self.traces.borrow();

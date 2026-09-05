@@ -282,6 +282,7 @@ const VECTORS: &[Vector] = &[
         want: "in:{rename cb}|{rename cb}\n\
                after:{delete dd} {rename cb}\n\
                D:::victim3||delete",
+    },
     // `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone. C sets it
     // in exactly one place — `TraceExecutionProc` (tclTrace.c 9.0.4:1765),
     // around an `enter`/`leave`/`enterstep`/`leavestep` callback — and reads
@@ -384,6 +385,26 @@ const VECTORS: &[Vector] = &[
                  trace add execution a enter ea\n\
                  puts \"out:[a]\"\n",
         want: "in:S\nout:A",
+    },
+    // Dispatching through the vacating name reaches the one command's
+    // execution traces too: they have already moved to the destination key by
+    // the time the callbacks run, so the lookup follows the window. The
+    // callback's own words stay the spelling the caller invoked, which is why
+    // the first pair says `victim` and the later ones `victim2`.
+    Vector {
+        name: "the vacating name still fires the command's execution traces",
+        script: "proc victim {} { return V }\n\
+                 proc E args { puts \"E:[join $args |]\" }\n\
+                 proc L args { puts \"L:[lindex $args 0]\" }\n\
+                 trace add execution victim enter E\n\
+                 trace add execution victim leave L\n\
+                 proc R args { puts \"old:[victim]\"; puts \"new:[victim2]\" }\n\
+                 trace add command victim rename R\n\
+                 rename victim victim2\n\
+                 puts \"out:[victim2]\"\n",
+        want: "E:victim|enter\nL:victim\nold:V\n\
+               E:victim2|enter\nL:victim2\nnew:V\n\
+               E:victim2|enter\nL:victim2\nout:V",
     },
     Vector {
         name: "namespace-qualified names arrive fully qualified",

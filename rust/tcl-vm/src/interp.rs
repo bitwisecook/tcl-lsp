@@ -6893,7 +6893,7 @@ impl Vm {
 
     /// The key a command's state lives under now, following any open rename
     /// window (see [`Self::rename_windows`]). Identity outside one.
-    fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
+    pub(crate) fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
         match self.rename_windows.iter().find(|(from, _)| *from == key) {
             Some((_, to)) => to.clone(),
             None => key,

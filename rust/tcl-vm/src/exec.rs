@@ -4219,7 +4219,13 @@ impl Vm {
                 }
             }
         }
-        let key = CommandSidecarKey::visible(key);
+        // Inside a rename's callbacks the vacating name still resolves, but the
+        // one command's trace list has already moved to the destination key —
+        // so look the traces up there, as C reaches them through the shared
+        // `Command` from either hash entry. Only the *key* is canonicalised:
+        // the callback's own words stay the spelling the caller invoked
+        // (`cmd_string` above).
+        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
@@ -4591,7 +4597,13 @@ impl Vm {
                 }
             }
         }
-        let key = CommandSidecarKey::visible(key);
+        // Inside a rename's callbacks the vacating name still resolves, but the
+        // one command's trace list has already moved to the destination key —
+        // so look the traces up there, as C reaches them through the shared
+        // `Command` from either hash entry. Only the *key* is canonicalised:
+        // the callback's own words stay the spelling the caller invoked
+        // (`cmd_string` above).
+        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
@@ -4665,6 +4677,9 @@ impl Vm {
         words.push(Value::string(display_name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
+        // As in `dispatch_words_traced`: a rename window moved the trace list
+        // to the destination key, and both names reach it.
+        let trace_key = self.renamed_command_key(trace_key);
         for scope in self.step_scopes_to_fire() {
             if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
             {

@@ -1019,6 +1019,44 @@ fn the_vacating_name_reports_the_destinations_namespace() {
     );
 }
 
+/// Dispatching through the vacating name reaches the one command's execution
+/// traces too. They have already moved to the destination key by the time the
+/// callbacks run, so the lookup has to follow the window — C reads the one
+/// list off the shared `Command` from either hash entry. The callback's own
+/// words stay the spelling the caller invoked, which is why the first line
+/// says `victim` and the later ones `victim2`.
+#[test]
+fn the_vacating_name_still_fires_the_commands_execution_traces() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc E args { lappend ::log \"E:[join $args |]\" }\n\
+         proc L args { lappend ::log \"L:[lindex $args 0]\" }\n\
+         trace add execution victim enter E\n\
+         trace add execution victim leave L\n\
+         proc R args {\n\
+         \x20   lappend ::log \"old:[victim]\"\n\
+         \x20   lappend ::log \"new:[victim2]\"\n\
+         }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"out:[victim2]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "E:victim|enter\n\
+         L:victim\n\
+         old:V\n\
+         E:victim2|enter\n\
+         L:victim2\n\
+         new:V\n\
+         E:victim2|enter\n\
+         L:victim2\n\
+         out:V"
+    );
+}
+
 /// The window covers the redirect kinds that carry their own binding identity
 /// too: a TclOO object embeds the FQN its registry entry lives under, an
 /// ensemble token its name, and an import its source. C re-homes the one
