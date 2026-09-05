@@ -122,10 +122,11 @@ jobs:
   #                    the committed lockfile by
   #                    scripts/dev/test-runtime-rust-paths.sh, so it cannot
   #                    silently narrow.
-  #   runner_policy_changed — the self-hosted runner policy or its contract
-  #                    test changed.  Such PRs prove themselves on an isolated
-  #                    GitHub-hosted runner; an unreviewed scheduling edit must
-  #                    not execute on, overload, or strand the protected host.
+  #   runner_policy_changed — the self-hosted runner policy, dependency-update
+  #                    policy, or the scheduling contract test changed. Such
+  #                    PRs prove themselves on an isolated GitHub-hosted runner;
+  #                    an unreviewed policy edit must not execute new dependency
+  #                    code on, overload, or strand the protected host.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -258,7 +259,7 @@ jobs:
                   wasm_cc_changed=true ;;
               esac
               case "$f" in
-                .github/workflows/ci.yml | scripts/dev/test-rust-tests-runner.sh)
+                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/test-rust-tests-runner.sh)
                   runner_policy_changed=true ;;
               esac
               if scripts/dev/spectcl-compat-path.sh "$f"; then
@@ -844,8 +845,9 @@ jobs:
     # silently displaces an older pending run when another one arrives).  Fork
     # PRs and PRs changing this runner policy use a run-specific group because
     # they execute on separate GitHub-hosted machines and must retain their
-    # normal parallelism.  The latter also makes policy changes fail safely: a
-    # broken scheduler edit cannot strand the protected host.
+    # normal parallelism. The latter also makes runner and dependency-policy
+    # changes fail safely: a broken policy edit cannot strand the protected host
+    # or execute newly selected dependency code there.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # stay on GitHub-hosted. Trusted PRs prefer `tank`; a maintainer can dispatch
