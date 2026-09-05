@@ -40,12 +40,39 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::array::for", |vm, a| array_op(vm, "for", a));
 }
 
+/// `array`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+/// C's table also carries `anymore`, `donesearch`, `nextelement`,
+/// `startsearch`, `statistics`, and (9.0) `default`; like the rest of this
+/// engine's ensembles it names only what it dispatches, so an advertised name
+/// always works.
+///
+/// tclsh 9.0.4, for contrast:
+///   array x a -> unknown or ambiguous subcommand "x": must be anymore,
+///                default, donesearch, exists, for, get, names, nextelement,
+///                set, size, startsearch, statistics, or unset
+const ARRAY_SUBS: &[&str] = &["exists", "for", "get", "names", "set", "size", "unset"];
+
 /// `array option arrayName ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"array subcommand ?arg ...?\"");
     };
-    array_op(vm, &sub.to_str(), rest)
+    let word = sub.to_str();
+    // `array` is a `TclMakeEnsemble` command: exact match, else a unique
+    // prefix, so `array e a` is `array exists a`.
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(ARRAY_SUBS, word.as_bytes(), true)
+    else {
+        return err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                ARRAY_SUBS,
+                word.as_bytes(),
+                true,
+                b"::tcl::array",
+            ))
+            .into_owned(),
+        );
+    };
+    array_op(vm, ARRAY_SUBS[index], rest)
 }
 
 fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
@@ -126,9 +153,18 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"array set arrayName list\""),
         },
-        other => err(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be exists, for, get, names, set, size, or unset"
-        )),
+        // Unreachable from `cmd_array` (every `ARRAY_SUBS` name is handled
+        // above or by the shared core); the registered `::tcl::array::*`
+        // entry points pass canonical names.
+        other => err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                ARRAY_SUBS,
+                other.as_bytes(),
+                true,
+                b"::tcl::array",
+            ))
+            .into_owned(),
+        ),
     }
 }
 

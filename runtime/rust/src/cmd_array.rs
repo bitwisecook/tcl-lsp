@@ -60,29 +60,35 @@ fn array_name_index(sub: &[u8]) -> Option<usize> {
         .map(|(_, index)| *index)
 }
 
-/// `unknown or ambiguous subcommand "x": must be a, b, or c`, over the same
-/// table.
+/// The subcommand names alone, for the shared ensemble scan and its miss
+/// sentence — `array` is a `TclMakeEnsemble` command, so both belong to
+/// `tcl_cmd_core::ensemble` (its enumeration keeps a comma before `or`).
+fn subcommand_names() -> Vec<&'static [u8]> {
+    SUBCOMMANDS.iter().map(|(name, _)| *name).collect()
+}
+
 fn unknown_subcommand(interp: &mut Interp, sub: &[u8]) -> Code {
-    let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-    m.extend_from_slice(sub);
-    m.extend_from_slice(b"\": must be ");
-    for (i, (name, _)) in SUBCOMMANDS.iter().enumerate() {
-        if i > 0 {
-            m.extend_from_slice(b", ");
-        }
-        if i + 1 == SUBCOMMANDS.len() {
-            m.extend_from_slice(b"or ");
-        }
-        m.extend_from_slice(name);
-    }
-    interp.set_error(&m)
+    interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+        &subcommand_names(),
+        sub,
+        true,
+        b"::tcl::array",
+    ))
 }
 
 fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"array subcommand arrayName ?arg ...?");
     }
-    let sub = obj_bytes(argv[1]);
+    let word = obj_bytes(argv[1]);
+    // Resolve the subcommand first — exact match, else a unique prefix — so
+    // `array e a` reaches `exists` *and* fires its `array` trace under the
+    // canonical name, as C does.
+    let names = subcommand_names();
+    let sub: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(&names, &word, true) {
+        Some(index) => names[index],
+        None => return unknown_subcommand(interp, &word),
+    };
     // C's `LocateArray` (tclVar.c:330-350) sits at the top of every `array`
     // subcommand and fires the variable's `array` traces before the subcommand
     // reads anything — `array names`, `array get`, `array set`, `array exists`
@@ -91,12 +97,12 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // one site (issue #1569), not a per-subcommand branch: the array command
     // owns the hook, so the only per-subcommand fact it needs is where the
     // array name is.
-    if let Some(name_obj) = array_name_index(&sub).and_then(|i| argv.get(i)) {
+    if let Some(name_obj) = array_name_index(sub).and_then(|i| argv.get(i)) {
         if let Some(code) = interp.fire_array_trace(&obj_bytes(*name_obj)) {
             return code;
         }
     }
-    let sub_str = String::from_utf8_lossy(&sub);
+    let sub_str = String::from_utf8_lossy(sub);
     // The read-side + `unset` are the shared `tcl_cmd_core::array` core (over
     // this runtime's `VarStore`/`Frames`/`ValueOps`); a fresh-or-borrowed result
     // object is retained by `set_result`.
@@ -112,10 +118,12 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Per-runtime: `set` (per-element write traces), `default` (TIP 508), `for`
     // (Family-B iteration), and the unknown-subcommand message.
     let name = obj_bytes(argv[2]);
-    match sub.as_slice() {
+    match sub {
         b"set" => array_set(interp, argv, &name),
         b"for" => array_for(interp, argv),
         b"default" => array_default(interp, argv),
+        // Unreachable: every `SUBCOMMANDS` name is handled above or by the
+        // shared core.
         other => unknown_subcommand(interp, other),
     }
 }
@@ -127,9 +135,21 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"array default subcommand arrayName ?value?");
     }
-    let sub = obj_bytes(argv[2]);
+    // TIP 508's own option table (`tclVar.c`), resolved with
+    // `Tcl_GetIndexFromObj(…, "option", 0)` in C *table* order — not
+    // alphabetical — so `e`/`ex` abbreviate `exists` and the empty word is
+    // `ambiguous option ""`.
+    const DEFAULT_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+        tcl_cmd_core::prefix::OptionTable::abbreviating(
+            "option",
+            &[b"get", b"set", b"exists", b"unset"],
+        );
+    let sub = match DEFAULT_OPTIONS.index_of(&obj_bytes(argv[2])) {
+        Ok(i) => DEFAULT_OPTIONS.names()[i],
+        Err(m) => return interp.set_error(&m),
+    };
     let name = obj_bytes(argv[3]);
-    match sub.as_slice() {
+    match sub {
         b"set" => {
             if argv.len() != 5 {
                 return interp.wrong_args(b"array default set arrayName value");
@@ -198,10 +218,14 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
+        // Unreachable: `DEFAULT_OPTIONS` has exactly the four arms above.
         other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            let mut m = b"bad option \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be exists, get, set, or unset");
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
+                DEFAULT_OPTIONS.names(),
+            ));
             interp.set_error(&m)
         }
     }
@@ -361,6 +385,55 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `array` is a `TclMakeEnsemble` command, so its scan and
+    /// miss sentence belong to `tcl_cmd_core::ensemble` — this matched exactly
+    /// and hand-joined the list. Resolving first also means `array e a` fires
+    /// the variable's `array` trace under the canonical name (#1569's hook).
+    /// `array default`'s own word is a `Tcl_GetIndexFromObj(…, "option", 0)`
+    /// table in *C table* order, not alphabetical.
+    ///
+    /// tclsh 9.0.4 (the verdicts, not this runtime's shortened list):
+    ///   array e a          -> 1        ;  array ex a -> 1
+    ///   array s a          -> unknown or ambiguous subcommand "s": must be …
+    ///   array default {} a -> ambiguous option "": must be get, set, exists, or unset
+    ///   array default x a  -> bad option "x": must be get, set, exists, or unset
+    ///   array default e a  -> 0        ;  array default ex a -> 0
+    #[test]
+    fn array_ensemble_and_default_option_resolve_like_tclsh() {
+        const MUST: &str = "must be default, exists, for, get, names, set, size, or unset";
+        const DEFAULT_MUST: &str = "must be get, set, exists, or unset";
+        leak_free(|i| {
+            let err_of = |i: &mut Interp, src: &[u8]| {
+                assert_eq!(i.eval_str(src), Code::Error, "expected an error");
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            run(i, b"array set a {x 1}");
+            assert_eq!(run(i, b"array e a"), b"1");
+            assert_eq!(run(i, b"array ex a"), b"1");
+            assert_eq!(run(i, b"array n a"), b"x");
+            assert_eq!(
+                err_of(i, b"array s a"),
+                format!("unknown or ambiguous subcommand \"s\": {MUST}")
+            );
+            assert_eq!(
+                err_of(i, b"array {} a"),
+                format!("unknown or ambiguous subcommand \"\": {MUST}")
+            );
+            // `array default`'s own table.
+            assert_eq!(
+                err_of(i, b"array default {} a"),
+                format!("ambiguous option \"\": {DEFAULT_MUST}")
+            );
+            assert_eq!(
+                err_of(i, b"array default x a"),
+                format!("bad option \"x\": {DEFAULT_MUST}")
+            );
+            assert_eq!(run(i, b"array default e a"), b"0");
+            assert_eq!(run(i, b"array default ex a"), b"0");
+            i.eval_str(b"unset a");
+        });
     }
 
     #[test]

@@ -43,12 +43,55 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::dict::lappend", |vm, a| dict_op(vm, "lappend", a));
 }
 
+/// `dict`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it. C's
+/// 9.0 table also carries `info` (per-dict hash statistics), which this engine
+/// does not model; like the rest of its ensembles it names only what it
+/// dispatches.
+const DICT_SUBS: &[&str] = &[
+    "append",
+    "create",
+    "exists",
+    "filter",
+    "for",
+    "get",
+    "getdef",
+    "getwithdefault",
+    "incr",
+    "keys",
+    "lappend",
+    "map",
+    "merge",
+    "remove",
+    "replace",
+    "set",
+    "size",
+    "unset",
+    "update",
+    "values",
+    "with",
+];
+
 /// `dict subcommand ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"dict subcommand ?arg ...?\"");
     };
-    dict_op(vm, &sub.to_str(), rest)
+    let word = sub.to_str();
+    // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
+    // prefix, so `dict k` is `dict keys`.
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(DICT_SUBS, word.as_bytes(), true)
+    else {
+        return err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                DICT_SUBS,
+                word.as_bytes(),
+                true,
+                b"::tcl::dict",
+            ))
+            .into_owned(),
+        );
+    };
+    dict_op(vm, DICT_SUBS[index], rest)
 }
 
 /// The dict's **canonical** ordered `(key-string, value)` pairs, from the one
@@ -315,7 +358,18 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         "update" => cmd_dict_update(vm, rest),
         "filter" => cmd_dict_filter(vm, rest),
         "with" => cmd_dict_with(vm, rest),
-        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+        // Unreachable from `cmd_dict` (every `DICT_SUBS` name is handled above
+        // or by the shared core); the registered `::tcl::dict::*` entry points
+        // pass canonical names.
+        other => err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                DICT_SUBS,
+                other.as_bytes(),
+                true,
+                b"::tcl::dict",
+            ))
+            .into_owned(),
+        ),
     }
 }
 

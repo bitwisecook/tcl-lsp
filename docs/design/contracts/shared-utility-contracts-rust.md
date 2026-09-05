@@ -515,7 +515,10 @@ entry point, or gate moves without this contract being updated.
   set and borrows only the sentence), plus their `string` and
   `tcl::prefix` ensembles — `tcl::prefix`'s enumeration used to come
   from `prefix::choice_list_bytes`, the wrong owner, which happens to
-  agree only because that list has three entries.
+  agree only because that list has three entries — and their `dict` and
+  `array` ensembles, where resolving the word first is also what makes
+  `array e a` fire the variable's `array` trace under the canonical
+  name.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -887,6 +890,12 @@ helper without reading the rationale:
   test module in `runtime/rust`
   (`string_and_prefix_ensembles_resolve_like_tclsh`, which also pins
   `string is`'s `class` and `option` nouns).
+- `rust/tcl-vm/tests/cmd_collections_e2e.rs`
+  (`array_bad_subcommand`, `dict_bad_subcommand` — both tightened from
+  `starts_with` to full text) and the `cmd_array.rs` / `cmd_dict.rs`
+  test modules in `runtime/rust`, plus
+  `prefix.rs::dict_filter_type_noun_and_abbreviations` for the owner's
+  own `filterType` row.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

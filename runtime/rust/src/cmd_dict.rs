@@ -43,11 +43,22 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"dict subcommand ?arg ...?");
     }
-    let sub = obj_bytes(argv[1]);
+    let word = obj_bytes(argv[1]);
+    // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
+    // prefix, so `dict k` is `dict keys` (this matched exactly before #1607).
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(DICT_SUBS, &word, true) else {
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            DICT_SUBS,
+            &word,
+            true,
+            b"::tcl::dict",
+        ));
+    };
+    let sub = DICT_SUBS[index];
     // Pure dict subcommands now live in the shared command core; the runtime is
     // a thin adapter. Variable-mutating subcommands fall through to the legacy
     // match below.
-    if let Ok(sub_str) = std::str::from_utf8(&sub) {
+    if let Ok(sub_str) = std::str::from_utf8(sub) {
         if let Some(result) = tcl_cmd_core::dict::dispatch_canon(interp, sub_str, &argv[2..]) {
             return match result {
                 Ok(v) => {
@@ -75,7 +86,7 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             };
         }
     }
-    match sub.as_slice() {
+    match sub {
         b"create" => create(interp, argv),
         b"get" => get(interp, argv),
         b"set" => set(interp, argv),
@@ -94,16 +105,43 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"lappend" => lappend(interp, argv),
         b"incr" => incr(interp, argv),
         b"info" => info(interp, argv),
-        _ => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(&sub);
-            m.extend_from_slice(
-                b"\": must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with",
-            );
-            interp.set_error(&m)
-        }
+        // Unreachable: every name in `DICT_SUBS` is handled above or by the
+        // shared core.
+        other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            DICT_SUBS,
+            other,
+            true,
+            b"::tcl::dict",
+        )),
     }
 }
+
+/// `dict`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
+/// full Tcl 9 table.
+const DICT_SUBS: &[&[u8]] = &[
+    b"append",
+    b"create",
+    b"exists",
+    b"filter",
+    b"for",
+    b"get",
+    b"getdef",
+    b"getwithdefault",
+    b"incr",
+    b"info",
+    b"keys",
+    b"lappend",
+    b"map",
+    b"merge",
+    b"remove",
+    b"replace",
+    b"set",
+    b"size",
+    b"unset",
+    b"update",
+    b"values",
+    b"with",
+];
 
 // -- read subcommands (operate on a dict value) ----------------------------
 
@@ -1140,6 +1178,48 @@ mod tests {
         let (c, b) = run(src);
         assert_eq!(c, Code::Ok, "result={:?}", String::from_utf8_lossy(&b));
         b
+    }
+
+    /// Issue #1607: `dict` is a `TclMakeEnsemble` command — this matched every
+    /// subcommand exactly and spelled the 22-entry list out as a literal beside
+    /// the table. `dict filter`'s type word is a `Tcl_GetIndexFromObj(…,
+    /// "filterType", 0)` table in the shared core.
+    ///
+    /// tclsh 9.0.4:
+    ///   dict k {a 1}          -> a       ;  dict si {a 1} -> 1
+    ///   dict g {a 1} a        -> unknown or ambiguous subcommand "g": must be
+    ///                            append, create, exists, filter, for, get,
+    ///                            getdef, getwithdefault, incr, info, keys,
+    ///                            lappend, map, merge, remove, replace, set,
+    ///                            size, unset, update, values, or with
+    ///   dict {} {a 1}         -> unknown or ambiguous subcommand "": must be <same>
+    ///   dict filter {a 1} k * -> a 1
+    ///   dict filter {a 1} {} *-> ambiguous filterType "": must be key, script, or value
+    #[test]
+    fn dict_ensemble_and_filter_type_resolve_like_tclsh() {
+        const MUST: &str = "must be append, create, exists, filter, for, get, getdef, \
+                            getwithdefault, incr, info, keys, lappend, map, merge, remove, \
+                            replace, set, size, unset, update, values, or with";
+        let err_of = |src: &[u8]| {
+            let (c, b) = run(src);
+            assert_eq!(c, Code::Error, "expected an error");
+            String::from_utf8_lossy(&b).into_owned()
+        };
+        assert_eq!(ok(b"dict k {a 1}"), b"a");
+        assert_eq!(ok(b"dict si {a 1}"), b"1");
+        assert_eq!(
+            err_of(b"dict g {a 1} a"),
+            format!("unknown or ambiguous subcommand \"g\": {MUST}")
+        );
+        assert_eq!(
+            err_of(b"dict {} {a 1}"),
+            format!("unknown or ambiguous subcommand \"\": {MUST}")
+        );
+        assert_eq!(ok(b"dict filter {a 1} k *"), b"a 1");
+        assert_eq!(
+            err_of(b"dict filter {a 1} {} *"),
+            "ambiguous filterType \"\": must be key, script, or value"
+        );
     }
 
     #[test]
