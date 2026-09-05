@@ -599,6 +599,7 @@ fn read_manifest(manifest: &Path) -> Result<Vec<ManifestRow>> {
     let text =
         fs::read_to_string(manifest).with_context(|| format!("reading {}", manifest.display()))?;
     let mut rows = Vec::new();
+    let mut seen = BTreeMap::new();
     for (index, line) in text.lines().enumerate() {
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -609,6 +610,15 @@ fn read_manifest(manifest: &Path) -> Result<Vec<ManifestRow>> {
                 "{}:{}: expected four tab-separated fields",
                 manifest.display(),
                 index + 1
+            );
+        }
+        let line_number = index + 1;
+        if let Some(first_line) =
+            seen.insert((fields[0], fields[1], fields[2], fields[3]), line_number)
+        {
+            bail!(
+                "{}:{line_number}: duplicate smoke target row (first declared at line {first_line})",
+                manifest.display()
             );
         }
         rows.push(ManifestRow {
@@ -3246,6 +3256,19 @@ fn multi_owner_inventory_self_test() -> Result<()> {
     Ok(())
 }
 
+fn duplicate_manifest_row_self_test() -> Result<()> {
+    let fixture = Fixture::new()?;
+    let manifest = fixture.root.join("smoke-targets.tsv");
+    fixture.write(
+        "smoke-targets.tsv",
+        "shared.rs\texample\tlib\texample\nshared.rs\texample\tlib\texample\n",
+    )?;
+    if read_manifest(&manifest).is_ok() {
+        bail!("duplicate smoke target manifest row was accepted");
+    }
+    Ok(())
+}
+
 fn cargo_profile_library_paths_self_test() -> Result<()> {
     let profile = Path::new("/repo/target/debug");
     for executable in [
@@ -3319,6 +3342,7 @@ fn self_test() -> Result<()> {
     if best_owners(&root.join("src/shared.rs"), &targets).len() != 2 {
         bail!("ambiguous library/binary ownership self-test failed");
     }
+    duplicate_manifest_row_self_test()?;
     let mut inventory = SmokeInventory::default();
     record_target_source(&mut inventory, "smoke_tests.rs".to_owned(), &targets[0]);
     let owners = manifest_owners(
