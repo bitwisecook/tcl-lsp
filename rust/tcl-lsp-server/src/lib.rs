@@ -19248,6 +19248,22 @@ impl Backend {
         .await;
     }
 
+    /// Load a closed document solely for workspace-symbol span mapping.
+    ///
+    /// No dialect/configuration lookup is needed: only the decoded analysis
+    /// bytes and their line index are consumed. Keeping that unrelated work
+    /// out also makes the index-revision revalidation below cover one bounded
+    /// source read rather than an arbitrary configuration wait.
+    async fn closed_workspace_symbol_source(&self, uri: &Uri) -> Option<DocumentState> {
+        let path = uri.to_file_path()?.into_owned();
+        let store = Arc::clone(&self.store);
+        let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
+            .await
+            .ok()?
+            .ok()?;
+        Some(DocumentState::new(text, String::new()).normalised_for_analysis())
+    }
+
     /// The `workspace/symbol` matches contributed by **open** documents the
     /// workspace index does not currently hold.
     ///
@@ -19295,75 +19311,110 @@ impl Backend {
         query: &str,
         limit: usize,
     ) -> WorkspaceSymbolCandidates {
-        let (unindexed, indexed_hits, mut sources) = {
-            // `documents` → `workspace_index`, the lock order `did_open`
-            // establishes.
-            let docs = self.documents.lock("open_but_unindexed_symbols").await;
-            let index = self.workspace_index.read().await;
-            let unindexed: Vec<(Uri, DocumentState)> = docs
-                .iter()
-                .filter(|(uri, _)| !index.contains_document(uri.as_str()))
-                .map(|(uri, doc)| (uri.clone(), doc.clone()))
-                .collect();
-            // Snapshot ordinary index hits under the same read lock that
-            // classified fallback URIs. Fresh analysis below may await long
-            // enough for one of those URIs to publish; consulting the index a
-            // second time would mix two revisions, duplicate a hit, and map a
-            // new span through the fallback's older source snapshot.
-            let indexed_hits = index.symbols_matching(query, limit);
-            // An indexed hit names the bytes current at this index snapshot.
-            // Capture any matching open source before dropping `documents` as
-            // well: fresh fallback analysis below may await, during which an
-            // unrelated open URI can publish newer text. Mapping the old hit
-            // through that newer text would manufacture the wrong LSP range.
-            let sources = indexed_hits
-                .iter()
-                .filter_map(|hit| {
-                    let uri = Uri::from_str(&hit.uri).ok()?;
-                    docs.get(&uri)
-                        .cloned()
-                        .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
-                })
-                .collect();
-            (unindexed, indexed_hits, sources)
-        };
-        if unindexed.is_empty() {
+        const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
+        for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
+            let (unindexed, mut indexed_hits, mut sources, closed_revisions) = {
+                // `documents` → `workspace_index`, the lock order `did_open`
+                // establishes.
+                let docs = self.documents.lock("open_but_unindexed_symbols").await;
+                let index = self.workspace_index.read().await;
+                let unindexed: Vec<(Uri, DocumentState)> = docs
+                    .iter()
+                    .filter(|(uri, _)| !index.contains_document(uri.as_str()))
+                    .map(|(uri, doc)| (uri.clone(), doc.clone()))
+                    .collect();
+                // Snapshot ordinary index hits under the same read lock that
+                // classified fallback URIs. Fresh analysis below may await
+                // long enough for one of those URIs to publish; consulting
+                // the index a second time would mix two revisions.
+                let indexed_hits = index.symbols_matching(query, limit);
+                // An indexed hit names the bytes current at this index
+                // snapshot. Open sources can be captured atomically under the
+                // documents lock; closed sources need the per-document index
+                // revision below to validate their out-of-lock disk read.
+                let sources: HashMap<String, Option<DocumentState>> = indexed_hits
+                    .iter()
+                    .filter_map(|hit| {
+                        let uri = Uri::from_str(&hit.uri).ok()?;
+                        docs.get(&uri)
+                            .cloned()
+                            .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
+                    })
+                    .collect();
+                let closed_revisions: HashMap<String, u64> = indexed_hits
+                    .iter()
+                    .filter(|hit| !sources.contains_key(&hit.uri))
+                    .filter_map(|hit| {
+                        index
+                            .document_revision(&hit.uri)
+                            .map(|revision| (hit.uri.clone(), revision))
+                    })
+                    .collect();
+                (unindexed, indexed_hits, sources, closed_revisions)
+            };
+
+            for uri_s in closed_revisions.keys() {
+                let loaded = match Uri::from_str(uri_s) {
+                    Ok(uri) => self.closed_workspace_symbol_source(&uri).await,
+                    Err(_) => None,
+                };
+                sources.insert(uri_s.clone(), loaded);
+            }
+            // A watcher may reindex a closed file while its bytes are being
+            // read. Retry only when one of the documents whose hits we
+            // captured changed; unrelated index churn must not starve the
+            // picker. After the small bound, omit unstable closed documents
+            // rather than ever map a stale byte span through mismatched text.
+            let unstable: HashSet<String> = {
+                let index = self.workspace_index.read().await;
+                closed_revisions
+                    .iter()
+                    .filter(|(uri, revision)| index.document_revision(uri) != Some(**revision))
+                    .map(|(uri, _)| uri.clone())
+                    .collect()
+            };
+            if !unstable.is_empty() && attempt + 1 < MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
+                continue;
+            }
+            if !unstable.is_empty() {
+                indexed_hits.retain(|hit| !unstable.contains(&hit.uri));
+                for uri in unstable {
+                    sources.remove(&uri);
+                }
+            }
+
+            let mut pending = new_workspace_index();
+            for (uri, doc) in unindexed {
+                // A published document with no input is a deliberately retired
+                // orphan (see the doc comment), but a pending brand-new/untitled
+                // buffer has not created its first Salsa handle yet and is still
+                // authoritative for its own live symbols.
+                if doc.publication != DocumentPublication::Pending
+                    && !self.db_files.lock().await.contains_key(&uri)
+                {
+                    continue;
+                }
+                // Before the Salsa boundary, a cache hit still describes the
+                // pre-open disk source. Analyse the captured authoritative buffer
+                // directly; once Salsa is ready, the memoised path is current and
+                // remains the cheaper fallback for a cancelled read.
+                let analysis = if doc.publication == DocumentPublication::Pending {
+                    self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                        .await
+                } else {
+                    self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                        .await
+                };
+                pending.add_document(uri.as_str(), &analysis);
+                sources.insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
+            }
             return WorkspaceSymbolCandidates {
-                fallback_hits: Vec::new(),
+                fallback_hits: pending.symbols_matching(query, limit),
                 indexed_hits,
                 sources,
             };
         }
-        let mut pending = new_workspace_index();
-        for (uri, doc) in unindexed {
-            // A published document with no input is a deliberately retired
-            // orphan (see the doc comment), but a pending brand-new/untitled
-            // buffer has not created its first Salsa handle yet and is still
-            // authoritative for its own live symbols.
-            if doc.publication != DocumentPublication::Pending
-                && !self.db_files.lock().await.contains_key(&uri)
-            {
-                continue;
-            }
-            // Before the Salsa boundary, a cache hit still describes the
-            // pre-open disk source. Analyse the captured authoritative buffer
-            // directly; once Salsa is ready, the memoised path is current and
-            // remains the cheaper fallback for a cancelled read.
-            let analysis = if doc.publication == DocumentPublication::Pending {
-                self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                    .await
-            } else {
-                self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
-                    .await
-            };
-            pending.add_document(uri.as_str(), &analysis);
-            sources.insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
-        }
-        WorkspaceSymbolCandidates {
-            fallback_hits: pending.symbols_matching(query, limit),
-            indexed_hits,
-            sources,
-        }
+        unreachable!("the bounded source-snapshot loop always returns")
     }
 
     async fn scan_workspace_folders(&self) {
@@ -42296,6 +42347,192 @@ proc p {} {
         assert_eq!(indexed.name, "indexed_snapshot_symbol");
         assert_eq!(indexed.location.range.start.line, 1);
         assert_eq!(indexed.location.range.start.character, 5);
+    }
+
+    #[derive(Debug)]
+    struct ClosedSymbolRaceStore {
+        contents: std::sync::Mutex<Vec<u8>>,
+        reads: std::sync::atomic::AtomicUsize,
+        first_read_entered: std::sync::atomic::AtomicBool,
+        first_read_release: (std::sync::Mutex<bool>, std::sync::Condvar),
+    }
+
+    impl ClosedSymbolRaceStore {
+        fn new(contents: &str) -> Self {
+            Self {
+                contents: std::sync::Mutex::new(contents.as_bytes().to_vec()),
+                reads: std::sync::atomic::AtomicUsize::new(0),
+                first_read_entered: std::sync::atomic::AtomicBool::new(false),
+                first_read_release: (std::sync::Mutex::new(false), std::sync::Condvar::new()),
+            }
+        }
+
+        fn replace(&self, contents: &str) {
+            *self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = contents.as_bytes().to_vec();
+        }
+
+        fn release_first_read(&self) {
+            let (released, wake) = &self.first_read_release;
+            *released
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+            wake.notify_all();
+        }
+    }
+
+    impl vfs::SourceStore for ClosedSymbolRaceStore {
+        fn read(&self, _path: &Path) -> std::io::Result<Vec<u8>> {
+            use std::sync::atomic::Ordering;
+
+            if self.reads.fetch_add(1, Ordering::SeqCst) == 0 {
+                self.first_read_entered.store(true, Ordering::SeqCst);
+                let (released, wake) = &self.first_read_release;
+                let mut released = released
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                while !*released {
+                    released = wake
+                        .wait(released)
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                }
+            }
+            Ok(self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone())
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            String::from_utf8(self.read(path)?)
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<vfs::DirEntry>> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "test store has no directories",
+            ))
+        }
+
+        fn metadata(&self, _path: &Path) -> std::io::Result<vfs::Metadata> {
+            let len = self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len();
+            Ok(vfs::Metadata {
+                is_dir: false,
+                len: u64::try_from(len).unwrap_or(u64::MAX),
+            })
+        }
+
+        fn write(&self, _path: &Path, contents: &[u8]) -> std::io::Result<()> {
+            *self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = contents.to_vec();
+            Ok(())
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Exact-head review of #1854: a closed source read must be revalidated
+    /// against the per-document index revision. Otherwise a watcher can
+    /// replace both the file and its index entry after the old hit was
+    /// captured, and the old byte span is mapped through the new bytes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_symbols_revalidate_closed_source_snapshot_1854() {
+        use std::sync::atomic::Ordering;
+
+        let old_text = "set pad 1\nproc closed_snapshot_symbol {} {}\n";
+        let new_text = "proc closed_snapshot_symbol {} {}\n";
+        let store = Arc::new(ClosedSymbolRaceStore::new(old_text));
+        let mut backend = test_backend();
+        backend.store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
+        let backend = Arc::new(backend);
+        let pending_uri = Uri::from_str("untitled:closed-source-race-1854").unwrap();
+        let closed_uri = Uri::from_str("file:///closed-source-race-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            pending_uri,
+            DocumentState::with_version(
+                "proc pending_snapshot_symbol {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        let old_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(old_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(closed_uri.as_str(), &old_analysis);
+
+        let request = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .symbol(WorkspaceSymbolParams {
+                        query: "snapshot_symbol".to_owned(),
+                        work_done_progress_params: WorkDoneProgressParams::default(),
+                        partial_result_params: PartialResultParams::default(),
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !store.first_read_entered.load(Ordering::SeqCst) {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the closed source read must begin");
+
+        // The first read has not copied its bytes yet. Replace both source and
+        // index, then let it return the new bytes to the request that still
+        // owns the old hit. Revision revalidation must retry that snapshot.
+        store.replace(new_text);
+        let new_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(new_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(closed_uri.as_str(), &new_analysis);
+        store.release_first_read();
+
+        let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("workspace/symbol must finish")
+            .expect("workspace/symbol task must not panic")
+            .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected captured workspace symbols, got {found:?}");
+        };
+        let closed = found
+            .iter()
+            .find(|symbol| symbol.location.uri == closed_uri)
+            .expect("the stable closed-file retry must contribute its hit");
+        assert_eq!(closed.name, "closed_snapshot_symbol");
+        assert_eq!(closed.location.range.start.line, 0);
+        assert_eq!(closed.location.range.start.character, 5);
+        assert!(
+            store.reads.load(Ordering::SeqCst) >= 2,
+            "a changed index revision must force a second source read",
+        );
     }
 
     /// Exact-head review of #1854: a session-default change that snapshots a

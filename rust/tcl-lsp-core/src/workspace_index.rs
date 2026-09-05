@@ -1086,6 +1086,10 @@ fn resolved_user_definition(
 /// order the previous flat vectors held them in.
 #[derive(Debug, Clone, Default)]
 struct DocumentRecords {
+    /// Monotonic-within-this-slot token for the indexed revision. The server
+    /// uses it to prove that a closed file did not reindex while its source was
+    /// being loaded for byte-span to LSP-range conversion.
+    revision: u64,
     /// The dialect this document was analysed under — carried straight from
     /// [`AnalysisResult::dialect`], so the registry consulted for a decision
     /// about this document is the one it was actually analysed with.
@@ -1210,6 +1214,7 @@ impl DocumentRecords {
     /// removals.
     fn clear(&mut self) {
         let Self {
+            revision: _,
             dialect,
             procs,
             classes,
@@ -2751,6 +2756,7 @@ impl WorkspaceIndex {
         // empty analysis, so favour the conservative full invalidation here;
         // editor replacements use [`Self::replace_document`] below.
         self.docs[slot].index_document(uri, analysis);
+        self.docs[slot].revision = self.docs[slot].revision.wrapping_add(1);
         self.invalidate(true, slot);
     }
 
@@ -2765,6 +2771,7 @@ impl WorkspaceIndex {
         let old = self.docs[slot].settlement_dependencies();
         self.docs[slot].clear();
         self.docs[slot].index_document(uri, analysis);
+        self.docs[slot].revision = self.docs[slot].revision.wrapping_add(1);
         let changed = old != self.docs[slot].settlement_dependencies();
         self.invalidate(changed, slot);
     }
@@ -2800,6 +2807,17 @@ impl WorkspaceIndex {
         self.slots.contains_key(uri)
     }
 
+    /// Revision token for `uri`'s current records.
+    ///
+    /// Unlike [`Self::generation`], a mutation of an unrelated document does
+    /// not change this value. A consumer can therefore load `uri`'s source
+    /// outside the index lock and revalidate that the byte spans it captured
+    /// still describe the same indexed revision.
+    #[must_use]
+    pub fn document_revision(&self, uri: &str) -> Option<u64> {
+        self.slots.get(uri).map(|&slot| self.docs[slot].revision)
+    }
+
     /// Drop every entry that came from `uri` (used before
     /// re-indexing a changed document, or on `did_close`).
     ///
@@ -2808,6 +2826,7 @@ impl WorkspaceIndex {
     pub fn remove_document(&mut self, uri: &str) {
         if let Some(slot) = self.slots.remove(uri) {
             self.docs[slot].clear();
+            self.docs[slot].revision = self.docs[slot].revision.wrapping_add(1);
             self.free_slots.push(slot);
             self.invalidate(true, slot);
         }
@@ -10015,6 +10034,30 @@ mod tests {
             index.generation(),
             "remove_document must bump the generation",
         );
+    }
+
+    #[test]
+    fn document_revision_changes_only_with_that_document() {
+        let a = analyse("proc alpha {} {}\n");
+        let b = analyse("proc beta {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let a_revision = index.document_revision("file:///a.tcl").unwrap();
+
+        index.add_document("file:///b.tcl", &b);
+        assert_eq!(
+            index.document_revision("file:///a.tcl"),
+            Some(a_revision),
+            "an unrelated mutation must not invalidate a source snapshot",
+        );
+        index.replace_document("file:///a.tcl", &a);
+        assert_ne!(
+            index.document_revision("file:///a.tcl"),
+            Some(a_revision),
+            "replacing the document must invalidate its source snapshot",
+        );
+        index.remove_document("file:///a.tcl");
+        assert_eq!(index.document_revision("file:///a.tcl"), None);
     }
 
     /// The derived command-name set is cached between mutations and rebuilt
