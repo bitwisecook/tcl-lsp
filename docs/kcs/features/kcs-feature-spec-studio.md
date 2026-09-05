@@ -39,7 +39,9 @@ says so. Serve the directory to get the full editor.
    above says what you are looking at: `187 Tcl 9.0 commands in 4 packs`. A
    pack you are building yourself is the first section, not a separate panel.
 2. **Open a pack and choose a command** to load its live specification into
-   the form, or press **New command** to start from scratch. Sections start
+   the form, or press **New command** to start from scratch. Each command
+   you open gets a tab, so opening another does not close the first — see
+   [several commands at once](#several-commands-at-once). Sections start
    closed except the one holding the command you have open; a section you
    open or close yourself stays that way across dialect switches and reloads,
    as part of live save. Each section's **?** says what the pack holds and
@@ -72,6 +74,64 @@ says so. Serve the directory to get the full editor.
    artefacts together.
 6. **Files & issue** downloads the collected files and opens a pre-filled
    GitHub issue so you can propose the spec.
+
+### Several commands at once
+
+Every command you open gets a tab in a strip above the workbench tabs, up to
+twelve, so comparing two specifications or copying an option table from a
+shipped command into your own is a click rather than a trip back through
+the browser. A tab is a place to stand, not a copy: every edit goes straight
+into the pack document, so there is nothing to save before you switch and
+nothing to lose by closing. A dot on a tab marks a command you have edited
+since opening it. Come back to a tab and the form is as you left it — the
+same groups open, scrolled to the same place — and clicking the tab you are
+already on from another pane returns you to the editor.
+
+| Key or gesture | Does |
+|---|---|
+| Click, or `Enter` on a focused tab | Opens that command |
+| `←` `→` `Home` `End` | Move along the strip without opening anything |
+| ✕, middle-click, or `Delete` on a focused tab | Closes that tab — these always work |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab, where the browser lets a page have the key |
+| `Ctrl+W` or `Cmd+W` | Closes the tab you are on, likewise |
+
+Closing a tab brings its neighbour forward; closing the last leaves the form
+on an empty draft. Opening a thirteenth command closes the tab you have used
+least recently among those you have not edited — never the one you are on —
+and the status line says which. If every other tab has been edited, the
+least recently used of those goes instead. Either way the command is still
+in the pack, one click away in the browser.
+
+Tabs and history agree. Switching to a tab counts as opening that command,
+so ◀ ▶ and the browser's Back step through tabs like anything else you
+opened, and a link someone sends you opens its command as a tab. Closing a
+tab is not a move, so Back does not revisit it. Open tabs are part of live
+save: reload, and the strip comes back with the same tab in front.
+
+**New command** starts a draft that belongs to no tab until you press **Add
+to pack**; the strip shows nothing selected until then, so it is plain the
+edits are going into a fresh draft and not into an open command.
+
+### Finding a command from anywhere
+
+Press `/` when you are not typing in a box to search three places at once:
+the pack you are building, the shipped packs of the selected dialect, and
+the Reference vocabulary — the picker catalogues and their values, such as
+a trait or an argument role. Type to narrow, `↑` `↓` to move, `Enter` to
+open, `Esc` to close.
+
+Every result says where it came from — `pack mylib`, `shipped · Tcl 9.0`
+with the pack's chip, or `Reference` — and marks the part of the name or
+summary that matched, and the line above the list says what was searched
+and how much of each answered: `3 matches — 1 in pack mylib, 1 in the
+shipped Tcl 9.0 packs, 1 in the Reference vocabulary`. So "no match" is no
+match in all three, and you can place a hit before you open it. Results are
+ordered by how well the name matches — an exact name first, then a name
+starting with what you typed, then one containing it, then a match in the
+summary only — with your own pack ahead of shipped commands and those ahead
+of Reference entries. At most sixty are shown, and the count says if there
+were more. Specification fields are not in this search: the **?** buttons,
+the **Docs** panel, and the Reference tab already cover those.
 
 ### The Docs panel
 
@@ -109,11 +169,17 @@ the buttons still work.
 ### On a phone
 
 The studio is usable on a phone, not merely reachable from one. Below 34rem
-every toolbar control takes the full width, the tab strip scrolls sideways
-instead of stacking, and touch targets meet the 44px minimum. The registry
-browser sits below the editor rather than beside it — which is why typing a
-name and pressing **Load** matters there: the browser is off-screen, so
-filtering alone would look like nothing had happened.
+every toolbar control takes the full width, the row of workbench tabs
+scrolls sideways instead of stacking, and touch targets meet the 44px
+minimum. The registry browser sits below the editor rather than beside it —
+which is why typing a name and pressing **Load** matters there: the browser
+is off-screen, so filtering alone would look like nothing had happened.
+
+The open-command strip scrolls sideways at every width and never wraps — a
+second row would move the form underneath it — and keeps the tab you are on
+in view. On a phone the names are cut shorter, so more than one tab is in
+reach without dragging the strip, and on a touch screen each tab and its ✕
+are 44px targets.
 
 The **Docs** panel is a one-line strip at the bottom of the screen, folded
 until you tap it. Open, it takes half the screen, and the control you are
