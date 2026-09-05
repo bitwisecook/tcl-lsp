@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result, anyhow, bail};
 use cargo_config2::{Config as CargoConfig, PathAndArgs};
-use rustc_lexer::TokenKind;
+use rustc_lexer::{LiteralKind, TokenKind};
 use serde::Deserialize;
 use serde_json::Value;
 use syn::ext::IdentExt;
@@ -122,6 +122,19 @@ struct ManifestRow {
 struct SmokeMarkers {
     target: bool,
     no_smoke_include: bool,
+}
+
+#[derive(Default)]
+struct SourceIncludes {
+    literal_paths: Vec<String>,
+    non_literal_count: usize,
+}
+
+#[derive(Clone, Copy)]
+struct LexedToken {
+    kind: TokenKind,
+    start: usize,
+    end: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -894,7 +907,6 @@ fn collect_smoke_test_sources(
     source: &Path,
     directory: &Path,
     items: &[syn::Item],
-    markers: SmokeMarkers,
     inside_smoke_module: bool,
     visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
     found: &mut BTreeSet<PathBuf>,
@@ -918,7 +930,6 @@ fn collect_smoke_test_sources(
                             source,
                             &child_directory,
                             items,
-                            markers,
                             module_is_smoke,
                             visited,
                             found,
@@ -934,36 +945,6 @@ fn collect_smoke_test_sources(
                             found,
                         )?;
                     }
-                }
-            }
-            syn::Item::Macro(item) if item.mac.path.is_ident("include") => {
-                let Ok(path) = syn::parse2::<syn::LitStr>(item.mac.tokens.clone()) else {
-                    if !markers.target && !markers.no_smoke_include {
-                        bail!(
-                            "{}: non-literal include! expression requires an exact standalone '// tcl-lsp-smoke-target' or '// tcl-lsp-no-smoke-include' comment",
-                            source.display()
-                        );
-                    }
-                    continue;
-                };
-                let Some(parent) = source.parent() else {
-                    continue;
-                };
-                let included = lexically_normalise(&parent.join(path.value()));
-                if included.is_file() {
-                    // rustc resolves modules declared by an included file
-                    // beside that file, while a nested include remains
-                    // relative to the file that contains it.
-                    let child_directory = included
-                        .parent()
-                        .map_or_else(|| directory.to_path_buf(), Path::to_path_buf);
-                    collect_source_smoke_tests_at(
-                        &included,
-                        &child_directory,
-                        inside_smoke_module,
-                        visited,
-                        found,
-                    )?;
                 }
             }
             _ => {}
@@ -1005,16 +986,42 @@ fn collect_source_smoke_tests_at(
         .with_context(|| format!("reading Rust module {}", source.display()))?;
     let parsed = syn::parse_file(&text)
         .with_context(|| format!("parsing Rust module {}", source.display()))?;
-    let markers = source_smoke_markers(&text)
+    let (markers, source_includes) = source_smoke_contract(&text)
         .with_context(|| format!("checking smoke markers in {}", source.display()))?;
     if markers.target {
         found.insert(source.to_path_buf());
+    }
+    if let Some(parent) = source.parent() {
+        for path in source_includes.literal_paths {
+            let included_path = lexically_normalise(&parent.join(path));
+            if !included_path.is_file() {
+                continue;
+            }
+            let included_text = fs::read_to_string(&included_path)
+                .with_context(|| format!("reading Rust include {}", included_path.display()))?;
+            if syn::parse_file(&included_text).is_err() {
+                // An expression- or statement-only include cannot add a
+                // top-level libtest item. Parseable item includes are walked
+                // regardless of whether they occur directly or inside a
+                // macro body.
+                continue;
+            }
+            let child_directory = included_path
+                .parent()
+                .map_or_else(|| directory.to_path_buf(), Path::to_path_buf);
+            collect_source_smoke_tests_at(
+                &included_path,
+                &child_directory,
+                inside_smoke_module,
+                visited,
+                found,
+            )?;
+        }
     }
     collect_smoke_test_sources(
         source,
         directory,
         &parsed.items,
-        markers,
         inside_smoke_module,
         visited,
         found,
@@ -1057,6 +1064,118 @@ fn source_smoke_markers(text: &str) -> Result<SmokeMarkers> {
         bail!("source has contradictory smoke-target and no-smoke-include markers");
     }
     Ok(markers)
+}
+
+fn delimiter_close(kind: TokenKind) -> Option<TokenKind> {
+    match kind {
+        TokenKind::OpenParen => Some(TokenKind::CloseParen),
+        TokenKind::OpenBrace => Some(TokenKind::CloseBrace),
+        TokenKind::OpenBracket => Some(TokenKind::CloseBracket),
+        _ => None,
+    }
+}
+
+fn source_include_macros(text: &str) -> Result<SourceIncludes> {
+    let mut offset = 0;
+    let mut tokens = Vec::new();
+    for token in rustc_lexer::tokenize(text) {
+        let end = offset + token.len;
+        if !matches!(
+            token.kind,
+            TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment { .. }
+        ) {
+            tokens.push(LexedToken {
+                kind: token.kind,
+                start: offset,
+                end,
+            });
+        }
+        offset = end;
+    }
+
+    let mut includes = SourceIncludes::default();
+    for (index, token) in tokens.iter().enumerate() {
+        let name = &text[token.start..token.end];
+        if !matches!(token.kind, TokenKind::Ident | TokenKind::RawIdent)
+            || !matches!(name, "include" | "r#include")
+            || index
+                .checked_sub(1)
+                .is_some_and(|previous| matches!(tokens[previous].kind, TokenKind::Dollar))
+            || tokens
+                .get(index + 1)
+                .is_none_or(|next| next.kind != TokenKind::Not)
+        {
+            continue;
+        }
+        let Some(open) = tokens.get(index + 2) else {
+            includes.non_literal_count += 1;
+            continue;
+        };
+        let Some(close) = delimiter_close(open.kind) else {
+            includes.non_literal_count += 1;
+            continue;
+        };
+        let mut closes = vec![close];
+        let mut close_index = None;
+        for (candidate_index, candidate) in tokens.iter().enumerate().skip(index + 3) {
+            if let Some(expected) = delimiter_close(candidate.kind) {
+                closes.push(expected);
+            } else if matches!(
+                candidate.kind,
+                TokenKind::CloseParen | TokenKind::CloseBrace | TokenKind::CloseBracket
+            ) {
+                let Some(expected) = closes.pop() else {
+                    bail!("unbalanced delimiter while scanning include! invocation");
+                };
+                if candidate.kind != expected {
+                    bail!("mismatched delimiter while scanning include! invocation");
+                }
+                if closes.is_empty() {
+                    close_index = Some(candidate_index);
+                    break;
+                }
+            }
+        }
+        let close_index = close_index.context("unterminated include! invocation")?;
+        let body = &tokens[index + 3..close_index];
+        let literal = body.first().filter(|_| body.len() == 1).and_then(|body| {
+            if matches!(
+                body.kind,
+                TokenKind::Literal {
+                    kind: LiteralKind::Str { .. } | LiteralKind::RawStr { .. },
+                    ..
+                }
+            ) {
+                syn::parse_str::<syn::LitStr>(&text[body.start..body.end]).ok()
+            } else {
+                None
+            }
+        });
+        if let Some(literal) = literal {
+            includes.literal_paths.push(literal.value());
+        } else {
+            includes.non_literal_count += 1;
+        }
+    }
+    Ok(includes)
+}
+
+fn source_smoke_contract(text: &str) -> Result<(SmokeMarkers, SourceIncludes)> {
+    let markers = source_smoke_markers(text)?;
+    let includes = source_include_macros(text)?;
+    if markers.no_smoke_include && includes.non_literal_count != 1 {
+        bail!(
+            "a no-smoke-include marker must classify exactly one non-literal include! invocation; found {}",
+            includes.non_literal_count
+        );
+    }
+    if includes.non_literal_count > 0 && !markers.target && !markers.no_smoke_include {
+        bail!(
+            "{} non-literal include! invocation(s) require an exact standalone '// tcl-lsp-smoke-target' or '// tcl-lsp-no-smoke-include' comment",
+            includes.non_literal_count
+        );
+    }
+    Ok((markers, includes))
 }
 
 fn relative_source(root: &Path, source: &Path) -> Result<String> {
@@ -1125,8 +1244,9 @@ fn scan_smoke_sources(root: &Path, targets: &[Target]) -> Result<SmokeInventory>
     for relative in tracked_rust_sources(root)? {
         let source = root.join(&relative);
         let text = fs::read_to_string(&source).with_context(|| format!("reading {relative}"))?;
-        if source_smoke_markers(&text)
+        if source_smoke_contract(&text)
             .with_context(|| format!("checking {relative}"))?
+            .0
             .target
         {
             inventory.sources.insert(relative);
@@ -3091,6 +3211,26 @@ fn literal_include_scanner_self_test() -> Result<()> {
     if included != expected {
         bail!("literal include target ownership self-test failed: {included:?}");
     }
+
+    let macro_fixture = Fixture::new()?;
+    macro_fixture.write(
+        "src/lib.rs",
+        "macro_rules! generated { () => { include!(\"sub/generated_tests.rs\"); }; }\ngenerated!();\n",
+    )?;
+    macro_fixture.write(
+        "src/sub/generated_tests.rs",
+        "#[test]\nfn smoke_generated_in_macro() {}\n",
+    )?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &macro_fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([macro_fixture.root.join("src/sub/generated_tests.rs")]) {
+        bail!("macro-body literal include self-test failed: {found:?}");
+    }
     Ok(())
 }
 
@@ -3166,7 +3306,6 @@ fn smoke_scanner_self_test() -> Result<()> {
             fake_source,
             Path::new("/repo/src"),
             &parsed.items,
-            SmokeMarkers::default(),
             false,
             &mut HashSet::new(),
             &mut found,
@@ -3186,7 +3325,6 @@ fn smoke_scanner_self_test() -> Result<()> {
             Path::new("/repo/src/lib.rs"),
             Path::new("/repo/src"),
             &parsed.items,
-            SmokeMarkers::default(),
             false,
             &mut HashSet::new(),
             &mut found,
@@ -3206,6 +3344,16 @@ fn smoke_scanner_self_test() -> Result<()> {
     {
         bail!("smoke marker scanner self-test failed");
     }
+    include_macro_scanner_self_test()
+}
+
+fn include_macro_scanner_self_test() -> Result<()> {
+    let ignored = source_include_macros(
+        "const TEXT: &str = r#\"include!(concat!(env!(\\\"OUT_DIR\\\"), \\\"/tests.rs\\\"))\"#;\n/* include!(concat!(env!(\"OUT_DIR\"), \"/tests.rs\")); */\n",
+    )?;
+    if !ignored.literal_paths.is_empty() || ignored.non_literal_count != 0 {
+        bail!("include scanner inspected a string or block comment");
+    }
     let fixture = Fixture::new()?;
     let source = fixture.root.join("src/lib.rs");
     fixture.write(
@@ -3218,6 +3366,22 @@ fn smoke_scanner_self_test() -> Result<()> {
     }
     fixture.write(
         "src/lib.rs",
+        "macro_rules! generated { () => { include!(concat!(env!(\"OUT_DIR\"), \"/tests.rs\")); }; }\ngenerated!();\n",
+    )?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("macro-body non-literal include without a marker was accepted");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "const DATA: &str = include!(concat!(env!(\"OUT_DIR\"), \"/data.rs\"));\n",
+    )?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("expression-position non-literal include without a marker was accepted");
+    }
+    fixture.write(
+        "src/lib.rs",
         "// tcl-lsp-no-smoke-include\ninclude!(concat!(env!(\"OUT_DIR\"), \"/data.rs\"));\n",
     )?;
     let mut found = BTreeSet::new();
@@ -3227,7 +3391,20 @@ fn smoke_scanner_self_test() -> Result<()> {
     }
     fixture.write(
         "src/lib.rs",
-        "// tcl-lsp-smoke-target\ninclude!(concat!(env!(\"OUT_DIR\"), \"/tests.rs\"));\n",
+        "// tcl-lsp-no-smoke-include\ninclude!(concat!(env!(\"OUT_DIR\"), \"/one.rs\"));\ninclude!(concat!(env!(\"OUT_DIR\"), \"/two.rs\"));\n",
+    )?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("one no-smoke marker classified multiple non-literal includes");
+    }
+    fixture.write("src/lib.rs", "// tcl-lsp-no-smoke-include\n")?;
+    if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
+    {
+        bail!("stale no-smoke marker without an include was accepted");
+    }
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-smoke-target\ninclude!(concat!(env!(\"OUT_DIR\"), \"/tests.rs\"));\ninclude!(concat!(env!(\"OUT_DIR\"), \"/more_tests.rs\"));\n",
     )?;
     found.clear();
     collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut found)?;

@@ -39,9 +39,15 @@ attribute macro or a non-literal `include!` expression needs the exact
 standalone `// tcl-lsp-smoke-target` line-comment marker on its declaring
 source, as described by the
 [test-tier contract](../design/contracts/test-tiers-and-ci-gates.md). Marker
-text inside a string or block comment does not count. A non-literal include
-that is known to generate no tests instead needs the exact standalone
-`// tcl-lsp-no-smoke-include` classification.
+or include text inside a string or comment does not count. The check covers
+lexically present invocations nested in macro bodies and expressions as well
+as item-level invocations. If another macro constructs the `include!` only
+during expansion, treat it like any other macro-generated test and mark the
+declaring source as smoke-bearing. A source with exactly one non-literal
+include that is known to generate no tests instead needs the exact standalone
+`// tcl-lsp-no-smoke-include` classification. Do not use that classification
+for a source with multiple non-literal includes; split the data include or mark
+the whole target as smoke-bearing.
 
 ## Related
 

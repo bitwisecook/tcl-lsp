@@ -1,5 +1,5 @@
 # Source file<TAB>Cargo package<TAB>target kind (lib/bin/test/example/bench)<TAB>target name
-# Non-literal includes require a smoke-target or no-smoke-include source marker.
+# Every non-literal include requires smoke-target; one data-only include may use no-smoke-include.
 rust/tcl-cli/tests/cli.rs	tcl-cli	test	cli
 rust/tcl-compiler/src/compilation_unit.rs	tcl-compiler	lib	tcl_compiler
 rust/tcl-compiler/tests/differential_segment.rs	tcl-compiler	test	differential_segment

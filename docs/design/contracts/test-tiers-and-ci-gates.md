@@ -90,9 +90,16 @@ behind it.
    name. Attribute macros and non-literal `include!` expressions that generate
    a smoke test cannot be inferred from tracked Rust syntax; mark their
    declaring source with an exact standalone `// tcl-lsp-smoke-target` line
-   comment. Every other non-literal include must be classified explicitly with
-   `// tcl-lsp-no-smoke-include`. The checker tokenises comments, so
-   marker-shaped text inside a string or block comment is ignored. `cargo
+   comment. Every lexically present invocation is checked, including those in
+   macro bodies and expression or statement contexts. An outer declarative or
+   procedural macro that constructs an `include!` invocation during expansion
+   is arbitrary generated syntax, like an attribute-generated test, and its
+   declaring source carries the smoke-target marker. A source with exactly one
+   non-literal include that is known to generate no tests may instead use
+   `// tcl-lsp-no-smoke-include`; adding a second invocation requires an
+   explicit reclassification so one data include cannot mask generated tests.
+   The checker tokenises Rust, so marker and include text inside strings or
+   comments is ignored. `cargo
    xtask smoke-targets run` is the
    no-nextest fallback and must select the same tests as the nextest smoke
    profile without changing workspace feature resolution;
