@@ -301,22 +301,38 @@ input[type=file] { display: none; }
 .found .hdr .nm { font-family: var(--mono); font-weight: 600; }
 .found .hdr button { margin-left: auto; }
 
-/* The pack panel — the library under edit, always visible above the registry.
-   Its list is capped and scrolls on its own so a forty-command pack cannot
-   push the registry browser off the bottom of the sidebar. */
-.packpanel { padding-bottom: .6rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); }
-.packpanel .packname { font-family: var(--mono); font-weight: 400; font-size: .8rem; color: var(--accent); }
-.packpanel .packmeta { color: var(--muted); font-size: .78rem; margin-top: .25rem; overflow-wrap: anywhere; }
-.packpanel .packmeta[hidden] { display: none; }
-.packlist { max-height: 15rem; flex: 0 0 auto; }
+/* The registry browser is a stack of packs: yours, pinned at the top and the
+   only editable one, then the dialect's shipped packs in catalogue order. Both
+   are the same kind of thing — a `.group` section whose body is a `.cmdlist` —
+   so the only difference an author sees is the one that is real. */
+.packs { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.browser > .group { flex: 0 0 auto; margin-bottom: .5rem; }
+.packsection > summary { font-size: .86rem; padding: .45rem .55rem; }
+.packsection > .body { padding: 0 .35rem .45rem; }
+.packsection .packblurb { font-size: .78rem; margin: .1rem .25rem .35rem; }
+.packsection .packblurb code { display: inline-block; margin-left: .35rem; font-size: .72rem; }
+/* Yours is the one section here that can be edited; the accent border says so
+   without turning it into a different kind of thing. */
+.packsection.mine { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.packsection .packname { font-family: var(--mono); font-weight: 400; font-size: .8rem; color: var(--accent); }
+.packsection .packmeta { color: var(--muted); font-size: .78rem; margin: .2rem .25rem; overflow-wrap: anywhere; }
+.packsection .packmeta[hidden] { display: none; }
+.packs .more { color: var(--muted); font-size: .78rem; padding: .45rem .3rem; }
+/* Capped and scrolling on its own so a forty-command pack cannot push the
+   shipped packs off the bottom of the sidebar. */
+.packlist { max-height: 15rem; }
 .packlist .state { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .15rem; }
-.packlist .tag {
+/* The pill that names a pack or a command's state, wherever one is named. */
+.packlist .tag, .palette .tag, #editorSource .tag {
   font-size: .66rem; line-height: 1.5; border: 1px solid var(--border); border-radius: 999px;
   padding: 0 .35rem; color: var(--muted); white-space: nowrap;
 }
 .packlist .tag.warn { border-color: var(--warn-bd); color: var(--warn-fg); }
 .packlist .tag.live { border-color: var(--accent); color: var(--accent); }
 .packlist .empty { color: var(--muted); font-size: .78rem; display: block; padding: .45rem .3rem; }
+/* The command in the form: which pack ships the name, and who else declares it. */
+#editorSource .tag.pack { font-family: var(--mono); }
+#editorSource .alsoin { display: block; margin-top: .25rem; }
 /* Name-and-state on the left, "remove from pack" on the right, one row. */
 .packlist li.packrow { display: flex; align-items: flex-start; }
 .packlist li.packrow > button:first-child { flex: 1 1 auto; min-width: 0; }
@@ -398,6 +414,8 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
 .palette .sm { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette .where { margin-left: auto; font-size: .7rem; color: var(--muted); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 .4rem; white-space: nowrap; }
+.palette .tag.pack { margin-left: auto; font-family: var(--mono); }
+.palette .tag.pack + .where { margin-left: .3rem; }
 .palette .foot { color: var(--muted); font-size: .76rem; padding: .45rem 1rem; border-top: 1px solid var(--border); }
 .navbtns { display: flex; gap: .2rem; }
 .navbtns button { padding: .3rem .55rem; }

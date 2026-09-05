@@ -1,10 +1,10 @@
 # Contract: the command-registry spec studio
 
 The spec studio is a browser front-end over `tcl-registry`: it browses the
-live command surface, edits every field of a `CommandSpec`, and renders the
-result back to a registry `.rs` module or a Tcl dialect stub. This document
-describes the contract between its four layers and the invariants that keep it
-from drifting away from the registry it edits.
+live command surface pack by pack, edits every field of a `CommandSpec`, and
+renders the result back to a registry `.rs` module or a Tcl dialect stub.
+This document describes the contract between its layers and the invariants
+that keep it from drifting away from the registry it edits.
 
 Related: [`command-registry.md`](../compiler/command-registry.md) (the field
 reference), [`dialect-stubs.md`](dialect-stubs.md) (the stub language),
@@ -14,6 +14,7 @@ reference), [`dialect-stubs.md`](dialect-stubs.md) (the stub language),
 
 | Layer | Crate / path | Role |
 |---|---|---|
+| Provenance | `rust/tcl-registry` (`commands/mod.rs`, `registry.rs`) | `SPEC_PACKS`, the table of `commands/<id>/` authoring modules, and `spec_pack_of`, which of them declares a resolved spec. The registry's, not the studio's: the studio reads it through `command_index` and `pack_catalogue`. |
 | Schema + renderers | `rust/tcl-spec-studio` | One table describing every spec field; the draft model; the `.rs` and stub renderers; package inference. No browser, no WASM. |
 | WASM facade | `rust/tcl-spec-studio-wasm` | `wasm-bindgen` cdylib. Every export takes and returns a JSON string. Excluded from the workspace (the glue needs `unsafe`). |
 | Front-end | `rust/tcl-spec-studio/web` | Strict TypeScript, bundled by esbuild into two files: the controller (an IIFE, inlined into the page) and the editor chunk (an ES module, loaded on demand). Generates its form from the schema; knows no field names. |
@@ -206,6 +207,69 @@ over a plain enum has a `covered` witness in the test module: an exhaustive
 comment naming the catalogue to update alongside. `AppendedArity` and
 `BodyKind` are `#[non_exhaustive]`, so their witnesses need a wildcard and
 cannot compile-gate; that limitation is stated at each one.
+
+## The browser is a stack of packs
+
+A dialect's command surface is not one list. It is `commands/tcl/` plus
+whatever layers on it, and that is the shape a spec author works in: the
+`.rs` renderer emits a path into one of those directories, and "which pack
+does this belong in" is the first question an author has, not the last. So
+the registry names **provenance**. `SPEC_PACKS`
+(`rust/tcl-registry/src/commands/mod.rs`) is the table of the thirteen
+`commands/<id>/` authoring modules, each with the label and blurb a browser
+uses for it, and `spec_pack_of` (`registry.rs`) says which of them declares a
+spec.
+
+**Provenance is not availability.** `SpecSurface` already says where a
+command is *reachable from*; a pack says where its spec is *written down*.
+The two answer different questions and legitimately disagree — `open` is
+surfaced by core Tcl and by iRules but authored once, in `tcl`; `wm` is
+surfaced by the `Tk` package and authored in `tk`. A browser grouped by
+surface would send the author to a directory that does not hold the file.
+
+**Keyed by spec identity, not by name.** Seventeen names are declared in two
+or three packs — `close` in `tcl`, `expect` and `irules`; `send` in `tk`,
+`expect` and `irules` — and each dialect registers exactly one of them. A
+by-name table could only pick a fixed winner, and would file the iRules
+`close` under `tcl` while browsing iRules. `spec_pack_of` therefore takes the
+very `&'static CommandSpec` the registry handed back, indexed by address over
+the same leaked `shared_group!` slices the registry inserts, so it cannot
+disagree with the registry. `spec_packs_of(name)` is the by-name question
+asked on purpose: it backs the "also declared in" note, where the question
+really is about the name.
+
+Two things are deliberately not rows in `SPEC_PACKS`:
+
+| Absent | Why |
+|---|---|
+| `tmsh` | The tmsh shell's specs are a filtered view of the same `commands/iapps/` sources, so their provenance is `iapps` — the directory an author would open. A consumer that wants the tmsh *surface* is asking `SpecSurface`'s question, and asks it there. |
+| The EDA vendor libraries | They ship as bundled `.tclspec` loadables under `specs/` and reach a registry through `tcl_spectcl::bundled`, so their provenance is the pack *file*, which the loader reports. `spec_pack_of` answers `None` for any pack-loaded spec — a bundled library, a workspace pack, the document under the author's cursor — rather than guessing. |
+
+`command_index` carries `pack` and `also_in` per command, and
+`pack_catalogue(dialect)` lists only the packs that reach the dialect, with a
+command count each, so the Tcl 8.4 picker never offers an empty **F5 iRules**
+heading. Both come through the wasm facade.
+
+### What the browser shows
+
+`web/src/packs.ts` holds the decisions — grouping, filtering, what the
+headers and the count line say — as pure functions of what the wasm module
+reports; `studio.ts` paints them.
+
+| Behaviour | Rule |
+|---|---|
+| Sections | One collapsible section per pack, in catalogue order. The pack under edit is the first section, not a differently-shaped panel beside the list: it is a pack that happens to be editable. Behind each shipped section's **?**: the blurb and the repository path. |
+| Open state | Shut, except the section holding the open command; a filter opens every section it leaves something in; a dialect with one pack has no navigation to do. A section the row cap left empty stays shut — open and empty reads as a bug, not as "narrow the filter". |
+| Remembered | A person's expand and collapse of the shipped sections rides the IndexedDB session record, across dialect switches and reloads. It is recorded from the summary's click, not the `toggle` event, so a section the studio opened for them is not mistaken for a preference. |
+| Filtering | Only packs with a match are shown; each header carries `N of M`; the count line says what is being viewed — `187 Tcl 9.0 commands in 4 packs`, `12 of 187 Tcl 9.0 commands, in 3 packs` — instead of a bare number. |
+| Chips | A command's pack is a chip wherever the heading is not already saying it — the command palette, the editor's source line — and a name several packs declare says so: `close is also declared in expect, irules.` |
+| Unfiled | A command whose pack the catalogue does not describe is filed under a bare heading rather than dropped: an unknown dialect has an empty catalogue, and a browser showing nothing would be worse. |
+
+Gate: `rust/tcl-registry/tests/spec_pack_provenance.rs` proves every command
+in every browsable dialect resolves to a pack that is a real `commands/<id>/`
+directory, and that the iRules `close` files under `irules` while Tcl 9.0's
+files under `tcl`. The studio's own tests prove the catalogue's counts sum to
+the index, so no command can fall between sections.
 
 ## The draft model
 

@@ -64,22 +64,32 @@ __STYLES__
 
     <div class="split">
       <div class="card browser" id="browser">
-        <!-- The pack under edit, always visible: defining a library is constant
-             motion between its own commands, not a trip back through a search
-             box. Every row is one click from any other. -->
-        <div class="packpanel" id="packPanel">
-          <label class="fld">Pack <code class="packname" id="packName">—</code></label>
-          <div class="packmeta" id="packMeta" hidden></div>
-          <div class="count" id="packCount">—</div>
-          <ul class="cmdlist packlist" id="packlist"></ul>
-          <div class="packactions">
-            <button type="button" class="ghost" id="packAdd" title="Copy the command in the editor into the pack">+ Add to pack</button>
-            <button type="button" class="ghost" id="packNew" title="Start an empty pack">New pack</button>
+        <!-- The browser is a stack of packs. Yours comes first — the one pack
+             here that is editable — and the dialect's shipped packs follow in
+             `commands/`'s own order, because "which pack does this belong in"
+             is the first question a spec author has, not the last.
+
+             The pack under edit is always visible: defining a library is
+             constant motion between its own commands, not a trip back through
+             a search box. Every row is one click from any other. -->
+        <details class="group packsection mine" id="packPanel" open>
+          <summary>
+            Pack <code class="packname" id="packName">—</code>
+            <span class="n" id="packCount">—</span>
+          </summary>
+          <div class="body">
+            <div class="packmeta" id="packMeta" hidden></div>
+            <ul class="cmdlist packlist" id="packlist"></ul>
+            <div class="packactions">
+              <button type="button" class="ghost" id="packAdd" title="Copy the command in the editor into the pack">+ Add to pack</button>
+              <button type="button" class="ghost" id="packNew" title="Start an empty pack">New pack</button>
+            </div>
           </div>
-        </div>
+        </details>
         <label class="fld">Registry</label>
         <div class="count" id="count">—</div>
-        <ul class="cmdlist" id="cmdlist"></ul>
+        <!-- One collapsible section per shipped pack, filled by renderList(). -->
+        <div class="packs" id="cmdlist"></div>
       </div>
 
       <div>
