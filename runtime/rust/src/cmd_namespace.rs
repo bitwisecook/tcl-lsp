@@ -1557,14 +1557,11 @@ mod tests {
         // times the bucket count and re-pushes each chain head-first, which
         // reverses it. Thirteen commands cross the first threshold.
         assert_eq!(
-            teardown_log(
-                "namespace eval N {}
-                 for {set i 0} {$i < 13} {incr i} {
-                     proc ::N::c$i {} {}
-                     trace add command ::N::c$i delete rec
-                 }
-                 namespace delete ::N"
-            ),
+            teardown_log(&format!(
+                "{}
+                 namespace delete ::N",
+                traced_procs("c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12")
+            )),
             "c5 c6 c7 c8 c9 c0 c1 c10 c2 c11 c12 c3 c4"
         );
     }
