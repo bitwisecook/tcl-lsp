@@ -80,6 +80,22 @@ impl Write for Capture {
 }
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
+/// tclsh9.0.4's `info` ensemble enumeration (`info {}` → `unknown or ambiguous
+/// subcommand "": must be …`).
+const INFO_MUST: &str = "must be args, body, class, cmdcount, cmdtype, commands, complete, \
+                         constant, consts, coroutine, default, errorstack, exists, frame, \
+                         functions, globals, hostname, level, library, loaded, locals, \
+                         nameofexecutable, object, patchlevel, procs, script, \
+                         sharedlibextension, tclversion, or vars";
+
+/// tclsh9.0.4's `file` ensemble enumeration.
+const FILE_MUST: &str = "must be atime, attributes, channels, copy, delete, dirname, \
+                         executable, exists, extension, home, isdirectory, isfile, join, \
+                         link, lstat, mkdir, mtime, nativename, normalize, owned, pathtype, \
+                         readable, readlink, rename, rootname, separator, size, split, stat, \
+                         system, tail, tempdir, tempfile, tildeexpand, type, volumes, or \
+                         writable";
+
 fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
@@ -519,6 +535,11 @@ fn info_dispatch_and_abbreviation() {
 /// The list is exactly the `info` subcommands the VM's dispatch table lacks;
 /// every other subcommand this suite exercises is implemented and covered
 /// above.
+///
+/// Since #1607 the miss is composed by `tcl_cmd_core::ensemble`, so it carries
+/// tclsh9.0.4's full `must be` clause — the name itself still appears there,
+/// because the word *resolved* against the ensemble table and only then found
+/// no implementation.
 #[test]
 fn info_unimplemented_subcommands_error() {
     for sub in ["cmdcount", "hostname", "frame"] {
@@ -526,7 +547,7 @@ fn info_unimplemented_subcommands_error() {
         assert!(!ok, "VM unexpectedly implemented `info {sub}`: {msg}");
         assert_eq!(
             msg,
-            format!("unknown or ambiguous subcommand \"{sub}\""),
+            format!("unknown or ambiguous subcommand \"{sub}\": {INFO_MUST}"),
             "`info {sub}` should report the VM's unknown-subcommand error",
         );
     }
@@ -1301,15 +1322,55 @@ fn namespace_inscope_zero_args() {
     );
 }
 
-/// An empty `info` subcommand is rejected (the `canonical_info_sub` empty-input
-/// guard, then the unknown-subcommand arm). The VM's message is shorter than
-/// tclsh9.0's, which appends the full option list.
-/// Divergence (error text only):
-///   tclsh9.0: `unknown or ambiguous subcommand "": must be args, body, ...`
-///   VM:       `unknown or ambiguous subcommand ""`
+/// Issue #1607: `info` and `file` are `TclMakeEnsemble` commands, so both the
+/// prefix scan and the miss message belong to `tcl_cmd_core::ensemble`. The VM
+/// used to emit the sentence without its `must be` clause.
+///
+/// tclsh 9.0.4:
+///   info {}   -> unknown or ambiguous subcommand "": must be args, body,
+///                class, cmdcount, cmdtype, commands, complete, constant,
+///                consts, coroutine, default, errorstack, exists, frame,
+///                functions, globals, hostname, level, library, loaded,
+///                locals, nameofexecutable, object, patchlevel, procs, script,
+///                sharedlibextension, tclversion, or vars
+///   info e /  -> unknown or ambiguous subcommand "e": must be <same>
+///   info ex x -> 0        (a unique prefix still resolves)
+///   file {}   -> unknown or ambiguous subcommand "": must be atime,
+///                attributes, channels, copy, delete, dirname, executable,
+///                exists, extension, home, isdirectory, isfile, join, link,
+///                lstat, mkdir, mtime, nativename, normalize, owned, pathtype,
+///                readable, readlink, rename, rootname, separator, size,
+///                split, stat, system, tail, tempdir, tempfile, tildeexpand,
+///                type, volumes, or writable
+///   file e /  -> unknown or ambiguous subcommand "e": must be <same>
+///   file ex / -> unknown or ambiguous subcommand "ex": must be <same>
+///                (exists/executable/extension all start with `ex`)
 #[test]
-fn info_empty_subcommand() {
-    let (ok, msg, _) = run("info \"\"");
-    assert!(!ok);
-    assert_eq!(msg, r#"unknown or ambiguous subcommand """#);
+fn info_and_file_ensemble_misses_carry_the_full_option_list() {
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("info \"\""),
+        format!("unknown or ambiguous subcommand \"\": {INFO_MUST}")
+    );
+    assert_eq!(
+        msg("info e x"),
+        format!("unknown or ambiguous subcommand \"e\": {INFO_MUST}")
+    );
+    assert_eq!(run("set x 1; info ex x").1, "1");
+    assert_eq!(
+        msg("file \"\""),
+        format!("unknown or ambiguous subcommand \"\": {FILE_MUST}")
+    );
+    assert_eq!(
+        msg("file e /"),
+        format!("unknown or ambiguous subcommand \"e\": {FILE_MUST}")
+    );
+    assert_eq!(
+        msg("file ex /"),
+        format!("unknown or ambiguous subcommand \"ex\": {FILE_MUST}")
+    );
 }

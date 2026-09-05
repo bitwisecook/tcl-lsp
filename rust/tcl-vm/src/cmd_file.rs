@@ -83,65 +83,61 @@ fn path_str(bytes: &[u8]) -> Completion<Value> {
     ok(Value::string(std::str::from_utf8(bytes).unwrap_or("")))
 }
 
-/// Resolve a `file` subcommand word to its canonical Tcl 9 name with Tcl's
-/// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): exact match wins, else a
-/// unique prefix — so `file ext` resolves to `extension` (cmdAH.test). The
-/// table is the full Tcl 9 `file` option set so ambiguity matches C even for
-/// subcommands the VM does not yet implement (those resolve then fall through
-/// to the unknown-subcommand arm). `None` ⇒ no match or ambiguous.
+/// `file`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
+/// full Tcl 9 table, so ambiguity matches C even for subcommands the VM does
+/// not yet implement (those resolve, then fall through to the
+/// unknown-subcommand arm).
+const FILE_SUBS: &[&str] = &[
+    "atime",
+    "attributes",
+    "channels",
+    "copy",
+    "delete",
+    "dirname",
+    "executable",
+    "exists",
+    "extension",
+    "home",
+    "isdirectory",
+    "isfile",
+    "join",
+    "link",
+    "lstat",
+    "mkdir",
+    "mtime",
+    "nativename",
+    "normalize",
+    "owned",
+    "pathtype",
+    "readable",
+    "readlink",
+    "rename",
+    "rootname",
+    "separator",
+    "size",
+    "split",
+    "stat",
+    "system",
+    "tail",
+    "tempdir",
+    "tempfile",
+    "tildeexpand",
+    "type",
+    "volumes",
+    "writable",
+];
+
+/// `file`'s implementation namespace — the `ns_fqn` an empty ensemble's miss
+/// message would name (`TclMakeEnsemble`, `tclFileName.c`).
+const FILE_NS: &[u8] = b"::tcl::file";
+
+/// Resolve a `file` subcommand word to its canonical Tcl 9 name through the
+/// shared ensemble owner: exact match wins, else a unique prefix — so
+/// `file ext` resolves to `extension` (cmdAH.test). `None` ⇒ no match or
+/// ambiguous.
 fn canonical_file_sub(sub: &str) -> Option<&'static str> {
-    const SUBS: &[&str] = &[
-        "atime",
-        "attributes",
-        "channels",
-        "copy",
-        "delete",
-        "dirname",
-        "executable",
-        "exists",
-        "extension",
-        "isdirectory",
-        "isfile",
-        "join",
-        "link",
-        "lstat",
-        "mkdir",
-        "mtime",
-        "nativename",
-        "normalize",
-        "owned",
-        "pathtype",
-        "readable",
-        "readlink",
-        "rename",
-        "rootname",
-        "separator",
-        "size",
-        "split",
-        "stat",
-        "system",
-        "tail",
-        "tempdir",
-        "tempfile",
-        "type",
-        "volumes",
-        "writable",
-    ];
-    if sub.is_empty() {
-        return None;
-    }
-    if let Some(&exact) = SUBS.iter().find(|&&s| s == sub) {
-        return Some(exact);
-    }
-    let mut found = None;
-    let mut count = 0u32;
-    for &s in SUBS {
-        if s.starts_with(sub) {
-            found = Some(s);
-            count += 1;
-        }
-    }
-    if count == 1 { found } else { None }
+    tcl_cmd_core::ensemble::resolve_subcommand(FILE_SUBS, sub.as_bytes(), true)
+        .map(|index| FILE_SUBS[index])
 }
 
 /// The platform-independent path-text subcommands of `file` (no filesystem
@@ -276,7 +272,17 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
-        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+        // Reached by a word that matched nothing, prefixed several entries, or
+        // resolved to a subcommand this engine does not implement.
+        other => err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                FILE_SUBS,
+                other.as_bytes(),
+                true,
+                FILE_NS,
+            ))
+            .into_owned(),
+        ),
     }
 }
 

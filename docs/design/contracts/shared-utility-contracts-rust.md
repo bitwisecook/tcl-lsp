@@ -507,6 +507,12 @@ entry point, or gate moves without this contract being updated.
   path. `subcommand_choices` is the ensemble enumeration, which keeps
   a comma before `or` even for two entries (`bar, or baz`) — the
   wording `prefix::choice_list` must not be used for.
+  Consumers of the scan and of `unknown_subcommand_message`: both
+  engines' script ensembles, and — since #1607 — their built-in `info`
+  and `file` ensembles (the VM's two hand-rolled
+  exact-then-unique-prefix loops and its list-less miss sentence are
+  gone; the runtime's `file` keeps the registry's release-gated name
+  set and borrows only the sentence).
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -867,6 +873,10 @@ helper without reading the rationale:
   `update_and_after_words_resolve_like_tcl_get_index_from_obj`,
   `try_handler_type_resolves_like_tcl_get_index_from_obj`, and
   `seek_origin_resolves_like_tcl_get_index_from_obj`.
+- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs` —
+  `info_and_file_ensemble_misses_carry_the_full_option_list`; the
+  `cmd_info.rs` / `cmd_fs.rs` test modules in `runtime/rust` carry the
+  matching `*_ensemble_miss_carries_the_full_option_list` rows.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single

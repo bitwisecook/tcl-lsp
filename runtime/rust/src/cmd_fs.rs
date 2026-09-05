@@ -348,20 +348,14 @@ fn file_unknown_subcommand(
         })
         .map(|sub| sub.name)
         .collect();
-    let mut message = b"unknown or ambiguous subcommand \"".to_vec();
-    message.extend_from_slice(raw);
-    message.extend_from_slice(b"\": must be ");
-    for (index, name) in visible.iter().enumerate() {
-        if index > 0 {
-            message.extend_from_slice(if index + 1 == visible.len() {
-                b", or "
-            } else {
-                b", "
-            });
-        }
-        message.extend_from_slice(name.as_bytes());
-    }
-    interp.set_error(&message)
+    // The join — including the ensemble's comma before `or`, even for two
+    // entries — belongs to `tcl_cmd_core::ensemble`, not to this module.
+    interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+        &visible,
+        raw,
+        true,
+        b"::tcl::file",
+    ))
 }
 
 /// `file delete ?-force? ?--? ?pathname ...?` — delete files / directories.
@@ -1291,6 +1285,44 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `file`'s ensemble miss sentence — the
+    /// `unknown or ambiguous subcommand "` prefix and the comma-before-`or`
+    /// join — is `tcl_cmd_core::ensemble`'s, not this module's. The visible
+    /// name set still comes from the registry, so it stays release-gated.
+    ///
+    /// tclsh 9.0.4:
+    ///   file {}   -> unknown or ambiguous subcommand "": must be atime,
+    ///                attributes, channels, copy, delete, dirname, executable,
+    ///                exists, extension, home, isdirectory, isfile, join,
+    ///                link, lstat, mkdir, mtime, nativename, normalize, owned,
+    ///                pathtype, readable, readlink, rename, rootname,
+    ///                separator, size, split, stat, system, tail, tempdir,
+    ///                tempfile, tildeexpand, type, volumes, or writable
+    ///   file ex / -> unknown or ambiguous subcommand "ex": must be <same>
+    ///                (exists/executable/extension all start with `ex`)
+    ///   file ext /a.b -> .b   (a unique prefix still resolves)
+    #[test]
+    fn file_ensemble_miss_carries_the_full_option_list() {
+        const MUST: &str = "must be atime, attributes, channels, copy, delete, dirname, \
+                            executable, exists, extension, home, isdirectory, isfile, join, \
+                            link, lstat, mkdir, mtime, nativename, normalize, owned, pathtype, \
+                            readable, readlink, rename, rootname, separator, size, split, \
+                            stat, system, tail, tempdir, tempfile, tildeexpand, type, volumes, \
+                            or writable";
+        let mut i = Interp::new();
+        assert_eq!(i.eval_str(b"file {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"file ex /"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"ex\": {MUST}").as_bytes()
+        );
+        assert_eq!(ok(&mut i, b"file ext /a.b"), b".b");
     }
 
     #[test]

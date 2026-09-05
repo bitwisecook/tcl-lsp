@@ -74,18 +74,9 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"vars",
     ];
     let raw = obj_bytes(argv[1]);
-    let sub: &[u8] = if SUBS.contains(&raw.as_slice()) {
-        &raw
-    } else {
-        let hits: Vec<&&[u8]> = SUBS
-            .iter()
-            .filter(|s| s.starts_with(raw.as_slice()))
-            .collect();
-        if hits.len() == 1 {
-            hits[0]
-        } else {
-            &raw // 0 or ambiguous → the error arm
-        }
+    let sub: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(SUBS, &raw, true) {
+        Some(index) => SUBS[index],
+        None => &raw, // 0 matches or ambiguous → the error arm
     };
     match sub {
         b"exists" => info_exists(interp, argv),
@@ -239,14 +230,12 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Interp::consts_in_namespace,
             Interp::visible_const_names,
         ),
-        other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be ");
-            let subs: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
-            m.extend_from_slice(&tcl_cmd_core::ensemble::subcommand_choices(&subs));
-            interp.set_error(&m)
-        }
+        other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            SUBS,
+            other,
+            true,
+            b"::tcl::info",
+        )),
     }
 }
 
@@ -584,6 +573,43 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `info` is a `TclMakeEnsemble` command, so both the prefix
+    /// scan and the whole miss sentence belong to `tcl_cmd_core::ensemble` —
+    /// the prefix loop and the `unknown or ambiguous subcommand "` literal
+    /// were duplicated here beside the owner's `subcommand_choices`.
+    ///
+    /// tclsh 9.0.4:
+    ///   info {}   -> unknown or ambiguous subcommand "": must be args, body,
+    ///                class, cmdcount, cmdtype, commands, complete, constant,
+    ///                consts, coroutine, default, errorstack, exists, frame,
+    ///                functions, globals, hostname, level, library, loaded,
+    ///                locals, nameofexecutable, object, patchlevel, procs,
+    ///                script, sharedlibextension, tclversion, or vars
+    ///   info e x  -> unknown or ambiguous subcommand "e": must be <same>
+    ///   info ex x -> 0        (a unique prefix still resolves)
+    #[test]
+    fn info_ensemble_miss_carries_the_full_option_list() {
+        const MUST: &str = "must be args, body, class, cmdcount, cmdtype, commands, complete, \
+                            constant, consts, coroutine, default, errorstack, exists, frame, \
+                            functions, globals, hostname, level, library, loaded, locals, \
+                            nameofexecutable, object, patchlevel, procs, script, \
+                            sharedlibextension, tclversion, or vars";
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"info {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"info e x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("unknown or ambiguous subcommand \"e\": {MUST}").as_bytes()
+            );
+            assert_eq!(run(i, b"set x 1; info ex x"), b"1");
+            assert_eq!(run(i, b"info comm set"), b"set");
+        });
     }
 
     #[test]
