@@ -31,6 +31,7 @@ use cargo_config2::{Config as CargoConfig, PathAndArgs};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
+use syn::ext::IdentExt;
 
 use crate::util::repo_root;
 
@@ -110,6 +111,7 @@ struct BuildEnvironment {
 #[derive(Debug, Default)]
 struct CargoTestArtifacts {
     executables: HashMap<TargetKey, PathBuf>,
+    binary_executables: HashMap<(String, String), PathBuf>,
     build_environments: HashMap<String, Vec<BuildEnvironment>>,
 }
 
@@ -609,9 +611,9 @@ fn tracked_rust_sources(root: &Path) -> Result<Vec<String>> {
 
 fn items_contain_smoke_declaration(items: &[syn::Item]) -> bool {
     items.iter().any(|item| match item {
-        syn::Item::Fn(function) => function.sig.ident.to_string().starts_with("smoke"),
+        syn::Item::Fn(function) => function.sig.ident.unraw().to_string().starts_with("smoke"),
         syn::Item::Mod(module) => {
-            module.ident.to_string().starts_with("smoke")
+            module.ident.unraw().to_string().starts_with("smoke")
                 || module
                     .content
                     .as_ref()
@@ -767,6 +769,89 @@ fn target_key(target: &Target) -> TargetKey {
     )
 }
 
+fn record_build_environment(message: &Value, artifacts: &mut CargoTestArtifacts) -> Result<()> {
+    let package_id = message
+        .get("package_id")
+        .and_then(Value::as_str)
+        .context("build-script result has no package ID")?;
+    let out_dir = message
+        .get("out_dir")
+        .and_then(Value::as_str)
+        .context("build-script result has no OUT_DIR")?;
+    let mut values = BTreeMap::from([(OsString::from("OUT_DIR"), OsString::from(out_dir))]);
+    for pair in message
+        .get("env")
+        .and_then(Value::as_array)
+        .context("build-script result has no environment array")?
+    {
+        let pair = pair
+            .as_array()
+            .filter(|pair| pair.len() == 2)
+            .context("build-script environment row is not a key/value pair")?;
+        let key = pair[0]
+            .as_str()
+            .context("build-script environment key is not a string")?;
+        let value = pair[1]
+            .as_str()
+            .context("build-script environment value is not a string")?;
+        values.insert(OsString::from(key), OsString::from(value));
+    }
+    artifacts
+        .build_environments
+        .entry(package_id.to_owned())
+        .or_default()
+        .push(BuildEnvironment {
+            out_dir: PathBuf::from(out_dir),
+            values,
+        });
+    Ok(())
+}
+
+fn record_compiler_artifact(message: &Value, artifacts: &mut CargoTestArtifacts) -> Result<()> {
+    let Some(executable) = message.get("executable").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let raw_target = message
+        .get("target")
+        .context("compiler artifact has no target")?;
+    let name = raw_target
+        .get("name")
+        .and_then(Value::as_str)
+        .context("compiler artifact target has no name")?;
+    let source = raw_target
+        .get("src_path")
+        .and_then(Value::as_str)
+        .context("compiler artifact target has no source path")?;
+    let raw_kinds: Vec<String> = raw_target
+        .get("kind")
+        .and_then(Value::as_array)
+        .context("compiler artifact target has no kinds")?
+        .iter()
+        .filter_map(Value::as_str)
+        .map(ToOwned::to_owned)
+        .collect();
+    let is_test = message.pointer("/profile/test").and_then(Value::as_bool) == Some(true);
+    if !is_test && raw_kinds.iter().any(|kind| kind == "bin") {
+        let package_id = message
+            .get("package_id")
+            .and_then(Value::as_str)
+            .context("binary artifact has no package ID")?;
+        artifacts.binary_executables.insert(
+            (package_id.to_owned(), name.to_owned()),
+            PathBuf::from(executable),
+        );
+    }
+    if is_test {
+        for kind in canonical_target_kinds(&raw_kinds) {
+            artifacts.executables.insert(
+                (kind, name.to_owned(), PathBuf::from(source)),
+                PathBuf::from(executable),
+            );
+        }
+    }
+    Ok(())
+}
+
 fn cargo_test_executables(
     root: &Path,
     args: &[String],
@@ -780,86 +865,18 @@ fn cargo_test_executables(
         .envs(extra_env);
     let output = command_output(&mut command)?;
     let stdout = String::from_utf8(output.stdout).context("Cargo JSON output is not UTF-8")?;
-    let mut executables = HashMap::new();
-    let mut build_environments: HashMap<String, Vec<BuildEnvironment>> = HashMap::new();
+    let mut artifacts = CargoTestArtifacts::default();
     for line in stdout.lines() {
         let Ok(message) = serde_json::from_str::<Value>(line) else {
             continue;
         };
         if message.get("reason").and_then(Value::as_str) == Some("build-script-executed") {
-            let package_id = message
-                .get("package_id")
-                .and_then(Value::as_str)
-                .context("build-script result has no package ID")?;
-            let out_dir = message
-                .get("out_dir")
-                .and_then(Value::as_str)
-                .context("build-script result has no OUT_DIR")?;
-            let mut values = BTreeMap::from([(OsString::from("OUT_DIR"), OsString::from(out_dir))]);
-            for pair in message
-                .get("env")
-                .and_then(Value::as_array)
-                .context("build-script result has no environment array")?
-            {
-                let pair = pair
-                    .as_array()
-                    .filter(|pair| pair.len() == 2)
-                    .context("build-script environment row is not a key/value pair")?;
-                let key = pair[0]
-                    .as_str()
-                    .context("build-script environment key is not a string")?;
-                let value = pair[1]
-                    .as_str()
-                    .context("build-script environment value is not a string")?;
-                values.insert(OsString::from(key), OsString::from(value));
-            }
-            build_environments
-                .entry(package_id.to_owned())
-                .or_default()
-                .push(BuildEnvironment {
-                    out_dir: PathBuf::from(out_dir),
-                    values,
-                });
-            continue;
-        }
-        if message.get("reason").and_then(Value::as_str) != Some("compiler-artifact")
-            || message.pointer("/profile/test").and_then(Value::as_bool) != Some(true)
-        {
-            continue;
-        }
-        let Some(executable) = message.get("executable").and_then(Value::as_str) else {
-            continue;
-        };
-        let raw_target = message
-            .get("target")
-            .context("compiler artifact has no target")?;
-        let name = raw_target
-            .get("name")
-            .and_then(Value::as_str)
-            .context("compiler artifact target has no name")?;
-        let source = raw_target
-            .get("src_path")
-            .and_then(Value::as_str)
-            .context("compiler artifact target has no source path")?;
-        let raw_kinds: Vec<String> = raw_target
-            .get("kind")
-            .and_then(Value::as_array)
-            .context("compiler artifact target has no kinds")?
-            .iter()
-            .filter_map(Value::as_str)
-            .map(ToOwned::to_owned)
-            .collect();
-        for kind in canonical_target_kinds(&raw_kinds) {
-            executables.insert(
-                (kind, name.to_owned(), PathBuf::from(source)),
-                PathBuf::from(executable),
-            );
+            record_build_environment(&message, &mut artifacts)?;
+        } else if message.get("reason").and_then(Value::as_str) == Some("compiler-artifact") {
+            record_compiler_artifact(&message, &mut artifacts)?;
         }
     }
-    Ok(CargoTestArtifacts {
-        executables,
-        build_environments,
-    })
+    Ok(artifacts)
 }
 
 impl CargoTestArtifacts {
@@ -867,38 +884,47 @@ impl CargoTestArtifacts {
         self.executables.get(&target_key(target))
     }
 
-    fn build_environment(
+    fn runtime_environment(
         &self,
         target: &Target,
         executable: &Path,
     ) -> Result<BTreeMap<OsString, OsString>> {
-        let Some(candidates) = self.build_environments.get(&target.package_id) else {
-            return Ok(BTreeMap::new());
-        };
-        let profile_dir = executable
-            .parent()
-            .and_then(Path::parent)
-            .context("test executable has no Cargo profile directory")?;
-        let matching: Vec<&BTreeMap<OsString, OsString>> = candidates
-            .iter()
-            .filter(|candidate| candidate.out_dir.starts_with(profile_dir))
-            .map(|candidate| &candidate.values)
-            .collect();
-        let Some(first) = matching.first() else {
-            bail!(
-                "no build-script environment for {} matches {}",
-                target.package,
-                executable.display()
-            );
-        };
-        if matching.iter().any(|candidate| *candidate != *first) {
-            bail!(
-                "multiple build-script environments for {} match {}",
-                target.package,
-                executable.display()
-            );
+        let mut environment = BTreeMap::new();
+        if let Some(candidates) = self.build_environments.get(&target.package_id) {
+            let profile_dir = executable
+                .parent()
+                .and_then(Path::parent)
+                .context("test executable has no Cargo profile directory")?;
+            let matching: Vec<&BTreeMap<OsString, OsString>> = candidates
+                .iter()
+                .filter(|candidate| candidate.out_dir.starts_with(profile_dir))
+                .map(|candidate| &candidate.values)
+                .collect();
+            let Some(first) = matching.first() else {
+                bail!(
+                    "no build-script environment for {} matches {}",
+                    target.package,
+                    executable.display()
+                );
+            };
+            if matching.iter().any(|candidate| *candidate != *first) {
+                bail!(
+                    "multiple build-script environments for {} match {}",
+                    target.package,
+                    executable.display()
+                );
+            }
+            environment.extend((*first).clone());
         }
-        Ok((*first).clone())
+        for ((package_id, name), path) in &self.binary_executables {
+            if package_id == &target.package_id {
+                environment.insert(
+                    OsString::from(format!("CARGO_BIN_EXE_{name}")),
+                    path.as_os_str().to_os_string(),
+                );
+            }
+        }
+        Ok(environment)
     }
 }
 
@@ -955,6 +981,11 @@ fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Co
     } else {
         Command::new(executable)
     };
+    for (name, _) in env::vars_os() {
+        if name.to_string_lossy().starts_with("CARGO_BIN_EXE_") {
+            command.env_remove(name);
+        }
+    }
     command
         .current_dir(context.package_root)
         .envs(context.package_environment)
@@ -1132,7 +1163,7 @@ fn execute_manifest(
                 .get(&target.package)
                 .with_context(|| format!("missing package environment for {}", target.package))?
                 .clone();
-            package_environment.extend(executables.build_environment(target, executable)?);
+            package_environment.extend(executables.runtime_environment(target, executable)?);
             let context = HarnessContext {
                 package_root,
                 package_environment: &package_environment,
@@ -1248,7 +1279,7 @@ const CARGO_FIXTURE_FILES: &[(&str, &str)] = &[
     (
         "Cargo.toml",
         r#"[workspace]
-members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
 resolver = "2"
 "#,
     ),
@@ -1448,6 +1479,23 @@ path = "benches/bench.rs"
         "k/benches/bench.rs",
         "#[test]\nfn ordinary_bench_test() {}\n",
     ),
+    (
+        "l/Cargo.toml",
+        r#"[package]
+name = "l"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "helper-tool"
+path = "src/main.rs"
+"#,
+    ),
+    ("l/src/main.rs", "fn main() {}\n"),
+    (
+        "l/tests/smoke.rs",
+        "#[test]\nfn smoke_binary_path() { assert!(std::path::Path::new(&std::env::var(\"CARGO_BIN_EXE_helper-tool\").unwrap()).is_file()); }\n",
+    ),
 ];
 
 fn verify_fixture_metadata(targets: &[Target]) -> Result<()> {
@@ -1500,7 +1548,7 @@ fn verify_fixture_libraries(
         .executable(e_target)
         .context("fixture package e has no library executable")?;
     let mut e_environment = package_environments["e"].clone();
-    e_environment.extend(library_artifacts.build_environment(e_target, e_executable)?);
+    e_environment.extend(library_artifacts.runtime_environment(e_target, e_executable)?);
     let e_context = HarnessContext {
         package_root: &package_roots["e"],
         package_environment: &e_environment,
@@ -1587,6 +1635,36 @@ fn verify_fixture_collision_and_bench(
     Ok(())
 }
 
+fn verify_fixture_binary_environment(
+    fixture: &Fixture,
+    package_roots: &HashMap<String, PathBuf>,
+    package_environments: &PackageEnvironments,
+    targets: &[Target],
+    runtime: &CargoRuntime,
+    extra_env: &BTreeMap<OsString, OsString>,
+    runtime_library: &Path,
+) -> Result<()> {
+    let smoke_target = fixture_target(targets, "l", "smoke")?;
+    let args = cargo_target_args("test", "smoke", false);
+    let artifacts = cargo_test_executables(&fixture.root, &args, extra_env)?;
+    let executable = artifacts
+        .executable(smoke_target)
+        .context("fixture package l has no integration-test executable")?;
+    let mut environment = package_environments["l"].clone();
+    environment.extend(artifacts.runtime_environment(smoke_target, executable)?);
+    if !environment.contains_key(OsStr::new("CARGO_BIN_EXE_helper-tool")) {
+        bail!("Cargo binary executable environment self-test failed");
+    }
+    let context = HarnessContext {
+        package_root: &package_roots["l"],
+        package_environment: &environment,
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+    };
+    run_harness(smoke_target, executable, &context, false, true)?;
+    Ok(())
+}
+
 fn cargo_fixture_self_test() -> Result<()> {
     let fixture = Fixture::new()?;
     for &(relative, contents) in CARGO_FIXTURE_FILES {
@@ -1640,6 +1718,15 @@ fn cargo_fixture_self_test() -> Result<()> {
         &runtime_library,
     )?;
     verify_fixture_collision_and_bench(
+        &fixture,
+        &package_roots,
+        &package_environments,
+        &targets,
+        &runtime,
+        &extra_env,
+        &runtime_library,
+    )?;
+    verify_fixture_binary_environment(
         &fixture,
         &package_roots,
         &package_environments,
@@ -1712,6 +1799,7 @@ fn self_test() -> Result<()> {
         "pub unsafe extern \"C-unwind\" fn smoke_hook() {}",
         "pub(crate) const unsafe extern fn smoke_qualified() {}",
         "#[test]\npub(crate)\nunsafe\nextern \"C\"\nfn smoke_split() {}",
+        "#[test]\nfn r#smoke_raw() {}",
     ] {
         let parsed = syn::parse_file(source).context("parsing smoke scanner self-test")?;
         if !items_contain_smoke_declaration(&parsed.items) {
