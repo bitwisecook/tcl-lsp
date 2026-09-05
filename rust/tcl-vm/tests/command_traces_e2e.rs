@@ -282,6 +282,51 @@ const VECTORS: &[Vector] = &[
         want: "in:{rename cb}|{rename cb}\n\
                after:{delete dd} {rename cb}\n\
                D:::victim3||delete",
+    // `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone. C sets it
+    // in exactly one place — `TraceExecutionProc` (tclTrace.c 9.0.4:1765),
+    // around an `enter`/`leave`/`enterstep`/`leavestep` callback — and reads
+    // it in exactly one place, `TclCheckInterpTraces` (:1426), the step
+    // machinery. `CallCommandTraces` sets nothing, so a command a
+    // `rename`/`delete` callback dispatches is traced like any other.
+    Vector {
+        name: "a command-trace callback does not untrace what it dispatches",
+        script: "proc a {} { return A }\n\
+                 proc E args { puts \"E:[join $args |]\" }\n\
+                 trace add execution a enter E\n\
+                 proc victim {} {}\n\
+                 proc D args { puts \"D:[a]\" }\n\
+                 trace add command victim delete D\n\
+                 rename victim {}\n\
+                 proc victim2 {} {}\n\
+                 proc R args { puts \"R:[a]\" }\n\
+                 trace add command victim2 rename R\n\
+                 rename victim2 victim3\n",
+        want: "E:a|enter\nD:A\nE:a|enter\nR:A",
+    },
+    Vector {
+        name: "a step scope steps a delete callback's own commands",
+        script: "proc st args { puts \"S:[lindex $args 0]\" }\n\
+                 proc victim {} {}\n\
+                 proc cb args { set q 1 }\n\
+                 trace add command victim delete cb\n\
+                 proc driver {} { rename victim {} }\n\
+                 trace add execution driver enterstep st\n\
+                 driver\n",
+        want: "S:rename victim {}\nS:cb ::victim {} delete\nS:set q 1",
+    },
+    // The other side of the same gate, which must keep holding: an execution
+    // callback does raise it, so its own commands are never step-observed —
+    // while the traced command's body still is.
+    Vector {
+        name: "an execution callback's own commands are not step-observed",
+        script: "proc st args { puts \"S:[lindex $args 0]\" }\n\
+                 proc b {} { return B }\n\
+                 proc eb args { set z 9; puts eb }\n\
+                 trace add execution b enter eb\n\
+                 proc driver {} { b }\n\
+                 trace add execution driver enterstep st\n\
+                 driver\n",
+        want: "S:b\neb\nS:return B",
     },
     Vector {
         name: "namespace-qualified names arrive fully qualified",

@@ -223,15 +223,22 @@ pub struct TraceTable {
     /// **delete** walk holds the dying token's list, so a callback that
     /// re-creates the command under the same name takes the name-keyed table
     /// entry over without cancelling the remaining callbacks; only an explicit
-    /// untrace does. Recorded only while `exec_firing > 0` and cleared when the
-    /// outermost walk ends, so it never grows unbounded.
+    /// untrace does. Recorded only while a walk is in flight
+    /// ([`Self::trace_walk_in_flight`]) and cleared when the outermost one
+    /// ends, so it never grows unbounded.
     pub untraced_cmd_trace_ids: Vec<u64>,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
-    /// Non-zero while a command/execution trace callback is running — C's
-    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant execution/step firing
-    /// so a callback that invokes the traced command doesn't recurse.
+    /// Non-zero while an **execution** trace callback (`enter`/`leave`/
+    /// `enterstep`/`leavestep`) is running — C's `INTERP_TRACE_IN_PROGRESS`,
+    /// which `TraceExecutionProc` sets around exactly those callbacks
+    /// (tclTrace.c 9.0.4:1765) and nothing else sets. A `rename`/`delete`
+    /// callback does **not** raise it: C's `CallCommandTraces` sets no flag, so
+    /// a command such a callback dispatches is traced like any other. Re-entry
+    /// into a command's own `rename`/`delete` traces is suppressed per command
+    /// by [`Self::firing_cmd_traces`] instead, and that list is also what marks
+    /// such a walk in flight (see [`Self::trace_walk_in_flight`]).
     pub exec_firing: usize,
     /// The commands whose `rename`/`delete` traces are currently firing. C
     /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a
@@ -252,6 +259,21 @@ pub struct TraceTable {
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
     pub pending_err: Option<Vec<u8>>,
+}
+
+impl TraceTable {
+    /// Whether a command or execution trace walk is in flight — the window in
+    /// which a `trace remove` has to be recorded so the walk skips the
+    /// registration it unlinked (see [`Self::untraced_cmd_trace_ids`]).
+    ///
+    /// Two pieces of state, because the two walks are marked differently: an
+    /// execution callback raises [`Self::exec_firing`], C's
+    /// `INTERP_TRACE_IN_PROGRESS`, while a `rename`/`delete` walk deliberately
+    /// raises nothing of the sort — C's `CallCommandTraces` sets no interpreter
+    /// flag — and is marked only by its entry in [`Self::firing_cmd_traces`].
+    pub fn trace_walk_in_flight(&self) -> bool {
+        self.exec_firing > 0 || !self.firing_cmd_traces.is_empty()
+    }
 }
 
 /// Whether `t` belongs to the resolved variable identity. Namespace variables
@@ -501,7 +523,7 @@ fn cmd_trace_add_remove(
             .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
             let mut traces = interp.traces.borrow_mut();
-            if traces.exec_firing > 0 {
+            if traces.trace_walk_in_flight() {
                 let id = traces.cmd_traces[i].id;
                 traces.untraced_cmd_trace_ids.push(id);
             }

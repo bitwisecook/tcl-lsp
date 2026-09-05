@@ -265,11 +265,31 @@ the same variable does not re-fire itself. Command-trace firing is gated the
 way C gates it — **per command**, on the command whose traces are running
 (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a deletion), not interpreter-wide: a
 callback that deletes a *different* command still fires that command's own
-delete traces, nested inside the first. Execution and step traces keep the
-interpreter-wide gate (`INTERP_TRACE_IN_PROGRESS`), so a callback's own
-dispatches are never step-observed. The interpreter result is preserved across
-every callback (held with an explicit `+1` and restored afterwards), so a trace
-cannot clobber the result of the operation it observed.
+delete traces, nested inside the first. The interpreter result is preserved
+across every callback (held with an explicit `+1` and restored afterwards), so
+a trace cannot clobber the result of the operation it observed.
+
+The interpreter-wide gate (`INTERP_TRACE_IN_PROGRESS`) belongs to **execution
+traces alone**. C sets it in exactly one place — `TraceExecutionProc`
+(`tclTrace.c` 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep`
+callback — and reads it in exactly one place, `TclCheckInterpTraces` (:1426),
+the step machinery. So an execution callback's own dispatches are never
+step-observed, while `CallCommandTraces` sets nothing at all: a command a
+`rename`/`delete` callback dispatches is traced like any other — its
+`enter`/`leave` traces fire, and an enclosing step scope steps both the
+callback's invocation and the commands its body runs. Both runtimes used to
+raise their stand-in (`TraceTable::exec_firing`, and the VM's
+`trace_in_progress`) for command callbacks too, which silently untraced
+everything such a callback dispatched.
+
+**Known gap:** both stand-ins are still *read* more broadly than C reads its
+flag — at the whole traced-dispatch fast path rather than only in the step
+machinery — so inside an execution callback a **different** command's
+`enter`/`leave` traces do not fire, where C's `TclCheckExecutionTraces`, which
+never consults the flag, fires them. Narrowing the read means first giving
+`runtime/rust` C's per-trace `TCL_TRACE_EXEC_IN_PROGRESS` (:1655), because the
+interp-wide read is currently also supplying that re-entrancy rule; the VM
+already carries it per entry (`CmdTraceEntry::firing`).
 
 A read or write callback that errors reshapes the operation's result
 (`can't read "NAME": …` / `can't set "NAME": …`) and stops further firing —

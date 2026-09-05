@@ -3960,11 +3960,20 @@ impl Interp {
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
-        {
-            let mut traces = self.traces.borrow_mut();
-            traces.exec_firing += 1;
-            traces.firing_cmd_traces.push(key.to_vec());
-        }
+        // Only `firing_cmd_traces` is raised, never `exec_firing`: C sets
+        // `INTERP_TRACE_IN_PROGRESS` in exactly one place — `TraceExecutionProc`
+        // (tclTrace.c 9.0.4:1765), around an *execution* trace's callback —
+        // and `CallCommandTraces` sets nothing. So a command dispatched from a
+        // `rename`/`delete` callback is traced like any other: its `enter` and
+        // `leave` traces fire, and an enclosing `enterstep`/`leavestep` scope
+        // steps the callback's own commands. Re-entering *this* command's
+        // rename/delete traces is what is suppressed, per command, above.
+        // `firing_cmd_traces` is therefore what marks this walk as in flight
+        // for `TraceTable::trace_walk_in_flight`.
+        self.traces
+            .borrow_mut()
+            .firing_cmd_traces
+            .push(key.to_vec());
         for (id, cmd) in entries {
             if self.cmd_trace_untraced(id) {
                 continue;
@@ -3983,9 +3992,8 @@ impl Interp {
         }
         {
             let mut traces = self.traces.borrow_mut();
-            traces.exec_firing -= 1;
             traces.firing_cmd_traces.pop();
-            if traces.exec_firing == 0 {
+            if !traces.trace_walk_in_flight() {
                 traces.untraced_cmd_trace_ids.clear();
             }
         }

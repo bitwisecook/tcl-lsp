@@ -1090,3 +1090,98 @@ fn a_twice_nested_rename_keeps_retargeting_the_enclosing_window() {
          after: 0 0 0 1 V"
     );
 }
+
+// -- `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone -----------
+//
+// C sets that flag in exactly one place — `TraceExecutionProc` (tclTrace.c
+// 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep` callback —
+// and reads it in exactly one place, `TclCheckInterpTraces` (:1426), the step
+// machinery. `CallCommandTraces` sets nothing. The runtime used to raise its
+// `exec_firing` stand-in for `rename`/`delete` callbacks too, which silently
+// untraced everything they dispatched.
+
+/// A command invoked from a `rename` or `delete` callback is traced like any
+/// other: its `enter` traces fire, exactly as they do outside one.
+#[test]
+fn a_command_trace_callback_does_not_untrace_what_it_dispatches() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc E args { lappend ::log \"E:[join $args |]\" }\n\
+         trace add execution a enter E\n\
+         proc victim {} {}\n\
+         proc D args { lappend ::log \"D:[a]\" }\n\
+         trace add command victim delete D\n\
+         rename victim {}\n\
+         proc victim2 {} {}\n\
+         proc R args { lappend ::log \"R:[a]\" }\n\
+         trace add command victim2 rename R\n\
+         rename victim2 victim3\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "E:a|enter\nD:A\nE:a|enter\nR:A\nE:a|enter\nout:A");
+}
+
+/// The step half of the same rule: an enclosing `enterstep` scope observes the
+/// callback's own invocation *and* the commands its body runs, because a
+/// command trace never raises the interp-wide gate.
+#[test]
+fn a_step_scope_steps_a_delete_callbacks_own_commands() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc st args { lappend ::log \"S:[lindex $args 0]\" }\n\
+         proc victim {} {}\n\
+         proc cb args { set q 1 }\n\
+         trace add command victim delete cb\n\
+         proc driver {} { rename victim {} }\n\
+         trace add execution driver enterstep st\n\
+         driver\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "S:rename victim {}\nS:cb ::victim {} delete\nS:set q 1"
+    );
+}
+
+/// The other side of the gate, which must keep holding: an *execution*
+/// callback does raise it, so the callback's own commands are never
+/// step-observed — while the traced command's body still is.
+#[test]
+fn an_execution_callbacks_own_commands_are_not_step_observed() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc st args { lappend ::log \"S:[lindex $args 0]\" }\n\
+         proc b {} { return B }\n\
+         proc eb args { set z 9; lappend ::log eb }\n\
+         trace add execution b enter eb\n\
+         proc driver {} { b }\n\
+         trace add execution driver enterstep st\n\
+         driver\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "S:b\neb\nS:return B");
+}
+
+/// And the re-entrancy rule the gate also has to keep: a trace whose callback
+/// invokes the traced command does not fire again for that inner call (C's
+/// per-trace `TCL_TRACE_EXEC_IN_PROGRESS`, tclTrace.c 9.0.4:1655).
+// The sheet guards the inner call with `if`, which only the tower build
+// registers.
+#[cfg(have_tommath)]
+#[test]
+fn an_execution_trace_does_not_re_fire_inside_its_own_callback() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc ea args {\n\
+         \x20   lappend ::log ea\n\
+         \x20   if {![info exists ::d]} { set ::d 1; lappend ::log \"in:[a]\" }\n\
+         }\n\
+         trace add execution a enter ea\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "ea\nin:A\nout:A");
+}
