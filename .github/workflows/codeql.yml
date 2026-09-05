@@ -69,10 +69,20 @@ jobs:
           # the repo uses it in ~220 ``if TYPE_CHECKING:`` mixin forward-decls;
           # the rule is a recommendation-severity style check that is pure noise
           # here, so exclude it rather than contort idiomatic stubs into ``pass``.
+          #
+          # `paths-ignore` drops machine-generated and vendored JavaScript.
+          # `frontend/dist/*.js` is esbuild output whose banner says DO NOT
+          # EDIT — every alert there is a duplicate of one in the `src/` .ts it
+          # was bundled from, which IS scanned.  `assets/*.js` is wasm-bindgen
+          # glue plus the vendored ELK bundle: neither is written here, so an
+          # alert in one is unactionable and would never close.
           config: |
             query-filters:
               - exclude:
                   id: py/ineffectual-statement
+            paths-ignore:
+              - rust/bigip-report-gen/frontend/dist
+              - rust/bigip-report-gen/assets/*.js
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
