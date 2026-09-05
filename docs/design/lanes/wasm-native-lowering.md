@@ -1569,5 +1569,6 @@ control: both have procedures that lower and are admissible, but their `proc`
 statements sit after a `namespace eval` / a widening command, so no definition
 takes the native shape, nothing is bound, and their numbers do not move.
 
-Two rows are new: `35_native_dispatch_matrix` (0/0/45/29) and
+Two rows are new: `35_native_dispatch_matrix`
+(`eval_code / expr_bool / invoke_argv / native_i64_f64` = 0/0/62/29) and
 `36_proc_error_info` (0/0/17/0).

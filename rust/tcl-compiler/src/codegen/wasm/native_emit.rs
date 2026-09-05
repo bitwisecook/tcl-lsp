@@ -1089,18 +1089,18 @@ impl Emitter<'_, '_> {
 
     fn emit_statement(&mut self, statement: &NativeStatement) {
         let code = self.code_local(statement.completion);
-        let materialise = (self.proc_entry() && self.returned.contains(&statement.completion))
-            .then(|| result_source(statement))
-            .flatten();
+        // A proc entry hands the completions a `Return` reads to the runtime,
+        // so those — and only those — have to carry the statement's Tcl
+        // result. Every other completion is read by a completion switch,
+        // which looks at the code alone.
+        let escapes = self.proc_entry() && self.returned.contains(&statement.completion);
+        let materialise = escapes.then(|| result_source(statement)).flatten();
         self.i32(0);
         self.set(code);
-        if matches!(
-            materialise,
-            Some(ResultSource::Empty | ResultSource::Value(_))
-        ) {
+        if escapes {
             // An edge that abandons the statement must report the runtime's
-            // own result, not the one a previous execution of this same
-            // statement left in the slot.
+            // own result — the error message the failing operation set — not
+            // the one a previous execution of this same statement left here.
             self.i32(0);
             self.set_owned(code + 1);
         }
