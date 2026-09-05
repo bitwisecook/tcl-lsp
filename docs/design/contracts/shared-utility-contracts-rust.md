@@ -32,7 +32,7 @@ entry point, or gate moves without this contract being updated.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
-| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes`; `TclStringHashOrder` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `worded_parse_error` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
@@ -49,6 +49,7 @@ entry point, or gate moves without this contract being updated.
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
+| expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
 | nested command-substitution words | `rust/tcl-compiler/src/word_subst.rs` | `nested_command_words`; `NestedWordsDecline`; `lifted_calls`; `lifted_exprs`; `LiftedCall` | `LexerConfig` per document dialect, inherited from the segmentation owner it runs | none |
 | parse-error cut | `rust/tcl-lexer/src/parse_cut.rs` | `first_parse_cut`; `first_parse_cut_in`; `ParseCut`; `EXTRA_AFTER_CLOSE_QUOTE` | `LexerConfig` per emulated release, inherited from the segmentation and word-component owners it walks | `xtask-segmentation-drift` |
@@ -174,7 +175,13 @@ entry point, or gate moves without this contract being updated.
   option-table matcher below — boolean words have a fixed six-word
   vocabulary with cross-set ambiguity (`o`), so it stays here.
 - `expr` — the expression AST, parser, evaluator seam, and walk
-  (`ExprOps`, `mathfunc`).
+  (`ExprOps`, `mathfunc`). The math-function table is one dispatch over
+  `NumValue<B>` for both engines and the const-folder, with the two release
+  axes (`MathFuncSince`, `IntWidth`) and the typed refusals (`MathFuncError`)
+  owned here rather than re-derived per engine.
+- `rand` — the Park-Miller `rand()`/`srand()` generator both engines call
+  (step, seed nudge, and C's reciprocal-multiply scaling). Only seed storage
+  and the first-seed policy are per engine (#1432).
 - `backslash` — the byte-slice convenience over the lexer's decoder
   (see next); deliberately no second decode implementation.
 
@@ -806,7 +813,10 @@ helper without reading the rationale:
   doctests; `rust/tcl-syntax/tests/command_resolution_conformance.rs`
   (tclsh-pinned; `tcl-compiler` and `tcl-vm` each carry a same-named suite
   for their own layer).
-- `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`.
+- `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`,
+  and the `tcl_string_hash_order_*` suite pinning the retained
+  `TCL_STRING_KEYS` table both namespace child and namespace command
+  teardown enumerate.
 - `rust/tcl-cmd-core/src/prefix.rs` — C-parity unit tests (empty-key,
   empty-entry, exact-mode wording).
 - `rust/tcl-cmd-core/src/ensemble.rs` — the two option tables, the
@@ -903,9 +913,10 @@ helper without reading the rationale:
   was considered and rejected — it would make `runtime/rust` re-lex every
   command it evaluates, and its parse is infallible by design where the
   owner's returns an `Option`. This differential is what keeps the two
-  applications one policy; it runs under `make runtime-rust-test`, and it
-  pins the close-quote weld (`"a"b`) as the one shape they still answer
-  differently.
+  applications one policy; it runs under `make runtime-rust-test`. It once
+  pinned the close-quote weld (`"a"b`) as the one shape the two answered
+  differently; #1828 closed that through
+  `WordSpan::welded_after_close_quote`, and no divergence is pinned.
 
 ## Discoverability
 

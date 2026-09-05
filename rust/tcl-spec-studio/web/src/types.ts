@@ -133,11 +133,35 @@ export interface IndexEntry {
   subcommands: number;
   options: number;
   deprecated: boolean;
+  /** The `commands/<pack>/` module this very spec is declared in. */
+  pack: string;
+  /** The other packs declaring the same name — `close` is tcl, expect, irules. */
+  also_in: string[];
 }
 
 export interface CommandIndex {
   dialect: string;
   commands: IndexEntry[];
+}
+
+/** One authoring pack, from `pack_catalogue`. */
+export interface PackRow {
+  id: string;
+  label: string;
+  blurb: string;
+  /** How many of this dialect's commands the pack contributes. */
+  commands: number;
+  /** Where the pack lives in the repository, for an author who wants to look. */
+  path: string;
+}
+
+/**
+ * The packs a dialect browses, in the order the studio shows them: the core
+ * language, then what layers on it, then the vendor and authoring surfaces.
+ */
+export interface PackCatalogue {
+  dialect: string;
+  packs: PackRow[];
 }
 
 /** A dialect the studio can browse. */
@@ -420,6 +444,7 @@ export interface StudioWasm {
   schema(): string;
   dialects(): string;
   command_index(dialect: string): string;
+  pack_catalogue(dialect: string): string;
   load_command(name: string, dialect: string): string;
   new_command(): string;
   new_subcommand(): string;

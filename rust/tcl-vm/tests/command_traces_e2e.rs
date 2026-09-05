@@ -470,6 +470,37 @@ const VECTORS: &[Vector] = &[
                B1\n\
                b-exists:b b-traces:",
     },
+    // The *execution* walk answers the opposite way, and this pins the
+    // difference. `TclCheckExecutionTraces` follows the list of whatever
+    // command the name holds now, so a callback that redefines the traced
+    // command stops the rest of that walk — `E1` and `L1` never run — where the
+    // delete walk above keeps firing the dying token's list. Measured on tclsh
+    // 8.6.16 and 9.0.4. The two loops therefore ask different questions: the
+    // execution one re-reads the name-keyed table, the delete one consults each
+    // registration's own untraced mark.
+    Vector {
+        name: "an execution callback redefining the command stops the rest of that walk",
+        script: "proc t {} { return T }\n\
+                 proc E1 args { puts E1 }\n\
+                 proc E2 args { puts E2\n\
+                 proc t {} { return T2 } }\n\
+                 trace add execution t enter E1\n\
+                 trace add execution t enter E2\n\
+                 puts \"call:[t] traces:[trace info execution t]\"\n\
+                 puts ---\n\
+                 proc u {} { return U }\n\
+                 proc L1 args { puts L1 }\n\
+                 proc L2 args { puts L2\n\
+                 proc u {} { return U2 } }\n\
+                 trace add execution u leave L2\n\
+                 trace add execution u leave L1\n\
+                 puts \"call:[u] traces:[trace info execution u]\"\n",
+        want: "E2\n\
+               call:T2 traces:\n\
+               ---\n\
+               L2\n\
+               call:U traces:",
+    },
     // Row 9: `Tcl_DeleteCommandFromToken` marks the command `CMD_DYING`
     // (`tclBasic.c` 9.0.4:3760), fires the delete traces while its hash entry
     // still exists (:3793), and removes that entry only through

@@ -158,6 +158,10 @@ function dispatch(data) {
 }
 
 self.onmessage = (event) => {
+  // A dedicated worker's creating document posts with an empty origin, so that
+  // is the normal case here; anything carrying a real origin can only be a
+  // cross-document post, which this worker never serves.
+  if (event.origin !== "" && event.origin !== self.location.origin) return;
   if (server === null) {
     backlog.push(event.data);
     return;

@@ -17,9 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as path from "path";
-import * as fs from "fs";
 import { runWatchedSuite } from "./runnerWatchdog";
-import { resolveTestUserDataDir } from "./testUserDataDir";
+import { createTestUserDataDir } from "./testUserDataDir";
 
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
@@ -39,19 +38,10 @@ async function main() {
   );
 
   // Kept out of the checkout and short enough for the IPC socket's `sun_path`
-  // budget — see resolveTestUserDataDir for the arithmetic.
-  const userDataDir = resolveTestUserDataDir(extensionDevelopmentPath);
-  // Clear persisted user settings from prior test runs so tests start
-  // with a clean slate.  Settings modified via workspace.getConfiguration
-  // .update() persist in the user-data directory and can pollute
-  // subsequent runs.
-  const userSettingsFile = path.resolve(userDataDir, "User", "settings.json");
-  try {
-    fs.mkdirSync(path.dirname(userSettingsFile), { recursive: true });
-    fs.writeFileSync(userSettingsFile, "{}\n", "utf8");
-  } catch {
-    // Best-effort; if we can't clear it the tests may see stale config.
-  }
+  // budget — see createTestUserDataDir for the arithmetic. It is private to
+  // this run, so no setting a test writes through
+  // `workspace.getConfiguration().update()` can pollute the next one.
+  const userDataDir = createTestUserDataDir();
 
   // The workspace to open during tests
   const testWorkspace = path.resolve(extensionDevelopmentPath, "testFixture");

@@ -1381,6 +1381,25 @@ Because each profile's registry is built once and cached, there is no
 invalidation protocol to observe — a consumer holds an immutable registry
 for the dialect it asked about.
 
+### Authoring pack -- where a spec is written down
+
+A shipped spec also knows which `commands/<id>/` module declares it.
+`SPEC_PACKS` (`commands/mod.rs`) is the table of the thirteen authoring
+modules, with a label and blurb each, and
+`spec_pack_of(&'static CommandSpec)` (`registry.rs`) names the one that
+declares a resolved spec. This is provenance, not availability: `SpecSurface`
+says where a command is *reachable from*, a pack says where its spec is
+*written down*, and the two disagree whenever a dialect surfaces a spec it
+did not author — iRules' `open` is `commands/tcl/`'s. The lookup takes the
+spec rather than its name because seventeen names are declared in more than
+one pack and each dialect registers one of them; `spec_packs_of(name)` is
+the by-name question, for a caller that means it. `tmsh` is not a row (its
+specs are a filtered view of `commands/iapps/`), and neither are the EDA
+libraries: a `.tclspec`'s provenance is the file, which the loader reports,
+so `spec_pack_of` answers `None` for any pack-loaded spec. The reasoning,
+and the studio's use of it, is in
+[`command-spec-studio.md`](../contracts/command-spec-studio.md#the-browser-is-a-stack-of-packs).
+
 ### How registry feeds the compiler
 
 | Stage | Registry fields used |
@@ -1600,10 +1619,13 @@ is what that looks like from the outside.
   `CommandSpec` ending in `..CommandSpec::DEFAULT`, then declare it (`mod
   foo_;`) and list `foo_::spec(),` in the pack's `<pack>_command_specs()`
   collector.  For a new dialect pack, add its collector to
-  `CommandRegistry::load_dialect`.  An EDA/vendor *library* is not a Rust
-  module: add or edit its `.tclspec` under `specs/` instead — those packs are
-  the source of truth for their commands and there is no generator to re-run
-  (see [`../spec-packs.md`](../spec-packs.md)).
+  `CommandRegistry::load_dialect`, a `SPEC_PACKS` row in `commands/mod.rs`,
+  and an `authored_groups` entry in `registry.rs` —
+  `tests/spec_pack_provenance.rs` fails by command name until both exist.
+  An EDA/vendor *library* is not a Rust module: add or edit its `.tclspec`
+  under `specs/` instead — those packs are the source of truth for their
+  commands and there is no generator to re-run (see
+  [`../spec-packs.md`](../spec-packs.md)).
 - To add taint tracking: set `taint_source` / `taint_transform` / the
   `taint_*_sink*` fields on the spec, and the `TAINT_SOURCE` / `TAINT_SINK`
   trait bits that go with them.

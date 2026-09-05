@@ -231,6 +231,9 @@ pub struct CodegenCtx<'r> {
     /// each command's surface text for `errorInfo` (`while executing "…"`).
     /// Empty when the caller did not supply it (hand-built test contexts).
     source: std::rc::Rc<str>,
+    /// The lexer-owned line index for [`Self::source`]. Production module
+    /// emission shares one Arc-backed index across every function context.
+    line_index: Option<tcl_lexer::LineIndex>,
     /// Per-argument "is a braced (`{…}`) word" flags for the command currently
     /// dispatching to a codegen hook (`try_bytecoded`). Set by [`Self::emit_call`]
     /// from the command's tokens and consulted by [`Self::emit_word_arg`] so a
@@ -298,6 +301,7 @@ impl<'r> CodegenCtx<'r> {
             registry,
             command_bindings: None,
             source: "".into(),
+            line_index: None,
             cmd_arg_braced: Vec::new(),
         }
     }
@@ -306,6 +310,18 @@ impl<'r> CodegenCtx<'r> {
     /// carry their command's surface text for `errorInfo`.
     pub fn set_source(&mut self, source: &str) {
         self.source = source.into();
+        self.line_index = (!source.is_empty()).then(|| tcl_lexer::LineIndex::new(source));
+    }
+
+    /// Install the module source and its already-built line index. The module
+    /// emitter uses this path so procedure contexts share both allocations.
+    pub(super) fn set_indexed_source(
+        &mut self,
+        source: std::rc::Rc<str>,
+        line_index: tcl_lexer::LineIndex,
+    ) {
+        self.line_index = (!source.is_empty()).then_some(line_index);
+        self.source = source;
     }
 
     /// Whether `name` still denotes its original builtin everywhere in this
@@ -359,21 +375,27 @@ impl<'r> CodegenCtx<'r> {
         if self.source.is_empty() {
             return 0;
         }
-        let start = span.start() as usize;
-        let prefix = self.source.get(..start).unwrap_or("");
-        1 + u32::try_from(prefix.bytes().filter(|&b| b == b'\n').count()).unwrap_or(0)
+        self.line_at(span.start())
+    }
+
+    /// The indexed 1-based line containing `offset`.
+    fn line_at(&self, offset: u32) -> u32 {
+        let Some(line_index) = &self.line_index else {
+            return 1;
+        };
+        if usize::try_from(offset).map_or(true, |offset| offset > self.source.len()) {
+            return 1;
+        }
+        line_index.position_at(offset).line.saturating_add(1)
     }
 
     /// The 1-based line of `current_span` within the module source — the line a
     /// command reports in `errorInfo` (`(procedure … line N)` / `("while" body
-    /// line N)`). `0` when no span / source is available.
+    /// line N)`). `0` when no span is available. A hand-built context with a
+    /// span but no source retains the historical line-one fallback.
     fn span_line(&self) -> u32 {
         match self.current_span {
-            Some(sp) => {
-                let start = sp.start() as usize;
-                let prefix = self.source.get(..start).unwrap_or("");
-                1 + u32::try_from(prefix.bytes().filter(|&b| b == b'\n').count()).unwrap_or(0)
-            }
+            Some(sp) => self.line_at(sp.start()),
             None => 0,
         }
     }
@@ -431,5 +453,47 @@ impl<'r> CodegenCtx<'r> {
             body_base_line: 0,
             error_regions: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_lines_are_indexed_at_byte_boundaries() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.set_source("alpha\nβeta\n\ngamma");
+
+        for (offset, expected) in [(0, 1), (5, 1), (6, 2), (11, 2), (12, 3), (13, 4)] {
+            assert_eq!(ctx.source_line(Span::empty(offset)), expected, "{offset}");
+        }
+
+        assert_eq!(ctx.source_line(Span::empty(99)), 1);
+
+        ctx.current_span = Some(Span::empty(13));
+        let instruction = ctx.emit(Op::NOP, Vec::new());
+        assert_eq!(ctx.instructions[instruction].source_line, 4);
+
+        let mut empty = CodegenCtx::new(false, &[], &registry);
+        assert_eq!(empty.source_line(Span::empty(0)), 0);
+        empty.current_span = Some(Span::empty(0));
+        let instruction = empty.emit(Op::NOP, Vec::new());
+        assert_eq!(empty.instructions[instruction].source_line, 1);
+
+        let source: std::rc::Rc<str> = "shared\nsource".into();
+        let source_clone = std::rc::Rc::clone(&source);
+        let line_index = tcl_lexer::LineIndex::new(&source);
+        let line_index_clone = line_index.clone();
+        let mut shared = CodegenCtx::new(false, &[], &registry);
+        shared.set_indexed_source(source, line_index);
+        assert!(std::rc::Rc::ptr_eq(&shared.source, &source_clone));
+        assert!(
+            shared
+                .line_index
+                .as_ref()
+                .is_some_and(|index| index.shares_storage_with(&line_index_clone)),
+        );
     }
 }

@@ -151,7 +151,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack + wasm-bindgen-cli
-        uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           # wasm-bindgen-cli must match the wasm-bindgen crate version pinned in
           # rust/bigip-report-gen/wasm/Cargo.toml.
@@ -211,10 +211,16 @@ jobs:
       # Pages serves it: the page loads under its own CSP, Monaco mounts, and
       # the language server worker answers `initialize`. The check skips itself
       # where chromium is unavailable rather than failing.
+      #
+      # Version-pinned: an unpinned `npm install playwright` resolves whatever
+      # is newest at run time, so the browser this smoke test drives could
+      # change under us between two deploys of the same commit.
       - name: Install playwright chromium
+        env:
+          PLAYWRIGHT_VERSION: "1.63.0"
         run: |
           cd rust/tcl-spec-studio/web
-          npm install --no-save playwright
+          npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
           npx playwright install --with-deps chromium
 
       - name: Boot the assembled spec studio in headless chromium
@@ -233,7 +239,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          python -m pip install --upgrade pip maturin
+          python -m pip install "pip==26.2.1" "maturin==1.15.0"
           # maturin develop installs f5report editable against the source tree,
           # so the vendored Mermaid + wasm engine (committed under
           # python/f5report/vendor/) are embedded — GitHub Pages has no strict
@@ -349,4 +355,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -126,8 +126,32 @@ not decide which group runs first — only the order within a group.
 The same head-first rule decides **which** registration a `trace remove`
 deletes: C breaks at the first match, so among identical duplicates the newest
 goes. Every removal site therefore searches from the newest end (`rposition`
-over our oldest-first Vecs), as do the teardown paths that collect a
-namespace's unset and command-delete traces before firing them.
+over our oldest-first Vecs), as does the teardown path that collects a
+namespace's unset traces before firing them.
+
+Namespace teardown fires **command**-delete traces one command at a time, in
+the order `TclTeardownNamespace` snapshots `nsPtr->cmdTable` — the retained
+`TCL_STRING_KEYS` bucket order, not registration or lexical order (issue
+#1752). Each token's traces fire while its entry is still in the table, then
+its imports retire depth-first, then the loop moves to the next entry; the
+table is re-snapshotted while it is non-empty, so a command a callback creates
+is torn down in a later pass.
+
+A deletion drops exactly the traces the **dying token** carried, which is what
+C's `Tcl_DeleteCommandFromToken` frees when it releases `cmdPtr->tracePtr`.
+Both registries are keyed by command *name*, so each registration is stamped
+with the generation of the token it was made against, and the deletion keeps
+only the stamps that are later than the dying one:
+
+- a trace a delete callback adds to the command **being deleted** attaches to
+  that same dying token, so it never fires — not in the walk in progress
+  (`CallCommandTraces` follows `active.nextTracePtr`), and not for a later
+  command that takes the vacated name;
+- a trace it registers on a **replacement** it bound at that name belongs to
+  the new token and survives, list intact.
+
+A hide, expose or rename moves the list with its token and re-stamps it,
+because C moves the `Command` itself rather than creating a new one.
 
 Every firing loop walks **live** state rather than a snapshot: it collects the
 registrations' identities up front, in the order above, and re-checks each one
@@ -153,6 +177,14 @@ replacement holds the name, a `trace remove` inside a later callback reaches
 *its* list and so cancels nothing. All three shapes are pinned against tclsh
 8.6.16 and 9.0.4.
 
+The token stamp above and this untraced mark answer different questions and
+both are needed: the stamp says which registrations a **deletion frees** once
+the walk is over, the mark says which the **walk skips** while it is still
+running. A delete callback that rebinds the name exercises both at once — the
+rebinding must not cut the walk short (the mark's job), and the dying token's
+list must still go when the walk ends, without taking the replacement's own
+registrations with it (the stamp's job).
+
 An unset is the variable-side exception, and for the same reason: it takes the
 variable's own list out of the table before firing (C moves it to a dummy
 `Var`), so nothing can remove those callbacks any more, and a variable a
@@ -160,10 +192,15 @@ callback revives carries no traces.
 
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
 `active_var_scopes` for the duration of the callback, so a callback touching
-the same variable does not re-fire itself, and command-trace firing is gated on
-`exec_firing`. The interpreter result is preserved across every callback (held
-with an explicit `+1` and restored afterwards), so a trace cannot clobber the
-result of the operation it observed.
+the same variable does not re-fire itself. Command-trace firing is gated the
+way C gates it — **per command**, on the command whose traces are running
+(`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a deletion), not interpreter-wide: a
+callback that deletes a *different* command still fires that command's own
+delete traces, nested inside the first. Execution and step traces keep the
+interpreter-wide gate (`INTERP_TRACE_IN_PROGRESS`), so a callback's own
+dispatches are never step-observed. The interpreter result is preserved across
+every callback (held with an explicit `+1` and restored afterwards), so a trace
+cannot clobber the result of the operation it observed.
 
 A read or write callback that errors reshapes the operation's result
 (`can't read "NAME": …` / `can't set "NAME": …`) and stops further firing —

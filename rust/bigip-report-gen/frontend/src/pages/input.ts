@@ -117,6 +117,16 @@ const LS_SETTINGS = "f5report-settings";
   }
 
   // --- report settings (front matter / copyright / logo) --------------------
+  // A logo is an inlined base64 data: image URI, produced here by
+  // FileReader.readAsDataURL. A stored or imported setting is not, so strip
+  // every character that cannot appear in one and drop the value unless what
+  // remains still is one — it goes on to <img src> and into the report.
+  const LOGO_URI = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/=]*$/;
+  function cleanLogoUri(uri: string | undefined): string {
+    const s = String(uri || "").replace(/[^\w+/=:;,.-]/g, "");
+    return LOGO_URI.test(s) ? s : "";
+  }
+
   function currentSettings(): ReportSettings {
     return {
       frontMatter: frontMatterEl.value,
@@ -145,7 +155,7 @@ const LS_SETTINGS = "f5report-settings";
   function applySettings(s: ReportSettings): void {
     frontMatterEl.value = s.frontMatter || "";
     copyrightEl.value = s.copyright || "";
-    logoDataUri = s.logo || "";
+    logoDataUri = cleanLogoUri(s.logo);
     reflectLogo();
   }
   function restoreSettings(): void {

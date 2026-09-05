@@ -58,7 +58,10 @@ qualified hidden names are rejected up front.
 
 `BTreeMap` (rather than a hash table) makes ``interp hidden`` listings
 sorted and deterministic, the same choice the namespace command tables
-make.
+make. C answers `interp hidden` — and `info commands` — in
+`Tcl_FirstHashEntry` order instead; that remains the divergence here. Only
+namespace *teardown* reads the retained Tcl hash order (issue #1752), because
+delete traces make it observable in a way an unsorted listing is not.
 
 There is nothing to invalidate downstream: no namespace path targets
 the hidden table, and command resolution never probes it.

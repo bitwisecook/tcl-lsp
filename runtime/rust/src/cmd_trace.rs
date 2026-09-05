@@ -121,7 +121,24 @@ pub struct CmdTrace {
     /// through `nextPtr`, and `Tcl_UntraceCommand` unlinks a record as soon as
     /// a callback removes it, so a snapshot of callback strings would keep
     /// firing traces that are already gone. Ids are never reused.
+    ///
+    /// Distinct from [`Self::token`], and deliberately so: the token says which
+    /// *list* an entry belongs to — which entries a deletion frees — while the
+    /// id says which *registration* a walk is about to run, so an explicit
+    /// untrace can cancel it. A delete walk needs both: it fires the dying
+    /// token's list to the end even as a callback rebinds the name, and still
+    /// skips whatever that callback untraced.
     pub id: u64,
+    /// The generation of the command **token** this trace hangs off, or `None`
+    /// when the binding had none (a hidden command).
+    ///
+    /// C keeps the list on the `Command` itself and frees exactly that list
+    /// when the token dies. Our registry is keyed by FQN, so a delete callback
+    /// that binds a replacement at the same name registers on a *different*
+    /// token under the same key; only the generation tells the two lists
+    /// apart. Generations are minted per table in binding order, so a trace on
+    /// a token installed after the dying one always compares greater.
+    pub token: Option<u64>,
     /// The command's resolved FQN (the binding the trace is attached to).
     pub name: Vec<u8>,
     /// The user ops this trace fires on (a [`ops`] bitset).
@@ -211,10 +228,14 @@ pub struct TraceTable {
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
     /// Non-zero while a command/execution trace callback is running — C's
-    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant command/execution/step
-    /// firing so a callback that renames/invokes the traced command doesn't
-    /// recurse.
+    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant execution/step firing
+    /// so a callback that invokes the traced command doesn't recurse.
     pub exec_firing: usize,
+    /// The commands whose `rename`/`delete` traces are currently firing. C
+    /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a
+    /// deletion), not interpreter-wide: a callback that deletes a *different*
+    /// command still fires that command's own delete traces, nested.
+    pub firing_cmd_traces: Vec<Vec<u8>>,
     /// The error message a read/write variable-trace callback left, captured so
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
@@ -436,11 +457,15 @@ fn cmd_trace_add_remove(
     };
     let command = obj_bytes(argv[5]);
     if is_add {
+        // The trace belongs to the token standing at `fqn` now, not to the
+        // name (C hangs it off `cmdPtr->tracePtr`).
+        let token = interp.resolve_cmd_token(&fqn);
         let mut traces = interp.traces.borrow_mut();
         traces.next_cmd_trace_id += 1;
         let id = traces.next_cmd_trace_id;
         traces.cmd_traces.push(CmdTrace {
             id,
+            token,
             name: fqn,
             ops: flags,
             command,
@@ -1339,6 +1364,105 @@ mod tests {
     /// The commands the same teardown deletes fire their `delete` traces
     /// newest-first too (`CallCommandTraces` walks head→tail). Issue #1440;
     /// tclsh 8.6.16 and 9.0.4 both report `second first`.
+    #[test]
+    fn a_delete_callbacks_own_trace_dies_with_the_dying_token() {
+        // `Tcl_DeleteCommandFromToken` frees the whole `cmdPtr->tracePtr` list
+        // after `CallCommandTraces`. A trace the callback registers on the
+        // command being deleted attaches to that same dying token, so it never
+        // fires — not in this walk (`CallCommandTraces` follows
+        // `active.nextTracePtr`), and not for a later command that takes the
+        // vacated name. Exact tclsh 9.0.4 oracle results (identical on
+        // 8.6.16).
+        let recorders: &[u8] = b"set ::log {}
+             proc inner {old new op} {lappend ::log inner:$old}
+             proc outer {old new op} {lappend ::log outer:$old
+                 trace add command $old delete inner}";
+        // `rename cmd {}`.
+        leak_free(|i| {
+            ok(i, recorders);
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command ::p delete outer");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"outer:::p");
+            ok(i, b"proc p {} {}");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"outer:::p");
+            ok(i, b"unset ::log");
+        });
+        // Redefinition (`TclCreateObjCommandInNs` deletes the old token first).
+        leak_free(|i| {
+            ok(i, recorders);
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command ::p delete outer");
+            ok(i, b"proc p {} {}");
+            assert_eq!(ok(i, b"set ::log"), b"outer:::p");
+            ok(i, b"proc p {} {}");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"outer:::p");
+            ok(i, b"unset ::log");
+        });
+        // Namespace teardown.
+        leak_free(|i| {
+            ok(i, recorders);
+            ok(i, b"namespace eval N {proc q {} {}}");
+            ok(i, b"trace add command ::N::q delete outer");
+            ok(i, b"namespace delete ::N");
+            assert_eq!(ok(i, b"set ::log"), b"outer:::N::q");
+            ok(i, b"namespace eval N {proc q {} {}}");
+            ok(i, b"namespace delete ::N");
+            assert_eq!(ok(i, b"set ::log"), b"outer:::N::q");
+            ok(i, b"unset ::log");
+        });
+    }
+
+    #[test]
+    fn a_replacements_trace_survives_the_deletion_that_created_it() {
+        // The other half of the same rule: a callback that *binds* a
+        // replacement at the vacated name registers on that new token, whose
+        // own trace list C never touches. Only the dying token's list is
+        // freed. Exact tclsh 9.0.4 oracle results (identical on 8.6.16).
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc inner {old new op} {lappend ::log inner:$old}");
+            ok(
+                i,
+                b"proc mk {old new op} {lappend ::log mk:$old
+                      proc ::p {} {}
+                      trace add command ::p delete inner}",
+            );
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command ::p delete mk");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"mk:::p");
+            assert_eq!(ok(i, b"llength [info commands ::p]"), b"1");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"mk:::p inner:::p");
+            assert_eq!(ok(i, b"llength [info commands ::p]"), b"0");
+            ok(i, b"unset ::log");
+        });
+        // A trace the callback adds *before* the replacement still belongs to
+        // the dying token and goes with it; only the one added after survives.
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc early {old new op} {lappend ::log early:$old}");
+            ok(i, b"proc late {old new op} {lappend ::log late:$old}");
+            ok(
+                i,
+                b"proc mk {old new op} {lappend ::log mk:$old
+                      trace add command $old delete early
+                      proc ::p {} {}
+                      trace add command ::p delete late}",
+            );
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command ::p delete mk");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"mk:::p");
+            ok(i, b"rename ::p {}");
+            assert_eq!(ok(i, b"set ::log"), b"mk:::p late:::p");
+            ok(i, b"unset ::log");
+        });
+    }
+
     #[test]
     fn namespace_teardown_fires_command_delete_traces_newest_first() {
         leak_free(|i| {

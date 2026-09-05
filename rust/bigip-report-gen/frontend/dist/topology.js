@@ -794,9 +794,10 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         var nodes = ix.d.graph.nodes.slice().sort(function(a, b) {
           return (a.type + a.name).localeCompare(b.type + b.name);
         });
-        srcSel.innerHTML = nodes.map(function(n) {
-          return '<option value="' + n.oid + '"' + (n.oid === selectedOid ? " selected" : "") + ">" + esc(optLabel(ix, n.oid)) + "</option>";
-        }).join("");
+        srcSel.textContent = "";
+        nodes.forEach(function(n) {
+          srcSel.appendChild(optionEl(n.oid, optLabel(ix, n.oid), n.oid === selectedOid));
+        });
       }
       function fillDests(ix) {
         var reach = reachableFrom(ix, srcSel.value).map(function(o) {
@@ -804,12 +805,13 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         }).sort(function(a, b) {
           return a.label.localeCompare(b.label);
         });
+        dstSel.textContent = "";
         if (!reach.length) {
-          dstSel.innerHTML = '<option value="">(nothing reachable downstream)</option>';
+          dstSel.appendChild(optionEl("", "(nothing reachable downstream)", false));
         } else {
-          dstSel.innerHTML = reach.map(function(r) {
-            return '<option value="' + r.oid + '">' + esc(r.label) + "</option>";
-          }).join("");
+          reach.forEach(function(r) {
+            dstSel.appendChild(optionEl(r.oid, r.label, false));
+          });
         }
         build();
       }
@@ -898,9 +900,12 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       };
     }
     var IDX = MODEL.devices.map(indexDevice);
-    function activeDeviceIndex() {
-      var el = document.querySelector(".device.active");
-      return el ? parseInt(el.dataset.dev, 10) : 0;
+    function optionEl(value, label, selected) {
+      var o = document.createElement("option");
+      o.value = value;
+      o.textContent = label;
+      if (selected) o.selected = true;
+      return o;
     }
     var ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
     function esc(s) {
@@ -911,6 +916,12 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     function escConf(s) {
       return String(s).replace(/[&<>"]/g, function(c) {
         return ESC_MAP[c];
+      });
+    }
+    var SAFE_MARKUP = /^(?:<\/span>|<span class="tk-[\w -]+">|&(?:amp|lt|gt|quot);)$/;
+    function sanitiseHtml(markup) {
+      return String(markup).replace(/<[^<>]*>|&[^\s&;]*;?|[<>"]/g, function(m0) {
+        return SAFE_MARKUP.test(m0) ? m0 : escConf(m0);
       });
     }
     function stanzaFor(cfg, fullPath) {
@@ -954,7 +965,7 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       if (n.type === "rule") {
         var r = ruleByPath(ix, n.fullPath);
         if (r && (r.bodyHtml || r.body)) {
-          return '<pre class="code tcl">' + (r.bodyHtml || escConf(r.body || "")) + "</pre>";
+          return '<pre class="code tcl">' + (r.bodyHtml ? sanitiseHtml(r.bodyHtml) : escConf(r.body || "")) + "</pre>";
         }
       }
       var stanza = stanzaFor(ix.d.configText, n.fullPath);
@@ -1213,11 +1224,7 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       eventsIn("lb").forEach(function(e) {
         steps.push({ t: "event", l: e });
       });
-      var poolIdx = -1;
-      if (vs.pool) {
-        poolIdx = steps.length;
-        steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
-      }
+      if (vs.pool) steps.push({ t: "pool", l: vs.pool.split("/").pop(), oid: "pool:" + vs.pool });
       eventsIn("server").forEach(function(e) {
         steps.push({ t: "event", l: e });
       });
@@ -1368,13 +1375,13 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       var focusSel = panel.querySelector(".topo-focus");
       var depthSel = panel.querySelector(".topo-depth");
       var typeBoxes = panel.querySelectorAll(".topo-type");
-      var opts = ['<option value="">\u2014 whole estate \u2014</option>'];
+      focusSel.textContent = "";
+      focusSel.appendChild(optionEl("", "\u2014 whole estate \u2014", false));
       ix.d.graph.nodes.slice().sort(function(a, b) {
         return (a.type + a.name).localeCompare(b.type + b.name);
       }).forEach(function(n) {
-        opts.push('<option value="' + n.oid + '">' + TYPE_LABEL[n.type] + ": " + esc(n.name) + "</option>");
+        focusSel.appendChild(optionEl(n.oid, TYPE_LABEL[n.type] + ": " + n.name, false));
       });
-      focusSel.innerHTML = opts.join("");
       function activeTypes() {
         var t = {};
         typeBoxes.forEach(function(b) {
@@ -1424,7 +1431,12 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       var drawer = document.getElementById("objDrawer");
       var body = drawer.querySelector(".drawer-body");
       var titleEl = drawer.querySelector(".drawer-title");
-      titleEl.innerHTML = '<span class="tag ' + n.type + '">' + TYPE_LABEL[n.type] + "</span> " + esc(n.name);
+      var titleTag = document.createElement("span");
+      titleTag.className = "tag " + n.type;
+      titleTag.textContent = TYPE_LABEL[n.type];
+      titleEl.textContent = "";
+      titleEl.appendChild(titleTag);
+      titleEl.appendChild(document.createTextNode(" " + n.name));
       drawer.querySelector(".drawer-sub").textContent = n.fullPath;
       if (TYPE_PANEL[n.type]) {
         titleEl.classList.add("drawer-title-link");
@@ -1507,7 +1519,7 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       if (!v) return "";
       var L = v.listener || {};
       var rows = [
-        ["Destination", esc(L.address || "-") + (L.prefix != null && L.prefix < L.maxPrefix ? "/" + L.prefix : "") + (L.routeDomain ? " %" + L.routeDomain : "")],
+        ["Destination", esc(L.address || "-") + (L.prefix != null && L.prefix < L.maxPrefix ? "/" + esc(L.prefix) : "") + (L.routeDomain ? " %" + esc(L.routeDomain) : "")],
         ["Port", esc(L.portRaw || "-")],
         ["Protocol", esc(L.protocol || "-")],
         ["Source", esc(L.source || "-")],
@@ -1872,10 +1884,6 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     }
     function simulate(ix, v, req) {
       var stages = [];
-      var L = v.listener || {};
-      var isHttp = (v.profiles || []).some(function(p) {
-        return /\/http\b|http$/.test(p) || /_http/.test(p);
-      });
       var ssl = pickSslProfile(ix, v, req.sni);
       if (ssl) {
         stages.push({
@@ -2001,9 +2009,6 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     function renderSim(ix, v, host) {
       var L = v.listener || {};
       var hasSsl = !!pickSslProfile(ix, v, "");
-      var isHttp = (v.profiles || []).some(function(p) {
-        return /http/.test(p);
-      });
       var h = ['<div class="sim-head"><b>Processing for ' + esc(v.name) + '</b> <span class="mono muted">' + esc(L.address) + ":" + esc(L.portRaw) + " \xB7 " + esc(L.protocol) + "</span></div>"];
       h.push('<div class="sim-req">');
       if (hasSsl) h.push('<div class="fld"><label>TLS SNI</label><input class="sim-sni lm-field" placeholder="www.example.com"></div>');
@@ -2119,11 +2124,11 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         html.push('<div class="tiers">');
         tiers.forEach(function(t, ti) {
           html.push('<div class="tier' + (ti === 0 ? " match" : "") + '">');
-          html.push('<div class="tier-key">/' + t.prefix + " \xB7 " + (t.port ? "port " + t.port : "any port") + "</div>");
+          html.push('<div class="tier-key">/' + esc(t.prefix) + " \xB7 " + (t.port ? "port " + esc(t.port) : "any port") + "</div>");
           html.push('<div class="tier-vs">');
           t.vs.forEach(function(v) {
             var L = v.listener;
-            html.push('<button class="lm-card" data-fp="' + esc(v.fullPath) + '"' + (v === focus ? ' data-focus="1"' : "") + '><span class="lm-name">' + esc(v.name) + (v === focus ? ' <span class="tag green">match</span>' : "") + '</span><span class="lm-dest mono">' + esc(L.address) + (L.prefix < L.maxPrefix ? "/" + L.prefix : "") + (L.routeDomain ? "%" + L.routeDomain : "") + ":" + esc(L.portRaw) + '</span><span class="lm-meta mono">' + esc(L.protocol) + (v.pool ? " \u2192 " + esc(v.pool.split("/").pop()) : " \xB7 no pool") + "</span></button>");
+            html.push('<button class="lm-card" data-fp="' + esc(v.fullPath) + '"' + (v === focus ? ' data-focus="1"' : "") + '><span class="lm-name">' + esc(v.name) + (v === focus ? ' <span class="tag green">match</span>' : "") + '</span><span class="lm-dest mono">' + esc(L.address) + (L.prefix < L.maxPrefix ? "/" + esc(L.prefix) : "") + (L.routeDomain ? "%" + esc(L.routeDomain) : "") + ":" + esc(L.portRaw) + '</span><span class="lm-meta mono">' + esc(L.protocol) + (v.pool ? " \u2192 " + esc(v.pool.split("/").pop()) : " \xB7 no pool") + "</span></button>");
           });
           html.push("</div></div>");
           if (ti < tiers.length - 1) html.push('<div class="tier-arrow">falls through to \u25BE</div>');
@@ -2241,10 +2246,6 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
     (function initSearch() {
       var search = document.getElementById("globalSearch");
       if (!search) return;
-      function detailOf(row) {
-        var d = row.nextElementSibling;
-        return d && d.classList.contains("detail") ? d : null;
-      }
       function toNet(s) {
         var m = /^([0-9a-fA-F:.]+)(?:\/(\d+))?$/.exec(s);
         if (!m) return null;
@@ -2465,7 +2466,7 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
             var r = ruleByPath(ix, n.fullPath);
             if (r) {
               if (r.flowchart) html += '<div class="app-obj-flow diag-host" data-flow="' + esc(encodeURIComponent(r.flowchart)) + '">flow\u2026</div>';
-              html += '<pre class="code tcl">' + (r.bodyHtml || esc(r.body || "")) + "</pre>";
+              html += '<pre class="code tcl">' + (r.bodyHtml ? sanitiseHtml(r.bodyHtml) : esc(r.body || "")) + "</pre>";
             }
           } else {
             var stanza = stanzaFor(ix.d.configText, n.fullPath);

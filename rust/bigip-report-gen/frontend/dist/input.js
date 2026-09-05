@@ -265,6 +265,11 @@
       } catch {
       }
     }
+    const LOGO_URI = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/=]*$/;
+    function cleanLogoUri(uri) {
+      const s = String(uri || "").replace(/[^\w+/=:;,.-]/g, "");
+      return LOGO_URI.test(s) ? s : "";
+    }
     function currentSettings() {
       return {
         frontMatter: frontMatterEl.value,
@@ -292,7 +297,7 @@
     function applySettings(s) {
       frontMatterEl.value = s.frontMatter || "";
       copyrightEl.value = s.copyright || "";
-      logoDataUri = s.logo || "";
+      logoDataUri = cleanLogoUri(s.logo);
       reflectLogo();
     }
     function restoreSettings() {

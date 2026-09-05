@@ -26,6 +26,9 @@ you catch it while editing.
 The usual cause is a quote that closes earlier than intended, so the rest
 of the intended string spills outside the quoted word.
 
+The Rust runtime raises the same error when it evaluates such a script, so
+the diagnostic and the run agree.
+
 ## Symptoms
 
 - A red squiggle at the character following the `"`, with the message

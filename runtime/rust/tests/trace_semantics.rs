@@ -516,6 +516,35 @@ fn a_delete_callback_recreating_the_command_does_not_cancel_the_walk() {
     );
 }
 
+/// The counterpart to the walk above, and the reason the two loops ask
+/// different questions. `TclCheckExecutionTraces` follows the list of whatever
+/// command the name holds *now*, so a callback that redefines the traced
+/// command stops the rest of that walk — `E1` and `L1` never run. The delete
+/// walk keeps firing the dying token's list instead. Measured on tclsh 8.6.16
+/// and 9.0.4.
+#[test]
+fn an_execution_callback_redefining_the_command_stops_that_walk() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc t {} { return T }\n\
+         proc E1 args { lappend ::log E1 }\n\
+         proc E2 args { lappend ::log E2\n\
+         \x20   proc t {} { return T2 } }\n\
+         trace add execution t enter E1\n\
+         trace add execution t enter E2\n\
+         lappend ::log \"call:[t]\" \"traces:[trace info execution t]\"\n\
+         proc u {} { return U }\n\
+         proc L1 args { lappend ::log L1 }\n\
+         proc L2 args { lappend ::log L2\n\
+         \x20   proc u {} { return U2 } }\n\
+         trace add execution u leave L2\n\
+         trace add execution u leave L1\n\
+         lappend ::log \"call:[u]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "E2\ncall:T2\ntraces:\nL2\ncall:U");
+}
+
 /// A command-delete trace whose callback re-creates the command leaves the
 /// *new* command standing: C deletes the token it captured before the callback
 /// (`CMD_DYING`, its hash entry taken over by the new command), not whatever
