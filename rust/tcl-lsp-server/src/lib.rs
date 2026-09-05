@@ -532,6 +532,29 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 struct SnapshotCensus {
     live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
     next_id: std::sync::atomic::AtomicU64,
+    publication_intent: std::sync::atomic::AtomicBool,
+    publication_advanced: tokio::sync::Notify,
+}
+
+/// Exclusive intent to drain one database's request snapshots before a live
+/// source setter runs.
+///
+/// The intent is established after a publisher first observes a non-empty
+/// census and before it retries `db`. Snapshot creation checks it while holding
+/// that same mutex, so no new clone can extend the set the publisher is
+/// draining. Dropping the guard releases every reader queued behind the live
+/// publication.
+struct SnapshotDrainGuard {
+    census: Arc<SnapshotCensus>,
+}
+
+impl Drop for SnapshotDrainGuard {
+    fn drop(&mut self) {
+        self.census
+            .publication_intent
+            .store(false, std::sync::atomic::Ordering::Release);
+        self.census.publication_advanced.notify_waiters();
+    }
 }
 
 /// What the census can say about the snapshots outstanding right now.
@@ -543,6 +566,28 @@ struct SnapshotReport {
 }
 
 impl SnapshotCensus {
+    fn begin_publication(self: &Arc<Self>) -> SnapshotDrainGuard {
+        assert!(
+            !self
+                .publication_intent
+                .swap(true, std::sync::atomic::Ordering::AcqRel),
+            "one live-publication gate must serialise snapshot drains",
+        );
+        SnapshotDrainGuard {
+            census: Arc::clone(self),
+        }
+    }
+
+    fn try_track<T>(self: &Arc<Self>, value: T, site: &'static str) -> Result<DbSnapshot<T>, T> {
+        if self
+            .publication_intent
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(value);
+        }
+        Ok(self.track(value, site))
+    }
+
     /// Put an owned value behind the same census lifetime as a database clone.
     ///
     /// Generic only so the destructor ordering can be proved with a drop probe;
@@ -726,16 +771,30 @@ impl<T> TrackedMutex<T> {
     where
         T: Clone,
     {
-        let value = self.lock().await;
-        self.snapshots.track(value.clone(), site)
+        loop {
+            let publication_advanced = self.snapshots.publication_advanced.notified();
+            tokio::pin!(publication_advanced);
+            publication_advanced.as_mut().enable();
+            let value = self.lock().await;
+            if let Ok(snapshot) = self.snapshots.try_track(value.clone(), site) {
+                return snapshot;
+            }
+            drop(value);
+            publication_advanced.await;
+        }
     }
 
-    /// Register a clone while the caller already holds this mutex.
-    fn snapshot_from(&self, value: &T, site: &'static str) -> DbSnapshot<T>
+    /// Register a clone while the caller already holds this mutex, or decline
+    /// it when a live publisher is draining the finite pre-existing set.
+    fn snapshot_from(&self, value: &T, site: &'static str) -> Option<DbSnapshot<T>>
     where
         T: Clone,
     {
-        self.snapshots.track(value.clone(), site)
+        self.snapshots.try_track(value.clone(), site).ok()
+    }
+
+    fn begin_snapshot_drain(&self) -> SnapshotDrainGuard {
+        self.snapshots.begin_publication()
     }
 
     fn snapshot_report(&self) -> SnapshotReport {
@@ -4336,7 +4395,9 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        let snapshot = handles.db.snapshot_from(&db, "sync_cross_file_evidence");
+        let Some(snapshot) = handles.db.snapshot_from(&db, "sync_cross_file_evidence") else {
+            return Vec::new();
+        };
         (covered, snapshot, files, project)
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
@@ -4561,13 +4622,13 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (
-            handles
-                .db
-                .snapshot_from(&db, "sync_workspace_class_factories_round"),
-            files,
-            project,
-        )
+        let Some(snapshot) = handles
+            .db
+            .snapshot_from(&db, "sync_workspace_class_factories_round")
+        else {
+            return ClassFactoryRound::Cancelled;
+        };
+        (snapshot, files, project)
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
@@ -8733,6 +8794,7 @@ impl Backend {
     {
         {
             let _publication = self.live_publication_gate.lock().await;
+            let mut snapshot_drain = None;
             let since = crate::rt::Instant::now();
             let mut retries = 0_u64;
             let mut reported = false;
@@ -8747,6 +8809,11 @@ impl Backend {
                 let locks = match self.try_live_source_locks() {
                     Ok(locks) => locks,
                     Err(wait) => {
+                        if wait == LivePublicationWait::SalsaSnapshots {
+                            snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
+                        } else {
+                            drop(snapshot_drain.take());
+                        }
                         retries = retries.saturating_add(1);
                         self.pause_open_publication(
                             "did_open",
@@ -8846,6 +8913,7 @@ impl Backend {
         index_needs_seed: bool,
     ) -> bool {
         let _publication = self.live_publication_gate.lock().await;
+        let mut snapshot_drain = None;
         let since = crate::rt::Instant::now();
         let mut retries = 0_u64;
         let mut reported = false;
@@ -8860,6 +8928,11 @@ impl Backend {
             let locks = match self.try_live_source_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
+                    if wait == LivePublicationWait::SalsaSnapshots {
+                        snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
+                    } else {
+                        drop(snapshot_drain.take());
+                    }
                     retries = retries.saturating_add(1);
                     self.pause_open_publication(
                         operation,
@@ -8948,6 +9021,7 @@ impl Backend {
         revision: u64,
     ) -> bool {
         let publication = self.live_publication_gate.lock().await;
+        let mut snapshot_drain = None;
         let since = crate::rt::Instant::now();
         let mut retries = 0_u64;
         let mut reported = false;
@@ -8962,6 +9036,11 @@ impl Backend {
             let locks = match self.try_open_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
+                    if wait == LivePublicationWait::SalsaSnapshots {
+                        snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
+                    } else {
+                        drop(snapshot_drain.take());
+                    }
                     retries = retries.saturating_add(1);
                     self.pause_open_publication(
                         operation,
@@ -9032,6 +9111,7 @@ impl Backend {
             // Fresh analysis must not retain the live-publication gate: a
             // newer edit is authoritative and must be able to supersede this
             // seed while it runs, exactly as on the cold-open path.
+            drop(snapshot_drain);
             drop(publication);
             let text: Arc<str> = Arc::from(text);
             let seed = self
@@ -10162,6 +10242,15 @@ impl Backend {
     /// slot between `didOpen` retirement and live re-indexing (#1854 review).
     async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
         self.read_document_at(url, DocumentReadiness::Indexed).await
+    }
+
+    /// Read the current live bytes once their matching Salsa source exists.
+    ///
+    /// Formatting and format-on-save are document-local operations. They must
+    /// not inherit the independent workspace-index barrier, which can remain
+    /// pending while a cold large file's first index analysis runs.
+    async fn read_local_document(&self, url: &Uri) -> Option<DocumentState> {
+        self.read_document_at(url, DocumentReadiness::Salsa).await
     }
 
     /// Read the current document as soon as its matching Salsa source exists.
@@ -21071,7 +21160,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
@@ -23055,7 +23144,7 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
@@ -23101,7 +23190,7 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentRangeFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -37375,7 +37464,8 @@ proc p {} {
             .await;
         let snapshot = backend
             .db
-            .snapshot_from(&*backend.db.lock().await, "held-index");
+            .snapshot_from(&*backend.db.lock().await, "held-index")
+            .expect("no publisher is draining snapshots");
         let mut index_held = backend.workspace_index.write().await;
         index_held.add_document(uri.as_str(), &disk_analysis);
         let mut opening = crate::rt::spawn({
@@ -37480,6 +37570,7 @@ proc p {} {
             holding_backend
                 .db
                 .snapshot_from(&db, "issue-1854-unrelated-backend-snapshot")
+                .expect("no publisher is draining the holding backend")
         };
         let uri = Uri::from_str("file:///w/isolated-census-1854.tcl").unwrap();
 
@@ -37649,6 +37740,7 @@ proc p {} {
             backend
                 .db
                 .snapshot_from(&db, "issue-1854-held-test-snapshot")
+                .expect("the test creates its snapshot before publication")
         };
         let mut editing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -37854,6 +37946,7 @@ proc p {} {
             backend
                 .db
                 .snapshot_from(&db, "issue-1800-held-test-snapshot")
+                .expect("the test creates its snapshot before publication")
         };
         let reindexing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -41977,6 +42070,133 @@ proc p {} {
         .await
         .expect("indexed readiness releases ordinary providers")
         .expect("the live indexed document exists");
+    }
+
+    /// Exact-head review of #1854: document-local formatting reads the live
+    /// Salsa source, not the independently seeded workspace index. A cold
+    /// file can remain at `Salsa` while its whole-file index analysis runs;
+    /// format, range-format, and format-on-save must remain prompt there.
+    #[tokio::test]
+    async fn local_providers_do_not_wait_for_did_open_index_seed_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///format-before-index-1854.tcl").unwrap();
+        register(&backend, &uri, "if {1} {puts ready}\n").await;
+        {
+            let mut docs = backend.documents.lock("test").await;
+            docs.get_mut(&uri)
+                .expect("the document is open")
+                .publication = DocumentPublication::Salsa;
+        }
+
+        let local = crate::rt::timeout(
+            std::time::Duration::from_millis(100),
+            backend.read_local_document(&uri),
+        )
+        .await
+        .expect("a local provider only waits for the matching Salsa source")
+        .expect("the live local document exists");
+        assert_eq!(local.text.as_ref(), "if {1} {puts ready}\n");
+
+        let params: DocumentFormattingParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "options": { "tabSize": 4, "insertSpaces": true }
+        }))
+        .expect("valid formatting request");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.formatting(params),
+        )
+        .await
+        .expect("formatting must not wait for the workspace-index seed")
+        .expect("formatting must succeed");
+
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(25),
+                backend.read_document(&uri),
+            )
+            .await
+            .is_err(),
+            "the test must hold the independent workspace-index boundary pending",
+        );
+    }
+
+    /// Exact-head review of #1854: a stream of overlapping request snapshots
+    /// must not keep a live source publication short of Salsa forever. Once a
+    /// publisher announces drain intent, later snapshot requests queue; the
+    /// finite pre-existing set retires and the writer runs before readers are
+    /// admitted again.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_publication_intent_stops_new_snapshots_until_drain_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///snapshot-drain-1854.tcl").unwrap();
+        let old_text = "set value old\n";
+        let live_text = "set value current\n";
+        backend
+            .db_set_source(&uri, old_text, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(live_text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+
+        let existing = backend.db.snapshot("issue-1854-pre-drain-reader").await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .commit_live_source("test_snapshot_drain", &uri, live_text, "tcl8.6", 0, false)
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the live publisher must establish drain intent");
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { backend.db.snapshot("issue-1854-post-drain-reader").await }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut later_reader)
+                .await
+                .is_err(),
+            "a later reader must queue instead of extending the snapshot stream",
+        );
+
+        drop(existing);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("publication must finish as soon as the old reader retires")
+                .expect("the publication task must not panic"),
+            "the current live source must publish",
+        );
+        let later = crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+            .await
+            .expect("queued readers must resume after publication")
+            .expect("the reader task must not panic");
+        drop(later);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(live_text),
+            "the writer must run between the old and later snapshots",
+        );
     }
 
     /// Exact-head review of #1854: publishing the completed open seed may wait
