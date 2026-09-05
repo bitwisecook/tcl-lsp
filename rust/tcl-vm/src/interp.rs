@@ -1200,14 +1200,26 @@ struct VarTrace {
 pub(crate) struct CmdTraceEntry {
     pub(crate) ops: Vec<String>,
     pub(crate) callback: String,
+    /// The generation of the command **token** this entry hangs off, or `None`
+    /// when the binding had none.
+    ///
+    /// C keeps the list on the `Command` itself and frees exactly that list
+    /// when the token dies. The sidecar tables are keyed by command *name*, so
+    /// a delete callback that binds a replacement at the same key registers on
+    /// a different token under that key; only the generation tells the two
+    /// lists apart. Generations are minted in binding order, so a trace on a
+    /// token installed after the dying one compares greater. A hide, expose or
+    /// rename moves the entry with its token, and re-stamps it.
+    token: std::cell::Cell<Option<u64>>,
     firing: std::cell::Cell<bool>,
 }
 
 impl CmdTraceEntry {
-    fn new(ops: Vec<String>, callback: String) -> Self {
+    fn new(ops: Vec<String>, callback: String, token: Option<u64>) -> Self {
         Self {
             ops,
             callback,
+            token: std::cell::Cell::new(token),
             firing: std::cell::Cell::new(false),
         }
     }
@@ -2547,13 +2559,10 @@ impl Vm {
         command: Command,
     ) {
         new_key.clone_into(&mut transaction.new_key);
-        // C's `TclRenameCommand` creates the destination hash entry *before*
-        // deleting the source's, so the transient extra entry can trigger a
-        // rebuild a delete-first order would not. Only the retained order
-        // observes that; the removal/registration order below is unchanged.
+        // The destination hash entry was created by
+        // [`Self::note_rename_destination`] before the alias-loop check, and
         // `register_command` re-inserts the same key, which the order owner
-        // leaves where this call put it.
-        self.note_command_bound(new_key, false);
+        // leaves where that call put it.
         // Keep the successful rename's established source-removal then
         // destination-registration order.  The caller has already completed
         // every rejection path, so this is now allowed to fire destination
@@ -2615,6 +2624,13 @@ impl Vm {
         // ImportRef list. Both the source and every import therefore remain
         // table-visible during this callback.
         self.on_command_removed_for(&key);
+        if self.command_token_identity(&key).as_ref() != Some(&source_token) {
+            // The callback deleted this command, or bound a replacement at the
+            // same name: its own lifecycle already unlinked the dying token
+            // (`Tcl_DeleteCommandFromToken` then finds `cmdPtr->hPtr` NULL), so
+            // whatever holds the name now is a distinct token and stands.
+            return true;
+        }
         self.retire_real_command(&source_token, &command);
         self.take_command_unchecked_key(&transaction.old_key);
         true
@@ -4649,6 +4665,23 @@ impl Vm {
             .insert(tail.as_bytes());
     }
 
+    /// Create a rename destination's hash entry before the alias-loop check,
+    /// as C's `TclRenameCommand` does: `Tcl_CreateHashEntry(&newNsPtr->
+    /// cmdTable, newTail)` runs *before* `TclPreventAliasLoop`, and before the
+    /// source's entry is deleted. The transient extra entry can trigger a
+    /// rebuild a delete-first order would not, and the grown bucket array
+    /// survives even when the check then refuses the rename.
+    pub(crate) fn note_rename_destination(&mut self, key: &str) {
+        self.note_command_bound(key, false);
+    }
+
+    /// Delete a rename destination's hash entry again after the alias-loop
+    /// check refused the move — C's `Tcl_DeleteHashEntry(cmdPtr->hPtr)` on the
+    /// rollback path. The table keeps the capacity the transient entry gave it.
+    pub(crate) fn forget_rename_destination(&mut self, key: &str) {
+        self.note_command_unbound(key);
+    }
+
     /// Insert a command's tail into its holder namespace's retained Tcl
     /// string-hash table. `replacing` marks C's redefinition
     /// (`TclCreateObjCommandInNs` deletes the existing hash entry and creates
@@ -5773,15 +5806,21 @@ impl Vm {
             return err(format!("unknown command \"{name}\""));
         };
         let is_step = is_step_capable(&ops);
+        // The trace belongs to the token standing at this key now, not to the
+        // name (C hangs it off `cmdPtr->tracePtr`).
+        let sidecar = CommandSidecarKey::visible(key);
+        let token = self
+            .command_token_identity(&sidecar)
+            .map(|identity| identity.generation);
         let table = if execution {
             &mut self.exec_traces
         } else {
             &mut self.cmd_traces
         };
         table
-            .entry(CommandSidecarKey::visible(key))
+            .entry(sidecar)
             .or_default()
-            .push(Rc::new(CmdTraceEntry::new(ops, callback)));
+            .push(Rc::new(CmdTraceEntry::new(ops, callback, token)));
         self.invalidate_guard_domain(GuardDomain::CommandTrace);
         // A new enterstep/leavestep-capable trace forces every proc in this
         // interp to (re)compile trace-visible on next call — C's
@@ -5948,11 +5987,13 @@ impl Vm {
         // replacement binding with the same key while this operation is still
         // in flight.  That replacement must not inherit the old handle.
         self.detach_active_sidecars(key);
+        let dying = self
+            .command_token_identity(key)
+            .map(|identity| identity.generation);
         let mut removed_trace = false;
         if !self.cmd_traces.is_empty() {
-            let retired = self.cmd_traces.get(key).cloned().unwrap_or_default();
             self.fire_command_traces_for(key, "", "delete");
-            removed_trace |= self.drop_retired_cmd_traces(key, &retired);
+            removed_trace |= self.drop_retired_cmd_traces(key, dying);
         }
         if !self.exec_traces.is_empty()
             && let Some(removed) = self.exec_traces.remove(key)
@@ -5969,20 +6010,20 @@ impl Vm {
         }
     }
 
-    /// Drop the command traces the dying token carried, leaving behind any a
-    /// delete callback registered on a replacement at the same key. C frees the
-    /// `Command`'s own trace list; our sidecars are keyed by location, so the
-    /// `Rc` is the token-scoped identity.
-    fn drop_retired_cmd_traces(
-        &mut self,
-        key: &CommandSidecarKey,
-        retired: &[Rc<CmdTraceEntry>],
-    ) -> bool {
+    /// Drop the command traces the dying token carried — C's "free the whole
+    /// `cmdPtr->tracePtr` list". A trace the delete callback added to the dying
+    /// command goes with it; one it registered on a replacement it bound at the
+    /// same key has a later generation and survives. An unidentifiable dying
+    /// token takes the whole list.
+    fn drop_retired_cmd_traces(&mut self, key: &CommandSidecarKey, dying: Option<u64>) -> bool {
         let Some(entries) = self.cmd_traces.get_mut(key) else {
             return false;
         };
         let before = entries.len();
-        entries.retain(|entry| !retired.iter().any(|old| Rc::ptr_eq(old, entry)));
+        entries.retain(|entry| match (entry.token.get(), dying) {
+            (Some(token), Some(dying)) => token > dying,
+            _ => false,
+        });
         let removed = entries.len() != before;
         if entries.is_empty() {
             self.cmd_traces.remove(key);
@@ -6020,12 +6061,24 @@ impl Vm {
     /// hide/expose is not a Tcl rename, so no callback is fired.
     fn move_command_traces(&mut self, old_key: &CommandSidecarKey, new_key: CommandSidecarKey) {
         self.relocate_active_sidecars(old_key, &new_key);
+        // The list travels with the token, so re-stamp it to whatever token
+        // now stands at the destination; a later deletion there still tells
+        // this list from a replacement's.
+        let token = self
+            .command_token_identity(&new_key)
+            .map(|identity| identity.generation);
         let mut moved = false;
         if let Some(entries) = self.cmd_traces.remove(old_key) {
+            for entry in &entries {
+                entry.token.set(token);
+            }
             self.cmd_traces.insert(new_key.clone(), entries);
             moved = true;
         }
         if let Some(entries) = self.exec_traces.remove(old_key) {
+            for entry in &entries {
+                entry.token.set(token);
+            }
             self.exec_traces.insert(new_key, entries);
             moved = true;
         }

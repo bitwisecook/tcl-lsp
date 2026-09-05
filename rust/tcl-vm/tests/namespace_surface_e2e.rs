@@ -809,6 +809,138 @@ fn namespace_teardown_retires_each_sources_import_tree_before_the_next_entry() {
 }
 
 #[test]
+fn a_delete_callbacks_own_trace_dies_with_the_dying_token() {
+    // `Tcl_DeleteCommandFromToken` frees the whole `cmdPtr->tracePtr` list
+    // after `CallCommandTraces`. A trace the callback registers on the command
+    // being deleted attaches to that same dying token, so it never fires — not
+    // in this walk (`CallCommandTraces` follows `active.nextTracePtr`), and not
+    // for a later command that takes the vacated name. Exact Tcl 9.0.4 oracle
+    // results (identical on 8.6.16).
+    let recorders = "set log {}
+             proc inner {old new op} {lappend ::log inner:$old}
+             proc outer {old new op} {lappend ::log outer:$old
+                 trace add command $old delete inner}\n";
+    // `rename cmd {}`.
+    assert_eq!(
+        run(&format!(
+            "{recorders}
+             proc p {{}} {{}}
+             trace add command ::p delete outer
+             rename ::p {{}}
+             set a $log
+             proc p {{}} {{}}
+             rename ::p {{}}
+             list $a $log"
+        )),
+        "outer:::p outer:::p"
+    );
+    // Redefinition (`TclCreateObjCommandInNs` deletes the old token first).
+    assert_eq!(
+        run(&format!(
+            "{recorders}
+             proc p {{}} {{}}
+             trace add command ::p delete outer
+             proc p {{}} {{}}
+             set a $log
+             proc p {{}} {{}}
+             set b $log
+             rename ::p {{}}
+             list $a $b $log"
+        )),
+        "outer:::p outer:::p outer:::p"
+    );
+    // Namespace teardown.
+    assert_eq!(
+        run(&format!(
+            "{recorders}
+             namespace eval N {{proc q {{}} {{}}}}
+             trace add command ::N::q delete outer
+             namespace delete ::N
+             set a $log
+             namespace eval N {{proc q {{}} {{}}}}
+             namespace delete ::N
+             list $a $log"
+        )),
+        "outer:::N::q outer:::N::q"
+    );
+}
+
+#[test]
+fn a_replacements_trace_survives_the_deletion_that_created_it() {
+    // The other half of the same rule: a callback that *binds* a replacement
+    // at the vacated name registers on that new token, whose own trace list C
+    // never touches. Only the dying token's list is freed. Exact Tcl 9.0.4
+    // oracle results (identical on 8.6.16).
+    let recorders = "set log {}
+             proc inner {old new op} {lappend ::log inner:$old}
+             proc mk {old new op} {lappend ::log mk:$old
+                 proc ::p {} {}
+                 trace add command ::p delete inner}\n";
+    assert_eq!(
+        run(&format!(
+            "{recorders}
+             proc p {{}} {{}}
+             trace add command ::p delete mk
+             rename ::p {{}}
+             set a [list $log [llength [info commands ::p]]]
+             rename ::p {{}}
+             list $a $log [llength [info commands ::p]]"
+        )),
+        "{mk:::p 1} {mk:::p inner:::p} 0"
+    );
+    // A trace the callback adds *before* the replacement still belongs to the
+    // dying token and goes with it; only the one added after survives.
+    assert_eq!(
+        run("set log {}
+             proc early {old new op} {lappend ::log early:$old}
+             proc late {old new op} {lappend ::log late:$old}
+             proc mk {old new op} {lappend ::log mk:$old
+                 trace add command $old delete early
+                 proc ::p {} {}
+                 trace add command ::p delete late}
+             proc p {} {}
+             trace add command ::p delete mk
+             rename ::p {}
+             set a $log
+             rename ::p {}
+             list $a $log"),
+        "mk:::p {mk:::p late:::p}"
+    );
+}
+
+#[test]
+fn a_refused_alias_rename_keeps_the_command_tables_growth() {
+    // `TclRenameCommand` creates the destination hash entry *before*
+    // `TclPreventAliasLoop` and deletes it again on a refusal, so the transient
+    // twelfth entry rebuilds the eleven-command table from 4 buckets to 16 and
+    // the grown array outlives the rejected rename. Exact Tcl 9.0.4 oracle
+    // results (identical on 8.6.16).
+    let eleven = "set log {}
+             proc rec {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten eleven} {
+                 proc ::N::$n {} {}
+             }\n";
+    let trace_and_delete = "foreach n [info commands ::N::*] {trace add command $n delete rec}
+             namespace delete ::N\n";
+    assert_eq!(
+        run(&format!("{eleven}{trace_and_delete} set log")),
+        "six four three eight seven nine five two one eleven ten"
+    );
+    assert_eq!(
+        run(&format!(
+            "{eleven}
+             interp alias {{}} ::a {{}} ::N::b
+             set c [catch {{rename ::a ::N::b}} m]
+             {trace_and_delete}
+             list $c $m [llength [info commands ::a]] $log"
+        )),
+        "1 {cannot define or rename alias \"b\": would create a loop} 1 \
+         {three seven one two four eleven eight five nine six ten}"
+    );
+}
+
+#[test]
 fn deleting_a_namespace_fully_retires_its_visible_ensemble_once() {
     // The ensemble lives in the global command table but is owned by ::N.
     // Namespace teardown fires and removes its delete trace. A later, distinct
