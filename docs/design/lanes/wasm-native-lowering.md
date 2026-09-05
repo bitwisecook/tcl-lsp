@@ -1314,3 +1314,22 @@ statement's error edge. Both are pinned by
 `an_error_from_the_native_body_unwinds_through_the_procedure_frame`, which
 therefore fails in both directions.
 
+### The error-edge logger (delivered)
+
+`log_command_info` is split into `log_command_bytes(raw_line, cmd_bytes)`, the
+one implementation of C's `TclLogCommandInfo`, called by the eval loop and by
+`tcl_codegen_log_command`. `error_line` keeps its single writer and both
+callers get the same `already_logged` protocol, error-stack entry and
+150-byte truncation instead of a second, drifting copy.
+
+The ABI's `line` is the statement's 1-based line **within the body it was
+compiled from** — the same raw line the eval loop reads off the script text —
+so the enclosing frame's `line_base`/`proc_line_base` turn it into `errorLine`
+with no special case.
+
+Proved with a stub in the emitter's place
+(`a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one`):
+with the site logged, a compiled body's `-errorinfo` *and* `-errorstack` are
+byte-identical to the interpreted body's, which is tclsh 9.0.4's and
+8.6.16's. So step 6 is now a call site in the emitter, not an open question.
+

@@ -5098,6 +5098,24 @@ impl Interp {
     /// the first frame, truncates the command to 150 bytes (`...` on overflow),
     /// and sets `already_logged`.
     fn log_command_info(&mut self, src: &[u8], cmd: &parse::Command) {
+        // The same guard [`log_command_bytes`] applies. Repeated here so the
+        // already-logged path — the common one on a deep unwind — skips the
+        // newline scan `line_of` costs.
+        if self.exc.borrow().already_logged {
+            return;
+        }
+        self.log_command_bytes(line_of(src, cmd.start), &src[cmd.start..cmd.end]);
+    }
+
+    /// [`log_command_info`](Self::log_command_info) over the command's bytes
+    /// and its 1-based line within the enclosing script.
+    ///
+    /// The one implementation of C's `TclLogCommandInfo`, shared by the eval
+    /// loop and by `tcl_codegen_log_command` — so `error_line` keeps its
+    /// single writer, and a compiled statement gets the identical
+    /// `already_logged` protocol, error-stack entry, and 150-byte truncation
+    /// rather than a second, drifting copy of them.
+    pub(crate) fn log_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
         // Already logged deeper in the same script (e.g. an inner `[cmd]` subst,
         // or an inline `if`/`while` body): the enclosing command is the same C
         // bytecode frame, so it is *not* re-logged. The flag stays set and is
@@ -5108,16 +5126,17 @@ impl Interp {
         }
         // TIP 348: record this frame's inner context / uplevel boundary into the
         // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
-        self.error_stack_log(&src[cmd.start..cmd.end]);
+        self.error_stack_log(cmd_bytes);
         // errorLine, measured against the enclosing `codePtr->source` (C's
         // `TclLogCommandInfo`): the command's file-absolute line
         // (`line_base + 1 + count('\n')`) minus the proc/eval body's base, so an
         // inline `catch`/`if` body's commands still report their proc-body line.
         // This is the *only* writer of `error_line`; it persists across `catch`
         // and a subsequent `error msg info`.
-        let raw = line_of(src, cmd.start);
-        let line = self.cmd_frames.borrow().last().map_or(raw, |f| {
-            (f.line_base + raw).saturating_sub(f.proc_line_base).max(1)
+        let line = self.cmd_frames.borrow().last().map_or(raw_line, |f| {
+            (f.line_base + raw_line)
+                .saturating_sub(f.proc_line_base)
+                .max(1)
         });
         self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
@@ -5131,7 +5150,6 @@ impl Interp {
         } else {
             b"while executing"
         };
-        let cmd_bytes = &src[cmd.start..cmd.end];
         let overflow = cmd_bytes.len() > 150;
         let slice = if overflow {
             &cmd_bytes[..150]

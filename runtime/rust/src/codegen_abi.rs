@@ -1416,6 +1416,42 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_native(
     0
 }
 
+/// Log one `while executing` / `invoked from within` `errorInfo` frame for a
+/// compiled statement that completed with an error.
+///
+/// Generated code has no eval loop, so nothing calls `log_command_info` for
+/// it: a compiled statement that fails leaves no `while executing "<source>"`
+/// frame and does not advance `errorLine`, which surfaces as a stale line in
+/// the enclosing `(procedure "p" line N)` and as a missing TIP 348 `CALL`
+/// entry. This is the emitter's way to close both, on a statement's error
+/// edge.
+///
+/// `line` is the statement's 1-based line **within the body it was compiled
+/// from** — the same raw line the eval loop reads off the script text — so the
+/// enclosing frame's `line_base`/`proc_line_base` turn it into `errorLine`
+/// exactly as they do for an interpreted command. `src` is the statement's
+/// exact source text; the runtime applies C's 150-byte truncation to it.
+///
+/// The runtime owns the `already_logged` protocol, so a statement whose error
+/// was already logged deeper in the same body is a no-op here and the emitter
+/// has no decision to make. Hence no result.
+///
+/// # Safety
+/// `src_ptr`/`src_len` must be a readable range of shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, src_len: i32) {
+    let interp = current_interp();
+    if interp.is_null() {
+        return;
+    }
+    let src = unsafe { input_bytes(src_ptr, src_len) };
+    // Lines are 1-based; a caller that has no line still gets a logged frame
+    // rather than a silently dropped one.
+    let line = u32::try_from(line).unwrap_or(1).max(1);
+    // SAFETY: the bootstrap installed a live current interpreter.
+    unsafe { (*interp).log_command_bytes(line, src) };
+}
+
 /// The number of proc bodies the current interpreter has run through a native
 /// entry rather than their source body; `-1` with no current interpreter.
 ///
@@ -3598,6 +3634,9 @@ mod tests {
         /// The argv [`stub_body`] dispatches, and how many times a stub ran.
         static STUB_ARGV: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
         static STUB_CALLS: Cell<u32> = const { Cell::new(0) };
+        /// `(line, source text)` [`stub_body`] logs on an error completion, as
+        /// the emitter will on a statement's error edge. `None` logs nothing.
+        static STUB_LOG: RefCell<Option<(i32, Vec<u8>)>> = const { RefCell::new(None) };
     }
 
     /// Arm the stub with the one command its body runs, and reset the counter.
@@ -3605,7 +3644,13 @@ mod tests {
         STUB_ARGV.with(|argv| {
             *argv.borrow_mut() = words.iter().map(|word| word.to_vec()).collect();
         });
+        STUB_LOG.with(|log| *log.borrow_mut() = None);
         STUB_CALLS.with(|calls| calls.set(0));
+    }
+
+    /// Give the armed stub the statement site it logs when its command fails.
+    fn stub_logs(line: i32, source: &[u8]) {
+        STUB_LOG.with(|log| *log.borrow_mut() = Some((line, source.to_vec())));
     }
 
     fn stub_calls() -> u32 {
@@ -3644,6 +3689,21 @@ mod tests {
         assert_eq!(status, TCL_INVOKE_ABI_OK);
         // SAFETY: balances `owned_word`'s reference on each word.
         unsafe { release_words(&boxed) };
+        // The statement's error edge: an emitted body logs its own source site
+        // here, because nothing else will.
+        // SAFETY: `out` was written by the invoke above.
+        if unsafe { (*out).code } == 1 {
+            if let Some((line, source)) = STUB_LOG.with(|log| log.borrow().clone()) {
+                // SAFETY: `source` is a live readable slice.
+                unsafe {
+                    tcl_codegen_log_command(
+                        line,
+                        source.as_ptr(),
+                        i32::try_from(source.len()).expect("source fits i32"),
+                    );
+                }
+            }
+        }
         NATIVE_PROC_STATUS_RAN
     }
 
@@ -4018,6 +4078,66 @@ mod tests {
                     String::from_utf8_lossy(&info)
                 );
                 assert_eq!(eval(interp, "dict get $o -errorstack").1, b"INNER {boom Q}");
+            });
+        });
+    }
+
+    /// With the statement's site logged, a compiled body's error is
+    /// indistinguishable from the interpreted one — the whole point of
+    /// `tcl_codegen_log_command`, proved here with a stub standing in for the
+    /// emitter so the emitter has a target rather than a guess.
+    #[test]
+    fn a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                define_native(b"boom", b"a", BOOM_BODY, None);
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                let source_info = eval(interp, "dict get $o -errorinfo").1;
+                let source_stack = eval(interp, "dict get $o -errorstack").1;
+
+                // `error "bad $a"` is the third line of the body and the exact
+                // text of the failing statement — what the emitter carries.
+                stub_argv(&[b"error", b"bad Q"]);
+                stub_logs(3, b"error \"bad $a\"");
+                define_native(b"boom", b"a", BOOM_BODY, Some(stub_body));
+                assert_eq!(eval(interp, "catch {boom Q} m o").1, b"1");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), 1);
+
+                assert_eq!(eval(interp, "dict get $o -errorinfo").1, source_info);
+                assert_eq!(eval(interp, "dict get $o -errorstack").1, source_stack);
+                assert_eq!(
+                    String::from_utf8_lossy(&source_info),
+                    "bad Q\n    while executing\n\"error \"bad $a\"\"\n    \
+                     (procedure \"boom\" line 3)\n    invoked from within\n\"boom Q\"",
+                    "and that shared answer is tclsh 9.0.4's and 8.6.16's"
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn a_logged_command_is_truncated_and_deduplicated_like_an_interpreted_one() {
+        leak_free(|| unsafe {
+            with_current_interp(|interp| {
+                // One `log_command_bytes` protocol for both callers: the first
+                // frame seeds errorInfo from the message and truncates the
+                // command at 150 bytes with `...`; a second call for the same
+                // error is a no-op (`already_logged`).
+                let long = format!("error nope ;# {}", "x".repeat(200));
+                stub_argv(&[b"error", b"nope"]);
+                stub_logs(1, long.as_bytes());
+                define_native(b"long", b"", b"error nope", Some(stub_body));
+                assert_eq!(eval(interp, "catch {long} m o").1, b"1");
+                let info = eval(interp, "dict get $o -errorinfo").1;
+                let expected = format!(
+                    "nope\n    while executing\n\"{}...\"\n    (procedure \"long\" line 1)",
+                    &long[..150]
+                );
+                assert!(
+                    info.starts_with(expected.as_bytes()),
+                    "{}",
+                    String::from_utf8_lossy(&info)
+                );
             });
         });
     }
