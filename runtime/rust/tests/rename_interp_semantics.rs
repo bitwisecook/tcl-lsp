@@ -684,3 +684,79 @@ fn rename_miss_carries_the_lookup_errorcode() {
             .as_slice()
     );
 }
+
+/// The `$child` arity errors name the word the *call* used, not the child's
+/// table key. C builds every one of them with `Tcl_WrongNumArgs(interp, 1,
+/// objv, …)`, so the noun is `objv[0]`; the runtime was passing the name
+/// stored in `Command::ChildInterp`, which stops matching as soon as the
+/// command is reached under any other spelling.
+///
+/// A test that only ever calls the child `kid` cannot tell the two apart —
+/// which is exactly how this survived the first pass — so this one renames the
+/// child first, and checks the qualified spelling too. Every arm that takes an
+/// arity check is covered, including `recursionlimit` / `bgerror` / `limit`,
+/// which carried the same defect before the shorthand work.
+///
+/// tclsh9.0.4 (and 8.6.16):
+///   interp create kid
+///   rename kid foo
+///   set out {}
+///   foreach script {{foo} {foo eval} {foo issafe extra} {foo hidden extra}
+///                   {foo aliases extra} {foo hide} {foo expose a b c}
+///                   {foo invokehidden} {foo recursionlimit a b} {foo bgerror a b}
+///                   {foo debug a b c} {foo limit} {::foo hidden extra}} {
+///       catch $script m; lappend out $m
+///   }
+///   lappend out [foo eval {set x renamed-child-still-works}]
+///   => {wrong # args: should be "foo cmd ?arg ...?"} … {wrong # args: should be
+///      "::foo hidden"} renamed-child-still-works
+#[test]
+fn child_arity_errors_name_the_word_the_call_used() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(
+            b"interp create kid
+              rename kid foo
+              set out {}
+              foreach script {
+                  {foo}
+                  {foo eval}
+                  {foo issafe extra}
+                  {foo hidden extra}
+                  {foo aliases extra}
+                  {foo hide}
+                  {foo expose a b c}
+                  {foo invokehidden}
+                  {foo recursionlimit a b}
+                  {foo bgerror a b}
+                  {foo debug a b c}
+                  {foo limit}
+                  {::foo hidden extra}
+              } {
+                  catch $script m
+                  lappend out $m
+              }
+              lappend out [foo eval {set x renamed-child-still-works}]
+              set out"
+        ),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"{wrong # args: should be \"foo cmd ?arg ...?\"} \
+          {wrong # args: should be \"foo eval arg ?arg ...?\"} \
+          {wrong # args: should be \"foo issafe\"} \
+          {wrong # args: should be \"foo hidden\"} \
+          {wrong # args: should be \"foo aliases\"} \
+          {wrong # args: should be \"foo hide cmdName ?hiddenCmdName?\"} \
+          {wrong # args: should be \"foo expose hiddenCmdName ?cmdName?\"} \
+          {wrong # args: should be \"foo invokehidden ?-namespace ns? ?-global? \
+          ?--? cmd ?arg ..?\"} \
+          {wrong # args: should be \"foo recursionlimit ?newlimit?\"} \
+          {wrong # args: should be \"foo bgerror ?cmdPrefix?\"} \
+          {wrong # args: should be \"foo debug ?-frame ?bool??\"} \
+          {wrong # args: should be \"foo limit limitType ?-option value ...?\"} \
+          {wrong # args: should be \"::foo hidden\"} renamed-child-still-works"
+            .as_slice()
+    );
+}

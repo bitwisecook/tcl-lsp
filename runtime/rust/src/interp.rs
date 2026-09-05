@@ -6502,12 +6502,26 @@ impl Interp {
     }
 
     /// The `wrong # args: should be "<child><tail>"` message for the `$child
-    /// <sub>` shorthand. C's `NRChildCmd` names the child command itself in
-    /// every one of its arity errors, never the `interp` ensemble, so the noun
-    /// has to come from `name` rather than a literal.
-    fn child_wrong_args(&mut self, name: &[u8], tail: &[u8]) -> Code {
+    /// <sub>` shorthand. C's `NRChildCmd` builds every one of its arity errors
+    /// with `Tcl_WrongNumArgs(interp, 1, objv, …)`, so the noun is **`objv[0]`
+    /// — the word this call was written with**, never the `interp` ensemble and
+    /// never the child's table key.
+    ///
+    /// The two spellings diverge whenever the command is not reached under the
+    /// name it was created with: after `interp create kid; rename kid foo`,
+    /// `foo hidden extra` reports `"foo hidden"`, and the qualified `::foo
+    /// hidden extra` reports `"::foo hidden"` (tclsh 8.6.16 / 9.0.4-pinned).
+    /// Only the child *lookup* keeps using the table key.
+    ///
+    /// One spelling this does not yet recover: reached through an `interp
+    /// alias`, C reports the *alias*' name, because `AliasObjCmd` installs an
+    /// ensemble rewrite (`TclInitRewriteEnsemble`, tclInterp.c) that
+    /// `Tcl_WrongNumArgs` reads back. This runtime's alias trampoline records no
+    /// such rewrite, so `bar hidden extra` reports the target's name rather than
+    /// `bar` — a separate gap in alias dispatch, not in this seam.
+    fn child_wrong_args(&mut self, argv: &[*mut TclObj], tail: &[u8]) -> Code {
         let mut message = b"wrong # args: should be \"".to_vec();
-        message.extend_from_slice(name);
+        message.extend_from_slice(&invoked_word(argv));
         message.extend_from_slice(tail);
         message.push(b'"');
         self.error(&message)
@@ -6524,19 +6538,19 @@ impl Interp {
     /// differ between the two entry points.
     fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
         if argv.len() < 2 {
-            return self.child_wrong_args(name, b" cmd ?arg ...?");
+            return self.child_wrong_args(argv, b" cmd ?arg ...?");
         }
         match obj_bytes(argv[1]).as_slice() {
             b"eval" => {
                 if argv.len() < 3 {
-                    return self.child_wrong_args(name, b" eval arg ?arg ...?");
+                    return self.child_wrong_args(argv, b" eval arg ?arg ...?");
                 }
                 let script = join_words(&argv[2..]);
                 self.eval_in_child(name, &script)
             }
             b"issafe" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(name, b" issafe");
+                    return self.child_wrong_args(argv, b" issafe");
                 }
                 let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
                 self.set_result_bytes(if safe { b"1" } else { b"0" });
@@ -6561,7 +6575,7 @@ impl Interp {
                 };
                 if argv.len() != 3 && argv.len() != 4 {
                     return self.child_wrong_args(
-                        name,
+                        argv,
                         if hide {
                             b" hide cmdName ?hiddenCmdName?"
                         } else {
@@ -6581,7 +6595,7 @@ impl Interp {
                 crate::cmd_alias::hidectl_in(self, &[name.to_vec()], op, &argv[2..])
             }
             b"invokehidden" => {
-                let mut usage = name.to_vec();
+                let mut usage = invoked_word(argv);
                 usage.extend_from_slice(
                     b" invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?",
                 );
@@ -6589,7 +6603,7 @@ impl Interp {
             }
             b"hidden" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(name, b" hidden");
+                    return self.child_wrong_args(argv, b" hidden");
                 }
                 let names = self
                     .with_child(name, |c| c.hidden_names())
@@ -6601,7 +6615,7 @@ impl Interp {
             }
             b"aliases" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(name, b" aliases");
+                    return self.child_wrong_args(argv, b" aliases");
                 }
                 let names = self
                     .with_child(name, |c| c.alias_names())
@@ -6625,7 +6639,7 @@ impl Interp {
             // `$child recursionlimit ?newlimit?` — the path-less child form.
             b"recursionlimit" => {
                 if argv.len() > 3 {
-                    return self.child_wrong_args(name, b" recursionlimit ?newlimit?");
+                    return self.child_wrong_args(argv, b" recursionlimit ?newlimit?");
                 }
                 let newlimit = argv.get(2).map(|&a| obj_bytes(a));
                 match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
@@ -6641,7 +6655,7 @@ impl Interp {
             // handler.
             b"bgerror" => {
                 if argv.len() > 3 {
-                    return self.child_wrong_args(name, b" bgerror ?cmdPrefix?");
+                    return self.child_wrong_args(argv, b" bgerror ?cmdPrefix?");
                 }
                 let prefix = argv.get(2).copied();
                 match self.with_child(name, |c| c.bgerror_apply(prefix)) {
@@ -6666,7 +6680,7 @@ impl Interp {
             // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
             b"debug" => {
                 if argv.len() > 4 {
-                    return self.child_wrong_args(name, b" debug ?-frame ?bool??");
+                    return self.child_wrong_args(argv, b" debug ?-frame ?bool??");
                 }
                 let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 match self.with_child(name, |c| c.debug_apply(&opts)) {
@@ -6682,7 +6696,7 @@ impl Interp {
             // child's commands/time limit.
             b"limit" => {
                 if argv.len() < 3 {
-                    return self.child_wrong_args(name, b" limit limitType ?-option value ...?");
+                    return self.child_wrong_args(argv, b" limit limitType ?-option value ...?");
                 }
                 let ltype = obj_bytes(argv[2]);
                 let opts: Vec<*mut TclObj> = argv[3..].to_vec();
@@ -8642,6 +8656,16 @@ fn proc_usage(called: &[u8], params: &[Param], quote_name: bool) -> Vec<u8> {
     }
     m.push(b'"');
     m
+}
+
+/// The word a call was written with — `argv[0]`, C's `objv[0]`.
+///
+/// This is what `Tcl_WrongNumArgs` prints, and it is deliberately *not* the
+/// name a command is filed under: the two differ after a `rename`, under a
+/// qualified spelling, and through an alias. Empty for an argv with no words,
+/// which no dispatch path produces.
+fn invoked_word(argv: &[*mut TclObj]) -> Vec<u8> {
+    argv.first().map_or_else(Vec::new, |&word| obj_bytes(word))
 }
 
 /// Discard a freshly created (`rc 0`) object that is not going to be stored
