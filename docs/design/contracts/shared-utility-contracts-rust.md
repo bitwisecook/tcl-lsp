@@ -49,6 +49,7 @@ entry point, or gate moves without this contract being updated.
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
+| expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
 | nested command-substitution words | `rust/tcl-compiler/src/word_subst.rs` | `nested_command_words`; `NestedWordsDecline`; `lifted_calls`; `lifted_exprs`; `LiftedCall` | `LexerConfig` per document dialect, inherited from the segmentation owner it runs | none |
 | parse-error cut | `rust/tcl-lexer/src/parse_cut.rs` | `first_parse_cut`; `first_parse_cut_in`; `ParseCut`; `EXTRA_AFTER_CLOSE_QUOTE` | `LexerConfig` per emulated release, inherited from the segmentation and word-component owners it walks | `xtask-segmentation-drift` |
@@ -174,7 +175,13 @@ entry point, or gate moves without this contract being updated.
   option-table matcher below — boolean words have a fixed six-word
   vocabulary with cross-set ambiguity (`o`), so it stays here.
 - `expr` — the expression AST, parser, evaluator seam, and walk
-  (`ExprOps`, `mathfunc`).
+  (`ExprOps`, `mathfunc`). The math-function table is one dispatch over
+  `NumValue<B>` for both engines and the const-folder, with the two release
+  axes (`MathFuncSince`, `IntWidth`) and the typed refusals (`MathFuncError`)
+  owned here rather than re-derived per engine.
+- `rand` — the Park-Miller `rand()`/`srand()` generator both engines call
+  (step, seed nudge, and C's reciprocal-multiply scaling). Only seed storage
+  and the first-seed policy are per engine (#1432).
 - `backslash` — the byte-slice convenience over the lexer's decoder
   (see next); deliberately no second decode implementation.
 

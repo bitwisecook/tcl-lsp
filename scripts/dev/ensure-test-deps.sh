@@ -1158,7 +1158,13 @@ ensure_rgxg() {
 # uv — the Python environment manager used by the repo's remaining Python
 # dev scripts.  No distro packages it reliably, so on Linux we use Astral's
 # official installer (drops the binary in ~/.local/bin); macOS gets the
-# Homebrew formula.
+# Homebrew formula.  The installer is version-pinned to match CI's UV_VERSION
+# and checked against its digest before it runs, so a dev box and a CI runner
+# install the same uv from the same script.  Re-pin both together:
+#   curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum
+UV_VERSION="0.11.28"
+UV_INSTALLER_SHA256="b7b3fe80cad1142a2a5794050b7db7b3291d1bac1423b0732571dd9366e8ca8b"
+
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi
     if command -v uv >/dev/null 2>&1; then
@@ -1174,9 +1180,25 @@ ensure_uv() {
             run_install "uv (Homebrew)" uv
             ;;
         *)
-            info "Installing uv via Astral installer (~/.local/bin)"
-            if ! curl -fsSL --connect-timeout 15 --max-time 600 \
-                    https://astral.sh/uv/install.sh | sh; then
+            local tmpdir actual_sha
+            tmpdir="$(mktemp -d)"
+            # shellcheck disable=SC2064
+            trap "rm -rf '$tmpdir'" RETURN
+
+            info "Installing uv ${UV_VERSION} via Astral installer (~/.local/bin)"
+            if ! fetch_with_retry "https://astral.sh/uv/${UV_VERSION}/install.sh" \
+                    "$tmpdir/uv-installer.sh"; then
+                warn "uv installer download failed"
+                note_missing "uv (Python environment manager)"
+                return 1
+            fi
+            actual_sha="$(sha256_file "$tmpdir/uv-installer.sh")"
+            if [ "$actual_sha" != "$UV_INSTALLER_SHA256" ]; then
+                warn "uv installer sha256 mismatch (expected $UV_INSTALLER_SHA256, got $actual_sha)"
+                note_missing "uv (Python environment manager)"
+                return 1
+            fi
+            if ! sh "$tmpdir/uv-installer.sh"; then
                 warn "uv install script failed"
                 note_missing "uv (Python environment manager)"
                 return 1

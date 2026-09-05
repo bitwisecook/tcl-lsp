@@ -827,19 +827,23 @@ fn wide_window<B: super::super::number_tower::BigIntOps>(v: NumValue<B>) -> NumV
     }
 }
 
-/// `round()`'s exact conversion: half away from zero (C's
-/// `floor(d + 0.5)` / `ceil(d - 0.5)`), then the same exact truncation —
-/// tclsh's `round(1e300)` is the full 301-digit integer in every release.
+/// `round()`'s exact conversion: half away from zero on the *exact* operand,
+/// then the same exact truncation — tclsh's `round(1e300)` is the full
+/// 301-digit integer in every release.
+///
+/// C's `ExprRoundFunc` splits the operand with `modf` and steps the integer
+/// part by one when the fraction reaches one half in magnitude;
+/// [`f64::round`] is that operation, computed exactly. It is **not**
+/// `floor(d + 0.5)` / `ceil(d - 0.5)`, which rounds twice and so disagrees
+/// wherever `d ± 0.5` itself rounds: `0.49999999999999994 + 0.5` is exactly
+/// `1.0` in binary64 and `4503599627370497.0 + 0.5` ties to even, so that
+/// spelling answered `1` and `4503599627370498` where tclsh 8.6.16/9.0.4
+/// answer `0` and `4503599627370497`.
 fn round_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
     if !f.is_finite() {
         return None;
     }
-    let rounded = if f >= 0.0 {
-        (f + 0.5).floor()
-    } else {
-        (f - 0.5).ceil()
-    };
-    trunc_exact(rounded)
+    trunc_exact(f.round())
 }
 
 /// The exact integer square root of a non-negative `i`, `isqrt`'s core.
@@ -1258,6 +1262,33 @@ mod tests {
             dispatch("isinf", &[Num::Float(f64::NAN)]),
             Some(Num::Int(0))
         );
+    }
+
+    /// `round()` is half away from zero on the *exact* operand — C's `modf`
+    /// form, not `floor(d + 0.5)`, which rounds twice and answers `1` for
+    /// `0.49999999999999994` and `4503599627370498` for `2**52 + 1`. Rows
+    /// measured on tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn round_is_half_away_from_zero_on_the_exact_value() {
+        for (operand, want) in [
+            (0.499_999_999_999_999_94, 0),
+            (-0.499_999_999_999_999_94, 0),
+            (0.500_000_000_000_000_1, 1),
+            (0.5, 1),
+            (1.5, 2),
+            (2.5, 3),
+            (-2.5, -3),
+            (4_503_599_627_370_497.0, 4_503_599_627_370_497),
+            (-4_503_599_627_370_497.0, -4_503_599_627_370_497),
+            (2_251_799_813_685_248.5, 2_251_799_813_685_249),
+            (-2_251_799_813_685_248.5, -2_251_799_813_685_249),
+        ] {
+            assert_eq!(
+                dispatch("round", &[Num::Float(operand)]),
+                Some(Num::Int(want)),
+                "round({operand:?})"
+            );
+        }
     }
 
     #[cfg(feature = "num-bigint")]

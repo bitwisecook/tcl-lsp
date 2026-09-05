@@ -1545,32 +1545,25 @@ fn bug_mathfunc_arity_error_wording() {
     );
 }
 
-// tcl::mathfunc: rand / srand (gap — not implemented in the VM)
+// tcl::mathfunc: rand / srand — the shared Park-Miller generator (#1432)
 
-// BUG: rand()/srand() are missing from the VM. tclsh implements both; the VM
-// has no `tcl::mathfunc::rand` / `::srand` registration, so an `expr` using
-// them fails with "invalid command name" instead of returning a number.
-// srand(N) is deterministic in tclsh: srand(1) seeds and returns the first
-// random number, 7.826369259425611e-6, on both 8.6 and 9.0.
-//   script:        expr {srand(1)}
-//   tclsh 8.6/9.0: 7.826369259425611e-6
-//   tcl-vm:        invalid command name "tcl::mathfunc::srand" (ok=false)
+/// `srand(N)` seeds the generator and returns its first draw, so it is
+/// deterministic: tclsh 8.6.16 and 9.0.4 both answer `srand(1)` with
+/// `7.826369259425611e-6`. The whole stream is pinned against the oracle in
+/// `numeric_tower_e2e.rs`; this row is the smoke test that the VM registers
+/// the function at all.
 #[test]
-fn bug_srand_is_deterministic_and_missing() {
-    // tclsh 8.6/9.0: expr {srand(1)} -> 7.826369259425611e-6
+fn srand_is_deterministic() {
     expr_eq("srand(1)", "7.826369259425611e-6");
 }
 
-// BUG: rand() is likewise missing; in tclsh it returns a double in [0,1).
-//   script:        srand(7); set x [expr {rand()}]; expr {$x >= 0 && $x < 1}
-//   tclsh 8.6/9.0: 1
-//   tcl-vm:        invalid command name "tcl::mathfunc::rand" (ok=false)
+/// `rand()` returns a double in `[0, 1)` (tclsh 8.6.16/9.0.4), drawn from the
+/// seed `srand` installed.
 #[test]
-fn bug_rand_returns_unit_interval_and_missing() {
-    // Seed first (deterministic), then check rand() lands in [0,1).
+fn rand_returns_the_unit_interval() {
     let (ok, result, _) = run("expr {srand(99)}; set x [expr {rand()}]; expr {$x >= 0 && $x < 1}");
     assert!(ok, "rand() should produce a number in [0,1): {result}");
-    assert_eq!(result, "1"); // tclsh 8.6/9.0
+    assert_eq!(result, "1");
 }
 
 // ::tcl::mathop::* operator commands

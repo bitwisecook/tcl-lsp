@@ -211,10 +211,16 @@ jobs:
       # Pages serves it: the page loads under its own CSP, Monaco mounts, and
       # the language server worker answers `initialize`. The check skips itself
       # where chromium is unavailable rather than failing.
+      #
+      # Version-pinned: an unpinned `npm install playwright` resolves whatever
+      # is newest at run time, so the browser this smoke test drives could
+      # change under us between two deploys of the same commit.
       - name: Install playwright chromium
+        env:
+          PLAYWRIGHT_VERSION: "1.63.0"
         run: |
           cd rust/tcl-spec-studio/web
-          npm install --no-save playwright
+          npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
           npx playwright install --with-deps chromium
 
       - name: Boot the assembled spec studio in headless chromium
@@ -233,7 +239,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          python -m pip install --upgrade pip maturin
+          python -m pip install "pip==26.2.1" "maturin==1.15.0"
           # maturin develop installs f5report editable against the source tree,
           # so the vendored Mermaid + wasm engine (committed under
           # python/f5report/vendor/) are embedded — GitHub Pages has no strict

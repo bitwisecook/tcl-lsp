@@ -44,7 +44,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron";
 import { loadFactor, scaledTimeout } from "./signal";
 
@@ -207,27 +207,39 @@ export function parseNoProgressTimeoutMs(): number {
   return parseMsEnvVar(NO_PROGRESS_ENV_VAR, DEFAULT_NO_PROGRESS_TIMEOUT_MS);
 }
 
-export function escapeDoubleQuotes(text: string): string {
-  return text.split('"').join('\\"');
+/** The command-line fragments that identify one of our own test hosts. */
+function testHostNeedles(extensionDevelopmentPath: string, extensionTestsPath: string): string[] {
+  return [
+    `extensionDevelopmentPath=${extensionDevelopmentPath}`,
+    `extensionTestsPath=${extensionTestsPath}`,
+  ];
 }
 
-export function escapeSingleQuotes(text: string): string {
-  return text.split("'").join("'\"'\"'");
+/** Quote a literal for `pkill -f`, whose pattern is an extended regexp. A
+ *  checkout path is arbitrary text: unescaped, a `.` in it would match any
+ *  character and a `(` would make the pattern invalid. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** `ENOENT` only means the tool is not on this platform (neither `pkill` nor
+ *  `ps` exists on Windows), which is not worth a warning; anything else is a
+ *  real failure and should not vanish silently. */
+function warnUnlessMissing(message: string, error: Error | undefined): void {
+  if (!error) return;
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+  console.warn(message, error.message);
 }
 
 export function cleanupStaleTestHosts(
   extensionDevelopmentPath: string,
   extensionTestsPath: string,
 ): void {
-  try {
-    const escapedDevPath = escapeSingleQuotes(extensionDevelopmentPath);
-    const escapedTestsPath = escapeSingleQuotes(extensionTestsPath);
-    execSync(
-      `pkill -f 'extensionDevelopmentPath=${escapedDevPath}' || true; pkill -f 'extensionTestsPath=${escapedTestsPath}' || true`,
-      { stdio: "ignore" },
-    );
-  } catch {
-    // Cleanup is best-effort only.
+  for (const needle of testHostNeedles(extensionDevelopmentPath, extensionTestsPath)) {
+    // The argv form keeps the checkout path out of a shell entirely. A non-zero
+    // exit just means nothing matched, which is the normal case.
+    const result = spawnSync("pkill", ["-f", escapeRegExp(needle)], { stdio: "ignore" });
+    warnUnlessMissing("Could not run pkill to clear stale test hosts:", result.error);
   }
 }
 
@@ -235,18 +247,21 @@ export function emitProcessSnapshot(
   extensionDevelopmentPath: string,
   extensionTestsPath: string,
 ): void {
-  try {
-    const escapedDevPath = escapeDoubleQuotes(extensionDevelopmentPath);
-    const escapedTestsPath = escapeDoubleQuotes(extensionTestsPath);
-    const pattern = `extensionDevelopmentPath=${escapedDevPath}|extensionTestsPath=${escapedTestsPath}|node ./out/test/runTest.js`;
-    const cmd = `ps -axo pid,ppid,etime,command | grep -E "${pattern}"`;
-    const output = execSync(cmd, { encoding: "utf8" });
-    if (output.trim()) {
-      console.error("Potentially stuck VS Code test processes:");
-      console.error(output.trimEnd());
-    }
-  } catch {
-    // Snapshot is best-effort only.
+  // `ps` on its own, with the filtering done here: no shell, so no pipeline and
+  // no interpolated path to quote.
+  const result = spawnSync("ps", ["-axo", "pid,ppid,etime,command"], { encoding: "utf8" });
+  warnUnlessMissing("Could not take a process snapshot:", result.error);
+  if (typeof result.stdout !== "string") return;
+  const needles = [
+    ...testHostNeedles(extensionDevelopmentPath, extensionTestsPath),
+    "node ./out/test/runTest.js",
+  ];
+  const matched = result.stdout
+    .split("\n")
+    .filter((line) => needles.some((needle) => line.includes(needle)));
+  if (matched.length) {
+    console.error("Potentially stuck VS Code test processes:");
+    console.error(matched.join("\n"));
   }
 }
 

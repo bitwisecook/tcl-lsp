@@ -33,11 +33,15 @@ on:
     types: [published]
   workflow_dispatch:
 
+# Read-only by default; the two jobs that attach artefacts to the release opt
+# in to `contents: write` themselves, so a step added to neither inherits it.
 permissions:
-  contents: write # attach artefacts to the release
+  contents: read
 
 jobs:
   build:
+    permissions:
+      contents: write # softprops/action-gh-release attaches the .pyz
     name: ${{ matrix.os }} (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -110,7 +114,10 @@ jobs:
           GIT_HASH: ${{ github.sha }}
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip maturin shiv
+          # Pinned: an unpinned install resolves whatever is newest at run
+          # time, so a release cut twice from one tag could be built by two
+          # different maturin/shiv versions.  Bump deliberately.
+          python -m pip install "pip==26.2.1" "maturin==1.15.0" "shiv==1.0.8"
 
           # Version tag for the filename: the release tag (minus a leading `v`)
           # on a release, else the short commit.
@@ -181,6 +188,8 @@ jobs:
   single-file-html:
     name: single-file HTML generator
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write # softprops/action-gh-release attaches the HTML generator
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

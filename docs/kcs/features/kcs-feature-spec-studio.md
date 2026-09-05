@@ -30,14 +30,33 @@ rendering, and importing files: browsers block the editor and the language
 server on `file://` URLs, so the page falls back to its plain text editor and
 says so. Serve the directory to get the full editor.
 
-1. **Pick a dialect** at the top left. The command list underneath is that
-   dialect's real registry, so Tcl 8.4 shows what Tcl 8.4 has.
-2. **Choose a command** to load its live specification into the form, or press
-   **New command** to start from scratch. If you already know the name, type it
-   into the box and press **Load** (or Enter) — the box also offers the
-   matching names as you type. An ambiguous or unknown name is reported rather
-   than guessed at, since loading the wrong command silently is worse than
-   saying nothing matched.
+1. **Pick a dialect** at the top left. The registry browser underneath is
+   that dialect's real command surface, so Tcl 8.4 shows what Tcl 8.4 has. It
+   is grouped by **pack** — the directory each command's specification is
+   written in: Tcl core first, then the libraries that layer on it (the
+   standard library, Tcllib, Tk, …), then the vendor and authoring surfaces.
+   Only the packs the dialect actually reaches are listed, and the count line
+   above says what you are looking at: `187 Tcl 9.0 commands in 4 packs`. A
+   pack you are building yourself is the first section, not a separate panel.
+2. **Open a pack and choose a command** to load its live specification into
+   the form, or press **New command** to start from scratch. Sections start
+   closed except the one holding the command you have open; a section you
+   open or close yourself stays that way across dialect switches and reloads,
+   as part of live save. Each section's **?** says what the pack holds and
+   where it lives in the repository, which is the directory a rendered `.rs`
+   file goes into. Typing in the filter box narrows the browser to the packs
+   with a match — each header reads `12 of 96`, and the count line becomes
+   `12 of 187 Tcl 9.0 commands, in 3 packs`. If you already know the name,
+   type it into the same box and press **Load** (or Enter); the box also
+   offers the matching names as you type. An ambiguous or unknown name is
+   reported rather than guessed at, since loading the wrong command silently
+   is worse than saying nothing matched.
+
+   A few names are specified in more than one pack — `close` is one
+   specification in Tcl core, another in Expect, a third in iRules — and the
+   dialect decides which one you get. The line above the form names that pack
+   as a chip and says which other packs declare the name, so you are editing
+   the one you meant.
 3. **Edit any field.** The form is grouped — Identity, Availability, Arity and
    arguments, Types, and so on. A field that differs from the default is
    marked **set**, and each group heading counts how many of its fields are
@@ -56,10 +75,10 @@ says so. Serve the directory to get the full editor.
 
 The studio is usable on a phone, not merely reachable from one. Below 34rem
 every toolbar control takes the full width, the tab strip scrolls sideways
-instead of stacking, and touch targets meet the 44px minimum. The command list
-sits below the editor rather than beside it — which is why typing a name and
-pressing **Load** matters there: the list is off-screen, so filtering alone
-would look like nothing had happened.
+instead of stacking, and touch targets meet the 44px minimum. The registry
+browser sits below the editor rather than beside it — which is why typing a
+name and pressing **Load** matters there: the browser is off-screen, so
+filtering alone would look like nothing had happened.
 
 ![The spec studio on a phone, with a command loaded by name](../../screenshots/spec-studio-mobile.png)
 
@@ -157,8 +176,9 @@ Beside the form, `.rs` module, and stub, the **Pack DSL** tab holds the
 [SpecTcl pack](../../design/spec-packs.md)'s `.tclspec` source directly —
 the studio's one authoritative document for a pack you are building.
 Edit a field in the form and the DSL text updates; edit the text and the
-form, the command list, and the collision report all follow. Open an
-existing `.tclspec` with **Open a .tclspec…**, or start one from scratch
+form, the pack's section of the browser, and the collision report all
+follow. Open an existing `.tclspec` with **Open a .tclspec…**, or start one
+from scratch
 and **Download** or **Add to files** when you are done. **Re-render
 canonically** rebuilds the whole document from its commands — useful
 after a lot of form editing, at the cost of your own comments and layout.

@@ -22,9 +22,9 @@
 // the `sun_path` arithmetic below is stated once and neither suite can drift
 // back onto a path that blows the cap.
 
+import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import * as crypto from "crypto";
 
 // A Unix domain socket path is capped at 103 bytes (`sun_path`, minus the NUL).
 const SUN_PATH_MAX = 103;
@@ -33,8 +33,17 @@ const SUN_PATH_MAX = 103;
 // `<major>.<minor>-main.sock`.
 const LONGEST_SOCKET_NAME = "1.234-main.sock";
 
+// `mkdtempSync` appends six random characters to this.
+const DIR_PREFIX = "tcl-lsp-vsc-";
+
 /**
- * The user-data dir for a VS Code test host driving `extensionDevelopmentPath`.
+ * Create a user-data dir for a VS Code test host.
+ *
+ * `mkdtempSync` creates it atomically, mode 0700, under a name nobody can
+ * predict, so another user of the shared temp dir can neither pre-create the
+ * path nor read the settings and workspace state the host writes into it. The
+ * directory is removed again when the runner exits, so a run leaves nothing
+ * behind and no state carries into the next one.
  *
  * VS Code puts its IPC lock socket at `<user-data-dir>/<version>-main.sock`, so
  * the whole directory path has to leave room under the 103-byte `sun_path` cap.
@@ -51,22 +60,13 @@ const LONGEST_SOCKET_NAME = "1.234-main.sock";
  *     below it — so the name has to be one short segment, not
  *     `tcl-lsp-vscode-test-<12 hex>/user-data` (that overshot by itself).
  *
- * The name is derived from `extensionDevelopmentPath` so repeated runs against
- * the *same* checkout keep reusing (and clearing) one directory rather than
- * leaking a fresh one every time, while a different worktree gets its own.
- *
  * @throws if the resulting socket path would still exceed the cap — saying so
  * plainly beats leaving Electron's `EINVAL` to be decoded again.
  */
-export function resolveTestUserDataDir(extensionDevelopmentPath: string): string {
-  const checkoutId = crypto
-    .createHash("sha1")
-    .update(extensionDevelopmentPath)
-    .digest("hex")
-    .slice(0, 10);
-  const userDataDir = path.join(os.tmpdir(), `tcl-lsp-vsc-${checkoutId}`);
-
-  const probeSocket = path.join(userDataDir, LONGEST_SOCKET_NAME);
+export function createTestUserDataDir(): string {
+  // The probe is the exact length `mkdtempSync` will produce, so the budget is
+  // checked before anything is created.
+  const probeSocket = path.join(os.tmpdir(), `${DIR_PREFIX}XXXXXX`, LONGEST_SOCKET_NAME);
   if (probeSocket.length > SUN_PATH_MAX) {
     throw new Error(
       `VS Code's IPC socket path would be ${probeSocket.length} bytes, over the ` +
@@ -74,5 +74,16 @@ export function resolveTestUserDataDir(extensionDevelopmentPath: string): string
         `Set TMPDIR to a shorter directory before running the extension tests.`,
     );
   }
+
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), DIR_PREFIX));
+  // Both runners finish inside `process.exit`, so this is the only hook left to
+  // clean up in.
+  process.on("exit", () => {
+    try {
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    } catch (err) {
+      console.warn(`Could not remove the test user-data dir ${userDataDir}:`, err);
+    }
+  });
   return userDataDir;
 }
