@@ -395,9 +395,10 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 ///
 /// Salsa grants `&mut` on the database through `Storage::cancel_others`, which
 /// parks on a condvar until every *other* `DatabaseImpl` clone has been
-/// dropped. [`Backend::db_set_source`] reaches that from `did_open` /
-/// `did_change` **while they hold the [`EditOrder`] turn**, so one slow-to-drop
-/// snapshot stops the whole server (issue #1657).
+/// dropped. The original `did_open` / `did_change` path reached that while it
+/// held the [`EditOrder`] turn, so one slow-to-drop snapshot stopped the whole
+/// server (issue #1657). Live publication is now deferred past that turn and
+/// additionally requires this census to be empty before entering a setter.
 ///
 /// The stall report could already say the barrier had stopped and which handler
 /// held it. It could not say *what the handler was waiting for*, because a
@@ -6020,6 +6021,7 @@ enum LivePublicationWait {
     Files,
     Tombstones,
     Project,
+    SalsaSnapshots,
     WorkspaceIndex,
     DiagnosticsSlots,
     SemanticTokens,
@@ -6035,6 +6037,7 @@ impl LivePublicationWait {
             Self::Files => "db_files.try_lock",
             Self::Tombstones => "db_tombstones.try_lock",
             Self::Project => "db_project.try_lock",
+            Self::SalsaSnapshots => "SNAPSHOT_CENSUS.zero",
             Self::WorkspaceIndex => "workspace_index.try_write",
             Self::DiagnosticsSlots => "diag_slots.try_lock",
             Self::SemanticTokens => "last_semantic_tokens.try_lock",
@@ -7862,9 +7865,9 @@ impl Backend {
     /// ```
     ///
     /// That is a **blocking** condvar wait, on a Tokio worker thread, for every
-    /// other `DatabaseImpl` clone in the process to be dropped. And this
-    /// function is called from `did_open` / `did_change` **while they hold the
-    /// [`EditOrder`] turn**, so for as long as it waits:
+    /// other `DatabaseImpl` clone in the process to be dropped. The original
+    /// `did_open` / `did_change` path called this while holding the
+    /// [`EditOrder`] turn, so for as long as it waited:
     ///
     /// * `now_serving` does not advance, so every later document-sync
     ///   notification blocks in `wait_turn`;
@@ -7873,13 +7876,14 @@ impl Backend {
     /// * the server answers nothing, writes nothing, and burns no CPU, while
     ///   its stdin reader goes on draining input.
     ///
-    /// That is issue #1657's signature exactly. So a `db.lock().await.clone()`
-    /// anywhere in this crate must be **moved straight into the worker it was
-    /// cloned for** and never held across an unrelated `.await`: a snapshot that
-    /// outlives its query does not slow one request down, it stops the server.
-    /// `scratchpad`-style audits will not catch it either — the mutex is
-    /// released the instant the clone is made, so it is invisible to a
-    /// lock-guard analysis; it is the *clone* salsa waits on.
+    /// That is issue #1657's signature exactly. Live setters now run after the
+    /// turn is released and only after the snapshot census reaches zero; the
+    /// same lifetime rule remains mandatory for every clone. A
+    /// `db.lock().await.clone()` anywhere in this crate must be **moved straight
+    /// into the worker it was cloned for** and never held across an unrelated
+    /// `.await`. `scratchpad`-style audits will not catch it either — the mutex
+    /// is released the instant the clone is made, so it is invisible to a
+    /// lock-guard analysis; it is the *clone* Salsa waits on.
     #[cfg(test)]
     async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
         let mut db = self.db.lock().await;
@@ -8052,6 +8056,14 @@ impl Backend {
             .db
             .try_lock()
             .map_err(|_| LivePublicationWait::Database)?;
+        // Salsa setters synchronously wait in `cancel_others` while another
+        // database clone lives. Once `db` is held, this zero is stable: every
+        // tracked snapshot must acquire `db` before cloning it. Refuse the
+        // bundle here so every live setter drops `db` and retries
+        // asynchronously instead of retaining the remaining source stores.
+        if SNAPSHOT_CENSUS.report().outstanding != 0 {
+            return Err(LivePublicationWait::SalsaSnapshots);
+        }
         let files = self
             .db_files
             .try_lock()
@@ -8154,6 +8166,10 @@ impl Backend {
                 LivePublicationWait::Files => drop(self.db_files.lock().await),
                 LivePublicationWait::Tombstones => drop(self.db_tombstones.lock().await),
                 LivePublicationWait::Project => drop(self.db_project.lock().await),
+                // The census is not an async lock with a queue to join. The
+                // bounded sleep below is its fair retry point; every snapshot
+                // retires synchronously when its worker finishes.
+                LivePublicationWait::SalsaSnapshots => {}
                 LivePublicationWait::WorkspaceIndex => drop(self.workspace_index.write().await),
                 LivePublicationWait::DiagnosticsSlots => drop(self.diag_slots.lock().await),
                 LivePublicationWait::SemanticTokens => {
@@ -8315,12 +8331,14 @@ impl Backend {
     /// it retries, so a slow Salsa/index dependency cannot hold every request
     /// behind `edits_settled()`.
     ///
-    /// The possibly-blocking Salsa setter runs with neither the edit turn nor
-    /// the document map held, so its ordinary cancellation path can retire old
-    /// snapshots without freezing unrelated requests. A per-publication gate
-    /// preserves edit order; currency checks before and after the commit make a
-    /// newer edit/close authoritative. Requests for this URI wait on its
-    /// `source_published` bit, while other documents remain serviceable.
+    /// The Salsa setter runs with neither the edit turn nor the document map
+    /// held, and only after the tracked snapshot census is empty. Because the
+    /// acquired bundle already contains `db`, that zero remains stable through
+    /// the setter and it cannot block in `cancel_others` while owning db/files.
+    /// A per-publication gate preserves edit order; currency checks before and
+    /// after the commit make a newer edit/close authoritative. Requests for
+    /// this URI wait on its `source_published` bit, while other documents remain
+    /// serviceable.
     async fn commit_open_document(
         &self,
         uri: &Uri,
@@ -17142,9 +17160,10 @@ impl Backend {
         // A salsa snapshot is not an ordinary handle. `set_text` (and creating a
         // `SourceFile`) goes through `Storage::cancel_others`, which parks on a
         // condvar until every **other** clone has been dropped — a blocking
-        // wait, taken on a Tokio worker, from inside the `EditOrder` turn that
-        // `did_open` / `did_change` hold. So a live snapshot does not merely
-        // delay one query: it stalls the document-sync barrier, and with it
+        // wait, taken on a Tokio worker. The original edit path entered it from
+        // inside the `EditOrder` turn; the current deferred publication path
+        // waits for the tracked census to become empty first. A clone retained
+        // past its query would still hold publication back and used to stall
         // every request handler in the server (issue #1657).
         //
         // Holding one across an unrelated `.await` — as this did across the
@@ -36757,6 +36776,102 @@ proc p {} {
             files.get(&uri).map(|file| file.text(&*db).as_str()),
             Some("set release_ready 2\n"),
             "the deferred publication must install the edited revision",
+        );
+    }
+
+    /// Automated review of #1854: releasing the edit turn is insufficient if
+    /// a deferred Salsa setter enters `cancel_others` while it owns db/files.
+    /// Hold a real tracked snapshot, start an edit, and prove the publication
+    /// waits with the entire bundle released. The pre-fix path blocks inside
+    /// the setter and deterministically times out acquiring both stores here.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_waiting_for_snapshot_releases_salsa_stores_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-snapshot-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version("set release_ready 1\n".to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, "set release_ready 1\n", "tcl8.6".to_owned())
+            .await;
+        // Production snapshots are handed directly to a worker. Retaining one
+        // here is deliberate: it makes Salsa's setter precondition false until
+        // this test says otherwise.
+        let snapshot = {
+            let db = backend.db.lock().await;
+            SNAPSHOT_CENSUS.take(&db, "issue-1854-held-test-snapshot")
+        };
+        let mut editing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "set release_ready 2\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let pending = backend
+                    .documents
+                    .lock("issue-1854-snapshot-wait-visible")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| {
+                        doc.text.as_ref() == "set release_ready 2\n" && !doc.source_published
+                    });
+                if pending && backend.live_publication_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didChange must reach deferred publication with its live revision pending");
+
+        let db = crate::rt::timeout(std::time::Duration::from_millis(250), backend.db.lock())
+            .await
+            .expect("a live setter waiting for snapshots must release db (#1854)");
+        drop(db);
+        let files = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.db_files.lock(),
+        )
+        .await
+        .expect("a live setter waiting for snapshots must release db_files (#1854)");
+        drop(files);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut editing)
+                .await
+                .is_err(),
+            "the edit must remain pending until its snapshot retires",
+        );
+
+        drop(snapshot);
+        crate::rt::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("didChange must finish once every Salsa snapshot retires")
+            .expect("didChange must not panic");
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some("set release_ready 2\n"),
+            "the deferred setter must publish after the census reaches zero",
         );
     }
 
