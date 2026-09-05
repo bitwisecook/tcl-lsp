@@ -341,9 +341,10 @@ fn cold_tokens(lsp: &mut Lsp, text: &str) -> Vec<SemToken> {
 }
 
 /// The enriched **range** tokens for `text`'s viewport `[start, end)`: a fresh
-/// document is fully settled (so the compilation unit + analysis are memoised),
-/// then a range request is made, which therefore returns the enriched tier. The
-/// truth a coarse-then-converge range response (#844 Gap 4) must land on.
+/// document is fully settled, then the range request's own convergence marker
+/// proves that its independent CU/analysis reads served (or matched) the
+/// enriched tier. The truth a coarse-then-converge range response (#844 Gap 4)
+/// must land on.
 fn cold_range_tokens(
     lsp: &mut Lsp,
     text: &str,
@@ -352,12 +353,11 @@ fn cold_range_tokens(
 ) -> Vec<SemToken> {
     let uri = unique_uri("tcl");
     lsp.open_ready_timeout(&uri, text, BIG_DOC_SETTLE);
-    // Settle the shared CU/analysis explicitly before sampling the range. A
-    // diagnostics publish can complete while the independent semantic-token
-    // query is still cold, so readiness alone does not make a bare range call
-    // an enriched oracle.
+    // Warm the shared CU/analysis, then settle the range path independently.
+    // Its reads can still race cancellation after a full-token request, so a
+    // bare viewport response is not a sound enriched oracle.
     let _ = lsp.semantic_tokens_settled(&uri);
-    let raw = lsp.semantic_tokens_range(&uri, start, end);
+    let raw = lsp.semantic_tokens_range_settled(&uri, start, end);
     lsp.close_document(&uri);
     decode_semantic_tokens(&raw)
 }
@@ -564,14 +564,24 @@ fn converge_via_refresh(
             out.no_refresh_decisions += 1;
             return out;
         } else if matches!(tier, Tier::Range { .. }) {
-            if settled.contains("outcome=cancelled") {
+            if settled.contains("outcome=cancelled")
+                || settled.contains("outcome=refresh-suppressed")
+                || settled.contains("outcome=no-analysis")
+            {
                 // Nothing was compared — a concurrent salsa write killed the
-                // read. The next request re-races it.
+                // read, publication has not installed handles yet, or this
+                // differing stream already used its one refresh. The next
+                // request re-races it and may serve the enriched stream.
                 out.no_refresh_decisions += 1;
                 continue;
             }
-            out.no_refresh_decisions += 1;
-            return out;
+            if settled.contains("outcome=served-enriched")
+                || settled.contains("outcome=compared-equal")
+            {
+                out.no_refresh_decisions += 1;
+                return out;
+            }
+            panic!("unexpected range semantic-token convergence marker: {settled}");
         } else {
             panic!("unexpected full semantic-token convergence marker: {settled}");
         }
@@ -1151,7 +1161,7 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
     // not been made yet".  The timeout is only a backstop against a total hang,
     // never the synchronisation.
     //
-    // `outcome=compared` proves the one-shot seam served the coarse tier and the
+    // `outcome=compared-equal` proves the one-shot seam served the coarse tier and the
     // detached continuation (#844 Gap 4) compared it with the recomputed
     // enriched viewport. This wait observes that real deep-tier comparison;
     // first-response latency is asserted separately, so the timeout is only a
@@ -1163,7 +1173,7 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
     );
     eprintln!("range_semantic_tokens_no_spurious_refresh_when_converged: {settled}");
     assert!(
-        settled.contains("outcome=compared"),
+        settled.contains("outcome=compared-equal"),
         "the forced coarse branch must execute its equality comparison: {settled:?}"
     );
     // The decision is recorded in the marker itself: `refresh=false` means

@@ -388,7 +388,7 @@ const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_s
 /// `VSCODE-WAIT-TIMEOUT`.
 const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
 
-/// Live salsa database snapshots, so a stalled barrier can name what it is
+/// Live salsa database snapshots, so a stalled publication can name what it is
 /// waiting for.
 ///
 /// # Why this exists
@@ -398,7 +398,8 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 /// dropped. The original `did_open` / `did_change` path reached that while it
 /// held the [`EditOrder`] turn, so one slow-to-drop snapshot stopped the whole
 /// server (issue #1657). Live publication is now deferred past that turn and
-/// additionally requires this census to be empty before entering a setter.
+/// additionally requires its database's census to be empty before entering a
+/// setter.
 ///
 /// The stall report could already say the barrier had stopped and which handler
 /// held it. It could not say *what the handler was waiting for*, because a
@@ -406,20 +407,18 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 /// This is that trace: every clone registers here with the site that made it and
 /// when, and retires on drop.
 ///
+/// The census belongs to the [`TrackedMutex`] that owns one Salsa database.
+/// That scope is a correctness property: a snapshot from an unrelated backend
+/// must not delay this backend's publication (#1854 review).
+///
 /// # Cost
 ///
 /// One `HashMap` insert and one remove per salsa query, under a
 /// `std::sync::Mutex` whose critical sections contain no `await` and no
 /// allocation beyond the entry itself. Against the query it accompanies — a
 /// file analysis, a semantic-token pass, a whole-project arity walk — that is
-/// not measurable. A process-global rather than a `Backend` field on purpose:
-/// several of the clone sites are free functions that are handed
-/// `Arc<Mutex<TclDatabase>>` and no `&self`, and threading a census through them
-/// would be a lot of plumbing for a diagnostic.
-static SNAPSHOT_CENSUS: std::sync::LazyLock<SnapshotCensus> =
-    std::sync::LazyLock::new(SnapshotCensus::default);
-
-/// See [`SNAPSHOT_CENSUS`].
+/// not measurable. Free functions already receive the tracked mutex, so they
+/// automatically register with the correct database's census.
 #[derive(Default)]
 struct SnapshotCensus {
     live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
@@ -435,21 +434,12 @@ struct SnapshotReport {
 }
 
 impl SnapshotCensus {
-    /// Clone `db` into a tracked snapshot, tagged with the site that took it.
-    ///
-    /// Takes `&'static self` so the handle retires into *this* census rather
-    /// than a hard-coded global — which is what lets a test drive an isolated
-    /// one instead of asserting on a counter every other test in the binary is
-    /// also moving.
-    fn take(&'static self, db: &tcl_lsp_db::TclDatabase, site: &'static str) -> DbSnapshot {
-        self.track(db.clone(), site)
-    }
-
     /// Put an owned value behind the same census lifetime as a database clone.
     ///
     /// Generic only so the destructor ordering can be proved with a drop probe;
-    /// production calls this through [`Self::take`] with `TclDatabase`.
-    fn track<T>(&'static self, value: T, site: &'static str) -> DbSnapshot<T> {
+    /// production calls this through [`TrackedMutex::snapshot`] with
+    /// `TclDatabase`.
+    fn track<T>(self: &Arc<Self>, value: T, site: &'static str) -> DbSnapshot<T> {
         let id = self
             .next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -459,7 +449,7 @@ impl SnapshotCensus {
             .insert(id, (site, crate::rt::Instant::now()));
         DbSnapshot {
             db: Some(value),
-            census: self,
+            census: Arc::clone(self),
             id,
         }
     }
@@ -495,7 +485,7 @@ impl SnapshotCensus {
     }
 }
 
-/// A salsa database snapshot that retires itself from [`SNAPSHOT_CENSUS`].
+/// A salsa database snapshot that retires itself from its database's census.
 ///
 /// Derefs to the database, so a call site reads `&*snapshot` where it used to
 /// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
@@ -506,7 +496,7 @@ struct DbSnapshot<T = tcl_lsp_db::TclDatabase> {
     // census entry. Rust otherwise runs `Drop::drop` before dropping fields,
     // which left a small false-zero window while the Salsa clone still lived.
     db: Option<T>,
-    census: &'static SnapshotCensus,
+    census: Arc<SnapshotCensus>,
     id: u64,
 }
 
@@ -542,6 +532,7 @@ struct TrackedMutex<T> {
     value: Mutex<T>,
     name: &'static str,
     tracking: std::sync::Mutex<TrackedMutexState>,
+    snapshots: Arc<SnapshotCensus>,
 }
 
 #[derive(Default)]
@@ -615,7 +606,31 @@ impl<T> TrackedMutex<T> {
             value: Mutex::new(value),
             name,
             tracking: std::sync::Mutex::new(TrackedMutexState::default()),
+            snapshots: Arc::new(SnapshotCensus::default()),
         }
+    }
+
+    /// Clone the protected value and register the clone before releasing the
+    /// mutex. A setter holding this mutex can therefore trust a zero census:
+    /// no new snapshot can appear until that setter releases it.
+    async fn snapshot(&self, site: &'static str) -> DbSnapshot<T>
+    where
+        T: Clone,
+    {
+        let value = self.lock().await;
+        self.snapshots.track(value.clone(), site)
+    }
+
+    /// Register a clone while the caller already holds this mutex.
+    fn snapshot_from(&self, value: &T, site: &'static str) -> DbSnapshot<T>
+    where
+        T: Clone,
+    {
+        self.snapshots.track(value.clone(), site)
+    }
+
+    fn snapshot_report(&self) -> SnapshotReport {
+        self.snapshots.report()
     }
 
     #[track_caller]
@@ -3293,7 +3308,7 @@ async fn compute_base_analysis(
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
-        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_base_analysis");
+        let snapshot = db.snapshot("compute_base_analysis").await;
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
@@ -3587,7 +3602,7 @@ async fn compute_project_diags(
     let (Some(project), Some(file)) = (project, file) else {
         return ControlFlow::Continue(None);
     };
-    let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_project_diags");
+    let snapshot = db.snapshot("compute_project_diags").await;
     match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
             (*tcl_lsp_db::project_callback_diagnostics(&*snapshot, file, config, project)).clone()
@@ -3632,7 +3647,7 @@ async fn compute_compiler_diags(
         dialect,
     } = ctx;
     if let Some(file) = file {
-        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_compiler_diags");
+        let snapshot = db.snapshot("compute_compiler_diags").await;
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
@@ -4208,7 +4223,7 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        let snapshot = SNAPSHOT_CENSUS.take(&db, "sync_cross_file_evidence");
+        let snapshot = handles.db.snapshot_from(&db, "sync_cross_file_evidence");
         (covered, snapshot, files, project)
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
@@ -4434,7 +4449,9 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
         (
-            SNAPSHOT_CENSUS.take(&db, "sync_workspace_class_factories_round"),
+            handles
+                .db
+                .snapshot_from(&db, "sync_workspace_class_factories_round"),
             files,
             project,
         )
@@ -6037,7 +6054,7 @@ impl LivePublicationWait {
             Self::Files => "db_files.try_lock",
             Self::Tombstones => "db_tombstones.try_lock",
             Self::Project => "db_project.try_lock",
-            Self::SalsaSnapshots => "SNAPSHOT_CENSUS.zero",
+            Self::SalsaSnapshots => "db.snapshot_census.zero",
             Self::WorkspaceIndex => "workspace_index.try_write",
             Self::DiagnosticsSlots => "diag_slots.try_lock",
             Self::SemanticTokens => "last_semantic_tokens.try_lock",
@@ -8061,7 +8078,7 @@ impl Backend {
         // tracked snapshot must acquire `db` before cloning it. Refuse the
         // bundle here so every live setter drops `db` and retries
         // asynchronously instead of retaining the remaining source stores.
-        if SNAPSHOT_CENSUS.report().outstanding != 0 {
+        if self.db.snapshot_report().outstanding != 0 {
             return Err(LivePublicationWait::SalsaSnapshots);
         }
         let files = self
@@ -8247,7 +8264,7 @@ impl Backend {
             // A salsa setter blocks the worker thread inside `cancel_others`
             // while any clone lives. Do not enter that synchronous wait from a
             // background transaction. Holding `db` makes this zero stable.
-            if SNAPSHOT_CENSUS.report().outstanding != 0 {
+            if self.db.snapshot_report().outstanding != 0 {
                 drop(locks);
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
                 continue;
@@ -8320,25 +8337,29 @@ impl Backend {
         }
     }
 
-    /// Publish one already-visible editor buffer to Salsa and the workspace
-    /// index if it is still the revision this `didOpen` installed.
+    /// Publish one already-visible editor buffer to Salsa and then seed its
+    /// live workspace-index view if it is still the revision this `didOpen`
+    /// installed.
     ///
     /// The release `v2.2.2` extension suite caught `did_open` suspended on the
     /// Salsa mutex while it already owned both the document-sync turn and the
     /// open-document map (#1849). `did_open` now installs the authoritative
     /// buffer and drops that global turn before entering this function. This
     /// deferred transaction owns neither the turn nor any partial lock while
-    /// it retries, so a slow Salsa/index dependency cannot hold every request
-    /// behind `edits_settled()`.
+    /// it retries, so a slow Salsa dependency cannot hold every request behind
+    /// `edits_settled()`.
     ///
     /// The Salsa setter runs with neither the edit turn nor the document map
     /// held, and only after the tracked snapshot census is empty. Because the
     /// acquired bundle already contains `db`, that zero remains stable through
     /// the setter and it cannot block in `cancel_others` while owning db/files.
     /// A per-publication gate preserves edit order; currency checks before and
-    /// after the commit make a newer edit/close authoritative. Requests for
-    /// this URI wait on its `source_published` bit, while other documents remain
-    /// serviceable.
+    /// after the commit make a newer edit/close authoritative. The stale disk
+    /// view was retired before the edit turn advanced; replacing it here with
+    /// the live analysis before setting `source_published` means a request
+    /// drained behind `didOpen` cannot lose the opened file's cross-document
+    /// facts. Requests for this URI wait on that bit, while other documents
+    /// remain serviceable.
     async fn commit_open_document(
         &self,
         uri: &Uri,
@@ -8360,7 +8381,7 @@ impl Backend {
             {
                 return false;
             }
-            let locks = match self.try_open_publication_locks() {
+            let locks = match self.try_live_source_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
                     retries = retries.saturating_add(1);
@@ -8403,20 +8424,12 @@ impl Backend {
             drop(docs);
 
             {
-                let OpenPublicationLocks {
-                    source:
-                        LiveSourceLocks {
-                            mut db,
-                            mut files,
-                            mut tombstones,
-                            mut project,
-                        },
-                    mut index,
+                let LiveSourceLocks {
+                    mut db,
+                    mut files,
+                    mut tombstones,
+                    mut project,
                 } = locks;
-                let normalised = tcl_lexer::normalise_lone_cr(text);
-                let matches_indexed_source = files.get(uri).is_some_and(|file| {
-                    file.text(&*db).as_str() == normalised.as_ref() && file.dialect(&*db) == dialect
-                });
                 let membership_changed = Self::set_db_sources_locked(
                     &mut db,
                     &mut files,
@@ -8426,20 +8439,35 @@ impl Backend {
                 if membership_changed {
                     Self::sync_db_project(&mut db, &files, &mut project);
                 }
-                if !matches_indexed_source {
-                    index.remove_document(uri.as_str());
-                }
             }
+
+            // The immediate post-turn retirement above deliberately leaves a
+            // short *missing* index slot rather than a stale one while Salsa is
+            // unavailable. Once the source is published, fill that slot from
+            // the authoritative live analysis before announcing completion.
+            // The diagnostics worker may later replace it with its refined
+            // view; this seed preserves cross-document navigation in the gap.
+            let analysis = self
+                .analysis_for(uri, Arc::from(text), dialect.to_owned())
+                .await;
+            let _rehoming_guard = self.rehoming_gate.lock().await;
             let mut docs = self.documents.lock("did_open_publish_complete").await;
-            let Some(doc) = docs.get_mut(uri) else {
-                return false;
-            };
-            if doc.version != Some(version)
-                || doc.text.as_ref() != text
-                || doc.dialect.as_str() != dialect
-            {
+            let current = docs.get(uri).is_some_and(|doc| {
+                doc.version == Some(version)
+                    && doc.text.as_ref() == text
+                    && doc.dialect.as_str() == dialect
+            });
+            if !current {
                 return false;
             }
+            docs.retag("did_open_publish_complete: workspace_index.write");
+            self.workspace_index
+                .write()
+                .await
+                .replace_document(uri.as_str(), &analysis);
+            let doc = docs
+                .get_mut(uri)
+                .expect("the document cannot disappear while its map is locked");
             doc.source_published = true;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
@@ -8911,7 +8939,7 @@ impl Backend {
     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
-        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_document_symbols");
+        let snapshot = self.db.snapshot("db_document_symbols").await;
         crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&*snapshot, file, config)).ok()
         })
@@ -8934,7 +8962,7 @@ impl Backend {
         uri: &Uri,
     ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_folding_ranges");
+        let snapshot = self.db.snapshot("db_folding_ranges").await;
         crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&*snapshot, file)).ok()
         })
@@ -8999,8 +9027,7 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
-        let snapshot =
-            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_file_analysis_handle");
+        let snapshot = self.db.snapshot("db_file_analysis_handle").await;
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
                 tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
@@ -9018,8 +9045,7 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot =
-            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_compilation_unit_handle");
+        let snapshot = self.db.snapshot("db_compilation_unit_handle").await;
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&*snapshot, file)).ok()
         }))
@@ -9064,7 +9090,7 @@ impl Backend {
         // a class defined in another file highlights; otherwise fall back to the
         // local (single-file) hierarchy.
         let project = *self.db_project.lock().await;
-        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_semantic_tokens");
+        let snapshot = self.db.snapshot("db_semantic_tokens").await;
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
                 Some(project) => {
@@ -9575,7 +9601,7 @@ impl Backend {
         // together precisely so a reader can check them against each other. A
         // stale-looking snapshot next to a phase that never reached
         // `db_set_source` means the snapshot is a bystander (issue #1657).
-        let census = SNAPSHOT_CENSUS.report();
+        let census = self.db.snapshot_report();
         let waiting_on = match census.oldest {
             Some((site, age)) => format!(
                 "{} salsa snapshot(s) are outstanding; the oldest was taken by {site} {:.1}s ago",
@@ -17172,7 +17198,7 @@ impl Backend {
         // snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
         let p = project?;
-        let db = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "project_callback_arities_if");
+        let db = self.db.snapshot("project_callback_arities_if").await;
         crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&*db, p))
             .await
             .ok()
@@ -19289,8 +19315,7 @@ impl Backend {
                 // Clone the snapshot only after the permit is held, so
                 // `set_text` never waits on more than `concurrency` in-flight
                 // reads.
-                let snapshot =
-                    SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "warm_open_documents");
+                let snapshot = db.snapshot("warm_open_documents").await;
                 let _ = crate::rt::spawn_blocking(move || {
                     let _ = salsa::Cancelled::catch(|| {
                         tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
@@ -19324,6 +19349,7 @@ impl Backend {
         Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>,
         Option<Arc<tcl_compiler::analyser::AnalysisResult>>,
         Option<RangeConvergencePending>,
+        bool,
     ) {
         // Normally both handles are `Some` (indexed document) or `None` (unindexed
         // buffer → coarse only, nothing to converge to). They are read under
@@ -19386,7 +19412,7 @@ impl Backend {
                 };
                 if both_ready {
                     // Both landed inside the budget — serve the enriched viewport.
-                    (cu_slot.flatten(), analysis_slot.flatten(), None)
+                    (cu_slot.flatten(), analysis_slot.flatten(), None, true)
                 } else {
                     // Budget won: serve coarse, handing whatever partial result
                     // landed plus the still-running (un-consumed) reads to the
@@ -19395,10 +19421,11 @@ impl Backend {
                         None,
                         None,
                         Some((cu_slot, analysis_slot, cu_handle, analysis_handle)),
+                        true,
                     )
                 }
             }
-            None => (None, None, None),
+            None => (None, None, None, false),
         }
     }
 
@@ -19455,8 +19482,8 @@ impl Backend {
             // schedules its own token refresh — nothing to converge. Every other
             // path makes the coarse-vs-enriched decision below.
             let cancelled = cu.is_none() && analysis.is_none();
-            let refreshed = if cancelled {
-                false
+            let (refreshed, outcome) = if cancelled {
+                (false, RangeSettleOutcome::Cancelled)
             } else {
                 let enriched = crate::rt::spawn_blocking(move || {
                     core_semantic_tokens::range_with_cu_and_analysis(
@@ -19471,16 +19498,25 @@ impl Backend {
                 })
                 .await;
                 match enriched {
+                    Ok(enriched) if enriched == served => {
+                        (false, RangeSettleOutcome::ComparedEqual)
+                    }
                     // Same repeat-ask bound as the `full` path
                     // ([`EnrichedRefreshAsked`]): a viewport whose enriched
                     // recompute keeps landing identical must not keep asking
                     // the client to re-pull the tokens it already asked for.
-                    Ok(enriched) if enriched != served => {
-                        refresh_ctx
+                    Ok(enriched) => {
+                        let refreshed = refresh_ctx
                             .request_refresh_for_enriched(&claim_uri, &enriched)
-                            .await
+                            .await;
+                        let outcome = if refreshed {
+                            RangeSettleOutcome::RefreshRequested
+                        } else {
+                            RangeSettleOutcome::RefreshSuppressed
+                        };
+                        (refreshed, outcome)
                     }
-                    _ => false,
+                    Err(_) => (false, RangeSettleOutcome::Cancelled),
                 }
             };
             // The convergence decision is now made (a refresh was asked for, or the
@@ -19490,12 +19526,7 @@ impl Backend {
             // signal that lets a test assert on the *absence* of a
             // `workspace/semanticTokens/refresh` deterministically instead of racing
             // a fixed sleep. `refresh=` records the outcome for observability.
-            let outcome = if cancelled {
-                RangeSettleOutcome::Cancelled
-            } else {
-                RangeSettleOutcome::Compared
-            };
-            if cancelled {
+            if matches!(outcome, RangeSettleOutcome::Cancelled) {
                 rearm_semantic_tokens_test_seam();
             }
             // Release the per-URI claim only now the decision is made, so every
@@ -19515,9 +19546,12 @@ impl Backend {
 /// recorded in the settled marker (see [`log_range_convergence_settled`]).
 #[derive(Clone, Copy)]
 enum RangeSettleOutcome {
-    /// The coarse tier was served and the detached continuation compared it
-    /// against the recomputed enriched viewport — the #844 Gap 4 path proper.
-    Compared,
+    /// A coarse response's recomputed enriched viewport matched the bytes served.
+    ComparedEqual,
+    /// A coarse response's differing enriched viewport scheduled a re-request.
+    RefreshRequested,
+    /// A coarse response's differing enriched viewport had already asked once.
+    RefreshSuppressed,
     /// The coarse tier was served but the enriched reads were cancelled (a
     /// concurrent edit, or another document mutating the salsa `Project`), so
     /// nothing was compared.
@@ -19538,7 +19572,9 @@ enum RangeSettleOutcome {
 impl RangeSettleOutcome {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Compared => "compared",
+            Self::ComparedEqual => "compared-equal",
+            Self::RefreshRequested => "refresh-requested",
+            Self::RefreshSuppressed => "refresh-suppressed",
             Self::Cancelled => "cancelled",
             Self::ServedEnriched => "served-enriched",
             Self::NoAnalysis => "no-analysis",
@@ -19807,27 +19843,51 @@ impl LanguageServer for Backend {
         let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
         // Make the authoritative live buffer visible in arrival order, then
-        // release the *global* request barrier before waiting for Salsa or the
-        // workspace index. The v2.2.2 release wedge retained this turn while
+        // release the *global* request barrier before waiting on either shared
+        // store. The v2.2.2 release wedge retained this turn while
         // suspended on `db_source_matches`, so every request blocked in
         // `edits_settled()` even though the transport remained alive (#1849).
         let state = DocumentState::with_version(params.text_document.text, dialect, version)
             .with_language_id(params.text_document.language_id.clone())
             .with_publication_pending();
         turn.at("did_open: documents.lock");
-        self.documents
-            .lock("did_open")
-            .await
-            .insert(uri.clone(), state);
+        let mut documents = self.documents.lock("did_open").await;
+        documents.insert(uri.clone(), state);
+        drop(documents);
+
+        // Poll the index writer once while the edit turn still excludes new
+        // requests. If the lock is busy this registers our writer in Tokio's
+        // fair queue without waiting for it; if it is free, retain the guard.
+        // Either way, no request released by `drop(turn)` can acquire an index
+        // read ahead of this stale-slot retirement, including when different
+        // executor workers run concurrently.
+        let mut index_write = std::pin::pin!(self.workspace_index.write());
+        let mut index_guard = None;
+        std::future::poll_fn(|cx| {
+            if let Poll::Ready(guard) = index_write.as_mut().poll(cx) {
+                index_guard = Some(guard);
+            }
+            Poll::Ready(())
+        })
+        .await;
         drop(turn);
 
-        // Publish the matching Salsa source and index decision after the turn
-        // is free. The deferred commit re-checks text/dialect/version under the
+        // Await only after releasing the global barrier. This wait holds no
+        // other store or edit turn, so a pre-existing index reader/writer
+        // cannot recreate the whole-server wedge (#1800, #1854 review).
+        let mut index = match index_guard {
+            Some(guard) => guard,
+            None => index_write.await,
+        };
+        index.remove_document(uri.as_str());
+        drop(index);
+
+        // Publish the matching Salsa source after the turn is free. The
+        // deferred commit re-checks text/dialect/version under the
         // document map before its no-await mutation, so a later edit or close
-        // wins rather than being overwritten by this open. The index entry is
-        // removed only when the buffer differs from the source the scan built
-        // it from; an identical entry stays visible through the debounce
-        // window (#1619).
+        // wins rather than being overwritten by this open. The ordinary
+        // unindexed-open-document fallback covers the short gap until live
+        // analysis republishes the buffer (#1619).
         if !self
             .commit_open_document(&uri, &text, &dialect_for_diags, version)
             .await
@@ -21636,7 +21696,8 @@ impl LanguageServer for Backend {
         // Race the memoised unit + analysis against the fast-path budget; on
         // timeout `pending` carries the still-running reads to the #844 Gap 4
         // convergence continuation below (see `race_range_enriched_reads`).
-        let (cached_cu, cached_analysis, pending) = self.race_range_enriched_reads(uri).await;
+        let (cached_cu, cached_analysis, pending, had_analysis_handles) =
+            self.race_range_enriched_reads(uri).await;
         // Distinguishes the two no-continuation cases for the settled marker
         // below: the enriched reads landed inside the budget (so this response
         // *is* the enriched viewport), versus the document having no analysis
@@ -21712,6 +21773,12 @@ impl LanguageServer for Backend {
             // recorded in `outcome`.
             let outcome = if served_enriched {
                 RangeSettleOutcome::ServedEnriched
+            } else if had_analysis_handles {
+                // Both handles existed, but a concurrent Salsa write cancelled
+                // their reads. This is retryable, not the terminal unindexed
+                // case: calling it `no-analysis` could bless coarse viewport
+                // tokens as final after didOpen publication (#1849).
+                RangeSettleOutcome::Cancelled
             } else {
                 RangeSettleOutcome::NoAnalysis
             };
@@ -36668,6 +36735,157 @@ proc p {} {
             .expect("didOpen must not panic");
     }
 
+    /// Automated review of #1854: once the live buffer is visible, no request
+    /// may still observe facts indexed from the disk copy it superseded. Hold
+    /// a real Salsa snapshot so deferred publication cannot finish, then prove
+    /// `didOpen` queues stale-slot retirement ahead of a later index reader.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_open_queues_stale_index_retirement_before_later_readers_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/stale-open-index-1854.tcl").unwrap();
+        let disk_text = "proc old_disk_name {} {}\n";
+        let live_text = "proc live_buffer_name {} {}\n";
+        let disk_analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
+        backend
+            .db_set_source(&uri, disk_text, "tcl8.6".into())
+            .await;
+        let snapshot = backend
+            .db
+            .snapshot_from(&*backend.db.lock().await, "held-index");
+        let mut index_held = backend.workspace_index.write().await;
+        index_held.add_document(uri.as_str(), &disk_analysis);
+
+        let mut opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: live_text.to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let pending = backend
+                    .documents
+                    .lock("issue-1854-stale-index-visible")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.text.as_ref() == live_text && !doc.source_published);
+                if pending {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the live buffer must become visible while Salsa publication is held");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.edits_settled(),
+        )
+        .await
+        .expect("didOpen must release its turn without waiting for Salsa");
+
+        let mut reading_index = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                let index = backend.workspace_index.read().await;
+                (
+                    index.contains_document(uri.as_str()),
+                    index.proc_definitions("old_disk_name", "other").len(),
+                )
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut reading_index,)
+                .await
+                .is_err(),
+            "the post-barrier reader must queue while the old index writer is held"
+        );
+        drop(index_held);
+        let indexed = crate::rt::timeout(std::time::Duration::from_secs(5), reading_index)
+            .await
+            .expect("the post-barrier index reader must resume")
+            .expect("the post-barrier index reader must not panic");
+        assert_eq!(
+            indexed,
+            (false, 0),
+            "a post-barrier reader must see neither the disk slot nor its definition"
+        );
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut opening)
+                .await
+                .is_err(),
+            "the stale-index assertion must run while Salsa publication is still blocked"
+        );
+
+        drop(snapshot);
+        crate::rt::timeout(std::time::Duration::from_secs(30), opening)
+            .await
+            .expect("didOpen must finish when its own database snapshot retires")
+            .expect("didOpen must not panic");
+        let index = backend.workspace_index.read().await;
+        assert_eq!(
+            (
+                index.proc_definitions("live_buffer_name", "other").len(),
+                index.proc_definitions("old_disk_name", "other").len(),
+            ),
+            (1, 0),
+            "the completed open must seed only the live cross-document view"
+        );
+    }
+
+    /// Snapshot safety is scoped to one Salsa database. A query in one client
+    /// session must never stall live publication in another session merely
+    /// because both backends happen to live in the same server process.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn unrelated_backend_snapshot_does_not_block_live_publication_1854() {
+        let holding_backend = Arc::new(test_backend());
+        let publishing_backend = Arc::new(test_backend());
+        let snapshot = {
+            let db = holding_backend.db.lock().await;
+            holding_backend
+                .db
+                .snapshot_from(&db, "issue-1854-unrelated-backend-snapshot")
+        };
+        let uri = Uri::from_str("file:///w/isolated-census-1854.tcl").unwrap();
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            publishing_backend.did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 1,
+                    text: "proc independently_published {} {}\n".to_owned(),
+                },
+            }),
+        )
+        .await
+        .expect("an unrelated backend's snapshot must not delay didOpen");
+
+        let db = publishing_backend.db.lock().await;
+        let files = publishing_backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some("proc independently_published {} {}\n"),
+            "the publishing backend must install its live source"
+        );
+        drop(files);
+        drop(db);
+        drop(snapshot);
+    }
+
     /// #1849 review: the no-wait-under-turn rule applies to edits too. The
     /// authoritative splice must become visible and release `edits_settled`
     /// while its deferred Salsa publication is pinned on `db`.
@@ -36805,7 +37023,9 @@ proc p {} {
         // this test says otherwise.
         let snapshot = {
             let db = backend.db.lock().await;
-            SNAPSHOT_CENSUS.take(&db, "issue-1854-held-test-snapshot")
+            backend
+                .db
+                .snapshot_from(&db, "issue-1854-held-test-snapshot")
         };
         let mut editing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -37007,7 +37227,9 @@ proc p {} {
         // stable for the duration of the experiment.
         let snapshot = {
             let db = backend.db.lock().await;
-            SNAPSHOT_CENSUS.take(&db, "issue-1800-held-test-snapshot")
+            backend
+                .db
+                .snapshot_from(&db, "issue-1800-held-test-snapshot")
         };
         let reindexing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -38600,21 +38822,17 @@ proc p {} {
     /// that under-counts would report "nothing outstanding" and send the next
     /// reader looking somewhere else entirely (issue #1657).
     ///
-    /// Driven against an isolated census rather than the process-global one:
-    /// the whole test binary shares that global, so asserting on its counts
-    /// would be asserting on whatever every other test happened to be doing.
+    /// Driven against an isolated census so its counts are exact.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_snapshot_census_tracks_live_clones_and_retires_dropped_ones() {
         let db = tcl_lsp_db::TclDatabase::default();
-        // `&'static` because a snapshot retires into the census that made it,
-        // and production's is a `LazyLock` static.
-        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        let census = Arc::new(SnapshotCensus::default());
         assert_eq!(census.report().outstanding, 0, "a fresh census is empty");
 
-        let first = census.take(&db, "test-first");
+        let first = census.track(db.clone(), "test-first");
         // Distinguishable ages, so "oldest" means something to assert on.
         crate::rt::sleep(std::time::Duration::from_millis(20)).await;
-        let second = census.take(&db, "test-second");
+        let second = census.track(db.clone(), "test-second");
 
         let report = census.report();
         assert_eq!(report.outstanding, 2, "both live snapshots must be counted");
@@ -38652,7 +38870,7 @@ proc p {} {
 
         // And the handle really is the database: the deref is what lets every
         // call site pass `&*snapshot` where it passed `&snapshot` before.
-        let third = census.take(&db, "test-deref");
+        let third = census.track(db.clone(), "test-deref");
         let _: &tcl_lsp_db::TclDatabase = &third;
         drop(third);
     }
@@ -38664,7 +38882,7 @@ proc p {} {
     #[test]
     fn snapshot_census_retires_only_after_the_wrapped_clone_drops_1800() {
         struct DropProbe {
-            census: &'static SnapshotCensus,
+            census: Arc<SnapshotCensus>,
             saw_itself_registered: Arc<std::sync::atomic::AtomicBool>,
         }
 
@@ -38677,11 +38895,11 @@ proc p {} {
             }
         }
 
-        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        let census = Arc::new(SnapshotCensus::default());
         let saw_itself_registered = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let snapshot = census.track(
             DropProbe {
-                census,
+                census: Arc::clone(&census),
                 saw_itself_registered: Arc::clone(&saw_itself_registered),
             },
             "drop-order-proof-1800",
@@ -43001,6 +43219,30 @@ proc p {} {
         );
         assert_eq!(FullSettleOutcome::Cancelled.as_str(), "cancelled");
         assert_eq!(FullSettleOutcome::Coalesced.as_str(), "coalesced");
+    }
+
+    /// Range convergence must expose the same distinction as the full-token
+    /// path. In particular, `refresh-suppressed` is not `compared-equal`: the
+    /// bytes still differ even though the bounded repeat ask correctly did not
+    /// schedule another workspace refresh.
+    #[test]
+    fn range_settle_outcomes_keep_equal_and_suppressed_states_distinct() {
+        assert_eq!(
+            RangeSettleOutcome::ServedEnriched.as_str(),
+            "served-enriched"
+        );
+        assert_eq!(RangeSettleOutcome::ComparedEqual.as_str(), "compared-equal");
+        assert_eq!(
+            RangeSettleOutcome::RefreshRequested.as_str(),
+            "refresh-requested"
+        );
+        assert_eq!(
+            RangeSettleOutcome::RefreshSuppressed.as_str(),
+            "refresh-suppressed"
+        );
+        assert_eq!(RangeSettleOutcome::Cancelled.as_str(), "cancelled");
+        assert_eq!(RangeSettleOutcome::NoAnalysis.as_str(), "no-analysis");
+        assert_eq!(RangeSettleOutcome::Coalesced.as_str(), "coalesced");
     }
 
     /// A fire already scheduled must absorb a second request rather than
