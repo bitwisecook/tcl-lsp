@@ -63,10 +63,12 @@
 //!   sub-arg is a simple bareword / quoted string; the joined
 //!   path resolves against `workspace_root` like any other
 //!   relative arg.
+//! * A spec pack's `include NAME` row — see [`pack_include_links`].
 
 use tcl_compiler::auto_path_eval::carries_substitution;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
+use tcl_registry::definer::DefinerFamily;
 
 /// One link in a document — target URI plus the source range.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,6 +189,13 @@ pub fn document_links_in_context(
         script_path,
         ctx.imported_constants.unwrap_or(&no_imports),
     );
+    links.extend(pack_include_links(
+        source,
+        dialect,
+        &line_index,
+        workspace_root,
+        home,
+    ));
 
     for seg in segment_commands_with_offset_and_config(
         source,
@@ -283,6 +292,84 @@ pub fn document_links_in_context(
         });
     }
 
+    links
+}
+
+/// Every `include NAME` row of a spec pack, as a link to the sibling file it
+/// names.
+///
+/// A pack's `include` row is the one statement in the `SpecTcl` vocabulary
+/// that names another file: `include NAME` resolves against the including
+/// pack's **own directory** and nothing else (`IncludeContext::for_file`), so
+/// the `workspace_root` the server already passes — the document's enclosing
+/// directory — is exactly the anchor the loader uses, and no path arithmetic
+/// of this provider's own is involved.
+///
+/// The gate is the registry, not the dialect's name: a document whose command
+/// surface declares a [`DefinerFamily::SpecTcl`] document grammar *is* a pack,
+/// however it reached that surface (the `.tclspec` extension, an editor
+/// language id, a `# tcl-dialect:` pin). An ordinary Tcl script that happens to
+/// call a proc of its own named `include` has no such grammar and gets no link.
+///
+/// Only the pack scope is scanned, because that is the only scope a file
+/// include is legal in — the loader drops one written anywhere else — and only
+/// the two-word file form: `include from SOURCE into TARGET { … }` composes a
+/// command surface out of packs already loaded and resolves no file at all.
+fn pack_include_links(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    line_index: &LineIndex,
+    workspace_root: Option<&str>,
+    home: Option<&str>,
+) -> Vec<DocumentLink> {
+    if crate::registry_for_dialect_profile(dialect)
+        .document_grammar()
+        .is_none_or(|grammar| grammar.family != DefinerFamily::SpecTcl)
+    {
+        return Vec::new();
+    }
+    let config = tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar);
+    let mut links = Vec::new();
+    for pack in segment_commands_with_offset_and_config(source, 0, config) {
+        // `speclib NAME VERSION { … }` — the pack body is the fourth word, and
+        // the document grammar admits no other statement at the root.
+        if pack.texts.first().is_none_or(|head| head != "speclib") {
+            continue;
+        }
+        let Some(body) = pack.argv.get(3) else {
+            continue;
+        };
+        let body_start = body.span.start() + u32::from(body.content_offset);
+        let Some(body_text) = source
+            .get(body_start as usize..)
+            .and_then(|rest| rest.get(..body.span.end().saturating_sub(body_start) as usize))
+        else {
+            continue;
+        };
+        for row in segment_commands_with_offset_and_config(body_text, body_start, config) {
+            if row.texts.first().is_none_or(|head| head != "include") || row.texts.len() != 2 {
+                continue;
+            }
+            let name = &row.texts[1];
+            let Some(target) = resolve_path(name, workspace_root, home) else {
+                continue;
+            };
+            let Some(tok) = row.argv.get(1) else { continue };
+            let Some((anchor_start, anchor_end)) = link_anchor(source, dialect, tok) else {
+                continue;
+            };
+            let start = line_index.position_at_utf16(anchor_start, source);
+            let end = line_index.position_at_utf16(anchor_end, source);
+            links.push(DocumentLink {
+                start_line: start.line,
+                start_character: start.character.get(),
+                end_line: end.line,
+                end_character: end.character.get(),
+                target,
+                tooltip: Some(name.clone()),
+            });
+        }
+    }
     links
 }
 
@@ -573,6 +660,55 @@ mod tests {
                 "puts hello\n",
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None
+            )
+            .is_empty()
+        );
+    }
+
+    /// A pack's `include NAME` row links to the sibling file the loader would
+    /// read, anchored on the name alone.
+    #[test]
+    fn a_pack_include_row_links_to_its_sibling_file() {
+        let src = "speclib mylib 1 {\n    include shared.tclspec\n}\n";
+        let links = document_links(
+            src,
+            crate::profile_for_dialect("spectcl"),
+            Some("/home/user/project/.tcl-lsp"),
+        );
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(
+            links[0].target,
+            "file:///home/user/project/.tcl-lsp/shared.tclspec"
+        );
+        assert_eq!(links[0].start_line, 1);
+        assert_eq!(links[0].tooltip.as_deref(), Some("shared.tclspec"));
+    }
+
+    /// `include from … into …` composes a surface out of loaded packs and
+    /// names no file, so it must not be offered as one.
+    #[test]
+    fn a_surface_roster_include_is_not_a_file_link() {
+        let src = "speclib mylib 1 {\n    include from vendor into mylib { a b }\n}\n";
+        assert!(
+            document_links(
+                src,
+                crate::profile_for_dialect("spectcl"),
+                Some("/home/user/project"),
+            )
+            .is_empty()
+        );
+    }
+
+    /// The gate is the document's own grammar: an ordinary Tcl script calling
+    /// a proc of its own named `include` is not a pack.
+    #[test]
+    fn an_ordinary_tcl_include_call_is_not_a_link() {
+        let src = "speclib mylib 1 {\n    include shared.tclspec\n}\n";
+        assert!(
+            document_links(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                Some("/home/user/project"),
             )
             .is_empty()
         );
