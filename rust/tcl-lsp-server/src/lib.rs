@@ -42982,18 +42982,27 @@ proc p {} {
         .expect("the closed source read must begin");
 
         // The first read has not copied its bytes yet. Replace both source and
-        // index, then let it return the new bytes to the request that still
-        // owns the old hit. Revision revalidation must retry that snapshot.
+        // index through the slot-reuse ABA sequence from review: remove this
+        // URI, give its slot to another URI, then re-add it in a fresh slot.
+        // Let the read return the new bytes to the request that still owns the
+        // old hit. Revision revalidation must retry that snapshot.
         store.replace(new_text);
         let new_analysis = {
             let mut analyser = Analyser::new();
             analyser.analyse(new_text, "tcl8.6").clone()
         };
-        backend
-            .workspace_index
-            .write()
-            .await
-            .replace_document(closed_uri.as_str(), &new_analysis);
+        let slot_consumer = {
+            let mut analyser = Analyser::new();
+            analyser
+                .analyse("proc unrelated_slot_consumer {} {}\n", "tcl8.6")
+                .clone()
+        };
+        {
+            let mut index = backend.workspace_index.write().await;
+            index.remove_document(closed_uri.as_str());
+            index.add_document("file:///slot-consumer-1854.tcl", &slot_consumer);
+            index.add_document(closed_uri.as_str(), &new_analysis);
+        }
         store.release_first_read();
 
         let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)

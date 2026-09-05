@@ -1086,9 +1086,9 @@ fn resolved_user_definition(
 /// order the previous flat vectors held them in.
 #[derive(Debug, Clone, Default)]
 struct DocumentRecords {
-    /// Monotonic-within-this-slot token for the indexed revision. The server
-    /// uses it to prove that a closed file did not reindex while its source was
-    /// being loaded for byte-span to LSP-range conversion.
+    /// Index-wide mutation token for the indexed revision. The server uses it
+    /// to prove that a closed file did not reindex while its source was being
+    /// loaded for byte-span to LSP-range conversion.
     revision: u64,
     /// The dialect this document was analysed under — carried straight from
     /// [`AnalysisResult::dialect`], so the registry consulted for a decision
@@ -1788,6 +1788,10 @@ pub struct WorkspaceIndex {
     slots: std::collections::HashMap<String, usize>,
     free_slots: Vec<usize>,
     generation: u64,
+    /// Last index-wide document revision allocated. Tokens must not live on a
+    /// recyclable slot: remove A, reuse its slot for B, then re-add A in a new
+    /// slot would otherwise let A's old and new records share a token.
+    document_revision_clock: u64,
     /// Every command name the workspace defines, in each spelling a call site
     /// may write — see [`WorkspaceIndex::command_names`].
     command_names: Derived<HashSet<String>>,
@@ -2750,13 +2754,14 @@ impl WorkspaceIndex {
     /// several runtime identities of one physical file, not a replacement of
     /// each other.
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        let revision = self.allocate_document_revision();
         let slot = self.slot_for(uri);
         // `add_document` intentionally accumulates multiple source-site views
         // for one URI.  That is a resolution-input change unless this is an
         // empty analysis, so favour the conservative full invalidation here;
         // editor replacements use [`Self::replace_document`] below.
         self.docs[slot].index_document(uri, analysis);
-        self.docs[slot].revision = self.docs[slot].revision.wrapping_add(1);
+        self.docs[slot].revision = revision;
         self.invalidate(true, slot);
     }
 
@@ -2767,11 +2772,12 @@ impl WorkspaceIndex {
     /// latter creates a transient missing-definition state and loses the fact
     /// that a body-only edit left command-resolution inputs untouched.
     pub fn replace_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        let revision = self.allocate_document_revision();
         let slot = self.slot_for(uri);
         let old = self.docs[slot].settlement_dependencies();
         self.docs[slot].clear();
         self.docs[slot].index_document(uri, analysis);
-        self.docs[slot].revision = self.docs[slot].revision.wrapping_add(1);
+        self.docs[slot].revision = revision;
         let changed = old != self.docs[slot].settlement_dependencies();
         self.invalidate(changed, slot);
     }
@@ -2794,6 +2800,16 @@ impl WorkspaceIndex {
         };
         self.slots.insert(uri.to_owned(), slot);
         slot
+    }
+
+    /// Allocate a token which no earlier document revision in this index has
+    /// used, independently of slot ownership or reuse.
+    fn allocate_document_revision(&mut self) -> u64 {
+        self.document_revision_clock = self
+            .document_revision_clock
+            .checked_add(1)
+            .expect("workspace document revision counter exhausted");
+        self.document_revision_clock
     }
 
     /// Whether `uri` currently has a slot in the index.
@@ -2826,7 +2842,6 @@ impl WorkspaceIndex {
     pub fn remove_document(&mut self, uri: &str) {
         if let Some(slot) = self.slots.remove(uri) {
             self.docs[slot].clear();
-            self.docs[slot].revision = self.docs[slot].revision.wrapping_add(1);
             self.free_slots.push(slot);
             self.invalidate(true, slot);
         }
@@ -10058,6 +10073,25 @@ mod tests {
         );
         index.remove_document("file:///a.tcl");
         assert_eq!(index.document_revision("file:///a.tcl"), None);
+    }
+
+    #[test]
+    fn document_revision_survives_slot_reuse_aba_1854() {
+        let a = analyse("proc alpha {} {}\n");
+        let b = analyse("proc beta {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let old_revision = index.document_revision("file:///a.tcl").unwrap();
+
+        index.remove_document("file:///a.tcl");
+        index.add_document("file:///b.tcl", &b);
+        index.add_document("file:///a.tcl", &a);
+
+        assert_ne!(
+            index.document_revision("file:///a.tcl"),
+            Some(old_revision),
+            "re-adding a URI must not recycle its old token after slot churn",
+        );
     }
 
     /// The derived command-name set is cached between mutations and rebuilt
