@@ -115,6 +115,13 @@ pub mod ops {
 /// One registered command or execution trace (C's `TraceCommandInfo`; both
 /// kinds hang off the same command, distinguished by their op category).
 pub struct CmdTrace {
+    /// This registration's identity, unique for the life of the interpreter —
+    /// the command/execution twin of [`VarTrace::id`], and for the same reason:
+    /// C's `CallCommandTraces` and `TclCheckExecutionTraces` walk the live list
+    /// through `nextPtr`, and `Tcl_UntraceCommand` unlinks a record as soon as
+    /// a callback removes it, so a snapshot of callback strings would keep
+    /// firing traces that are already gone. Ids are never reused.
+    pub id: u64,
     /// The command's resolved FQN (the binding the trace is attached to).
     pub name: Vec<u8>,
     /// The user ops this trace fires on (a [`ops`] bitset).
@@ -190,6 +197,9 @@ pub struct TraceTable {
     pub step_active: Vec<StepActive>,
     /// The id the next variable-trace registration takes (see [`VarTrace::id`]).
     pub next_var_trace_id: u64,
+    /// The id the next command/execution-trace registration takes (see
+    /// [`CmdTrace::id`]).
+    pub next_cmd_trace_id: u64,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
@@ -419,11 +429,16 @@ fn cmd_trace_add_remove(
     };
     let command = obj_bytes(argv[5]);
     if is_add {
-        interp.traces.borrow_mut().cmd_traces.push(CmdTrace {
+        let mut traces = interp.traces.borrow_mut();
+        traces.next_cmd_trace_id += 1;
+        let id = traces.next_cmd_trace_id;
+        traces.cmd_traces.push(CmdTrace {
+            id,
             name: fqn,
             ops: flags,
             command,
         });
+        drop(traces);
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
         // Remove the first trace matching exact ops + command string, where

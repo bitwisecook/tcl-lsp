@@ -3661,16 +3661,16 @@ impl Interp {
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
         // newest-last. Issue #1440.
-        let cmds: Vec<Vec<u8>> = self
+        let ids: Vec<u64> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .rev()
             .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
-            .map(|t| t.command.clone())
+            .map(|t| t.id)
             .collect();
-        if cmds.is_empty() {
+        if ids.is_empty() {
             return;
         }
         let op: &[u8] = if op_bit == crate::cmd_trace::ops::RENAME {
@@ -3683,7 +3683,10 @@ impl Interp {
         unsafe { obj::incr_ref_count(saved) };
 
         self.traces.borrow_mut().exec_firing += 1;
-        for cmd in cmds {
+        for id in ids {
+            let Some(cmd) = self.live_cmd_trace(id) else {
+                continue;
+            };
             // Append `oldName newName op` as properly-quoted list elements.
             let args = crate::list::new_list_obj(&[
                 new_string(old_fqn),
@@ -3704,6 +3707,19 @@ impl Interp {
         }
     }
 
+    /// The callback prefix of the live command/execution trace `id`, or `None`
+    /// when a callback has since removed it. C walks the trace list through
+    /// `nextPtr` and `Tcl_UntraceCommand` unlinks a record at once, so a trace
+    /// removed mid-firing never fires in that pass. Issue #1633 row 8.
+    fn live_cmd_trace(&self, id: u64) -> Option<Vec<u8>> {
+        self.traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.command.clone())
+    }
+
     /// Fire `enter` execution traces on `fqn` (creation order), invoking each as
     /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
     /// non-OK — the command is then aborted with that code and the callback's
@@ -3712,23 +3728,26 @@ impl Interp {
         use crate::cmd_trace::ops;
         // C fires `enter` newest-first (the trace list is prepended; the loop
         // walks it head→tail). Our Vec pushes newest-last, so iterate reversed.
-        let cmds: Vec<Vec<u8>> = self
+        let ids: Vec<u64> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .rev()
             .filter(|t| t.name == fqn && (t.ops & ops::ENTER) != 0)
-            .map(|t| t.command.clone())
+            .map(|t| t.id)
             .collect();
-        if cmds.is_empty() {
+        if ids.is_empty() {
             return None;
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         self.traces.borrow_mut().exec_firing += 1;
         let mut abort: Option<Code> = None;
-        for cmd in cmds {
+        for id in ids {
+            let Some(cmd) = self.live_cmd_trace(id) else {
+                continue;
+            };
             let args = crate::list::new_list_obj(&[new_string(cmd_word), new_string(b"enter")]);
             let mut line = cmd;
             line.push(b' ');
@@ -3761,15 +3780,15 @@ impl Interp {
         use crate::cmd_trace::ops;
         // C fires `leave` oldest-first (reverse-scan of the prepended list). Our
         // Vec pushes newest-last, so iterate forward.
-        let cmds: Vec<Vec<u8>> = self
+        let ids: Vec<u64> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
             .filter(|t| t.name == fqn && (t.ops & ops::LEAVE) != 0)
-            .map(|t| t.command.clone())
+            .map(|t| t.id)
             .collect();
-        if cmds.is_empty() {
+        if ids.is_empty() {
             return code;
         }
         // Save the command's result once; restore it after the callbacks (C's
@@ -3783,7 +3802,10 @@ impl Interp {
 
         self.traces.borrow_mut().exec_firing += 1;
         let mut override_code: Option<Code> = None;
-        for cmd in cmds {
+        for id in ids {
+            let Some(cmd) = self.live_cmd_trace(id) else {
+                continue;
+            };
             let result_bytes = obj_bytes(self.result.get());
             let args = crate::list::new_list_obj(&[
                 new_string(cmd_word),

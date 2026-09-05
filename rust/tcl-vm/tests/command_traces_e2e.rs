@@ -377,6 +377,107 @@ const VECTORS: &[Vector] = &[
                {{enter leave enterstep leavestep} cb}\n\
                {{array read write unset} cb}",
     },
+    // Row 8 (command / execution): the same live-list rule as the variable
+    // half. `CallCommandTraces` walks `nextPtr` (`tclBasic.c` 9.0.4:3972-3993)
+    // and `Tcl_UntraceCommand` unlinks at once, so a trace a callback removes
+    // does not fire in that pass — for `enter` and `delete`, which walk
+    // newest-first, and for `leave`, which C scans in reverse and so reaches
+    // the *oldest* first.
+    //
+    // The `rename` op is deliberately absent. C's `TclRenameCommand` inserts
+    // the *new* hash entry, fires the rename traces while the old entry is
+    // still present, and only then removes it — and the traces hang off the
+    // shared `Command`, so a callback sees one list under either name. This VM
+    // renames first and moves its name-keyed trace list afterwards, so a
+    // callback's `trace info`/`trace remove` finds neither name traced. Fixing
+    // that is a change to when `cmd_rename` publishes the sidecar, not to the
+    // firing walk.
+    Vector {
+        name: "a callback's trace remove is honoured mid-firing for command and execution traces",
+        script: "proc target {} { return T }\n\
+                 proc e1 args { trace remove execution target enter e2\n\
+                 puts \"e1 info: [trace info execution target]\" }\n\
+                 proc e2 args { puts \"e2 fired\" }\n\
+                 trace add execution target enter e2\n\
+                 trace add execution target enter e1\n\
+                 target\n\
+                 puts ---\n\
+                 proc victim {} {}\n\
+                 proc d1 args { trace remove command victim delete d2\n\
+                 puts \"d1 info: [trace info command victim]\" }\n\
+                 proc d2 args { puts \"d2 fired\" }\n\
+                 trace add command victim delete d2\n\
+                 trace add command victim delete d1\n\
+                 rename victim {}\n\
+                 puts ---\n\
+                 proc lt {} { return L }\n\
+                 proc l1 args { puts \"l1 fired\" }\n\
+                 proc l2 args { trace remove execution lt leave l1\n\
+                 puts \"l2 info: [trace info execution lt]\" }\n\
+                 trace add execution lt leave l2\n\
+                 trace add execution lt leave l1\n\
+                 lt\n",
+        want: "e1 info: {enter e1}\n\
+               ---\n\
+               d1 info: {delete d1}\n\
+               ---\n\
+               l2 info: {leave l2}",
+    },
+    // Row 9: `Tcl_DeleteCommandFromToken` marks the command `CMD_DYING`
+    // (`tclBasic.c` 9.0.4:3760), fires the delete traces while its hash entry
+    // still exists (:3793), and removes that entry only through
+    // `cmdPtr->hPtr` if it is still non-NULL (:3865-3873). A callback that
+    // re-creates the command under the same name has taken the entry over, so
+    // the new command stands — trace-less, since the traces went with the old
+    // token. A redefinition still beats the callback's own, `rename` fires no
+    // delete trace, and an `interp alias` replacing a traced proc fires one.
+    Vector {
+        name: "a delete trace that re-creates the command leaves the new one standing",
+        script: "proc foo {} { return foo }\n\
+                 proc delcb {old new op} { puts \"in-trace: [info commands foo]\"\n\
+                 proc foo {} { return foo2 } }\n\
+                 trace add command foo delete delcb\n\
+                 rename foo {}\n\
+                 puts \"exists: [info commands foo]\"\n\
+                 puts [catch {foo} m]\n\
+                 puts $m\n\
+                 puts \"traces: [trace info command foo]\"\n\
+                 puts ---\n\
+                 proc bar {} { return bar1 }\n\
+                 proc delbar {old new op} { proc bar {} { return bar2 } }\n\
+                 trace add command bar delete delbar\n\
+                 proc bar {} { return bar3 }\n\
+                 puts [bar]\n\
+                 puts \"traces: [trace info command bar]\"\n\
+                 puts ---\n\
+                 proc baz {} {}\n\
+                 proc renbaz {old new op} { puts \"ren: $old -> $new ($op)\" }\n\
+                 namespace eval ns {}\n\
+                 trace add command baz delete renbaz\n\
+                 rename baz ns::baz\n\
+                 puts \"baz: [info commands baz] ns::baz: [info commands ::ns::baz]\"\n\
+                 puts ---\n\
+                 proc qux {} { return q }\n\
+                 proc delqux {old new op} { puts \"delqux $op\" }\n\
+                 trace add command qux delete delqux\n\
+                 interp alias {} qux {} puts\n\
+                 qux hi\n\
+                 puts [catch {trace info command qux} m2]\n",
+        want: "in-trace: foo\n\
+               exists: foo\n\
+               0\n\
+               foo2\n\
+               traces: \n\
+               ---\n\
+               bar3\n\
+               traces: \n\
+               ---\n\
+               baz:  ns::baz: ::ns::baz\n\
+               ---\n\
+               delqux delete\n\
+               hi\n\
+               0",
+    },
 ];
 
 /// Former divergence from C (issue #946 fault 3), now fixed: step traces used

@@ -109,8 +109,19 @@ Where C commits the operation around the trace, the runtime must too:
   read-trace re-entry through `lappend` is the sharp edge: the canonical-list
   fast path and the trace re-entry must agree on when the value is
   materialised.
-* Removing a variable's traces happens *after* the unset callbacks have fired,
-  so a stale trace cannot re-fire on a later variable that reuses the name.
+* An unset is a three-step: the cell goes, the variable's own trace list comes
+  *out of the table*, and only then do the callbacks fire — from that taken
+  list, which is never put back. So a callback sees the variable already
+  absent, a value it stores survives the unset, and the revived variable
+  carries no traces (not even a write trace that would otherwise have fired on
+  that store). A whole-array trace is not the element's, so an element unset
+  leaves it in place.
+* **A trace a callback removes does not fire in the same pass**, whether it is
+  older and not yet reached or newer and already run; one a callback adds does
+  not fire until the next access. `trace info` reflects both at once. This
+  holds for variable, command and execution traces alike — each firing loop
+  re-reads the live registration rather than trusting a snapshot taken up
+  front.
 * **`trace remove` deletes the newest match.** It removes exactly one
   registration — the first hit walking the list the same way firing does, and
   that head is the newest. When several registrations are identical the choice
@@ -165,6 +176,9 @@ interpreter can't see by name can't be traced.
 | `incr`, and `lappend` on the paths reaching `TclPtrGetVarIdx`, fire `read` first | **Contract** | A trace error there is "no current value", not a failure; the swallowed error stays in `errorInfo`. |
 | `trace info command\|execution NAME` errors for an unknown command | **Contract** | `unknown command "NAME"`, name as written; `trace info variable` stays empty. |
 | Element recovery through a link, and `unset a(k)`'s `name1` | **Contract, release-split** | 9.0+ only — `TclVersion::traces_recover_linked_array_element`. |
+| An unset takes the traces out before firing; a revived variable is trace-less | **Contract** | `UnsetVarStruct` moves the list to a dummy `Var`; whole-array traces stay. |
+| A trace removed mid-firing does not fire; one added waits for the next access | **Contract** | Variable, command and execution traces; `trace info` sees both at once. |
+| A delete trace that re-creates the command leaves the new one standing | **Contract** | C removes the entry only through the dying token's own `hPtr`. |
 | Trace storage layout, callback dispatch internals, refcounts | **Incompatible-by-design** | Object-rep probes never match. |
 
 ## See also

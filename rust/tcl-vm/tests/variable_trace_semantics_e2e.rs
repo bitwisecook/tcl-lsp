@@ -374,6 +374,147 @@ const VECTORS: &[Vector] = &[
                lappend: code=0 msg=z y=z\n\
                lappend0: code=0 msg= z2=",
     },
+    // Row 8 (variable): the firing walk consults the live trace list, not a
+    // snapshot. C's `TclCallVarTraces` follows `active.nextTracePtr`
+    // (`tclTrace.c` 9.0.4:2583, :2622) and `Tcl_UntraceVar2` unlinks a record
+    // at once, rewriting every active walk (:2824-2842); `TraceVarEx` prepends,
+    // so an addition sits behind the walk. A trace a callback removes therefore
+    // does not fire in that pass — whether it is older and not yet reached, or
+    // newer and already run — one it adds does not fire until the next access,
+    // and `trace info` reflects both immediately.
+    Vector {
+        name: "a callback's trace remove and trace add are honoured mid-firing",
+        script: "proc t1 {n1 n2 op} { trace remove variable ::t write t1\n\
+                 puts \"t1 info: [trace info variable ::t]\" }\n\
+                 proc t2 {n1 n2 op} { trace add variable ::t write t3\n\
+                 puts \"t2 info: [trace info variable ::t]\" }\n\
+                 proc t3 {n1 n2 op} { puts \"t3 fired\" }\n\
+                 proc t4 {n1 n2 op} { puts \"t4 fired\" }\n\
+                 set t 0\n\
+                 trace add variable t write t4\n\
+                 trace add variable t write t2\n\
+                 trace add variable t write t1\n\
+                 set t 1\n\
+                 puts \"after: [trace info variable ::t]\"\n\
+                 set t 2\n\
+                 puts ---\n\
+                 proc u1 {n1 n2 op} { trace remove variable ::u write u2\n\
+                 puts \"u1 info: [trace info variable ::u]\" }\n\
+                 proc u2 {n1 n2 op} { puts \"u2 fired\" }\n\
+                 set u 0\n\
+                 trace add variable u write u2\n\
+                 trace add variable u write u1\n\
+                 set u 1\n\
+                 puts ---\n\
+                 proc v1 {n1 n2 op} { puts \"v1 fired\" }\n\
+                 proc v2 {n1 n2 op} { trace remove variable ::v write v1\n\
+                 puts \"v2 info: [trace info variable ::v]\" }\n\
+                 set v 0\n\
+                 trace add variable v write v2\n\
+                 trace add variable v write v1\n\
+                 set v 1\n\
+                 puts ---\n\
+                 proc w1 {n1 n2 op} { trace remove variable ::w write w1\n\
+                 trace add variable ::w write w1\n\
+                 puts \"w1 info: [trace info variable ::w]\" }\n\
+                 set w 0\n\
+                 trace add variable w write w1\n\
+                 set w 1\n",
+        want: "t1 info: {write t2} {write t4}\n\
+               t2 info: {write t3} {write t2} {write t4}\n\
+               t4 fired\n\
+               after: {write t3} {write t2} {write t4}\n\
+               t3 fired\n\
+               t2 info: {write t3} {write t3} {write t2} {write t4}\n\
+               t4 fired\n\
+               ---\n\
+               u1 info: {write u1}\n\
+               ---\n\
+               v1 fired\n\
+               v2 info: {write v2}\n\
+               ---\n\
+               w1 info: {write w1}",
+    },
+    // Row 10: `UnsetVarStruct` (`tclVar.c` 9.0.4:2560-2745) marks the variable
+    // undefined and moves its trace list aside *before* the callbacks run, then
+    // frees whatever list is left. So a callback sees the variable already
+    // gone, a value it stores survives the unset, and the revived variable
+    // carries no traces — not even the write trace that would otherwise have
+    // fired on that store. Whole-array traces are not the element's, so an
+    // element unset leaves them in place.
+    //
+    // Row 8's unset variant rides along: an unset callback that removes another
+    // unset trace finds nothing to remove (the list is already out of the
+    // table, C's Bug 3062331), and the taken list still fires it.
+    Vector {
+        name: "an unset takes the traces out before firing, so a revive survives trace-less",
+        script: "proc rev {n1 n2 op} { puts \"in-trace exists=[info exists ::a]\"\n\
+                 set ::a revived }\n\
+                 set a orig\n\
+                 trace add variable a unset rev\n\
+                 unset a\n\
+                 puts \"exists=[info exists a] val=<$a> traces=<[trace info variable a]>\"\n\
+                 puts ---\n\
+                 proc reve {n1 n2 op} { set ::b(k) revived }\n\
+                 array set b {k v}\n\
+                 trace add variable b(k) unset reve\n\
+                 unset b(k)\n\
+                 puts \"b exists=[info exists b(k)] val=<$b(k)> traces=<[trace info variable b(k)]>\"\n\
+                 puts ---\n\
+                 proc reva {n1 n2 op} { set ::c(k) revived }\n\
+                 array set c {k v}\n\
+                 trace add variable c unset reva\n\
+                 unset c(k)\n\
+                 puts \"c exists=[info exists c(k)] val=<$c(k)> traces on c=<[trace info variable c]>\"\n\
+                 puts ---\n\
+                 proc revw {n1 n2 op} { set ::d(j) revived }\n\
+                 array set d {k v}\n\
+                 trace add variable d unset revw\n\
+                 unset d\n\
+                 puts \"d exists=[info exists d(j)] val=<$d(j)> isarray=[array exists d] traces=<[trace info variable d]>\"\n\
+                 puts ---\n\
+                 proc revz {n1 n2 op} { set ::z revived }\n\
+                 proc wz {n1 n2 op} { puts \"write fired\" }\n\
+                 set z orig\n\
+                 trace add variable z unset revz\n\
+                 trace add variable z write wz\n\
+                 unset z\n\
+                 puts \"z=<$z> traces=<[trace info variable z]>\"\n\
+                 puts ---\n\
+                 proc revu {n1 n2 op} { set ::y revived\n\
+                 puts \"y=$::y\"\n\
+                 unset ::y\n\
+                 puts \"exists=[info exists ::y]\" }\n\
+                 set y orig\n\
+                 trace add variable y unset revu\n\
+                 unset y\n\
+                 puts \"after exists=[info exists y]\"\n\
+                 puts ---\n\
+                 proc z1 {n1 n2 op} { trace remove variable ::zz unset z2\n\
+                 puts \"z1 info: <[trace info variable ::zz]>\" }\n\
+                 proc z2 {n1 n2 op} { puts \"z2 fired\" }\n\
+                 set zz 0\n\
+                 trace add variable zz unset z2\n\
+                 trace add variable zz unset z1\n\
+                 unset zz\n",
+        want: "in-trace exists=0\n\
+               exists=1 val=<revived> traces=<>\n\
+               ---\n\
+               b exists=1 val=<revived> traces=<>\n\
+               ---\n\
+               c exists=1 val=<revived> traces on c=<{unset reva}>\n\
+               ---\n\
+               d exists=1 val=<revived> isarray=1 traces=<>\n\
+               ---\n\
+               z=<revived> traces=<>\n\
+               ---\n\
+               y=revived\n\
+               exists=0\n\
+               after exists=0\n\
+               ---\n\
+               z1 info: <>\n\
+               z2 fired",
+    },
 ];
 
 #[test]

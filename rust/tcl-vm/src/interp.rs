@@ -816,6 +816,8 @@ pub struct InterpState {
     /// trace fires regardless of the access path (`upvar` alias, qualified
     /// name, …). Newest trace last; fired newest-first.
     var_traces: HashMap<String, Vec<VarTrace>>,
+    /// Source of [`VarTrace::id`]s; never reused within an interpreter.
+    next_var_trace_id: u64,
     /// `trace add command` registrations (`rename`/`delete` ops), keyed by the
     /// command's table key.  Entries follow the command through `rename` and
     /// are dropped when it is deleted or overwritten (M16.3).
@@ -1160,6 +1162,14 @@ struct CmdArena {
 /// A single registered variable trace.
 #[derive(Clone)]
 struct VarTrace {
+    /// Identity for the firing walk. C walks the live list through
+    /// `active.nextTracePtr` and `Tcl_UntraceVar2` rewrites every active walk
+    /// as it unlinks a record (`tclTrace.c` 9.0.4:2824-2842), so a trace a
+    /// callback removes never fires in that pass. A minted id, never reused,
+    /// survives the `Vec` reshuffling a removal causes where an index would
+    /// not, and identifies one *registration* where a `(ops, command)` pair
+    /// would match its own duplicates. Issue #1633 row 8.
+    id: u64,
     /// Operations this trace fires on (`read`/`write`/`unset`/`array`).
     ops: Vec<String>,
     /// The command prefix invoked as `command name1 name2 op`.
@@ -1170,6 +1180,20 @@ struct VarTrace {
     /// part of the `trace remove`/`trace vdelete` match, exactly as C masks
     /// the flag out there.
     old_style: bool,
+}
+
+/// One group of variable traces a firing walks: the array's or the variable's
+/// own list, still in the table, or a list an unset has already taken out of it.
+enum TraceGroup {
+    Live(String),
+    Taken(Vec<VarTrace>),
+}
+
+/// One step of that walk: a live registration, re-found by id before it runs,
+/// or an already-taken entry, which nothing can remove any more.
+enum Step {
+    Live(u64),
+    Taken(String, bool),
 }
 
 /// One `trace add command|execution` registration: the op set
@@ -1587,6 +1611,7 @@ impl InterpState {
             package_unknown: None,
             package_prefer: initial_package_prefer(),
             var_traces: HashMap::new(),
+            next_var_trace_id: 0,
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
             active_sidecar_handles: Vec::new(),
@@ -2586,8 +2611,16 @@ impl Vm {
         // ImportRef list. Both the source and every import therefore remain
         // table-visible during this callback.
         self.on_command_removed_for(&key);
+        // C removes the table entry only through the dying `cmdPtr->hPtr`
+        // (`Tcl_DeleteCommandFromToken`, `tclBasic.c` 9.0.4:3865-3873). A
+        // delete callback that re-creates the command under the same name has
+        // taken that entry over, so the new command stands and this deletion
+        // must leave it alone. Issue #1633 row 9.
+        let replaced = self.command_token_identity(&key) != Some(source_token.clone());
         self.retire_real_command(&source_token, &command);
-        self.take_command_unchecked_key(&transaction.old_key);
+        if !replaced {
+            self.take_command_unchecked_key(&transaction.old_key);
+        }
         true
     }
 
@@ -5618,7 +5651,10 @@ impl Vm {
         old_style: bool,
     ) {
         let key = self.trace_key(name);
+        self.next_var_trace_id += 1;
+        let id = self.next_var_trace_id;
         self.var_traces.entry(key).or_default().push(VarTrace {
+            id,
             ops,
             command,
             old_style,
@@ -5817,16 +5853,29 @@ impl Vm {
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
         // newest-last. Issue #1440.
         for entry in entries.into_iter().rev() {
-            if entry.ops.iter().any(|o| o == op) {
-                let _ = self.run_cmd_trace_callback(
-                    &entry,
-                    &[
-                        Value::string(old_display.clone()),
-                        Value::string(new_display),
-                        Value::string(op),
-                    ],
-                );
+            if !entry.ops.iter().any(|o| o == op) {
+                continue;
             }
+            // C's `CallCommandTraces` walks the live list through `nextPtr`
+            // (tclBasic.c 9.0.4:3972-3993) and `Tcl_UntraceCommand` unlinks a
+            // record at once, so a trace an earlier callback removed does not
+            // fire in this pass. Re-check identity against the table, exactly
+            // as the execution-trace loop already does. Issue #1633 row 8.
+            if !self
+                .cmd_traces
+                .get(key)
+                .is_some_and(|live| live.iter().any(|l| Rc::ptr_eq(l, &entry)))
+            {
+                continue;
+            }
+            let _ = self.run_cmd_trace_callback(
+                &entry,
+                &[
+                    Value::string(old_display.clone()),
+                    Value::string(new_display),
+                    Value::string(op),
+                ],
+            );
         }
     }
 
@@ -5981,7 +6030,23 @@ impl Vm {
         op: &str,
         reported_name1: Option<&str>,
     ) -> Result<(), Completion<Value>> {
-        if self.var_traces.is_empty() {
+        self.fire_var_traces_taken(name, op, reported_name1, None)
+    }
+
+    /// [`fire_var_traces`](Self::fire_var_traces) walking a trace list that has
+    /// already been taken out of the table for the variable's own group — the
+    /// unset path, where C moves the list to a dummy `Var` before the callbacks
+    /// run (`UnsetVarStruct`, `tclVar.c` 9.0.4:2617-2648). The containing
+    /// array's group, which C leaves on the array's own `Var`, is still walked
+    /// live.
+    fn fire_var_traces_taken(
+        &mut self,
+        name: &str,
+        op: &str,
+        reported_name1: Option<&str>,
+        taken: Option<Vec<VarTrace>>,
+    ) -> Result<(), Completion<Value>> {
+        if self.var_traces.is_empty() && taken.is_none() {
             return Ok(());
         }
         let (base, elem) = elem_ref(name).map_or_else(
@@ -6001,7 +6066,7 @@ impl Vm {
             return Ok(());
         }
         self.active_traces.insert(active_key.clone());
-        let r = self.fire_var_traces_inner(name, op, reported_name1.unwrap_or(&base), &elem);
+        let r = self.fire_var_traces_inner(name, op, reported_name1.unwrap_or(&base), &elem, taken);
         self.active_traces.remove(&active_key);
         r
     }
@@ -6015,17 +6080,18 @@ impl Vm {
         op: &str,
         name1: &str,
         elem: &str,
+        taken: Option<Vec<VarTrace>>,
     ) -> Result<(), Completion<Value>> {
         // For an element access C walks the containing array's trace list
         // first and the element's own list second (`TclCallVarTraces`,
         // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
         // `varPtr` loop at :2623) — regardless of which was registered first.
         // Issue #1440.
-        let mut keys = Vec::with_capacity(2);
+        let mut groups = Vec::with_capacity(2);
         let mut name2 = elem.to_string();
         if let Some((base, _)) = elem_ref(name) {
             let (lvl, nm) = self.locate(base);
-            keys.push(format!("{lvl}\u{0}{nm}"));
+            groups.push(TraceGroup::Live(format!("{lvl}\u{0}{nm}")));
         } else if self.runtime_version.traces_recover_linked_array_element() {
             // From Tcl 9.0 an access whose spelling names no element but whose
             // resolved variable *is* one (`upvar #0 a(k) e; set e 5`) recovers
@@ -6034,25 +6100,54 @@ impl Vm {
             let (lvl, nm) = self.locate(name);
             if let Some((rbase, rkey)) = elem_ref(&nm) {
                 let (blvl, bnm) = self.locate_key_from(rbase, lvl);
-                keys.push(format!("{blvl}\u{0}{bnm}"));
+                groups.push(TraceGroup::Live(format!("{blvl}\u{0}{bnm}")));
                 name2 = rkey.to_string();
             }
         }
-        keys.push(self.trace_key(name));
-        for key in keys {
-            let Some(traces) = self.var_traces.get(&key).cloned() else {
-                continue;
+        groups.push(match taken {
+            Some(list) => TraceGroup::Taken(list),
+            None => TraceGroup::Live(self.trace_key(name)),
+        });
+        for group in groups {
+            // Walk newest-first (the Vec is oldest-last), by identity: a
+            // callback's `trace remove` unlinks its record from the live list
+            // at once, and C's walk then skips it — so the id is re-found in
+            // the table before every callback rather than trusting a snapshot.
+            // A taken list is nobody's to remove any more, so it fires whole.
+            let steps: Vec<Step> = match &group {
+                TraceGroup::Live(key) => self.var_traces.get(key).map_or_else(Vec::new, |list| {
+                    list.iter().rev().map(|t| Step::Live(t.id)).collect()
+                }),
+                TraceGroup::Taken(list) => list
+                    .iter()
+                    .rev()
+                    .filter(|t| t.ops.iter().any(|o| o == op))
+                    .map(|t| Step::Taken(t.command.clone(), t.old_style))
+                    .collect(),
             };
-            for tr in traces.iter().rev() {
-                if !tr.ops.iter().any(|o| o == op) {
+            let live_key = match &group {
+                TraceGroup::Live(key) => key.as_str(),
+                TraceGroup::Taken(_) => "",
+            };
+            for step in steps {
+                let entry = match step {
+                    Step::Live(id) => self
+                        .var_traces
+                        .get(live_key)
+                        .and_then(|list| list.iter().find(|t| t.id == id))
+                        .filter(|t| t.ops.iter().any(|o| o == op))
+                        .map(|t| (t.command.clone(), t.old_style)),
+                    Step::Taken(command, old_style) => Some((command, old_style)),
+                };
+                let Some((command, old_style)) = entry else {
                     continue;
-                }
+                };
                 let script = format!(
                     "{} {} {} {}",
-                    tr.command,
+                    command,
                     tcl_brace(name1),
                     tcl_brace(&name2),
-                    tcl_cmd_core::trace::callback_op_word(op, tr.old_style)
+                    tcl_cmd_core::trace::callback_op_word(op, old_style)
                 );
                 let r = self.eval_source(&script);
                 let failed = match r {
@@ -6923,9 +7018,17 @@ impl Vm {
     }
 
     /// Remove a scalar; returns whether it existed.
+    ///
+    /// C's `UnsetVarStruct` (`tclVar.c` 9.0.4:2560-2745) marks the variable
+    /// undefined and moves its trace list off the cell **before** the unset
+    /// callbacks run, then frees whatever list is left. So a callback sees the
+    /// variable already gone, a value it stores survives the unset, and the
+    /// revived variable carries no traces — not even a write trace that would
+    /// otherwise have fired on that store. The trace key is resolved *before*
+    /// the removal: resolution can depend on the cell still existing (issue
+    /// #1328). Issue #1633 row 10.
     pub fn unset_var(&mut self, name: &str) -> bool {
-        // Unset traces fire before removal; their errors are ignored.
-        let _ = self.fire_var_traces(name, "unset");
+        let key = self.trace_key(name);
         let (lvl, nm) = self.locate(name);
         let existed = if let Some((rbase, rkey)) = elem_ref(&nm) {
             // The name resolved through a link into an array element
@@ -6945,13 +7048,13 @@ impl Vm {
                 .get_mut(lvl)
                 .is_some_and(|f| f.locals.remove(&nm).is_some())
         };
-        // A variable's traces are dropped when it is unset.
-        if existed {
-            let key = self.trace_key(name);
-            if self.var_traces.remove(&key).is_some() {
-                self.invalidate_guard_domain(GuardDomain::VariableTrace);
-            }
+        // A variable's traces go with it, and the taken list is what fires.
+        let taken = self.var_traces.remove(&key);
+        if taken.is_some() {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
+        // Unset-trace errors are ignored.
+        let _ = self.fire_var_traces_taken(name, "unset", None, taken);
         existed
     }
 
@@ -7409,13 +7512,23 @@ impl Vm {
     }
 
     fn array_unset_elem_reporting(&mut self, name: &str, key: &str, reported: Option<&str>) {
-        if !self.var_traces.is_empty() {
-            let _ = self.fire_var_traces_reporting(&format!("{name}({key})"), "unset", reported);
-        }
+        let spelling = format!("{name}({key})");
+        // As for a scalar: the element goes, and its own traces come out of the
+        // table, before the callbacks run. The *array's* traces stay — C leaves
+        // them on the array's own `Var` — so they are still live in the walk and
+        // still visible to `trace info`.
+        let trace_key = self.trace_key(&spelling);
         let (lvl, nm) = self.locate(name);
         if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
         {
             m.remove(key);
+        }
+        let taken = self.var_traces.remove(&trace_key);
+        if taken.is_some() {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        }
+        if !self.var_traces.is_empty() || taken.is_some() {
+            let _ = self.fire_var_traces_taken(&spelling, "unset", reported, taken);
         }
     }
 
