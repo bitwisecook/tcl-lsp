@@ -125,7 +125,9 @@ found by this review:
   heuristics appear in `emit_var_get` (`name.contains('(')`) and the
   `AssignConst` gate. These are exactly the "reparse the argument string"
   shortcuts `common-semantic-compiler.md` forbids; the structured `WordExpr`
-  the leaf-invoke planner uses gets this case right.
+  the leaf-invoke planner uses gets this case right. (Closed: P3 retired the
+  fast path, and issue #1772's follow-up routed the remaining name readings
+  through one owner in `native_lowering::cells` — see the lane doc.)
 - **A compiled statement is not an eval-loop boundary.** `tcl_invoke_argv`
   dispatches at `eval_depth == 0`. When the dispatched command is `catch`, its
   body runs through `eval_control_body`, and the eval loop's outermost-eval
