@@ -22,7 +22,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import { runWatchedSuite } from "./runnerWatchdog";
-import { resolveTestUserDataDir } from "./testUserDataDir";
+import { createTestUserDataDir } from "./testUserDataDir";
 
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
@@ -51,18 +51,11 @@ async function main() {
     "multiFolder.code-workspace",
   );
 
-  // Clear persisted user settings between runs.  Same out-of-checkout dir the
-  // single-root suite uses (test-electron's in-checkout default blows the IPC
-  // socket's `sun_path` budget from a deeply nested worktree) — see
-  // resolveTestUserDataDir.
-  const userDataDir = resolveTestUserDataDir(extensionDevelopmentPath);
-  const userSettingsFile = path.resolve(userDataDir, "User", "settings.json");
-  try {
-    fs.mkdirSync(path.dirname(userSettingsFile), { recursive: true });
-    fs.writeFileSync(userSettingsFile, "{}\n", "utf8");
-  } catch {
-    /* best-effort */
-  }
+  // Private to this run, so no user setting survives into the next one. Same
+  // out-of-checkout dir the single-root suite uses (test-electron's in-checkout
+  // default blows the IPC socket's `sun_path` budget from a deeply nested
+  // worktree) — see createTestUserDataDir.
+  const userDataDir = createTestUserDataDir();
 
   // Materialise the per-folder ``.vscode/settings.json`` fixtures.  These
   // are gitignored (the repo-wide ``.vscode/`` rule), so they have to be

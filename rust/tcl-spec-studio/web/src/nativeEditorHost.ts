@@ -67,7 +67,19 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     spec.onChange(text);
   };
 
+  // Only the IDE bridge may drive these surfaces. VS Code's webview host posts
+  // through the frame embedding the studio, and that frame's origin is a
+  // per-webview `vscode-webview://<id>` rather than a constant, so it is checked
+  // against this document's own origin and against the embedder's identity;
+  // JetBrains' JCEF instead dispatches a synthetic event straight into the
+  // document, which carries an empty origin. Any other window is ignored.
+  const hostFrame = window.parent === window ? null : window.parent;
   window.addEventListener("message", (event: MessageEvent<unknown>) => {
+    const fromHost =
+      event.origin === "" ||
+      event.origin === window.location.origin ||
+      (hostFrame !== null && event.source === hostFrame);
+    if (!fromHost) return;
     const update = event.data as Partial<HostUpdate> | undefined;
     if (update?.type !== "tclSpecStudioHostUpdate" || typeof update.text !== "string") return;
     if (update.surface === "dsl") acceptEdit(options.dsl, "dsl", update.text);
