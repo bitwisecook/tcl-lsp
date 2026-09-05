@@ -165,7 +165,8 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         return self.rfile.read(length) if length else b""
 
-    def _sources_from_parts(self, parts: list[Part], passphrase: str):
+    @staticmethod
+    def _sources_from_parts(parts: list[Part], passphrase: str):
         """Spill uploaded files to a temp dir and load them (UCS extract +
         full cert PEMs), returning (sources, tmpdir) — caller cleans tmpdir."""
         files = [p for p in parts if p.filename]
@@ -175,11 +176,20 @@ class _Handler(BaseHTTPRequestHandler):
             # macOS), so both sides of the containment check are resolved.
             root = os.path.realpath(tmp)
             paths = []
-            for p in files:
+            for i, p in enumerate(files):
+                # One directory per upload. Two distinct names can sanitise to
+                # the same basename ("prod east.ucs" and "prod_east.ucs"), and
+                # in a shared directory the second would overwrite the first —
+                # dropping one device from the report and duplicating another.
+                # Renaming instead would not do: the basename is what
+                # `_device_name` falls back to for a config with no hostname,
+                # and the extension is how the engine spots a UCS.
+                spill = os.path.join(root, str(i))
+                os.mkdir(spill)
                 dest = os.path.realpath(
-                    os.path.join(root, _upload_basename(p.filename))
+                    os.path.join(spill, _upload_basename(p.filename))
                 )
-                if not dest.startswith(root + os.sep):
+                if not dest.startswith(spill + os.sep):
                     raise ValueError(f"unsafe upload filename: {p.filename!r}")
                 with open(dest, "wb") as fh:
                     fh.write(p.data)
