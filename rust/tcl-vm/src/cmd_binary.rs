@@ -79,7 +79,14 @@ fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"binary subcommand ?arg ...?\"");
     };
-    let canon = match resolve_binary_sub(BINARY_SUBS, &sub.to_str(), true, b"::tcl::binary") {
+    // `encode`/`decode` (TIP 317) arrive in 8.6: under an earlier pin `binary
+    // d` must not resolve to `decode`.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "binary",
+        BINARY_SUBS,
+    );
+    let canon = match resolve_binary_sub(subs, &sub.to_str(), true, b"::tcl::binary") {
         Ok(name) => name,
         Err(m) => return err(m),
     };

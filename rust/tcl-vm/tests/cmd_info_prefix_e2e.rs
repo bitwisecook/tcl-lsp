@@ -1609,3 +1609,42 @@ fn ensemble_tables_follow_the_emulated_release() {
     assert!(!ok);
     assert!(msg.contains("wrong # args"), "9.0 resolves `for`: {msg}");
 }
+
+/// The same rule below 8.6: `binary encode`/`decode` (TIP 317) arrive in 8.6
+/// and `encoding dirs` in 8.5.
+///
+/// tclsh8.5.19: binary d base64 QQ== -> bad option "d": must be format or scan
+/// tclsh8.6.16: binary d base64 QQ== -> A
+/// tclsh8.4.20: encoding d           -> bad option "d": must be convertfrom,
+///                                      convertto, names, or system
+/// tclsh8.5.19: encoding d           -> the encoding directory list
+///
+/// The *sentence* below 8.6 is C's pre-ensemble `bad option` wording, which
+/// this engine does not model — it speaks the ensemble sentence at every
+/// release. The rows pin the resolution and the enumeration, not that wording.
+#[test]
+fn binary_and_encoding_tables_follow_the_emulated_release() {
+    let v84 = tcl_dialect::TclVersion::V8_4;
+    let v85 = tcl_dialect::TclVersion::V8_5;
+    let v86 = tcl_dialect::TclVersion::V8_6;
+
+    let (ok, msg, _) = run_for_version("binary d base64 QQ==", v85);
+    assert!(!ok);
+    // Two entries still take the ensemble owner's comma before `or`.
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"d\": must be format, or scan"
+    );
+    assert_eq!(run_for_version("binary d base64 QQ==", v86).1, "A");
+
+    let (ok, msg, _) = run_for_version("encoding d", v84);
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"d\": must be convertfrom, convertto, names, or system"
+    );
+    assert!(
+        run_for_version("encoding d", v85).0,
+        "`dirs` exists from 8.5"
+    );
+}

@@ -243,3 +243,47 @@ fn file_tempfile_prefix_is_unique_before_tcl9() {
         "{message}"
     );
 }
+
+/// `binary encode`/`decode` (TIP 317) arrive in 8.6, and `encoding dirs` in
+/// 8.5 — the same rule below the releases the rows above use.
+///
+/// tclsh8.5.19:  binary d base64 QQ== -> bad option "d": must be format or scan
+/// tclsh8.6.16:  binary d base64 QQ== -> A
+/// tclsh8.4.20:  encoding d           -> bad option "d": must be convertfrom,
+///                                       convertto, names, or system
+/// tclsh8.5.19:  encoding d           -> the encoding directory list
+///
+/// The *sentence* differs below 8.6 — C only made these ensembles in 8.6, so
+/// 8.4/8.5 word the miss `bad option` — which this engine does not model; it
+/// speaks the ensemble sentence at every release. What the rows pin is the
+/// resolution and the enumeration, not that older wording.
+#[test]
+fn binary_and_encoding_tables_follow_the_emulated_release() {
+    let mut old = at(TclVersion::V8_5);
+    let (code, message) = run(&mut old, "binary d base64 QQ==");
+    assert_eq!(code, Code::Error);
+    assert_eq!(
+        message,
+        // Two entries still take the ensemble owner's comma before `or`.
+        "unknown or ambiguous subcommand \"d\": must be format, or scan"
+    );
+    assert_eq!(
+        run(&mut old, "encoding d").0,
+        Code::Ok,
+        "`dirs` exists from 8.5"
+    );
+
+    let mut new = at(TclVersion::V8_6);
+    assert_eq!(
+        run(&mut new, "binary d base64 QQ=="),
+        (Code::Ok, "A".to_string())
+    );
+
+    let mut ancient = at(TclVersion::V8_4);
+    let (code, message) = run(&mut ancient, "encoding d");
+    assert_eq!(code, Code::Error);
+    assert_eq!(
+        message,
+        "unknown or ambiguous subcommand \"d\": must be convertfrom, convertto, names, or system"
+    );
+}

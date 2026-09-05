@@ -46,6 +46,9 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
 }
 
 /// `binary`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+/// `encode`/`decode` (TIP 317) arrive in 8.6, so the table is filtered to the
+/// emulated release before the scan — under an 8.5 pin `binary d` is not
+/// `decode`, it is a miss over `format, or scan`.
 const BINARY_SUBS: &[&[u8]] = &[b"decode", b"encode", b"format", b"scan"];
 
 /// `binary encode`/`binary decode`'s format set. These two are ensembles with
@@ -59,15 +62,20 @@ fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"binary subcommand ?arg ...?");
     }
     let word = obj_bytes(argv[1]);
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(BINARY_SUBS, &word, true) else {
+    let subs = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "binary",
+        BINARY_SUBS,
+    );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            BINARY_SUBS,
+            subs,
             &word,
             true,
             b"::tcl::binary",
         ));
     };
-    match BINARY_SUBS[index] {
+    match subs[index] {
         b"format" => binary_format(interp, argv),
         b"scan" => binary_scan(interp, argv),
         b"encode" => binary_encode(interp, argv),

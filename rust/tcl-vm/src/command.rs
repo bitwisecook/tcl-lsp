@@ -1702,28 +1702,31 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// only what it dispatches.
 const ENCODING_SUBS: &[&str] = &["convertfrom", "convertto", "dirs", "names", "system"];
 
-fn cmd_encoding(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(sub) = args.first() else {
         return err("wrong # args: should be \"encoding subcommand ?arg ...?\"");
     };
-    let canon = match tcl_cmd_core::ensemble::resolve_subcommand(
+    // `dirs` arrives in 8.5, so the table follows the emulated release.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "encoding",
         ENCODING_SUBS,
-        sub.to_str().as_bytes(),
-        true,
-    ) {
-        Some(index) => ENCODING_SUBS[index],
-        None => {
-            return err(String::from_utf8_lossy(
-                &tcl_cmd_core::ensemble::unknown_subcommand_message(
-                    ENCODING_SUBS,
-                    sub.to_str().as_bytes(),
-                    true,
-                    b"::tcl::encoding",
-                ),
-            )
-            .into_owned());
-        }
-    };
+    );
+    let canon =
+        match tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.to_str().as_bytes(), true) {
+            Some(index) => subs[index],
+            None => {
+                return err(String::from_utf8_lossy(
+                    &tcl_cmd_core::ensemble::unknown_subcommand_message(
+                        subs,
+                        sub.to_str().as_bytes(),
+                        true,
+                        b"::tcl::encoding",
+                    ),
+                )
+                .into_owned());
+            }
+        };
     match canon {
         "dirs" => ok(Value::empty()),
         "system" => ok(Value::string("utf-8")),

@@ -119,7 +119,8 @@ fn noop(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 /// 9.0's table also carries `profiles` and `user`, which need the encoding
-/// machinery this runtime does not model.
+/// machinery this runtime does not model. `dirs` arrives in 8.5, so the table
+/// is filtered to the emulated release before the scan.
 const ENCODING_SUBS: &[&[u8]] = &[b"convertfrom", b"convertto", b"dirs", b"names", b"system"];
 
 fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -127,15 +128,20 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"encoding subcommand ?arg ...?");
     }
     let word = obj_bytes(argv[1]);
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(ENCODING_SUBS, &word, true) else {
+    let subs = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "encoding",
+        ENCODING_SUBS,
+    );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
         return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            ENCODING_SUBS,
+            subs,
             &word,
             true,
             b"::tcl::encoding",
         ));
     };
-    match ENCODING_SUBS[index] {
+    match subs[index] {
         // `encoding dirs ?list?` — we don't search encoding files; accept + ignore.
         b"dirs" => {
             interp.set_result_bytes(b"");
@@ -158,7 +164,7 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            ENCODING_SUBS,
+            subs,
             other,
             true,
             b"::tcl::encoding",
