@@ -372,6 +372,22 @@ const VECTORS: &[Vector] = &[
         want_86: "1",
         want_90: "1",
     },
+    // -- #1607: `package`'s option table follows the release --
+    // `prefer` is TIP 268 (8.5); `files` is 9.0's. Byte-checked against
+    // tclsh8.4.20 / 8.5.19 / 8.6.16 / 9.0.4, which this suite also re-runs
+    // against any installed tclsh.
+    Vector {
+        name: "package's option list follows the release",
+        script: "puts [catch {package zz} m]$m\n",
+        want_84: "1bad option \"zz\": must be forget, ifneeded, names, present, \
+                  provide, require, unknown, vcompare, versions, or vsatisfies",
+        want_85: "1bad option \"zz\": must be forget, ifneeded, names, prefer, present, \
+                  provide, require, unknown, vcompare, versions, or vsatisfies",
+        want_86: "1bad option \"zz\": must be forget, ifneeded, names, prefer, present, \
+                  provide, require, unknown, vcompare, versions, or vsatisfies",
+        want_90: "1bad option \"zz\": must be files, forget, ifneeded, names, prefer, \
+                  present, provide, require, unknown, vcompare, versions, or vsatisfies",
+    },
     // -- the polyfill pattern: a user proc always wins over a hidden builtin --
     Vector {
         name: "a user-defined proc is callable at every release",

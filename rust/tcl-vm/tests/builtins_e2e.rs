@@ -730,6 +730,72 @@ fn interp_debug_option_uses_c_noun_and_abbreviates() {
     );
 }
 
+/// Issue #1607: `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
+/// "option", 0)` table (`pkgOptions[]`, `tclPkg.c`) — both engines said
+/// `unknown or ambiguous subcommand "x"` with no list, which is the *ensemble*
+/// wording; `package` is not an ensemble. `package prefer`'s word is a second
+/// table with the noun `preference`.
+///
+/// tclsh 9.0.4 (the VM's default release):
+///   package x  -> bad option "x": must be files, forget, ifneeded, names,
+///                 prefer, present, provide, require, unknown, vcompare,
+///                 versions, or vsatisfies       [TCL LOOKUP INDEX option x]
+///   package {} -> ambiguous option "": must be <same>
+///   package pr -> ambiguous option "pr": must be <same>   (prefer/present/provide)
+///   package v  -> ambiguous option "v": must be <same>    (vcompare/versions/vsatisfies)
+///   package n  -> the names list
+///   package prefer {} -> ambiguous preference "": must be latest or stable
+///   package prefer x  -> bad preference "x": must be latest or stable
+///   package prefer s  -> stable
+#[test]
+fn package_option_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be files, forget, ifneeded, names, prefer, present, provide, \
+                        require, unknown, vcompare, versions, or vsatisfies";
+    const PREFER_MUST: &str = "must be latest or stable";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(msg("package x\n"), format!("bad option \"x\": {MUST}"));
+    assert_eq!(
+        msg("package {}\n"),
+        format!("ambiguous option \"\": {MUST}")
+    );
+    assert_eq!(
+        msg("package pr\n"),
+        format!("ambiguous option \"pr\": {MUST}")
+    );
+    assert_eq!(
+        msg("package v\n"),
+        format!("ambiguous option \"v\": {MUST}")
+    );
+    assert_eq!(
+        run("package provide foo 1.0\nllength [lsearch -all -exact [package n] foo]\n").1,
+        "1"
+    );
+    // C's lookup error code travels with the message.
+    assert_eq!(
+        run("catch {package x} e opts\nreturn [dict get $opts -errorcode]\n").1,
+        "TCL LOOKUP INDEX option x"
+    );
+    // `package prefer`'s own table.
+    assert_eq!(
+        msg("package prefer {}\n"),
+        format!("ambiguous preference \"\": {PREFER_MUST}")
+    );
+    assert_eq!(
+        msg("package prefer x\n"),
+        format!("bad preference \"x\": {PREFER_MUST}")
+    );
+    assert_eq!(run("package prefer s\n").1, "stable");
+    assert_eq!(run("package prefer l\n").1, "latest");
+    // 9.0's `files`: nothing here loads through a package loader, so the
+    // answer is the empty list, as it is in tclsh for a script-provided
+    // package (`package provide foo 1.0; package files foo` → {}).
+    assert_eq!(run("package provide foo 1.0\npackage files foo\n").1, "");
+}
+
 /// Issue #1607: the `interp` ensemble and the child-as-command dispatch are
 /// `Tcl_GetIndexFromObj(…, "option", 0)` tables (`options[]` in `Tcl_InterpObjCmd`
 /// and `NRChildCmd`, `tclInterp.c`), so subcommands abbreviate and the empty

@@ -532,7 +532,11 @@ entry point, or gate moves without this contract being updated.
   option words. Where an engine advertises only the subcommands it
   dispatches (#1412 item 3), the miss message is composed with `scan` +
   `bad_key_message` over the shorter table — the way C reports
-  `interp`'s own misses against `optionsNoSlaves[]`. New command
+  `interp`'s own misses against `optionsNoSlaves[]`. `package`'s
+  subcommand word and `package prefer`'s `preference` word resolve here
+  too (they are `Tcl_GetIndexFromObj` tables, not an ensemble, despite
+  both engines having worded their misses `unknown or ambiguous
+  subcommand` before #1607). New command
   modules MUST resolve through `OptionTable` (or `scan` +
   `bad_key_message` where a byte noun or interleaved control flow
   demands composition) — never a hand-rolled scan.
@@ -847,6 +851,12 @@ helper without reading the rationale:
   pinned against tclsh 8.6.16 and 9.0.4 on both engines
   (`runtime/rust/tests/rename_interp_semantics.rs` pins the runtime's
   deliberately shortened enumeration).
+- `rust/tcl-vm/tests/builtins_e2e.rs` and the `cmd_package.rs` test
+  module in `runtime/rust` —
+  `package_option_words_resolve_like_tcl_get_index_from_obj`, with the
+  release axis of `package`'s table (`prefer` from 8.5, `files` from
+  9.0) pinned in
+  `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs`.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
 - `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single
