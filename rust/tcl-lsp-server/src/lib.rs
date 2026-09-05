@@ -262,10 +262,10 @@ struct DocumentState {
     /// go-to-definition to a path the editor cannot open.  Cleared when the
     /// path comes back (`didOpen`, a save, or a watched `CREATED`/`CHANGED`).
     backing_file_deleted: bool,
-    /// Whether Salsa/index publication has caught up with this exact live
-    /// revision. Requests for this URI wait on the per-document publication
-    /// signal while false; unrelated documents never wait (#1849).
-    source_published: bool,
+    /// How far deferred publication has caught up with this exact live
+    /// revision. Semantic tokens need the Salsa boundary; cross-document
+    /// providers need the indexed boundary (#829, #1849, #1854 review).
+    publication: DocumentPublication,
 }
 
 impl DocumentState {
@@ -283,7 +283,7 @@ impl DocumentState {
             revision: 0,
             version: None,
             backing_file_deleted: false,
-            source_published: true,
+            publication: DocumentPublication::Indexed,
         }
     }
 
@@ -301,7 +301,7 @@ impl DocumentState {
             revision: 0,
             version: Some(version),
             backing_file_deleted: false,
-            source_published: true,
+            publication: DocumentPublication::Indexed,
         }
     }
 
@@ -313,7 +313,7 @@ impl DocumentState {
     }
 
     fn with_publication_pending(mut self) -> Self {
-        self.source_published = false;
+        self.publication = DocumentPublication::Pending;
         self
     }
 
@@ -339,7 +339,45 @@ impl DocumentState {
     fn bump_revision(&mut self, version: i32) {
         self.revision = self.revision.saturating_add(1);
         self.version = Some(version);
-        self.source_published = false;
+        self.publication = DocumentPublication::Pending;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DocumentPublication {
+    /// The live buffer is authoritative, but Salsa still names an older source.
+    Pending,
+    /// Salsa names these live bytes; the workspace index is still catching up.
+    Salsa,
+    /// Salsa and the workspace-index view both name this live revision.
+    Indexed,
+}
+
+impl DocumentPublication {
+    fn salsa_ready(self) -> bool {
+        self != Self::Pending
+    }
+
+    fn indexed(self) -> bool {
+        self == Self::Indexed
+    }
+}
+
+#[derive(Clone, Copy)]
+enum DocumentReadiness {
+    /// The current live bytes have reached Salsa. This is sufficient for the
+    /// semantic-token bounded-enrichment/coarse-fallback pipeline.
+    Salsa,
+    /// Salsa and every derived cross-document index view are current.
+    Indexed,
+}
+
+impl DocumentReadiness {
+    fn is_ready(self, doc: &DocumentState) -> bool {
+        match self {
+            Self::Salsa => doc.publication.salsa_ready(),
+            Self::Indexed => doc.publication.indexed(),
+        }
     }
 }
 
@@ -2606,7 +2644,7 @@ impl DiagInputs {
             // Combining this text/revision with the preceding SourceFile
             // would pass the revision-only delivery guard and briefly publish
             // stale diagnostics for the new edit.
-            if !doc.source_published {
+            if doc.publication != DocumentPublication::Indexed {
                 return None;
             }
             (
@@ -6577,9 +6615,9 @@ pub struct Backend {
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them. See [`EditOrder`].
     edit_order: EditOrder,
-    /// Wakes requests waiting for the matching open document's deferred Salsa
-    /// publication. `DocumentState::source_published` is the condition; this
-    /// notify supplies only the race-free wakeup edge.
+    /// Wakes requests waiting for either tier of the matching open document's
+    /// deferred publication. `DocumentState::publication` is the condition;
+    /// this notify supplies only the race-free wakeup edge.
     live_publication_advanced: Arc<tokio::sync::Notify>,
     /// Serialises the deferred source/index commits after document-sync turns
     /// have been released. This preserves edit order without making the gate a
@@ -8349,6 +8387,63 @@ impl Backend {
         }
     }
 
+    /// Mark the matching `didOpen` revision safe for Salsa-backed providers.
+    async fn mark_open_salsa_published_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+    ) -> bool {
+        let mut docs = self.documents.lock("did_open_salsa_published").await;
+        let Some(doc) = docs.get_mut(uri) else {
+            return false;
+        };
+        if doc.version != Some(version)
+            || doc.text.as_ref() != text
+            || doc.dialect.as_str() != dialect
+        {
+            return false;
+        }
+        doc.publication = DocumentPublication::Salsa;
+        drop(docs);
+        self.live_publication_advanced.notify_waiters();
+        true
+    }
+
+    /// Seed the live index and publish full readiness only if this remains the
+    /// `didOpen` revision that produced `analysis`.
+    async fn publish_open_index_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+        analysis: &AnalysisResult,
+    ) -> bool {
+        let _rehoming_guard = self.rehoming_gate.lock().await;
+        let mut docs = self.documents.lock("did_open_publish_complete").await;
+        let current = docs.get(uri).is_some_and(|doc| {
+            doc.version == Some(version)
+                && doc.text.as_ref() == text
+                && doc.dialect.as_str() == dialect
+        });
+        if !current {
+            return false;
+        }
+        docs.retag("did_open_publish_complete: workspace_index.write");
+        self.workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), analysis);
+        docs.get_mut(uri)
+            .expect("the document cannot disappear while its map is locked")
+            .publication = DocumentPublication::Indexed;
+        drop(docs);
+        self.live_publication_advanced.notify_waiters();
+        true
+    }
+
     /// Publish one already-visible editor buffer to Salsa and then seed its
     /// live workspace-index view if it is still the revision this `didOpen`
     /// installed.
@@ -8368,10 +8463,11 @@ impl Backend {
     /// A per-publication gate preserves edit order; currency checks before and
     /// after the commit make a newer edit/close authoritative. The stale disk
     /// view was retired before the edit turn advanced; replacing it here with
-    /// the live analysis before setting `source_published` means a request
-    /// drained behind `didOpen` cannot lose the opened file's cross-document
-    /// facts. Requests for this URI wait on that bit, while other documents
-    /// remain serviceable.
+    /// the live analysis before marking publication `Indexed` means a
+    /// cross-document request drained behind `didOpen` cannot lose the opened
+    /// file's facts. Semantic tokens proceed earlier at the `Salsa` state and
+    /// retain their bounded coarse fallback; other documents remain
+    /// serviceable throughout.
     async fn commit_open_document(
         &self,
         uri: &Uri,
@@ -8453,6 +8549,18 @@ impl Backend {
                 }
             }
 
+            // Semantic tokens need the current Salsa source, but deliberately
+            // do not need the workspace-index seed below: their enriched read
+            // is budgeted and their fallback tokenises these same live bytes.
+            // Publish that narrower readiness boundary now, so a cold large
+            // file can paint promptly while its cross-document facts finish.
+            if !self
+                .mark_open_salsa_published_if_current(uri, text, dialect, version)
+                .await
+            {
+                return false;
+            }
+
             // The immediate post-turn retirement above deliberately leaves a
             // short *missing* index slot rather than a stale one while Salsa is
             // unavailable. Once the source is published, fill that slot from
@@ -8462,28 +8570,9 @@ impl Backend {
             let analysis = self
                 .analysis_for(uri, Arc::from(text), dialect.to_owned())
                 .await;
-            let _rehoming_guard = self.rehoming_gate.lock().await;
-            let mut docs = self.documents.lock("did_open_publish_complete").await;
-            let current = docs.get(uri).is_some_and(|doc| {
-                doc.version == Some(version)
-                    && doc.text.as_ref() == text
-                    && doc.dialect.as_str() == dialect
-            });
-            if !current {
-                return false;
-            }
-            docs.retag("did_open_publish_complete: workspace_index.write");
-            self.workspace_index
-                .write()
-                .await
-                .replace_document(uri.as_str(), &analysis);
-            let doc = docs
-                .get_mut(uri)
-                .expect("the document cannot disappear while its map is locked");
-            doc.source_published = true;
-            drop(docs);
-            self.live_publication_advanced.notify_waiters();
-            return true;
+            return self
+                .publish_open_index_if_current(uri, text, dialect, version, &analysis)
+                .await;
         }
     }
 
@@ -8583,7 +8672,7 @@ impl Backend {
             {
                 return false;
             }
-            doc.source_published = true;
+            doc.publication = DocumentPublication::Indexed;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -8691,7 +8780,7 @@ impl Backend {
             {
                 return false;
             }
-            doc.source_published = true;
+            doc.publication = DocumentPublication::Indexed;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -8876,7 +8965,7 @@ impl Backend {
                     continue; // a newer edit/re-resolve owns this document
                 }
                 doc.dialect.clone_from(&new_dialect);
-                doc.source_published = false;
+                doc.publication = DocumentPublication::Pending;
                 (doc.text.clone(), doc.revision)
             };
             if !self
@@ -9696,12 +9785,17 @@ impl Backend {
     /// `-translation auto` channel makes a lone `\r` a command terminator.
     /// Only the formatter and the W118 line-ending lint read
     /// [`DocumentState::raw`] instead.
-    async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
+    async fn read_document_at(
+        &self,
+        url: &Uri,
+        readiness: DocumentReadiness,
+    ) -> Option<DocumentState> {
         self.edits_settled().await;
         // A document-sync notification publishes the shadow buffer first and
-        // Salsa second so it can release the global request barrier before a
-        // contended store (#1849). Preserve revision consistency by waiting
-        // only requests for this URI until that second phase catches up.
+        // shared derived stores second so it can release the global request
+        // barrier before a contended store (#1849). Preserve revision
+        // consistency by waiting only requests for this URI until the store
+        // tier their provider needs has caught up.
         loop {
             let advanced = self.live_publication_advanced.notified();
             tokio::pin!(advanced);
@@ -9711,7 +9805,7 @@ impl Backend {
                 docs.get(url).cloned()
             };
             match doc {
-                Some(doc) if doc.source_published => {
+                Some(doc) if readiness.is_ready(&doc) => {
                     return Some(doc.normalised_for_analysis());
                 }
                 Some(_) => advanced.await,
@@ -9739,6 +9833,25 @@ impl Backend {
             None => self.session_dialect().await,
         };
         Some(DocumentState::new(text, dialect).normalised_for_analysis())
+    }
+
+    /// Read a document only after its Salsa source **and** workspace-index view
+    /// are current. This is the ordinary provider boundary: navigation and
+    /// workspace-aware analysis must not observe the deliberately empty index
+    /// slot between `didOpen` retirement and live re-indexing (#1854 review).
+    async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
+        self.read_document_at(url, DocumentReadiness::Indexed).await
+    }
+
+    /// Read the current document as soon as its matching Salsa source exists.
+    ///
+    /// Semantic tokens do not consume the workspace index. Their enriched
+    /// Salsa read is explicitly raced against a small budget and falls back to
+    /// lexical tokens over this returned text. Making them wait for the
+    /// independent whole-file index seed defeats that fast path on cold large
+    /// files (the two prompt regressions caught by CI on #1854).
+    async fn read_document_for_semantic_tokens(&self, url: &Uri) -> Option<DocumentState> {
+        self.read_document_at(url, DocumentReadiness::Salsa).await
     }
 
     /// Return byte-level decoding evidence only when `text` is exactly the
@@ -18649,12 +18762,14 @@ impl Backend {
     const STANDALONE_SEED: &'static str = "::";
 
     /// Capture a source for rehoming without calling [`Self::read_document`].
-    /// The latter waits for `source_published`, which would deadlock here: the
+    /// The latter waits for indexed publication, which would deadlock here: the
     /// pending publisher needs the rehoming gate its caller already owns.
     async fn rehoming_document_snapshot(&self, uri: &Uri) -> RehomingDocumentSnapshot {
         let docs = self.documents.lock("refresh_source_rehoming").await;
         match docs.get(uri) {
-            Some(doc) if !doc.source_published => RehomingDocumentSnapshot::Pending,
+            Some(doc) if doc.publication != DocumentPublication::Indexed => {
+                RehomingDocumentSnapshot::Pending
+            }
             Some(doc) => RehomingDocumentSnapshot::Ready(
                 doc.clone().normalised_for_analysis(),
                 Some(doc.revision),
@@ -18687,7 +18802,8 @@ impl Backend {
             let docs = self.documents.lock("refresh_source_rehoming_publish").await;
             let current = match open_revision {
                 Some(revision) => docs.get(uri).is_some_and(|current| {
-                    current.source_published && current.revision == revision
+                    current.publication == DocumentPublication::Indexed
+                        && current.revision == revision
                 }),
                 None => !docs.contains_key(uri),
             };
@@ -20148,7 +20264,7 @@ impl LanguageServer for Backend {
                         return;
                     }
                     entry.dialect.clone_from(&new_dialect);
-                    entry.source_published = false;
+                    entry.publication = DocumentPublication::Pending;
                     (entry.text.clone(), entry.revision)
                 };
                 if !self
@@ -21647,7 +21763,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await else {
             return Ok(None);
         };
         // `S-semantic-tokens-rich`: real classification, served from the
@@ -21678,7 +21794,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await else {
             return Ok(None);
         };
         let new_data = self.semantic_tokens_core_data(&uri, &doc).await?;
@@ -21739,7 +21855,10 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self
+            .read_document_for_semantic_tokens(&params.text_document.uri)
+            .await
+        else {
             return Ok(None);
         };
         // `S-semantic-tokens-rich`: filter tokens to those that
@@ -35844,7 +35963,7 @@ proc p {} {
             // This test deliberately bypasses `did_change` and its deferred
             // Salsa publication; it is testing pull-cache revision currency,
             // so mark the synthetic state as already published.
-            doc.source_published = true;
+            doc.publication = DocumentPublication::Indexed;
         }
 
         let second = backend
@@ -36838,7 +36957,6 @@ proc p {} {
             .snapshot_from(&*backend.db.lock().await, "held-index");
         let mut index_held = backend.workspace_index.write().await;
         index_held.add_document(uri.as_str(), &disk_analysis);
-
         let mut opening = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
@@ -36863,7 +36981,7 @@ proc p {} {
                     .lock("issue-1854-stale-index-visible")
                     .await
                     .get(&uri)
-                    .is_some_and(|doc| doc.text.as_ref() == live_text && !doc.source_published);
+                    .is_some_and(|doc| !doc.publication.indexed());
                 if pending {
                     break;
                 }
@@ -37136,7 +37254,8 @@ proc p {} {
                     .await
                     .get(&uri)
                     .is_some_and(|doc| {
-                        doc.text.as_ref() == "set release_ready 2\n" && !doc.source_published
+                        doc.text.as_ref() == "set release_ready 2\n"
+                            && doc.publication != DocumentPublication::Indexed
                     });
                 if pending && backend.live_publication_gate.try_lock().is_err() {
                     break;
@@ -41345,7 +41464,7 @@ proc p {} {
             .await
             .get_mut(&sourced)
             .expect("the sourced document is open")
-            .source_published = false;
+            .publication = DocumentPublication::Pending;
 
         crate::rt::timeout(
             std::time::Duration::from_secs(1),
@@ -41372,7 +41491,7 @@ proc p {} {
             .await
             .get_mut(&sourced)
             .expect("the sourced document remains open")
-            .source_published = true;
+            .publication = DocumentPublication::Indexed;
         backend.live_publication_advanced.notify_waiters();
         backend.refresh_source_rehoming().await;
         assert!(
@@ -41383,6 +41502,60 @@ proc p {} {
                 .workspace_command_exists("::live::helper"),
             "the next pass must reconcile the published live revision",
         );
+    }
+
+    /// The first #1854 exact-head CI run exposed a second publication boundary:
+    /// a cold large file's Salsa source was already current, but `didOpen` kept
+    /// publication short of `Indexed` while building its workspace-index seed.
+    /// Making semantic tokens wait for that unrelated whole-file analysis bypassed
+    /// their bounded enriched/coarse fast path and turned a first paint into a
+    /// two-minute response. They may proceed at Salsa readiness; providers that
+    /// consume cross-document facts must still wait for indexed readiness.
+    #[tokio::test]
+    async fn semantic_tokens_do_not_wait_for_did_open_index_seed_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///semantic-paint-before-index.tcl").unwrap();
+        register(&backend, &uri, "proc ready {} {}\n").await;
+        {
+            let mut docs = backend.documents.lock("test").await;
+            let doc = docs.get_mut(&uri).expect("the document is open");
+            doc.publication = DocumentPublication::Salsa;
+        }
+
+        let token_doc = crate::rt::timeout(
+            std::time::Duration::from_millis(100),
+            backend.read_document_for_semantic_tokens(&uri),
+        )
+        .await
+        .expect("semantic tokens only wait for the current Salsa source")
+        .expect("the live token document exists");
+        assert_eq!(token_doc.text.as_ref(), "proc ready {} {}\n");
+
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(25),
+                backend.read_document(&uri),
+            )
+            .await
+            .is_err(),
+            "workspace-aware providers must wait for the live index seed",
+        );
+
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the document remains open")
+            .publication = DocumentPublication::Indexed;
+        backend.live_publication_advanced.notify_waiters();
+        crate::rt::timeout(
+            std::time::Duration::from_millis(100),
+            backend.read_document(&uri),
+        )
+        .await
+        .expect("indexed readiness releases ordinary providers")
+        .expect("the live indexed document exists");
     }
 
     /// A diagnostics run publishes a standalone analysis before the next M9
