@@ -1913,6 +1913,7 @@ impl Interp {
         // before it fired them.
         self.move_cmd_traces(&old_fqn, &new_fqn);
         self.retarget_import_sources(&old_fqn, &new_fqn);
+        crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
         if !self.oo_is_empty() {
             self.oo_command_renamed(&old_fqn, Some(&new_fqn));
         }
