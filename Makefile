@@ -210,7 +210,6 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-rust-tests-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload xtask-dialect-drift xtask-segmentation-drift
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-rust-tests-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
@@ -226,8 +225,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: claude-skills
 .PHONY: smoke-vsix
 # Packaging + publish + release
-.PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix publish-openvsx
-.PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets publish-openvsx-targets
+.PHONY: build-editors build-editor-vsix verify-vsix _verify-vsix install package-vsix publish-vsix publish-openvsx
+.PHONY: build-editor-vsix-targets package-vsix-targets package-vsix-all _package-vsix-variants _package-vsix-prepared _package-vsix-standalone publish-vsix-targets publish-openvsx-targets
 .PHONY: build-editor-jetbrains verify-jetbrains-server verify-jetbrains-resources verify-editor-jetbrains publish-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-zed-version release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
@@ -246,7 +245,7 @@ help: ## Show this help
 
 build-editors: build-editor-vsix build-editor-vsix-targets build-editor-jetbrains build-editor-sublime build-editor-zed ## Build all editor extension artefacts (VS Code / JetBrains / Sublime / Zed)
 
-build-editor-vsix: lint test compile verify-vsix ## Build the .vsix (tests must pass first)
+build-editor-vsix: lint test package-vsix ## Build the .vsix (tests must pass first)
 install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
@@ -298,7 +297,16 @@ publish-openvsx: package-vsix ## Publish the .vsix to Open VSX (code-server / op
 	fi
 	cd $(STAGE_DIR) && $(OVSX) publish --skip-duplicate --packagePath $(VSIX_FILE)
 
-$(VSIX_FILE): spec-studio-wasm $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
+# A direct `make package-vsix` is self-contained. The double-underscore state
+# is private to `_package-vsix-variants`, which creates a random directory and
+# passes it only to its recursive child makes. Do not set it from callers.
+ifneq ($(strip $(__VSIX_WEB_ASSETS_STATE)),)
+VSIX_WEB_ASSETS_PREREQ := _check-vsix-web-assets
+else
+VSIX_WEB_ASSETS_PREREQ := prepare-vsix-web-assets
+endif
+
+$(VSIX_FILE): $(VSIX_WEB_ASSETS_PREREQ) $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -325,7 +333,8 @@ $(VSIX_FILE): spec-studio-wasm $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $
 	@# github.dev and every other web extension host.  Staged from
 	@# `make lsp-server-wasm`'s dist rather than trusting the extension
 	@# directory's own copy, so a VSIX can never ship a stale worker.  The
-	@# `spec-studio-wasm` prerequisite above already builds it.
+	@# `prepare-vsix-web-assets` builds it before the first package, and the
+	@# prebuilt path verifies that shared output has not changed.
 	@#
 	@# It ships in EVERY VSIX flavour, targeted or not: one package.json declares
 	@# both entry points, so a targeted package whose `browser` entry had no
@@ -402,7 +411,7 @@ $(VSIX_FILE): spec-studio-wasm $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $
 	@echo "Built: $(VSIX_FILE)"
 	@ls -lh $(VSIX_FILE)
 
-verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
+_verify-vsix: $(VSIX_FILE)
 	@echo "==> Verifying VSIX contents"
 	@set -euo pipefail; \
 		BAD_ENTRIES="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(\.venv/|\.ruff_cache/|\.pytest_cache/|\.mypy_cache/|\.vscode-test/|\.vscode-test-web/|\.stamps/|src/|testFixture/|out/test/|.*__pycache__/|.*\.pyc$$)' || true)"; \
@@ -519,16 +528,40 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 # from the universal build's.
 # ---------------------------------------------------------------------------
 
-build-editor-vsix-targets: lint test compile package-vsix-targets ## Build the six platform-targeted .vsix files (tests must pass first)
+build-editor-vsix-targets: lint test package-vsix-targets ## Build the six platform-targeted .vsix files (tests must pass first)
 
-# Depends on package-vsix (not just compile) even though the two artefacts
-# are otherwise independent: both stage through the same $(STAGE_DIR), so
-# under `make -j` (e.g. `make -j release`) an unordered pair would race —
-# one recipe's `rm -rf $(STAGE_DIR)` can wipe the other's in-flight staging.
-# This edge forces the universal build to finish first every time.
-package-vsix-targets: package-vsix ## Package the six platform-targeted VSIXes (CI; skips lint/test)
-	@set -eu; \
-	for vt in $(VSCE_TARGETS); do \
+# Preserve the universal-before-targeted staging edge for every public local
+# path. CI uses package-vsix-all below to avoid a second preparation pass.
+package-vsix-targets: package-vsix ## Package the six platform-targeted VSIXes (laptop fallback; skips lint/test)
+	@$(MAKE) --no-print-directory _package-vsix-variants
+
+# Local release parity: one producer prepares the common assets once, then
+# serially stages the universal package and all six targeted packages. Keeping
+# this as one recipe restores the staging-directory ordering under `make -j`.
+package-vsix-all: ## Package the universal and six platform-targeted VSIXes
+	@$(MAKE) --no-print-directory _package-vsix-variants __VSIX_INCLUDE_UNIVERSAL=1
+
+_package-vsix-variants:
+	@set -euo pipefail; \
+		mkdir -p "$(STAMP_DIR)"; \
+		lock="$(STAMP_DIR)/vsix-package.lock"; \
+		if ! mkdir "$$lock"; then \
+			echo "ERROR: another VSIX package invocation owns $$lock" >&2; \
+			if [ -f "$$lock/owner" ]; then sed 's/^/    /' "$$lock/owner" >&2; fi; \
+			echo "Inspect that owner first. If it is no longer live, remove only its owner file and empty lock directory." >&2; \
+			exit 1; \
+		fi; \
+		printf 'pid=%s\\nhost=%s\\nstarted_utc=%s\\n' "$$$$" "$$(hostname)" "$$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$$lock/owner"; \
+		state=""; \
+		trap 'test -z "$$state" || rm -rf "$$state"; rm -f "$$lock/owner"; rmdir "$$lock"' EXIT; \
+		state="$$(mktemp -d "$(STAMP_DIR)/vsix-web-assets.XXXXXX")"; \
+		token="$$(mktemp "$$state/token.XXXXXX")"; \
+		printf '%s\n' "$$state" >"$$token"; \
+		$(MAKE) --no-print-directory _prepare-vsix-web-assets __VSIX_WEB_ASSETS_STATE="$$state" __VSIX_WEB_ASSETS_TOKEN="$$token"; \
+		if [ "$(if $(filter 1,$(__VSIX_INCLUDE_UNIVERSAL)),1,0)" = 1 ]; then \
+			$(MAKE) --no-print-directory _package-vsix-prepared __VSIX_WEB_ASSETS_STATE="$$state" __VSIX_WEB_ASSETS_TOKEN="$$token"; \
+		fi; \
+		for vt in $(VSCE_TARGETS); do \
 		triple=""; \
 		for pair in $(SERVER_TARGET_MAP); do \
 			t="$${pair%%:*}"; d="$${pair##*:}"; \
@@ -537,9 +570,15 @@ package-vsix-targets: package-vsix ## Package the six platform-targeted VSIXes (
 		if [ -z "$$triple" ]; then echo "ERROR: no SERVER_TARGET_MAP entry for vsce target $$vt"; exit 1; fi; \
 		out="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
 		echo "==> Packaging platform-targeted VSIX: $$vt ($$triple)"; \
-		$(MAKE) --no-print-directory package-vsix BUNDLED_TARGETS="$$triple" VSCE_TARGET="$$vt" VSIX_FILE="$$out"; \
-	done
-	@echo "==> Built $(words $(VSCE_TARGETS)) platform-targeted VSIXes"
+		$(MAKE) --no-print-directory _package-vsix-prepared BUNDLED_TARGETS="$$triple" VSCE_TARGET="$$vt" VSIX_FILE="$$out" __VSIX_WEB_ASSETS_STATE="$$state" __VSIX_WEB_ASSETS_TOKEN="$$token"; \
+		done
+		archives=""; \
+		if [ "$(if $(filter 1,$(__VSIX_INCLUDE_UNIVERSAL)),1,0)" = 1 ]; then archives="$(VSIX_FILE)"; fi; \
+		for vt in $(VSCE_TARGETS); do archives="$$archives $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; done; \
+		$(MAKE) --no-print-directory _check-vsix-web-assets-parity __VSIX_ARCHIVES="$$archives"; \
+		echo "==> Built $(words $(VSCE_TARGETS)) platform-targeted VSIXes"
+
+_package-vsix-prepared: $(VSIX_FILE) _verify-vsix
 
 publish-vsix-targets: package-vsix-targets ## Publish the six platform-targeted .vsix files to the VS Code Marketplace (laptop fallback; CI is the primary path)
 	@set -eu; \
@@ -781,8 +820,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-rust-tests-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-rust-tests-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-rust-tests-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
@@ -1613,7 +1651,7 @@ $(CANONICAL_TK_MD): $(ROOT)ai/claude/skills/_prompts/tk_system.md
 	@echo "==> Copying canonical tk_system.md"
 	cp $< $@
 
-compile: $(OUT_DIR)/extension.js ## Compile the TypeScript extension
+compile: $(OUT_DIR)/extension.browser.js ## Compile the TypeScript extension
 
 $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANONICAL_DIAG) $(CANONICAL_MANIFEST) $(CANONICAL_IRULES_MD) $(CANONICAL_TCL_MD) $(CANONICAL_TK_MD)
 	@echo "==> Compiling TypeScript"
@@ -1641,6 +1679,12 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	@# `make package-vsix` stages it itself from the same source and
 	@# `verify-vsix` asserts the result, so packaging never depends on this.
 	@cd $(EXT_DIR) && node scripts/copy-web-assets.cjs
+
+# `vsce package` also runs this bundle from its staged copy, but package-vsix
+# needs the workspace copy before it can record the shared-web manifest.
+$(OUT_DIR)/extension.browser.js: $(OUT_DIR)/extension.js
+	@echo "==> Bundling browser extension"
+	cd $(EXT_DIR) && $(NPM) run bundle:browser
 
 # Generated editor catalogs
 #
@@ -1828,6 +1872,65 @@ spec-studio-boot: ## Boot the assembled spec studio in headless chromium
 
 LSP_SERVER_WASM_DIR := $(ROOT)rust/tcl-lsp-server-wasm
 
+# The web payload is common to the universal and platform-targeted VSIXes.
+# Keep a digest beside the other untracked build stamps so a recursive package
+# call can prove it is reusing this invocation's exact Studio and browser-LSP
+# outputs and their source inputs. Do not turn this into a timestamp-only
+# stamp: generated output may retain an old mtime while its contents change.
+VSIX_WEB_SOURCE_ROOTS := $(ROOT)rust $(ROOT)specs $(EXT_DIR) $(ROOT)scripts $(ROOT).cargo
+VSIX_WEB_SOURCE_FILES := $(ROOT)Makefile $(ROOT)Cargo.toml $(ROOT)Cargo.lock $(ROOT)rust-toolchain.toml
+# These are copied into every archive after preparation. `SPEC_PACK_FILES`
+# becomes dist/web/specs/ (including its generated index), so the source list
+# above and this explicit staging list together cover its recursive payload.
+VSIX_WEB_OUTPUT_FILES := $(OUT_DIR)/extension.browser.js $(LSP_SERVER_WASM_DIR)/dist/worker.js $(LSP_SERVER_WASM_DIR)/dist/tcl_lsp_server_wasm.js $(LSP_SERVER_WASM_DIR)/dist/tcl_lsp_server_wasm_bg.wasm $(SPEC_PACK_FILES)
+
+.PHONY: prepare-vsix-web-assets _prepare-vsix-web-assets _check-vsix-web-assets _check-vsix-web-assets-parity check-vsix-web-assets-contract
+prepare-vsix-web-assets: compile spec-studio-wasm ## Build shared VSIX web assets for a standalone package
+
+# The prepared path is private: its random state directory comes only from
+# `_package-vsix-variants`. Its recipe runs after both phony builders complete,
+# including under an inherited jobserver, so it cannot record partial output.
+_prepare-vsix-web-assets: compile spec-studio-wasm
+	@set -euo pipefail; \
+		state="$(__VSIX_WEB_ASSETS_STATE)"; token="$(__VSIX_WEB_ASSETS_TOKEN)"; \
+		test -d "$$state" && test -f "$$token" && [ "$$(dirname "$$token")" = "$$state" ] && [ "$$(cat "$$token")" = "$$state" ] || { echo "ERROR: missing private VSIX asset state" >&2; exit 1; }; \
+		manifest="$$state/manifest.sha256"; tmp="$$(mktemp "$$state/manifest.XXXXXX")"; \
+		trap 'rm -f "$$tmp"' EXIT; \
+		{ \
+			find $(VSIX_WEB_SOURCE_ROOTS) $(VSIX_WEB_SOURCE_FILES) \
+				\( -type d \( -name target -o -name dist -o -name node_modules -o -name out -o -name build -o -name .vscode-test -o -name .vscode-test-web \) -prune \) \
+				-o -type f -print | LC_ALL=C sort | while IFS= read -r source; do printf '%s\0' "$$source"; done \
+				| xargs -0 shasum -a 256 | sed 's/^/source /'; \
+			{ find "$(ROOT)rust/tcl-spec-studio-wasm/dist" -type f -print; printf '%s\n' $(VSIX_WEB_OUTPUT_FILES); } | LC_ALL=C sort \
+				| while IFS= read -r asset; do test -f "$$asset" || { echo "ERROR: missing shared VSIX web asset: $$asset" >&2; exit 1; }; printf '%s\0' "$$asset"; done \
+				| xargs -0 shasum -a 256 | sed 's/^/output /'; \
+		} >"$$tmp"; \
+		test -s "$$tmp"; mv "$$tmp" "$$manifest"; trap - EXIT; \
+		echo "==> Recorded private shared VSIX web assets"
+
+_check-vsix-web-assets:
+	@set -euo pipefail; \
+		state="$(__VSIX_WEB_ASSETS_STATE)"; token="$(__VSIX_WEB_ASSETS_TOKEN)"; manifest="$$state/manifest.sha256"; \
+		test -d "$$state" && test -f "$$token" && [ "$$(dirname "$$token")" = "$$state" ] && [ "$$(cat "$$token")" = "$$state" ] && test -s "$$manifest" || { echo "ERROR: prepared VSIX web assets have no active private state" >&2; exit 1; }; \
+		tmp="$$(mktemp "$$state/check.XXXXXX")"; trap 'rm -f "$$tmp"' EXIT; \
+		{ \
+			find $(VSIX_WEB_SOURCE_ROOTS) $(VSIX_WEB_SOURCE_FILES) \
+				\( -type d \( -name target -o -name dist -o -name node_modules -o -name out -o -name build -o -name .vscode-test -o -name .vscode-test-web \) -prune \) \
+				-o -type f -print | LC_ALL=C sort | while IFS= read -r source; do printf '%s\0' "$$source"; done \
+				| xargs -0 shasum -a 256 | sed 's/^/source /'; \
+			{ find "$(ROOT)rust/tcl-spec-studio-wasm/dist" -type f -print; printf '%s\n' $(VSIX_WEB_OUTPUT_FILES); } | LC_ALL=C sort \
+				| while IFS= read -r asset; do test -f "$$asset" || { echo "ERROR: missing shared VSIX web asset: $$asset" >&2; exit 1; }; printf '%s\0' "$$asset"; done \
+				| xargs -0 shasum -a 256 | sed 's/^/output /'; \
+		} >"$$tmp"; \
+		cmp -s "$$manifest" "$$tmp" || { echo "ERROR: shared VSIX web assets changed after preparation" >&2; exit 1; }; \
+		echo "==> Private shared VSIX web assets are fresh"
+
+_check-vsix-web-assets-parity:
+	@set -euo pipefail; set -- $(__VSIX_ARCHIVES); bash $(ROOT)scripts/dev/check-vsix-web-assets-parity.sh "$$@"
+
+check-vsix-web-assets-contract: ## Test private VSIX web-asset reuse rejects stale sources and outputs
+	@bash scripts/dev/test-vsix-web-assets.sh
+
 .PHONY: lsp-server-wasm lsp-server-wasm-test
 lsp-server-wasm: ## Build the LSP server as a browser Web Worker (Rust → WASM) into rust/tcl-lsp-server-wasm/dist/
 	@rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
@@ -1933,7 +2036,38 @@ $(CLAUDE_SKILLS): $(shell find $(ROOT)ai/claude/skills -type f)
 	@rm -rf $(BUILD_DIR)/claude-skills-stage
 	@echo "==> Built $@"
 
-package-vsix: compile $(VSIX_FILE) verify-vsix ## Package VSIX (skip lint/test, for CI)
+# A caller cannot opt a public package command into private prepared mode: the
+# wrapper locks staging and clears the private state before the child Makefile
+# is parsed. The owner file makes a hard-interruption lock safe to inspect.
+package-vsix: ## Package VSIX (skip lint/test, for CI)
+	@set -euo pipefail; \
+		mkdir -p "$(STAMP_DIR)"; \
+		lock="$(STAMP_DIR)/vsix-package.lock"; \
+		if ! mkdir "$$lock"; then \
+			echo "ERROR: another VSIX package invocation owns $$lock" >&2; \
+			if [ -f "$$lock/owner" ]; then sed 's/^/    /' "$$lock/owner" >&2; fi; \
+			echo "Inspect that owner first. If it is no longer live, remove only its owner file and empty lock directory." >&2; \
+			exit 1; \
+		fi; \
+		printf 'pid=%s\\nhost=%s\\nstarted_utc=%s\\n' "$$$$" "$$(hostname)" "$$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$$lock/owner"; \
+		trap 'rm -f "$$lock/owner"; rmdir "$$lock"' EXIT; \
+		$(MAKE) --no-print-directory _package-vsix-standalone __VSIX_WEB_ASSETS_STATE= __VSIX_WEB_ASSETS_TOKEN=
+
+_package-vsix-standalone: compile $(VSIX_FILE) _verify-vsix
+
+verify-vsix: ## Verify the VSIX without bypassing the staging lock
+	@set -euo pipefail; \
+		mkdir -p "$(STAMP_DIR)"; \
+		lock="$(STAMP_DIR)/vsix-package.lock"; \
+		if ! mkdir "$$lock"; then \
+			echo "ERROR: another VSIX package invocation owns $$lock" >&2; \
+			if [ -f "$$lock/owner" ]; then sed 's/^/    /' "$$lock/owner" >&2; fi; \
+			echo "Inspect that owner first. If it is no longer live, remove only its owner file and empty lock directory." >&2; \
+			exit 1; \
+		fi; \
+		printf 'pid=%s\nhost=%s\nstarted_utc=%s\n' "$$$$" "$$(hostname)" "$$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$$lock/owner"; \
+		trap 'rm -f "$$lock/owner"; rmdir "$$lock"' EXIT; \
+		$(MAKE) --no-print-directory _verify-vsix __VSIX_WEB_ASSETS_STATE= __VSIX_WEB_ASSETS_TOKEN=
 
 # JetBrains plugin
 
@@ -2305,7 +2439,7 @@ publish-zed: build-editor-zed ## Publish Zed extension (prep local PR branch for
 
 # Release
 
-release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix-all claude-skills build-editor-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
@@ -2314,7 +2448,7 @@ release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains 
 # SHA256SUMS itself and its signature bundle); this target mirrors that
 # selection so developers can compare locally-built SUMS against the
 # published file.
-release-sums: claude-skills package-vsix package-vsix-targets build-editor-jetbrains build-editor-sublime build-editor-zed
+release-sums: claude-skills package-vsix-all build-editor-jetbrains build-editor-sublime build-editor-zed
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
 	    else h="shasum -a 256"; fi; \

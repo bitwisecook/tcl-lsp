@@ -327,7 +327,7 @@ the secret is reachable by no other job.
   `tcl-lsp-server`, `tcl-mcp`) via the architecture-specific glibc ABI-floor
   jobs described above,
   plus `make build-editor-jetbrains` / `make build-editor-sublime` /
-  `make build-editor-zed` / `make package-vsix package-vsix-targets` and
+  `make build-editor-zed` / `make package-vsix-all` and
   the Claude-skills zip. The VS Code artefact is seven VSIX packages: one
   untargeted universal package bundling every native `tcl-lsp-server`
   binary **plus the WASI module** under `server/wasm/` (the Marketplace's
@@ -336,6 +336,17 @@ the secret is reachable by no other job.
   platform-targeted packages built with `vsce package --target <platform>`,
   each bundling only its own binary and deliberately NOT the module —
   no `.pyz`. `make verify-vsix` asserts both halves of that split.
+  `make package-vsix-all` builds the shared Spec Studio and browser
+  language-server payload once before staging all seven packages. Every
+  package rechecks a manifest covering that payload, `extension.browser.js`,
+  the browser spec-pack inputs, and their source inputs; archive parity then
+  compares the shared Studio/browser/spec payload across all seven packages
+  before release signing. The prepared path is scoped to one temporary
+  session, so it cannot be used to package stale web output directly. The
+  package lock records its PID, host, and start time under
+  `build/stamps/vsix-package.lock/owner`; normal shell exit removes it. After
+  a hard interruption, inspect that owner and remove only its owner file and
+  now-empty lock directory once the recorded process is confirmed dead.
   The bare `tcl-lsp-server-wasi.wasm` is also attached to the Release as a
   signed asset, so a non-VS-Code editor can run it under `wasmtime`; see
   [`../rust/lsp-runtime-and-transports.md`](../rust/lsp-runtime-and-transports.md)

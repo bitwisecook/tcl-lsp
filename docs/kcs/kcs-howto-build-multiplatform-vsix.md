@@ -127,9 +127,11 @@ uploads only short-lived workflow artefacts; the
 `linux-release-portability` fan-in waits for the release gate and enforces
 those Linux ABI floors before
 `build-vsix` downloads the binaries and runs
-both `make package-vsix BUNDLED_TARGETS="$(make -s
-print-server-targets-all)"` (the universal package) and `make
-package-vsix-targets` (the six targeted packages). See
+`make package-vsix-all BUNDLED_TARGETS="$(make -s
+print-server-targets-all)"`, which builds the universal package and six
+targeted packages in one locked session. It builds the common Studio/browser
+payload once, checks it before every archive, and compares the shared payload
+across all seven archives before signing. See
 [`release-and-publish.md`](../design/contracts/release-and-publish.md).
 All seven publish to the VS Code Marketplace from CI's
 `publish-vsix-marketplace` job (`secrets.VSCE_PAT` on the protected
