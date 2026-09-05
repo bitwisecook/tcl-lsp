@@ -128,6 +128,12 @@ pub struct CmdTrace {
     /// untrace can cancel it. A delete walk needs both: it fires the dying
     /// token's list to the end even as a callback rebinds the name, and still
     /// skips whatever that callback untraced.
+    ///
+    /// It is also C's `TraceCommandInfo *` for the purpose its
+    /// `TCL_TRACE_EXEC_IN_PROGRESS` flag hangs off: suppression while a
+    /// callback runs is **per trace**, not per command, so a second trace on
+    /// the same command still fires for a call the first one's callback makes
+    /// (see [`TraceTable::firing_exec_traces`]).
     pub id: u64,
     /// The generation of the command **token** this trace hangs off, or `None`
     /// when the binding had none (a hidden command).
@@ -227,6 +233,16 @@ pub struct TraceTable {
     /// ([`Self::trace_walk_in_flight`]) and cleared when the outermost one
     /// ends, so it never grows unbounded.
     pub untraced_cmd_trace_ids: Vec<u64>,
+    /// The execution traces whose callbacks are currently running — C's
+    /// per-trace `TCL_TRACE_EXEC_IN_PROGRESS` (`tclTrace.c` 9.0.4:1655,
+    /// "Inside any kind of execution trace callback, we do not allow any
+    /// further execution trace callbacks to be called for the same trace").
+    /// This is what bounds a callback that invokes the command it traces;
+    /// [`Self::exec_firing`] deliberately does not, because it gates only the
+    /// step machinery. Distinct from [`Self::untraced_cmd_trace_ids`], which
+    /// records registrations a callback *removed* rather than ones it is
+    /// running.
+    pub firing_exec_traces: Vec<u64>,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
@@ -235,10 +251,16 @@ pub struct TraceTable {
     /// which `TraceExecutionProc` sets around exactly those callbacks
     /// (tclTrace.c 9.0.4:1765) and nothing else sets. A `rename`/`delete`
     /// callback does **not** raise it: C's `CallCommandTraces` sets no flag, so
-    /// a command such a callback dispatches is traced like any other. Re-entry
-    /// into a command's own `rename`/`delete` traces is suppressed per command
-    /// by [`Self::firing_cmd_traces`] instead, and that list is also what marks
-    /// such a walk in flight (see [`Self::trace_walk_in_flight`]).
+    /// a command such a callback dispatches is traced like any other.
+    ///
+    /// It is read exactly where C reads its flag — `TclCheckInterpTraces`
+    /// (:1426), the `enterstep`/`leavestep` machinery — and nowhere else:
+    /// `TclCheckExecutionTraces` (:1301) never consults it, so a command
+    /// dispatched from inside a callback still fires its own `enter`/`leave`
+    /// traces. Re-entry into the *same* trace is bounded by
+    /// [`Self::firing_exec_traces`], and into a command's own `rename`/`delete`
+    /// traces by [`Self::firing_cmd_traces`] — which is also what marks such a
+    /// walk in flight (see [`Self::trace_walk_in_flight`]).
     pub exec_firing: usize,
     /// The commands whose `rename`/`delete` traces are currently firing. C
     /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a

@@ -4025,6 +4025,16 @@ impl Interp {
             .map(|t| t.command.clone())
     }
 
+    /// Whether execution trace `id` is currently running its own callback —
+    /// C's per-trace `TCL_TRACE_EXEC_IN_PROGRESS` (`tclTrace.c` 9.0.4:1655),
+    /// which is what bounds a callback that invokes the command it traces. Per
+    /// *trace*: a second trace on the same command still fires for that inner
+    /// call, and so does a `leave` trace while an `enter` one is running
+    /// (tclsh 8.6/9.0-pinned).
+    fn exec_trace_is_firing(&self, id: u64) -> bool {
+        self.traces.borrow().firing_exec_traces.contains(&id)
+    }
+
     /// Whether `trace remove` has unlinked command trace `id` since this walk
     /// began. `CallCommandTraces` is handed the dying token's own list
     /// (`tclBasic.c` 9.0.4:3972-3993), so a callback that re-creates the
@@ -4061,6 +4071,11 @@ impl Interp {
         self.traces.borrow_mut().exec_firing += 1;
         let mut abort: Option<Code> = None;
         for id in ids {
+            // A trace whose own callback is running is skipped, per trace
+            // rather than per command (C's `TCL_TRACE_EXEC_IN_PROGRESS`).
+            if self.exec_trace_is_firing(id) {
+                continue;
+            }
             let Some(cmd) = self.live_cmd_trace(id) else {
                 continue;
             };
@@ -4069,7 +4084,9 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.traces.borrow_mut().firing_exec_traces.push(id);
             let c = self.eval_str(&line);
+            self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 // The callback's result becomes the command's result; abort.
                 abort = Some(c);
@@ -4119,6 +4136,11 @@ impl Interp {
         self.traces.borrow_mut().exec_firing += 1;
         let mut override_code: Option<Code> = None;
         for id in ids {
+            // A trace whose own callback is running is skipped, per trace
+            // rather than per command (C's `TCL_TRACE_EXEC_IN_PROGRESS`).
+            if self.exec_trace_is_firing(id) {
+                continue;
+            }
             let Some(cmd) = self.live_cmd_trace(id) else {
                 continue;
             };
@@ -4133,7 +4155,9 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.traces.borrow_mut().firing_exec_traces.push(id);
             let c = self.eval_str(&line);
+            self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 override_code = Some(c);
                 break;
@@ -6467,12 +6491,13 @@ impl Interp {
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         self.cmd_count.set(self.cmd_count.get() + 1);
-        // Fast path: no command/execution traces, or we're already inside a
-        // trace callback (C's INTERP_TRACE_IN_PROGRESS) — original dispatch.
-        let traced = {
-            let t = self.traces.borrow();
-            !t.cmd_traces.is_empty() && t.exec_firing == 0
-        };
+        // Fast path: nothing is registered, so nothing can fire. Being inside a
+        // trace callback is *not* a reason to skip: C's
+        // `TclCheckExecutionTraces` never consults `INTERP_TRACE_IN_PROGRESS`,
+        // so a command dispatched from a callback still fires its own
+        // `enter`/`leave` traces. Only the step machinery is gated, in
+        // `dispatch_traced`.
+        let traced = !self.traces.borrow().cmd_traces.is_empty();
         if !traced {
             return self.dispatch_inner(argv);
         }
@@ -6500,7 +6525,13 @@ impl Interp {
             }
             None => (false, false, false),
         };
-        let stepping = !self.traces.borrow().step_active.is_empty();
+        // C's one read of `INTERP_TRACE_IN_PROGRESS`: `TclCheckInterpTraces`
+        // returns immediately while an execution callback is running, so the
+        // callback's own commands are never step-observed.
+        let stepping = {
+            let t = self.traces.borrow();
+            !t.step_active.is_empty() && t.exec_firing == 0
+        };
         if !has_enter && !has_leave && !has_step && !stepping {
             return self.dispatch_inner(argv);
         }

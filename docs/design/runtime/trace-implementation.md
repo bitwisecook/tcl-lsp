@@ -282,14 +282,21 @@ raise their stand-in (`TraceTable::exec_firing`, and the VM's
 `trace_in_progress`) for command callbacks too, which silently untraced
 everything such a callback dispatched.
 
-**Known gap:** both stand-ins are still *read* more broadly than C reads its
-flag — at the whole traced-dispatch fast path rather than only in the step
-machinery — so inside an execution callback a **different** command's
-`enter`/`leave` traces do not fire, where C's `TclCheckExecutionTraces`, which
-never consults the flag, fires them. Narrowing the read means first giving
-`runtime/rust` C's per-trace `TCL_TRACE_EXEC_IN_PROGRESS` (:1655), because the
-interp-wide read is currently also supplying that re-entrancy rule; the VM
-already carries it per entry (`CmdTraceEntry::firing`).
+Both stand-ins are *read* exactly where C reads its flag and nowhere else:
+`runtime/rust` gates only the step firing in `Interp::dispatch_traced`, and the
+VM only its `step_scopes_to_fire`. So a command dispatched from inside an
+execution callback fires its own `enter` and `leave` traces, the way
+`TclCheckExecutionTraces` fires them; only an `enterstep`/`leavestep` scope
+goes quiet for the callback's duration. Both engines used to read the gate at
+the whole traced-dispatch fast path instead, and fired neither.
+
+What bounds a callback that invokes the command it traces is C's **per-trace**
+`TCL_TRACE_EXEC_IN_PROGRESS` (:1655), not the interpreter-wide flag — and per
+*trace* is observably different from per command: a second `enter` trace on the
+same command fires for that inner call, and so does a `leave` trace while an
+`enter` one is running. `runtime/rust` carries that as
+`TraceTable::firing_exec_traces` over `CmdTrace::id`; the VM carries it per
+entry as `CmdTraceEntry::firing`.
 
 A read or write callback that errors reshapes the operation's result
 (`can't read "NAME": …` / `can't set "NAME": …`) and stops further firing —

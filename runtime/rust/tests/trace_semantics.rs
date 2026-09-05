@@ -1164,6 +1164,97 @@ fn an_execution_callbacks_own_commands_are_not_step_observed() {
     assert_eq!(got, "S:b\neb\nS:return B");
 }
 
+/// The gate is read only by the step machinery. A command dispatched from
+/// inside an execution callback still fires its **own** `enter` and `leave`
+/// traces, because C's `TclCheckExecutionTraces` (tclTrace.c 9.0.4:1301) never
+/// consults `INTERP_TRACE_IN_PROGRESS` — only `TclCheckInterpTraces` (:1426)
+/// does. Both engines used to read their stand-in at the whole traced-dispatch
+/// fast path and so fired neither.
+#[test]
+fn an_execution_callback_does_not_untrace_what_it_dispatches() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc b {} { return B }\n\
+         proc EB args { lappend ::log EB }\n\
+         proc LB args { lappend ::log \"LB:[lindex $args 1]\" }\n\
+         trace add execution b enter EB\n\
+         trace add execution b leave LB\n\
+         proc a {} { return A }\n\
+         proc ea args { lappend ::log \"in:[b]\" }\n\
+         trace add execution a enter ea\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "EB\nLB:0\nin:B\nout:A");
+}
+
+/// What bounds that instead is C's **per-trace** flag, not a per-command one:
+/// a *second* `enter` trace on the same command does fire for the inner call
+/// its sibling's callback makes. `E1` (newest, so first) calls `a`; the inner
+/// pass skips `E1` and runs `E2`, and the outer pass then continues to `E2`.
+// The sheet guards the inner call with `if`, which only the tower build
+// registers.
+#[cfg(have_tommath)]
+#[test]
+fn suppression_during_a_callback_is_per_trace_not_per_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc E1 args {\n\
+         \x20   lappend ::log E1\n\
+         \x20   if {![info exists ::d]} { set ::d 1; lappend ::log \"in:[a]\" }\n\
+         }\n\
+         proc E2 args { lappend ::log E2 }\n\
+         trace add execution a enter E2\n\
+         trace add execution a enter E1\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "E1\nE2\nin:A\nE2\nout:A");
+}
+
+/// The same rule across ops: a `leave` trace on the command whose `enter`
+/// callback is running is a different registration, so it fires — once for the
+/// callback's inner call, then again for the outer one.
+// `if` again; tower build only.
+#[cfg(have_tommath)]
+#[test]
+fn a_leave_trace_fires_while_its_commands_enter_callback_runs() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc LA args { lappend ::log LA }\n\
+         trace add execution a leave LA\n\
+         proc EA args {\n\
+         \x20   lappend ::log EA\n\
+         \x20   if {![info exists ::d]} { set ::d 1; lappend ::log \"in:[a]\" }\n\
+         }\n\
+         trace add execution a enter EA\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "EA\nLA\nin:A\nLA\nout:A");
+}
+
+/// And the step half stays gated: a *step-traced* command invoked from inside
+/// an execution callback runs unstepped, because the flag is still set for the
+/// whole callback evaluation.
+#[test]
+fn a_step_traced_command_called_from_a_callback_is_not_stepped() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc st args { lappend ::log \"S:[lindex $args 0]\" }\n\
+         proc s {} { set q 1; return S }\n\
+         trace add execution s enterstep st\n\
+         proc a {} { return A }\n\
+         proc ea args { lappend ::log \"in:[s]\" }\n\
+         trace add execution a enter ea\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "in:S\nout:A");
+}
+
 /// And the re-entrancy rule the gate also has to keep: a trace whose callback
 /// invokes the traced command does not fire again for that inner call (C's
 /// per-trace `TCL_TRACE_EXEC_IN_PROGRESS`, tclTrace.c 9.0.4:1655).

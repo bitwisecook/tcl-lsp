@@ -328,6 +328,63 @@ const VECTORS: &[Vector] = &[
                  driver\n",
         want: "S:b\neb\nS:return B",
     },
+    // The gate is read only by the step machinery: `TclCheckExecutionTraces`
+    // (tclTrace.c 9.0.4:1301) never consults `INTERP_TRACE_IN_PROGRESS`, only
+    // `TclCheckInterpTraces` (:1426) does. So a command dispatched from inside
+    // an execution callback still fires its own `enter`/`leave` traces, and
+    // what bounds the recursion is C's *per-trace* `TCL_TRACE_EXEC_IN_PROGRESS`
+    // (:1655) — the VM's `CmdTraceEntry::firing`.
+    Vector {
+        name: "an execution callback does not untrace what it dispatches",
+        script: "proc b {} { return B }\n\
+                 proc EB args { puts EB }\n\
+                 proc LB args { puts \"LB:[lindex $args 1]\" }\n\
+                 trace add execution b enter EB\n\
+                 trace add execution b leave LB\n\
+                 proc a {} { return A }\n\
+                 proc ea args { puts \"in:[b]\" }\n\
+                 trace add execution a enter ea\n\
+                 puts \"out:[a]\"\n",
+        want: "EB\nLB:0\nin:B\nout:A",
+    },
+    Vector {
+        name: "suppression during a callback is per trace, not per command",
+        script: "proc a {} { return A }\n\
+                 proc E1 args {\n\
+                     puts E1\n\
+                     if {![info exists ::d]} { set ::d 1; puts \"in:[a]\" }\n\
+                 }\n\
+                 proc E2 args { puts E2 }\n\
+                 trace add execution a enter E2\n\
+                 trace add execution a enter E1\n\
+                 puts \"out:[a]\"\n",
+        want: "E1\nE2\nin:A\nE2\nout:A",
+    },
+    Vector {
+        name: "a leave trace fires while its command's enter callback runs",
+        script: "proc a {} { return A }\n\
+                 proc LA args { puts LA }\n\
+                 trace add execution a leave LA\n\
+                 proc EA args {\n\
+                     puts EA\n\
+                     if {![info exists ::d]} { set ::d 1; puts \"in:[a]\" }\n\
+                 }\n\
+                 trace add execution a enter EA\n\
+                 puts \"out:[a]\"\n",
+        want: "EA\nLA\nin:A\nLA\nout:A",
+    },
+    // The step half stays gated for the whole callback evaluation.
+    Vector {
+        name: "a step-traced command called from a callback is not stepped",
+        script: "proc st args { puts \"S:[lindex $args 0]\" }\n\
+                 proc s {} { set q 1; return S }\n\
+                 trace add execution s enterstep st\n\
+                 proc a {} { return A }\n\
+                 proc ea args { puts \"in:[s]\" }\n\
+                 trace add execution a enter ea\n\
+                 puts \"out:[a]\"\n",
+        want: "in:S\nout:A",
+    },
     Vector {
         name: "namespace-qualified names arrive fully qualified",
         script: "proc tracer args { puts \"T:[join $args |]\" }\n\
