@@ -7,7 +7,10 @@
      __LOGO_TCL_LSP__ / __LOGO_TCL_LSP_DARK__, each replaced with the contents of
      the matching `assets/logo-*.svg` so the mark inlines as <svg> — the same
      pattern the BIG-IP report builder page uses. -->
-<html lang="en" data-theme="auto">
+<!-- `data-dock` carries the documentation dock's open state to CSS: the
+     bottom-bar layouts reserve room for it at the end of the page, and a
+     collapsed dock needs far less. -->
+<html lang="en" data-theme="auto" data-dock="open">
 <head>
 <meta charset="utf-8">
 <!-- The studio ships every byte it runs: the registry, the compiler's analyser,
@@ -326,6 +329,25 @@ __STYLES__
           </div>
         </section>
       </div>
+
+      <!-- The live documentation dock: a third column beside the workbench on
+           a wide screen, a bottom bar below that, and a one-line strip on a
+           phone. It always documents whatever the author is currently
+           touching — a setting, its group, a catalogue, one catalogue value,
+           a pack — and it never moves the form to do it, which is the whole
+           reason it exists beside the inline `?` panels rather than replacing
+           them. Both surfaces render the same schema help; there is no second
+           copy of the text. -->
+      <aside class="dock" id="docsDock" aria-labelledby="dockLabel">
+        <h2 class="dockhead">
+          <button type="button" id="dockToggle" aria-expanded="true" aria-controls="dockBody">
+            <span class="docklabel" id="dockLabel">Docs</span>
+            <span class="docksubject" id="dockSubject">Focus a setting</span>
+            <span class="dockchevron" aria-hidden="true"></span>
+          </button>
+        </h2>
+        <div class="dockbody" id="dockBody" aria-live="polite"></div>
+      </aside>
     </div>
   </div>
 

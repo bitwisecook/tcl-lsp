@@ -36,6 +36,20 @@ import {
   type Child,
 } from "./dom.js";
 import { assetUrl, verifyAssetVersion, verifyBuildInfo, type BuildInfo } from "./buildInfo.js";
+import {
+  describeSubject,
+  fieldAnchorId,
+  formatHash,
+  historyMode,
+  ownerField,
+  parseHash,
+  restoreFor,
+  routeSubject,
+  type DockContent,
+  type DockSubject,
+  type RelatedGroup,
+  type Route,
+} from "./docsDock.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
@@ -227,6 +241,12 @@ let editorHost: EditorHost | null = null;
 let editorMounting: Promise<void> | null = null;
 /** Provenance for this assembled page and every external asset it names. */
 let activeBuildInfo: BuildInfo;
+/** What the documentation dock is showing, or `null` before anything is. */
+let dockContent: DockContent | null = null;
+/** Whether the dock is expanded. Remembered in the session. */
+let dockOpen = true;
+/** How long a deep link's landing outline stays on the field it found. */
+const FLASH_MS = 1200;
 
 /* Drafts ---------------------------------------------------------------- */
 
@@ -359,7 +379,9 @@ function buildForm(
       summary.appendChild(helpButton(panel, `the ${group} group`));
       body.appendChild(panel);
     }
-    const details = el("details", { class: "group" }, [summary, body]);
+    // `data-group` is how the dock recognises a group heading under the
+    // pointer or the caret; the same markup serves a nested subcommand form.
+    const details = el("details", { class: "group", "data-group": group }, [summary, body]);
     // Open the group the author starts in, plus any group that already
     // carries a non-default value.
     if (setCount > 0 || group === "Identity") details.setAttribute("open", "");
@@ -388,7 +410,7 @@ function buildField(
           type: "button",
           class: "ghost",
           text: `All ${catalogue.title.toLowerCase()} on the Reference tab →`,
-          onclick: () => openReference(catalogue.title),
+          onclick: () => openReferenceEntry(catalogueId ?? "", null),
         }),
       ]),
     );
@@ -398,12 +420,16 @@ function buildField(
     el("code", { class: "key", text: field.key }),
     helpButton(help, field.label),
   ]);
-  const node = el("div", { class: "field" }, [
+  const node = el("div", { class: "field", "data-field-key": field.key }, [
     lbl,
     el("div", { class: "doc", text: field.doc }),
     help,
     ctl,
   ]);
+  // Only the top-level form owns the anchor id. A subcommand's form builds the
+  // same keys again inside its row, and a deep link needs exactly one place to
+  // land — `data-field-key` still tells the dock what a nested control is.
+  if (which === "command") node.id = fieldAnchorId(field.key);
 
   const markSet = (): void => {
     const existing = lbl.querySelector(".set");
@@ -519,7 +545,10 @@ function packSectionNode(
   for (const entry of rows) list.appendChild(commandRow(entry, current));
   body.appendChild(list);
 
-  const details = el("details", { class: "group packsection" }, [summary, body]);
+  const details = el("details", { class: "group packsection", "data-pack": pack.id }, [
+    summary,
+    body,
+  ]);
   if (open) details.setAttribute("open", "");
   // Read from the click rather than the `toggle` event: only a person clicking
   // (or pressing Enter on) the summary is a preference worth remembering, and
@@ -937,6 +966,7 @@ function scheduleSave(): void {
       dialect: state.dialect,
       sample: state.sample,
       expanded: [...state.expandedPacks],
+      dockOpen,
     });
   }, SAVE_MS);
 }
@@ -1825,10 +1855,13 @@ function pushHistory(visit: Visit): void {
   if (navigating) return;
   const current = state.history[state.historyAt];
   if (current && current.name === visit.name && current.where === visit.where) return;
-  // A new move truncates whatever was ahead — the browser's own rule.
+  // A new move truncates whatever was ahead — the browser's own rule, and
+  // `pushState` applies it to the session history at the same moment.
   state.history = state.history.slice(0, state.historyAt + 1);
   state.history.push(visit);
   state.historyAt = state.history.length - 1;
+  visitEntries = visitEntries.slice(0, state.historyAt);
+  visitEntries[state.historyAt] = writeRoute(visitRoute(visit), state.historyAt);
   renderHistoryButtons();
 }
 
@@ -1847,17 +1880,24 @@ function renderHistoryButtons(): void {
  */
 function navigate(delta: number): void {
   const at = state.historyAt + delta;
-  const visit = state.history[at];
-  if (!visit) return;
-  state.historyAt = at;
-  navigating = true;
-  try {
-    if (visit.where === "pack") openPackCommand(visit.name);
-    else openCommand(visit.name);
-  } finally {
-    navigating = false;
+  if (!state.history[at]) return;
+  const target = visitEntries[at];
+  const here = currentEntry()?.index;
+  if (routing && typeof target === "number" && target > 0 && typeof here === "number") {
+    // Move the browser instead of opening directly: `popstate` does the
+    // opening, so these buttons and the browser's own Back are one act. The
+    // delta is over the entries that carry *visits*, so a Reference entry
+    // sitting between two commands is stepped over rather than landed on —
+    // and a zero delta (two visits the address bar cannot tell apart, such as
+    // one name opened from the pack and from the registry) is opened directly,
+    // because `go(0)` would reload the page.
+    const delta = target - here;
+    if (delta !== 0) {
+      window.history.go(delta);
+      return;
+    }
   }
-  renderHistoryButtons();
+  openVisit(at);
 }
 
 /* Reference ------------------------------------------------------------- */
@@ -1871,6 +1911,8 @@ function navigate(delta: number): void {
 interface RefRow {
   node: HTMLElement;
   hay: string;
+  /** The catalogue value or spec key this row is, for `#/ref/…` links. */
+  term: string;
 }
 
 interface RefSection {
@@ -1922,10 +1964,15 @@ function refRow(
     syncButton();
   });
   node.addEventListener("toggle", syncButton);
-  return { node, hay: `${term} ${badges.join(" ")} ${doc} ${help ?? ""}`.toLowerCase() };
+  return { node, term, hay: `${term} ${badges.join(" ")} ${doc} ${help ?? ""}`.toLowerCase() };
 }
 
-function refSection(title: string, intro: string, example: CodeExample, rows: RefRow[]): void {
+function refSection(
+  title: string,
+  intro: string,
+  example: CodeExample,
+  rows: RefRow[],
+): RefSection {
   const body = el("div", { class: "body" }, [
     el("div", { class: "refintro" }, [
       el("p", { class: "intro", text: intro }),
@@ -1939,8 +1986,16 @@ function refSection(title: string, intro: string, example: CodeExample, rows: Re
     body,
   ]);
   byId("refOut").appendChild(node);
-  refSections.push({ node, hay: title.toLowerCase(), rows, count });
+  const section = { node, hay: title.toLowerCase(), rows, count };
+  refSections.push(section);
+  return section;
 }
+
+/**
+ * The catalogue sections by id, so `#/ref/<catalogue>/<value>` can find the
+ * row it names rather than only putting words in the search box.
+ */
+const refByCatalogue = new Map<string, RefSection>();
 
 function buildReference(): void {
   const schema = state.schema;
@@ -1988,12 +2043,15 @@ function buildReference(): void {
   for (const id of ids) {
     const help = schema.catalogueHelp[id];
     const variants = schema.catalogues[id] ?? [];
-    refSection(
-      help?.title ?? id,
-      help?.intro ?? "",
-      help.example,
-      variants.map((variant) =>
-        refRow(variant.key, variant.group ? [variant.group] : [], variant.doc, variant.example),
+    refByCatalogue.set(
+      id,
+      refSection(
+        help?.title ?? id,
+        help?.intro ?? "",
+        help.example,
+        variants.map((variant) =>
+          refRow(variant.key, variant.group ? [variant.group] : [], variant.doc, variant.example),
+        ),
       ),
     );
   }
@@ -2034,11 +2092,461 @@ function filterReference(): void {
     : `${total} entries`;
 }
 
-/** Switch to the Reference tab with `query` in the search box. */
-function openReference(query: string): void {
-  byId<HTMLInputElement>("refSearch").value = query;
+/**
+ * Show one Reference entry: a whole catalogue, or one value out of it.
+ *
+ * This is what `#/ref/<catalogue>[/<value>]` restores, and what the dock and
+ * the form's "all of these on the Reference tab" link both go through, so
+ * there is one way to arrive at a Reference entry however it was asked for.
+ */
+function openReferenceEntry(catalogueId: string, variantKey: string | null): void {
+  const section = refByCatalogue.get(catalogueId);
+  const title = state.schema.catalogueHelp[catalogueId]?.title ?? catalogueId;
+  byId<HTMLInputElement>("refSearch").value = variantKey ?? title;
   filterReference();
   selectTab("reference");
+  const row = variantKey ? section?.rows.find((entry) => entry.term === variantKey) : undefined;
+  const target = row?.node ?? section?.node;
+  if (target instanceof HTMLDetailsElement) target.open = true;
+  target?.scrollIntoView({ block: "center", behavior: motionOk() ? "smooth" : "auto" });
+  routeTo({ view: "reference", catalogue: catalogueId, variant: variantKey });
+  setDockSubject(
+    variantKey
+      ? { kind: "value", catalogue: catalogueId, key: variantKey }
+      : { kind: "catalogue", id: catalogueId },
+  );
+}
+
+/* The documentation dock ------------------------------------------------- */
+
+// A persistent region that documents whatever the author is currently
+// touching. The inline `?` panels stay exactly as they were — on a narrow
+// viewport they remain the primary surface, and they are what the contract
+// tests exercise — but they push the form around, and the field you are
+// editing must not move when you ask what it means. So this is a second
+// *surface* over the same schema help, never a second copy of the text: both
+// render `helpParagraphs` and `annotatedExample` from the very same entries.
+//
+// It also answers the question one field at a time cannot: which settings are
+// read together. `field.related` names those clusters, and the dock turns each
+// key into a link that navigates to the setting and flashes it.
+
+/** Whether the viewer has not asked for less animation. */
+function motionOk(): boolean {
+  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Whether the dock is its own column rather than an overlay at the bottom. */
+function dockIsSidebar(): boolean {
+  return window.matchMedia("(min-width: 75rem)").matches;
+}
+
+function dockSources(): { schema: Schema; packs: ReadonlyMap<string, PackRow> } {
+  return { schema: state.schema, packs: state.packById };
+}
+
+/**
+ * Point the dock at `subject`.
+ *
+ * Returns whether it took: a subject the schema knows nothing about leaves the
+ * dock showing what it had, which is also what "nothing focused" does. The
+ * dock never blanks once it has said something.
+ */
+function setDockSubject(subject: DockSubject): boolean {
+  const content = describeSubject(dockSources(), subject);
+  if (!content) return false;
+  dockContent = content;
+  renderDock();
+  // A focused setting is the linkable thing in the address bar; a group or a
+  // catalogue is context around it, and does not rewrite the URL.
+  if (subject.kind === "field") noteFieldInRoute(subject.key);
+  return true;
+}
+
+function renderDock(): void {
+  const body = byId("dockBody");
+  clear(body);
+  const content = dockContent;
+  byId("dockSubject").textContent = content ? content.title : "Focus a setting";
+  if (!content) {
+    body.appendChild(
+      el("p", {
+        class: "dockempty",
+        text: "Focus a setting, a group heading, or a picker and its documentation appears here.",
+      }),
+    );
+    return;
+  }
+  body.appendChild(el("div", { class: "dockkind", text: content.kindLabel }));
+  body.appendChild(el("h3", { class: "docktitle", text: content.title }));
+  if (content.code) {
+    body.appendChild(el("div", {}, [el("code", { class: "dockcode", text: content.code })]));
+  }
+  if (content.doc) body.appendChild(el("p", { class: "dockdoc", text: content.doc }));
+  if (content.help) body.appendChild(helpParagraphs(content.help));
+  if (content.example) body.appendChild(annotatedExample(content.example));
+  // No `related` at all is the ordinary case for a studio wasm built before
+  // the key existed: the dock simply ends after the example.
+  for (const cluster of content.related) body.appendChild(relatedNode(cluster));
+}
+
+/** One named cluster: why its members constrain each other, and links to them. */
+function relatedNode(cluster: RelatedGroup): HTMLElement {
+  const list = el("ul", {});
+  for (const link of cluster.links) {
+    if (link.self || !link.known || !link.target) {
+      list.appendChild(
+        el("li", {}, [
+          el("span", {
+            class: link.self ? "self" : "unknown",
+            text: link.key,
+            title: link.self ? "the setting shown above" : "not in this registry's schema",
+          }),
+        ]),
+      );
+      continue;
+    }
+    const anchor = el("a", {
+      href: relatedHref(link.target),
+      text: link.key,
+      title: link.label,
+      onclick: (event: Event) => {
+        event.preventDefault();
+        revealField(link.key);
+      },
+    });
+    list.appendChild(el("li", {}, [anchor]));
+  }
+  return el("section", { class: "dockrel" }, [
+    el("h4", { text: cluster.name }),
+    el("p", { class: "why", text: cluster.why }),
+    list,
+  ]);
+}
+
+/** The address a related link points at: the deep link when there is one. */
+function relatedHref(row: string): string {
+  const command = openCommandName();
+  return command
+    ? formatHash({ view: "command", dialect: state.dialect, command, field: row })
+    : `#${fieldAnchorId(row)}`;
+}
+
+/**
+ * Navigate to the setting `key`: the editor tab, its group open, scrolled to,
+ * outlined, focused — and then documented, so following a chain of links
+ * works link after link.
+ *
+ * A property edited inside a composite row has no row of its own, so it is
+ * the owning row that is revealed while the dock goes on to document the
+ * property itself: that row *is* where the author edits it.
+ */
+function revealField(key: string): void {
+  if (currentTab !== "editor") selectTab("editor");
+  const row = ownerField(state.schema, key);
+  const node = row ? document.getElementById(fieldAnchorId(row)) : null;
+  if (!node) {
+    setStatus("status", `${key} is not a setting this command has`, "err");
+    return;
+  }
+  let group = node.parentElement?.closest("details");
+  while (group) {
+    group.open = true;
+    group = group.parentElement?.closest("details") ?? null;
+  }
+  node.scrollIntoView({ block: "center", behavior: motionOk() ? "smooth" : "auto" });
+  flashField(node);
+  // `preventScroll` because the scroll above already put it where it belongs —
+  // the browser's own focus scroll would fight the bottom bar for the room.
+  node
+    .querySelector<HTMLElement>(".ctl input, .ctl select, .ctl textarea, .ctl button")
+    ?.focus({ preventScroll: true });
+  setDockSubject({ kind: "field", key });
+}
+
+/** Outline the field a link landed on, briefly and without blocking anything. */
+function flashField(node: HTMLElement): void {
+  node.classList.remove("dock-target");
+  // Reading the layout is what restarts the animation on a repeat visit; with
+  // reduced motion the same class holds a static outline for the same time.
+  void node.offsetWidth;
+  node.classList.add("dock-target");
+  window.setTimeout(() => node.classList.remove("dock-target"), FLASH_MS);
+}
+
+/** Expand or collapse the dock, remembering which in the session. */
+function setDockOpen(open: boolean, opts: { save?: boolean } = {}): void {
+  dockOpen = open;
+  byId("docsDock").classList.toggle("collapsed", !open);
+  byId("dockToggle").setAttribute("aria-expanded", open ? "true" : "false");
+  // The bottom-bar layouts reserve room for the dock at the end of the page;
+  // how much depends on this, so CSS has to be able to see it.
+  document.documentElement.dataset.dock = open ? "open" : "collapsed";
+  if (opts.save !== false) scheduleSave();
+}
+
+/**
+ * Scroll `node` out from under the dock.
+ *
+ * Only the overlay shapes can cover anything, and on a phone an expanded dock
+ * takes half the viewport — so a control focused underneath it has to come up.
+ */
+function keepClearOfDock(node: Element): void {
+  if (dockIsSidebar() || !dockOpen) return;
+  const bar = byId("docsDock").getBoundingClientRect();
+  const box = node.getBoundingClientRect();
+  if (box.bottom <= bar.top) return;
+  node.scrollIntoView({ block: "center", behavior: motionOk() ? "smooth" : "auto" });
+}
+
+/**
+ * Re-target the dock from something in the form.
+ *
+ * `committed` marks a `change` — the moment a picker's value was actually
+ * chosen, as against merely opened. Nothing here listens for the pointer
+ * passing over: a cursor crossing 137 settings must not churn the panel.
+ */
+function retargetFromForm(target: EventTarget | null, committed = false): void {
+  if (!(target instanceof Element)) return;
+  // A group heading is asked about first: it is never a control, and the
+  // innermost one wins — a subcommand's own groups sit *inside* the field that
+  // holds the subcommand, so testing the field first would never reach them.
+  const heading = target.closest("summary")?.parentElement;
+  if (
+    heading instanceof HTMLElement &&
+    heading.dataset.group &&
+    setDockSubject({ kind: "group", name: heading.dataset.group })
+  ) {
+    return;
+  }
+  const picker = target.closest<HTMLElement>("[data-catalogue]");
+  if (picker?.dataset.catalogue) {
+    const chosen = chosenVariant(target, picker, committed);
+    const subject: DockSubject = chosen
+      ? { kind: "value", catalogue: picker.dataset.catalogue, key: chosen }
+      : { kind: "catalogue", id: picker.dataset.catalogue };
+    if (setDockSubject(subject)) {
+      keepClearOfDock(target);
+      return;
+    }
+  }
+  const field = target.closest<HTMLElement>("[data-field-key]");
+  if (field?.dataset.fieldKey && setDockSubject({ kind: "field", key: field.dataset.fieldKey })) {
+    keepClearOfDock(target);
+  }
+}
+
+/** Which catalogue value the author is on, when they are on one at all. */
+function chosenVariant(target: Element, picker: HTMLElement, committed: boolean): string | null {
+  const toggle = target.closest<HTMLElement>("[data-variant]");
+  if (toggle?.dataset.variant) return toggle.dataset.variant;
+  // A `<select>` only names a value once it has been chosen; merely opening
+  // one asks about the vocabulary, not about whatever was already in it.
+  if (committed && picker instanceof HTMLSelectElement && picker.value) return picker.value;
+  return null;
+}
+
+/** Re-target the dock from the registry browser: a pack section's heading. */
+function retargetFromBrowser(target: EventTarget | null): void {
+  if (!(target instanceof Element)) return;
+  const section = target.closest("summary")?.parentElement;
+  if (section instanceof HTMLElement && section.dataset.pack) {
+    setDockSubject({ kind: "pack", id: section.dataset.pack });
+  }
+}
+
+function bindDock(): void {
+  byId("dockToggle").addEventListener("click", () => setDockOpen(!dockOpen));
+
+  const form = byId("form");
+  form.addEventListener("focusin", (event) => retargetFromForm(event.target));
+  form.addEventListener("click", (event) => retargetFromForm(event.target));
+  form.addEventListener("change", (event) => retargetFromForm(event.target, true));
+
+  const browser = byId("browser");
+  browser.addEventListener("focusin", (event) => retargetFromBrowser(event.target));
+  browser.addEventListener("click", (event) => retargetFromBrowser(event.target));
+
+  // A phone starts on the summary line: the dock is one tap away and covers
+  // nothing until it is asked for.
+  setDockOpen(!window.matchMedia("(max-width: 34rem)").matches, { save: false });
+  // Seed with the first group so the dock explains itself before anything has
+  // been focused; `renderDock` paints the empty state when there is no group
+  // to seed from.
+  renderDock();
+  setDockSubject({ kind: "group", name: state.schema.groups[0] ?? "" });
+}
+
+/* URL routing ------------------------------------------------------------ */
+
+// One history, not two. The visit stack (`state.history`) stays the record of
+// which commands were opened and in what order; every visit is *mirrored* as
+// one session-history entry tagged with its index. So the in-page ◀ ▶ buttons
+// no longer open anything themselves — they move the browser's history to the
+// entry carrying the visit they want, and `popstate` is the single path that
+// opens it. Alt+← , the buttons, and the browser's own Back are then the same
+// act rather than two stacks racing.
+//
+// A focus move inside a command *replaces* the entry it is on, so Back and
+// Forward move between commands and not between every setting a pointer
+// touched — which is what `historyMode` decides.
+
+/** What this page wrote into a session-history entry. */
+interface StudioEntry {
+  /**
+   * Where the entry sits in this page's own run of session history, so the
+   * delta between two of them can be computed. A *position* rather than a
+   * serial number, because a push from a back position throws away what was
+   * ahead and the new entry takes the place that was vacated — a counter
+   * would go on climbing and `go()` would overshoot.
+   */
+  index: number;
+  /** The visit the entry opens, when it opens one. */
+  visit: number | null;
+}
+
+/**
+ * Whether the address bar can be written at all.
+ *
+ * `pushState` throws on a `file://` page — an opaque origin cannot own a URL —
+ * and this page is built to be saved and opened from disk. Losing the deep
+ * links there is fine; losing the Back button is not, so routing switches off
+ * and the visit stack carries navigation on its own.
+ */
+let routing = true;
+/** The last route written, which is what `historyMode` compares against. */
+let lastRoute: Route | null = null;
+/** Where each visit's session-history entry sits, parallel to `state.history`. */
+let visitEntries: number[] = [];
+
+function currentEntry(): StudioEntry | null {
+  const value = window.history.state as Partial<StudioEntry> | null;
+  return value && typeof value.index === "number"
+    ? { index: value.index, visit: typeof value.visit === "number" ? value.visit : null }
+    : null;
+}
+
+/** The name of the command the form is a projection of, if any. */
+function openCommandName(): string | null {
+  const name = state.draft?.name;
+  return typeof name === "string" && name ? name : state.pack.open;
+}
+
+/** The route for a visited command. */
+function visitRoute(visit: Visit): Route {
+  return { view: "command", dialect: state.dialect, command: visit.name, field: null };
+}
+
+/**
+ * Write `route` into the address bar, pushing or replacing as `historyMode`
+ * decides. Returns the entry id now showing it, or -1 when routing is off.
+ */
+function writeRoute(route: Route, visit: number | null): number {
+  if (!routing) return -1;
+  const here = currentEntry();
+  // The entry the page was loaded on is adopted rather than pushed over: the
+  // first command opened in a session is where the session starts, not a
+  // second place it went.
+  const mode = here === null ? "replace" : historyMode(lastRoute, route);
+  const index = mode === "replace" ? (here?.index ?? 1) : (here?.index ?? 0) + 1;
+  try {
+    const entry: StudioEntry = { index, visit };
+    if (mode === "replace") window.history.replaceState(entry, "", formatHash(route));
+    else window.history.pushState(entry, "", formatHash(route));
+  } catch {
+    routing = false;
+    return -1;
+  }
+  lastRoute = route;
+  return index;
+}
+
+/** Write a route that opens no new visit — a tab move, a Reference entry. */
+function routeTo(route: Route): void {
+  // History is doing the opening: it must not record its own moves.
+  if (navigating) return;
+  writeRoute(route, currentEntry()?.visit ?? null);
+}
+
+/** Put the focused setting in the address bar, without a new history entry. */
+function noteFieldInRoute(key: string): void {
+  if (navigating) return;
+  const command = openCommandName();
+  if (!command) return;
+  writeRoute(
+    { view: "command", dialect: state.dialect, command, field: routedField(key) },
+    currentEntry()?.visit ?? null,
+  );
+}
+
+/**
+ * The key a route may carry for the setting `key`.
+ *
+ * Only a top-level row can be restored, so a property edited inside one is
+ * written as the row that holds it — the link then opens the place the
+ * setting is edited instead of naming something the form cannot land on.
+ */
+function routedField(key: string | null): string | null {
+  return key === null ? null : ownerField(state.schema, key);
+}
+
+/** Open the visit at `at` without recording it as a new one. */
+function openVisit(at: number): void {
+  const visit = state.history[at];
+  if (!visit) return;
+  state.historyAt = at;
+  navigating = true;
+  try {
+    if (visit.where === "pack") openPackCommand(visit.name);
+    else openCommand(visit.name);
+  } finally {
+    navigating = false;
+  }
+  renderHistoryButtons();
+}
+
+/** Restore whatever a fragment names — on load, and on an untagged popstate. */
+function applyRoute(route: Route): void {
+  if (route.view === "reference") {
+    openReferenceEntry(route.catalogue, route.variant);
+    return;
+  }
+  if (route.dialect !== state.dialect && dialectLabels.has(route.dialect)) {
+    // Take the same path a person does, so the language server, the pack's
+    // collisions and the browser list all follow as they always do.
+    byId<HTMLSelectElement>("dialect").value = route.dialect;
+    byId("dialect").dispatchEvent(new Event("change"));
+  }
+  if (openCommandName() !== route.command) openCommand(route.command);
+  else selectTab("editor");
+  if (route.field) revealField(route.field);
+  else {
+    const subject = routeSubject(route);
+    if (subject) setDockSubject(subject);
+  }
+}
+
+function bindRouting(): void {
+  // The fragment the page was opened on is where the first write starts from,
+  // so restoring a link replaces that entry rather than pushing a copy of it.
+  lastRoute = parseHash(window.location.hash);
+  window.addEventListener("popstate", (event) => {
+    const entry = event.state as Partial<StudioEntry> | null;
+    const route = parseHash(window.location.hash);
+    lastRoute = route;
+    const visit = typeof entry?.visit === "number" ? entry.visit : null;
+    const restore = restoreFor(
+      route,
+      visit,
+      (visit === null ? null : state.history[visit]?.name) ?? null,
+    );
+    if (restore.kind === "visit") {
+      openVisit(restore.visit);
+      if (restore.field) revealField(restore.field);
+      return;
+    }
+    if (restore.kind === "route") applyRoute(restore.route);
+  });
 }
 
 /* The editor surface ---------------------------------------------------- */
@@ -2149,6 +2657,16 @@ function writeSample(sample: string): void {
 
 function selectTab(name: Tab): void {
   currentTab = name;
+  // Only two tabs are *views* the route vocabulary can name; the rest are
+  // panes over the one command already in the address bar, and pushing an
+  // entry for each of them would fill Back with places nothing came from.
+  if (name === "editor") {
+    const command = openCommandName();
+    const field = routedField(
+      dockContent?.subject.kind === "field" ? dockContent.subject.key : null,
+    );
+    if (command) routeTo({ view: "command", dialect: state.dialect, command, field });
+  }
   for (const tab of TABS) {
     const on = tab === name;
     byId(`tab-${tab}`).setAttribute("aria-selected", on ? "true" : "false");
@@ -2417,6 +2935,7 @@ async function restoreSession(): Promise<void> {
     state.expandedPacks = new Set(session.expanded);
     renderList();
   }
+  if (typeof session.dockOpen === "boolean") setDockOpen(session.dockOpen, { save: false });
   // A session saved before a dialect left the catalogue keeps the default
   // rather than restoring a picker value that no longer exists.
   if (session.dialect && session.dialect !== state.dialect && dialectLabels.has(session.dialect)) {
@@ -2500,6 +3019,8 @@ function boot(): void {
       picker.value = state.dialect;
 
       bindUi();
+      bindDock();
+      bindRouting();
       loadDialect();
       renderFiles();
       buildReference();
@@ -2514,7 +3035,12 @@ function boot(): void {
       byId("ver").textContent =
         `${buildInfo.version} · ${schema.command.length} spec fields · ${state.index.length} commands`;
       setStatus("status", "");
-      void restoreSession();
+      // The address bar wins over the resumed session: a link someone was sent
+      // names the view they were sent to, and it is applied last.
+      void restoreSession().then(() => {
+        const route = parseHash(window.location.hash);
+        if (route) applyRoute(route);
+      });
     },
     (e: unknown) => setStatus("status", `could not start the engine: ${String(e)}`, "err"),
   );

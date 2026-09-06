@@ -280,7 +280,13 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
     if (value !== null && value !== "" && !seen) {
       options.push(el("option", { value, text: `${value} (from the spec)` }));
     }
-    const select = el("select", {}, options);
+    // `data-catalogue` is how the documentation dock tells which vocabulary a
+    // picker draws from; without it the dock could only name the field.
+    const select = el(
+      "select",
+      kind.catalogue ? { "data-catalogue": kind.catalogue } : {},
+      options,
+    );
     select.value = value ?? "";
     select.addEventListener("change", () => onChange(select.value === "" ? null : select.value));
     return select;
@@ -290,7 +296,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
   function flagChips(kind: FieldKind, value: Json, onChange: Setter): HTMLElement {
     const declared = value !== null;
     const bits = declared ? asStringList(value) : [];
-    const wrap = el("div", {});
+    const wrap = el("div", kind.catalogue ? { "data-catalogue": kind.catalogue } : {});
 
     if (kind.optional) {
       wrap.appendChild(checkbox(declared, (on) => onChange(on ? bits : null), "declared"));
@@ -345,7 +351,10 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           el("div", { class: "trait-title" }, [choice, help.button]),
           el("span", { class: "doc", text: entry.doc }),
         ]);
-        const row = el("div", { class: "trait-toggle" }, [copy, help.panel]);
+        const row = el("div", { class: "trait-toggle", "data-variant": entry.key }, [
+          copy,
+          help.panel,
+        ]);
         box.addEventListener("change", () => {
           const at = bits.indexOf(entry.key);
           if (box.checked && at < 0) bits.push(entry.key);

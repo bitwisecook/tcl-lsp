@@ -63,13 +63,48 @@ says so. Serve the directory to get the full editor.
    set, so what a command actually declares is visible at a glance. Every
    group and every field carries a **?** button that opens a plain-language
    explanation, written for Tcl developers, with a short Tcl example of that
-   setting rather than Rust.
+   setting rather than Rust. The **Docs** panel beside the form shows the
+   same explanation for whatever you last focused, without moving the form —
+   see [the Docs panel](#the-docs-panel) below.
 4. **Read the output** on the **Rendered .rs** and **Tcl stub** tabs. Both
    update as you type.
 5. **Copy** it, **Download** it, or **Add to files** to collect several
    artefacts together.
 6. **Files & issue** downloads the collected files and opens a pre-filled
    GitHub issue so you can propose the spec.
+
+### The Docs panel
+
+Beside the form — a sidebar on a wide screen, a bar along the bottom of the
+window on a narrower one — the **Docs** panel explains whatever you last
+clicked or tabbed into: a setting, a group heading, a dropdown, the value you
+chose from it, or a pack heading in the browser. It shows the same text and
+the same worked example as the **?** button, but it never moves the form to
+do so: the field you are editing stays under your cursor. Moving the mouse
+across the form does not change it. The panel's header names what it is
+showing; click the header to fold the panel down to that line and back, and
+the studio remembers which you chose.
+
+Under the explanation, **related settings** are listed in named groups with
+a sentence on why they are read together. For `arity` that is an *Arity*
+group holding `arity_windows`, `reserved_trailing_words`, and
+`max_leading_option_words`. Each is a link. Following one opens the group
+that holds the setting, scrolls to it, outlines it briefly, and the panel
+moves on to explain it — so settings that interact can be followed link by
+link rather than hunted for in the form. A setting that lives inside an
+option row, such as an option's **variable scope**, is a link to the row it
+is edited in: following it opens the **Options** row and explains the
+property there.
+
+The address bar follows along. With `lsort` open and its `arity` in focus
+the page's URL ends in `#/c/tcl9.0/lsort/arity`, and a Reference entry gets
+one too — `#/ref/traits/EVALUATES_CODE` — so copying the address gives
+someone a link that opens the same view. The ◀ ▶ buttons in the toolbar
+(`Alt+←` and `Alt+→`) and the browser's own Back and Forward are one
+history: Back returns to the previous *command*, not to every setting you
+touched on the way. A page opened straight off disk may not be allowed to
+write those links; when the browser refuses, the address bar stays still and
+the buttons still work.
 
 ### On a phone
 
@@ -79,6 +114,11 @@ instead of stacking, and touch targets meet the 44px minimum. The registry
 browser sits below the editor rather than beside it — which is why typing a
 name and pressing **Load** matters there: the browser is off-screen, so
 filtering alone would look like nothing had happened.
+
+The **Docs** panel is a one-line strip at the bottom of the screen, folded
+until you tap it. Open, it takes half the screen, and the control you are
+editing is scrolled up from under it. The **?** buttons stay the quicker
+route there.
 
 ![The spec studio on a phone, with a command loaded by name](../../screenshots/spec-studio-mobile.png)
 
@@ -90,7 +130,8 @@ argument role, every taint colour, and the rest of the picker catalogues,
 each with what it means and what it drives. Searching "taint" finds the
 taint fields and every taint colour; searching "upvar" finds the traits
 and fields about scope aliasing. The same text sits behind the form's
-**?** buttons, so nothing has to be learned in two places.
+**?** buttons and in the **Docs** panel, so nothing has to be learned in two
+places.
 
 Every entry comes with a worked example: a few lines of Tcl with an arrow
 under each word that matters, numbered in the order Tcl runs them. The
