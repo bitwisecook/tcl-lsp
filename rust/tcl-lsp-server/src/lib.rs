@@ -6038,29 +6038,6 @@ async fn add_entry_point_diagnostic_consumers(
 /// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
 ///
-/// # Over the line limit, deliberately
-///
-/// The body is two lines past `clippy::too_many_lines`, and the overrun is the
-/// [`DocumentsGuard::retag`] markers — one before each `await` that runs while
-/// the open-document map is held (issue #1657).
-///
-/// They are all-or-nothing. A retag persists until the next one, so marking
-/// *some* awaits is worse than marking none: a hold at an unmarked await still
-/// reports the last marked one, which is a confident, wrong answer. Dropping
-/// two to satisfy the lint would have produced exactly that.
-///
-/// Splitting the function is the other way out and is the wrong one here. What
-/// makes this body long is a single deliberate critical section — the
-/// `documents` lock held across the currency re-check, index update and mailbox
-/// commit — and cutting it in half would put that lock's acquisition and its
-/// release in different functions. The lock scope being readable in one piece
-/// is the property this whole issue is about. Client delivery is deliberately
-/// outside this section.
-#[allow(
-    clippy::too_many_lines,
-    reason = "the overrun is #1657 lock-phase markers, which are only correct as a complete set; \
-              splitting the body would hide the documents-lock critical section"
-)]
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
@@ -6202,6 +6179,16 @@ async fn publish_diagnostics_result(
         }
     }
     reschedule_peers(delivery.diag_slots, delivery.uri, peers).await;
+    log_publish_timing(delivery, timing, diag_count).await;
+    true
+}
+
+/// Emit the two compatibility timing markers after diagnostic publication.
+async fn log_publish_timing(
+    delivery: &DeliveryCtx<'_>,
+    timing: PublishTiming<'_>,
+    diag_count: usize,
+) {
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
     // The analyser runs a single, full ("deep") pass per publish — there is
     // no separate fast/deep split.  Emit the
@@ -6232,7 +6219,6 @@ async fn publish_diagnostics_result(
             ),
         )
         .await;
-    true
 }
 
 /// Which event asked for a `SpecTcl` pack reload.
@@ -6336,6 +6322,7 @@ enum LivePublicationWait {
     Project,
     SalsaSnapshots,
     WorkspaceIndex,
+    RehomedSourceSeeds,
     DiagnosticsSlots,
     SemanticTokens,
     SemanticRefreshRequests,
@@ -6373,6 +6360,7 @@ impl LivePublicationWait {
             Self::Project => "db_project.try_lock",
             Self::SalsaSnapshots => "db.snapshot_census.zero",
             Self::WorkspaceIndex => "workspace_index.try_write",
+            Self::RehomedSourceSeeds => "rehomed_source_seeds.try_lock",
             Self::DiagnosticsSlots => "diag_slots.try_lock",
             Self::SemanticTokens => "last_semantic_tokens.try_lock",
             Self::SemanticRefreshRequests => "semantic_tokens_refresh_asked.try_lock",
@@ -8404,18 +8392,47 @@ impl Backend {
 
     /// Optimistically acquire the complete source-publication write set.
     ///
-    /// Returning `None` drops every partial acquisition.  In particular, disk
-    /// work never parks on `workspace_index` while retaining `db`, or parks on
-    /// `db` while retaining the open-document map (#1800).
-    fn try_publication_locks(&self) -> Option<PublicationLocks<'_>> {
-        Some(PublicationLocks {
-            db: self.db.try_lock().ok()?,
-            files: self.db_files.try_lock().ok()?,
-            tombstones: self.db_tombstones.try_lock().ok()?,
-            project_members: self.db_project_members.try_lock().ok()?,
-            project: self.db_project.try_lock().ok()?,
-            index: self.workspace_index.try_write().ok()?,
-            seeds: self.rehomed_source_seeds.try_lock().ok()?,
+    /// Returning the first unavailable dependency drops every partial
+    /// acquisition. In particular, disk work never parks on `workspace_index`
+    /// while retaining `db`, or parks on `db` while retaining the open-document
+    /// map (#1800).
+    fn try_publication_locks(&self) -> Result<PublicationLocks<'_>, LivePublicationWait> {
+        let db = self
+            .db
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Database)?;
+        let files = self
+            .db_files
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Files)?;
+        let tombstones = self
+            .db_tombstones
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Tombstones)?;
+        let project_members = self
+            .db_project_members
+            .try_lock()
+            .map_err(|_| LivePublicationWait::ProjectMembers)?;
+        let project = self
+            .db_project
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Project)?;
+        let index = self
+            .workspace_index
+            .try_write()
+            .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+        let seeds = self
+            .rehomed_source_seeds
+            .try_lock()
+            .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+        Ok(PublicationLocks {
+            db,
+            files,
+            tombstones,
+            project_members,
+            project,
+            index,
+            seeds,
         })
     }
 
@@ -8583,6 +8600,49 @@ impl Backend {
         })
     }
 
+    /// Bound optimistic disk-publication retries by periodically joining the
+    /// exact failed dependency's fair queue while holding no partial bundle.
+    async fn pause_disk_publication(
+        &self,
+        operation: &'static str,
+        wait: LivePublicationWait,
+        retries: &mut u64,
+    ) {
+        *retries = retries.saturating_add(1);
+        if retries.is_multiple_of(1024) {
+            match wait {
+                LivePublicationWait::Database => drop(self.db.lock().await),
+                LivePublicationWait::Files => drop(self.db_files.lock().await),
+                LivePublicationWait::Tombstones => drop(self.db_tombstones.lock().await),
+                LivePublicationWait::ProjectMembers => {
+                    drop(self.db_project_members.lock().await);
+                }
+                LivePublicationWait::Project => drop(self.db_project.lock().await),
+                LivePublicationWait::SalsaSnapshots => {}
+                LivePublicationWait::WorkspaceIndex => {
+                    drop(self.workspace_index.write().await);
+                }
+                LivePublicationWait::RehomedSourceSeeds => {
+                    drop(self.rehomed_source_seeds.lock().await);
+                }
+                LivePublicationWait::DiagnosticsSlots => drop(self.diag_slots.lock().await),
+                LivePublicationWait::SemanticTokens => {
+                    drop(self.last_semantic_tokens.lock().await);
+                }
+                LivePublicationWait::SemanticRefreshRequests => {
+                    drop(self.semantic_tokens_refresh_asked.lock().await);
+                }
+                LivePublicationWait::WorkspaceClassAnalyses => {
+                    drop(self.workspace_class_analyses.lock().await);
+                }
+                LivePublicationWait::Documents => {
+                    drop(self.documents.lock(operation).await);
+                }
+            }
+        }
+        crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+    }
+
     /// Yield after one failed deferred-open publication attempt and emit one
     /// bounded, exact diagnostic if contention persists.
     async fn pause_open_publication(
@@ -8627,77 +8687,75 @@ impl Backend {
         // race (#1854 review).
         if retry.retries.is_multiple_of(1024) {
             self.refresh_live_publication_generation(uri, retry);
-            match wait {
-                LivePublicationWait::Database => {
-                    self.join_live_publication_queue(self.db.lock(), retry.generation)
-                        .await;
-                }
-                LivePublicationWait::Files => {
-                    self.join_live_publication_queue(self.db_files.lock(), retry.generation)
-                        .await;
-                }
-                LivePublicationWait::Tombstones => {
-                    self.join_live_publication_queue(self.db_tombstones.lock(), retry.generation)
-                        .await;
-                }
-                LivePublicationWait::ProjectMembers => {
-                    self.join_live_publication_queue(
-                        self.db_project_members.lock(),
-                        retry.generation,
-                    )
-                    .await;
-                }
-                LivePublicationWait::Project => {
-                    self.join_live_publication_queue(self.db_project.lock(), retry.generation)
-                        .await;
-                }
-                // The census is not an async lock with a queue to join. The
-                // bounded sleep below is its fair retry point; every snapshot
-                // retires synchronously when its worker finishes.
-                LivePublicationWait::SalsaSnapshots => {}
-                LivePublicationWait::WorkspaceIndex => {
-                    self.join_live_publication_queue(
-                        self.workspace_index.write(),
-                        retry.generation,
-                    )
-                    .await;
-                }
-                LivePublicationWait::DiagnosticsSlots => {
-                    self.join_live_publication_queue(self.diag_slots.lock(), retry.generation)
-                        .await;
-                }
-                LivePublicationWait::SemanticTokens => {
-                    self.join_live_publication_queue(
-                        self.last_semantic_tokens.lock(),
-                        retry.generation,
-                    )
-                    .await;
-                }
-                LivePublicationWait::SemanticRefreshRequests => {
-                    self.join_live_publication_queue(
-                        self.semantic_tokens_refresh_asked.lock(),
-                        retry.generation,
-                    )
-                    .await;
-                }
-                LivePublicationWait::WorkspaceClassAnalyses => {
-                    self.join_live_publication_queue(
-                        self.workspace_class_analyses.lock(),
-                        retry.generation,
-                    )
-                    .await;
-                }
-                LivePublicationWait::Documents => {
-                    self.join_live_publication_queue(
-                        self.documents.lock(operation),
-                        retry.generation,
-                    )
-                    .await;
-                }
-            }
+            self.join_live_publication_dependency(operation, wait, retry.generation)
+                .await;
         }
         crate::rt::sleep(std::time::Duration::from_millis(1)).await;
         self.live_publication_uri_generation(uri) == retry.uri_generation
+    }
+
+    async fn join_live_publication_dependency(
+        &self,
+        operation: &'static str,
+        wait: LivePublicationWait,
+        generation: u64,
+    ) {
+        match wait {
+            LivePublicationWait::Database => {
+                self.join_live_publication_queue(self.db.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Files => {
+                self.join_live_publication_queue(self.db_files.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Tombstones => {
+                self.join_live_publication_queue(self.db_tombstones.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::ProjectMembers => {
+                self.join_live_publication_queue(self.db_project_members.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Project => {
+                self.join_live_publication_queue(self.db_project.lock(), generation)
+                    .await;
+            }
+            // The census is not an async lock with a queue to join. The
+            // bounded sleep in the caller is its fair retry point.
+            LivePublicationWait::SalsaSnapshots => {}
+            LivePublicationWait::WorkspaceIndex => {
+                self.join_live_publication_queue(self.workspace_index.write(), generation)
+                    .await;
+            }
+            LivePublicationWait::RehomedSourceSeeds => {
+                self.join_live_publication_queue(self.rehomed_source_seeds.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::DiagnosticsSlots => {
+                self.join_live_publication_queue(self.diag_slots.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::SemanticTokens => {
+                self.join_live_publication_queue(self.last_semantic_tokens.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::SemanticRefreshRequests => {
+                self.join_live_publication_queue(
+                    self.semantic_tokens_refresh_asked.lock(),
+                    generation,
+                )
+                .await;
+            }
+            LivePublicationWait::WorkspaceClassAnalyses => {
+                self.join_live_publication_queue(self.workspace_class_analyses.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Documents => {
+                self.join_live_publication_queue(self.documents.lock(operation), generation)
+                    .await;
+            }
+        }
     }
 
     async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>, generation: u64) {
@@ -8779,10 +8837,14 @@ impl Backend {
         // Otherwise sustained readers queued on Tokio's fair `db` mutex can
         // prevent `try_lock` from ever reaching the census check below.
         let snapshot_drain = self.db.begin_snapshot_drain();
+        let mut retries = 0;
         loop {
-            let Some(locks) = self.try_publication_locks() else {
-                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
-                continue;
+            let locks = match self.try_publication_locks() {
+                Ok(locks) => locks,
+                Err(wait) => {
+                    self.pause_disk_publication(site, wait, &mut retries).await;
+                    continue;
+                }
             };
 
             // A salsa setter blocks the worker thread inside `cancel_others`
@@ -8790,13 +8852,19 @@ impl Backend {
             // background transaction. Holding `db` makes this zero stable.
             if self.db.snapshot_report().outstanding != 0 {
                 drop(locks);
-                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                self.pause_disk_publication(
+                    site,
+                    LivePublicationWait::SalsaSnapshots,
+                    &mut retries,
+                )
+                .await;
                 continue;
             }
 
             let Some(docs) = self.documents.try_lock(site) else {
                 drop(locks);
-                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                self.pause_disk_publication(site, LivePublicationWait::Documents, &mut retries)
+                    .await;
                 continue;
             };
             let replacements: Vec<_> = replacements
@@ -8835,55 +8903,64 @@ impl Backend {
                 return Vec::new();
             }
 
-            let PublicationLocks {
-                mut db,
-                mut files,
-                mut tombstones,
-                mut project_members,
-                mut project,
-                mut index,
-                mut seeds,
-            } = locks;
-            let removed_members = Self::remove_db_sources_locked(
-                &mut db,
-                &mut files,
-                &mut tombstones,
-                removals.iter().copied(),
-            );
-            let added_members = Self::set_db_sources_locked(
-                &mut db,
-                &mut files,
-                &mut tombstones,
-                replacements
-                    .iter()
-                    .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
-            );
-            Self::sync_db_project_membership(
-                &mut db,
-                &files,
-                &mut project_members,
-                &mut project,
-                removals
-                    .iter()
-                    .copied()
-                    .chain(index_only_removals.iter().copied()),
-                replacements.iter().map(|entry| &entry.0),
-                removed_members || added_members,
-            );
-
-            Self::sync_disk_index(
-                &mut index,
-                &mut seeds,
-                removals
-                    .iter()
-                    .copied()
-                    .chain(index_only_removals.iter().copied()),
-                replacements.iter().map(|entry| (&entry.0, &entry.3)),
-            );
+            Self::apply_disk_publication(locks, &removals, &index_only_removals, &replacements);
             drop(snapshot_drain);
 
             return Self::changed_disk_uris(removals, index_only_removals, replacements);
         }
+    }
+
+    /// Apply a fully-acquired disk publication bundle without awaiting.
+    fn apply_disk_publication(
+        locks: PublicationLocks<'_>,
+        removals: &[&Uri],
+        index_only_removals: &[&Uri],
+        replacements: &[&(Uri, String, String, AnalysisResult)],
+    ) {
+        let PublicationLocks {
+            mut db,
+            mut files,
+            mut tombstones,
+            mut project_members,
+            mut project,
+            mut index,
+            mut seeds,
+        } = locks;
+        let removed_members = Self::remove_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            removals.iter().copied(),
+        );
+        let added_members = Self::set_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            replacements
+                .iter()
+                .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
+        );
+        Self::sync_db_project_membership(
+            &mut db,
+            &files,
+            &mut project_members,
+            &mut project,
+            removals
+                .iter()
+                .copied()
+                .chain(index_only_removals.iter().copied()),
+            replacements.iter().map(|entry| &entry.0),
+            removed_members || added_members,
+        );
+        Self::sync_disk_index(
+            &mut index,
+            &mut seeds,
+            removals
+                .iter()
+                .copied()
+                .chain(index_only_removals.iter().copied()),
+            replacements.iter().map(|entry| (&entry.0, &entry.3)),
+        );
     }
 
     /// Mark the matching `didOpen` revision safe for Salsa-backed providers.
@@ -43318,6 +43395,65 @@ proc p {} {
             Some(text),
             "disk publication must run between the old and later snapshots",
         );
+    }
+
+    /// Exact-head automated review of #1854: an optimistic disk publisher
+    /// must periodically join the exact dependency's fair queue while it owns
+    /// the rehoming and live-publication gates. A queued index writer then runs
+    /// before later readers instead of spinning behind them indefinitely.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_joins_contended_index_queue_1854() {
+        let backend = Arc::new(test_backend());
+        let _rehoming = backend.rehoming_gate.lock().await;
+        let _publication = backend.live_publication_gate.lock().await;
+        let existing_reader = backend.workspace_index.read().await;
+        let pausing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                let mut retries = 1023;
+                backend
+                    .pause_disk_publication(
+                        "test_disk_index_queue",
+                        LivePublicationWait::WorkspaceIndex,
+                        &mut retries,
+                    )
+                    .await;
+                retries
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.workspace_index.try_read().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the disk publisher must join the index writer queue");
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { drop(backend.workspace_index.read().await) }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), &mut later_reader)
+                .await
+                .is_err(),
+            "a reader arriving after the queued disk writer must wait",
+        );
+        drop(existing_reader);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), pausing)
+                .await
+                .expect("the disk publisher must finish after the old reader leaves")
+                .expect("the disk publisher must not panic"),
+            1024,
+        );
+        crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+            .await
+            .expect("the later reader must resume after disk publication")
+            .expect("the later reader must not panic");
     }
 
     /// Fresh exact-head review of #1854: disk publication must establish
