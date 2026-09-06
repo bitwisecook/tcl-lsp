@@ -342,10 +342,13 @@ mod tests {
 
         let waiting = tokio::spawn(service.call(request("waiting")));
         started.await;
-        tokio::time::timeout(Duration::from_millis(100), service.call(request("unrelated")))
-            .await
-            .expect("an unrelated request was stranded behind a publication waiter")
-            .unwrap();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            service.call(request("unrelated")),
+        )
+        .await
+        .expect("an unrelated request was stranded behind a publication waiter")
+        .unwrap();
         assert_eq!(calls.load(Ordering::SeqCst), 2);
 
         release_first.notify_one();

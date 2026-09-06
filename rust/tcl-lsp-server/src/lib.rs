@@ -8464,10 +8464,7 @@ impl Backend {
                         .await;
                 }
                 LivePublicationWait::Tombstones => {
-                    self.join_live_publication_queue(
-                        self.db_tombstones.lock(),
-                        retry.generation,
-                    )
+                    self.join_live_publication_queue(self.db_tombstones.lock(), retry.generation)
                         .await;
                 }
                 LivePublicationWait::Project => {
@@ -8483,7 +8480,7 @@ impl Backend {
                         self.workspace_index.write(),
                         retry.generation,
                     )
-                        .await;
+                    .await;
                 }
                 LivePublicationWait::DiagnosticsSlots => {
                     self.join_live_publication_queue(self.diag_slots.lock(), retry.generation)
@@ -8494,39 +8491,35 @@ impl Backend {
                         self.last_semantic_tokens.lock(),
                         retry.generation,
                     )
-                        .await;
+                    .await;
                 }
                 LivePublicationWait::SemanticRefreshRequests => {
                     self.join_live_publication_queue(
                         self.semantic_tokens_refresh_asked.lock(),
                         retry.generation,
                     )
-                        .await;
+                    .await;
                 }
                 LivePublicationWait::WorkspaceClassAnalyses => {
                     self.join_live_publication_queue(
                         self.workspace_class_analyses.lock(),
                         retry.generation,
                     )
-                        .await;
+                    .await;
                 }
                 LivePublicationWait::Documents => {
                     self.join_live_publication_queue(
                         self.documents.lock(operation),
                         retry.generation,
                     )
-                        .await;
+                    .await;
                 }
             }
         }
         crate::rt::sleep(std::time::Duration::from_millis(1)).await;
     }
 
-    async fn join_live_publication_queue<T>(
-        &self,
-        lock: impl Future<Output = T>,
-        generation: u64,
-    ) {
+    async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>, generation: u64) {
         let invalidated = self.live_publication_invalidated.notified();
         tokio::pin!(invalidated);
         invalidated.as_mut().enable();
@@ -8926,7 +8919,7 @@ impl Backend {
                     Err(wait) => {
                         self.update_snapshot_drain(wait, &mut snapshot_drain);
                         self.pause_open_publication("did_open", uri, wait, &mut retry)
-                        .await;
+                            .await;
                         continue;
                     }
                 };
@@ -9041,7 +9034,7 @@ impl Backend {
                 Err(wait) => {
                     self.update_snapshot_drain(wait, &mut snapshot_drain);
                     self.pause_open_publication(operation, uri, wait, &mut retry)
-                    .await;
+                        .await;
                     continue;
                 }
             };
@@ -9136,7 +9129,7 @@ impl Backend {
                 Err(wait) => {
                     self.update_snapshot_drain(wait, &mut snapshot_drain);
                     self.pause_open_publication(operation, uri, wait, &mut retry)
-                    .await;
+                        .await;
                     continue;
                 }
             };
@@ -9226,7 +9219,7 @@ impl Backend {
                 Ok(locks) => locks,
                 Err(wait) => {
                     self.pause_open_publication("did_close", uri, wait, &mut retry)
-                    .await;
+                        .await;
                     continue;
                 }
             };
@@ -43010,11 +43003,7 @@ proc p {} {
         .expect("a rehoming Salsa wait retained the global document map");
         documents.insert(
             uri.clone(),
-            DocumentState::with_version(
-                "proc live {} {}\n".to_owned(),
-                "tcl8.6".to_owned(),
-                1,
-            ),
+            DocumentState::with_version("proc live {} {}\n".to_owned(), "tcl8.6".to_owned(), 1),
         );
         drop(documents);
         drop(database);
