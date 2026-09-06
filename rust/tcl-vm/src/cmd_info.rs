@@ -116,8 +116,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 // `info exists` fires read traces first (a trace may create the
                 // variable — tcltest's lazy `SafeFetch` constraint init relies
                 // on this); a trace error does not abort the existence check.
-                let _ = vm.fire_var_traces(&name.to_str(), "read");
-                ok(tcl_cmd_core::info::exists(vm, name))
+                ok(Value::bool(vm.exists_var_traced(&name.to_str())))
             }
             _ => err("wrong # args: should be \"info exists varName\""),
         },
@@ -160,13 +159,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [name] => ok(Value::bool(vm.is_constant(&name.to_str()))),
             _ => err("wrong # args: should be \"info constant varname\""),
         },
-        "consts" => {
-            let names = vm.constant_names().into_iter().filter(|n| {
-                rest.first()
-                    .is_none_or(|p| tcl_syntax::glob::string_match(&p.to_str(), n))
-            });
-            ok(Value::list(names.map(Value::string).collect()))
-        }
+        "consts" => match rest {
+            [] | [_] => ok(tcl_cmd_core::info::consts(vm, rest.first())),
+            _ => err("wrong # args: should be \"info consts ?pattern?\""),
+        },
         // body/args/default route through the shared `info` core over the `Procs`
         // role trait; the var-write for `default` stays here (it is trace-aware).
         "body" => match rest {

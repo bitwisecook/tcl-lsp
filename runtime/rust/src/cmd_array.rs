@@ -122,7 +122,13 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp.set_result(v);
                 Code::Ok
             }
-            Err(e) => interp.set_error(e.message().as_bytes()),
+            Err(e) => {
+                let (message, error_code) = e.into_parts();
+                match error_code {
+                    Some(code) => interp.error_with_code(message.as_bytes(), code.as_bytes()),
+                    None => interp.set_error(message.as_bytes()),
+                }
+            }
         };
     }
     // Per-runtime: `set` (per-element write traces), `default` (TIP 508), `for`
@@ -484,6 +490,22 @@ mod tests {
             assert_eq!(run(i, b"array names a"), b"x z");
             run(i, b"array unset a"); // whole array
             assert_eq!(run(i, b"array exists a"), b"0");
+        });
+    }
+
+    #[test]
+    fn whole_array_unset_preserves_constant_error_identity() {
+        leak_free(|i| {
+            run(i, b"array set a {x 1}");
+            i.mark_constant(b"a");
+
+            assert_eq!(i.eval_str(b"array unset a"), Code::Error);
+            let message = i.result_bytes();
+            assert_eq!(message, br#"can't unset "a": variable is a constant"#);
+            // An outermost `eval_str` publishes the live exception state to
+            // Tcl's compatibility globals before it returns.
+            assert_eq!(run(i, b"set ::errorCode"), b"TCL UNSET CONST");
+            assert!(i.array_names(b"a").is_some());
         });
     }
 }

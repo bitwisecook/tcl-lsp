@@ -5770,6 +5770,10 @@ impl Interp {
                 }
             }
         }
+        // TclOO's automatic instance-variable resolver yields to a method
+        // formal of the same name. Explicit `my variable X` still uses the
+        // ordinary link path and reports a collision.
+        vars.retain(|(local, _)| !params.iter().any(|param| param.name == *local));
         let name = if method.is_empty() {
             b"<constructor>".to_vec()
         } else {

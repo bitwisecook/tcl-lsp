@@ -1116,10 +1116,114 @@ fn info_constant_and_consts() {
     );
     // tclsh9.0: info consts c* -> the constant name.
     assert_eq!(run("const c 5; info consts c*").1, "c");
+    // Namespace-qualified and current-namespace listings resolve through the
+    // same stable namespace-variable tables as `info vars`.
+    assert_eq!(
+        run(concat!(
+            "namespace eval N {const c 5}; ",
+            "list [info constant ::N::c] [info consts N::*] ",
+            "[namespace eval N {info consts}]",
+        ))
+        .1,
+        "1 ::N::c c"
+    );
     // wrong # args on `info constant`.
     let (ok, msg, _) = run("info constant");
     assert!(!ok);
     assert_eq!(msg, r#"wrong # args: should be "info constant varname""#);
+    let (ok, msg, _) = run("info consts * extra");
+    assert!(!ok);
+    assert_eq!(msg, r#"wrong # args: should be "info consts ?pattern?""#);
+}
+
+#[test]
+fn info_consts_enumerates_bindings_and_namespace_global_fallback() {
+    // Exact Tcl 9.0.4 results. `info constant` follows links, but `info consts`
+    // enumerates only cells directly marked const. At namespace scope a scan
+    // includes only unshadowed global constants, while a trivial exact pattern
+    // retains Tcl's direct-lookup fallback past a non-constant local binding.
+    assert_eq!(
+        run(concat!(
+            "const G 1; namespace eval N {const C 2; set ordinary 0}; ",
+            "list [lsort [info consts]] [info consts G] ",
+            "[info consts N::*] [info consts ::N::*]",
+        ))
+        .1,
+        "G G ::N::C ::N::C"
+    );
+    assert_eq!(
+        run(concat!(
+            "const G 1; namespace eval N {const C 2; set ordinary 0; ",
+            "list [lsort [info consts]] [lsort [info consts *]] ",
+            "[info consts G] [info consts C] [info consts ::*]}"
+        ))
+        .1,
+        "{C G} {C G} G C ::G"
+    );
+    assert_eq!(
+        run(concat!(
+            "const G 1; namespace eval N {const C 2}; ",
+            "proc p {} {const L 3; set ordinary 0; global G; ",
+            "upvar #0 ::N::C U; list [lsort [info vars]] ",
+            "[lsort [info consts]] [info constant L] [info constant G] ",
+            "[info constant U] [info consts ::*] [info consts N::*]}; p"
+        ))
+        .1,
+        "{G L U ordinary} L 1 1 1 ::G ::N::C"
+    );
+    assert_eq!(
+        run(concat!(
+            "const G 1; namespace eval M {const C 4; namespace upvar :: G A; ",
+            "list [lsort [info vars]] [lsort [info consts]] ",
+            "[info constant A] [info consts A] [info consts G]}"
+        ))
+        .1,
+        "{A C} {C G} 1 {} G"
+    );
+    assert_eq!(
+        run(concat!(
+            "const G 1; namespace eval S {const C 5; set G shadow; ",
+            "list [lsort [info consts]] [info consts G] [info consts G*] ",
+            "[info constant G] [info constant ::G]}"
+        ))
+        .1,
+        "C G {} 0 1"
+    );
+    assert_eq!(
+        run("const ::x 1; list [info consts :::x] [info consts ::::x] [info consts ::::::*]").1,
+        "::x ::x ::x"
+    );
+}
+
+#[test]
+fn info_consts_includes_only_tcloo_instance_links() {
+    // Tcl 9.0.4's method-frame enumeration includes automatic instance
+    // projections, but excludes ordinary aliases. A formal shadows
+    // the automatic projection, and an ordinary upvar retarget removes its
+    // TclOO origin for that activation. The object's direct storage binding
+    // must itself be constant, and object-declared variables are not projected
+    // into a method provided by its class.
+    assert_eq!(
+        run(concat!(
+            "const G 9; oo::class create C {variable X; constructor {} {const X 1}; ",
+            "method inspect {} {global G; upvar #0 ::G U; ",
+            "list [info consts] [info constant G] [info constant U]}; ",
+            "method retarget {} {upvar #0 ::G X; list [info consts] [info constant X]}; ",
+            "method shadow {X} {list $X [info consts]}}; set o [C new]; ",
+            "oo::object create O; oo::objdefine O {variable P; ",
+            "method init {} {const P 2}; method inspect {} {info consts}}; O init; ",
+            "oo::class create CA {variable X; method inspect {} ",
+            "{list [info consts] [info constant X] $X}}; set oa [CA new]; ",
+            "namespace eval [info object namespace $oa] {namespace upvar :: G X}; ",
+            "oo::class create CP {method inspect {} {info consts}}; CP create op; ",
+            "oo::objdefine op {variable Q; method init {} {const Q 3}}; op init; ",
+            "list [$o inspect] [$o retarget] [$o shadow formal] [O inspect] ",
+            "[$oa inspect] [op inspect] ",
+            "[info constant [info object namespace op]::Q]"
+        ))
+        .1,
+        "{X 1 1} {{} 1} {formal {}} P {{} 1 9} {} 1"
+    );
 }
 
 /// `info cmdtype commandName` — Tcl 9.0 (8.6 lacks it). `proc` for a user proc,

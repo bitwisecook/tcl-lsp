@@ -23,7 +23,8 @@
 //! VM's `array unset a` (no pattern), which used to iterate-and-unset elements
 //! (leaving an empty array) instead of removing the whole array.
 
-use tcl_runtime_api::{Code, Completion};
+use tcl_registry::ArgRole;
+use tcl_runtime_api::{ArrayTarget, Code, Completion, VarStore};
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -83,17 +84,44 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
+    // `LocateArray` is the one semantic entry for every array subcommand,
+    // including the compiler-lowered `::tcl::array::*` commands above. Derive
+    // the target from the dialect-selected registry member: it is the unique
+    // VarRead/VarWrite argument, not a second command-name/index table.
+    let trace_target = array_trace_target(vm, sub, rest);
+    if sub == "for" {
+        return array_for(vm, rest, trace_target.as_deref());
+    }
+    if let Some(name) = trace_target {
+        return vm.with_array_trace_target(&name, |vm, target| {
+            array_op_after_trace(vm, sub, rest, Some(target))
+        });
+    }
+    array_op_after_trace(vm, sub, rest, None)
+}
+
+fn array_op_after_trace(
+    vm: &mut Vm,
+    sub: &str,
+    rest: &[Value],
+    target: Option<&ArrayTarget>,
+) -> Completion<Value> {
     // The read-side + `unset` live in the shared core.
-    if let Some(result) = tcl_cmd_core::array::dispatch(vm, sub, rest) {
+    if let Some(result) = tcl_cmd_core::array::dispatch_at(vm, sub, rest, target) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => err(e.into_message()),
+            Err(e) => {
+                let (message, error_code) = e.into_parts();
+                match error_code {
+                    Some(code) => crate::command::err_with_code(message, &code),
+                    None => err(message),
+                }
+            }
         };
     }
     // Per-runtime: `array set` (its per-element write traces must fail the
     // command), `array for` (iterates a body), and the unknown-subcommand message.
     match sub {
-        "for" => array_for(vm, rest),
         "set" => match rest {
             [n, list] => {
                 // C's `Tcl_ArrayObjCmd` set path resolves the target through
@@ -175,11 +203,50 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
     }
 }
 
+fn array_trace_target(vm: &Vm, sub: &str, rest: &[Value]) -> Option<String> {
+    let profile = vm.command_surface_profile();
+    let registry = crate::environment::store_for_profile(profile);
+    let words: Vec<String> = std::iter::once(sub.to_owned())
+        .chain(rest.iter().map(|value| value.to_str().to_string()))
+        .collect();
+    let spellings: Vec<&str> = words.iter().map(String::as_str).collect();
+    let resolved = registry.resolve_invocation(
+        "array",
+        &spellings,
+        Some(crate::environment::surface_point(profile)),
+    )?;
+    if resolved.subcommand.resolved()?.canonical_name != sub {
+        return None;
+    }
+    let facts = resolved.facts();
+    let supplied = spellings.len().checked_sub(facts.argument_offset)?;
+    if !facts
+        .arity
+        .accepts(u16::try_from(supplied).unwrap_or(u16::MAX))
+        || !facts.arg_roles_complete
+    {
+        return None;
+    }
+    let mut targets: Vec<usize> = facts
+        .arg_roles
+        .iter()
+        .filter_map(|&(index, role)| {
+            matches!(role, ArgRole::VarRead | ArgRole::VarWrite)
+                .then_some(usize::from(index) + facts.argument_offset)
+        })
+        .collect();
+    targets.sort_unstable();
+    targets.dedup();
+    debug_assert!(targets.len() <= 1, "array member has one variable target");
+    let index = targets.into_iter().next()?.checked_sub(1)?;
+    rest.get(index).map(|value| value.to_str().to_string())
+}
+
 /// `array for {keyVar valueVar} arrayName script` — iterate the array's elements,
 /// binding the two vars and running the body once per pair (mirrors `dict for`;
 /// `break`/`continue` apply, an error/return propagates). The element set is
 /// snapshotted up front so body mutations don't perturb the walk.
-fn array_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+fn array_for(vm: &mut Vm, rest: &[Value], trace_target: Option<&str>) -> Completion<Value> {
     let [vars, arrname, body] = rest else {
         return err("wrong # args: should be \"array for {key value} arrayName script\"");
     };
@@ -192,30 +259,56 @@ fn array_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let kvar = kvar.to_str().to_string();
     let vvar = vvar.to_str().to_string();
-    let name = arrname.to_str();
-    if !vm.array_is(&name) {
-        return err(format!("\"{name}\" isn't an array"));
+    let name = arrname.to_str().to_string();
+    let body = body.to_str().to_string();
+    // C validates the loop-variable list before `LocateArray`; all later
+    // validation happens after the array operation trace.
+    if let Some(located_name) = trace_target {
+        return vm.with_array_trace_target(located_name, |vm, target| {
+            array_for_after_trace(vm, &kvar, &vvar, &name, &body, target)
+        });
     }
-    let body_src = body.to_str();
-    // Snapshot the key set, but read each value live: C's enumeration walks the
-    // hash by key and reports the element's *current* value, so a body that
-    // rewrites an as-yet-unvisited element is observed (var-23.12). Adding or
-    // removing an element, by contrast, perturbs the hash and C aborts the walk
-    // with "array changed during iteration" (var-23.10 / var-23.11) — detected
-    // here by the key set diverging from the snapshot.
-    let keys: Vec<String> = vm.array_pairs(&name).into_iter().map(|(k, _)| k).collect();
-    let orig: std::collections::BTreeSet<&str> = keys.iter().map(String::as_str).collect();
+    let target = VarStore::array_target(vm, tcl_runtime_api::Frames::current(vm), &name);
+    array_for_after_trace(vm, &kvar, &vvar, &name, &body, &target)
+}
+
+fn array_for_after_trace(
+    vm: &mut Vm,
+    kvar: &str,
+    vvar: &str,
+    name: &str,
+    body: &str,
+    target: &ArrayTarget,
+) -> Completion<Value> {
+    let Some(keys) = VarStore::array_search_keys_at(vm, target) else {
+        return crate::command::lookup_error(format!("\"{name}\" isn't an array"), "ARRAY", name);
+    };
+    let revision = VarStore::array_revision_at(vm, target);
+    // Snapshot the physical hash keys, including undefined shells created by a
+    // trace or link. C skips a candidate only when the iterator reaches it, so
+    // defining an existing shell during an earlier body makes it a later row;
+    // insertion/removal and unsetting a value invalidate the search revision.
     for k in &keys {
-        let Some(v) = vm.get_array_elem(&name, k) else {
+        if !same_array_target(vm, name, target, revision) {
+            return array_for_changed();
+        }
+        if !VarStore::array_elem_exists_at(vm, target, k) {
             continue;
-        };
-        if let Err(e) = vm.set_var(&kvar, Value::string(k.clone())) {
+        }
+        let value = vm.read_elem_swallowing_trace_error(name, k);
+        // The read trace runs before Tcl assigns either loop variable. If it
+        // deletes this element, the key is still assigned, the value variable
+        // retains its previous value, and the body runs once; the structural
+        // revision is diagnosed after that body unless it breaks the search.
+        if let Err(e) = vm.set_var(kvar, Value::string(k.clone())) {
             return e;
         }
-        if let Err(e) = vm.set_var(&vvar, v) {
+        if let Some(value) = value
+            && let Err(e) = vm.set_var(vvar, value)
+        {
             return e;
         }
-        match vm.eval_source(&body_src) {
+        match vm.eval_source(body) {
             Ok(c) => match c.code {
                 Code::Ok | Code::Continue => {}
                 Code::Break => break,
@@ -225,11 +318,48 @@ fn array_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
         // The body may have added/removed elements (a structural change), which
         // invalidates the enumeration — abort as C does.
-        let cur: std::collections::BTreeSet<String> =
-            vm.array_pairs(&name).into_iter().map(|(k, _)| k).collect();
-        if cur.len() != orig.len() || !cur.iter().all(|k| orig.contains(k.as_str())) {
-            return err("array changed during iteration");
+        if !same_array_target(vm, name, target, revision) {
+            return array_for_changed();
         }
     }
     ok(Value::empty())
+}
+
+fn same_array_target(vm: &Vm, name: &str, original: &ArrayTarget, revision: Option<u64>) -> bool {
+    let current = VarStore::array_target(vm, tcl_runtime_api::Frames::current(vm), name);
+    current.cell_id() == original.cell_id()
+        && VarStore::array_keys_at(vm, original).is_some()
+        && revision
+            .is_none_or(|expected| VarStore::array_revision_at(vm, original) == Some(expected))
+}
+
+fn array_for_changed() -> Completion<Value> {
+    crate::command::err_with_code("array changed during iteration", "TCL READ array for")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn whole_array_unset_preserves_constant_error_identity() {
+        let mut vm = Vm::new();
+        vm.ensure_array("a").expect("array");
+        vm.mark_constant("a");
+
+        let completion = array_op_after_trace(&mut vm, "unset", &[Value::string("a")], None);
+
+        assert_eq!(completion.code, Code::Error);
+        assert_eq!(
+            completion.result.to_str().as_ref(),
+            r#"can't unset "a": variable is a constant"#
+        );
+        assert_eq!(
+            crate::command::resolved_error_code(&completion)
+                .to_str()
+                .as_ref(),
+            "TCL UNSET CONST"
+        );
+        assert!(VarStore::array_keys(&vm, tcl_runtime_api::Frames::current(&vm), "a").is_some());
+    }
 }

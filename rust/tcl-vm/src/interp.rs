@@ -27,7 +27,7 @@
 //! model does (issue #946).
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -40,9 +40,9 @@ use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
 use tcl_runtime_api::{
-    Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
-    NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
-    ScriptCompileTarget, Traces, VarStore,
+    ArrayTarget, Code, CommandId, Commands, CompileService, Completion, FrameId, FrameLinkOrigin,
+    Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget,
+    ProcedureDispatch, Procs, ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -52,7 +52,7 @@ use crate::command::{
 use crate::compiled::{CompiledUnit, CompilerProvenance};
 use crate::error::TclError;
 use crate::expr::ExprEval;
-use crate::frame::{CallFrame, Local};
+use crate::frame::CallFrame;
 // The default capability host, picked by target. Everywhere with an operating
 // system under it — including `wasm32-wasip1`, where `std::time` and `std::env`
 // both work — that is the full-capability std-backed `NativeHost`. On
@@ -65,6 +65,7 @@ use crate::host_native::NativeHost as DefaultHost;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 use crate::host_wasm::BrowserHost as DefaultHost;
 use crate::value::Value;
+use crate::vars::{VarArena, VarState as Local, VarState, VarTable};
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 /// A deeper nesting is a catchable error, not a native stack overflow.
@@ -83,6 +84,10 @@ pub(crate) enum UpvarLinkError {
     LocalElement,
     /// The alias names an absent namespace.
     LocalNamespace,
+    /// The alias already names a defined scalar or array cell.
+    Exists,
+    /// The alias owns traces, which cannot be discarded by link installation.
+    Traced,
 }
 
 /// A typed failure while moving a command between an interpreter's visible
@@ -822,6 +827,21 @@ enum CommandSemantics {
     Tracking,
 }
 
+/// Deferred control requests handed from builtins to the explicit VM stack.
+#[derive(Default)]
+pub(crate) struct PendingControl {
+    /// Compiled script, error-info label, and optional temporary command cleanup.
+    pub(crate) eval: Option<(CompiledUnit, Option<&'static str>, Option<String>)>,
+    /// Catch body whose completion is absorbed by the catch epilogue.
+    pub(crate) catch: Option<crate::exec::CatchReq>,
+    /// Scanner-driven substitution request.
+    pub(crate) subst: Option<crate::exec::SubstReq>,
+    /// Runtime `foreach`/`lmap` request.
+    pub(crate) each_loop: Option<crate::exec::EachLoopReq>,
+    /// Next body, handler, or `finally` phase of a `try`.
+    pub(crate) try_phase: Option<crate::cmd_try::TryReq>,
+}
+
 /// One interpreter's complete state: command table, namespaces, call frames,
 /// error state, traces, coroutines, channels, children. The engine ([`Vm`])
 /// executes with exactly one of these current at a time and swaps between
@@ -871,6 +891,14 @@ pub struct InterpState {
     compiler_generation: u64,
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
+    /// Variable cells outlive the name table that currently binds them. This
+    /// is interpreter-global so parked coroutine frames retain their `VarId`s.
+    var_arena: VarArena,
+    /// Variable name tables belong to namespace tokens, not their reusable
+    /// spellings. A retained and recreated `::N` therefore remain disjoint.
+    ns_vars: HashMap<NsId, VarTable>,
+    /// Stable cells declared through TIP 677 `const`.
+    const_vars: HashSet<VarId>,
     /// Command table (builtins + user procs), keyed by canonical name — a
     /// builtin's simple name, or a proc's namespace-qualified name without the
     /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
@@ -905,7 +933,7 @@ pub struct InterpState {
     /// namespace is already non-existent to Tcl callbacks, but its command
     /// table remains live until token deletion completes. Descendants are not
     /// marked dying until their own recursive teardown begins.
-    dying_namespaces: HashSet<String>,
+    dying_namespaces: HashSet<NsId>,
     /// Namespace-owned ensemble tokens in C's intrusive-list order: oldest at
     /// the front, newest at the back. `Tcl_CreateEnsemble` pushes at the head
     /// and `Tcl_DeleteNamespace` repeatedly removes that live head, so a token
@@ -1001,10 +1029,9 @@ pub struct InterpState {
     /// stable mode unless the process opted into latest mode, and the latter
     /// is a one-way latch for the lifetime of the interpreter.
     package_prefer: PackagePrefer,
-    /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
-    /// trace fires regardless of the access path (`upvar` alias, qualified
-    /// name, …). Newest trace last; fired newest-first.
-    var_traces: HashMap<String, Vec<VarTrace>>,
+    /// Variable traces keyed by the stable variable-cell identity. Newest
+    /// trace last; fired newest-first.
+    var_traces: HashMap<VarId, Vec<VarTrace>>,
     /// Source of [`VarTrace::id`]s; never reused within an interpreter.
     next_var_trace_id: u64,
     /// `trace add command` registrations (`rename`/`delete` ops), keyed by the
@@ -1084,8 +1111,9 @@ pub struct InterpState {
     /// Stable semantic identities explicitly attached to guardable builtins.
     /// Ordinary command registration cannot authorise a fast path.
     guarded_commands: std::cell::RefCell<HashMap<String, BTreeSet<GuardIdentity>>>,
-    /// Re-entrancy guard: `"<key>\0<op>"` entries for traces currently firing.
-    active_traces: std::collections::HashSet<String>,
+    /// Resolved variable cells whose traces are currently firing. Tcl's guard
+    /// lives on each `Var`, so distinct elements of one array remain distinct.
+    active_traces: Vec<VarId>,
     /// Frame depths at which the currently-executing `namespace eval`/`inscope`
     /// bodies started (innermost last). A namespace body runs in the frame that
     /// invoked it, so when the current frame depth matches the innermost entry
@@ -1267,41 +1295,8 @@ pub struct InterpState {
     /// `[info coroutine]` + the yield-boundary check), and the pending
     /// `yield`/`yieldto` request. See [`crate::cmd_coro`].
     pub(crate) coro: crate::cmd_coro::CoroSystem,
-    /// A script an `eval`/`uplevel`/`apply`-style builtin wants run on the
-    /// *explicit* stack (so a `yield` in it stays yieldable): the compiled body,
-    /// its `errorInfo` body label, and an optional command name to delete once
-    /// the pushed frame completes (`apply`'s temporary lambda proc — issue
-    /// #1311). Set by the builtin and drained by `dispatch_words` into a
-    /// [`Tick::PushScript`](crate::exec) (or run via a nested drive on the
-    /// `invoke_command` fallback path), mirroring how `coro.pending` becomes a
-    /// `Tick::Suspend`.
-    pub(crate) pending_eval: Option<(CompiledUnit, Option<&'static str>, Option<String>)>,
-    /// A `catch` body an about-to-run `catch` wants evaluated on the *explicit*
-    /// stack (so a `yield` in it stays yieldable). Unlike `pending_eval`, the
-    /// body's completion is **absorbed** (not propagated): a catch frame runs it
-    /// and its epilogue records the result/options and yields the status code.
-    /// Set by `cmd_catch`, drained by `dispatch_words` into a
-    /// [`Tick::PushCatch`](crate::exec) (or run via a nested drive on the
-    /// `invoke_command` fallback).
-    pub(crate) pending_catch: Option<crate::exec::CatchReq>,
-    /// A `subst` an about-to-run `subst` command wants performed on the *explicit*
-    /// stack (so a `yield` in a `[…]` stays yieldable). Set by `cmd_subst`, drained
-    /// by `dispatch_words` into a [`Tick::PushSubst`](crate::exec) (or run via a
-    /// nested drive on the `invoke_command` fallback). See [`Frame::subst`].
-    pub(crate) pending_subst: Option<crate::exec::SubstReq>,
-    /// A `foreach`/`lmap` runtime-fallback loop an about-to-run `each_loop` wants
-    /// driven on the *explicit* stack (so a `yield` in its body stays yieldable —
-    /// issue #1311). Set by `each_loop`, drained by `dispatch_words` into a
-    /// [`Tick::PushEachLoop`](crate::exec) (or run via a nested drive on the
-    /// `invoke_command` fallback). See [`Frame::each_loop`].
-    pub(crate) pending_each_loop: Option<crate::exec::EachLoopReq>,
-    /// A `try`'s next phase (body/handler/finally) an about-to-run `try` wants
-    /// driven on the *explicit* stack (so a `yield` anywhere in it stays
-    /// yieldable — issue #1311). Set by `cmd_try`/`advance_try`, drained by
-    /// `dispatch_words` into a [`Tick::PushTry`](crate::exec) (or run via a
-    /// nested drive loop on the `invoke_command` fallback). See
-    /// [`Frame::try_ctx`].
-    pub(crate) pending_try: Option<crate::cmd_try::TryReq>,
+    /// Requests staged by control builtins and drained into stack ticks.
+    pub(crate) pending: PendingControl,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -1422,6 +1417,36 @@ struct CmdArena {
     fqns: Vec<String>,
 }
 
+/// The name table containing one variable binding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum VarTableOwner {
+    Frame(usize),
+    Namespace(NsId),
+}
+
+/// A resolved name-table slot. The bound cell may still be absent.
+#[derive(Clone, Debug)]
+struct VarBinding {
+    owner: VarTableOwner,
+    name: String,
+}
+
+/// One resolved variable access, including an optional array element cell.
+#[derive(Clone, Debug)]
+struct ResolvedVar {
+    binding: VarBinding,
+    base_id: Option<VarId>,
+    id: Option<VarId>,
+    elem: Option<String>,
+}
+
+/// The direct name-table slot retained by an array operation reference.
+#[derive(Clone, Debug)]
+enum ArrayOperationBinding {
+    Variable(VarBinding),
+    Element,
+}
+
 /// A single registered variable trace.
 #[derive(Clone)]
 struct VarTrace {
@@ -1445,10 +1470,36 @@ struct VarTrace {
     old_style: bool,
 }
 
+/// The resolved storage cell used by both trace registration and firing.
+///
+/// Tcl marks the reached `Var` active, not its whole variable table entry: an
+/// array and each one of its elements therefore have separate identities.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct VarTraceCell {
+    id: Option<VarId>,
+    array: Option<VarId>,
+    elem: Option<String>,
+}
+
+impl VarTraceCell {
+    fn array_id(&self) -> Option<VarId> {
+        self.array
+    }
+}
+
+/// A trace list detached from a variable before unset callbacks run.
+struct TakenVarTraces {
+    cell: VarTraceCell,
+    entries: Vec<VarTrace>,
+    /// Whether an element access may also walk its containing array's live
+    /// traces. Whole-array destruction disables this for its element pass.
+    include_array: bool,
+}
+
 /// One group of variable traces a firing walks: the array's or the variable's
 /// own list, still in the table, or a list an unset has already taken out of it.
 enum TraceGroup {
-    Live(String),
+    Live(VarId),
     Taken(Vec<VarTrace>),
 }
 
@@ -1927,6 +1978,9 @@ impl InterpState {
             profile_generation: 0,
             compiler_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
+            var_arena: VarArena::default(),
+            ns_vars: HashMap::new(),
+            const_vars: HashSet::new(),
             commands: HashMap::new(),
             command_generations: HashMap::new(),
             next_command_generation: 0,
@@ -1971,7 +2025,7 @@ impl InterpState {
             cmd_epoch: std::cell::Cell::new(0),
             guards: std::cell::RefCell::new(guards),
             guarded_commands: std::cell::RefCell::new(HashMap::new()),
-            active_traces: std::collections::HashSet::new(),
+            active_traces: Vec::new(),
             ns_script_frames: Vec::new(),
             out,
             compiler: None,
@@ -2006,17 +2060,11 @@ impl InterpState {
             limits: LimitSet::default(),
             commands_run: 0,
             limit_tick: 0,
-            // A fixed non-zero default so an un-`srand`'d `rand()` is still
-            // deterministic; Tcl auto-seeds from the clock, but reproducibility
-            // is more useful for the VM and every test seeds explicitly.
+            // Keep an unseeded VM deterministic; tests seed explicitly.
             rand_seed: 1,
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
-            pending_eval: None,
-            pending_catch: None,
-            pending_subst: None,
-            pending_each_loop: None,
-            pending_try: None,
+            pending: PendingControl::default(),
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         }
@@ -2329,9 +2377,13 @@ impl Vm {
 
     fn unset_global_raw(&mut self, name: &str) {
         let key = name.strip_prefix("::").unwrap_or(name);
-        if let Some(global) = self.frames.first_mut() {
-            global.locals.remove(key);
-            global.consts.remove(key);
+        let id = self
+            .frames
+            .first_mut()
+            .and_then(|global| global.locals.remove(key));
+        if let Some(id) = id {
+            self.purge_variable_cell(id);
+            self.var_arena.unbind(id);
         }
     }
 
@@ -4954,6 +5006,7 @@ impl Vm {
         let id = NsId(u32::try_from(self.ns_arena.len()).expect("namespace count fits u32"));
         self.ns_arena.push(name.to_string());
         self.ns_intern.insert(name.to_string(), id);
+        self.ns_vars.entry(id).or_default();
         id
     }
 
@@ -5434,7 +5487,9 @@ impl Vm {
 
     /// Whether the exact namespace token is currently being torn down.
     pub(crate) fn namespace_is_dying(&self, ns: &str) -> bool {
-        self.dying_namespaces.contains(ns)
+        self.ns_intern
+            .get(ns)
+            .is_some_and(|id| self.dying_namespaces.contains(id))
     }
 
     /// Whether `ns` lies at or below a namespace whose token is currently
@@ -5442,13 +5497,20 @@ impl Vm {
     /// teardown reaches them, but Tcl must reject attempts to create a new
     /// namespace anywhere below a dying ancestor.
     fn namespace_in_dying_subtree(&self, ns: &str) -> bool {
-        self.dying_namespaces.iter().any(|dying| {
-            dying.is_empty()
-                || ns == dying
-                || ns
-                    .strip_prefix(dying)
-                    .is_some_and(|tail| tail.starts_with("::"))
-        })
+        let mut candidate = ns.to_owned();
+        loop {
+            if self
+                .ns_intern
+                .get(&candidate)
+                .is_some_and(|id| self.dying_namespaces.contains(id))
+            {
+                return true;
+            }
+            if candidate.is_empty() {
+                return false;
+            }
+            candidate = key_holder_and_tail_unrooted(&candidate).0;
+        }
     }
 
     /// Whether a qualified command definition may name `namespace` (C's
@@ -6381,6 +6443,67 @@ impl Vm {
         true
     }
 
+    /// Destroy one namespace's variable cells in Tcl's trace-visible order.
+    ///
+    /// `TclDeleteNamespaceVars` removes one old cell, fires its unset traces,
+    /// then forcibly purges any same-name value or traces recreated by those
+    /// callbacks before selecting the next cell. A callback-created *different*
+    /// variable remains in the table and receives its own teardown pass.
+    fn teardown_namespace_variables(&mut self, canonical: &str, id: NsId) {
+        loop {
+            let mut names: Vec<String> = self
+                .var_table(VarTableOwner::Namespace(id))
+                .into_iter()
+                .flat_map(|table| table.keys().cloned())
+                .collect();
+            names.sort();
+            let Some(simple) = names.into_iter().next() else {
+                break;
+            };
+            let binding = VarBinding {
+                owner: VarTableOwner::Namespace(id),
+                name: simple.clone(),
+            };
+            let raw = self
+                .var_table(binding.owner)
+                .and_then(|table| table.get(&simple))
+                .copied();
+            let written = if canonical.is_empty() {
+                format!("::{simple}")
+            } else {
+                format!("::{canonical}::{simple}")
+            };
+            if let Some(raw) = raw
+                && !matches!(
+                    self.var_arena.get(raw).map(crate::vars::VarCell::state),
+                    Some(Local::Link(_))
+                )
+            {
+                let resolved = ResolvedVar {
+                    binding: binding.clone(),
+                    base_id: self.var_arena.resolve(raw),
+                    id: self.var_arena.resolve(raw),
+                    elem: None,
+                };
+                let _ = self.unset_resolved(&written, &resolved);
+            }
+
+            // An unset callback may have recreated this exact cell and added a
+            // new trace. The dying namespace owns both, and C discards them
+            // without a second callback before continuing its table walk.
+            let recreated = self
+                .var_table_mut(binding.owner)
+                .and_then(|table| table.remove(&simple));
+            if let Some(recreated) = recreated {
+                self.purge_variable_cell(recreated);
+                self.var_arena.unbind(recreated);
+            }
+        }
+        if id != ROOT_NS {
+            self.ns_vars.remove(&id);
+        }
+    }
+
     /// Tear down one exact namespace token in Tcl's recursive order. C drains
     /// `nsPtr->ensembles` while the token is live, marks this namespace dying,
     /// tears down this token's commands and state, and only then recursively
@@ -6403,10 +6526,9 @@ impl Vm {
         // commands remain table-visible while their delete callbacks run, and
         // existing child namespace tokens remain live until recursion reaches
         // each child.
-        self.dying_namespaces.insert(canonical.to_owned());
-        if let Some(id) = self.ns_intern.get(canonical).copied()
-            && id != ROOT_NS
-        {
+        let id = self.ns_intern.get(canonical).copied().unwrap_or(ROOT_NS);
+        self.dying_namespaces.insert(id);
+        if id != ROOT_NS {
             self.dead_namespaces.insert(id);
         }
         if !deleting_root {
@@ -6416,6 +6538,12 @@ impl Vm {
                 order.remove(tail.as_bytes());
             }
         }
+
+        // Tcl destroys the variable table before the command table. Variable
+        // unset callbacks see this namespace as dying but can still address
+        // its cells; each cell is removed separately so later variables remain
+        // visible until their own turn. Issue #1575.
+        self.teardown_namespace_variables(canonical, id);
 
         // Delete this namespace's command table to a fixed point. A command
         // callback may replace the dying command or install another owned
@@ -6436,12 +6564,6 @@ impl Vm {
                 // map ever disagrees with the order owner.
                 break;
             }
-        }
-
-        if let Some(global) = self.frames.first_mut() {
-            global
-                .locals
-                .retain(|key, _| key_holder_and_tail_unrooted(key).0 != canonical);
         }
 
         // Drop this token's path/unknown state and remove it from every other
@@ -6476,7 +6598,7 @@ impl Vm {
         } else {
             self.ns_intern.remove(canonical);
         }
-        self.dying_namespaces.remove(canonical);
+        self.dying_namespaces.remove(&id);
     }
 
     // -- deferred teardown: retaining a token for its live frames ------------
@@ -6613,7 +6735,15 @@ impl Vm {
     /// One retained token's teardown, mirroring [`Self::delete_namespace_token`]
     /// over the record's tables.
     fn delete_retained_token(&mut self, record: &mut RetainedNamespace, canonical: &str) {
-        self.dying_namespaces.insert(canonical.to_owned());
+        // Variable tables remain attached to their stable namespace tokens,
+        // so this final teardown cannot touch a same-spelled live recreation.
+        let id = record
+            .subtree
+            .get(canonical)
+            .copied()
+            .unwrap_or(record.root);
+        self.dying_namespaces.insert(id);
+        self.teardown_namespace_variables(canonical, id);
         loop {
             let frontier = retained_command_hash_order(record, canonical);
             if frontier.is_empty() {
@@ -6636,14 +6766,6 @@ impl Vm {
         } else {
             format!("{canonical}::")
         };
-        // M1 gap: a retained token's variables stay in the global storage
-        // frame under their canonical names, so a same-named recreation shares
-        // them. Only the commands moved into the record.
-        if let Some(global) = self.frames.first_mut() {
-            global
-                .locals
-                .retain(|key, _| key_holder_and_tail_unrooted(key).0 != canonical);
-        }
         record.paths.remove(canonical);
         record.unknowns.remove(canonical);
         for path in self.ns_paths.values_mut() {
@@ -6669,7 +6791,7 @@ impl Vm {
         record.exports.remove(canonical);
         record.child_orders.remove(canonical);
         record.command_orders.remove(canonical);
-        self.dying_namespaces.remove(canonical);
+        self.dying_namespaces.remove(&id);
     }
 
     /// Retire one retained command token. The shared lifecycle
@@ -6857,20 +6979,33 @@ impl Vm {
 
     // -- variable traces (`trace add|remove|info variable`) --
 
-    /// The resolved-owner key a variable name's traces are stored under, so a
-    /// trace fires regardless of access path (alias / qualified name). An array
-    /// *element* reference (`arr(key)`) keys on the resolved element so element
-    /// traces are distinct from each other and from whole-array traces.
-    fn trace_key(&self, name: &str) -> String {
-        if let Some((base, key)) = elem_ref(name) {
-            let base = self.trace_qualify(base);
-            let (lvl, nm) = self.locate(&base);
-            format!("{lvl}\u{0}{nm}({key})")
-        } else {
-            let name = self.trace_qualify(name);
-            let (lvl, nm) = self.locate(&name);
-            format!("{lvl}\u{0}{nm}")
+    /// Resolve the stable variable cell reached by `name`. This is the identity owner
+    /// for trace storage, firing, re-entrancy and destructive lifecycle paths.
+    fn trace_cell(&self, name: &str) -> Option<VarTraceCell> {
+        let lookup = self.trace_qualify(name);
+        let resolved = self.resolve_var_from(&lookup, self.current_level())?;
+        self.trace_cell_from_resolved(&resolved)
+    }
+
+    fn trace_cell_from_resolved(&self, resolved: &ResolvedVar) -> Option<VarTraceCell> {
+        if let Some(elem) = &resolved.elem {
+            resolved.base_id?;
+            return Some(VarTraceCell {
+                id: resolved.id,
+                array: resolved.base_id,
+                elem: Some(elem.clone()),
+            });
         }
+        let id = resolved.id?;
+        let parent = self
+            .var_arena
+            .element_parent(id)
+            .map(|(array, key)| (array, key.to_owned()));
+        Some(VarTraceCell {
+            id: Some(id),
+            array: parent.as_ref().map(|(array, _)| *array),
+            elem: parent.map(|(_, key)| key),
+        })
     }
 
     /// Resolve a bare variable name to its namespace-qualified form when the
@@ -6918,10 +7053,15 @@ impl Vm {
     /// wrong variable (issue #1328).
     fn ns_fallback_targets_global(&self, qualified: &str, name: &str) -> bool {
         let qualified = qualified.strip_prefix("::").unwrap_or(qualified);
-        self.ns_var_global_fallback()
-            && self.frames.first().is_some_and(|global| {
-                !global.locals.contains_key(qualified) && global.locals.contains_key(name)
-            })
+        let (parent, simple) = key_holder_and_tail_unrooted(qualified);
+        let namespace_has = self
+            .namespace_var_token(self.current_level(), &parent, false)
+            .and_then(|id| self.var_table(VarTableOwner::Namespace(id)))
+            .is_some_and(|table| table.contains_key(&simple));
+        let global_has = self
+            .var_table(VarTableOwner::Namespace(ROOT_NS))
+            .is_some_and(|table| table.contains_key(name));
+        self.ns_var_global_fallback() && !namespace_has && global_has
     }
 
     /// Register a `trace add variable` callback. `old_style` marks the
@@ -6933,9 +7073,17 @@ impl Vm {
         command: String,
         old_style: bool,
     ) {
-        let key = self.trace_key(name);
+        if self.trace_cell(name).is_none() {
+            let _ = self.ensure_trace_variable(name);
+        }
+        let Some(key) = self.trace_cell(name).and_then(|cell| cell.id) else {
+            return;
+        };
         self.next_var_trace_id += 1;
         let id = self.next_var_trace_id;
+        if !self.var_traces.contains_key(&key) {
+            self.var_arena.pin(key);
+        }
         self.var_traces.entry(key).or_default().push(VarTrace {
             id,
             ops,
@@ -6953,8 +7101,11 @@ impl Vm {
     /// The old-style flag is deliberately not part of the match (C masks
     /// `TCL_TRACE_OLD_STYLE` out here), so either spelling removes the other's.
     pub(crate) fn remove_var_trace(&mut self, name: &str, ops: &[String], command: &str) {
-        let key = self.trace_key(name);
+        let Some(key) = self.trace_cell(name).and_then(|cell| cell.id) else {
+            return;
+        };
         let mut removed = false;
+        let mut emptied = false;
         if let Some(list) = self.var_traces.get_mut(&key) {
             if let Some(index) = list
                 .iter()
@@ -6965,6 +7116,17 @@ impl Vm {
             }
             if list.is_empty() {
                 self.var_traces.remove(&key);
+                emptied = true;
+            }
+        }
+        if emptied {
+            self.var_arena.unpin(key);
+            if let Some((parent, element)) = self
+                .var_arena
+                .element_parent(key)
+                .map(|(parent, element)| (parent, element.to_owned()))
+            {
+                self.discard_undefined_array_shell(parent, &element, key);
             }
         }
         if removed {
@@ -7430,7 +7592,9 @@ impl Vm {
     /// The traces on `name` as `(ops, command)` pairs (newest first), for
     /// `trace info variable`.
     pub(crate) fn var_trace_info(&self, name: &str) -> Vec<(Vec<String>, String)> {
-        let key = self.trace_key(name);
+        let Some(key) = self.trace_cell(name).and_then(|cell| cell.id) else {
+            return Vec::new();
+        };
         self.var_traces.get(&key).map_or_else(Vec::new, |list| {
             list.iter()
                 .rev()
@@ -7440,15 +7604,211 @@ impl Vm {
     }
 
     /// Fire the variable traces for `name` on operation `op`, running each
-    /// callback as `command name1 name2 op`. A read/write callback error aborts
-    /// the access (`can't read`/`can't set "name": …`); unset errors are
-    /// ignored. Re-entrant firing of the same variable+op is suppressed.
+    /// callback as `command name1 name2 op`. A read/write/array callback error
+    /// aborts the access; unset errors are ignored. Re-entrant firing of the
+    /// same resolved variable cell is suppressed.
     pub(crate) fn fire_var_traces(
         &mut self,
         name: &str,
         op: &str,
     ) -> Result<(), Completion<Value>> {
         self.fire_var_traces_reporting(name, op, None)
+    }
+
+    /// Read through one stable variable identity across a callback. If no cell
+    /// existed before the read trace, the callback may create it and the name
+    /// is resolved once afterwards; otherwise deletion/recreation of the same
+    /// spelling must not steer the pending read to the replacement cell.
+    pub(crate) fn read_var_traced(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<Value>, Completion<Value>> {
+        let cell = self.trace_cell(name).and_then(|cell| cell.id);
+        self.fire_var_traces(name, "read")?;
+        Ok(cell.map_or_else(|| self.var_get(name), |id| self.read_resolved_cell(id)))
+    }
+
+    /// Element form of [`Self::read_var_traced`]. Keeping the already-split
+    /// base/key pair avoids recomposing names whose array base contains an
+    /// opening parenthesis, while the captured cell keeps post-trace lookup on
+    /// the original identity.
+    pub(crate) fn read_elem_traced(
+        &mut self,
+        name: &str,
+        key: &str,
+    ) -> Result<Option<Value>, Completion<Value>> {
+        let full = format!("{name}({key})");
+        let cell = self.trace_cell(&full).and_then(|cell| cell.id);
+        self.fire_var_traces(&full, "read")?;
+        Ok(cell.map_or_else(
+            || self.get_array_elem(name, key),
+            |id| self.read_resolved_cell(id),
+        ))
+    }
+
+    /// `info exists` form of a traced lookup. Trace errors are deliberately
+    /// ignored, but a same-name replacement created by a callback must not
+    /// change the answer for a cell that existed before the callback.
+    pub(crate) fn exists_var_traced(&mut self, name: &str) -> bool {
+        let cell = self.trace_cell(name).and_then(|cell| cell.id);
+        let _ = self.fire_var_traces(name, "read");
+        cell.map_or_else(
+            || self.exists_var(name),
+            |id| {
+                self.var_arena
+                    .get(id)
+                    .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_) | Local::Array(_)))
+            },
+        )
+    }
+
+    /// Fire the `array` operation traces checked by every `array` subcommand.
+    /// Tcl's `LocateArray` does this when the exact reached cell has an array
+    /// trace and is an array or undefined, but not for a defined scalar. A
+    /// direct undefined element walks its parent then its own trace list; an
+    /// alias to that element walks only the element list. Callback errors abort
+    /// the subcommand and retain the callback's errorCode.
+    fn fire_array_trace_at(
+        &mut self,
+        name: &str,
+        id: Option<VarId>,
+    ) -> Result<(), Completion<Value>> {
+        if self.var_traces.is_empty() {
+            return Ok(());
+        }
+        let Some(id) = id else {
+            return Ok(());
+        };
+        let parent = self
+            .var_arena
+            .element_parent(id)
+            .map(|(array, key)| (array, key.to_owned()));
+        let cell = VarTraceCell {
+            id: Some(id),
+            array: parent.as_ref().map(|(array, _)| *array),
+            elem: parent.map(|(_, key)| key),
+        };
+        let has_array_trace = self.var_traces.get(&id).is_some_and(|traces| {
+            traces
+                .iter()
+                .any(|trace| trace.ops.iter().any(|op| op == "array"))
+        });
+        let traceable_state = self
+            .var_arena
+            .get(id)
+            .is_some_and(|cell| matches!(cell.state(), Local::Undefined | Local::Array(_)));
+        if !has_array_trace || !traceable_state {
+            return Ok(());
+        }
+        self.fire_var_traces_from_cell(name, "array", None, None, Some(cell))
+    }
+
+    /// Locate and pin one array cell across its operation trace and command.
+    /// This is the VM's `LocateArray` boundary: callbacks may remove the last
+    /// binding or retarget the source alias, but the shared array core can
+    /// still enumerate the cell Tcl originally reached.
+    pub(crate) fn with_array_trace_target(
+        &mut self,
+        name: &str,
+        operation: impl FnOnce(&mut Self, &ArrayTarget) -> Completion<Value>,
+    ) -> Completion<Value> {
+        let here = FrameId(self.current_level());
+        let target = VarStore::array_target(self, here, name);
+        let id = target.cell_id();
+        let protected_binding = id.and_then(|id| self.array_operation_binding(id));
+        if let Some(id) = id {
+            self.var_arena.retain_operation(id);
+        }
+        let result = match self.fire_array_trace_at(name, id) {
+            Ok(()) => operation(self, &target),
+            Err(completion) => completion,
+        };
+        if let Some(id) = id {
+            if let Some(binding) = protected_binding {
+                self.release_array_operation_binding(&binding, id);
+            }
+            self.var_arena.release_operation(id);
+        }
+        result
+    }
+
+    /// Drop the undefined name-table shell retained for a direct array
+    /// operation once its final operation reference leaves. Keeping that shell
+    /// during the callback lets an unset-and-recreate refill the same Tcl
+    /// variable cell; a namespace token that is deleted and recreated owns a
+    /// different table and therefore remains a distinct identity.
+    fn array_operation_binding(&self, id: VarId) -> Option<ArrayOperationBinding> {
+        if let Some((parent, key)) = self.var_arena.element_parent(id)
+            && matches!(
+                self.var_arena.get(parent).map(crate::vars::VarCell::state),
+                Some(Local::Array(elements)) if elements.get(key) == Some(&id)
+            )
+        {
+            return Some(ArrayOperationBinding::Element);
+        }
+        for (level, frame) in self.frames.iter().enumerate() {
+            if let Some((name, _)) = frame.locals.iter().find(|(_, raw)| **raw == id) {
+                return Some(ArrayOperationBinding::Variable(VarBinding {
+                    owner: VarTableOwner::Frame(level),
+                    name: name.clone(),
+                }));
+            }
+        }
+        for (&ns, table) in &self.ns_vars {
+            if let Some((name, _)) = table.iter().find(|(_, raw)| **raw == id) {
+                return Some(ArrayOperationBinding::Variable(VarBinding {
+                    owner: VarTableOwner::Namespace(ns),
+                    name: name.clone(),
+                }));
+            }
+        }
+        None
+    }
+
+    fn release_array_operation_binding(&mut self, binding: &ArrayOperationBinding, id: VarId) {
+        let ArrayOperationBinding::Variable(binding) = binding else {
+            // If the final trace was removed while this element operation held
+            // the cell, Tcl leaves the undefined hash shell attached. It stays
+            // a candidate for later array searches until an explicit unset or
+            // parent teardown removes it.
+            return;
+        };
+        let discard = self.var_arena.is_final_operation_ref(id)
+            && matches!(
+                self.var_arena.get(id).map(crate::vars::VarCell::state),
+                Some(Local::Undefined)
+            )
+            && !self.var_arena.has_link_refs(id)
+            && !self.var_traces.contains_key(&id);
+        if !discard {
+            return;
+        }
+        let removed = self
+            .var_table_mut(binding.owner)
+            .and_then(|table| {
+                (table.get(&binding.name) == Some(&id)).then(|| table.remove(&binding.name))
+            })
+            .flatten();
+        if let Some(raw) = removed {
+            self.const_vars.remove(&id);
+            self.var_arena.unbind(raw);
+        }
+    }
+
+    /// Remove one unreferenced undefined element shell when its final trace is
+    /// removed outside an operation that retains that element. An operation-
+    /// retained shell deliberately survives its eventual release.
+    fn discard_undefined_array_shell(&mut self, parent: VarId, key: &str, id: VarId) {
+        let discard = matches!(
+            self.var_arena.get(id).map(crate::vars::VarCell::state),
+            Some(Local::Undefined)
+        ) && !self.var_arena.has_link_refs(id)
+            && !self.var_arena.has_operation_refs(id)
+            && !self.var_traces.contains_key(&id);
+        if discard && let Some(raw) = self.var_arena.array_discard_if(parent, key, id) {
+            self.const_vars.remove(&id);
+            self.var_arena.unbind(raw);
+        }
     }
 
     /// [`fire_var_traces`](Self::fire_var_traces) with an explicit `name1` for
@@ -7474,7 +7834,18 @@ impl Vm {
         name: &str,
         op: &str,
         reported_name1: Option<&str>,
-        taken: Option<Vec<VarTrace>>,
+        taken: Option<TakenVarTraces>,
+    ) -> Result<(), Completion<Value>> {
+        self.fire_var_traces_from_cell(name, op, reported_name1, taken, None)
+    }
+
+    fn fire_var_traces_from_cell(
+        &mut self,
+        name: &str,
+        op: &str,
+        reported_name1: Option<&str>,
+        taken: Option<TakenVarTraces>,
+        located: Option<VarTraceCell>,
     ) -> Result<(), Completion<Value>> {
         if self.var_traces.is_empty() && taken.is_none() {
             return Ok(());
@@ -7483,22 +7854,88 @@ impl Vm {
             || (name.to_string(), String::new()),
             |(b, k)| (b.to_string(), k.to_string()),
         );
-        // Tcl suppresses *all* of a variable's traces while any one of them is
-        // being handled (the documented "traces are disabled during the
-        // handling of other traces" behaviour — see tcltest's outputChannel
-        // notes). The unit of suppression is the whole variable (every array
-        // element, every operation), so a read trace that writes the same
-        // variable won't re-enter its write trace, and a whole-array read trace
-        // fires only once per top-level access rather than per element.
-        let (base_lvl, base_nm) = self.locate(&base);
-        let active_key = format!("{base_lvl}\u{0}{base_nm}");
-        if self.active_traces.contains(&active_key) {
+        // C's `VAR_TRACE_ACTIVE` belongs to the reached `Var`: the whole array
+        // and every element are separate cells. A callback may therefore enter
+        // a different element, while a recursive access to this exact cell is
+        // suppressed regardless of operation. Issue #1574.
+        let Some(cell) = located.or_else(|| {
+            taken
+                .as_ref()
+                .map_or_else(|| self.trace_cell(name), |taken| Some(taken.cell.clone()))
+        }) else {
+            return Ok(());
+        };
+        // Unset moves the trace list to a dummy `Var` and clears its active
+        // bit, so unsetting the cell from its own write callback still fires
+        // that taken list. Other recursive operations on the cell stay gated.
+        let taken_unset = op == "unset" && taken.is_some();
+        if cell.id.is_some_and(|id| self.active_traces.contains(&id)) && !taken_unset {
             return Ok(());
         }
-        self.active_traces.insert(active_key.clone());
-        let r = self.fire_var_traces_inner(name, op, reported_name1.unwrap_or(&base), &elem, taken);
-        self.active_traces.remove(&active_key);
+        let array_active = cell
+            .array_id()
+            .is_some_and(|array| self.active_traces.contains(&array));
+        if let Some(id) = cell.id {
+            self.active_traces.push(id);
+        }
+        let r = self.fire_var_traces_inner(
+            name,
+            op,
+            (reported_name1.unwrap_or(&base), &elem),
+            &cell,
+            array_active,
+            taken,
+        );
+        if let Some(id) = cell.id {
+            let popped = self.active_traces.pop();
+            debug_assert_eq!(popped, Some(id));
+        }
         r
+    }
+
+    /// Select the parent-array and reached-cell trace groups in Tcl order.
+    /// Tcl 9 also recovers the parent and element name through a scalar-looking
+    /// alias to an array element; the release policy owns that distinction.
+    fn variable_trace_groups(
+        &self,
+        name: &str,
+        elem: &str,
+        cell: &VarTraceCell,
+        array_active: bool,
+        taken: Option<TakenVarTraces>,
+        op: &str,
+    ) -> (Vec<TraceGroup>, String) {
+        let mut groups = Vec::with_capacity(2);
+        let mut name2 = elem.to_string();
+        let include_array = taken.as_ref().is_none_or(|taken| taken.include_array);
+        if elem_ref(name).is_some() {
+            if include_array
+                && !array_active
+                && let Some(array) = cell.array_id()
+            {
+                groups.push(TraceGroup::Live(array));
+            }
+        } else if self.runtime_version.traces_recover_linked_array_element()
+            && let Some(rkey) = &cell.elem
+        {
+            if op != "array"
+                && include_array
+                && !array_active
+                && let Some(array) = cell.array_id()
+            {
+                groups.push(TraceGroup::Live(array));
+            }
+            name2.clone_from(rkey);
+        }
+        match taken {
+            Some(taken) => groups.push(TraceGroup::Taken(taken.entries)),
+            None => {
+                if let Some(id) = cell.id {
+                    groups.push(TraceGroup::Live(id));
+                }
+            }
+        }
+        (groups, name2)
     }
 
     /// Inner firing loop for [`Self::fire_var_traces`]: run the whole-array
@@ -7508,38 +7945,20 @@ impl Vm {
         &mut self,
         name: &str,
         op: &str,
-        name1: &str,
-        elem: &str,
-        taken: Option<Vec<VarTrace>>,
+        reported: (&str, &str),
+        cell: &VarTraceCell,
+        array_active: bool,
+        taken: Option<TakenVarTraces>,
     ) -> Result<(), Completion<Value>> {
+        let (name1, elem) = reported;
         // For an element access C walks the containing array's trace list
         // first and the element's own list second (`TclCallVarTraces`,
         // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
         // `varPtr` loop at :2623) — regardless of which was registered first.
         // Issue #1440.
-        let mut groups = Vec::with_capacity(2);
-        let mut name2 = elem.to_string();
-        if let Some((base, _)) = elem_ref(name) {
-            let (lvl, nm) = self.locate(base);
-            groups.push(TraceGroup::Live(format!("{lvl}\u{0}{nm}")));
-        } else if self.runtime_version.traces_recover_linked_array_element() {
-            // From Tcl 9.0 an access whose spelling names no element but whose
-            // resolved variable *is* one (`upvar #0 a(k) e; set e 5`) recovers
-            // the containing array — so the array's traces run too — and the
-            // element's key, reported as `name2`. Issue #1633 row 7.
-            let (lvl, nm) = self.locate(name);
-            if let Some((rbase, rkey)) = elem_ref(&nm) {
-                let (blvl, bnm) = self.locate_key_from(rbase, lvl);
-                groups.push(TraceGroup::Live(format!("{blvl}\u{0}{bnm}")));
-                name2 = rkey.to_string();
-            }
-        }
-        groups.push(match taken {
-            Some(list) => TraceGroup::Taken(list),
-            None => TraceGroup::Live(self.trace_key(name)),
-        });
+        let (groups, name2) = self.variable_trace_groups(name, elem, cell, array_active, taken, op);
         for group in groups {
-            // Walk newest-first (the Vec is oldest-last), by identity: a
+            // Walk newest-first (the Vec is oldest-first), by identity: a
             // callback's `trace remove` unlinks its record from the live list
             // at once, and C's walk then skips it — so the id is re-found in
             // the table before every callback rather than trusting a snapshot.
@@ -7556,14 +7975,14 @@ impl Vm {
                     .collect(),
             };
             let live_key = match &group {
-                TraceGroup::Live(key) => key.as_str(),
-                TraceGroup::Taken(_) => "",
+                TraceGroup::Live(key) => Some(*key),
+                TraceGroup::Taken(_) => None,
             };
             for step in steps {
                 let entry = match step {
                     Step::Live(id) => self
                         .var_traces
-                        .get(live_key)
+                        .get(&live_key.expect("live trace group has a key"))
                         .and_then(|list| list.iter().find(|t| t.id == id))
                         .filter(|t| t.ops.iter().any(|o| o == op))
                         .map(|t| (t.command.clone(), t.old_style)),
@@ -7579,23 +7998,40 @@ impl Vm {
                     tcl_brace(&name2),
                     tcl_cmd_core::trace::callback_op_word(op, old_style)
                 );
-                let r = self.eval_source(&script);
-                let failed = match r {
+                let failed = match self.eval_source(&script) {
                     Ok(c) if c.code.is_ok() => None,
-                    Ok(c) => Some(c.result.to_str().to_string()),
-                    Err(e) => Some(e.message),
+                    Ok(c) => Some(c),
+                    Err(error) => Some(crate::command::completion_from_tcl_error(error)),
                 };
-                if let Some(msg) = failed {
+                if let Some(mut failure) = failed {
                     match op {
-                        "write" | "read" => {
+                        "write" | "read" | "array" => {
                             // C's `TclCallVarTraces` logs a `(write|read trace
                             // on "name")` frame, then clears ERR_ALREADY_LOGGED
                             // so the command that triggered the trace logs its
                             // own `invoked from within` frame as the error
                             // unwinds (set-2.4 / set-4.4).
                             self.append_var_trace_frame(op, name);
-                            let verb = if op == "write" { "set" } else { "read" };
-                            return Err(err(format!("can't {verb} \"{name}\": {msg}")));
+                            let verb = match op {
+                                "write" => "set",
+                                "array" => "trace array",
+                                _ => "read",
+                            };
+                            let message = failure.result.to_str().to_string();
+                            failure.code = Code::Error;
+                            failure.result =
+                                Value::string(format!("can't {verb} \"{name}\": {message}"));
+                            if op != "array" {
+                                let kind = if op == "write" { "WRITE" } else { "READ" };
+                                let code =
+                                    tcl_syntax::list::join_list(["TCL", kind, "VARNAME", name]);
+                                failure.options = crate::command::with_return_option(
+                                    &crate::command::completion_options(&failure),
+                                    "-errorcode",
+                                    Value::string(code),
+                                );
+                            }
+                            return Err(failure);
                         }
                         _ => {} // unset trace errors are ignored
                     }
@@ -8009,9 +8445,32 @@ impl Vm {
 
     pub(crate) fn pop_call_frame(&mut self) {
         if self.frames.len() > 1 {
-            self.fire_frame_unset_traces();
-            self.frames.pop();
+            let frame = self.frames.pop().expect("non-global frame exists");
             self.recursion_depth = self.recursion_depth.saturating_sub(1);
+            // Tcl switches to the caller before firing a departing frame's
+            // unset callbacks. The namespace stacks are retired separately by
+            // the activation owner, so hide their top entry only for this walk.
+            let has_departing_ns = self.ns_stack.len() > self.frames.len();
+            let departing_ns = has_departing_ns.then(|| self.ns_stack.pop()).flatten();
+            let departing_ns_id = has_departing_ns.then(|| self.ns_id_stack.pop()).flatten();
+            self.destroy_call_frame(frame);
+            if let Some(ns) = departing_ns {
+                self.ns_stack.push(ns);
+            }
+            if let Some(ns_id) = departing_ns_id {
+                self.ns_id_stack.push(ns_id);
+            }
+        }
+    }
+
+    /// Destroy every live activation above `len`, running the same variable
+    /// lifecycle as an ordinary return. Error unwinding and `uplevel` cleanup
+    /// must not bypass trace firing, link unbinding, or arena collection by
+    /// truncating the frame vector directly.
+    fn drain_call_frames_to(&mut self, len: usize) {
+        while self.frames.len() > len {
+            self.pop_call_frame();
+            self.pop_ns();
         }
     }
 
@@ -8022,30 +8481,18 @@ impl Vm {
     /// owned by another frame, whose trace fires when *that* frame goes. The
     /// fired traces are then dropped, since their variables no longer exist.
     /// Guarded on `var_traces` being non-empty, so it is free in the common case.
-    fn fire_frame_unset_traces(&mut self) {
-        if self.var_traces.is_empty() {
-            return;
+    fn destroy_call_frame(&mut self, frame: CallFrame) {
+        for (name, raw) in frame.locals {
+            if matches!(
+                self.var_arena.get(raw).map(crate::vars::VarCell::state),
+                Some(Local::Link(_))
+            ) {
+                self.purge_variable_cell(raw);
+                self.var_arena.unbind(raw);
+                continue;
+            }
+            self.destroy_owned_variable(&name, raw, None);
         }
-        let Some(frame) = self.frames.last() else {
-            return;
-        };
-        let level = frame.level;
-        // Genuine locals (scalars/arrays), sorted for a deterministic order.
-        let mut names: Vec<String> = frame
-            .locals
-            .iter()
-            .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
-            .map(|(n, _)| n.clone())
-            .collect();
-        names.sort();
-        for nm in &names {
-            // The frame is still on the stack, so the name resolves to this
-            // level; C ignores errors from unset traces, as does `fire_var_traces`.
-            let _ = self.fire_var_traces(nm, "unset");
-        }
-        // Drop every trace scoped to this frame level — those variables are gone.
-        let prefix = format!("{level}\u{0}");
-        self.var_traces.retain(|k, _| !k.starts_with(&prefix));
     }
 
     /// Fire `unset` traces on a suspended coroutine's parked locals as the
@@ -8053,11 +8500,8 @@ impl Vm {
     /// parked flow in, unwind it frame by frame (each `pop_call_frame` fires that
     /// frame's unset traces), then swap the caller's flow back (`parked` is left
     /// emptied for the caller to drop). Matches C Tcl unsetting a deleted
-    /// coroutine's variables (coroutine-4.3). Free when no traces are registered.
+    /// coroutine's variables (coroutine-4.3).
     pub(crate) fn fire_parked_unset_traces(&mut self, parked: &mut ParkedFlow) {
-        if self.var_traces.is_empty() {
-            return;
-        }
         self.swap_flow(parked);
         while self.frames.len() > 1 {
             self.pop_call_frame();
@@ -8190,12 +8634,9 @@ impl Vm {
         let saved_ns_ids = self.ns_id_stack.split_off(ns_cut);
         let saved_depth = self.recursion_depth;
         let result = self.eval_source(src);
-        // Restore any frames the script left in place, then re-attach the ones
-        // we set aside (the script's own proc activations are already balanced).
-        // `truncate` may drop frames the script left unbalanced (an error mid
-        // proc), which `pop_call_frame` never saw — so reset the recursion depth
-        // to its pre-eval value rather than leak it.
-        self.frames.truncate(target + 1);
+        // Destroy any activation the script left in place through the ordinary
+        // lifecycle, then re-attach the frames set aside above.
+        self.drain_call_frames_to(target + 1);
         self.frames.extend(saved);
         self.ns_stack.truncate(ns_cut);
         self.ns_stack.extend(saved_ns);
@@ -8278,91 +8719,135 @@ impl Vm {
         self.frames.last().map_or_else(Vec::new, |f| {
             f.locals
                 .iter()
-                .filter(|(_, l)| include_links || matches!(l, Local::Scalar(_) | Local::Array(_)))
-                .map(|(n, _)| n.clone())
-                .collect()
-        })
-    }
-
-    /// The variables defined **directly** in namespace `canonical` (unrooted; `""`
-    /// = global) — the `Namespaces::vars_in` enumeration. Namespace variables live
-    /// in the global frame keyed by their qualified name (`foo::v`), so this is the
-    /// variable analogue of [`names_directly_in`](Self::names_directly_in): the
-    /// global frame's genuine variables (scalars/arrays, not links) whose key is a
-    /// direct member of `canonical`.
-    pub(crate) fn vars_directly_in(&self, canonical: &str) -> Vec<String> {
-        self.frames.first().map_or_else(Vec::new, |f| {
-            f.locals
-                .iter()
-                // A namespace-scoped `Link` is a real cell in the namespace's
-                // table — see `namespace_var_exists` for why C's
-                // `CompiledLocal` exclusion does not apply to it.
-                .filter(|(_, local)| {
-                    matches!(
-                        local,
-                        Local::Undefined | Local::Scalar(_) | Local::Array(_) | Local::Link { .. }
-                    )
+                .filter(|(_, id)| {
+                    include_links
+                        || matches!(
+                            self.var_arena.get(**id).map(crate::vars::VarCell::state),
+                            Some(Local::Scalar(_) | Local::Array(_))
+                        )
                 })
-                .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
+                .map(|(n, _)| n.clone())
                 .collect()
         })
     }
 
     /// Set a local directly in the current frame (proc argument binding).
     pub(crate) fn set_local(&mut self, name: &str, value: Value) {
-        if let Some(f) = self.frames.last_mut() {
-            f.locals.insert(name.to_owned(), Local::Scalar(value));
-        }
+        let binding = VarBinding {
+            owner: VarTableOwner::Frame(self.current_level()),
+            name: name.to_owned(),
+        };
+        let _ = self.bind_new_var(&binding, Local::Scalar(value));
     }
 
     /// Install a cross-frame link in the current frame (`upvar`/`global`).
-    pub(crate) fn add_link(&mut self, local: &str, level: usize, target: &str) {
-        if let Some(f) = self.frames.last_mut() {
-            f.locals.insert(
-                local.to_owned(),
-                Local::Link {
-                    level,
-                    name: target.to_owned(),
-                },
-            );
-        }
+    pub(crate) fn add_link(
+        &mut self,
+        local: &str,
+        level: usize,
+        target: &str,
+    ) -> Result<(), UpvarLinkError> {
+        self.add_link_with_origin(local, level, target, FrameLinkOrigin::Ordinary)
     }
 
-    /// Materialise an unset namespace-variable cell in the global storage
-    /// frame. `variable name` creates this table entry even without assigning a
-    /// value: namespace introspection sees it while `info exists` remains false.
-    pub(crate) fn declare_namespace_variable(&mut self, key: &str) {
-        let key = key.strip_prefix("::").unwrap_or(key);
-        if let Some(global) = self.frames.first_mut() {
-            global
-                .locals
-                .entry(key.to_owned())
-                .or_insert(Local::Undefined);
-        }
+    /// Install the automatic instance-variable projection for a `TclOO` method.
+    pub(crate) fn add_tcloo_instance_link(
+        &mut self,
+        local: &str,
+        level: usize,
+        target: &str,
+    ) -> Result<(), UpvarLinkError> {
+        self.add_link_with_origin(local, level, target, FrameLinkOrigin::TclOoInstance)
     }
 
-    /// Install a link in the global frame keyed by `alias` (a canonical,
-    /// namespace-qualified name). Used for namespace-level `upvar` aliases so
-    /// they coincide with the `variable`-resolved namespace variable.
-    pub(crate) fn add_global_link(&mut self, alias: &str, level: usize, target: &str) {
-        if let Some(f) = self.frames.first_mut() {
-            f.locals.insert(
-                alias.to_owned(),
-                Local::Link {
-                    level,
-                    name: target.to_owned(),
-                },
-            );
+    fn add_link_with_origin(
+        &mut self,
+        local: &str,
+        level: usize,
+        target: &str,
+        origin: FrameLinkOrigin,
+    ) -> Result<(), UpvarLinkError> {
+        let target = if origin == FrameLinkOrigin::TclOoInstance {
+            self.ensure_tcloo_storage_var_from(target, level)
+        } else {
+            self.ensure_target_var_from(target, level)
+        };
+        let Some(target) = target else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        let binding = VarBinding {
+            owner: VarTableOwner::Frame(self.current_level()),
+            name: local.to_owned(),
+        };
+        self.bind_link_var_with_origin(&binding, target, origin)
+    }
+
+    /// Materialise the direct object-namespace storage cell used by a `TclOO`
+    /// projection without collapsing a link it contains. Reads through the
+    /// method-local link still resolve transitively, while `info consts` can
+    /// test whether the declared storage binding itself is constant.
+    fn ensure_tcloo_storage_var_from(&mut self, name: &str, start: usize) -> Option<VarId> {
+        if elem_ref(name).is_some() {
+            return None;
         }
+        let binding = self.var_binding_from(name, start)?;
+        self.var_table(binding.owner)
+            .and_then(|table| table.get(&binding.name))
+            .copied()
+            .or_else(|| self.bind_new_var(&binding, Local::Undefined))
+    }
+
+    /// Materialise and link the namespace cell named by `variable`. Relative
+    /// names use the exact namespace token of the current activation, including
+    /// one retained after its public spelling was deleted and recreated.
+    pub(crate) fn link_namespace_variable(
+        &mut self,
+        local: &str,
+        written: &str,
+    ) -> Result<(), UpvarLinkError> {
+        let key = self.qualify_name(written);
+        let unrooted = key.strip_prefix("::").unwrap_or(&key);
+        let (parent, tail) = key_holder_and_tail_unrooted(unrooted);
+        let current = self.ns_id_stack.last().copied().unwrap_or(ROOT_NS);
+        let owner = if !written.starts_with("::") && self.ns_name(current) == parent {
+            Some(current)
+        } else if !written.starts_with("::") {
+            self.retained_record_of(current)
+                .and_then(|record| record.subtree.get(&parent).copied())
+                .or_else(|| self.ns_intern.get(&parent).copied())
+        } else {
+            self.ns_intern.get(&parent).copied()
+        };
+        let Some(owner) = owner else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        let target_binding = VarBinding {
+            owner: VarTableOwner::Namespace(owner),
+            name: tail,
+        };
+        let target = self
+            .bound_var_id(&target_binding)
+            .or_else(|| self.bind_new_var(&target_binding, Local::Undefined));
+        let Some(target) = target else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        if self.current_level() == 0 && owner == ROOT_NS && local == target_binding.name {
+            return Ok(());
+        }
+        let binding = VarBinding {
+            owner: VarTableOwner::Frame(self.current_level()),
+            name: local.to_owned(),
+        };
+        self.bind_link_var(&binding, target)
     }
 
     /// Resolve and install one `upvar` link, preserving Tcl's semantic homes.
     ///
-    /// Namespace variables are stored in frame zero in this VM, so resolving
-    /// the target before installing the link gives a representation-independent
-    /// answer to the lifetime check: any final non-zero procedure frame is a
-    /// procedure local. The check precedes alias shape/namespace validation, as
-    /// C's `MakeUpvar` does (`TCL UPVAR INVERTED`).
+    /// Resolving the target to its stable frame/namespace owner before
+    /// installing the link gives a representation-independent answer to the
+    /// lifetime check: any final non-zero procedure frame is a procedure local.
+    /// The check precedes alias shape/namespace validation, as C's `MakeUpvar`
+    /// does (`TCL UPVAR INVERTED`).
     pub(crate) fn link_upvar(
         &mut self,
         target_level: usize,
@@ -8375,25 +8860,22 @@ impl Vm {
             return Err(UpvarLinkError::TargetNamespace);
         }
 
-        // A direct namespace script executes in its caller's frame, but its
-        // unqualified variables live in the active namespace. Frame-only
-        // lookup cannot infer that home for frame zero (there is no synthetic
-        // namespace frame), so resolve this one written-name case before
-        // following links. Other target levels retain their own frame homes.
-        let target_base = if target_level == self.current_level()
-            && self.in_ns_script()
-            && !tcl_syntax::naming::is_qualified(other_base.as_bytes())
-        {
-            tcl_syntax::naming::qualify(self.current_ns(), other_base)
-        } else {
-            other_base.to_owned()
+        let Some(binding) = self.var_binding_from(other_base, target_level) else {
+            return Err(UpvarLinkError::TargetNamespace);
         };
-        let (owner_level, owner_base) = self.locate_from(&target_base, target_level);
-        // Link targets are internal keys after this boundary. Element aliases
-        // retain the already-split key while the base is resolved exactly once.
+        let owner_is_proc = match binding.owner {
+            VarTableOwner::Frame(level) => self
+                .frames
+                .get(level)
+                .is_some_and(|frame| frame.proc_name.is_some()),
+            VarTableOwner::Namespace(_) => false,
+        };
         let target_name =
-            other_key.map_or(owner_base.clone(), |key| format!("{owner_base}({key})"));
-        self.link_upvar_key(owner_level, &target_name, local)
+            other_key.map_or_else(|| other.to_owned(), |key| format!("{other_base}({key})"));
+        let Some(target) = self.ensure_target_var_from(&target_name, target_level) else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        self.install_upvar_link(target, owner_is_proc, local)
     }
 
     /// Install an `upvar`-family link to an already-resolved internal key.
@@ -8414,6 +8896,18 @@ impl Vm {
             .frames
             .get(owner_level)
             .is_some_and(|frame| frame.proc_name.is_some());
+        let Some(target) = self.ensure_target_var_from(target_name, owner_level) else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        self.install_upvar_link(target, owner_is_proc, local)
+    }
+
+    fn install_upvar_link(
+        &mut self,
+        target: VarId,
+        owner_is_proc: bool,
+        local: &str,
+    ) -> Result<(), UpvarLinkError> {
         let alias_is_namespace =
             tcl_syntax::naming::is_qualified(local.as_bytes()) || !self.in_proc_frame();
         if owner_is_proc && alias_is_namespace {
@@ -8428,20 +8922,73 @@ impl Vm {
 
         if alias_is_namespace {
             let alias = tcl_syntax::naming::qualify(self.current_ns(), local);
-            let alias = alias.strip_prefix("::").unwrap_or(&alias).to_owned();
-            self.add_global_link(&alias, owner_level, target_name);
+            let Some(binding) = self.var_binding_from(&alias, self.current_level()) else {
+                return Err(UpvarLinkError::LocalNamespace);
+            };
+            self.bind_link_var(&binding, target)?;
         } else {
-            self.add_link(local, owner_level, target_name);
+            let binding = VarBinding {
+                owner: VarTableOwner::Frame(self.current_level()),
+                name: local.to_owned(),
+            };
+            self.bind_link_var(&binding, target)?;
         }
         Ok(())
+    }
+
+    /// Install a link without discarding observable local state. Tcl reuses an
+    /// untraced undefined shell, and it may retarget an existing link, but a
+    /// defined scalar/array or a trace-only shell is an `upvar` error.
+    fn bind_link_var(&mut self, binding: &VarBinding, target: VarId) -> Result<(), UpvarLinkError> {
+        self.bind_link_var_with_origin(binding, target, FrameLinkOrigin::Ordinary)
+    }
+
+    fn bind_link_var_with_origin(
+        &mut self,
+        binding: &VarBinding,
+        target: VarId,
+        origin: FrameLinkOrigin,
+    ) -> Result<(), UpvarLinkError> {
+        if let Some(raw) = self
+            .var_table(binding.owner)
+            .and_then(|table| table.get(&binding.name))
+            .copied()
+        {
+            match self.var_arena.get(raw).map(crate::vars::VarCell::state) {
+                Some(Local::Link(_)) => {}
+                Some(Local::Undefined) => {
+                    if self
+                        .var_arena
+                        .resolve(raw)
+                        .is_some_and(|id| self.var_traces.contains_key(&id))
+                    {
+                        return Err(UpvarLinkError::Traced);
+                    }
+                }
+                Some(Local::Scalar(_) | Local::Array(_)) => {
+                    let traced = self
+                        .var_arena
+                        .resolve(raw)
+                        .is_some_and(|id| self.var_traces.contains_key(&id));
+                    return Err(if traced {
+                        UpvarLinkError::Traced
+                    } else {
+                        UpvarLinkError::Exists
+                    });
+                }
+                None => return Err(UpvarLinkError::Exists),
+            }
+        }
+        self.bind_new_link(binding, target, origin)
+            .map(|_| ())
+            .ok_or(UpvarLinkError::TargetNamespace)
     }
 
     /// Whether a `namespace eval`/`inscope` body is *directly* executing in the
     /// current frame. Returns `false` inside a proc called from such a body —
     /// a proc activation has its own scope where unqualified names are locals,
-    /// not namespace variables. We test this by recording the frame depth at
-    /// which each namespace script started and checking the innermost against
-    /// the current depth.
+    /// not namespace variables. Equality with the innermost recorded entry
+    /// distinguishes direct execution from a nested activation.
     pub(crate) fn in_ns_script(&self) -> bool {
         self.ns_script_frames.last() == Some(&self.frames.len())
     }
@@ -8456,13 +9003,265 @@ impl Vm {
         self.ns_script_frames.pop();
     }
 
-    /// Resolve `name` to the (frame level, owning name) that actually owns it,
-    /// following `upvar`/`global`/`variable` links. Any namespace-qualified name
-    /// (containing `::`, including a plain `::global`) lives in the global frame
-    /// keyed by its canonical name (leading `::` stripped) — this is where
-    /// namespace variables (`tcltest::numTests`) are stored.
-    fn locate(&self, name: &str) -> (usize, String) {
-        self.locate_from(name, self.frames.len().saturating_sub(1))
+    fn var_table(&self, owner: VarTableOwner) -> Option<&VarTable> {
+        match owner {
+            VarTableOwner::Frame(level) => self.frames.get(level).map(|frame| &frame.locals),
+            VarTableOwner::Namespace(ROOT_NS) => self.frames.first().map(|frame| &frame.locals),
+            VarTableOwner::Namespace(id) => self.ns_vars.get(&id),
+        }
+    }
+
+    fn var_table_mut(&mut self, owner: VarTableOwner) -> Option<&mut VarTable> {
+        match owner {
+            VarTableOwner::Frame(level) => {
+                self.frames.get_mut(level).map(|frame| &mut frame.locals)
+            }
+            VarTableOwner::Namespace(ROOT_NS) => {
+                self.frames.first_mut().map(|frame| &mut frame.locals)
+            }
+            VarTableOwner::Namespace(id) => self.ns_vars.get_mut(&id),
+        }
+    }
+
+    fn namespace_var_token(&self, start: usize, parent: &str, absolute: bool) -> Option<NsId> {
+        if parent.is_empty() {
+            return Some(ROOT_NS);
+        }
+        if absolute {
+            return self.ns_intern.get(parent).copied();
+        }
+        let current_id = self.ns_id_stack.get(start).copied().unwrap_or(ROOT_NS);
+        if self.ns_name(current_id) == parent {
+            return Some(current_id);
+        }
+        if let Some(record) = self.retained_record_of(current_id)
+            && let Some(id) = record.subtree.get(parent)
+        {
+            return Some(*id);
+        }
+        self.ns_intern.get(parent).copied()
+    }
+
+    /// Resolve a written base name to the frame or namespace-token table that
+    /// owns its binding. No cell is created here.
+    fn var_binding_from(&self, name: &str, start: usize) -> Option<VarBinding> {
+        if tcl_syntax::naming::is_qualified(name.as_bytes()) {
+            let canonical = self.canonical_var_name_from(name, start);
+            let unrooted = canonical.strip_prefix("::").unwrap_or(&canonical);
+            let (parent, tail) = key_holder_and_tail_unrooted(unrooted);
+            let id = self.namespace_var_token(start, &parent, name.starts_with("::"))?;
+            return Some(VarBinding {
+                owner: VarTableOwner::Namespace(id),
+                name: tail,
+            });
+        }
+
+        if start == 0 {
+            return Some(VarBinding {
+                owner: VarTableOwner::Namespace(ROOT_NS),
+                name: name.to_owned(),
+            });
+        }
+        let frame = self.frames.get(start)?;
+        if frame.locals.contains_key(name) {
+            return Some(VarBinding {
+                owner: VarTableOwner::Frame(start),
+                name: name.to_owned(),
+            });
+        }
+        if frame.ns_eval.is_some() {
+            let id = self.ns_id_stack.get(start).copied().unwrap_or(ROOT_NS);
+            let ns_has = self
+                .var_table(VarTableOwner::Namespace(id))
+                .is_some_and(|table| table.contains_key(name));
+            let global_has = self
+                .var_table(VarTableOwner::Namespace(ROOT_NS))
+                .is_some_and(|table| table.contains_key(name));
+            let owner = if self.ns_var_global_fallback() && !ns_has && global_has {
+                VarTableOwner::Namespace(ROOT_NS)
+            } else {
+                VarTableOwner::Namespace(id)
+            };
+            return Some(VarBinding {
+                owner,
+                name: name.to_owned(),
+            });
+        }
+        Some(VarBinding {
+            owner: VarTableOwner::Frame(start),
+            name: name.to_owned(),
+        })
+    }
+
+    fn bound_var_id(&self, binding: &VarBinding) -> Option<VarId> {
+        let id = *self.var_table(binding.owner)?.get(&binding.name)?;
+        self.var_arena.resolve(id)
+    }
+
+    fn resolve_var_from(&self, name: &str, start: usize) -> Option<ResolvedVar> {
+        let (base, elem) = elem_ref(name).map_or((name, None), |(base, key)| (base, Some(key)));
+        let binding = self.var_binding_from(base, start)?;
+        let base_id = self.bound_var_id(&binding);
+        let id = match (base_id, elem) {
+            (Some(base_id), Some(key)) => match self.var_arena.get(base_id)?.state() {
+                VarState::Array(elements) => elements
+                    .get(key)
+                    .copied()
+                    .and_then(|id| self.var_arena.resolve(id)),
+                _ => None,
+            },
+            (id, None) => id,
+            (None, Some(_)) => None,
+        };
+        Some(ResolvedVar {
+            binding,
+            base_id,
+            id,
+            elem: elem.map(str::to_owned),
+        })
+    }
+
+    fn bind_new_var(&mut self, binding: &VarBinding, state: VarState) -> Option<VarId> {
+        let id = self.var_arena.alloc(state)?;
+        self.install_new_var(binding, id);
+        Some(id)
+    }
+
+    fn bind_new_link(
+        &mut self,
+        binding: &VarBinding,
+        target: VarId,
+        origin: FrameLinkOrigin,
+    ) -> Option<VarId> {
+        let id = self.var_arena.alloc_link(target, origin)?;
+        self.install_new_var(binding, id);
+        Some(id)
+    }
+
+    fn install_new_var(&mut self, binding: &VarBinding, id: VarId) {
+        let old = self
+            .var_table_mut(binding.owner)
+            .expect("resolved variable owner has a table")
+            .insert(binding.name.clone(), id);
+        self.var_arena.bind(id);
+        if let Some(old) = old {
+            self.purge_variable_cell(old);
+            self.var_arena.unbind(old);
+        }
+    }
+
+    fn ensure_base_var_from(&mut self, name: &str, start: usize) -> Option<(VarBinding, VarId)> {
+        let binding = self.var_binding_from(name, start)?;
+        let id = self
+            .bound_var_id(&binding)
+            .or_else(|| self.bind_new_var(&binding, VarState::Undefined))?;
+        Some((binding, id))
+    }
+
+    /// Resolve an upvar target once and materialise its undefined cell. An
+    /// element target creates the containing array and its own stable element
+    /// cell, just as Tcl's `MakeUpvar` does.
+    fn ensure_target_var_from(&mut self, name: &str, start: usize) -> Option<VarId> {
+        let (base, elem) = elem_ref(name).map_or((name, None), |(base, key)| (base, Some(key)));
+        let (_, base_id) = self.ensure_base_var_from(base, start)?;
+        let Some(key) = elem else {
+            return Some(base_id);
+        };
+        match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+            Some(Local::Undefined) => {
+                if !self
+                    .var_arena
+                    .replace_state(base_id, Local::Array(VarTable::new()))
+                {
+                    return None;
+                }
+            }
+            Some(Local::Array(_)) => {}
+            Some(Local::Scalar(_) | Local::Link(_)) | None => return None,
+        }
+        if let Some(id) = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.get(key).copied(),
+            _ => None,
+        } {
+            return self.var_arena.resolve(id);
+        }
+        let element_id = self
+            .var_arena
+            .alloc_element(Local::Undefined, base_id, key.to_owned())?;
+        let inserted = self
+            .var_arena
+            .array_insert(base_id, key.to_owned(), element_id);
+        if inserted {
+            self.var_arena.bind(element_id);
+            Some(element_id)
+        } else {
+            self.var_arena.discard_unbound(element_id);
+            None
+        }
+    }
+
+    /// Remove the binding reached by a resolved access while preserving a
+    /// target cell that still has `upvar` links. Linked cells become undefined
+    /// in place so every alias continues to share the same identity.
+    fn unbind_resolved(&mut self, resolved: &ResolvedVar) -> bool {
+        let Some(id) = resolved.id else {
+            return false;
+        };
+        let existed = self.var_arena.get(id).is_some_and(|cell| {
+            matches!(
+                cell.state(),
+                Local::Undefined | Local::Scalar(_) | Local::Array(_)
+            )
+        });
+        if !existed {
+            return false;
+        }
+        self.drop_array_descendant_traces(id);
+        if matches!(
+            self.var_arena.get(id).map(crate::vars::VarCell::state),
+            Some(Local::Array(_))
+        ) {
+            // This storage-only path runs no child unset callbacks, so release
+            // the detached table and its bindings immediately.
+            let _ = self.var_arena.replace_state(id, Local::Undefined);
+        } else {
+            let _ = self.var_arena.unset_state(id);
+        }
+
+        let raw = if let Some(key) = &resolved.elem {
+            let Some(base_id) = resolved.base_id else {
+                return existed;
+            };
+            match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+                Some(Local::Array(elements)) => elements.get(key).copied(),
+                _ => None,
+            }
+        } else {
+            self.var_table(resolved.binding.owner)
+                .and_then(|table| table.get(&resolved.binding.name))
+                .copied()
+        };
+        let Some(raw) = raw else {
+            return existed;
+        };
+        if matches!(
+            self.var_arena.get(raw).map(crate::vars::VarCell::state),
+            Some(Local::Link(_))
+        ) || self.var_arena.has_link_refs(id)
+            || self.var_arena.has_operation_refs(id)
+        {
+            return existed;
+        }
+        if let Some(key) = &resolved.elem {
+            if let Some(base_id) = resolved.base_id {
+                let _ = self.var_arena.array_remove(base_id, key);
+            }
+        } else if let Some(table) = self.var_table_mut(resolved.binding.owner) {
+            table.remove(&resolved.binding.name);
+        }
+        self.const_vars.remove(&id);
+        self.var_arena.unbind(raw);
+        existed
     }
 
     /// Canonicalise a written qualified variable name using the shared Tcl
@@ -8477,8 +9276,7 @@ impl Vm {
     /// Canonicalise a written variable name in the namespace belonging to
     /// explicit frame `level`. This is the frame-addressed half of the shared
     /// variable resolver: `upvar 1 rel::x` resolves `rel` in the caller's
-    /// namespace, not the active callee's, and the same rule reaches scalar and
-    /// array-element storage through [`Self::locate_from`].
+    /// namespace, not the active callee's.
     fn canonical_var_name_from(&self, name: &str, level: usize) -> String {
         if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
             return name.to_owned();
@@ -8497,7 +9295,13 @@ impl Vm {
         let rooted = self.canonical_var_name(name);
         let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
         let parent = parent.strip_prefix("::").unwrap_or(parent);
-        if !self.namespace_exists(parent) {
+        // A namespace being torn down is unpublished (`namespace exists` is
+        // false) but its variable table remains addressable from unset trace
+        // callbacks until `TclDeleteNamespaceVars` finishes.
+        let exact_dying_parent = self
+            .namespace_var_token(self.current_level(), parent, name.starts_with("::"))
+            .is_some_and(|id| self.dying_namespaces.contains(&id));
+        if !self.namespace_exists(parent) && !exact_dying_parent {
             return Err(err(format!(
                 "can't set \"{name}\": parent namespace doesn't exist"
             )));
@@ -8525,83 +9329,14 @@ impl Vm {
         self.namespace_exists(parent.strip_prefix("::").unwrap_or(parent))
     }
 
-    /// Like [`Self::locate`] but begins link resolution at frame `start` (used
-    /// by frame-addressed public storage operations). Written qualified names
-    /// are canonicalised once at this boundary; link targets are already
-    /// internal keys and must not be qualified again.
-    fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
-        let canonical = self.canonical_var_name_from(name, start);
-        let stripped = canonical.strip_prefix("::").unwrap_or(&canonical);
-        let qualified = tcl_syntax::naming::is_qualified(canonical.as_bytes());
-        let level = if qualified { 0 } else { start };
-        let key = if qualified { stripped } else { name };
-        self.locate_key_from(key, level)
-    }
-
-    /// Follow links from an already-canonical internal variable key. Unlike
-    /// [`Self::locate_from`], this never interprets a relative qualified key in
-    /// the current namespace a second time.
-    fn locate_key_from(&self, name: &str, start: usize) -> (usize, String) {
-        let mut level = start;
-        let mut nm = name.to_owned();
-        for _ in 0..64 {
-            match self.frames.get(level).and_then(|f| f.locals.get(&nm)) {
-                Some(Local::Link {
-                    level: tl,
-                    name: tn,
-                }) => {
-                    level = *tl;
-                    nm.clone_from(tn);
-                }
-                _ => break,
-            }
-        }
-        // A bare name landing on a `namespace eval` body frame (no genuine local
-        // there) is a *namespace* variable: redirect it to `ns::name` in the
-        // global frame, where namespace variables live. This mirrors what
-        // `ns_var_fallback` does for the current frame, but also covers an
-        // `upvar`/`uplevel` link that reaches a namespace-eval frame — so a proc's
-        // `upvar 1 v` into a `namespace eval` body resolves the namespace variable,
-        // and a plain `set x` at namespace-script level *creates* `ns::x`.
-        if !nm.contains("::")
-            && let Some(f) = self.frames.get(level)
-            && let Some(ns) = &f.ns_eval
-            && !ns.is_empty()
-            && !f.locals.contains_key(&nm)
-        {
-            let qualified = format!("{ns}::{nm}");
-            // Tcl 8.x namespace-scope fallback (M11): when the namespace has
-            // no such variable but the global namespace does, the bare name
-            // resolves to the GLOBAL variable — reads and writes both (a
-            // `variable` declaration installs a link above, so a declared
-            // name never reaches this redirect and correctly blocks the
-            // fallback).  9.0 always binds in the namespace (TIP 278).
-            if self.ns_fallback_targets_global(&qualified, &nm) {
-                return (0, nm);
-            }
-            return (0, qualified);
-        }
-        (level, nm)
-    }
-
     /// Read a scalar (following links). A link may resolve to an array element
     /// name (`upvar 0 arr(key) alias`), in which case the element is read.
     #[must_use]
     pub fn get_var(&self, name: &str) -> Option<Value> {
-        let resolved = self.ns_var_fallback(name);
-        let name = resolved.as_deref().unwrap_or(name);
-        let (lvl, nm) = self.locate(name);
-        if let Some((base, key)) = elem_ref(&nm) {
-            // The base may itself be a link (`variable`/`upvar` to a namespace
-            // array), so resolve it onward from the frame it landed on.
-            let (blvl, bnm) = self.locate_key_from(base, lvl);
-            return match self.frames.get(blvl)?.locals.get(&bnm) {
-                Some(Local::Array(m)) => m.get(key).cloned(),
-                _ => None,
-            };
-        }
-        match self.frames.get(lvl)?.locals.get(&nm) {
-            Some(Local::Scalar(v)) => Some(v.clone()),
+        let resolved = self.resolve_var_from(name, self.current_level())?;
+        let id = resolved.id?;
+        match self.var_arena.get(id)?.state() {
+            Local::Scalar(value) => Some(value.clone()),
             _ => None,
         }
     }
@@ -8609,34 +9344,29 @@ impl Vm {
     /// Write a scalar with no trace firing (frame argument binding, rollback).
     /// A link resolving to an array element name writes that element.
     fn write_scalar_raw(&mut self, name: &str, value: Value) {
-        let resolved = self.ns_var_fallback(name);
-        let name = resolved.as_deref().unwrap_or(name);
-        let (lvl, nm) = self.locate(name);
-        if let Some((base, key)) = elem_ref(&nm) {
-            // Resolve the array base onward (it may be a link to a namespace
-            // array) before writing the element.
-            let key = key.to_owned();
-            let (blvl, bnm) = self.locate_key_from(base, lvl);
-            if let Some(f) = self.frames.get_mut(blvl) {
-                match f.locals.get_mut(&bnm) {
-                    Some(Local::Array(m)) => {
-                        m.insert(key, value);
-                    }
-                    Some(Local::Undefined) => {
-                        f.locals.insert(bnm, Local::Scalar(value));
-                    }
-                    Some(_) => {}
-                    None => {
-                        let mut m = BTreeMap::new();
-                        m.insert(key, value);
-                        f.locals.insert(bnm, Local::Array(m));
-                    }
+        let Some(resolved) = self.resolve_var_from(name, self.current_level()) else {
+            return;
+        };
+        if let Some(id) = resolved.id {
+            self.drop_array_descendant_traces(id);
+            let _ = self.var_arena.replace_state(id, Local::Scalar(value));
+        } else if let Some(key) = resolved.elem {
+            if let Some(base_id) = resolved.base_id {
+                let Some(element_id) =
+                    self.var_arena
+                        .alloc_element(Local::Scalar(value), base_id, key.clone())
+                else {
+                    return;
+                };
+                let inserted = self.var_arena.array_insert(base_id, key, element_id);
+                if inserted {
+                    self.var_arena.bind(element_id);
+                } else {
+                    self.var_arena.discard_unbound(element_id);
                 }
             }
-            return;
-        }
-        if let Some(f) = self.frames.get_mut(lvl) {
-            f.locals.insert(nm, Local::Scalar(value));
+        } else {
+            let _ = self.bind_new_var(&resolved.binding, Local::Scalar(value));
         }
     }
 
@@ -8644,46 +9374,39 @@ impl Vm {
     /// — a `can't set "x": variable is array` error rather than a silent
     /// overwrite (the resolution mirrors [`write_scalar_raw`](Self::write_scalar_raw)).
     fn scalar_write_hits_array(&self, name: &str) -> bool {
-        let resolved = self.ns_var_fallback(name);
-        let name = resolved.as_deref().unwrap_or(name);
-        let (lvl, nm) = self.locate(name);
-        if elem_ref(&nm).is_some() {
-            return false; // an element write resolves the array base separately
-        }
-        matches!(
-            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
-            Some(Local::Array(_))
-        )
-    }
-
-    /// Resolve `name` to the `(frame, local-name)` owning its cell, mirroring
-    /// the scalar write path — the key for constant tracking (TIP 677).
-    fn const_slot(&self, name: &str) -> (usize, String) {
-        let resolved = self.ns_var_fallback(name);
-        self.locate(resolved.as_deref().unwrap_or(name))
+        let Some(resolved) = self.resolve_var_from(name, self.current_level()) else {
+            return false;
+        };
+        resolved.elem.is_none()
+            && matches!(
+                resolved
+                    .id
+                    .and_then(|id| self.var_arena.get(id))
+                    .map(crate::vars::VarCell::state),
+                Some(Local::Array(_))
+            )
     }
 
     /// Mark `name`'s scalar cell as a `const` (immutable).
     pub(crate) fn mark_constant(&mut self, name: &str) {
-        let (lvl, nm) = self.const_slot(name);
-        if let Some(f) = self.frames.get_mut(lvl) {
-            f.consts.insert(nm);
+        if let Some(id) = self
+            .resolve_var_from(name, self.current_level())
+            .and_then(|resolved| resolved.id)
+        {
+            self.const_vars.insert(id);
         }
     }
 
     /// Whether `name` resolves to a `const` cell.
     pub(crate) fn is_constant(&self, name: &str) -> bool {
-        let (lvl, nm) = self.const_slot(name);
-        self.frames.get(lvl).is_some_and(|f| f.consts.contains(&nm))
+        self.is_constant_from(self.current_level(), name)
     }
 
-    /// The `const` names visible in the current frame matching `info consts`.
-    pub(crate) fn constant_names(&self) -> Vec<String> {
-        let lvl = self.frames.len().saturating_sub(1);
-        self.frames
-            .get(lvl)
-            .map(|f| f.consts.iter().cloned().collect())
-            .unwrap_or_default()
+    /// Whether `name`, resolved as if `start` were active, is a `const` cell.
+    fn is_constant_from(&self, start: usize, name: &str) -> bool {
+        self.resolve_var_from(name, start)
+            .and_then(|resolved| resolved.id)
+            .is_some_and(|id| self.const_vars.contains(&id))
     }
 
     /// Write a scalar, firing `write` traces afterwards. A callback error
@@ -8695,6 +9418,17 @@ impl Vm {
     /// cell the write created therefore survives too. Issue #1438.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
         self.validate_var_parent(name)?;
+        if self
+            .resolve_var_from(name, self.current_level())
+            .filter(|resolved| resolved.elem.is_none())
+            .and_then(|resolved| resolved.id)
+            .is_some_and(|id| !self.var_arena.element_is_attached(id))
+        {
+            return Err(crate::command::err_with_code(
+                format!("can't set \"{name}\": upvar refers to element in deleted array"),
+                "TCL WRITE VARNAME",
+            ));
+        }
         if self.is_constant(name) {
             return Err(err(format!("can't set \"{name}\": variable is a constant")));
         }
@@ -8719,37 +9453,217 @@ impl Vm {
     /// the removal: resolution can depend on the cell still existing (issue
     /// #1328). Issue #1633 row 10.
     pub fn unset_var(&mut self, name: &str) -> bool {
-        let key = (!self.var_traces.is_empty()).then(|| self.trace_key(name));
-        let (lvl, nm) = self.locate(name);
-        let existed = if let Some((rbase, rkey)) = elem_ref(&nm) {
-            // The name resolved through a link into an array element
-            // (`upvar #0 a(k) e; unset e`): remove that element, not a cell
-            // spelled `a(k)`, which is what C's resolved `Var` does.
-            let (blvl, bnm) = self.locate_key_from(rbase, lvl);
-            match self
-                .frames
-                .get_mut(blvl)
-                .and_then(|f| f.locals.get_mut(&bnm))
-            {
-                Some(Local::Array(m)) => m.remove(rkey).is_some(),
-                _ => false,
+        let Some(resolved) = self.resolve_var_from(name, self.current_level()) else {
+            return false;
+        };
+        self.unset_resolved(name, &resolved)
+    }
+
+    fn unset_resolved(&mut self, name: &str, resolved: &ResolvedVar) -> bool {
+        let traced_cell = self.trace_cell_from_resolved(resolved);
+        let Some((existed, old_state)) = self.detach_variable_state(resolved) else {
+            return false;
+        };
+
+        if let Some(cell) = traced_cell {
+            self.fire_taken_unset(name, None, cell, true);
+        }
+
+        // An array's old element table is detached from the parent before its
+        // callback, then visited one cell at a time. Later old elements remain
+        // live while an earlier callback runs, and callback-created elements
+        // belong to the revived array rather than this destruction pass.
+        if let Local::Array(elements) = old_state {
+            for (element, raw_id) in elements {
+                let Some(id) = self.var_arena.resolve(raw_id) else {
+                    self.var_arena.unbind(raw_id);
+                    continue;
+                };
+                let _ = self.var_arena.take_state(id);
+                let cell = VarTraceCell {
+                    id: Some(id),
+                    array: resolved.id,
+                    elem: Some(element.clone()),
+                };
+                let spelling = format!("{name}({element})");
+                self.fire_taken_unset(&spelling, Some(name), cell, false);
+                // A whole-array destruction retires the old element even when
+                // its callback wrote through an alias. A surviving alias keeps
+                // this identity as a detached, undefined element; it cannot
+                // retarget a later same-name element.
+                let _ = self.var_arena.replace_state(id, Local::Undefined);
+                self.const_vars.remove(&id);
+                self.var_arena.unbind(raw_id);
             }
-        } else {
-            self.frames
-                .get_mut(lvl)
-                .is_some_and(|f| f.locals.remove(&nm).is_some())
+        }
+        existed
+    }
+
+    /// Retire one binding whose frame/namespace owner has already been
+    /// detached. The stable cell identity remains available while callbacks
+    /// run, but any value or trace recreated through an alias is forcibly
+    /// discarded because the owner itself is dying.
+    fn destroy_owned_variable(&mut self, name: &str, raw_id: VarId, reported_name1: Option<&str>) {
+        let Some(id) = self.var_arena.resolve(raw_id) else {
+            self.purge_variable_cell(raw_id);
+            self.var_arena.unbind(raw_id);
+            return;
         };
-        // A variable's traces go with it, and the taken list is what fires.
-        let Some(key) = key else {
-            return existed;
+        let old_state = self.var_arena.take_state(id).unwrap_or(Local::Undefined);
+        let cell = VarTraceCell {
+            id: Some(id),
+            array: None,
+            elem: None,
         };
-        let taken = self.var_traces.remove(&key);
-        if taken.is_some() {
+        self.fire_taken_unset(name, reported_name1, cell, true);
+
+        if let Local::Array(elements) = old_state {
+            for (element, raw_element) in elements {
+                let Some(element_id) = self.var_arena.resolve(raw_element) else {
+                    self.var_arena.unbind(raw_element);
+                    continue;
+                };
+                let _ = self.var_arena.take_state(element_id);
+                let cell = VarTraceCell {
+                    id: Some(element_id),
+                    array: Some(id),
+                    elem: Some(element.clone()),
+                };
+                let spelling = format!("{name}({element})");
+                self.fire_taken_unset(&spelling, reported_name1.or(Some(name)), cell, false);
+                self.purge_variable_cell(raw_element);
+                self.var_arena.unbind(raw_element);
+            }
+        }
+        self.purge_variable_cell(raw_id);
+        self.var_arena.unbind(raw_id);
+    }
+
+    /// Discard one cell owned by a dying frame/namespace without firing newly
+    /// installed traces. Array children are purged recursively; link cells are
+    /// unbound without touching their targets.
+    fn purge_variable_cell(&mut self, raw_id: VarId) {
+        if matches!(
+            self.var_arena.get(raw_id).map(crate::vars::VarCell::state),
+            Some(Local::Link(_))
+        ) {
+            let _ = self.var_arena.replace_state(raw_id, Local::Undefined);
+            return;
+        }
+        let Some(id) = self.var_arena.resolve(raw_id) else {
+            let _ = self.var_arena.replace_state(raw_id, Local::Undefined);
+            return;
+        };
+        self.drop_var_traces(id);
+        if let Some(Local::Array(elements)) = self.var_arena.take_state(id) {
+            for child in elements.into_values() {
+                self.purge_variable_cell(child);
+                self.var_arena.unbind(child);
+            }
+        }
+        let _ = self.var_arena.replace_state(id, Local::Undefined);
+        self.const_vars.remove(&id);
+    }
+
+    /// Remove every callback pinned to one stable variable cell. Lifecycle
+    /// paths that intentionally do not execute callbacks still must release
+    /// their pin before the final binding is dropped.
+    fn drop_var_traces(&mut self, id: VarId) {
+        if self.var_traces.remove(&id).is_some() {
+            self.var_arena.unpin(id);
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
-        // Unset-trace errors are ignored.
-        let _ = self.fire_var_traces_taken(name, "unset", None, taken);
-        existed
+    }
+
+    /// Retire trace pins below an array before a no-callback storage mutation
+    /// releases the element bindings. The arena owns state/bindings and this
+    /// VM owner owns callbacks, so every raw replacement funnels through this
+    /// bridge instead of leaving trace-pinned, unreachable element cells.
+    fn drop_array_descendant_traces(&mut self, id: VarId) {
+        let children: Vec<VarId> = match self.var_arena.get(id).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.values().copied().collect(),
+            Some(Local::Undefined | Local::Scalar(_) | Local::Link(_)) | None => Vec::new(),
+        };
+        for raw in children {
+            if let Some(child) = self.var_arena.resolve(raw) {
+                self.drop_array_descendant_traces(child);
+                self.drop_var_traces(child);
+                self.const_vars.remove(&child);
+            }
+        }
+    }
+
+    fn detach_variable_state(&mut self, resolved: &ResolvedVar) -> Option<(bool, VarState)> {
+        let id = resolved.id?;
+        let raw = if let Some(key) = &resolved.elem {
+            let base_id = resolved.base_id?;
+            match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+                Some(Local::Array(elements)) => elements.get(key).copied(),
+                _ => None,
+            }
+        } else {
+            self.var_table(resolved.binding.owner)
+                .and_then(|table| table.get(&resolved.binding.name))
+                .copied()
+        }?;
+        let raw_is_link = matches!(
+            self.var_arena.get(raw).map(crate::vars::VarCell::state),
+            Some(Local::Link(_))
+        );
+        let old = self.var_arena.unset_state(id)?;
+        let existed = matches!(old, Local::Scalar(_) | Local::Array(_));
+        if !raw_is_link
+            && !self.var_arena.has_link_refs(id)
+            && !self.var_arena.has_operation_refs(id)
+        {
+            if let Some(key) = &resolved.elem {
+                if let Some(base_id) = resolved.base_id {
+                    let _ = self.var_arena.array_remove(base_id, key);
+                }
+            } else if let Some(table) = self.var_table_mut(resolved.binding.owner) {
+                table.remove(&resolved.binding.name);
+            }
+            self.const_vars.remove(&id);
+            self.var_arena.unbind(raw);
+        }
+        Some((existed, old))
+    }
+
+    fn fire_taken_unset(
+        &mut self,
+        name: &str,
+        reported_name1: Option<&str>,
+        cell: VarTraceCell,
+        include_array: bool,
+    ) {
+        let Some(id) = cell.id else {
+            return;
+        };
+        let taken = self.var_traces.remove(&id);
+        let has_array_trace = include_array
+            && cell
+                .array_id()
+                .is_some_and(|array| self.var_traces.contains_key(&array));
+        let had_taken = taken.is_some();
+        if !had_taken && !has_array_trace {
+            return;
+        }
+        if had_taken {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        }
+        let _ = self.fire_var_traces_taken(
+            name,
+            "unset",
+            reported_name1,
+            Some(TakenVarTraces {
+                cell,
+                entries: taken.unwrap_or_default(),
+                include_array,
+            }),
+        );
+        if had_taken {
+            self.var_arena.unpin(id);
+        }
     }
 
     /// Unset a single variable by name, the shared core of the `unset` command
@@ -8757,15 +9671,25 @@ impl Vm {
     /// [`array_unset_elem`](Self::array_unset_elem) (which splits the base/key);
     /// a scalar/array variable is removed via [`unset_var`](Self::unset_var).
     /// When `complain` is set and the variable did not exist, this returns the
-    /// Tcl `can't unset "name": no such variable` error (array-element removal
-    /// never complains, matching C Tcl / `cmd_unset`).
+    /// Tcl diagnostic that distinguishes a missing variable, a scalar used as
+    /// an array, and a missing array element.
     pub(crate) fn unset_one(
         &mut self,
         name: &str,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
         if let Some((array, key)) = elem_ref(name) {
-            self.array_unset_elem_spelled(array, key);
+            let existed = self.array_unset_elem_spelled(array, key);
+            if !existed && complain {
+                let what = if self.var_is_array(array) {
+                    "no such element in array"
+                } else if self.exists_var(array) {
+                    "variable isn't array"
+                } else {
+                    "no such variable"
+                };
+                return Err(err(format!("can't unset \"{name}\": {what}")));
+            }
             return Ok(());
         }
         // A constant cannot be unset; `-nocomplain` leaves it intact (var-26.12).
@@ -8794,16 +9718,9 @@ impl Vm {
 
     /// Frame-addressed scalar read (the storage half of [`get_var`](Self::get_var)).
     pub(crate) fn get_var_from(&self, start: usize, name: &str) -> Option<Value> {
-        let (lvl, nm) = self.locate_from(name, start);
-        if let Some((base, key)) = elem_ref(&nm) {
-            let (blvl, bnm) = self.locate_key_from(base, lvl);
-            return match self.frames.get(blvl)?.locals.get(&bnm) {
-                Some(Local::Array(m)) => m.get(key).cloned(),
-                _ => None,
-            };
-        }
-        match self.frames.get(lvl)?.locals.get(&nm) {
-            Some(Local::Scalar(v)) => Some(v.clone()),
+        let id = self.resolve_var_from(name, start)?.id?;
+        match self.var_arena.get(id)?.state() {
+            Local::Scalar(value) => Some(value.clone()),
             _ => None,
         }
     }
@@ -8811,69 +9728,61 @@ impl Vm {
     /// Frame-addressed scalar write (the storage half of
     /// [`write_scalar_raw`](Self::write_scalar_raw)).
     pub(crate) fn write_scalar_from(&mut self, start: usize, name: &str, value: Value) {
-        let (lvl, nm) = self.locate_from(name, start);
-        if let Some((base, key)) = elem_ref(&nm) {
-            let key = key.to_owned();
-            let (blvl, bnm) = self.locate_key_from(base, lvl);
-            if let Some(f) = self.frames.get_mut(blvl) {
-                match f.locals.get_mut(&bnm) {
-                    Some(Local::Array(m)) => {
-                        m.insert(key, value);
-                    }
-                    Some(Local::Undefined) => {
-                        f.locals.insert(bnm, Local::Scalar(value));
-                    }
-                    Some(_) => {}
-                    None => {
-                        let mut m = BTreeMap::new();
-                        m.insert(key, value);
-                        f.locals.insert(bnm, Local::Array(m));
-                    }
-                }
-            }
+        let Some(resolved) = self.resolve_var_from(name, start) else {
             return;
-        }
-        if let Some(f) = self.frames.get_mut(lvl) {
-            f.locals.insert(nm, Local::Scalar(value));
+        };
+        if let Some(id) = resolved.id {
+            self.drop_array_descendant_traces(id);
+            let _ = self.var_arena.replace_state(id, Local::Scalar(value));
+        } else if resolved.elem.is_none() {
+            let _ = self.bind_new_var(&resolved.binding, Local::Scalar(value));
         }
     }
 
     /// Frame-addressed scalar existence (the storage half of
     /// [`var_exists`](Self::var_exists)).
     pub(crate) fn exists_from(&self, start: usize, name: &str) -> bool {
-        let (lvl, nm) = self.locate_from(name, start);
-        self.frames
-            .get(lvl)
-            .is_some_and(|f| matches!(f.locals.get(&nm), Some(Local::Scalar(_))))
+        self.resolve_var_from(name, start)
+            .and_then(|resolved| resolved.id)
+            .and_then(|id| self.var_arena.get(id))
+            .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_) | Local::Array(_)))
     }
 
     /// Frame-addressed unset (storage only — no unset-trace firing).
     pub(crate) fn unset_from(&mut self, start: usize, name: &str) -> bool {
-        let (lvl, nm) = self.locate_from(name, start);
-        self.frames
-            .get_mut(lvl)
-            .is_some_and(|f| f.locals.remove(&nm).is_some())
+        let Some(resolved) = self.resolve_var_from(name, start) else {
+            return false;
+        };
+        self.unbind_storage_resolved(&resolved)
+    }
+
+    /// Storage-only destruction shared by frame-addressed whole-variable and
+    /// element façades. No callback runs, so the reached cell's trace pin is
+    /// retired after the binding/state transition.
+    fn unbind_storage_resolved(&mut self, resolved: &ResolvedVar) -> bool {
+        let id = resolved.id;
+        let existed = self.unbind_resolved(resolved);
+        if existed && let Some(id) = id {
+            self.drop_var_traces(id);
+        }
+        existed
     }
 
     /// Whether a scalar or array variable named `name` exists (`info exists`).
     pub(crate) fn has_var(&self, name: &str) -> bool {
-        let (lvl, nm) = self.locate(name);
-        matches!(
-            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
-            Some(Local::Scalar(_) | Local::Array(_))
-        )
+        self.resolve_var_from(name, self.current_level())
+            .and_then(|resolved| resolved.id)
+            .and_then(|id| self.var_arena.get(id))
+            .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_) | Local::Array(_)))
     }
 
     /// Whether `name` resolves to an array variable (the `set a` array/scalar
     /// diagnostic; `array exists`).
     pub(crate) fn var_is_array(&self, name: &str) -> bool {
-        let resolved = self.ns_var_fallback(name);
-        let lookup = resolved.as_deref().unwrap_or(name);
-        let (lvl, nm) = self.locate(lookup);
-        matches!(
-            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
-            Some(Local::Array(_))
-        )
+        self.resolve_var_from(name, self.current_level())
+            .and_then(|resolved| resolved.id)
+            .and_then(|id| self.var_arena.get(id))
+            .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
     }
 
     /// C's three-way read-miss message (`tclVar.c`): a scalar read of an array
@@ -8902,20 +9811,25 @@ impl Vm {
     /// empty-list path, which C words under the command (`can't array set "n"`),
     /// unlike the per-element write that names `n(key)`.
     pub(crate) fn ensure_array(&mut self, name: &str) -> Result<(), Completion<Value>> {
-        let resolved = self.ns_var_fallback(name);
-        let lookup = resolved.as_deref().unwrap_or(name).to_string();
-        let (lvl, nm) = self.locate(&lookup);
-        if let Some(f) = self.frames.get_mut(lvl) {
-            match f.locals.get(&nm) {
-                Some(Local::Array(_) | Local::Link { .. }) => {}
-                Some(Local::Undefined) | None => {
-                    f.locals.insert(nm, Local::Array(BTreeMap::new()));
-                }
-                Some(Local::Scalar(_)) => {
-                    return Err(err(format!(
-                        "can't array set \"{name}\": variable isn't array"
-                    )));
-                }
+        let Some((binding, id)) = self.ensure_base_var_from(name, self.current_level()) else {
+            return Err(err(format!(
+                "can't array set \"{name}\": parent namespace doesn't exist"
+            )));
+        };
+        match self.var_arena.get(id).map(crate::vars::VarCell::state) {
+            Some(Local::Array(_)) => {}
+            Some(Local::Undefined) => {
+                let _ = self
+                    .var_arena
+                    .replace_state(id, Local::Array(VarTable::new()));
+            }
+            Some(Local::Scalar(_)) => {
+                return Err(err(format!(
+                    "can't array set \"{name}\": variable isn't array"
+                )));
+            }
+            Some(Local::Link(_)) | None => {
+                let _ = self.bind_new_var(&binding, Local::Array(VarTable::new()));
             }
         }
         Ok(())
@@ -8928,18 +9842,14 @@ impl Vm {
         if let Some((base, _)) = elem_ref(name) {
             let base = self.trace_qualify(base);
             self.ensure_trace_namespace(name, &base)?;
-            return self
-                .ensure_array(&base)
-                .map_err(|_| err(format!("can't trace \"{name}\": variable isn't array")));
+            self.ensure_array(&base)
+                .map_err(|_| err(format!("can't trace \"{name}\": variable isn't array")))?;
+            let _ = self.ensure_target_var_from(name, self.current_level());
+            return Ok(());
         }
         let lookup = self.trace_qualify(name);
         self.ensure_trace_namespace(name, &lookup)?;
-        let (lvl, nm) = self.locate(&lookup);
-        if let Some(frame) = self.frames.get_mut(lvl)
-            && !frame.locals.contains_key(&nm)
-        {
-            frame.locals.insert(nm, Local::Undefined);
-        }
+        let _ = self.ensure_base_var_from(&lookup, self.current_level());
         Ok(())
     }
 
@@ -9020,31 +9930,24 @@ impl Vm {
         // different variable. Measured on tclsh 8.6.16. Issue #1633 row 1.
         let cell = self.resolved_cell(name);
         self.set_var(name, value)?;
-        Ok(self.read_resolved_cell(&cell).unwrap_or_else(Value::empty))
+        Ok(cell
+            .and_then(|id| self.read_resolved_cell(id))
+            .unwrap_or_else(Value::empty))
     }
 
     /// The frame + key a scalar name resolves to **right now** — C's `Var *`.
     /// Mirrors the resolution [`write_scalar_raw`](Self::write_scalar_raw) and
     /// [`write_array_raw`](Self::write_array_raw) perform, so a cell captured
     /// before a store is exactly the one the store wrote.
-    fn resolved_cell(&self, name: &str) -> (usize, String) {
-        let resolved = self.ns_var_fallback(name);
-        self.locate(resolved.as_deref().unwrap_or(name))
+    fn resolved_cell(&mut self, name: &str) -> Option<VarId> {
+        self.ensure_target_var_from(name, self.current_level())
     }
 
     /// Read the scalar at an already-resolved [`resolved_cell`](Self::resolved_cell) —
     /// the tail of [`get_var`](Self::get_var) with the name lookup already done.
-    fn read_resolved_cell(&self, (lvl, nm): &(usize, String)) -> Option<Value> {
-        if let Some((base, key)) = elem_ref(nm) {
-            // The resolved name is itself an element (a link into an array).
-            let (blvl, bnm) = self.locate_key_from(base, *lvl);
-            return match self.frames.get(blvl)?.locals.get(&bnm) {
-                Some(Local::Array(m)) => m.get(key).cloned(),
-                _ => None,
-            };
-        }
-        match self.frames.get(*lvl)?.locals.get(nm) {
-            Some(Local::Scalar(v)) => Some(v.clone()),
+    fn read_resolved_cell(&self, id: VarId) -> Option<Value> {
+        match self.var_arena.get(id)?.state() {
+            Local::Scalar(value) => Some(value.clone()),
             _ => None,
         }
     }
@@ -9052,11 +9955,12 @@ impl Vm {
     /// [`read_resolved_cell`](Self::read_resolved_cell) for element `key` of an
     /// already-resolved array cell — the tail of
     /// [`get_array_elem`](Self::get_array_elem).
-    fn read_resolved_elem(&self, (lvl, nm): &(usize, String), key: &str) -> Option<Value> {
-        match self.frames.get(*lvl)?.locals.get(nm) {
-            Some(Local::Array(m)) => m.get(key).cloned(),
-            _ => None,
-        }
+    fn read_resolved_elem(&self, base_id: VarId, key: &str) -> Option<Value> {
+        let Local::Array(elements) = self.var_arena.get(base_id)?.state() else {
+            return None;
+        };
+        let id = self.var_arena.resolve(*elements.get(key)?)?;
+        self.read_resolved_cell(id)
     }
 
     /// [`store_var_result`](Self::store_var_result) for an already-split
@@ -9076,8 +9980,8 @@ impl Vm {
         // [`store_var_result`](Self::store_var_result) explains.
         let cell = self.resolved_cell(name);
         self.set_array_elem(name, key, value)?;
-        Ok(self
-            .read_resolved_elem(&cell, key)
+        Ok(cell
+            .and_then(|id| self.read_resolved_elem(id, key))
             .unwrap_or_else(Value::empty))
     }
 
@@ -9091,25 +9995,35 @@ impl Vm {
     /// ending in the `(read trace on "x")` frame while the `incr` succeeds.
     /// Mirror of the runtime's `Interp::read_for_update`. Issue #1633 rows 3/4.
     pub(crate) fn read_for_update(&mut self, name: &str) -> Option<Value> {
-        if !self.var_traces.is_empty() && self.fire_var_traces(name, "read").is_err() {
+        if let Ok(value) = self.read_var_traced(name) {
+            value
+        } else {
             self.publish_swallowed_trace_error();
-            return None;
+            None
         }
-        self.var_get(name)
     }
 
     /// [`read_for_update`](Self::read_for_update) for an already-split
     /// `name(key)` element.
     pub(crate) fn read_elem_for_update(&mut self, name: &str, key: &str) -> Option<Value> {
-        if !self.var_traces.is_empty()
-            && self
-                .fire_var_traces(&format!("{name}({key})"), "read")
-                .is_err()
-        {
+        self.read_elem_swallowing_trace_error(name, key)
+    }
+
+    /// Read one array element while retaining but not propagating a read-trace
+    /// error. Tcl uses this both for read-modify-write commands and `array for`:
+    /// the access behaves as missing, while `::errorInfo` keeps the callback's
+    /// trace stack.
+    pub(crate) fn read_elem_swallowing_trace_error(
+        &mut self,
+        name: &str,
+        key: &str,
+    ) -> Option<Value> {
+        if let Ok(value) = self.read_elem_traced(name, key) {
+            value
+        } else {
             self.publish_swallowed_trace_error();
-            return None;
+            None
         }
-        self.get_array_elem(name, key)
     }
 
     /// Publish the `errorInfo` a read trace left behind when the
@@ -9127,48 +10041,16 @@ impl Vm {
     // -- arrays (link-aware via `locate`) --
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
-        let resolved = self.ns_var_fallback(name);
-        let lookup = resolved.as_deref().unwrap_or(name);
-        let (lvl, nm) = self.locate(lookup);
-        match self.frames.get(lvl)?.locals.get(&nm) {
-            Some(Local::Array(m)) => m.get(key).cloned(),
-            _ => None,
-        }
+        self.get_array_elem_from(self.current_level(), name, key)
     }
 
-    /// When an unqualified `name` is not a local in the current frame but the
-    /// current namespace has a variable `ns::name`, resolve to that qualified
-    /// name. This is the namespace-variable fallback (a namespace script or an
-    /// undeclared access reaching an existing namespace variable). Only
-    /// resolves to variables that already exist, so frame locals are unaffected.
-    fn ns_var_fallback(&self, name: &str) -> Option<String> {
-        if name.contains("::") {
+    fn get_array_elem_from(&self, start: usize, name: &str, key: &str) -> Option<Value> {
+        let base_id = self.resolve_var_from(name, start)?.base_id?;
+        let Local::Array(elements) = self.var_arena.get(base_id)?.state() else {
             return None;
-        }
-        // Only a namespace-eval body resolves a bare name to a namespace
-        // variable. Inside a proc (even one defined in the namespace), an
-        // unqualified name is a local unless declared via `variable`/`global`.
-        if !self.in_ns_script() {
-            return None;
-        }
-        let cur = self.current_ns();
-        if cur.is_empty() {
-            return None;
-        }
-        let top = self.frames.last()?;
-        if top.locals.contains_key(name) {
-            return None;
-        }
-        let q = format!("{cur}::{name}");
-        if self
-            .frames
-            .first()
-            .is_some_and(|g| g.locals.contains_key(&q))
-        {
-            Some(format!("::{q}"))
-        } else {
-            None
-        }
+        };
+        let id = self.var_arena.resolve(*elements.get(key)?)?;
+        self.read_resolved_cell(id)
     }
 
     /// Write an array element with no trace firing.
@@ -9178,30 +10060,56 @@ impl Vm {
         key: &str,
         value: Value,
     ) -> Result<(), Completion<Value>> {
+        self.write_array_raw_from(self.current_level(), name, key, value)
+    }
+
+    fn write_array_raw_from(
+        &mut self,
+        start: usize,
+        name: &str,
+        key: &str,
+        value: Value,
+    ) -> Result<(), Completion<Value>> {
         self.validate_var_parent(name)?;
-        let resolved = self.ns_var_fallback(name);
-        let name = resolved.as_deref().unwrap_or(name);
-        let (lvl, nm) = self.locate(name);
-        let frame = self
-            .frames
-            .get_mut(lvl)
-            .expect("locate returns a valid level");
-        match frame.locals.get_mut(&nm) {
-            Some(Local::Array(m)) => {
-                m.insert(key.to_owned(), value);
-                Ok(())
+        let Some((_, base_id)) = self.ensure_base_var_from(name, start) else {
+            return Err(err(format!(
+                "can't set \"{name}({key})\": no such variable"
+            )));
+        };
+        match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+            Some(Local::Scalar(_)) => {
+                return Err(err(format!(
+                    "can't set \"{name}({key})\": variable isn't array"
+                )));
             }
-            Some(Local::Scalar(_)) => Err(err(format!(
-                "can't set \"{name}({key})\": variable isn't array"
-            ))),
-            Some(Local::Undefined) | None => {
-                let mut m = BTreeMap::new();
-                m.insert(key.to_owned(), value);
-                frame.locals.insert(nm, Local::Array(m));
-                Ok(())
+            Some(Local::Undefined) => {
+                let _ = self
+                    .var_arena
+                    .replace_state(base_id, Local::Array(VarTable::new()));
             }
-            Some(Local::Link { .. }) => unreachable!("locate resolves links"),
+            Some(Local::Array(_)) => {}
+            Some(Local::Link(_)) | None => return Ok(()),
         }
+        let existing = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.get(key).copied(),
+            _ => None,
+        };
+        if let Some(id) = existing.and_then(|id| self.var_arena.resolve(id)) {
+            let _ = self.var_arena.replace_state(id, Local::Scalar(value));
+            return Ok(());
+        }
+        let Some(id) = self
+            .var_arena
+            .alloc_element(Local::Scalar(value), base_id, key.to_owned())
+        else {
+            return Err(err("too many variable cells"));
+        };
+        if self.var_arena.array_insert(base_id, key.to_owned(), id) {
+            self.var_arena.bind(id);
+        } else {
+            self.var_arena.discard_unbound(id);
+        }
+        Ok(())
     }
 
     /// Write an array element, firing `write` traces afterwards. Like
@@ -9220,27 +10128,11 @@ impl Vm {
         self.fire_var_traces(&format!("{name}({key})"), "write")
     }
 
-    pub(crate) fn array_is(&self, name: &str) -> bool {
-        let (lvl, nm) = self.locate(name);
-        matches!(
-            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
-            Some(Local::Array(_))
-        )
-    }
-
-    pub(crate) fn array_pairs(&self, name: &str) -> Vec<(String, Value)> {
-        let (lvl, nm) = self.locate(name);
-        match self.frames.get(lvl).and_then(|f| f.locals.get(&nm)) {
-            Some(Local::Array(m)) => m.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-            _ => Vec::new(),
-        }
-    }
-
     /// Remove array element `name(key)` through a **two-part** access — C's
     /// `TclObjUnsetVar2(part1, part2, …)`, which `array unset` and the
     /// `INST_UNSET_ARRAY*` opcodes use. The traces report `name1 = name`.
-    pub(crate) fn array_unset_elem(&mut self, name: &str, key: &str) {
-        self.array_unset_elem_reporting(name, key, None);
+    pub(crate) fn array_unset_elem(&mut self, name: &str, key: &str) -> bool {
+        self.array_unset_elem_reporting(name, key, None)
     }
 
     /// Remove array element `name(key)` named by the **one-part** `a(k)`
@@ -9249,39 +10141,165 @@ impl Vm {
     /// (`tclVar.c` 9.0.4:2638-2642), which stops `TclCallVarTraces` splitting
     /// the spelling, so the callbacks see `name1 = a(k)`; 8.4/8.5/8.6 split it
     /// and see `name1 = a`. Issue #1633 row 6.
-    pub(crate) fn array_unset_elem_spelled(&mut self, name: &str, key: &str) {
-        if self.runtime_version.traces_recover_linked_array_element() {
-            let spelling = format!("{name}({key})");
-            self.array_unset_elem_reporting(name, key, Some(&spelling));
+    pub(crate) fn array_unset_elem_spelled(&mut self, name: &str, key: &str) -> bool {
+        let spelling = format!("{name}({key})");
+        let active = self
+            .trace_cell(&spelling)
+            .and_then(|cell| cell.id)
+            .is_some_and(|id| self.active_traces.contains(&id));
+        if self.runtime_version.traces_recover_linked_array_element() && !active {
+            self.array_unset_elem_reporting(name, key, Some(&spelling))
         } else {
-            self.array_unset_elem_reporting(name, key, None);
+            self.array_unset_elem_reporting(name, key, None)
         }
     }
 
-    fn array_unset_elem_reporting(&mut self, name: &str, key: &str, reported: Option<&str>) {
+    fn array_unset_elem_reporting(
+        &mut self,
+        name: &str,
+        key: &str,
+        reported: Option<&str>,
+    ) -> bool {
+        let Some(base_id) = self
+            .resolve_var_from(name, self.current_level())
+            .and_then(|resolved| resolved.base_id)
+        else {
+            return false;
+        };
+        self.array_unset_elem_reporting_at(base_id, name, key, reported)
+    }
+
+    fn array_unset_elem_reporting_at(
+        &mut self,
+        base_id: VarId,
+        name: &str,
+        key: &str,
+        reported: Option<&str>,
+    ) -> bool {
         // As for a scalar: the element goes, and its own traces come out of the
         // table, before the callbacks run. The *array's* traces stay — C leaves
         // them on the array's own `Var` — so they are still live in the walk and
         // still visible to `trace info`. The trace key is resolved while the
         // element is still present (issue #1328).
-        let traced = (!self.var_traces.is_empty()).then(|| {
-            let spelling = format!("{name}({key})");
-            let trace_key = self.trace_key(&spelling);
-            (spelling, trace_key)
-        });
-        let (lvl, nm) = self.locate(name);
-        if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
-        {
-            m.remove(key);
-        }
-        let Some((spelling, trace_key)) = traced else {
-            return;
+        let raw = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.get(key).copied(),
+            _ => None,
         };
-        let taken = self.var_traces.remove(&trace_key);
-        if taken.is_some() {
-            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        let id = raw.and_then(|raw| self.var_arena.resolve(raw));
+        let spelling = format!("{name}({key})");
+        let traced = (!self.var_traces.is_empty()).then(|| {
+            id.map(|id| VarTraceCell {
+                id: Some(id),
+                array: Some(base_id),
+                elem: Some(key.to_owned()),
+            })
+        });
+        let existed = match (raw, id) {
+            (Some(raw), Some(id)) => self.unbind_array_element(base_id, key, raw, id),
+            _ => false,
+        };
+        let Some(Some(cell)) = traced else {
+            return existed;
+        };
+        self.fire_taken_unset(&spelling, reported, cell, true);
+        existed
+    }
+
+    fn unbind_array_element(&mut self, base_id: VarId, key: &str, raw: VarId, id: VarId) -> bool {
+        let existed = self.var_arena.get(id).is_some_and(|cell| {
+            matches!(
+                cell.state(),
+                Local::Undefined | Local::Scalar(_) | Local::Array(_)
+            )
+        });
+        if !existed {
+            return false;
         }
-        let _ = self.fire_var_traces_taken(&spelling, "unset", reported, taken);
+        self.drop_array_descendant_traces(id);
+        let _ = self.var_arena.unset_state(id);
+        if matches!(
+            self.var_arena.get(raw).map(crate::vars::VarCell::state),
+            Some(Local::Link(_))
+        ) || self.var_arena.has_link_refs(id)
+            || self.var_arena.has_operation_refs(id)
+        {
+            return true;
+        }
+        let _ = self.var_arena.array_remove(base_id, key);
+        self.const_vars.remove(&id);
+        self.var_arena.unbind(raw);
+        true
+    }
+
+    fn resolve_array_elem_from(&self, start: usize, name: &str, key: &str) -> Option<ResolvedVar> {
+        let base = self.resolve_var_from(name, start)?;
+        let base_id = base.base_id?;
+        let raw = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
+            Some(Local::Array(elements)) => elements.get(key).copied(),
+            _ => None,
+        };
+        let raw = raw?;
+        Some(ResolvedVar {
+            binding: base.binding,
+            base_id: Some(base_id),
+            id: self.var_arena.resolve(raw),
+            elem: Some(key.to_owned()),
+        })
+    }
+
+    fn unset_array_elem_from(&mut self, start: usize, name: &str, key: &str) -> bool {
+        let Some(resolved) = self.resolve_array_elem_from(start, name, key) else {
+            return false;
+        };
+        self.unbind_storage_resolved(&resolved)
+    }
+
+    /// Frame-addressed array-key enumeration. The explicit frame selects both
+    /// proc-local and namespace-token ownership before the stable array cell is
+    /// read, so equal spellings in two frames never collapse.
+    fn array_keys_from(&self, start: usize, name: &str) -> Option<Vec<String>> {
+        let resolved = self.resolve_var_from(name, start)?;
+        if resolved.elem.is_some() {
+            return None;
+        }
+        let id = resolved.id?;
+        self.array_keys_at_id(id)
+    }
+
+    fn array_keys_at_id(&self, id: VarId) -> Option<Vec<String>> {
+        let Local::Array(elements) = self.var_arena.get(id)?.state() else {
+            return None;
+        };
+        Some(
+            elements
+                .iter()
+                .filter_map(|(key, raw)| {
+                    self.var_arena
+                        .resolve(*raw)
+                        .and_then(|id| self.read_resolved_cell(id))
+                        .map(|_| key.clone())
+                })
+                .collect(),
+        )
+    }
+
+    fn array_search_keys_at_id(&self, id: VarId) -> Option<Vec<String>> {
+        let Local::Array(elements) = self.var_arena.get(id)?.state() else {
+            return None;
+        };
+        Some(elements.keys().cloned().collect())
+    }
+
+    fn array_elem_exists_at_id(&self, id: VarId, key: &str) -> bool {
+        let Some(Local::Array(elements)) = self.var_arena.get(id).map(crate::vars::VarCell::state)
+        else {
+            return false;
+        };
+        elements
+            .get(key)
+            .and_then(|raw| self.var_arena.resolve(*raw))
+            .and_then(|element| self.read_resolved_cell(element))
+            .is_some()
     }
 
     /// Append one `while executing` / `invoked from within` frame for the
@@ -9448,18 +10466,12 @@ impl Vm {
     /// Publish `errorInfo` / `errorCode` into the global frame.
     pub(crate) fn publish_error(&mut self, info: &str, code: &Value) {
         self.publish_error_info(info);
-        if let Some(g) = self.frames.first_mut() {
-            g.locals
-                .insert("errorCode".to_owned(), Local::Scalar(code.clone()));
-        }
+        self.write_scalar_from(0, "::errorCode", code.clone());
     }
 
     /// Publish the `errorInfo` global alone, leaving `errorCode` as it is.
     pub(crate) fn publish_error_info(&mut self, info: &str) {
-        if let Some(g) = self.frames.first_mut() {
-            g.locals
-                .insert("errorInfo".to_owned(), Local::Scalar(Value::string(info)));
-        }
+        self.write_scalar_from(0, "::errorInfo", Value::string(info));
     }
 
     pub(crate) fn write_output(&mut self, s: &str, newline: bool) {
@@ -9758,6 +10770,13 @@ impl VarStore for Vm {
         }
     }
 
+    fn unset_command(&mut self, frame: FrameId, name: &str) -> Result<bool, VarUnsetError> {
+        if self.is_constant_from(frame.0, name) {
+            return Err(VarUnsetError::IsConstant);
+        }
+        Ok(self.unset(frame, name))
+    }
+
     fn exists(&self, frame: FrameId, name: &str) -> bool {
         if frame.0 == self.current_level() {
             // The *complete* existence check: a scalar, an array, or an array
@@ -9780,11 +10799,7 @@ impl VarStore for Vm {
         if frame.0 == self.current_level() {
             self.get_array_elem(name, key)
         } else {
-            let (level, base) = self.locate_from(name, frame.0);
-            match self.frames.get(level)?.locals.get(&base) {
-                Some(Local::Array(elements)) => elements.get(key).cloned(),
-                _ => None,
-            }
+            self.get_array_elem_from(frame.0, name, key)
         }
     }
 
@@ -9793,21 +10808,7 @@ impl VarStore for Vm {
             let _ = self.set_array_elem(name, key, value);
             return;
         }
-        let (level, base) = self.locate_from(name, frame.0);
-        let Some(owner) = self.frames.get_mut(level) else {
-            return;
-        };
-        match owner.locals.get_mut(&base) {
-            Some(Local::Array(elements)) => {
-                elements.insert(key.to_owned(), value);
-            }
-            Some(Local::Undefined) | None => {
-                let mut elements = BTreeMap::new();
-                elements.insert(key.to_owned(), value);
-                owner.locals.insert(base, Local::Array(elements));
-            }
-            Some(Local::Scalar(_) | Local::Link { .. }) => {}
-        }
+        let _ = self.write_array_raw_from(frame.0, name, key, value);
     }
 
     fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool {
@@ -9816,28 +10817,61 @@ impl VarStore for Vm {
             self.array_unset_elem(name, key);
             return existed;
         }
-        let (level, base) = self.locate_from(name, frame.0);
-        match self
-            .frames
-            .get_mut(level)
-            .and_then(|owner| owner.locals.get_mut(&base))
-        {
-            Some(Local::Array(elements)) => elements.remove(key).is_some(),
-            _ => false,
-        }
+        self.unset_array_elem_from(frame.0, name, key)
     }
 
     fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
         self.get_elem(frame, name, key).is_some()
     }
 
-    fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
-        // `array_is` distinguishes an (empty-or-not) array from a scalar/unset;
-        // `array_pairs` yields the keys (active frame — the cores pass current).
-        if self.array_is(name) {
-            Some(self.array_pairs(name).into_iter().map(|(k, _)| k).collect())
+    fn array_keys(&self, frame: FrameId, name: &str) -> Option<Vec<String>> {
+        self.array_keys_from(frame.0, name)
+    }
+
+    fn array_target(&self, frame: FrameId, name: &str) -> ArrayTarget {
+        self.resolve_var_from(name, frame.0)
+            .and_then(|resolved| resolved.id)
+            .map_or_else(
+                || ArrayTarget::named(frame, name),
+                |id| ArrayTarget::cell(frame, name, id),
+            )
+    }
+
+    fn array_keys_at(&self, target: &ArrayTarget) -> Option<Vec<String>> {
+        target.cell_id().map_or_else(
+            || self.array_keys_from(target.frame().0, target.name()),
+            |id| self.array_keys_at_id(id),
+        )
+    }
+
+    fn array_search_keys_at(&self, target: &ArrayTarget) -> Option<Vec<String>> {
+        target.cell_id().map_or_else(
+            || self.array_keys_from(target.frame().0, target.name()),
+            |id| self.array_search_keys_at_id(id),
+        )
+    }
+
+    fn array_elem_exists_at(&self, target: &ArrayTarget, key: &str) -> bool {
+        target.cell_id().map_or_else(
+            || {
+                self.get_array_elem_from(target.frame().0, target.name(), key)
+                    .is_some()
+            },
+            |id| self.array_elem_exists_at_id(id, key),
+        )
+    }
+
+    fn array_revision_at(&self, target: &ArrayTarget) -> Option<u64> {
+        target
+            .cell_id()
+            .and_then(|id| self.var_arena.array_revision(id))
+    }
+
+    fn unset_elem_at(&mut self, target: &ArrayTarget, key: &str) -> bool {
+        if let Some(id) = target.cell_id() {
+            self.array_unset_elem_reporting_at(id, target.name(), key, None)
         } else {
-            None
+            self.unset_array_elem_from(target.frame().0, target.name(), key)
         }
     }
 }
@@ -9953,7 +10987,8 @@ impl Frames for Vm {
             self.current_level(),
             "upvar installs in the current frame"
         );
-        self.add_link(local, target.0, target_name);
+        let linked = self.add_link(local, target.0, target_name);
+        debug_assert!(linked.is_ok(), "validated frame link must install");
     }
 
     fn in_proc(&self) -> bool {
@@ -9964,6 +10999,30 @@ impl Frames for Vm {
 
     fn var_names(&self, include_links: bool) -> Vec<String> {
         self.frame_var_names(include_links)
+    }
+
+    fn const_names(&self) -> Vec<String> {
+        self.frames.last().map_or_else(Vec::new, |frame| {
+            frame
+                .locals
+                .iter()
+                .filter(|(_, raw)| {
+                    let Some(cell) = self.var_arena.get(**raw) else {
+                        return false;
+                    };
+                    match cell.state() {
+                        Local::Link(target) => {
+                            cell.link_origin() == FrameLinkOrigin::TclOoInstance
+                                && self.const_vars.contains(target)
+                        }
+                        Local::Undefined | Local::Scalar(_) | Local::Array(_) => {
+                            self.const_vars.contains(raw)
+                        }
+                    }
+                })
+                .map(|(name, _)| name.clone())
+                .collect()
+        })
     }
 }
 
@@ -10035,7 +11094,7 @@ impl Namespaces for Vm {
     }
 
     fn namespace_is_live(&self, ns: NsId) -> bool {
-        !self.dead_namespaces.contains(&ns) && !self.namespace_is_dying(&self.ns_name(ns))
+        !self.dead_namespaces.contains(&ns) && !self.dying_namespaces.contains(&ns)
     }
 
     fn parent(&self, ns: NsId) -> Option<NsId> {
@@ -10085,12 +11144,22 @@ impl Namespaces for Vm {
     }
 
     fn vars_in(&self, ns: NsId) -> Vec<String> {
-        self.vars_directly_in(&self.ns_name(ns))
+        self.var_table(VarTableOwner::Namespace(ns))
+            .map_or_else(Vec::new, |table| table.keys().cloned().collect())
     }
 
-    // `Tcl_FindNamespaceVar`'s single probe. The VM keeps namespace variables
-    // in the global frame keyed by their canonical (unrooted) FQN, so the
-    // namespace's own table is the set of `canonical::simple` cells.
+    fn consts_in(&self, ns: NsId) -> Vec<String> {
+        self.var_table(VarTableOwner::Namespace(ns))
+            .map_or_else(Vec::new, |table| {
+                table
+                    .iter()
+                    .filter(|(_, raw)| self.const_vars.contains(raw))
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            })
+    }
+
+    // `Tcl_FindNamespaceVar`'s single probe over the namespace token's table.
     //
     // A `Link` counts. C's exclusion is of `CompiledLocal`s — a *proc*-local
     // `upvar`/`global` alias, which lives in the proc's compiled frame and is
@@ -10099,22 +11168,12 @@ impl Namespaces for Vm {
     // puts a real `VAR_LINK` cell in the namespace's own table, which
     // `Tcl_FindNamespaceVar` and `info vars` both see (tclsh 9.0.4:
     // `namespace which -variable y` → `::n::y`). Proc-locals cannot leak in
-    // here regardless, because this only ever probes `frames.first()` — the
-    // global frame — and a proc's locals live in its own frame.
+    // here regardless, because procedure locals live in frame tables.
     //
     fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool {
-        let canonical = self.ns_name(ns);
-        let key = if canonical.is_empty() {
-            simple.to_owned()
-        } else {
-            format!("{canonical}::{simple}")
-        };
-        self.frames.first().is_some_and(|frame| {
-            matches!(
-                frame.locals.get(&key),
-                Some(Local::Undefined | Local::Scalar(_) | Local::Array(_) | Local::Link { .. })
-            )
-        })
+        self.var_table(VarTableOwner::Namespace(ns))
+            .and_then(|table| table.get(simple))
+            .is_some_and(|id| self.var_arena.get(*id).is_some())
     }
 
     fn command_origin(&self, cmd: CommandId) -> Option<CommandId> {
@@ -10834,6 +11893,113 @@ mod family_b_tests {
             assert!(vm.exists_elem(GLOBAL_FRAME, base, "a"));
             assert!(vm.unset_elem(GLOBAL_FRAME, base, "a"));
         }
+    }
+
+    #[test]
+    fn raw_scalar_replacement_retires_array_element_trace_cells() {
+        let mut vm = Vm::new();
+        let baseline = vm.var_arena.len();
+        assert!(vm.set_array_elem("a", "k", Value::string("old")).is_ok());
+        vm.add_var_trace(
+            "a(k)",
+            vec!["unset".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
+        assert_eq!(vm.var_arena.len(), baseline + 2);
+
+        vm.write_scalar_raw("a", Value::string("scalar"));
+
+        assert_eq!(vm.get_var("a").unwrap().to_str().as_ref(), "scalar");
+        assert!(vm.var_traces.is_empty());
+        assert_eq!(vm.var_arena.len(), baseline + 1);
+    }
+
+    #[test]
+    fn noncurrent_varstore_unset_retires_array_element_trace_cells() {
+        let mut vm = Vm::new();
+        let baseline = vm.var_arena.len();
+        assert!(vm.set_array_elem("a", "k", Value::string("old")).is_ok());
+        vm.add_var_trace(
+            "a(k)",
+            vec!["unset".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
+        vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
+        assert!(vm.unset(GLOBAL_FRAME, "a"));
+
+        assert!(vm.var_traces.is_empty());
+        assert_eq!(vm.var_arena.len(), baseline);
+        vm.pop_call_frame();
+    }
+
+    #[test]
+    fn noncurrent_varstore_unset_elem_retires_the_reached_trace_cell() {
+        let mut vm = Vm::new();
+        let baseline = vm.var_arena.len();
+        vm.set_elem(GLOBAL_FRAME, "a", "k", Value::string("old"));
+        vm.add_var_trace(
+            "a(k)",
+            vec!["unset".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
+        vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
+
+        assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
+        assert!(vm.var_traces.is_empty());
+        assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
+        assert_eq!(vm.array_keys(GLOBAL_FRAME, "a"), Some(Vec::new()));
+        vm.pop_call_frame();
+    }
+
+    #[test]
+    fn varstore_array_keys_honours_the_requested_frame() {
+        let mut vm = Vm::new();
+        vm.set_elem(GLOBAL_FRAME, "same", "global-a", Value::string("A"));
+        vm.set_elem(GLOBAL_FRAME, "same", "global-b", Value::string("B"));
+        vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
+        let local = FrameId(vm.current_level());
+        vm.set_elem(local, "same", "local", Value::string("L"));
+
+        assert!(vm.exists(GLOBAL_FRAME, "same"));
+        assert!(vm.exists(local, "same"));
+        assert_eq!(
+            vm.array_keys(GLOBAL_FRAME, "same"),
+            Some(vec!["global-a".to_owned(), "global-b".to_owned()])
+        );
+        assert_eq!(vm.array_keys(local, "same"), Some(vec!["local".to_owned()]));
+        vm.pop_call_frame();
+    }
+
+    #[test]
+    fn namespace_var_enumeration_uses_the_exact_retained_token() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "namespace eval N {\
+                     variable old OLD;\
+                     proc p {} {\
+                         namespace delete ::N;\
+                         namespace eval ::N {variable fresh NEW};\
+                         yield paused\
+                     }\
+                 }",
+            ),
+            ""
+        );
+        let old = Namespaces::find_namespace(&vm, ROOT_NS, "::N").unwrap();
+        assert_eq!(eval_value(&mut vm, "coroutine c ::N::p"), "paused");
+        let fresh = Namespaces::find_namespace(&vm, ROOT_NS, "::N").unwrap();
+
+        assert_ne!(old, fresh);
+        assert_eq!(Namespaces::vars_in(&vm, old), vec!["old".to_owned()]);
+        assert_eq!(Namespaces::vars_in(&vm, fresh), vec!["fresh".to_owned()]);
+
+        assert_eq!(eval_value(&mut vm, "c"), "");
     }
 
     #[test]

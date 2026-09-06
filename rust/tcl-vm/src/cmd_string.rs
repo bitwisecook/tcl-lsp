@@ -511,12 +511,10 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // current value, erroring if the variable is unset (matching tclsh —
         // the old VM wrongly created an empty variable here). `var_get` parses
         // `a(k)`.
-        if let Err(c) = vm.fire_var_traces(&n, "read") {
-            return c;
-        }
-        return match vm.var_get(&n) {
-            Some(v) => ok(v),
-            None => err(format!("can't read \"{n}\": no such variable")),
+        return match vm.read_var_traced(&n) {
+            Err(c) => c,
+            Ok(Some(v)) => ok(v),
+            Ok(None) => err(format!("can't read \"{n}\": no such variable")),
         };
     }
     // The byte-exact concatenation is shared with the WASM runtime via

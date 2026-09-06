@@ -542,6 +542,15 @@ fn global_element_guard_applies_only_inside_a_proc() {
     assert_eq!(r, format!("bad variable name \"(v)\": {SCALAR}"));
 }
 
+#[test]
+fn global_at_top_level_does_not_rebind_an_existing_cell() {
+    // Exact Tcl 9.0.4 transcript. The global-frame fast return precedes all
+    // link creation, including the collision checks for an existing scalar.
+    let (ok, result, _) = run("set x 1; global x; set x");
+    assert!(ok, "top-level global must be a no-op: {result}");
+    assert_eq!(result, "1");
+}
+
 /// A qualified name's **parent namespace is resolved before** the element-name
 /// guard, so a missing namespace is reported as such rather than as an element
 /// error (closes a slice of #1588; the `upvar` surface of that issue remains).

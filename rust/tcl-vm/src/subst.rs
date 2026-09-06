@@ -89,11 +89,13 @@ fn command_end(
 }
 
 fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
-    if let Err(c) = vm.fire_var_traces(name, "read") {
-        return Err(TclError::new(c.result.to_str().to_string()));
+    match vm.read_var_traced(name) {
+        Err(c) => Err(TclError::new(c.result.to_str().to_string())),
+        Ok(Some(value)) => Ok(value),
+        Ok(None) => Err(TclError::new(format!(
+            "can't read \"{name}\": no such variable"
+        ))),
     }
-    vm.get_var(name)
-        .ok_or_else(|| TclError::new(format!("can't read \"{name}\": no such variable")))
 }
 
 /// Compile + run a command-substitution body, surfacing a non-`OK` completion
@@ -408,11 +410,13 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
 /// Read an array element `base(key)` (firing read traces) with the standard
 /// "no such variable" error. `var_get` resolves the `base(key)` form.
 fn read_elem(vm: &mut Vm, full: &str) -> Result<Value, TclError> {
-    if let Err(c) = vm.fire_var_traces(full, "read") {
-        return Err(TclError::new(c.result.to_str().to_string()));
+    match vm.read_var_traced(full) {
+        Err(c) => Err(TclError::new(c.result.to_str().to_string())),
+        Ok(Some(value)) => Ok(value),
+        Ok(None) => Err(TclError::new(format!(
+            "can't read \"{full}\": no such variable"
+        ))),
     }
-    vm.var_get(full)
-        .ok_or_else(|| TclError::new(format!("can't read \"{full}\": no such variable")))
 }
 
 /// A parsed `$`-reference split into its base name and optional raw array index.

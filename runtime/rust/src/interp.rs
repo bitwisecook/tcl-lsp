@@ -3259,6 +3259,16 @@ impl Interp {
         )
     }
 
+    /// Whether `name`, resolved as if `level` were active, is a `const` cell.
+    pub(crate) fn is_constant_at(&self, name: &[u8], level: usize) -> bool {
+        crate::vars::is_constant_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            level,
+        )
+    }
+
     /// `array default set arrayName value` — set the array's TIP 508 default
     /// (creating an empty array if needed). `Err` if the name is a scalar / its
     /// namespace is missing.
@@ -4311,6 +4321,24 @@ impl Interp {
         );
     }
 
+    /// Install an automatic `TclOO` instance-variable projection in the active
+    /// method frame.
+    pub(crate) fn make_tcloo_variable_mapped(
+        &mut self,
+        target_ns: NsId,
+        local: &[u8],
+        target: &[u8],
+    ) {
+        crate::vars::make_tcloo_variable_mapped(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            target_ns,
+            local,
+            target,
+        );
+    }
+
     /// The fully-qualified name of an existing namespace `name` (absolute or
     /// relative to the current namespace), or `None` if it does not exist —
     /// for `definitionnamespace`, which requires the namespace to exist.
@@ -4807,66 +4835,6 @@ impl Interp {
             .words_at(level)
             .filter(|w| !w.is_empty())
             .map(<[Vec<u8>]>::to_vec)
-    }
-
-    /// Variable names visible in the current scope (`info vars`): the active
-    /// frame's locals in a proc, else the current namespace's variables.
-    pub(crate) fn visible_var_names(&self) -> Vec<Vec<u8>> {
-        if self.frames.borrow().in_proc() {
-            self.frames.borrow().local_names()
-        } else {
-            self.namespaces.borrow().var_names(self.current_ns.get())
-        }
-    }
-
-    /// `info consts` — the `const` scalar names visible in the current scope.
-    /// Filters the visible variables by constness (following links), so an OO
-    /// instance variable linked to a `const` namespace variable is included.
-    pub(crate) fn visible_const_names(&self) -> Vec<Vec<u8>> {
-        self.visible_var_names()
-            .into_iter()
-            .filter(|n| self.is_constant(n))
-            .collect()
-    }
-
-    /// `info consts ns::pat` — the `const` scalar names in the namespace named
-    /// `qualifier` (absolute or relative to the current namespace).
-    pub(crate) fn consts_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v = ns.const_names(id);
-                v.sort();
-                v
-            }
-            None => Vec::new(),
-        }
-    }
-
-    /// The canonical fully-qualified prefix (ending in `::`) of the namespace a
-    /// pattern qualifier addresses (`info vars ns::pat`): `::` for the global
-    /// namespace, `::a::b::` otherwise. Resolves a *relative* qualifier against
-    /// the current namespace, so results are always absolute (matching C, where
-    /// names are re-qualified through the namespace's `fullName`). `None` if the
-    /// namespace doesn't exist. (Used by [`set_list_qualified`] for `info
-    /// vars`/`consts`; command/proc re-qualification moved to the shared core.)
-    pub(crate) fn canonical_ns_prefix(&self, qualifier: &[u8]) -> Option<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let id = if qualifier.is_empty() {
-            GLOBAL
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)?
-        };
-        let mut p = ns.qualified_name(id);
-        if id != GLOBAL {
-            p.extend_from_slice(b"::"); // global's qualified_name is already `::`
-        }
-        Some(p)
     }
 
     /// Simple command names in the namespace named `qualifier` (absolute or
@@ -8168,7 +8136,7 @@ impl Interp {
         // the frame becomes a link to the object's namespace variable (`ns`), so
         // the method sees instance state without an explicit `variable`.
         for (local, target) in meta.link_vars {
-            self.make_variable_mapped(ns, local, target);
+            self.make_tcloo_variable_mapped(ns, local, target);
         }
 
         // Bind positionals left-to-right: the supplied arg, else the default.

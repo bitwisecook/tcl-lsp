@@ -29,14 +29,14 @@
 use tcl_platform::HostError;
 use tcl_syntax::value::ValueError;
 
-/// A failed Tcl command: the error message that becomes the interpreter result.
+/// A failed Tcl command: its result message and optional structured error code.
 ///
-/// Carries the rendered message only for now; `-errorcode`/`-errorinfo`
-/// threading is added with the catch/return work (Family-B), where the per-frame
-/// `CmdFrame` accumulation lives.
+/// The shared command core owns the semantic error identity; each runtime
+/// adapter publishes it through its native completion/error state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CmdError {
     message: String,
+    error_code: Option<String>,
 }
 
 impl CmdError {
@@ -44,6 +44,15 @@ impl CmdError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            error_code: None,
+        }
+    }
+
+    /// A command error carrying Tcl's structured `-errorcode` list.
+    pub fn with_error_code(message: impl Into<String>, error_code: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            error_code: Some(error_code.into()),
         }
     }
 
@@ -53,11 +62,23 @@ impl CmdError {
         &self.message
     }
 
+    /// Tcl's structured `-errorcode` list, when the command supplied one.
+    #[must_use]
+    pub fn error_code(&self) -> Option<&str> {
+        self.error_code.as_deref()
+    }
+
     /// Consume the error, yielding its message (what an adapter sets as the
     /// interpreter result).
     #[must_use]
     pub fn into_message(self) -> String {
         self.message
+    }
+
+    /// Consume the error, yielding its message and optional error code.
+    #[must_use]
+    pub fn into_parts(self) -> (String, Option<String>) {
+        (self.message, self.error_code)
     }
 
     /// `wrong # args: should be "…"` — the canonical Tcl arity error.
@@ -118,5 +139,11 @@ mod tests {
             r#"wrong # args: should be "x""#
         );
         assert_eq!(CmdError::new("z").into_message(), "z");
+        let coded = CmdError::with_error_code("constant", "TCL UNSET CONST");
+        assert_eq!(coded.error_code(), Some("TCL UNSET CONST"));
+        assert_eq!(
+            coded.into_parts(),
+            ("constant".to_string(), Some("TCL UNSET CONST".to_string()))
+        );
     }
 }

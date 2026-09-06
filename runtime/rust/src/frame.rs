@@ -20,7 +20,7 @@
 //!
 //! Canonical model: `tclInt.h`'s `Var` is a tagged union
 //! `{ scalar objPtr | array tablePtr | linkPtr }` held in a hash table
-//! (`tmp/tcl9.0.3/generic/tclVar.c`). In C every variable lives in *some*
+//! (`tmp/tcl9.0.4/generic/tclVar.c`). In C every variable lives in *some*
 //! [`VarTable`]: a proc call frame's locals, or a **namespace** var table
 //! (`Namespace.varTable`) — the global frame's table *is* the global
 //! namespace's. This module owns the cell mechanics ([`Var`], [`VarTable`]) and
@@ -46,6 +46,8 @@
 //! overwriting/unsetting/dropping releases. Links own nothing.
 
 use std::collections::BTreeMap;
+
+use tcl_runtime_api::FrameLinkOrigin;
 
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
@@ -142,6 +144,9 @@ struct Cell {
     /// constant`. On the cell rather than in a side set so a compiled slot's
     /// write check is the same O(1) index as the write itself.
     constant: bool,
+    /// Why a link occupies this frame cell. `TclOO`'s automatic instance
+    /// projections participate in `info consts`; ordinary aliases do not.
+    link_origin: FrameLinkOrigin,
     /// **The per-cell trace bit**: whether a variable trace can observe this
     /// cell, together with the variable-trace epoch that answer was computed
     /// for.
@@ -197,6 +202,7 @@ impl VarTable {
             name: name.to_vec(),
             var: None,
             constant: false,
+            link_origin: FrameLinkOrigin::Ordinary,
             traced: core::cell::Cell::new((0, false)),
         });
         self.slots.insert(name.to_vec(), slot);
@@ -240,6 +246,7 @@ impl VarTable {
     /// Store `var` under `name`, returning the variable it displaced.
     fn put(&mut self, name: &[u8], var: Var) -> Option<Var> {
         let slot = self.slot_for(name);
+        self.cells[slot].link_origin = FrameLinkOrigin::Ordinary;
         self.cells[slot].var.replace(var)
     }
 
@@ -274,6 +281,24 @@ impl VarTable {
             .iter()
             .filter(|(_, slot)| self.cells[**slot].constant)
             .map(|(name, _)| name.as_slice())
+            .collect()
+    }
+
+    /// Automatic `TclOO` instance links in this table. The variable coordinator
+    /// resolves their targets because those may live in another table.
+    pub(crate) fn tcloo_instance_links(&self) -> Vec<(&[u8], &Link)> {
+        self.slots
+            .iter()
+            .filter_map(|(name, slot)| {
+                let cell = &self.cells[*slot];
+                if cell.link_origin != FrameLinkOrigin::TclOoInstance {
+                    return None;
+                }
+                match cell.var.as_ref()? {
+                    Var::Link(link) => Some((name.as_slice(), link)),
+                    Var::Scalar(_) | Var::Array(_) => None,
+                }
+            })
             .collect()
     }
 
@@ -459,7 +484,19 @@ impl VarTable {
 
     /// Install `link` under `name`, releasing any cell it replaces.
     pub(crate) fn insert_link(&mut self, name: &[u8], link: Link) {
-        if let Some(old) = self.put(name, Var::Link(link)) {
+        self.insert_link_with_origin(name, link, FrameLinkOrigin::Ordinary);
+    }
+
+    /// Install a link with its typed frame-binding origin.
+    pub(crate) fn insert_link_with_origin(
+        &mut self,
+        name: &[u8],
+        link: Link,
+        origin: FrameLinkOrigin,
+    ) {
+        let slot = self.slot_for(name);
+        self.cells[slot].link_origin = origin;
+        if let Some(old) = self.cells[slot].var.replace(Var::Link(link)) {
             old.release();
         }
     }
@@ -817,6 +854,34 @@ impl FrameStack {
                     .non_link_names()
                     .into_iter()
                     .map(<[u8]>::to_vec)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Direct `const` bindings in the active frame (`info consts`).
+    pub(crate) fn const_names(&self) -> Vec<Vec<u8>> {
+        self.index_of_level(self.active_level)
+            .map(|i| {
+                self.frames[i]
+                    .table
+                    .const_names()
+                    .into_iter()
+                    .map(<[u8]>::to_vec)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Automatic `TclOO` instance links in the active method frame.
+    pub(crate) fn tcloo_instance_links(&self) -> Vec<(Vec<u8>, Link)> {
+        self.index_of_level(self.active_level)
+            .map(|i| {
+                self.frames[i]
+                    .table
+                    .tcloo_instance_links()
+                    .into_iter()
+                    .map(|(name, link)| (name.to_vec(), link.clone()))
                     .collect()
             })
             .unwrap_or_default()

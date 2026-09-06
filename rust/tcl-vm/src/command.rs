@@ -264,10 +264,11 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             // the `$var` opcode path) — and a trace may create the variable
             // before the read resolves (tcltest's `SafeFetch` lazily
             // initialises a constraint this way).
-            if let Err(c) = vm.fire_var_traces(&n, "read") {
-                return c;
+            match vm.read_var_traced(&n) {
+                Ok(Some(value)) => ok(value),
+                Ok(None) => err(vm.read_miss_msg(&n)),
+                Err(c) => c,
             }
-            vm.var_get(&n).map_or_else(|| err(vm.read_miss_msg(&n)), ok)
         }
         [name, value] => match vm.store_var_result(&name.to_str(), value.clone()) {
             Ok(stored) => ok(stored),
@@ -351,12 +352,12 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
-    // `pending_eval`, which pushes a transparent script frame whose result
+    // the pending eval request, which pushes a transparent script frame whose result
     // replaces this placeholder. The script frame adds the `("eval" body line N)`
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
     match vm.compile_script_cached(&script) {
         Ok(script) => {
-            vm.pending_eval = Some((script, Some("eval"), None));
+            vm.pending.eval = Some((script, Some("eval"), None));
             ok(Value::empty())
         }
         Err(e) => err(e.message),
@@ -443,7 +444,7 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
 /// Implemented by binding the lambda to a temporary command and evaluating a
 /// call, so parameter binding and `return` semantics match a normal proc.
 ///
-/// Defers the call to the *explicit* stack via `pending_eval` (like
+/// Defers the call to the *explicit* stack via the pending eval request (like
 /// `eval`/`uplevel`) rather than `Vm::eval_source`'s nested drive, so a `yield`
 /// inside the lambda body stays yieldable — `coroutine c apply {lambda}`
 /// already got this treatment (`cmd_coroutine` binds the lambda to an internal
@@ -466,7 +467,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
     match vm.compile_script_cached(&script) {
         Ok(script) => {
-            vm.pending_eval = Some((script, None, Some(name)));
+            vm.pending.eval = Some((script, None, Some(name)));
             ok(Value::empty())
         }
         Err(e) => {
@@ -1167,12 +1168,12 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
     // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable:
-    // park the template + switches in `pending_subst`, drained by
+    // park the template + switches in the pending subst request, drained by
     // the trampoline into a scanner-driven subst frame (mirrors `cmd_catch`'s
-    // `pending_catch`). The frame's accumulated result replaces this builtin's
+    // the pending catch request). The frame's accumulated result replaces this builtin's
     // placeholder; on the native `invoke_command` fallback it runs via a nested
     // drive (not yieldable, as before).
-    vm.pending_subst = Some(crate::exec::SubstReq {
+    vm.pending.subst = Some(crate::exec::SubstReq {
         template: string.to_str().to_string(),
         backslashes,
         commands,
@@ -1489,6 +1490,31 @@ pub(crate) fn with_return_level(options: &Value, new_level: i64) -> Value {
     Value::list(items)
 }
 
+/// Rebuild a return-options dict with one key replaced, preserving every
+/// unrelated option. A missing key is appended.
+pub(crate) fn with_return_option(options: &Value, key: &str, value: Value) -> Value {
+    let mut items = Vec::new();
+    let mut replaced = false;
+    if let Ok(list) = options.as_list() {
+        let mut i = 0;
+        while i + 1 < list.len() {
+            items.push(list[i].clone());
+            if &*list[i].to_str() == key {
+                items.push(value.clone());
+                replaced = true;
+            } else {
+                items.push(list[i + 1].clone());
+            }
+            i += 2;
+        }
+    }
+    if !replaced {
+        items.push(Value::string(key));
+        items.push(value);
+    }
+    Value::list(items)
+}
+
 /// Look up a key in an options-dict value, returning the following element.
 pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
@@ -1795,13 +1821,13 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via
-    // `pending_catch`. A catch frame runs the body and its completion — of any
+    // the pending catch request. A catch frame runs the body and its completion — of any
     // code — is absorbed by `finish_catch` (which binds the result/options vars
-    // and yields the status code). Mirrors `cmd_eval`'s `pending_eval`, but
+    // and yields the status code). Mirrors `cmd_eval`'s pending request, but
     // catch's completion is caught rather than propagated.
     match vm.prepare_script_commands(&script.to_str()) {
         Ok(prepared) if prepared.prefix.is_some() => {
-            vm.pending_catch = Some(crate::exec::CatchReq {
+            vm.pending.catch = Some(crate::exec::CatchReq {
                 script: prepared.prefix.expect("checked above"),
                 resvar: resvar.map(|v| (*v).clone()),
                 optvar: optvar.map(|v| (*v).clone()),
@@ -2064,6 +2090,14 @@ pub(crate) fn upvar_link_error(
             format!("can't create \"{local}\": parent namespace doesn't exist"),
             &lookup_var_error_code(local),
         ),
+        crate::interp::UpvarLinkError::Exists => err_with_code(
+            format!("variable \"{local}\" already exists"),
+            "TCL UPVAR EXISTS",
+        ),
+        crate::interp::UpvarLinkError::Traced => err_with_code(
+            format!("variable \"{local}\" has traces: can't use for upvar"),
+            "TCL UPVAR TRACED",
+        ),
     }
 }
 
@@ -2076,22 +2110,25 @@ pub(crate) fn upvar_link_error(
 /// `global a(b)` are accepted. Verified on 8.6.16 and 9.0.4, which agree.
 fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let in_proc = vm.in_proc_frame();
+    if !in_proc {
+        return ok(Value::empty());
+    }
     for n in args {
         let nm = n.to_str();
-        if in_proc {
-            // Namespace resolution comes first: `global ::nosuch::v(k)` is a
-            // missing-namespace error, not an element one.
-            if let Some(e) = missing_parent_ns(vm, "access", &nm) {
-                return e;
-            }
-            // C links under the *tail* and reports the tail: `global ::x::a(b)`
-            // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
-            let tail = name_tail(&nm);
-            if looks_like_element(tail) {
-                return bad_link_name(tail);
-            }
+        // Namespace resolution comes first: `global ::nosuch::v(k)` is a
+        // missing-namespace error, not an element one.
+        if let Some(e) = missing_parent_ns(vm, "access", &nm) {
+            return e;
         }
-        vm.add_link(&nm, 0, &nm);
+        // C links under the *tail* and reports the tail: `global ::x::a(b)`
+        // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
+        let tail = name_tail(&nm);
+        if looks_like_element(tail) {
+            return bad_link_name(tail);
+        }
+        if let Err(error) = vm.add_link(&nm, 0, &nm) {
+            return upvar_link_error(error, &nm, name_tail(&nm));
+        }
     }
     ok(Value::empty())
 }
@@ -2226,7 +2263,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if target == cur {
         return match vm.compile_script_cached(&script) {
             Ok(script) => {
-                vm.pending_eval = Some((script, Some("uplevel"), None));
+                vm.pending.eval = Some((script, Some("uplevel"), None));
                 ok(Value::empty())
             }
             Err(e) => err(e.message),
@@ -2248,9 +2285,7 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let mut i = 0;
     while i < args.len() {
         let name = args[i].to_str();
-        // Namespace variables live in the global frame keyed by their canonical
-        // qualified name; alias the unqualified local the body uses to it.
-        let qual = vm.qualify_name(&name);
+        // Alias the unqualified local spelling to the stable namespace cell.
         let local = name_tail(&name).to_owned();
         // C's `TclNRVariableObjCmd` rejects an element-looking target, checking
         // the tail but naming the *given* spelling: `variable ::x::v(k)` says
@@ -2273,8 +2308,9 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 "TCL UPVAR LOCAL_ELEMENT",
             );
         }
-        vm.declare_namespace_variable(&qual);
-        vm.add_link(&local, 0, &qual);
+        if let Err(error) = vm.link_namespace_variable(&local, &name) {
+            return upvar_link_error(error, &name, &local);
+        }
         if i + 1 < args.len() {
             // `set_var` follows the alias just installed to the real cell.
             if let Err(e) = vm.set_var(&local, args[i + 1].clone()) {

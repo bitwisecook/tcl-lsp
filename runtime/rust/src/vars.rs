@@ -42,6 +42,7 @@
 //! [`make_upvar`]). The coordinator borrows both the frame stack and the
 //! namespace tree (the two var-table owners) from the interp.
 
+use tcl_runtime_api::FrameLinkOrigin;
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{FrameStack, Link, Var, VarError, VarHome, VarTable};
@@ -737,6 +738,38 @@ pub(crate) fn is_constant(
     }
 }
 
+/// Frame-addressed [`is_constant`]: resolve `name` as if `level` were active.
+pub(crate) fn is_constant_at(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    level: usize,
+) -> bool {
+    match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home).is_some_and(|t| t.is_constant(&p.name))
+        }
+        _ => false,
+    }
+}
+
+/// `info consts` candidates in the active frame: direct constant cells plus
+/// automatic `TclOO` instance projections whose resolved namespace target is
+/// constant. Ordinary `global`/`upvar`/`variable` aliases are excluded.
+pub(crate) fn const_names(frames: &FrameStack, ns: &Namespaces) -> Vec<Vec<u8>> {
+    let mut names = frames.const_names();
+    for (name, link) in frames.tcloo_instance_links() {
+        if link.elem.is_none()
+            && table(frames, ns, link.home).is_some_and(|table| table.is_constant(&link.name))
+        {
+            names.push(name);
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
 /// Whether `name` resolves to an array variable (the `set a` array-vs-scalar
 /// diagnostic; `array exists`).
 pub(crate) fn is_array(
@@ -839,11 +872,29 @@ fn link_local(
     local: &[u8],
     target: Link,
 ) {
+    link_local_with_origin(
+        frames,
+        ns,
+        current_ns,
+        local,
+        target,
+        FrameLinkOrigin::Ordinary,
+    );
+}
+
+fn link_local_with_origin(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    local: &[u8],
+    target: Link,
+    origin: FrameLinkOrigin,
+) {
     let here = current_home(frames, current_ns);
     if target.home == here && target.elem.is_none() && target.name == local {
         return; // already the same variable — `global`/`variable` is a no-op
     }
-    table_mut(frames, ns, here).insert_link(local, target);
+    table_mut(frames, ns, here).insert_link_with_origin(local, target, origin);
 }
 
 /// `variable tail` / `global tail` — link the current context's `tail` to the
@@ -871,6 +922,46 @@ pub(crate) fn make_variable_mapped(
     local: &[u8],
     target: &[u8],
 ) {
+    make_variable_mapped_with_origin(
+        frames,
+        ns,
+        current_ns,
+        target_ns,
+        local,
+        target,
+        FrameLinkOrigin::Ordinary,
+    );
+}
+
+/// Install one automatic `TclOO` instance-variable projection.
+pub(crate) fn make_tcloo_variable_mapped(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    target_ns: NsId,
+    local: &[u8],
+    target: &[u8],
+) {
+    make_variable_mapped_with_origin(
+        frames,
+        ns,
+        current_ns,
+        target_ns,
+        local,
+        target,
+        FrameLinkOrigin::TclOoInstance,
+    );
+}
+
+fn make_variable_mapped_with_origin(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    target_ns: NsId,
+    local: &[u8],
+    target: &[u8],
+    origin: FrameLinkOrigin,
+) {
     // C's `variable` (`TclLookupSimpleVar` with create) materialises the
     // namespace variable itself as an *undefined Var* before any value is
     // set.  The self-link cell is our stand-in: persistent in the namespace
@@ -888,7 +979,7 @@ pub(crate) fn make_variable_mapped(
             },
         );
     }
-    link_local(
+    link_local_with_origin(
         frames,
         ns,
         current_ns,
@@ -898,6 +989,7 @@ pub(crate) fn make_variable_mapped(
             name: target.to_vec(),
             elem: None,
         },
+        origin,
     );
 }
 

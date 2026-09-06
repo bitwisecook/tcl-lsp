@@ -240,13 +240,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(if is_const { b"1" } else { b"0" });
             Code::Ok
         }
-        b"consts" => set_list_qualified(
-            interp,
-            argv,
-            b"info consts ?pattern?",
-            Interp::consts_in_namespace,
-            Interp::visible_const_names,
-        ),
+        b"consts" => info_consts(interp, argv),
         other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
             SUBS,
             other,
@@ -302,57 +296,11 @@ fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>
     Code::Ok
 }
 
-/// `info commands|procs|vars ?pattern?` — a namespace-qualified pattern
-/// (`::ns::glob`) lists the matching names *in that namespace* (re-qualified);
-/// an unqualified pattern filters the names visible from the current scope.
-fn set_list_qualified(
-    interp: &mut Interp,
-    argv: &[*mut TclObj],
-    usage: &[u8],
-    in_namespace: fn(&Interp, &[u8]) -> Vec<Vec<u8>>,
-    visible: fn(&Interp) -> Vec<Vec<u8>>,
-) -> Code {
-    if argv.len() > 3 {
-        return interp.wrong_args(usage);
-    }
-    let pattern = argv.get(2).map(|&a| obj_bytes(a));
-    // Find the last `::` so a qualified pattern splits into (prefix, tail glob).
-    let split = pattern.as_deref().and_then(|p| {
-        p.windows(2)
-            .rposition(|w| w == b"::")
-            .map(|i| (&p[..i], &p[i + 2..]))
-    });
-    if let Some((prefix, tail)) = split {
-        // Re-qualify through the namespace's canonical full name so results are
-        // absolute even for a *relative* qualifier (`info commands ns::pat`).
-        let Some(canon) = interp.canonical_ns_prefix(prefix) else {
-            interp.set_result(list::new_list_obj(&[]));
-            return Code::Ok;
-        };
-        let names = in_namespace(interp, prefix);
-        let objs: Vec<*mut TclObj> = names
-            .iter()
-            .filter(|n| glob_match(tail, n))
-            .map(|n| {
-                let mut full = canon.clone();
-                full.extend_from_slice(n);
-                new_string(&full)
-            })
-            .collect();
-        let l = list::new_list_obj(&objs);
-        interp.set_result(l);
-        return Code::Ok;
-    }
-    let list = visible(interp);
-    set_filtered(interp, list, pattern.as_deref())
-}
-
 /// `info commands ?pattern?` / `info procs ?pattern?` — the shared
 /// namespace-aware command/proc listing core (over the `Namespaces` enumeration
 /// rungs); `procs_only` selects `procs`. The qualified-pattern split,
 /// re-qualification, glob filter, and the global-merge asymmetry all live in the
-/// core. (Variable listing — `vars`/`locals`/`globals`/`consts` — stays on
-/// [`set_list_qualified`]: the VM has no namespace variables to share against.)
+/// core.
 fn info_command_list(
     interp: &mut Interp,
     argv: &[*mut TclObj],
@@ -380,8 +328,7 @@ enum VarList {
 /// `info vars`/`locals`/`globals` — the shared variable-listing cores (over
 /// `Namespaces::vars_in` + the active-frame `Frames` rungs). The whole
 /// context/namespace/link logic lives in the core; this adapter only checks
-/// arity and maps the result. (`consts` stays on [`set_list_qualified`] — TIP 677
-/// is runtime-only.)
+/// arity and maps the result.
 fn info_var_list(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], which: VarList) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args(usage);
@@ -392,6 +339,15 @@ fn info_var_list(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], which:
         VarList::Locals => tcl_cmd_core::info::locals(interp, pattern),
         VarList::Globals => tcl_cmd_core::info::globals(interp, pattern),
     };
+    interp.set_result(result);
+    Code::Ok
+}
+
+fn info_consts(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() > 3 {
+        return interp.wrong_args(b"info consts ?pattern?");
+    }
+    let result = tcl_cmd_core::info::consts(interp, argv.get(2));
     interp.set_result(result);
     Code::Ok
 }
@@ -802,6 +758,112 @@ mod tests {
             assert_eq!(run(i, b"info exists a(nope)"), b"0");
             assert_eq!(run(i, b"info exists a"), b"1"); // the array exists
             i.eval_str(b"unset x a");
+        });
+    }
+
+    #[test]
+    fn info_consts_enumerates_bindings_and_namespace_global_fallback() {
+        leak_free(|i| {
+            assert_eq!(
+                run(
+                    i,
+                    concat!(
+                        "const G 1; namespace eval N {const C 2; set ordinary 0}; ",
+                        "list [lsort [info consts]] [info consts G] ",
+                        "[info consts N::*] [info consts ::N::*]"
+                    )
+                    .as_bytes(),
+                ),
+                b"G G ::N::C ::N::C"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    concat!(
+                        "namespace eval N {list [lsort [info consts]] ",
+                        "[lsort [info consts *]] [info consts G] [info consts C] ",
+                        "[info consts ::*]}"
+                    )
+                    .as_bytes(),
+                ),
+                b"{C G} {C G} G C ::G"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    concat!(
+                        "proc p {} {const L 3; set ordinary 0; global G; ",
+                        "upvar #0 ::N::C U; list [lsort [info vars]] ",
+                        "[lsort [info consts]] [info constant L] [info constant G] ",
+                        "[info constant U] [info consts ::*] [info consts N::*]}; p"
+                    )
+                    .as_bytes(),
+                ),
+                b"{G L U ordinary} L 1 1 1 ::G ::N::C"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    concat!(
+                        "namespace eval M {const C 4; namespace upvar :: G A; ",
+                        "list [lsort [info vars]] [lsort [info consts]] ",
+                        "[info constant A] [info consts A] [info consts G]}"
+                    )
+                    .as_bytes(),
+                ),
+                b"{A C} {C G} 1 {} G"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    concat!(
+                        "namespace eval S {const C 5; set G shadow; ",
+                        "list [lsort [info consts]] [info consts G] ",
+                        "[info consts G*] [info constant G] [info constant ::G]}"
+                    )
+                    .as_bytes(),
+                ),
+                b"C G {} 0 1"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    b"const ::x 1; list [info consts :::x] [info consts ::::x] [info consts ::::::*]",
+                ),
+                b"::x ::x {::G ::x}"
+            );
+        });
+    }
+
+    #[test]
+    fn info_consts_includes_only_tcloo_instance_links() {
+        leak_free(|i| {
+            assert_eq!(
+                run(
+                    i,
+                    concat!(
+                        "const G 9; oo::class create C {variable X; ",
+                        "constructor {} {const X 1}; method inspect {} {global G; ",
+                        "upvar #0 ::G U; list [info consts] [info constant G] ",
+                        "[info constant U]}; method retarget {} {upvar #0 ::G X; ",
+                        "list [info consts] [info constant X]}; method shadow {X} ",
+                        "{list $X [info consts]}}; set o [C new]; ",
+                        "oo::object create O; oo::objdefine O {variable P; ",
+                        "method init {} {const P 2}; method inspect {} {info consts}}; ",
+                        "O init; oo::class create CA {variable X; method inspect {} ",
+                        "{list [info consts] [info constant X] $X}}; set oa [CA new]; ",
+                        "namespace eval [info object namespace $oa] ",
+                        "{namespace upvar :: G X}; oo::class create CP ",
+                        "{method inspect {} {info consts}}; CP create op; ",
+                        "oo::objdefine op {variable Q; method init {} {const Q 3}}; ",
+                        "op init; list [$o inspect] [$o retarget] [$o shadow formal] ",
+                        "[O inspect] [$oa inspect] [op inspect] ",
+                        "[info constant [info object namespace op]::Q]"
+                    )
+                    .as_bytes(),
+                ),
+                b"{X 1 1} {{} 1} {formal {}} P {{} 1 9} {} 1"
+            );
         });
     }
 
