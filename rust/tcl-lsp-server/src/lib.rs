@@ -2708,6 +2708,9 @@ struct DiagInputs {
     /// and the workspace-wide query snapshot that consumes it. See
     /// [`Backend::rehoming_gate`].
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Serialises the coverage/project snapshot with live source membership
+    /// publication. See [`Backend::live_publication_gate`].
+    live_publication_gate: Arc<Mutex<()>>,
     /// Package database for the W120 workspace-refinement post-filter (#723).
     package_resolver: Arc<RwLock<PackageResolver>>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
@@ -4333,6 +4336,9 @@ struct EvidenceHandles {
     /// Serialises that re-index with source-site reconciliation, exactly as
     /// [`Backend::merge_workspace_scan_results`] does.
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Keeps admitted membership and its Salsa `Project` input in the same
+    /// generation while cross-file evidence captures both.
+    live_publication_gate: Arc<Mutex<()>>,
     /// Serialises class-factory oracle changes with standalone index seeds.
     class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
 }
@@ -4347,6 +4353,7 @@ impl EvidenceHandles {
             workspace_index: Arc::clone(&inputs.workspace_index),
             documents: Arc::clone(&inputs.documents),
             rehoming_gate: Arc::clone(&inputs.rehoming_gate),
+            live_publication_gate: Arc::clone(&inputs.live_publication_gate),
             class_factory_generation: Arc::clone(&inputs.class_factory_generation),
         }
     }
@@ -4398,15 +4405,16 @@ impl EvidenceHandles {
 /// immediately if this is gated on it.
 async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     use salsa::Setter as _;
-    // A removal changes the file membership, workspace index, and Salsa
-    // project in one rehoming transaction. Keep that transaction excluded
-    // until both the coverage view and its matching Salsa snapshot have been
-    // captured; otherwise a pre-removal URI set can be paired with the
-    // post-removal index/project and unsafely claim a closed world. Live
-    // publication can still add a source while this short section runs, but a
-    // missing addition only withholds evidence -- the conservative direction.
+    // A removal changes file membership, the workspace index, and the Salsa
+    // project in one rehoming transaction. A live orphan edit changes admitted
+    // membership and the Salsa project under the live-publication gate. Keep
+    // both transactions excluded until the coverage view and its matching
+    // Salsa snapshot have been captured; otherwise a pre-removal URI set can
+    // be paired with the post-removal project and unsafely claim a closed
+    // world. The gates are released before the project-wide analysis begins.
     let (covered, snapshot, files, project) = {
         let _rehoming = handles.rehoming_gate.lock().await;
+        let _live_publication = handles.live_publication_gate.lock().await;
         let covered = files_with_covered_load_targets(
             &handles.db_files,
             &handles.db_project_members,
@@ -17877,6 +17885,7 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             rehomed_source_seeds: Arc::clone(&self.rehomed_source_seeds),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
+            live_publication_gate: Arc::clone(&self.live_publication_gate),
             package_resolver: Arc::clone(&self.package_resolver),
             recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
@@ -20115,6 +20124,7 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             documents: Arc::clone(&self.documents),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
+            live_publication_gate: Arc::clone(&self.live_publication_gate),
             class_factory_generation: Arc::clone(&self.class_factory_generation),
         };
         let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
@@ -35024,6 +35034,7 @@ mod tests {
             workspace_index: Arc::clone(&backend.workspace_index),
             documents: Arc::clone(&backend.documents),
             rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
             class_factory_generation: Arc::clone(&backend.class_factory_generation),
         };
 
@@ -35158,6 +35169,90 @@ mod tests {
         assert!(
             !covered.contains(&main),
             "a local-only orphan cannot close the live source boundary",
+        );
+    }
+
+    /// Exact-head automated review of #1854: coverage membership and the
+    /// Salsa project must come from one live-publication generation. An orphan
+    /// edit removes its URI from both, so the evidence snapshot cannot retain
+    /// the old covered set while observing the new project.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn cross_file_evidence_snapshot_waits_for_live_membership_commit_1854() {
+        let backend = Arc::new(test_backend());
+        let main = Uri::from_str("file:///w/evidence-main-1854.tcl").unwrap();
+        let orphan = Uri::from_str("file:///w/evidence-orphan-1854.tcl").unwrap();
+        let main_text = "source evidence-orphan-1854.tcl\nproc main_proc {} {}\n";
+        backend
+            .db_set_source(&main, main_text, "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(&orphan, "proc orphan_proc {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let analysis = Analyser::new().analyse(main_text, "tcl8.6").clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(main.as_str(), &analysis);
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+
+        let publication = backend.live_publication_gate.lock().await;
+        let mut db = backend.db.lock().await;
+        let syncing = crate::rt::spawn(async move { sync_cross_file_evidence(&handles).await });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.rehoming_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the evidence sync must reach the live-publication boundary");
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), async {
+                loop {
+                    if backend.db.contention().contains("1 queued waiter") {
+                        break;
+                    }
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "evidence sync must not capture coverage before the live membership commit",
+        );
+
+        let files = backend.db_files.lock().await;
+        let mut members = backend.db_project_members.lock().await;
+        assert!(members.remove(&orphan));
+        let mut project = backend.db_project.lock().await;
+        Backend::sync_db_project(&mut db, &files, &members, &mut project);
+        drop(project);
+        drop(members);
+        drop(files);
+        drop(db);
+        drop(publication);
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), syncing)
+            .await
+            .expect("evidence sync must finish after the live commit")
+            .expect("evidence sync must not panic");
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert!(
+            files[&main].external_call_sites(&*db).is_none(),
+            "a source of the removed member must remain conservatively uncovered",
         );
     }
 
