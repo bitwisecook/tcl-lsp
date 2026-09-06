@@ -807,6 +807,15 @@ impl CfgBuilder<'_> {
             unreachable!("lower_switch called with non-Switch");
         };
 
+        // All unbraced subject and pattern words substitute before `switch`
+        // dispatches. Preserve those writes and opaque effects even when the
+        // switch itself is flattened into branch terminators.
+        self.push_embedded_control_effects(
+            stmt,
+            block_name,
+            "switch word invokes an opaque embedded command",
+        );
+
         // Glob/regexp switches, and exact switches with any fall-through arm,
         // are kept *opaque* — a single `Statement::Switch` in the current block,
         // no expanded arm blocks. Their shared-body / OR-matching topology can't
