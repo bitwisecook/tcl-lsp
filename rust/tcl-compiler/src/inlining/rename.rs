@@ -456,7 +456,19 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
     Statement::Switch {
         subject_braced: *subject_braced,
         span: *span,
-        subject: rewrite_value_string(subject, rename),
+        // A braced subject's value is literal — a `$x` inside it is data, not
+        // a read — so alpha-renaming must leave it alone, exactly as the arm
+        // patterns below are cloned rather than rewritten. The rewrite was
+        // harmless while the subject was substituted at run time regardless of
+        // its braces: renaming it and then reading the renamed variable
+        // happened to give an answer. Now that a braced subject is the literal
+        // it always was, rewriting it compares `$__inline_…__x` against the
+        // pattern `$x` and takes the wrong arm.
+        subject: if *subject_braced {
+            subject.clone()
+        } else {
+            rewrite_value_string(subject, rename)
+        },
         subject_span: *subject_span,
         arms: arms
             .iter()

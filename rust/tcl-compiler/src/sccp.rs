@@ -1914,8 +1914,18 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }
     // `[format "..." args…]` with literal args.
+    // The document's escape grammar, from the same resolved profile the rest
+    // of the policy's axes come from. A caller with no dialect keeps the 9.0
+    // default, which is what `FoldPolicy::numbers` documents for its own axis
+    // — the fold stays available, it just stops guessing once a dialect is
+    // known.
+    let escapes = policy
+        .dialect
+        .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
+            profile.grammar.escapes
+        });
     if trusted("format")
-        && let Some(folded) = crate::codegen::helpers::try_format_fold(value)
+        && let Some(folded) = crate::codegen::helpers::try_format_fold(value, escapes)
     {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }

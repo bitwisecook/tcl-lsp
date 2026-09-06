@@ -104,6 +104,44 @@ fn deeply_nested_if_survives_inlining_walks() {
 
 // v0 / verbatim tests
 
+/// A braced `switch` subject is literal: alpha-renaming must not rewrite a
+/// `$x` inside it, exactly as it already leaves the arm patterns alone.
+///
+/// Latent until the subject's braced-ness was recorded — while the subject was
+/// substituted at run time regardless of its braces, renaming it and then
+/// reading the renamed variable happened to produce an answer. Once a braced
+/// subject is the literal it always was, a rewritten subject compares
+/// `$__inline_…__x` against the pattern `$x` and takes the wrong arm.
+#[test]
+fn a_braced_switch_subject_survives_alpha_renaming() {
+    let stmts = inlined_top(
+        "proc ::f {x} { switch -- {$x} {$x} { puts hit } default { puts miss } }
+f {$x}",
+    );
+    let subjects: Vec<(&str, bool)> = stmts
+        .iter()
+        .filter_map(|s| match s {
+            Statement::Switch {
+                subject,
+                subject_braced,
+                ..
+            } => Some((subject.as_str(), *subject_braced)),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !subjects.is_empty(),
+        "the switch did not survive inlining, so this proves nothing: {stmts:#?}"
+    );
+    for (subject, braced) in subjects {
+        assert!(braced, "the subject should still be marked braced");
+        assert_eq!(
+            subject, "$x",
+            "a braced subject is literal and must not be alpha-renamed"
+        );
+    }
+}
+
 #[test]
 fn empty_body_call_vanishes() {
     let module = module_for("proc ::noop {} {}\nnoop\nputs done");
