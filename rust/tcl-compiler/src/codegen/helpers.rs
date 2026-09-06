@@ -469,11 +469,25 @@ fn fold_cmd_arg_values(
     }
 
     // Cannot fold if UNBRACED arguments contain substitutions.
+    //
+    // "Braced" means *the word is a braced word*, which is why the quote state
+    // has to be tracked alongside the depth: inside a `"…"` word a brace is
+    // ordinary content, not a group, and it suppresses nothing. Counting it as
+    // a group made `"{$x}"` look protected, so `[list "{$x}"]` folded and froze
+    // the source spelling — `{{$x}}` where both oracles say `{{7}}` — and
+    // `[dict create k "{[…]}"]` froze an unrun command substitution.
+    //
+    // Deliberately still blind to backslashes: an escaped `\$` in a bare word
+    // is a constant this declines to fold, which costs a fold and answers
+    // correctly. Teaching it to escape-skip would *enable* new folds, which is
+    // a different change with a different risk.
     let mut depth: i32 = 0;
+    let mut in_quotes = false;
     for ch in inner.bytes() {
         match ch {
-            b'{' => depth += 1,
-            b'}' => depth -= 1,
+            b'"' => in_quotes = !in_quotes,
+            b'{' if !in_quotes => depth += 1,
+            b'}' if !in_quotes => depth -= 1,
             b'$' | b'[' if depth == 0 => return None,
             _ => {}
         }
@@ -618,8 +632,14 @@ pub fn try_format_fold(value: &str) -> Option<String> {
                 _ => return None,
             }
         } else {
-            result.push(char::from(fmt_bytes[fi]));
-            fi += 1;
+            // The *character*, not the byte. Every `%`-arm above advances by
+            // two ASCII bytes, so `fi` is always a char boundary here.
+            let ch = fmt[fi..]
+                .chars()
+                .next()
+                .expect("fi is a char boundary inside fmt");
+            result.push(ch);
+            fi += ch.len_utf8();
         }
     }
 
@@ -641,27 +661,32 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
             b'"' => {
                 // Quoted string — subject to substitution, so a `$`/`[` makes it
                 // non-constant (an escaped `\$`/`\[` stays literal).
+                //
+                // Scanned by *slice*, not by pushing one byte at a time
+                // through `char::from`: that maps a byte to the Latin-1 code
+                // point of its value, so every byte of a multi-byte character
+                // became its own mojibake char and `[format %s "café"]` folded
+                // to five characters of `cafÃ©`. The same mistake was fixed in
+                // `parse_subst_template` for issue #1441
+                // (`subst_template_multibyte_literal_text_with_var`) and
+                // survived here, in its neighbour.
                 i += 1;
-                let mut buf = String::new();
+                let start = i;
                 let mut subst = false;
                 while i < bytes.len() && bytes[i] != b'"' {
                     if bytes[i] == b'\\' {
-                        if i + 1 < bytes.len() {
-                            buf.push(char::from(bytes[i]));
-                            buf.push(char::from(bytes[i + 1]));
-                            i += 2;
-                        } else {
-                            buf.push(char::from(bytes[i]));
-                            i += 1;
-                        }
-                    } else {
-                        if matches!(bytes[i], b'$' | b'[') {
-                            subst = true;
-                        }
-                        buf.push(char::from(bytes[i]));
+                        // Past the backslash — ASCII, so `i` stays a char
+                        // boundary — then over the whole escaped character.
                         i += 1;
+                        i += inner[i..].chars().next().map_or(0, char::len_utf8);
+                        continue;
                     }
+                    if matches!(bytes[i], b'$' | b'[') {
+                        subst = true;
+                    }
+                    i += inner[i..].chars().next().map_or(1, char::len_utf8);
                 }
+                let buf = &inner[start..i];
                 if i < bytes.len() {
                     i += 1; // skip closing "
                 }
@@ -679,7 +704,7 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
                 // release-variant forms (`\x` with three or more hex digits,
                 // `\U`, three-digit octal at or above `\40`) are the ones it
                 // therefore folds under 9.0 for every dialect (issue #1479).
-                parts.push(tcl_lexer::backslash_subst(&buf).into_owned());
+                parts.push(tcl_lexer::backslash_subst(buf).into_owned());
             }
             b'{' => {
                 // Braced string — always literal.

@@ -548,6 +548,7 @@ mod defs_from_ir_script_arms {
     #[test]
     fn switch_arm_and_default_defs_collected() {
         let s = Script::from_statements(vec![Statement::Switch {
+            subject_braced: false,
             span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),

@@ -1162,6 +1162,7 @@ fn rewrite_switch_stmt(
     let Statement::Switch {
         span,
         subject,
+        subject_braced,
         subject_span,
         arms,
         default_body,
@@ -1210,6 +1211,7 @@ fn rewrite_switch_stmt(
     };
     changed.then(|| {
         vec![Statement::Switch {
+            subject_braced: *subject_braced,
             span: *span,
             subject: subject.clone(),
             subject_span: *subject_span,
@@ -1569,6 +1571,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
         Statement::Switch {
             span,
             subject,
+            subject_braced,
             subject_span,
             arms,
             default_body,
@@ -1578,6 +1581,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
             raw_args,
             patterns_braced,
         } => Statement::Switch {
+            subject_braced: *subject_braced,
             span: *span,
             subject: subject.clone(),
             subject_span: *subject_span,

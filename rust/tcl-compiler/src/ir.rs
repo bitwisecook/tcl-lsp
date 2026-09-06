@@ -1218,8 +1218,20 @@ pub enum Statement {
     Switch {
         /// Source span.
         span: Span,
-        /// Subject text being matched.
+        /// Subject text being matched — the word's *value*, with any
+        /// delimiters already removed.
         subject: String,
+        /// `true` when the subject came from a braced word, so its value is
+        /// literal and suppresses substitution.
+        ///
+        /// The sibling of [`Self::Switch::patterns_braced`], and asked for the
+        /// same reason: codegen hands the subject to the expression emitter as
+        /// a word, and a word that lost its braces on the way in is
+        /// indistinguishable from a bare one. Without this,
+        /// `switch -- {a[nosuchcmd]}` *ran* `nosuchcmd` where both oracles
+        /// match the literal and take the default arm. Defaults to `false` —
+        /// an unbraced subject substitutes, which is the common form.
+        subject_braced: bool,
         /// Source span of the subject.
         subject_span: Span,
         /// Pattern/body arms.
@@ -2071,6 +2083,7 @@ mod tests {
     #[test]
     fn switch_statement() {
         let stmt = Statement::Switch {
+            subject_braced: false,
             span: Span::new(0, 80),
             subject: "$cmd".into(),
             subject_span: Span::new(7, 11),

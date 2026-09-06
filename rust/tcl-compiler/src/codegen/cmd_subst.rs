@@ -218,6 +218,22 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
     while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
         if bytes[i] == b'[' {
             i = skip_cmd_subst(bytes, n, i);
+        } else if bytes[i] == b'\\' {
+            // A backslash escapes the next character, and an escaped blank is
+            // *word content*, not a separator: `a\ b` is one word whose value
+            // is `a b`. Splitting on it handed `string length` two arguments,
+            // so `[string length a\ b]` raised `wrong # args` where both
+            // oracles answer 3.
+            //
+            // `\<newline>` is the one exception — that really is a word
+            // separator ([`skip_word_seps`] owns it) — so the word ends before
+            // it and the caller consumes it.
+            if matches!(bytes.get(i + 1), Some(b'\n' | b'\r')) {
+                break;
+            }
+            i += 1;
+            // Over the whole escaped character, which may be multi-byte.
+            i += text[i..].chars().next().map_or(0, char::len_utf8);
         } else {
             i += 1;
         }
@@ -784,8 +800,12 @@ impl CodegenCtx<'_> {
         if interpolate && self.try_emit_whole_cmd_subst(value) {
             return;
         }
-        // Default: push as literal
-        self.push_lit(value);
+        // Default: the word's own text is its value — unsubstituted unless a
+        // `${…}` / `[…]` the runtime still owns survived the arms above. The
+        // twin of `emit_value_interpolated`'s default, and missed when that one
+        // was fixed: this is the emitter a proc's `return` value goes through,
+        // so `proc p {} { return "{abc}" }` answered `abc`.
+        self.push_word_value(value);
     }
 
     /// Resolve the registry-stamped [`InlineCodegenHookId`] for a

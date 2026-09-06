@@ -923,6 +923,17 @@ impl Lowerer<'_> {
         }
 
         let subject = args[i].clone();
+        // Whether the subject word was *braced*, which decides whether its
+        // value is literal. `TokenType::Str` is the braced word plus a
+        // single-token check, which is the predicate the rest of lowering uses
+        // for this question (`braced_at` in `lowering::mod`). `arg_single`
+        // alone is not it — it means "one token", which `$x` and a bare word
+        // also satisfy, and bracing those would freeze a subject that must
+        // substitute.
+        let subject_braced = matches!(
+            arg_tokens.get(i).map(|t| t.kind),
+            Some(tcl_lexer::TokenType::Str)
+        ) && arg_single.get(i).copied().unwrap_or(false);
         i += 1;
         if i >= args.len() {
             return self.barrier(seg, "switch missing arms");
@@ -1030,6 +1041,7 @@ impl Lowerer<'_> {
         Statement::Switch {
             span: seg.span,
             subject,
+            subject_braced,
             subject_span: arg_tokens.first().map_or(seg.span, |t| t.span),
             arms,
             default_body,

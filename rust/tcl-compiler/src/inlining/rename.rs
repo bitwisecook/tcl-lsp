@@ -440,6 +440,7 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
     let Statement::Switch {
         span,
         subject,
+        subject_braced,
         subject_span,
         arms,
         default_body,
@@ -453,6 +454,7 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         unreachable!("rewrite_switch dispatched a non-switch statement");
     };
     Statement::Switch {
+        subject_braced: *subject_braced,
         span: *span,
         subject: rewrite_value_string(subject, rename),
         subject_span: *subject_span,

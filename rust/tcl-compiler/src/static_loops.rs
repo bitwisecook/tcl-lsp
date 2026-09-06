@@ -592,6 +592,7 @@ mod tests {
     /// switch-dispatch case and its unresolvable-subject counterpart.
     fn mode_switch() -> Statement {
         Statement::Switch {
+            subject_braced: false,
             span: sp(),
             subject: "$mode".into(),
             subject_span: sp(),
