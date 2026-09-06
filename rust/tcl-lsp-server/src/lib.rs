@@ -8383,6 +8383,17 @@ impl Backend {
         self.live_publication_invalidated.notify_waiters();
     }
 
+    /// Adopt a newer global invalidation only after the caller has proved its
+    /// own document identity is still current. An edit to another URI must not
+    /// permanently disable this publisher's periodic fair-queue joins, while
+    /// an edit to this URI must still wake the queued wait and fail currency on
+    /// the next loop iteration.
+    fn refresh_live_publication_generation(&self, retry: &mut LivePublicationRetry) {
+        retry.generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+    }
+
     fn try_close_publication_locks(
         &self,
     ) -> Result<ClosePublicationLocks<'_>, LivePublicationWait> {
@@ -8912,12 +8923,14 @@ impl Backend {
             let mut snapshot_drain = None;
             let mut retry = LivePublicationRetry::new(generation);
             loop {
-                if let Some(docs) = self.documents.try_lock("did_open_currency")
-                    && !docs
+                if let Some(docs) = self.documents.try_lock("did_open_currency") {
+                    if !docs
                         .get(uri)
                         .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
-                {
-                    return false;
+                    {
+                        return false;
+                    }
+                    self.refresh_live_publication_generation(&mut retry);
                 }
                 let locks = match self.try_reopen_publication_locks() {
                     Ok(locks) => locks,
@@ -9027,12 +9040,14 @@ impl Backend {
         let mut snapshot_drain = None;
         let mut retry = LivePublicationRetry::new(generation);
         loop {
-            if let Some(docs) = self.documents.try_lock(operation)
-                && !docs
+            if let Some(docs) = self.documents.try_lock(operation) {
+                if !docs
                     .get(uri)
                     .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
-            {
-                return false;
+                {
+                    return false;
+                }
+                self.refresh_live_publication_generation(&mut retry);
             }
             let locks = match self.try_live_source_locks() {
                 Ok(locks) => locks,
@@ -9122,12 +9137,14 @@ impl Backend {
         let mut snapshot_drain = None;
         let mut retry = LivePublicationRetry::new(generation);
         loop {
-            if let Some(docs) = self.documents.try_lock(operation)
-                && !docs
+            if let Some(docs) = self.documents.try_lock(operation) {
+                if !docs
                     .get(uri)
                     .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
-            {
-                return false;
+                {
+                    return false;
+                }
+                self.refresh_live_publication_generation(&mut retry);
             }
             let locks = match self.try_open_publication_locks() {
                 Ok(locks) => locks,
@@ -9215,10 +9232,11 @@ impl Backend {
             .load(std::sync::atomic::Ordering::Acquire);
         let mut retry = LivePublicationRetry::new(generation);
         loop {
-            if let Some(docs) = self.documents.try_lock("did_close_currency")
-                && docs.contains_key(uri)
-            {
-                return false;
+            if let Some(docs) = self.documents.try_lock("did_close_currency") {
+                if docs.contains_key(uri) {
+                    return false;
+                }
+                self.refresh_live_publication_generation(&mut retry);
             }
             let locks = match self.try_close_publication_locks() {
                 Ok(locks) => locks,
@@ -15183,7 +15201,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let compact = args
@@ -15311,7 +15329,7 @@ impl Backend {
                 Some(hash.to_ascii_lowercase())
             }
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         if requested_version.is_some() && requested_version != doc.version {
@@ -15382,7 +15400,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         // The `"full"` profile iterates to a fixpoint; anything else is a
@@ -15618,7 +15636,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let (disabled, na_mode) = self.analyser_config().await;
@@ -20596,6 +20614,55 @@ fn push_check_code_actions(
     ));
 }
 
+impl Backend {
+    /// Apply watched delete/revive state to buffers that remain open and
+    /// return the revived snapshots that need live Salsa/index publication.
+    async fn update_watched_open_paths(
+        &self,
+        deleted: &HashSet<Uri>,
+        revived: &[Uri],
+    ) -> Vec<(Uri, Arc<str>, String, u64)> {
+        if deleted.is_empty() && revived.is_empty() {
+            return Vec::new();
+        }
+        let mut docs = self.documents.lock("did_change_watched_files").await;
+        let mut publications = Vec::new();
+        for uri in deleted {
+            if let Some(doc) = docs.get_mut(uri) {
+                doc.backing_file_deleted = true;
+                // For an orphan the current cross-document index view is
+                // deliberately absent. Mark that derived state settled so
+                // local providers do not wait for a seed which must never
+                // resurrect the deleted path.
+                doc.publication = DocumentPublication::Indexed;
+            }
+        }
+        for uri in revived {
+            if let Some(doc) = docs.get_mut(uri)
+                && doc.backing_file_deleted
+            {
+                doc.backing_file_deleted = false;
+                // Retire every deferred publication captured before the
+                // deletion, then republish this unchanged editor buffer as a
+                // new analysis generation. Merely clearing the orphan flag
+                // would leave the deliberately absent index view marked
+                // settled when diagnostics are disabled/excluded.
+                doc.bump_analysis_generation();
+                publications.push((
+                    uri.clone(),
+                    Arc::clone(&doc.text),
+                    doc.dialect.clone(),
+                    doc.revision,
+                ));
+            }
+        }
+        drop(docs);
+        self.invalidate_live_publication();
+        self.live_publication_advanced.notify_waiters();
+        publications
+    }
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
@@ -21199,27 +21266,9 @@ impl LanguageServer for Backend {
         // Apply the orphan marks before any re-analysis is scheduled, so the
         // publish path (which consults the flag under the `documents` lock)
         // cannot re-add a just-retired path.
-        if !deleted_while_open.is_empty() || !revived_while_open.is_empty() {
-            let mut docs = self.documents.lock("did_change_watched_files").await;
-            for uri in &deleted_while_open {
-                if let Some(doc) = docs.get_mut(uri) {
-                    doc.backing_file_deleted = true;
-                    // For an orphan the current cross-document index view is
-                    // deliberately absent. Mark that derived state settled so
-                    // local providers do not wait for a seed which must never
-                    // resurrect the deleted path.
-                    doc.publication = DocumentPublication::Indexed;
-                }
-            }
-            for uri in &revived_while_open {
-                if let Some(doc) = docs.get_mut(uri) {
-                    doc.backing_file_deleted = false;
-                }
-            }
-            drop(docs);
-            self.invalidate_live_publication();
-            self.live_publication_advanced.notify_waiters();
-        }
+        let revived_publications = self
+            .update_watched_open_paths(&deleted_while_open, &revived_while_open)
+            .await;
         let domain_changed =
             !deleted.is_empty() || !changed.is_empty() || !revived_while_open.is_empty();
 
@@ -21262,6 +21311,14 @@ impl LanguageServer for Backend {
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
         self.batch_reindex_from_disk(&changed).await;
+        // An open buffer whose path was previously orphaned remains the source
+        // of truth when that path reappears. Restore both its live Salsa input
+        // and standalone index view; a racing edit/close/delete wins through
+        // the ordinary revision and orphan currency checks.
+        for (uri, text, dialect, revision) in revived_publications {
+            self.publish_changed_document(&uri, &text, &dialect, revision, true)
+                .await;
+        }
 
         // Refresh/clear the badges of the closed files that changed on disk, now
         // the resolution domain has settled (#865).
@@ -42219,6 +42276,42 @@ proc p {} {
         .expect("the live indexed document exists");
     }
 
+    async fn assert_local_commands_use_salsa_readiness(backend: &Backend, uri: &Uri) {
+        let uri_arg = serde_json::Value::String(uri.to_string());
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.minify_document_command(std::slice::from_ref(&uri_arg)),
+        )
+        .await
+        .expect("minify must not wait for the workspace-index seed")
+        .expect("minify must succeed")
+        .expect("minify must return a result");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.tk_preview_command(&[serde_json::json!({ "uri": uri.as_str() })]),
+        )
+        .await
+        .expect("Tk preview must not wait for the workspace-index seed")
+        .expect("Tk preview must succeed")
+        .expect("Tk preview must return a result");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.optimise_document_command(std::slice::from_ref(&uri_arg)),
+        )
+        .await
+        .expect("optimise must not wait for the workspace-index seed")
+        .expect("optimise must succeed")
+        .expect("optimise must return a result");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.fix_all_safe_issues_command(std::slice::from_ref(&uri_arg)),
+        )
+        .await
+        .expect("fix-all must not wait for the workspace-index seed")
+        .expect("fix-all must succeed")
+        .expect("fix-all must return a result");
+    }
+
     /// Exact-head review of #1854: document-local providers read the live Salsa
     /// source, not the independently seeded workspace index. A cold file can
     /// remain at `Salsa` while its whole-file index analysis runs; formatting,
@@ -42307,6 +42400,8 @@ proc p {} {
         .await
         .expect("selection ranges must not wait for the workspace-index seed")
         .expect("selection ranges must succeed");
+
+        assert_local_commands_use_salsa_readiness(&backend, &uri).await;
 
         assert!(
             crate::rt::timeout(
@@ -42754,6 +42849,90 @@ proc p {} {
         );
     }
 
+    /// Exact-head automated review of #1854: a watched deletion deliberately
+    /// settles an open orphan with no cross-document view. If that path is
+    /// created again, the authoritative editor buffer must republish both its
+    /// Salsa source and index even when diagnostics cannot repair them later.
+    #[tokio::test]
+    async fn watched_create_republishes_a_revived_open_buffer_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///revived-open-buffer-1854.tcl").unwrap();
+        let text = "proc revived {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+        let orphan_revision = {
+            let docs = backend.documents.lock("test").await;
+            let doc = docs.get(&uri).expect("the open orphan remains tracked");
+            assert!(doc.backing_file_deleted);
+            assert_eq!(doc.publication, DocumentPublication::Indexed);
+            doc.revision
+        };
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the watched deletion retires the orphan's index view",
+        );
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CREATED,
+                }],
+            })
+            .await;
+        let docs = backend.documents.lock("test").await;
+        let revived = docs
+            .get(&uri)
+            .expect("the revived open buffer remains tracked");
+        assert!(!revived.backing_file_deleted);
+        assert_eq!(revived.publication, DocumentPublication::Indexed);
+        assert!(
+            revived.revision > orphan_revision,
+            "revival must invalidate every pre-deletion publisher",
+        );
+        drop(docs);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(text),
+            "the revived editor buffer must be restored to Salsa",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::revived"),
+            "the revived editor buffer must regain its workspace-index facts",
+        );
+    }
+
     /// Exact-head automated review of #1854: a cold seed analysed under an old
     /// class-factory oracle must be recomputed if the project publishes a new
     /// oracle before its standalone index commit.
@@ -43006,6 +43185,71 @@ proc p {} {
         let docs = backend.documents.lock("test").await;
         let current = docs.get(&uri).expect("the edited document remains open");
         assert_eq!(current.publication, DocumentPublication::Indexed);
+    }
+
+    /// Exact-head automated review of #1854: the invalidation generation is
+    /// global, so an edit to another URI may wake a current publisher's fair
+    /// queue wait. Once that publisher rechecks its own identity, it must adopt
+    /// the new generation and be able to join the dependency queue again.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn unrelated_invalidation_refreshes_fair_queue_generation_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///fair-queue-a-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_publication_pending(),
+        );
+        let generation = backend
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let mut retry = LivePublicationRetry::new(generation);
+
+        // This represents an edit to document B: A's identity remains current,
+        // but its captured global generation is now old.
+        backend.invalidate_live_publication();
+        {
+            let docs = backend.documents.lock("test").await;
+            assert!(
+                docs.get(&uri)
+                    .is_some_and(|doc| doc.matches_open_publication(text, "tcl8.6", 1)),
+                "the unrelated invalidation must not obsolete document A",
+            );
+        }
+        backend.refresh_live_publication_generation(&mut retry);
+        retry.retries = 1023;
+
+        let database = backend.db.lock().await;
+        let joining = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .pause_open_publication(
+                        "did_open",
+                        &uri,
+                        LivePublicationWait::Database,
+                        &mut retry,
+                    )
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.db.contention().contains("1 queued waiter") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the current publisher must rejoin the database's fair queue");
+        drop(database);
+        crate::rt::timeout(std::time::Duration::from_secs(5), joining)
+            .await
+            .expect("the refreshed fair-queue join must finish")
+            .expect("the refreshed fair-queue join must not panic");
     }
 
     /// Exact-head review of #1854: the independent index seed must consume the
