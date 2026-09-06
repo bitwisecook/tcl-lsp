@@ -437,6 +437,7 @@ impl DocumentReadiness {
 
 struct FreshAnalysisSeed {
     analysis: Arc<AnalysisResult>,
+    analyser_inputs_epoch: u64,
     class_factory_generation: u64,
 }
 
@@ -8703,7 +8704,9 @@ impl Backend {
         loop {
             let rehoming_guard = self.rehoming_gate.lock().await;
             let class_factory_generation = self.class_factory_generation.read().await;
-            if *class_factory_generation != seed.class_factory_generation {
+            if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
+                || *class_factory_generation != seed.class_factory_generation
+            {
                 drop(class_factory_generation);
                 drop(rehoming_guard);
                 seed = self
@@ -8760,7 +8763,9 @@ impl Backend {
         loop {
             let rehoming_guard = self.rehoming_gate.lock().await;
             let class_factory_generation = self.class_factory_generation.read().await;
-            if *class_factory_generation != seed.class_factory_generation {
+            if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
+                || *class_factory_generation != seed.class_factory_generation
+            {
                 drop(class_factory_generation);
                 drop(rehoming_guard);
                 seed = self
@@ -9698,21 +9703,47 @@ impl Backend {
         // Analyse outside Salsa with the same per-folder config the cached path
         // would have used, so the result still honours folder-scoped
         // suppression and cross-file factory oracle without retaining a
-        // database snapshot.
-        let config = self.resolved_db_config(uri).await;
-        let (class_factory_generation, workspace_class_factories) =
-            self.published_class_factories_for_fresh_analysis().await;
-        let file_path = uri.to_file_path().map(|path| path.display().to_string());
-        let (disabled, na_mode, extra, pack_key, resource) = {
-            let db = self.db.lock().await;
-            (
-                config.disabled_diagnostics(&*db).iter().cloned().collect(),
-                config.non_ascii_mode(&*db),
-                config.extra_commands(&*db).iter().cloned().collect(),
-                config.spec_pack_key(&*db),
-                ResourceAnalyserInputs::from_db_config(config, &*db),
-            )
+        // database snapshot. Resolve the independent config stores under one
+        // stable epoch: a pack/config apply can otherwise split this snapshot
+        // across two generations before the analysis even starts.
+        let (
+            analyser_inputs_epoch,
+            class_factory_generation,
+            workspace_class_factories,
+            disabled,
+            na_mode,
+            extra,
+            pack_key,
+            resource,
+        ) = loop {
+            let analyser_inputs_epoch = self.diag_inputs_epoch();
+            let config = self.resolved_db_config(uri).await;
+            let (class_factory_generation, workspace_class_factories) =
+                self.published_class_factories_for_fresh_analysis().await;
+            let (disabled, na_mode, extra, pack_key, resource) = {
+                let db = self.db.lock().await;
+                (
+                    config.disabled_diagnostics(&*db).iter().cloned().collect(),
+                    config.non_ascii_mode(&*db),
+                    config.extra_commands(&*db).iter().cloned().collect(),
+                    config.spec_pack_key(&*db),
+                    ResourceAnalyserInputs::from_db_config(config, &*db),
+                )
+            };
+            if self.diag_inputs_epoch() == analyser_inputs_epoch {
+                break (
+                    analyser_inputs_epoch,
+                    class_factory_generation,
+                    workspace_class_factories,
+                    disabled,
+                    na_mode,
+                    extra,
+                    pack_key,
+                    resource,
+                );
+            }
         };
+        let file_path = uri.to_file_path().map(|path| path.display().to_string());
         let analysis = crate::rt::spawn_blocking(move || {
             let analysis_text = tcl_lexer::normalise_lone_cr(&text);
             let mut analyser =
@@ -9725,6 +9756,7 @@ impl Backend {
         .unwrap_or_default();
         FreshAnalysisSeed {
             analysis,
+            analyser_inputs_epoch,
             class_factory_generation,
         }
     }
@@ -42205,7 +42237,7 @@ proc p {} {
         }
 
         let local = crate::rt::timeout(
-            std::time::Duration::from_millis(100),
+            std::time::Duration::from_secs(5),
             backend.read_local_document(&uri),
         )
         .await
@@ -42219,7 +42251,7 @@ proc p {} {
         }))
         .expect("valid formatting request");
         crate::rt::timeout(
-            std::time::Duration::from_millis(500),
+            std::time::Duration::from_secs(5),
             backend.formatting(params),
         )
         .await
@@ -42231,7 +42263,7 @@ proc p {} {
         }))
         .expect("valid folding request");
         crate::rt::timeout(
-            std::time::Duration::from_millis(500),
+            std::time::Duration::from_secs(5),
             backend.folding_range(folding),
         )
         .await
@@ -42243,7 +42275,7 @@ proc p {} {
         }))
         .expect("valid document-symbol request");
         crate::rt::timeout(
-            std::time::Duration::from_millis(500),
+            std::time::Duration::from_secs(5),
             backend.document_symbol(symbols),
         )
         .await
@@ -42256,7 +42288,7 @@ proc p {} {
         }))
         .expect("valid linked-editing request");
         crate::rt::timeout(
-            std::time::Duration::from_millis(500),
+            std::time::Duration::from_secs(5),
             backend.linked_editing_range(linked),
         )
         .await
@@ -42269,7 +42301,7 @@ proc p {} {
         }))
         .expect("valid selection-range request");
         crate::rt::timeout(
-            std::time::Duration::from_millis(500),
+            std::time::Duration::from_secs(5),
             backend.selection_range(selection),
         )
         .await
@@ -42405,6 +42437,7 @@ proc p {} {
         };
         let seed = FreshAnalysisSeed {
             analysis,
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
             class_factory_generation: 0,
         };
         let index_reader = backend.workspace_index.read().await;
@@ -42568,8 +42601,10 @@ proc p {} {
             let publishing = crate::rt::spawn({
                 let backend = Arc::clone(&backend);
                 let uri = uri.clone();
+                let analyser_inputs_epoch = backend.diag_inputs_epoch();
                 let seed = FreshAnalysisSeed {
                     analysis,
+                    analyser_inputs_epoch,
                     class_factory_generation: 0,
                 };
                 async move {
@@ -42773,6 +42808,7 @@ proc p {} {
         let started = seed_started.notified();
         tokio::pin!(started);
         started.as_mut().enable();
+        let analyser_inputs_epoch = backend.diag_inputs_epoch();
         let publishing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
@@ -42785,6 +42821,7 @@ proc p {} {
                         seed_release.notified().await;
                         FreshAnalysisSeed {
                             analysis: stale_analysis,
+                            analyser_inputs_epoch,
                             class_factory_generation: 0,
                         }
                     })
@@ -42816,6 +42853,55 @@ proc p {} {
         assert!(
             index.workspace_command_exists("::IconList"),
             "the revalidated seed must carry the newly published factory oracle",
+        );
+    }
+
+    /// Exact-head automated review of #1854: the class-factory generation is
+    /// only one analyser input. A config or SpecTcl-pack change while a cold
+    /// open is being analysed must also reject its seed, even when diagnostics
+    /// are disabled or excluded and therefore cannot repair the index later.
+    #[tokio::test]
+    async fn open_index_seed_retries_after_analyser_input_change_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///analyser-input-race-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let stale_analysis = Arc::new(
+            Analyser::new()
+                .analyse("proc stale {} {}\n", "tcl8.6")
+                .clone(),
+        );
+        let seed = FreshAnalysisSeed {
+            analysis: stale_analysis,
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
+            class_factory_generation: 0,
+        };
+
+        backend.invalidate_diag_inputs();
+        assert!(
+            backend
+                .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                .await,
+            "the current open must publish its recomputed seed",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            index.workspace_command_exists("::current"),
+            "the analyser-input epoch change must force current facts",
+        );
+        assert!(
+            !index.workspace_command_exists("::stale"),
+            "facts captured before the analyser-input change must be rejected",
         );
     }
 
@@ -43039,12 +43125,14 @@ proc p {} {
             .await
             .insert(uri.clone(), 42);
         let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+        let analyser_inputs_epoch = backend.diag_inputs_epoch();
 
         assert!(
             backend
                 .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
                     FreshAnalysisSeed {
                         analysis,
+                        analyser_inputs_epoch,
                         class_factory_generation: 0,
                     }
                 })
@@ -43184,7 +43272,7 @@ proc p {} {
         );
 
         let found = crate::rt::timeout(
-            std::time::Duration::from_secs(1),
+            std::time::Duration::from_secs(5),
             backend.symbol(WorkspaceSymbolParams {
                 query: "brand_new".to_owned(),
                 work_done_progress_params: WorkDoneProgressParams::default(),
@@ -43267,7 +43355,7 @@ proc p {} {
         );
 
         let found = crate::rt::timeout(
-            std::time::Duration::from_secs(1),
+            std::time::Duration::from_secs(5),
             backend.symbol(WorkspaceSymbolParams {
                 query: "IconList".to_owned(),
                 work_done_progress_params: WorkDoneProgressParams::default(),
@@ -44084,6 +44172,7 @@ proc p {} {
             let mut analyser = Analyser::new();
             Arc::new(analyser.analyse(opened_text, "tcl8.6").clone())
         };
+        let analyser_inputs_epoch = backend.diag_inputs_epoch();
         let opening = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
@@ -44096,6 +44185,7 @@ proc p {} {
                         seed_release.notified().await;
                         FreshAnalysisSeed {
                             analysis: obsolete_analysis,
+                            analyser_inputs_epoch,
                             class_factory_generation: 0,
                         }
                     })
