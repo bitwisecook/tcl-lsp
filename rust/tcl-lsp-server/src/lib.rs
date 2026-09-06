@@ -39182,10 +39182,13 @@ proc p {} {
     /// handler behind it.
     ///
     /// The interleaving is constructed rather than timed by load: hold the
-    /// exact downstream writer the reindex needs, wait until it has taken the
-    /// preceding rehoming gate, then prove an unrelated document-map reader can
-    /// still enter.  The pre-fix implementation deterministically times out
-    /// here because it takes `documents` before waiting for this writer.
+    /// exact downstream writer the reindex needs, wait until it has entered the
+    /// disk-publication transaction, then prove an unrelated document-map
+    /// reader can still enter. The disk-only gate remains held across fair
+    /// dependency waits, unlike the deliberately released rehoming gate, so it
+    /// is the stable observation point. The pre-fix implementation
+    /// deterministically times out here because it takes `documents` before
+    /// waiting for this writer.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn disk_reindex_waiting_for_the_index_never_holds_documents_1800() {
         let root = unique_scratch_dir("reindex-lock-scope-1800");
@@ -39201,9 +39204,13 @@ proc p {} {
             async move { backend.reindex_index_from_disk(&uri).await }
         });
 
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+        // Reaching the transaction includes blocking-pool admission plus the
+        // full disk read and analysis. Under the complete nextest suite that
+        // setup can be delayed by unrelated CPU work; it is not the lock-scope
+        // assertion, whose deliberately tight deadline remains below.
+        crate::rt::timeout(std::time::Duration::from_secs(30), async {
             loop {
-                if backend.rehoming_gate.try_lock().is_err() {
+                if backend.disk_publication_gate.try_lock().is_err() {
                     break;
                 }
                 crate::rt::yield_now().await;
@@ -39263,9 +39270,12 @@ proc p {} {
             async move { backend.reindex_index_from_disk(&uri).await }
         });
 
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+        // Match the disk-analysis admission allowance in the index-contention
+        // experiment above. The document-map assertion still has its own
+        // deliberately tight deadline below.
+        crate::rt::timeout(std::time::Duration::from_secs(30), async {
             loop {
-                if backend.rehoming_gate.try_lock().is_err() {
+                if backend.disk_publication_gate.try_lock().is_err() {
                     break;
                 }
                 crate::rt::yield_now().await;
@@ -39320,9 +39330,11 @@ proc p {} {
             let uri = uri.clone();
             async move { backend.reindex_index_from_disk(&uri).await }
         });
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+        // This waits through blocking-pool admission and disk analysis before
+        // constructing the ordering below; it is not a performance assertion.
+        crate::rt::timeout(std::time::Duration::from_secs(30), async {
             loop {
-                if backend.rehoming_gate.try_lock().is_err() {
+                if backend.disk_publication_gate.try_lock().is_err() {
                     break;
                 }
                 crate::rt::yield_now().await;
