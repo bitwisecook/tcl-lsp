@@ -547,11 +547,12 @@ struct SnapshotCensus {
 /// Exclusive intent to drain one database's request snapshots before a live
 /// source setter runs.
 ///
-/// The intent is established after a publisher first observes a non-empty
-/// census and before it retries `db`. Snapshot creation checks it while holding
-/// that same mutex, so no new clone can extend the set the publisher is
-/// draining. Dropping the guard releases every reader queued behind the live
-/// publication.
+/// Snapshot creation checks the intent both before queueing for the database
+/// mutex and while holding it. A publisher can therefore establish intent
+/// before its first optimistic lock attempt: existing database waiters drain,
+/// while new readers neither extend the snapshot census nor replenish the fair
+/// mutex queue ahead of the writer. Dropping the guard releases every reader
+/// queued behind the live publication.
 struct SnapshotDrainGuard {
     census: Arc<SnapshotCensus>,
 }
@@ -783,6 +784,14 @@ impl<T> TrackedMutex<T> {
             let publication_advanced = self.snapshots.publication_advanced.notified();
             tokio::pin!(publication_advanced);
             publication_advanced.as_mut().enable();
+            if self
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                publication_advanced.await;
+                continue;
+            }
             let value = self.lock().await;
             if let Ok(snapshot) = self.snapshots.try_track(value.clone(), site) {
                 return snapshot;
@@ -2717,6 +2726,9 @@ struct DiagInputs {
     /// exclusive-access write waits for all outstanding handles to drop).
     db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    /// The admitted cross-document subset of `db_files`; local-only orphan
+    /// handles must not make a load target look covered.
+    db_project_members: Arc<Mutex<HashSet<Uri>>>,
     /// The salsa `Project` input handle (workspace file set), read by the worker
     /// for opt-in cross-file callback-arity validation.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
@@ -4311,6 +4323,7 @@ async fn refresh_can_change_result(
 struct EvidenceHandles {
     db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db_project_members: Arc<Mutex<HashSet<Uri>>>,
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// The open-document map, so the unopened-consumer re-index (issue #1304)
@@ -4329,6 +4342,7 @@ impl EvidenceHandles {
         Self {
             db: Arc::clone(&inputs.db),
             db_files: Arc::clone(&inputs.db_files),
+            db_project_members: Arc::clone(&inputs.db_project_members),
             db_project: Arc::clone(&inputs.db_project),
             workspace_index: Arc::clone(&inputs.workspace_index),
             documents: Arc::clone(&inputs.documents),
@@ -4393,8 +4407,12 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     // missing addition only withholds evidence -- the conservative direction.
     let (covered, snapshot, files, project) = {
         let _rehoming = handles.rehoming_gate.lock().await;
-        let covered =
-            files_with_covered_load_targets(&handles.db_files, &handles.workspace_index).await;
+        let covered = files_with_covered_load_targets(
+            &handles.db_files,
+            &handles.db_project_members,
+            &handles.workspace_index,
+        )
+        .await;
         let db = handles.db.lock().await;
         let db_files = handles.db_files.lock().await;
         let db_project = handles.db_project.lock().await;
@@ -4822,21 +4840,29 @@ fn call_site_evidence_matches(
 /// `tcl_compiler::unit_scope::record_indirect_callers`.
 async fn files_with_covered_load_targets(
     db_files: &TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    db_project_members: &Mutex<HashSet<Uri>>,
     workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
 ) -> HashSet<Uri> {
     // Obtain one simultaneous view without ever awaiting while a guard is
-    // held. The first attempt joins db_files' fair queue, then try-reads the
-    // index. On contention it drops db_files, joins the index queue while
-    // holding nothing, and retries. This preserves the #1849 no-outward-wait
-    // rule while preventing a removed source from surviving in `known_paths`
-    // beside the post-removal index.
+    // held. The first attempt joins db_files' fair queue, then tries the
+    // admitted project set and index in publication lock order. On contention
+    // it drops every partial guard, joins that dependency's queue while holding
+    // nothing, and retries. This preserves the #1849 no-outward-wait rule while
+    // preventing either a removed source or a local-only orphan handle from
+    // surviving in `known_paths` beside the post-removal index.
     let (files, sources) = loop {
         let files_guard = db_files.lock().await;
+        let Ok(members) = db_project_members.try_lock() else {
+            drop(files_guard);
+            drop(db_project_members.lock().await);
+            continue;
+        };
         if let Ok(index) = workspace_index.try_read() {
-            let files = files_guard.keys().cloned().collect::<Vec<_>>();
+            let files = members.iter().cloned().collect::<Vec<_>>();
             let sources = index.sources().cloned().collect::<Vec<_>>();
             break (files, sources);
         }
+        drop(members);
         drop(files_guard);
         // Join the dependency's ordered queue, but retain no other guard while
         // waiting. A writer already ahead of us therefore completes instead
@@ -8680,7 +8706,10 @@ impl Backend {
         // while this waits either changes the removal classification below or
         // republishes after this transaction releases the gate.
         let _live_publication = self.live_publication_gate.lock().await;
-        let mut snapshot_drain = None;
+        // Claim writer intent before the first optimistic bundle attempt.
+        // Otherwise sustained readers queued on Tokio's fair `db` mutex can
+        // prevent `try_lock` from ever reaching the census check below.
+        let snapshot_drain = self.db.begin_snapshot_drain();
         loop {
             let Some(locks) = self.try_publication_locks() else {
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
@@ -8692,7 +8721,6 @@ impl Backend {
             // background transaction. Holding `db` makes this zero stable.
             if self.db.snapshot_report().outstanding != 0 {
                 drop(locks);
-                snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
                 continue;
             }
@@ -8783,7 +8811,7 @@ impl Backend {
                     .chain(index_only_removals.iter().copied()),
                 replacements.iter().map(|entry| (&entry.0, &entry.3)),
             );
-            drop(snapshot_drain.take());
+            drop(snapshot_drain);
 
             return Self::changed_disk_uris(removals, index_only_removals, replacements);
         }
@@ -17855,6 +17883,7 @@ impl Backend {
             folder_root,
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
+            db_project_members: Arc::clone(&self.db_project_members),
             db_project: Arc::clone(&self.db_project),
             class_factory_generation: Arc::clone(&self.class_factory_generation),
             db_config: Arc::clone(&self.db_config),
@@ -19883,7 +19912,12 @@ impl Backend {
                 // classified fallback URIs. Fresh analysis below may await
                 // long enough for one of those URIs to publish; consulting
                 // the index a second time would mix two revisions.
-                let indexed_hits = index.symbols_matching(query, limit);
+                let indexed_hits = index.symbols_matching_excluding(
+                    query,
+                    limit,
+                    docs.iter()
+                        .filter_map(|(uri, doc)| doc.backing_file_deleted.then_some(uri.as_str())),
+                );
                 // An indexed hit names the bytes current at this index
                 // snapshot. Open sources can be captured atomically under the
                 // documents lock; closed sources need the per-document index
@@ -20076,6 +20110,7 @@ impl Backend {
         let scan_handles = EvidenceHandles {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
+            db_project_members: Arc::clone(&self.db_project_members),
             db_project: Arc::clone(&self.db_project),
             workspace_index: Arc::clone(&self.workspace_index),
             documents: Arc::clone(&self.documents),
@@ -34984,6 +35019,7 @@ mod tests {
         let handles = EvidenceHandles {
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
             db_project: Arc::clone(&backend.db_project),
             workspace_index: Arc::clone(&backend.workspace_index),
             documents: Arc::clone(&backend.documents),
@@ -35042,6 +35078,7 @@ mod tests {
             "db_files",
             HashMap::from([(main.clone(), main_file), (target.clone(), target_file)]),
         ));
+        let project_members = Arc::new(Mutex::new(HashSet::from([main.clone(), target.clone()])));
         let mut index = new_workspace_index();
         let analysis = Analyser::new()
             .analyse("source target.tcl\n", "tcl8.6")
@@ -35051,8 +35088,9 @@ mod tests {
         let index_held = index.write().await;
         let coverage = crate::rt::spawn({
             let files = Arc::clone(&files);
+            let project_members = Arc::clone(&project_members);
             let index = Arc::clone(&index);
-            async move { files_with_covered_load_targets(&files, &index).await }
+            async move { files_with_covered_load_targets(&files, &project_members, &index).await }
         });
 
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -35066,6 +35104,7 @@ mod tests {
         .await
         .expect("the coverage helper must attempt its file-set snapshot");
         files.lock().await.remove(&target);
+        project_members.lock().await.remove(&target);
         drop(index_held);
 
         let covered = crate::rt::timeout(std::time::Duration::from_secs(5), coverage)
@@ -35075,6 +35114,50 @@ mod tests {
         assert!(
             !covered.contains(&main),
             "a source whose target left the project must not retain closed-world evidence",
+        );
+    }
+
+    /// Fresh exact-head review of #1854: an edited orphan keeps a local Salsa
+    /// handle in `db_files`, but that handle cannot make a live source boundary
+    /// appear covered after the orphan left the admitted project set.
+    #[tokio::test]
+    async fn covered_load_targets_exclude_local_only_orphans_1854() {
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/covered-main-1854.tcl").unwrap();
+        let orphan = Uri::from_str("file:///w/covered-orphan-1854.tcl").unwrap();
+        backend
+            .db_set_source(
+                &main,
+                "source covered-orphan-1854.tcl\n",
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend
+            .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let analysis = Analyser::new()
+            .analyse("source covered-orphan-1854.tcl\n", "tcl8.6")
+            .clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(main.as_str(), &analysis);
+        assert!(backend.db_project_members.lock().await.remove(&orphan));
+        assert!(
+            backend.db_files.lock().await.contains_key(&orphan),
+            "the regression requires the orphan local handle to remain",
+        );
+
+        let covered = files_with_covered_load_targets(
+            &backend.db_files,
+            &backend.db_project_members,
+            &backend.workspace_index,
+        )
+        .await;
+        assert!(
+            !covered.contains(&main),
+            "a local-only orphan cannot close the live source boundary",
         );
     }
 
@@ -42859,6 +42942,71 @@ proc p {} {
         );
     }
 
+    /// Fresh exact-head review of #1854: disk publication must establish
+    /// writer intent before it can acquire `db`. Otherwise a sustained fair
+    /// mutex queue can prevent the optimistic publisher from ever reaching
+    /// the census check that used to create the drain guard.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_establishes_intent_before_db_bundle_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///disk-pre-intent-1854.tcl").unwrap();
+        let text = "proc disk_pre_intent {} {}\n";
+        let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
+        let database = backend.db.lock().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(uri, text.to_owned(), "tcl8.6".to_owned(), analysis)],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_pre_intent",
+                    )
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("disk publication must claim intent before acquiring db");
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { backend.db.snapshot("issue-1854-pre-intent-reader").await }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut later_reader)
+                .await
+                .is_err(),
+            "new readers must not join the fair db queue ahead of the publisher",
+        );
+
+        drop(database);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the disk publisher must finish after db is released")
+                .expect("the disk publication task must not panic"),
+            vec![uri],
+        );
+        drop(
+            crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+                .await
+                .expect("the queued reader must resume after publication")
+                .expect("the reader task must not panic"),
+        );
+    }
+
     /// Exact-head review of #1854: publishing the completed open seed may wait
     /// behind a slow workspace-index reader, but must do so without retaining
     /// the global document map. Otherwise the next edit holds its ordered turn
@@ -42964,6 +43112,26 @@ proc p {} {
         .await
         .expect("the watcher must settle the open buffer as an orphan");
         deleting
+    }
+
+    async fn wait_for_salsa_source_text_1854(backend: &Backend, uri: &Uri, expected: &str) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let current = {
+                    let db = backend.db.lock().await;
+                    let files = backend.db_files.lock().await;
+                    files
+                        .get(uri)
+                        .is_some_and(|file| file.text(&*db).as_str() == expected)
+                };
+                if current {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the expected text must reach Salsa");
     }
 
     async fn assert_orphaned_publication_stays_retired_1854(
@@ -43341,6 +43509,57 @@ proc p {} {
         assert_eq!(doc.publication, DocumentPublication::Pending);
     }
 
+    /// Fresh exact-head review of #1854: orphan filtering must cover indexed
+    /// hits during the interval after the watcher marks the buffer deleted but
+    /// before its transactional index removal can acquire the rehoming gate.
+    #[tokio::test]
+    async fn workspace_symbols_exclude_orphan_during_disk_removal_wait_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///orphan-index-window-1854.tcl").unwrap();
+        let text = "proc obsolete_disk_symbol {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the regression must query inside the pre-removal index window",
+        );
+        let symbols = backend
+            .open_but_unindexed_symbols("obsolete_disk_symbol", 10)
+            .await;
+        assert!(
+            symbols.fallback_hits.is_empty() && symbols.indexed_hits.is_empty(),
+            "neither symbol channel may expose the orphan while removal waits",
+        );
+
+        drop(rehoming);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the watched deletion must finish after the gate is released")
+            .expect("the watched deletion task must not panic");
+    }
+
     /// Exact-head automated review of #1854: deleting an open path retires its
     /// cross-document identity, not its editor buffer. A subsequent didChange
     /// must publish the new bytes to Salsa and settle local-provider readiness
@@ -43377,7 +43596,7 @@ proc p {} {
         let rehoming = backend.rehoming_gate.lock().await;
         let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
 
-        let edited = "proc after_delete {} {}\n";
+        let edited = "# tcl-dialect: tcl9.0\nproc after_delete {} {}\n";
         backend
             .did_change(DidChangeTextDocumentParams {
                 text_document: VersionedTextDocumentIdentifier {
@@ -43406,6 +43625,7 @@ proc p {} {
         .expect("local providers must not wedge after editing an orphan")
         .expect("the orphaned buffer remains open");
         assert_eq!(current.text.as_ref(), edited);
+        assert_eq!(current.dialect, "tcl9.0");
         assert!(current.backing_file_deleted);
         assert_eq!(current.publication, DocumentPublication::Indexed);
         let db = backend.db.lock().await;
@@ -43415,6 +43635,11 @@ proc p {} {
             orphan_file.map(|file| file.text(&*db).as_str()),
             Some(edited),
             "the post-deletion revision must be the Salsa source",
+        );
+        assert_eq!(
+            orphan_file.map(|file| file.dialect(&*db).as_str()),
+            Some("tcl9.0"),
+            "the post-deletion dialect revision must be current in Salsa",
         );
         let project = *backend.db_project.lock().await;
         assert!(
@@ -43595,6 +43820,8 @@ proc p {} {
         })
         .await
         .expect("the new didOpen identity must become authoritative");
+
+        wait_for_salsa_source_text_1854(&backend, &uri, reopened).await;
 
         drop(rehoming);
         for (label, task) in [

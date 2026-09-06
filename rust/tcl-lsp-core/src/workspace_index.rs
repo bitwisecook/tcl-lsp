@@ -3063,15 +3063,41 @@ impl WorkspaceIndex {
     /// URI, which lets the caller resolve each document's source once.
     #[must_use]
     pub fn symbols_matching(&self, query: &str, limit: usize) -> Vec<IndexedWorkspaceSymbol> {
+        self.symbols_matching_excluding(query, limit, std::iter::empty::<&str>())
+    }
+
+    /// The workspace's symbols matching `query`, excluding every document URI
+    /// in `excluded_uris` before applying `limit`.
+    ///
+    /// Filtering at the document scan keeps the result bounded without letting
+    /// excluded documents consume the caller's capacity. The server uses this
+    /// while a watched deletion has marked an open buffer orphaned but its
+    /// atomic index-removal transaction is still waiting.
+    #[must_use]
+    pub fn symbols_matching_excluding<'a>(
+        &self,
+        query: &str,
+        limit: usize,
+        excluded_uris: impl IntoIterator<Item = &'a str>,
+    ) -> Vec<IndexedWorkspaceSymbol> {
         let lower_query = query.to_lowercase();
         let mut out: Vec<IndexedWorkspaceSymbol> = Vec::new();
+        let excluded_uris: HashSet<&str> = excluded_uris.into_iter().collect();
+        let excluded_slots: HashSet<usize> = excluded_uris
+            .iter()
+            .filter_map(|uri| self.slots.get(*uri).copied())
+            .collect();
         // Built once for the whole scan — the class-member walk needs the
         // workspace's cross-document retractions, which no single document's
         // records can answer for themselves (issue #1263).
-        let retractions = self.retraction_index();
-        for doc in &self.docs {
+        let mut retractions = self.retraction_index();
+        retractions.retain(|_, (class, _)| !excluded_uris.contains(class.uri.as_str()));
+        for (slot, doc) in self.docs.iter().enumerate() {
             if out.len() >= limit {
                 break;
+            }
+            if excluded_slots.contains(&slot) {
+                continue;
             }
             doc.collect_symbols_matching(&lower_query, limit, &retractions, &mut out);
         }
@@ -6583,6 +6609,36 @@ mod tests {
             names,
             ["new"],
             "the picker must not show the pre-rename name"
+        );
+    }
+
+    #[test]
+    fn symbol_exclusions_apply_before_the_limit_and_member_fold() {
+        let orphan =
+            analyse("proc orphan_first {} {}\noo::define ::C { renamemethod old arrived }\n");
+        let live = analyse("proc live_second {} {}\noo::class create ::C { method old {} {} }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///orphan.tcl", &orphan),
+            ("file:///live.tcl", &live),
+        ]);
+
+        let capped = index.symbols_matching_excluding("", 1, ["file:///orphan.tcl"]);
+        assert_eq!(
+            capped.first().map(|symbol| symbol.name.as_str()),
+            Some("live_second"),
+            "an excluded document must not consume the result capacity",
+        );
+        let methods = index.symbols_matching_excluding("old", 10, ["file:///orphan.tcl"]);
+        assert!(methods.iter().any(|symbol| {
+            symbol.kind == WorkspaceSymbolKind::Method
+                && symbol.name == "old"
+                && symbol.uri == "file:///live.tcl"
+        }));
+        assert!(
+            methods
+                .iter()
+                .all(|symbol| symbol.uri != "file:///orphan.tcl"),
+            "an excluded arrival must neither re-key nor locate a live member",
         );
     }
 
