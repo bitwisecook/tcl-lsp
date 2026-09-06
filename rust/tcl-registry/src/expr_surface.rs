@@ -209,6 +209,10 @@ impl RuntimeExprSurface {
             | ExprNode::String { .. }
             | ExprNode::Var { .. }
             | ExprNode::Command { .. }
+            // An operand shape the expression *parser* never produces, so this
+            // surface check — which asks whether a release's `expr` grammar
+            // admits the construct — has nothing to reject in one.
+            | ExprNode::CompiledWord { .. }
             | ExprNode::Raw { .. } => Ok(()),
         }
     }

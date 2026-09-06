@@ -41,6 +41,9 @@ use tcl_syntax::word_rules::WordValueRules;
 /// pair vector's type signature readable.
 struct SwitchPair {
     pattern: String,
+    /// Whether the pattern word was braced — literal for every element of a
+    /// single braced arm list, and per-word in the multi-word form.
+    pattern_braced: bool,
     pattern_span: Span,
     body_text: String,
     body_span: Option<Span>,
@@ -120,13 +123,43 @@ fn switch_body_elements(body_text: &str) -> Option<Vec<SwitchElement>> {
     Some(elements)
 }
 
+/// Whether the `index`-th argument was written as a braced word.
+///
+/// One predicate, because two callers ask it: the `switch` subject's own flag
+/// and the per-argument flags the generic fallback pushes by. `TokenType::Str`
+/// is the braced word, and the single-token check excludes a composite word
+/// that merely starts with a brace — `arg_single` alone is *not* the question,
+/// since `$x` and a bare word satisfy it too.
+fn word_is_braced(arg_tokens: &[tcl_lexer::Token], arg_single: &[bool], index: usize) -> bool {
+    matches!(
+        arg_tokens.get(index).map(|t| t.kind),
+        Some(tcl_lexer::TokenType::Str)
+    ) && arg_single.get(index).copied().unwrap_or(false)
+}
+
+/// [`word_is_braced`] for every argument, for the generic-invoke fallback.
+fn braced_word_flags(
+    arg_tokens: &[tcl_lexer::Token],
+    arg_single: &[bool],
+    len: usize,
+) -> Vec<bool> {
+    (0..len)
+        .map(|i| word_is_braced(arg_tokens, arg_single, i))
+        .collect()
+}
+
 /// Parse switch options, returning `(first_non_option_index, mode, nocase,
 /// unknown)`. `unknown` is set when a leading `-word` is not one of the options
 /// the compiler inlines (`-exact`/`-glob`/`-regexp`/`-nocase`/`--`) — an
 /// arg-taking `-indexvar`/`-matchvar`, or an invalid option such as `-foo`. The
 /// caller bails the whole switch to the runtime command, which validates the
 /// option set (tclsh rejects `-foo`) and handles the side-channel writes.
-fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
+///
+/// `pub(crate)` so the opaque-switch emitter can ask the same question this
+/// answers for lowering — which argument the subject is — rather than keeping
+/// a second copy of the option rule. There is one owner of "where do the
+/// options end", and this is it.
+pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool, bool) {
     let mut i = 0;
     let mut mode = SwitchMode::Exact;
     let mut nocase = false;
@@ -854,6 +887,7 @@ impl Lowerer<'_> {
             if pair.body_text == "-" {
                 arms.push(SwitchArm {
                     pattern,
+                    pattern_braced: pair.pattern_braced,
                     pattern_span: pair.pattern_span,
                     body: None,
                     body_span: None,
@@ -892,6 +926,7 @@ impl Lowerer<'_> {
             } else {
                 arms.push(SwitchArm {
                     pattern,
+                    pattern_braced: pair.pattern_braced,
                     pattern_span: pair.pattern_span,
                     body: Some(body),
                     body_span: pair.body_span,
@@ -930,10 +965,7 @@ impl Lowerer<'_> {
         // alone is not it — it means "one token", which `$x` and a bare word
         // also satisfy, and bracing those would freeze a subject that must
         // substitute.
-        let subject_braced = matches!(
-            arg_tokens.get(i).map(|t| t.kind),
-            Some(tcl_lexer::TokenType::Str)
-        ) && arg_single.get(i).copied().unwrap_or(false);
+        let subject_braced = word_is_braced(arg_tokens, arg_single, i);
         i += 1;
         if i >= args.len() {
             return self.barrier(seg, "switch missing arms");
@@ -989,6 +1021,8 @@ impl Lowerer<'_> {
                     // (`a\ b` matches the subject `a b`); the body keeps
                     // its raw spelling for script lowering.
                     pattern: pat.value.clone(),
+                    // Every element of a single braced arm list is literal.
+                    pattern_braced: true,
                     pattern_span: relocate(pat.span),
                     body_text: body.raw.clone(),
                     body_span: Some(relocate(body.span)),
@@ -1026,6 +1060,9 @@ impl Lowerer<'_> {
                 let body_span_val = arg_tokens.get(body_tok_idx).map(|t| t.span);
                 pairs.push(SwitchPair {
                     pattern,
+                    // Per word here: `{${x}}` is literal, a bare `$pat`
+                    // substitutes.
+                    pattern_braced: word_is_braced(arg_tokens, arg_single, i),
                     pattern_span,
                     body_text: body_text_inner,
                     body_span: body_span_val,
@@ -1049,6 +1086,7 @@ impl Lowerer<'_> {
             mode,
             nocase,
             raw_args: args.to_vec(),
+            raw_arg_braced: braced_word_flags(arg_tokens, arg_single, args.len()),
             patterns_braced,
         }
     }

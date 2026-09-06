@@ -3649,6 +3649,7 @@ fn expr_has_raw(expr: &ExprNode) -> bool {
         ExprNode::Raw { .. } => true,
         ExprNode::Literal { .. }
         | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
         | ExprNode::Var { .. }
         | ExprNode::Command { .. } => false,
         ExprNode::Binary { left, right, .. } => expr_has_raw(left) || expr_has_raw(right),

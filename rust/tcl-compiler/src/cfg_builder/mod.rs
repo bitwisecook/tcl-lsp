@@ -2627,6 +2627,7 @@ mod tests {
             .enumerate()
             .map(|(i, command)| SwitchArm {
                 pattern: i.to_string(),
+                pattern_braced: true,
                 pattern_span: Span::new(0, 1),
                 // Exercise absolute spellings inside both flattened and opaque
                 // switch paths; classification must normalise the `::` prefix.
@@ -2639,6 +2640,7 @@ mod tests {
             .collect();
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: Span::new(0, 1),
             subject: "$which".into(),
             subject_span: Span::new(0, 1),

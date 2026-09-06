@@ -593,11 +593,13 @@ mod tests {
     fn mode_switch() -> Statement {
         Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: sp(),
             subject: "$mode".into(),
             subject_span: sp(),
             arms: vec![SwitchArm {
                 pattern: "a".into(),
+                pattern_braced: true,
                 pattern_span: sp(),
                 body: Some(script_of(vec![assign_const("v", "1")])),
                 body_span: Some(sp()),

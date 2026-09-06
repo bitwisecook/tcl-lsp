@@ -1596,7 +1596,9 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
         ExprNode::Literal { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }
-        | ExprNode::String { .. } => false,
+        | ExprNode::String { .. }
+        // A word, not an expression: it holds no command substitution.
+        | ExprNode::CompiledWord { .. } => false,
     }
 }
 
@@ -1663,6 +1665,8 @@ fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. }
         | ExprNode::String { .. }
+        // A word, not an expression: it can hold no math-function call.
+        | ExprNode::CompiledWord { .. }
         | ExprNode::Command { .. } => false,
     }
 }

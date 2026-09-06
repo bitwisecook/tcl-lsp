@@ -1170,6 +1170,7 @@ fn rewrite_switch_stmt(
         mode,
         nocase,
         raw_args,
+        raw_arg_braced,
         patterns_braced,
     } = stmt
     else {
@@ -1186,6 +1187,7 @@ fn rewrite_switch_stmt(
                     changed = true;
                     new_arms.push(SwitchArm {
                         pattern: a.pattern.clone(),
+                        pattern_braced: a.pattern_braced,
                         pattern_span: a.pattern_span,
                         body: Some(body),
                         body_span: a.body_span,
@@ -1212,6 +1214,7 @@ fn rewrite_switch_stmt(
     changed.then(|| {
         vec![Statement::Switch {
             subject_braced: *subject_braced,
+            raw_arg_braced: raw_arg_braced.clone(),
             span: *span,
             subject: subject.clone(),
             subject_span: *subject_span,
@@ -1579,6 +1582,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
             mode,
             nocase,
             raw_args,
+            raw_arg_braced,
             patterns_braced,
         } => Statement::Switch {
             subject_braced: *subject_braced,
@@ -1589,6 +1593,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
                 .iter()
                 .map(|a| SwitchArm {
                     pattern: a.pattern.clone(),
+                    pattern_braced: a.pattern_braced,
                     pattern_span: a.pattern_span,
                     body: a.body.as_ref().map(|b| substitute_irreturn(b, result_var)),
                     body_span: a.body_span,
@@ -1602,6 +1607,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
             mode: *mode,
             nocase: *nocase,
             raw_args: raw_args.clone(),
+            raw_arg_braced: raw_arg_braced.clone(),
             patterns_braced: *patterns_braced,
         },
         other => other.clone(),

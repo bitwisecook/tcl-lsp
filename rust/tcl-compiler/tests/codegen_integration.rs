@@ -507,6 +507,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
 
     let arm = |pat: &str| SwitchArm {
         pattern: pat.into(),
+        pattern_braced: true,
         pattern_span: sp(),
         body: Some(Script::from_statements(vec![Statement::AssignConst {
             span: sp(),
@@ -521,6 +522,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
     let make = |mode: SwitchMode| {
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: sp(),
             subject: "$x".into(),
             subject_span: sp(),

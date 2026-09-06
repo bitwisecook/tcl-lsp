@@ -920,6 +920,9 @@ impl Lowerer<'_> {
                 Ok(dst)
             }
             ExprNode::String { .. }
+            // An IR-level word operand: outside this integer subset for the
+            // same reason a string is.
+            | ExprNode::CompiledWord { .. }
             | ExprNode::Command { .. }
             | ExprNode::Ternary { .. }
             | ExprNode::Call { .. }

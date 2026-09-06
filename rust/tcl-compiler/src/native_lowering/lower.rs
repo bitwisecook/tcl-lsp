@@ -1401,6 +1401,16 @@ impl<'a> Lowerer<'a> {
     fn lower_expr(&mut self, node: &ExprNode) -> Result<NativeValueId, ExprDecline> {
         match node {
             ExprNode::Literal { text, .. } => Ok(self.lower_literal(text)),
+            // A word already reduced to its value: no delimiters to strip, and
+            // a live substitution means the value is not known here.
+            ExprNode::CompiledWord { text, braced } => {
+                if *braced || !(text.contains("${") || text.contains('[')) {
+                    Ok(self.lower_literal(text))
+                } else {
+                    // The same decline a substituted string operand takes.
+                    Err(ExprDecline::SubstitutedString)
+                }
+            }
             ExprNode::String { text, .. } => {
                 let inner = text
                     .strip_prefix('{')

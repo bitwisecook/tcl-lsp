@@ -227,7 +227,11 @@ impl CodegenCtx<'_> {
             // (`\xNN`, `\NNN`, `\uNNNN`, …), which the template parser's simplified
             // literal decoding does not cover (expr-8.13's `"\374"`).
             if !inner.contains('$') && !inner.contains('[') {
-                self.push_lit(&backslash_subst_in(inner, self.escapes));
+                // Decoded here, so this is the operand's finished value and
+                // must not be read back as source: `expr {"{abc}"}` answered
+                // `abc` because the value `{abc}` was pushed substituting and
+                // the VM took it for a braced literal.
+                self.push_word_value(&backslash_subst_in(inner, self.escapes));
                 return false;
             }
             match super::helpers::parse_subst_template(inner, self.escapes, self.braced_var) {
@@ -424,6 +428,29 @@ impl CodegenCtx<'_> {
             ExprNode::Literal { text, .. } => self.emit_expr_literal(text),
 
             ExprNode::String { text, .. } => self.emit_expr_string(text),
+            // A word already reduced to its value: pushed by the word-value
+            // rule, not re-read as expression source. A braced word's value is
+            // literal outright; anything else keeps whatever substitution the
+            // runtime still owns.
+            ExprNode::CompiledWord { text, braced } => {
+                if *braced {
+                    self.push_lit_verbatim(text);
+                } else if tcl_syntax::word_rules::whole_braced_word(text).is_some() {
+                    // The value looks like a braced word, so deferring it to
+                    // the runtime is not an option in either direction: the
+                    // VM's `subst_word` would strip a layer that was never
+                    // source *and* suppress the substitution the word still
+                    // owes. Resolve it here instead — `emit_value` decomposes
+                    // the word into its literal / `$var` / `[cmd]` parts and
+                    // concatenates, which is the only reading that gets both
+                    // halves right. `switch -- "{$x}"` is the case: value
+                    // `{${x}}`, which must compare as `{7}`.
+                    self.emit_value(text, true);
+                } else {
+                    self.push_word_value(text);
+                }
+                false
+            }
 
             ExprNode::Var { text, name, .. } => {
                 let var_ref = if text.contains('(') {

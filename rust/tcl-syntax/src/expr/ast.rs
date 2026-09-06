@@ -302,6 +302,30 @@ pub enum ExprNode {
         end: ExprOffset,
     },
 
+    /// A word already reduced to its **value**, carrying the compiled-word
+    /// substitution convention rather than expression-source semantics.
+    ///
+    /// The expression parser never produces this: it is an IR-level operand for
+    /// a construct whose operand is a *word*, not an expression — today only a
+    /// `switch` subject, which `TclCompileSwitchCmd` pushes through
+    /// `TclCompileTokens`. [`Self::String`] cannot carry it, because that
+    /// variant's text is *source including delimiters* and a value that merely
+    /// looks like a braced word (`switch -- "{abc}"`, whose value is the
+    /// five-character `{abc}`) is then read back as one and stripped.
+    ///
+    /// The two conventions really do differ, which is why re-encoding the
+    /// value as a `String` operand is not an option either: under the
+    /// compiled-word rule a surviving bare `$` is data and only `${…}`
+    /// substitutes, while an expression's quoted operand substitutes `$var`
+    /// too.
+    CompiledWord {
+        /// The word's value.
+        text: String,
+        /// Whether the word was braced, so its value suppresses substitution
+        /// outright.
+        braced: bool,
+    },
+
     /// Variable reference (`$var`, `${var}`, `$arr(idx)`).
     Var {
         /// Full text including `$`.
@@ -489,6 +513,7 @@ impl ExprNode {
             Self::Command { .. }
             | Self::Literal { .. }
             | Self::String { .. }
+            | Self::CompiledWord { .. }
             | Self::Var { .. }
             | Self::Raw { .. } => {}
         }
@@ -520,7 +545,11 @@ impl ExprNode {
                     arg.collect_command_texts(out);
                 }
             }
-            Self::Var { .. } | Self::Literal { .. } | Self::String { .. } | Self::Raw { .. } => {}
+            Self::Var { .. }
+            | Self::Literal { .. }
+            | Self::String { .. }
+            | Self::CompiledWord { .. }
+            | Self::Raw { .. } => {}
         }
     }
 
@@ -549,6 +578,7 @@ impl ExprNode {
             Self::Command { .. }
             | Self::Literal { .. }
             | Self::String { .. }
+            | Self::CompiledWord { .. }
             | Self::Raw { .. } => {}
         }
     }
@@ -580,6 +610,7 @@ impl ExprNode {
             Self::Command { .. }
             | Self::Literal { .. }
             | Self::String { .. }
+            | Self::CompiledWord { .. }
             | Self::Var { .. }
             | Self::Raw { .. } => {}
         }
@@ -685,7 +716,14 @@ impl ExprNode {
             // but extracting them requires script-level analysis that
             // lives in the SSA module. At the pure-AST level we stop
             // at the command boundary.
-            Self::Command { .. } | Self::Literal { .. } | Self::String { .. } => {}
+            // `CompiledWord` is a leaf here for the same reason `String` is:
+            // the walk reads *expression* variable operands, and a compiled
+            // word's `${…}` is resolved by the word substitution rule rather
+            // than by this grammar.
+            Self::Command { .. }
+            | Self::Literal { .. }
+            | Self::String { .. }
+            | Self::CompiledWord { .. } => {}
             // Raw fallback text is unparsed Tcl (e.g. a `switch -- $col`
             // subject preserved verbatim). Re-lex it and collect
             // top-level `$var` references so liveness / unused-parameter
@@ -776,6 +814,18 @@ pub fn render_expr(node: &ExprNode) -> String {
         | ExprNode::Var { text, .. }
         | ExprNode::Command { text, .. }
         | ExprNode::Raw { text } => text.clone(),
+
+        // Rendered back as the *word*, so a diagnostic quoting the condition
+        // reads as what was written: a braced word gets its braces, which is
+        // also what stops `{a[nosuchcmd]} eq zz` reading as though the bracket
+        // would run.
+        ExprNode::CompiledWord { text, braced } => {
+            if *braced {
+                format!("{{{text}}}")
+            } else {
+                text.clone()
+            }
+        }
 
         ExprNode::Binary {
             op, left, right, ..

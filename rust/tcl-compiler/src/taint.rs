@@ -1369,6 +1369,17 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
                 TaintLattice::clean()
             }
         }
+        // A word already reduced to its value. A braced one is literal, so
+        // nothing can flow into it; otherwise whatever substitution is still
+        // live is what a taint can arrive through, which is the same question
+        // `word_taint` answers for a quoted operand.
+        ExprNode::CompiledWord { text, braced } => {
+            if *braced {
+                TaintLattice::clean()
+            } else {
+                word_taint(text, uses, taints, ctx)
+            }
+        }
         ExprNode::Binary { left, right, .. } => expr_command_taint(
             left,
             uses,
@@ -4959,7 +4970,10 @@ fn collect_coercion_operands(
                 });
             }
         }
-        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Command { .. } => {}
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Command { .. } => {}
         ExprNode::Binary { op, left, right } => {
             let child_ctx = binop_coerces(*op);
             collect_coercion_operands(left, child_ctx, out, depth + 1, grammar);

@@ -448,6 +448,7 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         mode,
         nocase,
         raw_args,
+        raw_arg_braced,
         patterns_braced,
     } = stmt
     else {
@@ -474,6 +475,7 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
             .iter()
             .map(|a| SwitchArm {
                 pattern: a.pattern.clone(),
+                pattern_braced: a.pattern_braced,
                 pattern_span: a.pattern_span,
                 body: a.body.as_ref().map(|b| rewrite_script(b, rename)),
                 body_span: a.body_span,
@@ -485,6 +487,7 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
         mode: *mode,
         nocase: *nocase,
         raw_args: raw_args.clone(),
+        raw_arg_braced: raw_arg_braced.clone(),
         patterns_braced: *patterns_braced,
     }
 }
@@ -643,6 +646,13 @@ fn rewrite_expr_at(node: &ExprNode, rename: &HashMap<String, String>, depth: u32
             condition: Box::new(rewrite_expr_at(condition, rename, depth + 1)),
             true_branch: Box::new(rewrite_expr_at(true_branch, rename, depth + 1)),
             false_branch: Box::new(rewrite_expr_at(false_branch, rename, depth + 1)),
+        },
+        // A compiled word carries a *value*; a `$x` inside it is either data
+        // (braced) or resolved by word substitution, never an expression
+        // variable this rename owns.
+        ExprNode::CompiledWord { text, braced } => ExprNode::CompiledWord {
+            text: text.clone(),
+            braced: *braced,
         },
         ExprNode::Call {
             function,

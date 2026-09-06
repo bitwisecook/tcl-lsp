@@ -549,11 +549,13 @@ mod defs_from_ir_script_arms {
     fn switch_arm_and_default_defs_collected() {
         let s = Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
             arms: vec![SwitchArm {
                 pattern: "a".into(),
+                pattern_braced: true,
                 pattern_span: Span::new(10, 11),
                 body: Some(Script::from_statements(vec![assign("arm")])),
                 body_span: Some(Span::new(12, 20)),

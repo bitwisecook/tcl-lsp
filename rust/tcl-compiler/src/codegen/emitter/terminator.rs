@@ -312,7 +312,17 @@ impl CodegenCtx<'_> {
             if *op != BinOp::StrEq {
                 break;
             }
-            let ExprNode::Literal { text: pattern, .. } = right.as_ref() else {
+            // A jump table keys on *literal* strings, so only a pattern that
+            // is one qualifies: a braced arm list's decoded element, or the
+            // `Literal` shape this used to be handed. A substituting pattern
+            // (the multi-word `switch $s $pat …` form) has no key until run
+            // time and keeps the branch chain.
+            let (ExprNode::Literal { text: pattern, .. }
+            | ExprNode::CompiledWord {
+                text: pattern,
+                braced: true,
+            }) = right.as_ref()
+            else {
                 break;
             };
 

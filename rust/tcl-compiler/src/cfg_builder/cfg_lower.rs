@@ -97,9 +97,17 @@ fn literal_true_expr() -> ExprNode {
 ///
 /// The subject is a *word*, never an expression: `TclCompileSwitchCmd`
 /// (`tclCompCmds.c`) pushes it through `TclCompileTokens` — ordinary word
-/// substitution — and compares the resulting string. `ExprNode::String` is the
-/// operand shape codegen emits as exactly that: a bare literal push, which the
-/// VM substitutes (so a `$v` / `[cmd]` inside the word still interpolates).
+/// substitution — and compares the resulting string. `ExprNode::CompiledWord`
+/// is the operand shape that says exactly that, carrying the word's value and
+/// whether it was braced.
+///
+/// It used to be `ExprNode::String`, whose text is *source including
+/// delimiters* — a contract a value cannot honour. A subject whose value
+/// merely looks like a braced word was read back as one and stripped, so
+/// `switch -- "{abc}"` matched the arm `abc` rather than `{abc}`, and
+/// re-bracketing a genuinely braced subject to escape that only made the two
+/// spellings collide on one text. Values and source need different shapes,
+/// which is what this variant is.
 ///
 /// The `ExprNode::Raw` shape this used to use lowered instead to `push` +
 /// `exprStk`, making the subject an expression — `switch -- abc …` evaluated
@@ -129,22 +137,18 @@ fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
     // word the balance walk accepts. The same is not true of an arbitrary
     // value, which is why this is gated on the word really having been braced
     // rather than applied to anything that looks like it could be.
-    if braced {
-        return ExprNode::String {
-            text: format!("{{{subject}}}"),
-            start: 0,
-            end: 0,
-        };
-    }
-    if is_whole_var_ref(subject) {
+    // The whole-variable fast path is for a subject that *reads* a variable, so
+    // it must not fire on a braced word whose value merely spells one:
+    // `switch -- {${x}}` compares the literal text `${x}`, and taking `Raw`
+    // there loaded `x` instead (or errored when it was unset).
+    if !braced && is_whole_var_ref(subject) {
         return ExprNode::Raw {
             text: subject.to_owned(),
         };
     }
-    ExprNode::String {
+    ExprNode::CompiledWord {
         text: subject.to_owned(),
-        start: 0,
-        end: 0,
+        braced,
     }
 }
 
@@ -851,10 +855,18 @@ impl CfgBuilder {
                 ExprNode::Binary {
                     op: BinOp::StrEq,
                     left: Box::new(switch_subject_operand(subject, *subject_braced)),
-                    right: Box::new(ExprNode::Literal {
+                    // The pattern is a *word value* too — the arm list's
+                    // decoded element — so it takes the same operand shape as
+                    // the subject. In a `Literal` slot its text was read back
+                    // as expression source and a pattern that looks braced
+                    // lost a layer: `{7}` was compared as `7`.
+                    //
+                    // Per arm, not per switch: a single braced arm list holds
+                    // literal elements, but the multi-word form is a word each,
+                    // where `{${x}}` is literal and a bare `$pat` substitutes.
+                    right: Box::new(ExprNode::CompiledWord {
                         text: arm.pattern.clone(),
-                        start: 0,
-                        end: 0,
+                        braced: arm.pattern_braced,
                     }),
                 }
             } else {
@@ -1237,12 +1249,14 @@ mod tests {
     fn switch_exact_creates_branches() {
         let script = Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: Span::new(0, 50),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
             arms: vec![
                 SwitchArm {
                     pattern: "a".into(),
+                    pattern_braced: true,
                     pattern_span: Span::new(11, 12),
                     body: Some(Script::new()),
                     body_span: Some(Span::new(13, 15)),
@@ -1250,6 +1264,7 @@ mod tests {
                 },
                 SwitchArm {
                     pattern: "b".into(),
+                    pattern_braced: true,
                     pattern_span: Span::new(16, 17),
                     body: Some(Script::new()),
                     body_span: Some(Span::new(18, 20)),
@@ -1274,11 +1289,13 @@ mod tests {
     fn glob_regexp_switch(mode: SwitchMode) -> Script {
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
             arms: vec![SwitchArm {
                 pattern: "a*".into(),
+                pattern_braced: true,
                 pattern_span: Span::new(11, 13),
                 body: Some(Script::from_statements(vec![Statement::Call {
                     span: Span::new(15, 22),

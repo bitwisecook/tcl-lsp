@@ -135,6 +135,24 @@ pub fn eval<O: ExprOps>(node: &ExprNode, ops: &mut O) -> Result<O::Value, O::Err
     match node {
         ExprNode::Literal { text, .. } => ops.literal(text),
         ExprNode::String { text, .. } => ops.string(strip_delims(text)),
+        // The value as-is — there are no delimiters to strip, which is the
+        // whole reason this operand exists: `strip_delims` on a value that
+        // merely looks braced (`switch -- "{abc}"`) takes a layer that was
+        // never source.
+        //
+        // A braced word's value is literal, so it always evaluates. An
+        // unbraced one is a constant only while nothing is left for the word
+        // substitution to do; with a `${…}` or `[…]` still live the value is
+        // not known here and the evaluator must decline rather than fold the
+        // unsubstituted text. That is the same marker test the codegen side
+        // applies (`push_word_value`).
+        ExprNode::CompiledWord { text, braced } => {
+            if *braced || !(text.contains("${") || text.contains('[')) {
+                ops.string(text)
+            } else {
+                Err(ops.unsupported("compiled word with a live substitution"))
+            }
+        }
         // Pass the index-preserving reference (`arr(idx)`), not the base name,
         // so an evaluator can read array elements; the base `name` field stays
         // for analysis (`.vars_with_grammar(...)`).
