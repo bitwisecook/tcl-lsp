@@ -44,8 +44,9 @@ use super::cells::{
 };
 use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
 use super::ir::{
-    CmpOp, CompareKind, IfElseResult, IntOp, NativeBlock, NativeBlockId, NativeFunction, NativeOp,
-    NativeStatement, NativeTerminator, NativeType, NativeValue, NativeValueId,
+    CmpOp, CompareKind, EntryProtocol, IfElseResult, IntOp, NativeBlock, NativeBlockId,
+    NativeFunction, NativeOp, NativeStatement, NativeTerminator, NativeType, NativeValue,
+    NativeValueId, StatementSite,
 };
 use super::representation::{
     Representation, cmp_op, double_op, double_result_defined, exactly_representable_as_double,
@@ -53,7 +54,7 @@ use super::representation::{
 };
 use super::{
     CellAccessKind, CellAccessRecord, FunctionDecline, FunctionReport, FunctionStatus,
-    NativeLoweringDecline, StatementOutcome, StatementRecord,
+    NativeBinding, NativeLoweringDecline, StatementOutcome, StatementRecord,
 };
 use crate::codegen::structured::command_text;
 use crate::command_binding::{ModuleCommandMutations, scan_module_command_mutations};
@@ -92,6 +93,11 @@ pub struct LoweringInput<'a> {
     pub escape: Option<&'a ProcEscapeSummary>,
     /// Whether this is the top-level script.
     pub top_level: bool,
+    /// The offset in `source` the enclosing body opens at: `0` for the
+    /// top-level script, the procedure body's first content byte for a
+    /// procedure. A statement's absolute span less this offset is its
+    /// body-relative position, which is the line `errorInfo` reports.
+    pub line_origin: u32,
     /// The dispatch entry contract the world proofs are made under.
     pub entry_assumption: DispatchEntryAssumption,
     /// Front-end type shapes per variable name, joined over every SSA
@@ -130,6 +136,9 @@ pub fn lower_function(
     let function = lowerer.lower();
     let report = FunctionReport {
         status: FunctionStatus::Lowered,
+        // The emitter decides binding, once it knows whether the module
+        // installed an entry for the body.
+        binding: NativeBinding::NotApplicable,
         statements: lowerer.records,
     };
     Ok((function, report))
@@ -176,12 +185,17 @@ struct Lowerer<'a> {
     representation: bool,
     mathfunc_native: bool,
     declined_nodes: BTreeMap<NodeId, NativeLoweringDecline>,
+    /// The enclosing command's source site per node, so a statement that
+    /// evaluates one word of a command still names the whole command in an
+    /// `errorInfo` frame — which is what the eval loop logs.
+    command_sites: BTreeMap<NodeId, SourceSite>,
     /// Nodes whose operand words dispatched a runtime command (a nested
     /// invocation, a math function through the command table, a runtime
     /// expression) or read a cell whose trace barrier was kept, so the
     /// site's own operand-admissibility verdict must stand.
     observing_nodes: HashSet<NodeId>,
     current_node: Option<NodeId>,
+    current_site: Option<StatementSite>,
     shadows: ShadowState,
     exit_shadows: Vec<Option<ShadowState>>,
     records: Vec<StatementRecord>,
@@ -249,8 +263,10 @@ impl<'a> Lowerer<'a> {
                 .is_enabled(SemanticOptimisationPassId::RepresentationInference),
             mathfunc_native,
             declined_nodes: BTreeMap::new(),
+            command_sites: BTreeMap::new(),
             observing_nodes: HashSet::new(),
             current_node: None,
+            current_site: None,
             shadows: ShadowState::default(),
             exit_shadows: vec![None; input.function.blocks.len()],
             records: Vec::new(),
@@ -513,7 +529,11 @@ impl<'a> Lowerer<'a> {
             entry: NativeBlockId(u32::try_from(function.entry.index()).unwrap_or(u32::MAX)),
             completion_count: completion_count(function),
             max_argc: self.max_argc,
-            pushes_frame: !self.input.top_level,
+            protocol: if self.input.top_level {
+                EntryProtocol::Script
+            } else {
+                EntryProtocol::ProcEntry
+            },
         }
     }
 
@@ -523,6 +543,29 @@ impl<'a> Lowerer<'a> {
     fn prescan(&mut self) {
         for block in &self.input.function.blocks {
             for instruction in &block.instructions {
+                // The command site every statement of this command reports.
+                // A word evaluation carries only its *word's* site, but the
+                // eval loop logs the whole command, so the command-carrying
+                // instructions publish theirs for the whole node.
+                match instruction {
+                    ExecutableInstruction::Invoke(invoke) => {
+                        self.command_sites
+                            .insert(invoke.node.clone(), invoke.source.clone());
+                    }
+                    ExecutableInstruction::ExecuteLowered(operation) => {
+                        self.command_sites
+                            .insert(operation.node.clone(), operation.source.clone());
+                    }
+                    ExecutableInstruction::ExecuteOpaqueRegion(region) => {
+                        self.command_sites
+                            .insert(region.node.clone(), region.source.clone());
+                    }
+                    ExecutableInstruction::CompleteStructuredRegion(region) => {
+                        self.command_sites
+                            .insert(region.node.clone(), region.source.clone());
+                    }
+                    _ => {}
+                }
                 match instruction {
                     ExecutableInstruction::Invoke(invoke) => {
                         if let Err(reason) = self.words_lowerable(&invoke.original_words, 0) {
@@ -587,6 +630,7 @@ impl<'a> Lowerer<'a> {
 
     fn begin(&mut self, node: Option<&NodeId>, instruction: &'static str) {
         self.current_node = node.cloned();
+        self.current_site = node.and_then(|node| self.statement_site(node));
         self.current = Some(StatementRecord {
             node: node.cloned(),
             instruction,
@@ -595,6 +639,21 @@ impl<'a> Lowerer<'a> {
             representations: Vec::new(),
         });
         self.push_buffer();
+    }
+
+    /// The command site an `errorInfo` frame for `node` names: its exact
+    /// source text and its 1-based line within the body being compiled.
+    fn statement_site(&self, node: &NodeId) -> Option<StatementSite> {
+        let source = self.command_sites.get(node)?;
+        let text = command_text(self.input.source, source.span).to_owned();
+        Some(StatementSite {
+            line: body_line(
+                self.input.source,
+                self.input.line_origin,
+                source.span.start(),
+            ),
+            text,
+        })
     }
 
     fn finish(
@@ -610,6 +669,7 @@ impl<'a> Lowerer<'a> {
         NativeStatement {
             completion,
             node: node.cloned(),
+            site: self.current_site.take(),
             ops,
         }
     }
@@ -797,6 +857,11 @@ impl<'a> Lowerer<'a> {
                         return outcome;
                     }
                 }
+                NativeLowering::Definition if proven => {
+                    if let Some(outcome) = self.lower_definition(invoke) {
+                        return outcome;
+                    }
+                }
                 _ => {}
             }
         }
@@ -804,6 +869,61 @@ impl<'a> Lowerer<'a> {
         self.emit(NativeOp::Invoke { argv });
         self.clobber_shadows();
         StatementOutcome::GenericInvoke
+    }
+
+    /// A definition-time command (`proc`) whose body this module also
+    /// compiled: the runtime binds the written source body exactly as `proc`
+    /// does, and additionally binds the compiled entry the emitter installed
+    /// for that body.
+    ///
+    /// The binding is keyed on the *statement's own span* matching the
+    /// surviving [`crate::ir::Procedure`]'s. Lowering keeps the first
+    /// definition of a name (a later `proc p` of the same name only records a
+    /// redefinition), so only the statement whose body became this module's
+    /// function lowers to [`NativeOp::DefineProc`]; a second definition of the
+    /// same name stays a generic invocation and therefore rebinds an ordinary
+    /// source-only procedure at run time, exactly as Tcl does.
+    fn lower_definition(&mut self, invoke: &GenericInvoke) -> Option<StatementOutcome> {
+        let procedure = self
+            .input
+            .module
+            .procedures
+            .values()
+            .find(|procedure| procedure.span == invoke.source.span)?;
+        // A body the front end never captured (a synthetic or dynamic one)
+        // has nothing for the runtime to bind; keep the generic invocation.
+        let body_source = procedure.body_source.clone()?;
+        // The runtime's `proc` still owns every error this form can raise, so
+        // only the exact `proc name params body` shape is taken.
+        let [head, name, params, body] = invoke.original_words.as_slice() else {
+            return None;
+        };
+        let _ = head;
+        // Every word this hands the runtime has to be the word the statement
+        // actually writes. `Procedure` records the *written* name, parameter
+        // list and body text, but lowering may have compiled the body from a
+        // value it materialised instead — a const-mapped `$body`, or a
+        // `[subst -nocommands …]` template — and it records the original word
+        // beside that compiled body, not the text it compiled. Registering
+        // that word would report the wrong `info body`, and any later run of
+        // the source body (a step trace, or a declined entry) would evaluate
+        // the substitution *in the procedure's own frame*, where its operands
+        // do not exist. A substituted word therefore keeps the generic
+        // invocation, and the runtime's own `proc` — which evaluates the word
+        // at the call site, as Tcl does — defines the procedure.
+        if !is_written_literal(name) || !word_is_literally(params, &procedure.params_raw) {
+            return None;
+        }
+        if !word_is_literally(body, &body_source) {
+            return None;
+        }
+        self.emit(NativeOp::DefineProc {
+            qualified_name: procedure.qualified_name.clone(),
+            params_raw: procedure.params_raw.clone(),
+            body_source,
+        });
+        self.clobber_shadows();
+        Some(StatementOutcome::NativeDefinition)
     }
 
     /// `incr`/`append`/`lappend` reached as an invocation: the place is the
@@ -1856,6 +1976,37 @@ fn expr_variable_place(name: &str) -> Option<CellPlace> {
 ///
 /// [`variable_word_place`] is the one owner of the reading; this only names
 /// the refusal.
+/// Whether the word is written out literally, so what the front end recorded
+/// for it is the text the statement itself carries.
+fn is_written_literal(word: &WordExpr) -> bool {
+    matches!(
+        word,
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+    )
+}
+
+/// Whether the word is a literal whose content is exactly `recorded`.
+fn word_is_literally(word: &WordExpr, recorded: &str) -> bool {
+    match word {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => text == recorded,
+        _ => false,
+    }
+}
+
+/// The 1-based line of `offset` within the body that opens at `origin`.
+///
+/// `errorInfo` counts a procedure's lines from the first byte of its body
+/// text, not from the start of the file, which is exactly what
+/// `Interp::log_command_bytes` expects from a compiled statement.
+fn body_line(source: &str, origin: u32, offset: u32) -> u32 {
+    let Some(preceding) = source.get(origin as usize..offset as usize) else {
+        return 1;
+    };
+    u32::try_from(preceding.matches('\n').count())
+        .unwrap_or(u32::MAX)
+        .saturating_add(1)
+}
+
 fn variable_place(spelling: &str, source: &SourceSite) -> Result<CellPlace, NativeLoweringDecline> {
     variable_word_place(spelling, source).map_err(|decline| match decline {
         VariableWordDecline::Dynamic => NativeLoweringDecline::DynamicVariableName,

@@ -153,6 +153,9 @@ pub enum StatementOutcome {
     NativeIntrinsic,
     /// A fixed completion taken directly under a dispatch proof.
     NativeCompletion,
+    /// A definition-time command bound through the runtime's proc-definition
+    /// ABI, carrying the compiled body's entry when the module installed one.
+    NativeDefinition,
     /// A generic prebuilt-argv invocation through runtime dispatch.
     GenericInvoke,
     /// The source-text rung, with the typed reason.
@@ -170,6 +173,7 @@ impl StatementOutcome {
             Self::Native => "native",
             Self::NativeIntrinsic => "native-intrinsic",
             Self::NativeCompletion => "native-completion",
+            Self::NativeDefinition => "native-definition",
             Self::GenericInvoke => "generic-invoke",
             Self::EvalSource(_) => "eval-source",
             Self::Empty => "empty",
@@ -231,6 +235,64 @@ pub struct StatementRecord {
     pub representations: Vec<&'static str>,
 }
 
+/// Why a lowered procedure body is not bound as the procedure's native entry.
+///
+/// The body still compiled and still appears in the module; the runtime just
+/// keeps running the source body, exactly as it does for a procedure the tier
+/// declined outright.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProcEntryDecline {
+    /// A completion the body returns on its own normal edge carries no Tcl
+    /// result, so the procedure would answer with the empty string where Tcl
+    /// answers with a value — `append`/`lappend`, or a structured region
+    /// whose completion the executable IR produces with no result.
+    UndeterminedResult,
+}
+
+impl ProcEntryDecline {
+    /// Stable Explorer spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::UndeterminedResult => "undetermined-result",
+        }
+    }
+}
+
+/// Whether a compiled body is bound to its procedure's definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeBinding {
+    /// Not a procedure body, or the tier never lowered one.
+    NotApplicable,
+    /// The compiled body is installed in the runtime's shared function table
+    /// and bound to the procedure's definition, so calling the procedure runs
+    /// it instead of the source body.
+    BoundNatively,
+    /// The body compiled but is not bound; the source body runs.
+    SourceOnly(ProcEntryDecline),
+}
+
+impl NativeBinding {
+    /// Stable Explorer spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NotApplicable => "not-applicable",
+            Self::BoundNatively => "bound-natively",
+            Self::SourceOnly(_) => "source-only",
+        }
+    }
+
+    /// The reason a compiled body is not bound.
+    #[must_use]
+    pub const fn reason(self) -> Option<ProcEntryDecline> {
+        match self {
+            Self::SourceOnly(reason) => Some(reason),
+            _ => None,
+        }
+    }
+}
+
 /// Whether a function was lowered, and its per-statement record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionStatus {
@@ -245,6 +307,8 @@ pub enum FunctionStatus {
 pub struct FunctionReport {
     /// Lowered or declined.
     pub status: FunctionStatus,
+    /// Whether the emitted body is bound as the procedure's native entry.
+    pub binding: NativeBinding,
     /// One record per executable instruction, in block order.
     pub statements: Vec<StatementRecord>,
 }
@@ -255,6 +319,7 @@ impl FunctionReport {
     pub const fn declined(reason: FunctionDecline) -> Self {
         Self {
             status: FunctionStatus::Declined(reason),
+            binding: NativeBinding::NotApplicable,
             statements: Vec::new(),
         }
     }

@@ -81,21 +81,45 @@ where
     let Some((sub, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("clock subcommand ?arg ...?"));
     };
-    let sub = ops.as_str(sub).to_string();
-    match sub.as_str() {
+    let word = ops.as_str(sub).to_string();
+    // `clock` is an ensemble, so an exact name wins and a unique prefix
+    // resolves (`clock se` → `seconds`); the whole miss sentence — including
+    // the ensemble's comma before `or` — belongs to `crate::ensemble`.
+    let Some(index) = crate::ensemble::resolve_subcommand(CLOCK_SUBS, word.as_bytes(), true) else {
+        return Err(CmdError::new(
+            String::from_utf8_lossy(&crate::ensemble::unknown_subcommand_message(
+                CLOCK_SUBS,
+                word.as_bytes(),
+                true,
+                b"::tcl::clock",
+            ))
+            .into_owned(),
+        ));
+    };
+    match CLOCK_SUBS[index] {
         "seconds" => nullary(ops, rest, "seconds", now.secs),
         "milliseconds" => nullary(ops, rest, "milliseconds", now.millis),
         "microseconds" => nullary(ops, rest, "microseconds", now.micros),
         "clicks" => clicks(ops, rest, now),
         "format" => format(ops, rest, local_offset),
         "add" => add(ops, rest, local_offset),
-        "scan" => scan(ops, rest, now, local_offset),
-        other => Err(CmdError::new(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be add, clicks, \
-             format, microseconds, milliseconds, scan, or seconds"
-        ))),
+        // Unreachable: `CLOCK_SUBS` has exactly the seven arms here.
+        _ => scan(ops, rest, now, local_offset),
     }
 }
+
+/// `clock`'s subcommand set, alphabetical as the ensemble sorts it. C also
+/// carries `configure`, `mktime` and the internal `::tcl::clock` helpers behind
+/// its script implementation; this core names only what it dispatches.
+const CLOCK_SUBS: &[&str] = &[
+    "add",
+    "clicks",
+    "format",
+    "microseconds",
+    "milliseconds",
+    "scan",
+    "seconds",
+];
 
 /// A no-argument time readout (`clock seconds`/`milliseconds`/`microseconds`).
 fn nullary<O, V>(ops: &mut O, rest: &[V], name: &str, val: i64) -> Result<V, CmdError>

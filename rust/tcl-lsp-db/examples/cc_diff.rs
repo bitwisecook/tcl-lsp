@@ -20,7 +20,7 @@
 //! per-file difference between the memoised `compiler_check_diagnostics` and a
 //! fresh whole-module `compiler_check_diagnostics_uncached` build (checks +
 //! optimisations).  Usage:
-//! `FILE=tmp/tcl8.6.16/library/safe.tcl cargo run -p tcl-lsp-db --example cc_diff`.
+//! `FILE=tmp/tcl8.6.18/library/safe.tcl cargo run -p tcl-lsp-db --example cc_diff`.
 //! See `docs/design/rust/incremental-analysis.md` and the `compiler_check_corpus`
 //! known-failing guard.
 

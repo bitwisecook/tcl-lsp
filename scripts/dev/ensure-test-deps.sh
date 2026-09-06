@@ -103,8 +103,8 @@ requested_tcl_releases() {
         | awk 'NF && !seen[$0]++ { print }'
 }
 
-WASMTIME_VERSION="43.0.1"
-WASI_SDK_VERSION="25.0"
+WASMTIME_VERSION="48.0.1"
+WASI_SDK_VERSION="34.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 # Minimum Node.js major — must track Makefile Prerequisites, README,
@@ -728,7 +728,7 @@ install_kotlinc_zip() {
         note_missing "kotlinc (would download upstream zip into /opt/kotlinc)"
         return 0
     fi
-    local ver="2.0.21"
+    local ver="2.4.10"
     local url="https://github.com/JetBrains/kotlin/releases/download/v${ver}/kotlin-compiler-${ver}.zip"
     local tmpzip
     tmpzip="$(make_temp_file "${TMPDIR:-/tmp}" "kotlinc")"
@@ -894,8 +894,8 @@ ensure_wasmtime() {
 
     local wasm_arch expected_sha
     case "$ARCH" in
-        x86_64)  wasm_arch="x86_64-linux"; expected_sha="9f3cf977fc29e2ccab2d198435265b066dce3d608fc6692d700ed1b9b74c35a1" ;;
-        aarch64) wasm_arch="aarch64-linux"; expected_sha="dbf36d4e9108df377ddfb88f2d8db4e07efce9726b68da53ae78ed5579293923" ;;
+        x86_64)  wasm_arch="x86_64-linux"; expected_sha="4c2e31b68ad99e0a519f225a261fda099eb15f056d4a24fdb3c2a46517bde1df" ;;
+        aarch64) wasm_arch="aarch64-linux"; expected_sha="fdbebd838ed7b9cc4e2b63f6d7d855b33386fc388f3595f668bf394131dd072f" ;;
         *) echo "ERROR: unsupported architecture for Wasmtime: $ARCH" >&2; return 1 ;;
     esac
 
@@ -995,10 +995,10 @@ ensure_wasi_sdk() {
     # the four values below — mismatches are fatal by design.
     local expected_sha
     case "${sdk_arch}-${sdk_os}" in
-        x86_64-linux) expected_sha="52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c" ;;
-        arm64-linux)  expected_sha="47fccad8b2498f2239e05e1115c3ffc652bf37e7de2f88fb64b2d663c976ce2d" ;;
-        x86_64-macos) expected_sha="55e3ff3fee1a15678a16eeccba0129276c9f6be481bc9c283e7f9f65bf055c11" ;;
-        arm64-macos)  expected_sha="e1e529ea226b1db0b430327809deae9246b580fa3cae32d31c82dfe770233587" ;;
+        x86_64-linux) expected_sha="b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4" ;;
+        arm64-linux)  expected_sha="f7e243dff54d60bcc576e94d6166b69f410f2500ae4a9ceef34315be10e77971" ;;
+        x86_64-macos) expected_sha="87d27fa8adc68dee59bfbf2e22a6d34ef717c34d6bf1d8af2a56fc929d9ce0eb" ;;
+        arm64-macos)  expected_sha="9c59398106b417f8f14913380fdf0097a8cc0ff4af9eb3ce0065a859e88d49e9" ;;
         *)
             echo "ERROR: no wasi-sdk sha256 pin for ${sdk_arch}-${sdk_os}" >&2
             return 1
@@ -1162,8 +1162,8 @@ ensure_rgxg() {
 # and checked against its digest before it runs, so a dev box and a CI runner
 # install the same uv from the same script.  Re-pin both together:
 #   curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum
-UV_VERSION="0.11.28"
-UV_INSTALLER_SHA256="b7b3fe80cad1142a2a5794050b7db7b3291d1bac1423b0732571dd9366e8ca8b"
+UV_VERSION="0.12.10"
+UV_INSTALLER_SHA256="a3196b75f697a1adaa5e4af34ffba7629c710931ab1dac33bab59ecf228080bb"
 
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi

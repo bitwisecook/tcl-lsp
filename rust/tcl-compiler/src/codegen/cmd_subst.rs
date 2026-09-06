@@ -389,7 +389,9 @@ impl CodegenCtx<'_> {
         {
             for part in &parts {
                 match part {
-                    SubstPart::Lit(text) => self.push_lit(text),
+                    // A decoded fragment is finished text, never source — see
+                    // `push_word_value`, whose fragment rule this is.
+                    SubstPart::Lit(text) => self.push_lit_exact(text),
                     SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
                     SubstPart::Var(name) => self.load_var(name),
                 }
@@ -459,15 +461,23 @@ impl CodegenCtx<'_> {
             // Interpolated string — delegate to emit_value with interpolation
             self.emit_value(arg, true);
         } else if !braced && arg.contains('\\') {
+            // Decoded once here, so the result is the value. The two arms this
+            // replaces both pushed `processed` the same way, so the distinction
+            // their comment drew was written down but never made; the marker
+            // test in `push_word_value` makes it, and only it. A decode that
+            // *re-creates* a `${` / `[` (`"\$\{x}"`) therefore keeps the
+            // substituting push it already had — that vector is wrong on both
+            // sides of this change (the escaped-marker double-decode the VM's
+            // `subst_word` records as living in the compiler's literal
+            // emission), and closing it is not this fix.
             let processed = tcl_lexer::backslash_subst_in(arg, self.escapes);
-            if processed.contains('$') || (processed.contains('[') && processed.contains(']')) {
-                // After backslash processing, still has subst markers — push raw
-                self.push_lit(&processed);
-            } else {
-                self.push_lit(&processed);
-            }
+            self.push_word_value(&processed);
         } else {
-            self.push_lit(arg);
+            // A de-quoted or plain arg is the finished value, so it must not be
+            // re-substituted: `[string index "{}" 0]` answered empty because
+            // the value `{}` was pushed substituting and `subst_word` stripped
+            // the braces a second time (`push_word_value`).
+            self.push_word_value(arg);
         }
     }
 
@@ -543,8 +553,13 @@ impl CodegenCtx<'_> {
             // `be(a:$a)` (set-1.26).
             self.emit_value(word, true);
         } else if !braced && word.contains('\\') {
+            // Decoded here, so the result is this word's value — the same arm,
+            // and the same rule, as `emit_cmd_subst_arg`'s. Left substituting,
+            // the decoded `\{\}` was read back as a braced literal and stripped
+            // to nothing: `set w [dict get [dict create k \{\}] k]` measured 0
+            // where both oracles say 2.
             let processed = tcl_lexer::backslash_subst_in(word, self.escapes);
-            self.push_lit(&processed);
+            self.push_word_value(&processed);
         } else if braced {
             // A braced word is already de-braced here, so its content is the
             // finished value: push it verbatim or the VM's `subst_word` strips
@@ -553,7 +568,10 @@ impl CodegenCtx<'_> {
             // `{loc}` (issue #1602; tclsh 8.6.14 / 9.0.4 return `L`).
             self.push_lit_verbatim(word);
         } else {
-            self.push_lit(word);
+            // Not braced, and every substitution marker was routed above: this
+            // word's text is already its value, so it goes out unsubstituted
+            // for the same reason the braced arm does — see `push_word_value`.
+            self.push_word_value(word);
         }
     }
 
@@ -673,7 +691,7 @@ impl CodegenCtx<'_> {
         // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
         // `list` inlinings — shared with `emit_value_interpolated`, which
         // carried an identical copy of them (issues #1427 / #1585).
-        if self.try_emit_constant_fold(value, super::values::FoldedLiteral::NoDedup) {
+        if self.try_emit_constant_fold(value) {
             return;
         }
         // Whole-word variable-index array element `$arr($idx)`: route through
@@ -699,7 +717,9 @@ impl CodegenCtx<'_> {
         {
             for part in &parts {
                 match part {
-                    SubstPart::Lit(text) => self.push_lit(text),
+                    // A decoded fragment is finished text, never source — see
+                    // `push_word_value`, whose fragment rule this is.
+                    SubstPart::Lit(text) => self.push_lit_exact(text),
                     SubstPart::Cmd(cmd_text) => {
                         self.emit_inline_cmd_subst(cmd_text);
                     }

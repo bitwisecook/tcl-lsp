@@ -19,7 +19,7 @@ bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh <cmd>
 
 | Command | Fetches |
 |---|---|
-| `84` `85` `86` `90` `91` (or `8.4` …) | one Tcl tree: 8.4.20, 8.5.19, 8.6.16, 9.0.4, 9.1b0 |
+| `84` `85` `86` `90` `91` (or `8.4` …) | one Tcl tree: 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1b0 |
 | `tk84` … `tk91` | the matching Tk tree |
 | `all` / `tkall` | every Tcl / every Tk tree |
 | `status` | what is present |

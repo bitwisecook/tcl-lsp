@@ -145,6 +145,15 @@ fn err(interp: &mut Interp, m: &[u8]) -> Code {
     interp.set_error(m)
 }
 
+/// `after`'s subcommand words, in C table order (`afterSubCmds[]`,
+/// `tclTimer.c`). C scans them at flags `0` with a NULL interp, so
+/// abbreviations resolve (`in` → `info`, `ca` → `cancel`) but the miss is
+/// silent and `after` composes its own `bad argument …, or an integer`
+/// sentence — an `OptionTable` message must never surface here, only the scan
+/// is shared. `i` is ambiguous (idle/info) and so lands on the integer path,
+/// exactly as in tclsh.
+const AFTER_SUBCOMMANDS: &[&[u8]] = &[b"cancel", b"idle", b"info"];
+
 /// `after ms ?script ...?` / `after idle ?script ...?` / `after cancel id|script`
 /// / `after info ?id?`. With a bare `after ms` (no script) it processes events
 /// until `ms` has elapsed (a delay). Multiple script args are concatenated as a
@@ -157,7 +166,14 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     }
     let first = obj_bytes(argv[1]);
-    match first.as_slice() {
+    let scanned = match tcl_cmd_core::prefix::scan(AFTER_SUBCOMMANDS, &first, false) {
+        tcl_cmd_core::prefix::Resolution::Exact(i)
+        | tcl_cmd_core::prefix::Resolution::UniquePrefix(i) => AFTER_SUBCOMMANDS[i],
+        tcl_cmd_core::prefix::Resolution::Ambiguous | tcl_cmd_core::prefix::Resolution::NoMatch => {
+            b""
+        }
+    };
+    match scanned {
         b"idle" => {
             if argv.len() < 3 {
                 return err(interp, b"wrong # args: should be \"after idle script\"");
@@ -246,14 +262,26 @@ fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `update`'s one option word (`tclCmdIL.c`): `Tcl_GetIndexFromObj(…,
+/// "option", 0)`, so `i` abbreviates `idletasks` and a one-entry table's miss
+/// is always `bad`, never `ambiguous`. This reported `wrong # args` for a
+/// misspelled option, where C reports `bad option`.
+const UPDATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"idletasks"]);
+
 /// `update` / `update idletasks` — service the events that are ready now, then
 /// return. `idletasks` services *only* idle events — it must not run timer
 /// events (C's `Tcl_UpdateObjCmd`: `TCL_IDLE_EVENTS` excludes timers).
 fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() > 2 || (argv.len() == 2 && obj_bytes(argv[1]) != b"idletasks") {
+    if argv.len() > 2 {
         return err(interp, b"wrong # args: should be \"update ?idletasks?\"");
     }
     let idletasks = argv.len() == 2;
+    if idletasks {
+        if let Err(m) = UPDATE_OPTIONS.index_of(&obj_bytes(argv[1])) {
+            return err(interp, &m);
+        }
+    }
     interp.process_bg_errors();
     // Drain everything ready *now* (does not wait for future timers); for
     // `idletasks`, only idle handlers.
@@ -364,4 +392,64 @@ fn parse_after_id(s: &[u8]) -> Option<u64> {
 /// detection (a missing variable and an empty one are distinguished).
 fn read_var_snapshot(interp: &mut Interp, name: &[u8]) -> Option<Vec<u8>> {
     interp.var_get(name).map(obj_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::interp::{Code, Interp};
+
+    fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        assert_eq!(
+            i.eval_str(src),
+            Code::Ok,
+            "eval {:?}",
+            String::from_utf8_lossy(src)
+        );
+        i.result_bytes()
+    }
+
+    /// Issue #1607: `update`'s option and `after`'s subcommand word both
+    /// resolve through the one `Tcl_GetIndexFromObj` matcher. `update`'s is an
+    /// ordinary one-entry table, so a miss is always `bad` — this reported
+    /// `wrong # args` instead. `after`'s scan is *silent* in C
+    /// (`Tcl_GetIndexFromObj` with a NULL interp), so a miss falls through to
+    /// the integer parse and `after` composes its own sentence — including for
+    /// the ambiguous `i`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   update {}  -> bad option "": must be idletasks
+    ///   update x   -> bad option "x": must be idletasks
+    ///   update i   -> {}     (abbreviation accepted)
+    ///   after in   -> {}     (info)      ;  after ca 1 -> {}   (cancel)
+    ///   after i    -> bad argument "i": must be cancel, idle, info, or an integer
+    ///   after {}   -> bad argument "": must be cancel, idle, info, or an integer
+    #[test]
+    fn update_and_after_words_resolve_like_tcl_get_index_from_obj() {
+        let mut i = Interp::new();
+        assert_eq!(i.eval_str(b"update {}"), Code::Error);
+        assert_eq!(i.result_bytes(), b"bad option \"\": must be idletasks");
+        assert_eq!(i.eval_str(b"update x"), Code::Error);
+        assert_eq!(i.result_bytes(), b"bad option \"x\": must be idletasks");
+        assert_eq!(i.eval_str(b"update a b"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"wrong # args: should be \"update ?idletasks?\""
+        );
+        // A unique prefix resolves.
+        ok(&mut i, b"update i");
+        // `after`'s silent scan: `in` and `ca` resolve; `i` is ambiguous and so
+        // reaches the integer parse, where `after` words its own miss.
+        assert_eq!(ok(&mut i, b"after in"), b"");
+        assert_eq!(ok(&mut i, b"after ca 1"), b"");
+        assert_eq!(i.eval_str(b"after i"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"bad argument \"i\": must be cancel, idle, info, or an integer"
+        );
+        assert_eq!(i.eval_str(b"after {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"bad argument \"\": must be cancel, idle, info, or an integer"
+        );
+    }
 }

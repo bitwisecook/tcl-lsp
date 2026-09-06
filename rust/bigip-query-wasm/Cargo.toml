@@ -74,7 +74,7 @@ tcl-registry = { path = "../tcl-registry" }
 # iRule diagnostics toggle.
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-core-types = { path = "../tcl-core-types" }
-wasm-bindgen = "=0.2.127"
+wasm-bindgen = "=0.2.128"
 serde_json = { version = "1", features = ["preserve_order"] }
 # Pull chrono's `wasmbind` in via feature unification so the DSL's time builtins
 # (`now`, `strftime`, …) have a working clock on wasm32.

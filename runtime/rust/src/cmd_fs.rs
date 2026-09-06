@@ -348,20 +348,14 @@ fn file_unknown_subcommand(
         })
         .map(|sub| sub.name)
         .collect();
-    let mut message = b"unknown or ambiguous subcommand \"".to_vec();
-    message.extend_from_slice(raw);
-    message.extend_from_slice(b"\": must be ");
-    for (index, name) in visible.iter().enumerate() {
-        if index > 0 {
-            message.extend_from_slice(if index + 1 == visible.len() {
-                b", or "
-            } else {
-                b", "
-            });
-        }
-        message.extend_from_slice(name.as_bytes());
-    }
-    interp.set_error(&message)
+    // The join — including the ensemble's comma before `or`, even for two
+    // entries — belongs to `tcl_cmd_core::ensemble`, not to this module.
+    interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+        &visible,
+        raw,
+        true,
+        b"::tcl::file",
+    ))
 }
 
 /// `file delete ?-force? ?--? ?pathname ...?` — delete files / directories.
@@ -1073,6 +1067,33 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- glob ------------------------------------------------------------------
 
+/// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
+/// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`
+/// abbreviate, `-t` prefixes both `-tails` and `-types` and so is
+/// `ambiguous option "-t"`, and the lone `-` prefixes every entry. Only a word
+/// starting with `-` reaches the table, so the empty word is a pattern
+/// (tclsh: `glob {}` → `.`), never a miss.
+///
+/// This scan already rejected an unknown option exactly as C does, so routing
+/// it through the owner changes no accept/reject decision — it only makes the
+/// words abbreviate, and turns the lone `-` from `bad` into `ambiguous`. The
+/// bytecode VM's `glob` is a separate, deliberately non-erroring
+/// simplification and is *not* converted (issue #1607; see the contract's
+/// "Known deliberate exceptions").
+const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &[
+            b"-directory",
+            b"-join",
+            b"-nocomplain",
+            b"-path",
+            b"-tails",
+            b"-types",
+            b"--",
+        ],
+    );
+
 /// `glob ?-nocomplain? ?-directory dir? ?-tails? ?-join? ?--? pattern ...` —
 /// filesystem name matching.
 fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -1083,15 +1104,23 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut types: Vec<u8> = Vec::new();
     let mut i = 1;
     while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-nocomplain" => nocomplain = true,
-            b"-tails" => tails = true,
-            b"-join" => join_mode = true,
-            b"-directory" | b"-path" => {
+        let word = obj_bytes(argv[i]);
+        // Only a `-`-leading word reaches the table, as in C — a bare word
+        // (the empty one included) is the first pattern.
+        if !word.starts_with(b"-") {
+            break;
+        }
+        match GLOB_OPTIONS.index_of(&word) {
+            // `-directory dir` and `-path prefix` are distinct in C; this
+            // runtime models both as the search root.
+            Ok(0 | 3) => {
                 i += 1;
                 directory = argv.get(i).map(|&a| obj_bytes(a));
             }
-            b"-type" | b"-types" => {
+            Ok(1) => join_mode = true,
+            Ok(2) => nocomplain = true,
+            Ok(4) => tails = true,
+            Ok(5) => {
                 i += 1;
                 // The value is a list of type specifiers (`d`, `f`, `r`, …); a
                 // name must satisfy every requested test (`tclFileName.c`).
@@ -1103,19 +1132,12 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         .collect();
                 }
             }
-            b"--" => {
+            // `--` ends the option scan.
+            Ok(_) => {
                 i += 1;
                 break;
             }
-            opt if opt.starts_with(b"-") => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(opt);
-                m.extend_from_slice(
-                    b"\": must be -directory, -join, -nocomplain, -path, -tails, -types, or --",
-                );
-                return interp.set_error(&m);
-            }
-            _ => break,
+            Err(m) => return interp.set_error(&m),
         }
         i += 1;
     }
@@ -1291,6 +1313,44 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `file`'s ensemble miss sentence — the
+    /// `unknown or ambiguous subcommand "` prefix and the comma-before-`or`
+    /// join — is `tcl_cmd_core::ensemble`'s, not this module's. The visible
+    /// name set still comes from the registry, so it stays release-gated.
+    ///
+    /// tclsh 9.0.4:
+    ///   file {}   -> unknown or ambiguous subcommand "": must be atime,
+    ///                attributes, channels, copy, delete, dirname, executable,
+    ///                exists, extension, home, isdirectory, isfile, join,
+    ///                link, lstat, mkdir, mtime, nativename, normalize, owned,
+    ///                pathtype, readable, readlink, rename, rootname,
+    ///                separator, size, split, stat, system, tail, tempdir,
+    ///                tempfile, tildeexpand, type, volumes, or writable
+    ///   file ex / -> unknown or ambiguous subcommand "ex": must be <same>
+    ///                (exists/executable/extension all start with `ex`)
+    ///   file ext /a.b -> .b   (a unique prefix still resolves)
+    #[test]
+    fn file_ensemble_miss_carries_the_full_option_list() {
+        const MUST: &str = "must be atime, attributes, channels, copy, delete, dirname, \
+                            executable, exists, extension, home, isdirectory, isfile, join, \
+                            link, lstat, mkdir, mtime, nativename, normalize, owned, pathtype, \
+                            readable, readlink, rename, rootname, separator, size, split, \
+                            stat, system, tail, tempdir, tempfile, tildeexpand, type, volumes, \
+                            or writable";
+        let mut i = Interp::new();
+        assert_eq!(i.eval_str(b"file {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"file ex /"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"ex\": {MUST}").as_bytes()
+        );
+        assert_eq!(ok(&mut i, b"file ext /a.b"), b".b");
     }
 
     #[test]
@@ -1552,6 +1612,60 @@ mod tests {
         assert_eq!(ok(&mut i, cmd.as_bytes()), b"a.tcl");
         let none = format!("glob -nocomplain -directory {} *.zzz", dir.display());
         assert_eq!(ok(&mut i, none.as_bytes()), b"");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Issue #1607: `glob`'s option words are a
+    /// `Tcl_GetIndexFromObj(…, "option", 0)` table (`globOptions[]`,
+    /// `tclFileName.c`). This scan already rejected an unknown option exactly
+    /// as C does — it just matched every name exactly, so nothing abbreviated
+    /// and the lone `-` was `bad` rather than `ambiguous`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   glob -x a  -> bad option "-x": must be -directory, -join, -nocomplain,
+    ///                 -path, -tails, -types, or --
+    ///   glob - a   -> ambiguous option "-": must be <same>
+    ///   glob -t …  -> ambiguous option "-t": must be <same>  (-tails/-types)
+    ///   glob {}    -> .    (the empty word is a pattern, not an option)
+    ///   glob -n /nonexistent* -> {}      (`-n` → -nocomplain)
+    ///   glob -nocomplain -d <dir> -ta *.tcl -> the tails    (-d, -ta)
+    #[test]
+    fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be -directory, -join, -nocomplain, -path, -tails, -types, or --";
+        let mut i = Interp::new();
+        let err_of = |i: &mut Interp, src: &[u8]| {
+            assert_eq!(i.eval_str(src), Code::Error, "expected an error");
+            String::from_utf8_lossy(&i.result_bytes()).into_owned()
+        };
+        // Only a `-`-leading word reaches the table.
+        assert_eq!(ok(&mut i, b"glob -nocomplain {}"), b"");
+        // Unique prefixes resolve: `-n` is `-nocomplain`.
+        assert_eq!(ok(&mut i, b"glob -n /nonexistent-zz/*"), b"");
+        let dir = std::env::temp_dir().join(format!("tclrt_globopt_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.tcl"), b"").unwrap();
+        // `-d` is `-directory`, `-ta` is `-tails`, `-ty` is `-types`.
+        let cmd = format!("glob -n -d {} -ta -ty f *.tcl", dir.display());
+        assert_eq!(ok(&mut i, cmd.as_bytes()), b"a.tcl");
+        assert_eq!(
+            err_of(&mut i, b"glob -x a"),
+            format!("bad option \"-x\": {MUST}")
+        );
+        assert_eq!(
+            err_of(&mut i, b"glob - a"),
+            format!("ambiguous option \"-\": {MUST}")
+        );
+        // `-t` prefixes both `-tails` and `-types`.
+        assert_eq!(
+            err_of(&mut i, b"glob -t d a"),
+            format!("ambiguous option \"-t\": {MUST}")
+        );
+        // `-j` is `-join`, and `--` still ends the scan.
+        let joined = format!("glob -n -d {} -j -- *.tcl", dir.display());
+        assert_eq!(
+            ok(&mut i, joined.as_bytes()),
+            dir.join("a.tcl").display().to_string().as_bytes()
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 }

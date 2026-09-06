@@ -377,6 +377,31 @@ mod tests {
         assert_eq!(lookup(&["apple", ""], b"", false), Lookup::Found(1));
     }
 
+    /// Issue #1607: `dict filter`'s type word is an [`OptionTable`] over C's
+    /// `filters[]` (`tclDictObj.c`) with the noun `filterType`, so the three
+    /// types abbreviate and the empty word is `ambiguous`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   dict filter {a 1} k *  -> a 1
+    ///   dict filter {a 1} x *  -> bad filterType "x": must be key, script, or value
+    ///   dict filter {a 1} {} * -> ambiguous filterType "": must be key, script, or value
+    #[test]
+    fn dict_filter_type_noun_and_abbreviations() {
+        const TABLE: OptionTable<'static> =
+            OptionTable::abbreviating("filterType", &["key", "script", "value"]);
+        assert_eq!(TABLE.index_of(b"k"), Ok(0));
+        assert_eq!(TABLE.index_of(b"s"), Ok(1));
+        assert_eq!(TABLE.index_of(b"v"), Ok(2));
+        assert_eq!(
+            TABLE.index_of(b"x"),
+            Err(b"bad filterType \"x\": must be key, script, or value".to_vec())
+        );
+        assert_eq!(
+            TABLE.index_of(b""),
+            Err(b"ambiguous filterType \"\": must be key, script, or value".to_vec())
+        );
+    }
+
     #[test]
     fn choice_list_matches_c_join() {
         assert_eq!(choice_list(&["a"]), "a");

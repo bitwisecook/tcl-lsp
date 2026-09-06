@@ -44,18 +44,58 @@ fn value_to_bytes(v: &Value) -> Vec<u8> {
     v.to_str().chars().map(|c| c as u32 as u8).collect()
 }
 
+/// `binary`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+const BINARY_SUBS: &[&str] = &["decode", "encode", "format", "scan"];
+
+/// `binary encode`/`binary decode`'s format set. These two are ensembles with
+/// **`-prefixes` off** (`TclMakeEnsemble` with `TCL_ENSEMBLE_PREFIX` cleared),
+/// so nothing abbreviates and the miss is worded `unknown subcommand`, never
+/// `unknown or ambiguous` (tclsh: `binary encode h a` → `unknown subcommand
+/// "h": must be base64, hex, or uuencode`).
+const BINARY_FORMATS: &[&str] = &["base64", "hex", "uuencode"];
+
+/// Resolve a `binary` ensemble word, or the ensemble's own miss sentence.
+fn resolve_binary_sub(
+    subs: &'static [&'static str],
+    word: &str,
+    prefixes: bool,
+    ns: &[u8],
+) -> Result<&'static str, String> {
+    match tcl_cmd_core::ensemble::resolve_subcommand(subs, word.as_bytes(), prefixes) {
+        Some(index) => Ok(subs[index]),
+        None => Err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                word.as_bytes(),
+                prefixes,
+                ns,
+            ))
+            .into_owned(),
+        ),
+    }
+}
+
 fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"binary subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    // `encode`/`decode` (TIP 317) arrive in 8.6: under an earlier pin `binary
+    // d` must not resolve to `decode`.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "binary",
+        BINARY_SUBS,
+    );
+    let canon = match resolve_binary_sub(subs, &sub.to_str(), true, b"::tcl::binary") {
+        Ok(name) => name,
+        Err(m) => return err(m),
+    };
+    match canon {
         "format" => binary_format(rest),
         "scan" => binary_scan(vm, rest),
         "encode" => binary_encode(rest),
-        "decode" => binary_decode(rest),
-        other => err(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be decode, encode, format, or scan"
-        )),
+        // Unreachable: `BINARY_SUBS` has exactly the four arms here.
+        _ => binary_decode(rest),
     }
 }
 
@@ -66,7 +106,16 @@ fn binary_encode(rest: &[Value]) -> Completion<Value> {
     let Some((fmt, args)) = rest.split_first() else {
         return err("wrong # args: should be \"binary encode format ?options? data\"");
     };
-    match &*fmt.to_str() {
+    let canon = match resolve_binary_sub(
+        BINARY_FORMATS,
+        &fmt.to_str(),
+        false,
+        b"::tcl::binary::encode",
+    ) {
+        Ok(name) => name,
+        Err(m) => return err(m),
+    };
+    match canon {
         "hex" => {
             let [data] = args else {
                 return err("wrong # args: should be \"binary encode hex data\"");
@@ -75,10 +124,8 @@ fn binary_encode(rest: &[Value]) -> Completion<Value> {
             ok(bytes_to_value(&out))
         }
         "base64" => binary_encode_wrapped(args, false),
-        "uuencode" => binary_encode_wrapped(args, true),
-        other => err(format!(
-            "unknown subcommand \"{other}\": must be base64, hex, or uuencode"
-        )),
+        // Unreachable: `BINARY_FORMATS` has exactly the three arms here.
+        _ => binary_encode_wrapped(args, true),
     }
 }
 
@@ -120,7 +167,16 @@ fn binary_decode(rest: &[Value]) -> Completion<Value> {
     let Some((fmt, args)) = rest.split_first() else {
         return err("wrong # args: should be \"binary decode format ?options? data\"");
     };
-    match &*fmt.to_str() {
+    let canon = match resolve_binary_sub(
+        BINARY_FORMATS,
+        &fmt.to_str(),
+        false,
+        b"::tcl::binary::decode",
+    ) {
+        Ok(name) => name,
+        Err(m) => return err(m),
+    };
+    match canon {
         "hex" => {
             let [data] = args else {
                 return err("wrong # args: should be \"binary decode hex data\"");
@@ -137,13 +193,11 @@ fn binary_decode(rest: &[Value]) -> Completion<Value> {
             },
             Err(c) => c,
         },
-        "uuencode" => match decode_args(args) {
+        // Unreachable: `BINARY_FORMATS` has exactly the three arms here.
+        _ => match decode_args(args) {
             Ok((_strict, bytes)) => ok(bytes_to_value(&tcl_cmd_core::binary::uu_decode(&bytes))),
             Err(c) => c,
         },
-        other => err(format!(
-            "unknown subcommand \"{other}\": must be base64, hex, or uuencode"
-        )),
     }
 }
 

@@ -564,29 +564,42 @@ fn string_insert_command() {
 /// ambiguous/unknown error, and the no-subcommand error.
 #[test]
 fn string_subcommand_dispatch() {
+    const MUST: &str = "must be cat, compare, equal, first, index, insert, is, last, length, \
+                        map, match, range, repeat, replace, reverse, tolower, totitle, \
+                        toupper, trim, trimleft, trimright, wordend, or wordstart";
     // tclsh: unique prefixes resolve
     res_eq("string le hello", "5"); // le -> length
     res_eq("string rev hello", "olleh"); // rev -> reverse
     res_eq("string eq abc abc", "1"); // eq -> equal
-    // tclsh: an unknown subcommand lists the canonical set.
+    // tclsh9.0.4: an unknown subcommand lists the canonical set, joined by the
+    // ensemble's rule (a comma before `or`) — since #1607 the whole sentence is
+    // `tcl_cmd_core::ensemble`'s, so it is pinned byte for byte.
+    //
+    // tclsh9.0.4:
+    //   string bogus x -> unknown or ambiguous subcommand "bogus": must be cat,
+    //                     compare, equal, first, index, insert, is, last,
+    //                     length, map, match, range, repeat, replace, reverse,
+    //                     tolower, totitle, toupper, trim, trimleft, trimright,
+    //                     wordend, or wordstart
+    //   string to abc  -> unknown or ambiguous subcommand "to": must be <same>
+    //   string {} a    -> unknown or ambiguous subcommand "": must be <same>
     let (ok, msg, _) = run("string bogus x");
     assert!(!ok);
-    assert!(
-        msg.starts_with("unknown or ambiguous subcommand \"bogus\": must be "),
-        "got: {msg}"
+    assert_eq!(
+        msg,
+        format!("unknown or ambiguous subcommand \"bogus\": {MUST}")
     );
-    assert!(
-        msg.contains("cat, compare, equal, first, index"),
-        "got: {msg}"
-    );
-    assert!(msg.contains("or wordstart"), "got: {msg}");
     // tclsh: an ambiguous prefix (`to` -> tolower/totitle/toupper) errors too.
     let (ok, msg, _) = run("string to abc");
     assert!(!ok);
-    assert!(
-        msg.starts_with("unknown or ambiguous subcommand \"to\""),
-        "got: {msg}"
+    assert_eq!(
+        msg,
+        format!("unknown or ambiguous subcommand \"to\": {MUST}")
     );
+    // The empty word prefixes every entry, so it lands on the same sentence.
+    let (ok, msg, _) = run("string {} a");
+    assert!(!ok);
+    assert_eq!(msg, format!("unknown or ambiguous subcommand \"\": {MUST}"));
     // tclsh: no subcommand at all.
     err_eq(
         "string",

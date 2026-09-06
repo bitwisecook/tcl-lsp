@@ -195,9 +195,24 @@ impl CodegenCtx<'_> {
     /// `{...}` delimiters and processes backslash escapes.  Returns
     /// `false` (string isn't necessarily numeric).
     fn emit_expr_string(&mut self, text: &str) -> bool {
-        // A brace-delimited operand `{…}` is a literal — no substitution.
-        if text.len() >= 2 && text.starts_with('{') && text.ends_with('}') {
-            self.push_lit(&text[1..text.len() - 1]);
+        // A whole braced operand `{…}` is a literal — no substitution, which is
+        // both halves of this arm.
+        //
+        // *Whole*, through the shared owner, because `{` first and `}` last is
+        // only the necessary condition: `{}${z}` closes its leading brace at
+        // byte 1, and stripping it produced the unbalanced `}${z}`, on which the
+        // VM then raised `missing close-brace for variable name` — so
+        // `switch -- "{}$z" …` (whose subject reaches codegen as an
+        // `ExprNode::String` operand) refused a script both oracles run.
+        //
+        // *Verbatim*, because the content of a braced word is its finished
+        // value: pushed substituting, `expr {{a[nope]}}` ran `nope` where both
+        // oracles answer with the literal `a[nope]`. This is the brace-word
+        // entry point (`push_lit_verbatim`), not the plain-value one, because
+        // here the word really is braced and the `\<newline>` continuation
+        // collapse really is its rule.
+        if let Some(inner) = tcl_syntax::word_rules::whole_braced_word(text) {
+            self.push_lit_verbatim(inner);
             return false;
         }
         // A quote-delimited operand `"…"` is a double-quoted word: its `$var` /
@@ -244,7 +259,9 @@ impl CodegenCtx<'_> {
         }
         for part in parts {
             match part {
-                SubstPart::Lit(t) => self.push_lit(t),
+                // A decoded fragment is finished text, never source — see
+                // `push_word_value`, whose fragment rule this is.
+                SubstPart::Lit(t) => self.push_lit_exact(t),
                 SubstPart::Var(name) => self.load_var(name),
                 SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
             }

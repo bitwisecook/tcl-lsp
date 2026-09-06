@@ -443,6 +443,11 @@ fn serialise_native_tier(report: &tcl_compiler::native_lowering::NativeTierRepor
                     "status": status,
                     "reason": reason,
                     "detail": detail,
+                    "binding": function.binding.as_str(),
+                    "bindingReason": function
+                        .binding
+                        .reason()
+                        .map_or(Value::Null, |reason| json!(reason.as_str())),
                     "statements": statements,
                 }),
             )

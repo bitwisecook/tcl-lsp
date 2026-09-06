@@ -117,11 +117,31 @@ fn noop(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
+/// 9.0's table also carries `profiles` and `user`, which need the encoding
+/// machinery this runtime does not model. `dirs` arrives in 8.5, so the table
+/// is filtered to the emulated release before the scan.
+const ENCODING_SUBS: &[&[u8]] = &[b"convertfrom", b"convertto", b"dirs", b"names", b"system"];
+
 fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"encoding subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    let word = obj_bytes(argv[1]);
+    let subs = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "encoding",
+        ENCODING_SUBS,
+    );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            subs,
+            &word,
+            true,
+            b"::tcl::encoding",
+        ));
+    };
+    match subs[index] {
         // `encoding dirs ?list?` — we don't search encoding files; accept + ignore.
         b"dirs" => {
             interp.set_result_bytes(b"");
@@ -143,11 +163,74 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(data);
             Code::Ok
         }
-        other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be convertfrom, convertto, dirs, names, or system");
-            interp.set_error(&m)
-        }
+        other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            subs,
+            other,
+            true,
+            b"::tcl::encoding",
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::interp::{Code, Interp};
+
+    /// Issue #1607: `encoding` is a `TclMakeEnsemble` command, so its
+    /// exact-then-unique-prefix scan and its miss sentence belong to
+    /// `tcl_cmd_core::ensemble`; this matched exactly and spelled the sentence
+    /// out by hand. The list still names only what this runtime implements
+    /// (9.0's table also carries `profiles` and `user`).
+    ///
+    /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened list):
+    ///   encoding s  -> the system encoding
+    ///   encoding c  -> unknown or ambiguous subcommand "c": must be …
+    ///                  (convertfrom/convertto)
+    ///   encoding {} -> unknown or ambiguous subcommand "": must be …
+    #[test]
+    fn encoding_ensemble_resolves_like_tclsh() {
+        const MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
+        let mut i = Interp::new();
+        assert_eq!(i.eval_str(b"encoding s"), Code::Ok);
+        assert_eq!(i.result_bytes(), b"utf-8");
+        assert_eq!(i.eval_str(b"encoding c"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"c\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"encoding {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+        );
+        // A unique prefix resolves.
+        assert_eq!(i.eval_str(b"encoding na"), Code::Ok);
+        assert_eq!(i.result_bytes(), b"utf-8 unicode ascii iso8859-1");
+    }
+
+    /// Issue #1607: `clock` is an ensemble too — its list was spelled out
+    /// beside the dispatch and matched exactly, so `clock se` failed.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   clock se -> the seconds count
+    ///   clock m  -> unknown or ambiguous subcommand "m": must be add, clicks,
+    ///               format, microseconds, milliseconds, scan, or seconds
+    ///   clock {} -> unknown or ambiguous subcommand "": must be <same>
+    #[test]
+    fn clock_ensemble_resolves_like_tclsh() {
+        const MUST: &str = "must be add, clicks, format, microseconds, milliseconds, scan, \
+                            or seconds";
+        let mut i = Interp::new();
+        assert_eq!(i.eval_str(b"clock se"), Code::Ok);
+        assert_eq!(i.eval_str(b"clock m"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"m\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"clock {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+        );
     }
 }

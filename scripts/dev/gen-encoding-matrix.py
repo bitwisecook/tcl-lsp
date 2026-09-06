@@ -78,11 +78,11 @@ CASES: dict[str, bytes] = {
     "enc_utf8_with_nuls.tcl": _with(b"\x00\x00"),
     # -- hostile but well-formed UTF-8 ---------------------------------
     # U+202E RIGHT-TO-LEFT OVERRIDE + U+202C POP DIRECTIONAL FORMATTING.
-    "bidi_override.tcl": _with("‮drowssap‬".encode()),
+    "bidi_override.tcl": _with("\u202edrowssap\u202c".encode()),
     # U+2066 LEFT-TO-RIGHT ISOLATE + U+2069 POP DIRECTIONAL ISOLATE.
-    "bidi_isolate.tcl": _with("⁦x⁩".encode()),
+    "bidi_isolate.tcl": _with("\u2066x\u2069".encode()),
     # U+202A/U+202B embedding pair.
-    "bidi_embedding.tcl": _with("‪x‫".encode()),
+    "bidi_embedding.tcl": _with("\u202ax\u202b".encode()),
     # Ordinary right-to-left *content* with no override anywhere — the
     # false-positive guard.  Arabic prose is not a Trojan Source attack.
     "rtl_content_clean.tcl": _with("مرحبا".encode()),

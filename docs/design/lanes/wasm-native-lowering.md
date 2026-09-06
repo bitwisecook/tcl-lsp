@@ -16,7 +16,7 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
 | `p1-runtime-abi` | P1 runtime ABI v2 groundwork | `runtime/rust/src/{codegen_abi,frame,vars,interp,obj,bignum,builtins,expr}.rs`, `rust/tcl-runtime-api/src/codegen_abi.rs` | open |
 | `p2-executable-ir` | P2 executable IR total | `rust/tcl-compiler/src/executable_ir.rs` and its consumers | landed (see below) |
 | `p3-native-lowering` | P3 NLIR + native T0/T1 | `rust/tcl-registry/src/native_lowering.rs`, `rust/tcl-compiler/src/native_lowering/`, `codegen/wasm/{native_emit,ir,pipeline,backend}.rs`, `runtime/rust/src/codegen_native.rs` | landed (see below) |
-| `p5-native-procs` | P5-lite native proc dispatch (#1774) | `runtime/rust/{build.rs,src/{interp,codegen_abi}.rs}`, `rust/tcl-runtime-api/src/codegen_abi.rs`, `rust/tcl-compiler/src/codegen/wasm/ir.rs` | in flight — PR-A (runtime + transport) below |
+| `p5-native-procs` | P5-lite native proc dispatch (#1774) | `runtime/rust/{build.rs,src/{interp,codegen_abi}.rs}`, `rust/tcl-runtime-api/src/codegen_abi.rs`, `rust/tcl-compiler/src/{native_lowering/,codegen/wasm/{ir,native_emit,backend}.rs}`, `rust/tcl-registry/src/commands/tcl/proc_.rs`, `samples/wasm/t3-procs/3[56]_*` | landed — PR-A (runtime + transport) and PR-B (emitter) below |
 
 ## Decisions
 
@@ -1206,7 +1206,7 @@ is the design: no emitter reads a compatibility string.
 
 ## p5-native-procs
 
-Issue #1774, phase P5-lite. Split in two: **PR-A** (this section) is the
+Issue #1774, phase P5-lite. Split in two: **PR-A** is the
 runtime and transport half — the runtime can define, dispatch, decline,
 redefine, rename and step-trace a native proc entry, and the WASM IR can
 encode the table plumbing — and emits **no** module change. PR-B is the
@@ -1367,3 +1367,281 @@ exported, so the declarative element segment is the only thing making its
 `ref.func` legal — removing the segment fails validation, and a fixed-size host
 table traps, so neither half of the case is decorative.
 
+
+---
+
+## p5-native-procs, PR-B (emitter)
+
+The compiler half, closing #1774: a natively lowered procedure body is emitted
+in the runtime's proc-entry shape, installed in the shared function table by
+`::top`, and bound to its definition — and a compiled statement that fails
+writes the `errorInfo` frame the eval loop would have written.
+
+### The entry shape (delivered)
+
+`NativeFunction.pushes_frame` is replaced by `protocol: EntryProtocol`, with
+exactly two values, because there are exactly two ways in:
+
+- `Script` — `::top`, `() -> ()`, unchanged: one `activation_enter`, the
+  transient call frame, `activation_leave(code)`.
+- `ProcEntry` — a procedure body, `(argv, argc, out) -> i32`, **prologue-free**.
+  It allocates the transient call frame and nothing else, and answers
+  `NATIVE_PROC_STATUS_RAN` after storing its completion triple into `out` and
+  nulling the locals that held it, so the epilogue's release loop skips what it
+  gave away.
+
+The old `pushes_frame = !top_level` shape — `activation_enter` +
+`frame_push` — is gone, because nothing ever called those functions and the
+prologue is exactly what a proc entry must not have. Parameters occupy the low
+local indices, so `Emitter::{get,set,tee}` add `local_base`; that is the only
+place the new signature costs anything, and `param()` is the one door to a
+parameter.
+
+`a_compiled_proc_body_is_emitted_prologue_free` pins the signature and the
+absence of all four framing calls;
+`a_compiled_proc_body_sees_the_frame_run_proc_pushed` pins it through the
+linked runtime with `info level`/`info level 0`, and
+`recursion_through_a_compiled_body_refuses_at_the_interpreted_depth` pins the
+eval-depth accounting: 62, exactly where `runtime/rust`'s own `run_script`
+refuses. Both fail if the entry is given the script prologue.
+
+### The completion's result — the plan's largest gap
+
+A proc entry's completion **is** the procedure's answer, and the plan assumed
+the emitted body already produced one. It does not. `tcl_codegen_var_set` and
+`tcl_codegen_var_incr` set no interpreter result, so a body ending in `set` or
+`incr` returned whatever the *caller's* last command had left. Three changes
+close it:
+
+- `Interp::run_native_body` resets the result before calling the entry, the way
+  `Tcl_EvalEx` does at entry. The eval loop can skip that because its first
+  command always sets a result; a compiled body cannot promise it. A null
+  `out.result` therefore means "the body left the result alone", never "the
+  caller's answer".
+- the emitter materialises the result for the two operations that determine one
+  but leave it nowhere: `set` answers with the value it stored, `incr` with the
+  new one. Only for a completion a `Return` terminator actually reads, and only
+  in a proc entry, so `::top` is untouched.
+- `native_emit::proc_entry_decline` refuses to bind a body whose returned
+  completion determines no result at all — `append`/`lappend` reaching the
+  in-place cell shape (the runtime does not hand the new value back), and a
+  structured region such as a one-armed `if`, whose completion the executable
+  IR produces empty. The body is still emitted; it is simply not installed, and
+  the definition keeps its source body. `FunctionReport.binding` records which,
+  and the Explorer serialises it.
+
+Row `puts [last hello]` in `35_native_dispatch_matrix.tcl` fails without the
+materialisation, `puts "[branch 1]|[branch 0]<"` fails without the decline, and
+`a_native_entry_that_writes_no_result_answers_with_the_empty_string` fails
+without the reset.
+
+### The pending return state (P1 review finding (a))
+
+**Found by review, reproduced before fixing.** `NativeOp::Complete { code:
+Return }` set the completion code and nothing else, but the `return` command
+also records `(-level 1, -code ok)`, and `Interp::settle_return` consumes that
+state whether or not anything set it. `catch` reports a deferred return's code
+without crossing a boundary, so `catch {return -level 2 -code error boom}`
+leaves `(2, Error)` behind — and the next compiled `return` had its level
+counted down from 2 instead of 1 and propagated code 2 to its caller.
+
+Measured before the fix on `37_return_state.tcl`: tclsh 9.0.4, tclsh 8.6.16,
+`run_script` and the default plan all answer `0 v / 0 v / 0 {}`; the native
+plan answered `2 v / 2 v / 2 {}`. **Compiled-only, and native-tier-only** —
+every other tier reaches the runtime `return` command.
+
+The fix is the write itself, at the completion site: a new ABI import
+`tcl_codegen_return_state(level, code)` mirroring `Interp::set_return_state`,
+emitted for every `Complete { code: Return }`. Only the plain `return` /
+`return value` forms reach that op — every `-code`/`-level` form keeps the
+generic invocation, which records the state itself, and `settle_return` ignores
+every completion code but `Return`. Both directions are pinned, at the ABI
+(`a_compiled_return_records_the_state_the_return_command_records`, which runs a
+stub with and without the write) and at the emitter
+(`a_compiled_return_records_the_pending_return_state`, which also checks the
+option-carrying form does *not* double-write).
+
+Not the same shape as the reused result slot, and worth saying so: the result
+slot was a function-local reused across executions of one statement, so its
+exposure was loop-shaped. The pending return state is global interpreter state,
+so it is *call*-shaped — stale across unrelated statements and calls, and no
+loop is needed to reach it. Writing it at the completion site rather than at
+function entry is what makes it correct however many times the statement runs,
+and leaves the runtime's decline path untouched.
+
+### The table install (delivered)
+
+`::top`'s prologue, spliced ahead of everything else in `backend.rs`:
+
+```wat
+(if (i32.lt_s (global.get $table_base) (i32.const 0)) (then
+  (global.set $table_base (table.grow $fns (ref.null func) (i32.const N)))
+  (if (i32.lt_s (global.get $table_base) (i32.const 0)) (then unreachable))
+  (table.set $fns (i32.add (global.get $table_base) (i32.const 0)) (ref.func $p0))
+  …))
+```
+
+Guarded on the global so a `::top` that runs twice — a host calling it after
+`_start` already did — installs once and keeps the same indices; trapping on
+`-1` so a runtime linked without `--growable-table` is a build error rather
+than a dispatch to slot 0. Removing the splice traps the linked module with
+`undefined element: out of bounds table access`, which is the gate.
+
+`ProcedurePlan` stays the single owner of proc → function index; the table
+window is a `BTreeMap<String, u32>` derived from it in `codegen()`, and
+`native_emit::EntryTable` is the read-only view the emitter uses. The window
+holds exactly the bodies some emitted `DefineProc` can name: computing it from
+"lowered and admissible" alone imported the table for two samples whose
+definitions never reached the native definition shape at all.
+
+### Binding a definition (delivered)
+
+`NativeLowering::Definition` — the registry descriptor `proc` has carried since
+P3, with no consumer — gets its arm in `lower.rs`. It matches the statement's
+own span against the surviving `Procedure`, takes that `Procedure`'s
+`qualified_name`/`params_raw`/`body_source`, and emits
+`NativeOp::DefineProc`; the emitter turns it into
+`tcl_codegen_proc_define_native(name, params, body, base + slot)`, or `… , 0`
+when the module installed nothing for it.
+
+**The plan was wrong about which statement binds.** §5 row H says the entry
+binds at the *second* `proc pick` of two. It binds at the **first**:
+`Lowering::lower_proc` inserts into `module.procedures` only on a `Vacant`
+entry and records the rest in `redefined_procedures`, so the surviving
+`Procedure` — the one whose body became this module's function — is the first.
+The observable answer is the same (`first` then `second`), because the second
+statement stays a generic invocation and the runtime's own `proc` then replaces
+the binding with a source-only definition; but the budget reading is the
+mirror image of the plan's.
+
+### `proc` needed a registry stamp
+
+Every `proc` after the first in a script failed its own site proof, so only one
+definition per module ever bound. The cause is not this issue's: `proc` carried
+no `DispatchDependencyDescriptor`, so it resolved to `CONSERVATIVE`, which
+includes `UnknownHandling` — and defining a command retires that domain. The
+fix is the registry statement `string length` and `trace` already carry,
+`DispatchDependencyDescriptor::replace(DispatchDependencies::NONE)` (i.e.
+`BASE`): a resolved core builtin consults neither TclOO dispatch nor `unknown`,
+which is what `DispatchDependencies::CONSERVATIVE`'s own doc comment says.
+`30_simple_proc` went from one bound body to two.
+
+What still limits binding is honest and unchanged: a definition written *after*
+a command that widens the world state — a `catch`, a `namespace eval`, any
+opaque region — is not proven and keeps the generic invocation. The two new
+samples put their definitions first for exactly that reason, and
+`wasm-codegen.md` says so.
+
+### Registering only words the statement writes (P1 review finding (b))
+
+**Found by review; a latent trap rather than a live wrong answer, and worth
+being precise about which.** `lower_definition` took `Procedure`'s
+`qualified_name` / `params_raw` / `body_source` and handed them to the runtime
+as the definition. But `Lowering::lower_proc` records the *written* body text
+while compiling the body from a value it may have materialised instead: a
+const-mapped `$body`, or a `[subst -nocommands …]` template. `proc make {} {
+set body {return hello} ; proc p {x} $body }` really does produce
+`Procedure { body_source: Some("${body}"), body: <one statement from "return
+hello"> }` — pinned by
+`a_definition_declines_a_body_the_statement_does_not_write_out`.
+
+I could not make it produce a wrong answer through any tier, and the reason is
+a coincidence, not a design: both materialising paths require `proc_depth > 0`
+(each consults the const map, which is empty at depth 0), and no procedure-body
+site is ever proven, because procedure units are lowered under
+`DispatchEntryAssumption::UnknownWorld` — which makes
+`analyse_dispatch_stability` return the empty analysis. So the two conditions
+are today mutually exclusive. P5 proper plans to make procedure bodies proven;
+the day it does, this becomes a wrong `info body` and a source-body fallback
+that evaluates the substitution in the procedure's own frame.
+
+The fix makes the invariant hold by construction: the definition's name,
+parameter list and body words must each be a written literal, and the body and
+parameter words must match the text the front end recorded. Anything else keeps
+the generic invocation, where the runtime's own `proc` evaluates the word at
+the call site exactly as Tcl does. The test lowers the enclosing body under
+`PristineRegistryWorld` to remove the coincidence and fails without the guard;
+its sibling shows a written-out body still binds under the same proof, so the
+rule is about substitution rather than a blanket refusal.
+
+The same registration exists in the legacy analysis tier
+(`try_emit_direct_operation` → `tcl_codegen_proc_register`), which has always
+passed `body_source` unchecked. It is out of this issue's scope and equally
+unreachable for the same reason, but it is the same defect and deserves its own
+ticket rather than a silent fix here.
+
+### The `errorInfo` frame (delivered, step 6)
+
+Every NLIR statement now carries `site: Option<StatementSite>` — the enclosing
+command's exact text and its 1-based line **within the body being compiled**.
+`lower.rs` builds a `node -> SourceSite` map in its pre-scan from the
+instructions that carry a command site (`Invoke`, `ExecuteLowered`,
+`ExecuteOpaqueRegion`, `CompleteStructuredRegion`), so a statement that
+evaluates one *word* of a command still names the whole command, which is what
+the eval loop logs. `LoweringInput.line_origin` is the body's first byte
+(`Procedure.body_offset`, new, from the front end's own `body_tok.span.start()
++ content_offset`); `::top`'s origin is 0.
+
+`native_emit` emits, after each statement that can fail and has a site,
+`if code == 1 { tcl_codegen_log_command(line, text) }`. `36_proc_error_info.tcl`
+is byte-identical to tclsh 9.0.4 and 8.6.16 with it and loses both the
+`while executing "error "bad $a""` frame and the body-relative line without it.
+
+**Known gap, ledgered here rather than hidden:** a statement on the
+`EvalSource` rung logs from *inside* `tcl_eval_code`, whose own eval loop
+measures the line against the one-command text it was handed — so such a
+statement reports line 1. The frame text is right; only the line is wrong, and
+only for statements the lowering declined. `run_native_body` sets
+`proc_line_base = line_base`, so there is no ABI today that could tell the
+inner loop where the statement really sits. It needs an ABI change (an
+eval-with-line, or a frame-line setter) and belongs with P9's `info frame`
+work, which already owes an exact `line` inside a native body.
+
+### Found on the way
+
+- **The result gap above** — the plan's §2.2 assumed the emitted body's
+  completion was already the procedure's answer.
+- **Row H is mirrored** — the first definition binds, not the second.
+- **`proc`'s dispatch dependencies** — an unrelated registry gap that capped
+  binding at one procedure per module.
+- **The interpreted runtime's TIP 348 `INNER` payload differs from C's**: it
+  records the failing command (`INNER {error "bad $a"}`) where tclsh records
+  `INNER {returnImm {bad Q} {}}`. Pre-existing, unrelated to compilation (the
+  compiled and interpreted bodies agree with each other), and the reason
+  `36_proc_error_info.tcl` prints only the `CALL` entry. Worth its own ticket.
+- **A module whose `::top` declines can bind nothing**, because the install
+  sequence lives in `::top`. That is a correctness requirement, not a policy:
+  without it a nested definition inside a proc body would read `base + slot`
+  from a global still holding `-1`.
+
+### Budgets
+
+Ten native-plan rows move, each by exactly the number of `proc` statements in
+that sample that reached the definition shape; every other number in
+`budgets.tsv` is unchanged, and the default and analysis plans are untouched.
+`invoke_argv` is the only column affected — a definition that used to dispatch
+through `tcl_invoke_argv` now calls `tcl_codegen_proc_define_native`, which the
+budget does not count.
+
+| sample | before | after | bound bodies |
+|---|---|---|---|
+| `t3-procs/30_simple_proc` | 7 | 5 | `::add`, `::sq` |
+| `t3-procs/31_recursion` | 6 | 4 | `::fib`, `::fact` |
+| `t3-procs/33_string_builder` | 4 | 3 | `::pad` (`::table` declines: `operand-expression`) |
+| `t4-scopes/41_upvar` | 10 | 8 | `::incrby`, `::swap` |
+| `t5-completion/50_catch_error` | 20 | 19 | `::risky` (the `catch` before the other two widens) |
+| `t5-completion/51_try_finally` | 8 | 7 | none — `::t` declines, so `entry = 0` |
+| `t7-dynamic/70_var_traces` | 8 | 7 | `::watch` |
+| `t7-dynamic/71_exec_traces_rename` | 12 | 11 | `::hello` |
+| `t7-dynamic/72_uplevel_eval` | 12 | 11 | none — `::repeat` is `source-only` |
+| `t7-dynamic/73_coroutine` | 14 | 13 | `::gen` |
+
+`t4-scopes/40_global_variable` and `t7-dynamic/74_dynamic_names` are the
+control: both have procedures that lower and are admissible, but their `proc`
+statements sit after a `namespace eval` / a widening command, so no definition
+takes the native shape, nothing is bound, and their numbers do not move.
+
+Three rows are new: `37_return_state` (1/0/8/0),
+`35_native_dispatch_matrix`
+(`eval_code / expr_bool / invoke_argv / native_i64_f64` = 0/0/62/29) and
+`36_proc_error_info` (0/0/17/0).

@@ -279,24 +279,28 @@ fn cmd_tell(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `seek`'s origin word, in C table order (`originOptions[]`, `tclIOCmd.c`):
+/// `Tcl_GetIndexFromObj(…, "origin", 0)`, so `s`/`c`/`e` abbreviate and the
+/// empty word — a prefix of all three — is `ambiguous origin ""`.
+const SEEK_ORIGINS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("origin", &["start", "current", "end"]);
+
 fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (id, offset, origin) = match args {
-        [c, o] => (
-            c.to_str().to_string(),
-            o.as_int().unwrap_or(0),
-            "start".to_string(),
-        ),
-        [c, o, w] => (
-            c.to_str().to_string(),
-            o.as_int().unwrap_or(0),
-            w.to_str().to_string(),
-        ),
+        [c, o] => (c.to_str().to_string(), o.as_int().unwrap_or(0), 0),
+        [c, o, w] => {
+            let index = match SEEK_ORIGINS.index_of_str(&w.to_str()) {
+                Ok(i) => i,
+                Err(e) => return err(e.into_message()),
+            };
+            (c.to_str().to_string(), o.as_int().unwrap_or(0), index)
+        }
         _ => return err("wrong # args: should be \"seek channelId offset ?origin?\""),
     };
     if let Some(Channel::Read { data, pos }) = vm.channel_mut(&id) {
-        let base = match origin.as_str() {
-            "current" => i64::try_from(*pos).unwrap_or(0),
-            "end" => i64::try_from(data.len()).unwrap_or(0),
+        let base = match origin {
+            1 => i64::try_from(*pos).unwrap_or(0),
+            2 => i64::try_from(data.len()).unwrap_or(0),
             _ => 0,
         };
         let np = (base + offset).clamp(0, i64::try_from(data.len()).unwrap_or(i64::MAX));

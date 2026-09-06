@@ -63,7 +63,7 @@ fn per_item_matches_analyse_over_corpus() {
     for v in [
         "tcl8.4.20/library",
         "tcl8.5.19/library",
-        "tcl8.6.16/library",
+        "tcl8.6.18/library",
         "tcl9.0.4/library",
         "tcllib-2.0/modules",
     ] {
@@ -261,7 +261,7 @@ fn per_item_matches_analyse_under_edits() {
     for v in [
         "tcl8.4.20/library",
         "tcl8.5.19/library",
-        "tcl8.6.16/library",
+        "tcl8.6.18/library",
         "tcl9.0.4/library",
         "tcllib-2.0/modules",
     ] {

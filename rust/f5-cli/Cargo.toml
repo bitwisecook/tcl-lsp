@@ -62,7 +62,7 @@ rpassword = "7"
 # RUSTSEC-2026-0153 (russh-cryptovec unchecked buffer growth) and
 # RUSTSEC-2026-0154 (unbounded 32-bit agent-frame allocation); the floor is kept
 # at the current release so a fresh resolve cannot land behind either.
-russh = "0.63.1"
+russh = "0.63.2"
 russh-sftp = "2"
 tokio = { version = "1", features = ["rt", "net", "io-util", "time"] }
 # `encrypt-secrets` / `decrypt-secrets`: F5 master-key (`f5mku`) AES-ECB crypto,

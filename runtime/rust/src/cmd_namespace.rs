@@ -74,22 +74,15 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
     // contract), so e.g. `namespace exist` → `exists`.
     let raw = obj_bytes(argv[1]);
-    let sub: &[u8] = if let Some(c) = NAMESPACE_SUBS.iter().find(|c| **c == raw.as_slice()) {
-        c
-    } else {
-        let mut it = NAMESPACE_SUBS
-            .iter()
-            .filter(|c| c.starts_with(raw.as_slice()));
-        match (it.next(), it.next()) {
-            (Some(c), None) => c,
-            _ => {
-                let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-                m.extend_from_slice(&raw);
-                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which");
-                return interp.set_error(&m);
-            }
-        }
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(NAMESPACE_SUBS, &raw, true) else {
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            NAMESPACE_SUBS,
+            &raw,
+            true,
+            b"::tcl::namespace",
+        ));
     };
+    let sub: &[u8] = NAMESPACE_SUBS[index];
     match sub {
         b"current" => ns_current(interp, argv),
         b"delete" => ns_delete(interp, argv),
@@ -1083,6 +1076,40 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
+    /// Issue #1607: `namespace` is a `TclMakeEnsemble` command, so its
+    /// exact-then-unique-prefix scan and its whole miss sentence belong to
+    /// `tcl_cmd_core::ensemble` — both were hand-rolled here, the 19-entry
+    /// enumeration as a literal beside the table it duplicates.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   namespace cu -> ::
+    ///   namespace {} -> unknown or ambiguous subcommand "": must be children,
+    ///                   code, current, delete, ensemble, eval, exists, export,
+    ///                   forget, import, inscope, origin, parent, path,
+    ///                   qualifiers, tail, unknown, upvar, or which
+    ///   namespace e  -> unknown or ambiguous subcommand "e": must be <same>
+    ///                   (ensemble/eval/exists/export)
+    #[test]
+    fn namespace_ensemble_miss_comes_from_the_owner() {
+        const MUST: &str = "must be children, code, current, delete, ensemble, eval, exists, \
+                            export, forget, import, inscope, origin, parent, path, qualifiers, \
+                            tail, unknown, upvar, or which";
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace cu"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::");
+            assert_eq!(i.eval_str(b"namespace {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("unknown or ambiguous subcommand \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"namespace e"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("unknown or ambiguous subcommand \"e\": {MUST}").as_bytes()
+            );
+        });
+    }
+
     #[test]
     fn current_is_global_at_top_level() {
         leak_free(|i| {
@@ -1803,6 +1830,358 @@ mod tests {
                 b"unknown namespace \"::nope\" in namespace delete command"
             );
         });
+    }
+
+    /// Run `sheet` and pin its result byte for byte. Every expectation below
+    /// was measured on tclsh 9.0.4 and is identical on 8.6.16.
+    fn pins(sheet: &[u8], want: &[u8]) {
+        leak_free(|i| {
+            let code = i.eval_str(sheet);
+            let got = String::from_utf8_lossy(&i.result_bytes()).into_owned();
+            assert_eq!(code, Code::Ok, "sheet failed: {got}");
+            assert_eq!(
+                got.as_bytes(),
+                want,
+                "sheet:\n{}",
+                String::from_utf8_lossy(sheet)
+            );
+        });
+    }
+
+    // -- #1751: a deleted namespace is retained for its live frames ----------
+    //
+    // C's `Tcl_DeleteNamespace` takes the `activationCount > (nsPtr ==
+    // globalNsPtr)` branch: `NS_DYING`, unlink the parent edge, and leave the
+    // contents alone. `Tcl_PopCallFrame` calls the deletion again once the last
+    // frame holding the token goes away.
+
+    /// The issue's headline: `namespace delete ::N` from inside `::N::p`
+    /// unpublishes the name immediately, yet the relative `q` still resolves
+    /// through the frame's own token.
+    #[test]
+    fn deleting_the_running_namespace_retains_it_for_the_frame() {
+        pins(
+            br#"set answer [namespace eval N {
+                    proc q {} {return Q}
+                    proc p {} {
+                        namespace delete ::N
+                        set code [catch {q} message]
+                        list [namespace exists ::N] [info commands ::N::p] \
+                             [info commands ::N::q] $code $message [namespace current]
+                    }
+                    p
+                }]
+                list $answer [namespace exists ::N] [info commands ::N::*]"#,
+            b"{0 {} {} 0 Q ::N} 0 {}",
+        );
+    }
+
+    /// A `namespace eval` frame is an activation too (C counts every
+    /// `Tcl_PushCallFrame`), so deleting from the body defers just the same.
+    #[test]
+    fn a_namespace_eval_frame_defers_its_own_deletion() {
+        pins(
+            br#"set r [namespace eval N {
+                    proc q {} {return Q}
+                    namespace delete ::N
+                    list [namespace exists ::N] [catch {q} m] $m [namespace current] \
+                         [info commands ::N::*]
+                }]
+                list $r [namespace exists ::N]"#,
+            b"{0 0 Q ::N {}} 0",
+        );
+    }
+
+    /// `namespace inscope` and `apply -ns` push the same kind of frame.
+    #[test]
+    fn inscope_and_apply_frames_defer_their_own_deletion() {
+        pins(
+            br#"namespace eval N {proc q {} {return Q}}
+                set a [namespace inscope N {
+                    namespace delete ::N
+                    list [q] [namespace current] [namespace exists ::N]
+                }]
+                list $a [namespace exists ::N]"#,
+            b"{Q ::N 0} 0",
+        );
+        pins(
+            br#"set log {}
+                proc rec {old new op} {lappend ::log [list $old $op]}
+                namespace eval N {proc q {} {return Q}}
+                trace add command ::N::q delete rec
+                set a [apply [list {} {namespace delete ::N; list [q] [llength $::log]} ::N]]
+                list $a $log"#,
+            b"{Q 0} {{::N::q delete}}",
+        );
+    }
+
+    /// The name is free the instant the token is retained: `namespace eval ::N`
+    /// builds a wholly separate token, and neither absorbs the other. C nulls
+    /// `parentPtr` in the deferred branch, so the child entry is gone before a
+    /// recreation looks for it (unlike the synchronous window, which errors
+    /// `already exists`).
+    #[test]
+    fn a_recreated_namespace_is_a_distinct_token_from_the_retained_one() {
+        pins(
+            br#"namespace eval N {
+                    proc q {} {return Q}
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {proc r {} {return R}}
+                        list [q] [catch {r} m] $m [info commands ::N::*] [::N::r] \
+                             [namespace current] [namespace exists ::N] [namespace which q] \
+                             [namespace which r] [info commands q]
+                    }
+                }
+                set a [::N::p]
+                list $a [info commands ::N::*] [namespace exists ::N]"#,
+            br#"{Q 1 {invalid command name "r"} ::N::r R ::N 1 ::N::q {} q} ::N::r 1"#,
+        );
+    }
+
+    /// A command trace belongs to a token, not to a spelling: the retained
+    /// `::N::q` and the recreated `::N::q` each fire their own, in their own
+    /// teardown (C walks `cmdPtr->tracePtr`).
+    #[test]
+    fn a_retained_token_and_its_recreation_fire_separate_command_traces() {
+        pins(
+            br#"set log {}
+                proc rec {old new op} {lappend ::log [list old $old $op]}
+                proc rec2 {old new op} {lappend ::log [list new $old $op]}
+                namespace eval N {
+                    proc q {} {return Q}
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {proc q {} {return R}}
+                        trace add command ::N::q delete rec2
+                        set ::mid $::log
+                        return [q]
+                    }
+                }
+                trace add command ::N::q delete rec
+                set r [::N::p]
+                set after $::log
+                namespace delete ::N
+                list $r $mid $after $::log"#,
+            b"Q {} {{old ::N::q delete}} {{old ::N::q delete} {new ::N::q delete}}",
+        );
+    }
+
+    /// A qualified definition cannot reach the retained token — the public name
+    /// is gone — but an unqualified one lands in it through the frame.
+    #[test]
+    fn a_retained_token_takes_relative_definitions_only() {
+        pins(
+            br#"namespace eval N {
+                    proc p {} {
+                        namespace delete ::N
+                        proc r {} {return R}
+                        list [r] [info commands ::N::r] [namespace which r] \
+                             [catch {proc ::N::s {} {}} m] $m [info commands ::N::*] \
+                             [namespace exists ::N]
+                    }
+                }
+                set a [::N::p]
+                list $a [info commands ::N::*] [namespace exists ::N]"#,
+            br#"{R {} ::N::r 1 {can't create procedure "::N::s": unknown namespace} {} 0} {} 0"#,
+        );
+    }
+
+    /// Variables ride with the token: `variable v` still reads it, while every
+    /// name-addressed probe fails.
+    #[test]
+    fn a_retained_token_keeps_its_variables() {
+        pins(
+            br#"namespace eval N {
+                    variable v V
+                    proc p {} {
+                        namespace delete ::N
+                        variable v
+                        list [catch {set ::N::v} m] $m [set v] [info vars ::N::*] \
+                             [info vars [namespace current]::*]
+                    }
+                }
+                ::N::p"#,
+            br#"1 {can't read "::N::v": no such variable} V {} {}"#,
+        );
+    }
+
+    /// The current-namespace probes the issue names, from inside the frame.
+    #[test]
+    fn a_retained_token_reports_its_own_name_and_commands() {
+        pins(
+            br#"namespace eval N {
+                    variable v 1
+                    proc p {} {
+                        namespace delete ::N
+                        list [namespace exists [namespace current]] \
+                             [info commands [namespace current]::*] [info procs] \
+                             [namespace which -variable v]
+                    }
+                }
+                ::N::p"#,
+            b"0 {} p ::N::v",
+        );
+    }
+
+    /// A child of the retained token stays reachable relatively, and reachable
+    /// by no absolute name at all. The absolute name is built at run time on
+    /// purpose: a literal would measure tclsh's `ResolvedCmdName` bytecode
+    /// cache, which only invalidates on `NS_DYING` of the command's *own*
+    /// namespace.
+    #[test]
+    fn a_retained_token_keeps_its_children() {
+        pins(
+            br#"namespace eval N {
+                    namespace eval C {proc x {} {return X}}
+                    proc p {} {
+                        namespace delete ::N
+                        set n [join [list {} N C x] ::]
+                        list [C::x] [namespace exists ::N::C] [catch {$n} m] $m \
+                             [namespace children] [catch {namespace children ::N} m2] $m2
+                    }
+                }
+                set a [::N::p]
+                list $a [namespace exists ::N::C]"#,
+            br#"{X 0 1 {invalid command name "::N::C::x"} ::N::C 1 {namespace "::N" not found}} 0"#,
+        );
+    }
+
+    /// Deletion recurses through the same count-checking entry C's
+    /// `TclDeleteNamespaceChildren` uses: the parent has no frame and tears down
+    /// at once, the child holding the frame is retained until it pops.
+    #[test]
+    fn an_active_child_defers_while_its_parent_tears_down() {
+        pins(
+            br#"set log {}
+                proc rec {old new op} {lappend ::log [list $old $op]}
+                namespace eval N {
+                    proc np {} {return NP}
+                    namespace eval C {
+                        proc cq {} {return CQ}
+                        proc p {} {
+                            namespace delete ::N
+                            set abs [join [list {} N C cq] ::]
+                            list [namespace exists ::N] [namespace exists ::N::C] \
+                                 [namespace current] [cq] [catch {$abs} m] $m [llength $::log]
+                        }
+                    }
+                }
+                trace add command ::N::np delete rec
+                trace add command ::N::C::cq delete rec
+                set a [::N::C::p]
+                list $a $log"#,
+            br#"{0 0 ::N::C CQ 1 {invalid command name "::N::C::cq"} 1} {{::N::np delete} {::N::C::cq delete}}"#,
+        );
+    }
+
+    /// Nothing in the retained token fires until the last frame pops — and a
+    /// second `namespace eval N` around the call is a second activation, so
+    /// even returning from the proc is not enough.
+    #[test]
+    fn command_delete_traces_wait_for_the_last_activation() {
+        pins(
+            br#"set log {}
+                proc rec {old new op} {lappend ::log [list $old $op]}
+                namespace eval N {
+                    proc q {} {return Q}
+                    proc p {} {namespace delete ::N; set ::mid $::log; return [q]}
+                }
+                trace add command ::N::p delete rec
+                trace add command ::N::q delete rec
+                set r [namespace eval N {set inner [p]; set ::after_p $::log; set inner}]
+                list $r $mid $after_p $log"#,
+            b"Q {} {} {{::N::p delete} {::N::q delete}}",
+        );
+        pins(
+            br#"set log {}
+                namespace eval N {
+                    variable v 1
+                    proc p {} {namespace delete ::N; set ::mid $::log; return ok}
+                }
+                trace add variable ::N::v unset {apply {{a b c} {lappend ::log unset-v}}}
+                set r [::N::p]
+                list $r $mid $log"#,
+            b"ok {} unset-v",
+        );
+    }
+
+    /// The deferring frame need not be the one running `namespace delete`, and
+    /// the retained token refuses a second deletion (its name is already gone).
+    #[test]
+    fn a_deferred_namespace_is_unpublished_for_every_caller() {
+        pins(
+            br#"set log {}
+                proc rec {old new op} {lappend ::log [list $old $op]}
+                namespace eval N {
+                    proc q {} {return Q}
+                    proc p2 {} {namespace delete ::N}
+                    proc p {} {p2; list [q] [llength $::log]}
+                }
+                trace add command ::N::q delete rec
+                set a [::N::p]
+                list $a [llength $log]"#,
+            b"{Q 0} 1",
+        );
+        pins(
+            br#"namespace eval N {
+                    proc p {} {namespace delete ::N; list [catch {namespace delete ::N} m] $m}
+                }
+                ::N::p"#,
+            br#"1 {unknown namespace "::N" in namespace delete command}"#,
+        );
+    }
+
+    /// An ensemble the namespace owns dies at once even when the namespace is
+    /// retained: C pops `nsPtr->ensembles` before it looks at the count.
+    #[test]
+    fn an_owned_ensemble_dies_while_its_namespace_is_retained() {
+        pins(
+            br#"set log {}
+                proc rec {old new op} {lappend ::log [list $old $op]}
+                namespace eval N {
+                    namespace ensemble create -command ::E
+                    proc p {} {namespace delete ::N; list [info commands ::E] $::log}
+                }
+                trace add command ::E delete rec
+                ::N::p"#,
+            b"{} {{::E delete}}",
+        );
+    }
+
+    /// The deferred teardown is the ordinary one, run later: the command table
+    /// still empties in `Tcl_FirstHashEntry` order, imports included.
+    #[test]
+    fn the_deferred_teardown_keeps_tcl_hash_order() {
+        pins(
+            br#"set log {}
+                proc rec2 {old new op} {lappend ::log [namespace tail $old]}
+                namespace eval N {}
+                foreach n {one two three four five six seven eight nine ten} {
+                    proc ::N::$n {} {}
+                }
+                proc ::N::p {} {namespace delete ::N; return [llength $::log]}
+                foreach n [info commands ::N::*] {trace add command $n delete rec2}
+                set r [::N::p]
+                list $r $log"#,
+            b"0 {p six four three eight seven nine five two one ten}",
+        );
+        pins(
+            br#"set log {}
+                proc rec2 {old new op} {lappend ::log [namespace tail $old]}
+                namespace eval S {proc s1 {} {}; namespace export s*}
+                namespace eval N {
+                    namespace import ::S::s1
+                    proc p {} {namespace delete ::N; return}
+                }
+                foreach n {one two three four five six seven eight nine ten} {
+                    proc ::N::$n {} {}
+                }
+                foreach n [info commands ::N::*] {trace add command $n delete rec2}
+                ::N::p
+                set log"#,
+            b"p three seven one two four eight five nine s1 six ten",
+        );
     }
 
     #[test]

@@ -76,8 +76,9 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 # The repo root is three levels up from .claude/skills/compiler-explorer/.
 _REPO_ROOT = Path(__file__).resolve().parents[3]

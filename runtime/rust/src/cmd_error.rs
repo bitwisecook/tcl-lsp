@@ -239,6 +239,14 @@ fn errorcode_prefix_match(pattern: &[u8], errorcode: &[u8]) -> bool {
     pat.len() <= ec.len() && pat.iter().zip(ec.iter()).all(|(a, b)| a == b)
 }
 
+/// `try`'s handler-type words, in C table order (`TryObjCmd`'s `handlerNames`,
+/// `tclCmdMZ.c`): `Tcl_GetIndexFromObj(…, "handler type", 0)`, so `f`/`o`/`t`
+/// abbreviate and the empty word — a prefix of all three — is
+/// `ambiguous handler type ""`. The type is resolved before the clause's
+/// arity, as it is in C (`try {} x` → `bad handler type "x"`).
+const HANDLER_TYPES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("handler type", &[b"finally", b"on", b"trap"]);
+
 /// `try body ?handler ...? ?finally script?` — structured exception handling
 /// (TIP 329). Handlers are `on code varList script` and `trap pattern varList
 /// script`, tried in order; the first match runs and its completion becomes the
@@ -255,7 +263,11 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut finally: Option<*mut TclObj> = None;
     let mut j = 2;
     while j < argv.len() {
-        match obj_bytes(argv[j]).as_slice() {
+        let handler_type = match HANDLER_TYPES.index_of(&obj_bytes(argv[j])) {
+            Ok(i) => HANDLER_TYPES.names()[i],
+            Err(m) => return interp.set_error(&m),
+        };
+        match handler_type {
             b"finally" => {
                 if j < argv.len() - 2 {
                     return interp.set_error(b"finally clause must be last");
@@ -313,10 +325,14 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 });
                 j += 4;
             }
+            // Unreachable: `HANDLER_TYPES` has exactly the three arms above.
             other => {
                 let mut m = b"bad handler type \"".to_vec();
                 m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be finally, on, or trap");
+                m.extend_from_slice(b"\": must be ");
+                m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
+                    HANDLER_TYPES.names(),
+                ));
                 return interp.set_error(&m);
             }
         }
@@ -504,6 +520,37 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
+    /// "handler type", 0)` table, so the three types abbreviate and the empty
+    /// word — a prefix of all three — is `ambiguous handler type ""`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   try {} o error {} {}  -> {}   ;  try {} f {} -> {}  ;  try {} t {} {} {} -> {}
+    ///   try {} {} error {} {} -> ambiguous handler type "": must be finally, on, or trap
+    ///   try {} x              -> bad handler type "x": … (the type precedes the arity)
+    #[test]
+    fn try_handler_type_resolves_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be finally, on, or trap";
+        leak_free(|i| {
+            // Unique prefixes resolve to their clause grammar.
+            assert_eq!(run(i, b"try {set x ok} o error {} {set x h}"), b"ok");
+            assert_eq!(run(i, b"try {set x ok} f {set y 1}"), b"ok");
+            assert_eq!(run(i, b"try {set x ok} t {} {} {set x h}"), b"ok");
+            // The empty word prefixes all three ⇒ ambiguous.
+            assert_eq!(i.eval_str(b"try good {} error {} {x}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous handler type \"\": {MUST}").as_bytes()
+            );
+            // The type is resolved before the clause's arity.
+            assert_eq!(i.eval_str(b"try good x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("bad handler type \"x\": {MUST}").as_bytes()
+            );
+        });
     }
 
     #[test]

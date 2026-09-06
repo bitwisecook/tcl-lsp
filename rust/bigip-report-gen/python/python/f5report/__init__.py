@@ -40,12 +40,12 @@ from .report import build_report, collect_model
 
 __all__ = [
     "QueryError",
-    "load_paths",
-    "query",
-    "ucs_to_scf",
     "build_report",
     "collect_model",
     "engine_version",
+    "load_paths",
+    "query",
+    "ucs_to_scf",
 ]
 
 # Taken from the native binding rather than written here: releases are tag-only,

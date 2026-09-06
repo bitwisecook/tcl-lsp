@@ -40,8 +40,10 @@
 //! `wasm_execute` test exercises with a stub provider.
 
 use super::encoding::{leb128_signed, leb128_unsigned};
-use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
-use std::collections::{HashMap, HashSet};
+use super::ir::{
+    GlobalInit, ValType, WasmData, WasmFunction, WasmGlobal, WasmInstruction, WasmModule, WasmOp,
+};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use tcl_lexer::Span;
 use tcl_registry::hooks::LoweringHookId;
@@ -60,7 +62,8 @@ use crate::ir::{Module, Procedure, Statement};
 use crate::mixed_region_plan::GuardedSelectionEvidence;
 use crate::native_lowering::cells::{CellPlace, cell_place};
 use crate::native_lowering::{
-    FunctionDecline, FunctionReport, LoweringInput, NativeTierReport, lower_function,
+    FunctionDecline, FunctionReport, LoweringInput, NativeBinding, NativeTierReport,
+    ProcEntryDecline, lower_function,
 };
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::semantic_optimisation::SemanticOptimisationConfig;
@@ -1825,6 +1828,7 @@ impl NativeTier<'_> {
         &self,
         function: &FunctionUnit,
         top_level: bool,
+        line_origin: u32,
     ) -> Result<(crate::native_lowering::ir::NativeFunction, FunctionReport), FunctionDecline> {
         let facts = &function.semantic_facts;
         let executable = facts
@@ -1841,11 +1845,108 @@ impl NativeTier<'_> {
             config: self.config,
             escape: None,
             top_level,
+            line_origin,
             entry_assumption: facts.dispatch_entry_assumption(),
             type_hints: &hints,
         };
         lower_function(&input)
     }
+}
+
+/// One procedure body's native lowering, held until the module's table window
+/// is known: `::top` cannot be emitted before the binding set is decided, and
+/// a body is only worth lowering once.
+enum LoweredProc {
+    /// The body lowered; `decline` says why it may nonetheless not be bound
+    /// as the procedure's entry.
+    Lowered {
+        function: crate::native_lowering::ir::NativeFunction,
+        report: FunctionReport,
+        decline: Option<ProcEntryDecline>,
+    },
+    /// The tier declined the body outright.
+    Declined(FunctionDecline),
+}
+
+/// Every procedure a lowered function defines through the native definition
+/// shape, which is the exact set that can read a table entry.
+fn collect_defined_procs(
+    function: &crate::native_lowering::ir::NativeFunction,
+    out: &mut HashSet<String>,
+) {
+    fn walk(ops: &[crate::native_lowering::ir::NativeOp], out: &mut HashSet<String>) {
+        use crate::native_lowering::ir::NativeOp;
+        for op in ops {
+            match op {
+                NativeOp::DefineProc { qualified_name, .. } => {
+                    out.insert(qualified_name.clone());
+                }
+                NativeOp::IfElse {
+                    then_ops, else_ops, ..
+                } => {
+                    walk(then_ops, out);
+                    walk(else_ops, out);
+                }
+                _ => {}
+            }
+        }
+    }
+    for block in &function.blocks {
+        for statement in &block.statements {
+            walk(&statement.ops, out);
+        }
+    }
+}
+
+/// `::top`'s table-install prologue: grow the runtime's shared function table
+/// by this module's entry count, keep the base in the module's `$table_base`
+/// global, and write one `ref.func` per bound procedure.
+///
+/// Guarded on the global, so a `::top` that runs twice — a host calling it
+/// after `_start` already did — installs once and keeps the same indices. A
+/// `table.grow` answering `-1` is a runtime linked without
+/// `--growable-table`: the module traps at its entry point with a clear
+/// backtrace rather than dispatching to whatever sits at slot 0.
+fn table_install(
+    bound: &BTreeMap<String, u32>,
+    indices: &HashMap<String, u32>,
+    base_global: u32,
+) -> Vec<WasmInstruction> {
+    if bound.is_empty() {
+        return Vec::new();
+    }
+    let global =
+        |op: WasmOp| WasmInstruction::with_operands(op, leb128_unsigned(u64::from(base_global)));
+    let constant =
+        |value: i64| WasmInstruction::with_operands(WasmOp::I32Const, leb128_signed(value));
+    let mut ops = vec![
+        global(WasmOp::GlobalGet),
+        constant(0),
+        WasmInstruction::new(WasmOp::I32LtS),
+        WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
+        WasmInstruction::ref_null_func(),
+        constant(i64::try_from(bound.len()).unwrap_or(i64::MAX)),
+        WasmInstruction::table_grow(0),
+        global(WasmOp::GlobalSet),
+        global(WasmOp::GlobalGet),
+        constant(0),
+        WasmInstruction::new(WasmOp::I32LtS),
+        WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
+        WasmInstruction::new(WasmOp::Unreachable),
+        WasmInstruction::new(WasmOp::End),
+    ];
+    for (name, slot) in bound {
+        let Some(index) = indices.get(name).copied() else {
+            continue;
+        };
+        ops.push(global(WasmOp::GlobalGet));
+        ops.push(constant(i64::from(*slot)));
+        ops.push(WasmInstruction::new(WasmOp::I32Add));
+        ops.push(WasmInstruction::ref_func(index));
+        ops.push(WasmInstruction::table_set(0));
+    }
+    ops.push(WasmInstruction::new(WasmOp::End));
+    ops
 }
 
 /// Shared implementation for hosted, linked, and standalone packaging.
@@ -1915,22 +2016,100 @@ fn codegen(
         procedures_by_span,
         facts: top_facts,
     };
+    // Every procedure body is lowered *before* `::top` is emitted: which of
+    // them lowered decides the module's window in the runtime's shared
+    // function table, and `::top` both grows that window and binds each entry
+    // to its definition, so it cannot be emitted without knowing.
+    let lowered_top = native.map(|tier| tier.lower(&tier.unit.top_level, true, 0));
+    let lowered_procs: Vec<Option<LoweredProc>> = procs
+        .iter()
+        .map(|proc| {
+            let tier = native?;
+            let unit = tier.unit.procedures.get(&proc.qualified_name)?;
+            Some(match tier.lower(unit, false, proc.body_offset) {
+                Ok((function, report)) => LoweredProc::Lowered {
+                    decline: native_emit::proc_entry_decline(&function),
+                    function,
+                    report,
+                },
+                Err(reason) => LoweredProc::Declined(reason),
+            })
+        })
+        .collect();
+    // Only a definition statement the lowering actually took natively can
+    // carry an entry, and the table window must hold exactly those: a slot
+    // nothing binds would import the runtime's table for nothing.
+    let mut defined: HashSet<String> = HashSet::new();
+    if let Some(Ok((function, _))) = &lowered_top {
+        collect_defined_procs(function, &mut defined);
+    }
+    for lowered in &lowered_procs {
+        if let Some(LoweredProc::Lowered { function, .. }) = lowered {
+            collect_defined_procs(function, &mut defined);
+        }
+    }
+    // A binding is only reachable through `::top`'s install sequence, so a
+    // module whose entry point stayed on the legacy path installs nothing and
+    // every definition it emits is source-only.
+    let bound: BTreeMap<String, u32> = if matches!(lowered_top, Some(Ok(_))) {
+        procs
+            .iter()
+            .zip(&lowered_procs)
+            .filter(|(proc, lowered)| {
+                matches!(lowered, Some(LoweredProc::Lowered { decline: None, .. }))
+                    && defined.contains(&proc.qualified_name)
+            })
+            .enumerate()
+            .map(|(slot, (proc, _))| {
+                (
+                    proc.qualified_name.clone(),
+                    u32::try_from(slot).unwrap_or(u32::MAX),
+                )
+            })
+            .collect()
+    } else {
+        BTreeMap::new()
+    };
+    // The table import is opt-in per module: a runtime linked without
+    // `--export-table` cannot satisfy it at all, so a module that installs
+    // nothing must not ask for it.
+    let table_base_global = u32::try_from(wasm.globals.len()).unwrap_or(u32::MAX);
+    if !bound.is_empty() {
+        wasm.import_table = true;
+        wasm.globals.push(WasmGlobal {
+            name: "$table_base".to_owned(),
+            mutable: true,
+            init: GlobalInit::I32(-1),
+        });
+        wasm.elem_declared = bound
+            .keys()
+            .filter_map(|name| emitter.proc_indices.get(name).copied())
+            .collect();
+        wasm.elem_declared.sort_unstable();
+    }
+    let table = native_emit::EntryTable {
+        slots: &bound,
+        base_global: table_base_global,
+    };
+
     // The top-level script: the native tier when it lowers, else the legacy
     // structured walk with the typed reason recorded.
-    let lowered_top = native.map(|tier| tier.lower(&tier.unit.top_level, true));
     match (lowered_top, native_imports) {
         (Some(Ok((function, function_report))), Some(native_imports)) => {
             report.functions.insert("::top".to_owned(), function_report);
-            let top = native_emit::emit_function(
+            let mut top = native_emit::emit_function(
                 "::top",
                 "native-top",
                 &function,
                 native_imports,
+                table,
                 ConstantPool {
                     data: &mut emitter.data,
                     offset: &mut emitter.data_offset,
                 },
             );
+            let install = table_install(&bound, &emitter.proc_indices, table_base_global);
+            top.body.splice(0..0, install);
             wasm.functions.push(top);
         }
         (lowered, _) => {
@@ -1951,13 +2130,22 @@ fn codegen(
     // `namespace eval`, not at load, so they are skipped — mirroring the bytecode
     // backend (`codegen/emitter/mod.rs`). Emitted in qualified-name order so the
     // module bytes are deterministic (`procedures` is a hash map).
-    for proc in procs {
-        let lowered = native.and_then(|tier| {
-            let unit = tier.unit.procedures.get(&proc.qualified_name)?;
-            Some(tier.lower(unit, false))
-        });
+    for (proc, lowered) in procs.iter().zip(lowered_procs) {
         match (lowered, native_imports) {
-            (Some(Ok((function, function_report))), Some(native_imports)) => {
+            (
+                Some(LoweredProc::Lowered {
+                    function,
+                    report: mut function_report,
+                    decline,
+                }),
+                Some(native_imports),
+            ) => {
+                function_report.binding = match (decline, bound.contains_key(&proc.qualified_name))
+                {
+                    (None, true) => NativeBinding::BoundNatively,
+                    (Some(reason), _) => NativeBinding::SourceOnly(reason),
+                    (None, false) => NativeBinding::NotApplicable,
+                };
                 report
                     .functions
                     .insert(proc.qualified_name.clone(), function_report);
@@ -1966,6 +2154,7 @@ fn codegen(
                     "native-proc",
                     &function,
                     native_imports,
+                    table,
                     ConstantPool {
                         data: &mut emitter.data,
                         offset: &mut emitter.data_offset,
@@ -1974,7 +2163,7 @@ fn codegen(
                 wasm.functions.push(func);
                 continue;
             }
-            (Some(Err(reason)), _) => {
+            (Some(LoweredProc::Declined(reason)), _) => {
                 report.functions.insert(
                     proc.qualified_name.clone(),
                     FunctionReport::declined(reason),

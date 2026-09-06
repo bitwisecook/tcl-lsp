@@ -50,7 +50,7 @@ anstyle = "1"
 # `default-features = false` drops the `derive` feature (and its `tabled_derive`
 # proc-macro, the sole pull of the unmaintained `proc-macro-error2`); the Builder
 # API in `render_table` needs only `std`.
-tabled = { version = "0.21", default-features = false, features = ["std"] }
+tabled = { version = "0.22", default-features = false, features = ["std"] }
 rpassword = "7"
 
 [dev-dependencies]
