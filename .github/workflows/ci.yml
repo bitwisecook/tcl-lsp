@@ -122,6 +122,16 @@ jobs:
   #                    the committed lockfile by
   #                    scripts/dev/test-runtime-rust-paths.sh, so it cannot
   #                    silently narrow.
+  #   web_frontends_changed — the shared BIG-IP report front-end or the spec
+  #                    studio web app changed, so `web-frontends` must install
+  #                    and check them.  Those two npm roots are NOT covered by
+  #                    `ext_changed`'s jobs, which only ever install
+  #                    `editors/vscode`; until this flag existed nothing on a
+  #                    pull request resolved their dependency trees at all, and
+  #                    the only workflow that does (github-pages.yml) runs on
+  #                    push to `rust`, never on a PR.  A broken bump therefore
+  #                    merged green and took the Pages deploy down afterwards
+  #                    (#1867 and #1868, fixed in #1884 and #1889).
   #   runner_policy_changed — the self-hosted runner policy, dependency-update
   #                    policy, or the scheduling contract test changed. Such
   #                    PRs prove themselves on an isolated GitHub-hosted runner;
@@ -142,6 +152,7 @@ jobs:
       wasm_cc_changed: ${{ steps.paths.outputs.wasm_cc_changed }}
       spectcl_compat_changed: ${{ steps.paths.outputs.spectcl_compat_changed }}
       runtime_rust_changed: ${{ steps.paths.outputs.runtime_rust_changed }}
+      web_frontends_changed: ${{ steps.paths.outputs.web_frontends_changed }}
       runner_policy_changed: ${{ steps.paths.outputs.runner_policy_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
@@ -238,6 +249,7 @@ jobs:
           wasm_cc_changed=false
           spectcl_compat_changed=false
           runtime_rust_changed=false
+          web_frontends_changed=false
           runner_policy_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
@@ -257,6 +269,10 @@ jobs:
               case "$f" in
                 rust/tcl-explorer-wasm/* | rust/tcl-vm-wasm/* | rust/tcl-spec-studio-wasm/* | rust/tcl-lsp-server-wasm/* | rust/bigip-query-wasm/* | rust/bigip-report-gen/wasm/* | scripts/dev/ensure-test-deps.sh | scripts/dev/wasm-cc-env.sh | scripts/dev/test-wasm-cc-env.sh | scripts/dev/prepare-homebrew-ci.sh | scripts/dev/test-prepare-homebrew-ci.sh | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   wasm_cc_changed=true ;;
+              esac
+              case "$f" in
+                rust/bigip-report-gen/frontend/* | rust/tcl-spec-studio/web/* | Makefile | .github/workflows/ci.yml)
+                  web_frontends_changed=true ;;
               esac
               case "$f" in
                 .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/test-rust-tests-runner.sh)
@@ -293,6 +309,7 @@ jobs:
             wasm_cc_changed=true
             spectcl_compat_changed=true
             runtime_rust_changed=true
+            web_frontends_changed=true
             runner_policy_changed=true
             docs_only=false
           fi
@@ -303,10 +320,11 @@ jobs:
             echo "wasm_cc_changed=$wasm_cc_changed"
             echo "spectcl_compat_changed=$spectcl_compat_changed"
             echo "runtime_rust_changed=$runtime_rust_changed"
+            echo "web_frontends_changed=$web_frontends_changed"
             echo "runner_policy_changed=$runner_policy_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed runner_policy_changed=$runner_policy_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed web_frontends_changed=$web_frontends_changed runner_policy_changed=$runner_policy_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks through the central `make rust-check` contract: root and standalone
@@ -1505,6 +1523,72 @@ jobs:
         if: env.RUN_PY == 'true'
         run: make typecheck-py
 
+  # The two npm roots that are NOT `editors/vscode`.  Nothing on a pull
+  # request used to install them: every `npm ci` in this workflow is in
+  # `editors/vscode`, and the only workflow that resolves these two trees
+  # (github-pages.yml) triggers on push to `rust` and on tags, never on a PR.
+  # So a dependency bump that cannot resolve passed the whole gate and only
+  # broke afterwards, on the deploy — which is exactly how #1867 and #1868
+  # landed and put three consecutive Pages runs red.
+  #
+  # Node only: no Rust, no wasm, no browser, so it is cheap enough to be a
+  # release prerequisite as well as a PR gate.
+  web-frontends:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    env:
+      # Steps skip, the job still reports success — see the channel job header.
+      RUN_WEB_FRONTENDS: ${{ (needs.channel.outputs.web_frontends_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node
+        if: env.RUN_WEB_FRONTENDS == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      # Keyed on both lockfiles: the cache invalidates whenever either
+      # resolved tree changes, which is the only time a re-resolve costs
+      # anything.
+      - name: Cache npm registry
+        if: env.RUN_WEB_FRONTENDS == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-frontends-${{ hashFiles('rust/bigip-report-gen/frontend/package-lock.json', 'rust/tcl-spec-studio/web/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-frontends-
+
+      # `npm ci` and not the Make stamps' `npm install`, because only `npm ci`
+      # reliably rejects the committed pair.  On a cold tree — which is what a
+      # runner always has — `npm install` resolved #1867's package.json/lockfile
+      # combination and exited 0, leaving a peer-violating tree behind; `npm ci`
+      # on the same pair fails ERESOLVE. That is the failure this job exists to
+      # catch, so it has to be the strict command.
+      #
+      # Then record the stamps, exactly as the `test-ext` job does, so the Make
+      # targets below consume this install instead of immediately running a
+      # second one.
+      - name: Install both front-end dependency trees
+        if: env.RUN_WEB_FRONTENDS == 'true'
+        run: |
+          mkdir -p build/stamps
+          (cd rust/bigip-report-gen/frontend && npm ci)
+          touch build/stamps/report-npm-install
+          (cd rust/tcl-spec-studio/web && npm ci)
+          touch build/stamps/spec-studio-npm-install
+
+      - name: Shared report front-end (typecheck + lint)
+        if: env.RUN_WEB_FRONTENDS == 'true'
+        run: make typecheck-report-ts lint-report-ts
+
+      - name: Spec studio front-end (typecheck + lint + unit tests)
+        if: env.RUN_WEB_FRONTENDS == 'true'
+        run: make typecheck-spec-studio-ts lint-spec-studio-ts spec-studio-test
+
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
@@ -1518,7 +1602,7 @@ jobs:
     # whose SHA was never tested (or whose green is stale) runs everything
     # here in full.  cargo-deny always runs regardless.
     needs:
-      [channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python]
+      [channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python, web-frontends]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
