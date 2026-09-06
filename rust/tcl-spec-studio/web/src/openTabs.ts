@@ -50,8 +50,16 @@ export const MAX_OPEN_TABS = 12;
 export interface OpenTab {
   name: string;
   where: TabSource;
-  /** The form groups the author had open, so the view returns as it was left. */
-  groups: string[];
+  /**
+   * The form groups the author had open, so the view returns as it was left,
+   * or `null` for a tab that has never been left.
+   *
+   * The two are different: an author who closed every group left a view, and
+   * an empty list is what that view *is*. Collapsing it into "nothing
+   * remembered" would hand them the default groups back every time they
+   * returned, which is the one arrangement they said they did not want.
+   */
+  groups: string[] | null;
   /** How far the page was scrolled when the tab last lost focus, in pixels. */
   scroll: number;
   /**
@@ -79,7 +87,7 @@ export interface TabState {
 export interface StoredTab {
   name: string;
   where: TabSource;
-  groups: string[];
+  groups: string[] | null;
   scroll: number;
 }
 
@@ -131,7 +139,7 @@ export function openTab(
 
   const clock = state.clock + 1;
   const opened: TabState = {
-    tabs: [...state.tabs, { name, where, groups: [], scroll: 0, edited: false, used: clock }],
+    tabs: [...state.tabs, { name, where, groups: null, scroll: 0, edited: false, used: clock }],
     active: state.tabs.length,
     clock,
   };
@@ -283,7 +291,7 @@ export function storedTabs(state: TabState): StoredTab[] {
   return state.tabs.map((tab) => ({
     name: tab.name,
     where: tab.where,
-    groups: [...tab.groups],
+    groups: tab.groups ? [...tab.groups] : null,
     scroll: tab.scroll,
   }));
 }
@@ -307,7 +315,7 @@ export function readStoredTabs(value: unknown): StoredTab[] {
       where: row.where === "registry" ? "registry" : "pack",
       groups: Array.isArray(row.groups)
         ? row.groups.filter((group): group is string => typeof group === "string")
-        : [],
+        : null,
       scroll: typeof row.scroll === "number" && Number.isFinite(row.scroll) ? row.scroll : 0,
     });
   }
@@ -342,7 +350,12 @@ export function restoreTabs(
   // then lifts it clear of that, as opening it in the first place would have.
   return focusTab(
     {
-      tabs: kept.map((row, i) => ({ ...row, groups: [...row.groups], edited: false, used: i })),
+      tabs: kept.map((row, i) => ({
+        ...row,
+        groups: row.groups ? [...row.groups] : null,
+        edited: false,
+        used: i,
+      })),
       active: -1,
       clock: kept.length,
     },

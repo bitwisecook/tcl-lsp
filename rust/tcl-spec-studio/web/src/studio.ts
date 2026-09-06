@@ -677,11 +677,23 @@ function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): vo
 
   // A command the document no longer declares cannot stay open — and a tab is
   // a view of a declaration, so deleting one in this pane takes its tab too.
-  const names = new Set((state.pack.view?.commands ?? []).map((c) => c.name));
-  const dropped = state.pack.open !== null && !names.has(state.pack.open);
-  if (dropped) state.pack.open = null;
-  const retained = retainTabs(state.tabs, names);
-  state.tabs = retained.state;
+  //
+  // Only once the document actually loads, though. A source caught mid-edit —
+  // a `speclib` wrapper half-typed, a brace not yet closed — declares nothing,
+  // and reading that as "every command deleted" would empty the strip on a
+  // keystroke the next one puts back. An unreadable document is not an
+  // authority on what the pack contains, so the tabs wait for one that is.
+  const view = state.pack.view;
+  let dropped = false;
+  let retainedFocus: OpenTab | null = null;
+  if (view) {
+    const names = new Set(view.commands.map((c) => c.name));
+    dropped = state.pack.open !== null && !names.has(state.pack.open);
+    if (dropped) state.pack.open = null;
+    const retained = retainTabs(state.tabs, names);
+    state.tabs = retained.state;
+    retainedFocus = retained.focus;
+  }
   renderOpenTabs();
 
   renderPackList();
@@ -694,7 +706,7 @@ function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): vo
   // Bringing the next tab forward is not a navigation: the author deleted a
   // declaration, they did not go anywhere.
   if (!dropped) return;
-  if (retained.focus) showWithoutVisiting(retained.focus);
+  if (retainedFocus) showWithoutVisiting(retainedFocus);
   else openNothing();
 }
 
@@ -993,7 +1005,14 @@ function readPackFile(files: FileList | null): void {
   if (!file) return;
   file.text().then(
     (text) => {
+      // Another document entirely: its declarations are not the ones the open
+      // tabs are views of, even where a name happens to coincide. Retaining
+      // those tabs would point the new pack's commands at the old one's
+      // remembered views, and leave the strip showing an active tab while
+      // nothing is open — a click on which would reveal the previous pack's
+      // draft with nowhere to write it back to.
       state.pack.open = null;
+      state.tabs = emptyTabs();
       setPackSource(text);
       selectTab("dsl");
       setStatus("dslStatus", `loaded ${file.name}`, "ok");
@@ -1007,6 +1026,7 @@ function readPackFile(files: FileList | null): void {
 function scheduleSave(): void {
   if (saveTimer !== undefined) window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
+    captureOpenView();
     void idb.save({
       source: state.pack.source,
       open: state.pack.open,
@@ -1865,17 +1885,33 @@ function openFormGroups(): string[] {
     .map((node) => node.dataset.group ?? "");
 }
 
-/** Leave the command in the form: commit its edit, keep its view. */
-function leaveOpenCommand(): void {
-  flushEdits();
+/**
+ * Write the form's current arrangement onto the tab it is a projection of.
+ *
+ * Separate from leaving a command because the session record needs it too: a
+ * reload that never switched tabs would otherwise persist the view the active
+ * tab was last *left* with, which for the tab on screen is the one arrangement
+ * guaranteed to be out of date.
+ */
+function captureOpenView(): void {
   // The view belongs to whatever the form is a projection of, which after a
   // close is no longer the tab that has focus — writing it onto that tab would
   // hand the neighbour the layout of the command that was just closed.
   if (state.tabs.active < 0 || activeTab(state.tabs)?.name !== state.pack.open) return;
+  // Scroll is only meaningful while the form is the pane on screen; measured
+  // from the DSL or test pane it would record that pane's position against
+  // this command. The groups read out of the form's own DOM either way.
+  const showing = state.tabs.tabs[state.tabs.active];
   state.tabs = rememberView(state.tabs, state.tabs.active, {
     groups: openFormGroups(),
-    scroll: window.scrollY,
+    scroll: currentTab === "editor" ? window.scrollY : (showing?.scroll ?? 0),
   });
+}
+
+/** Leave the command in the form: commit its edit, keep its view. */
+function leaveOpenCommand(): void {
+  flushEdits();
+  captureOpenView();
 }
 
 /**
@@ -1908,7 +1944,7 @@ function evictionNotice(evicted: OpenTab | null): string {
  */
 function restoreTabView(name: string): void {
   const tab = state.tabs.tabs[tabIndex(state.tabs, name)];
-  if (!tab?.groups.length) return;
+  if (!tab?.groups) return;
   const wanted = new Set(tab.groups);
   for (const node of byId("form").querySelectorAll<HTMLDetailsElement>(
     ":scope > details[data-group]",
