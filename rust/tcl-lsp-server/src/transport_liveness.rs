@@ -35,10 +35,12 @@ use tokio::sync::Semaphore;
 use tower::Service;
 use tower_lsp_server::jsonrpc::Request;
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 tokio::task_local! {
     static REQUEST_ADMISSION: std::cell::RefCell<Option<RequestAdmission>>;
 }
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 struct RequestAdmission {
     permits: Arc<Semaphore>,
     permit: Option<tokio::sync::OwnedSemaphorePermit>,
@@ -51,6 +53,7 @@ struct RequestAdmission {
 /// gives its permit back while parked and reacquires one before resuming its
 /// handler. Calls outside the production admission scope behave like a plain
 /// await, which keeps direct backend tests and notification handlers simple.
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 pub(crate) async fn await_outside_request_admission<F: Future>(future: F) -> F::Output {
     let admission = REQUEST_ADMISSION
         .try_with(|state| {
@@ -79,6 +82,39 @@ pub(crate) async fn await_outside_request_admission<F: Future>(future: F) -> F::
         });
     }
     output
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+pub(crate) async fn await_outside_request_admission<F: Future>(future: F) -> F::Output {
+    future.await
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+async fn run_with_request_admission<F: Future>(
+    permits: Arc<Semaphore>,
+    permit: tokio::sync::OwnedSemaphorePermit,
+    future: F,
+) -> F::Output {
+    REQUEST_ADMISSION
+        .scope(
+            std::cell::RefCell::new(Some(RequestAdmission {
+                permits,
+                permit: Some(permit),
+            })),
+            future,
+        )
+        .await
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+async fn run_with_request_admission<F: Future>(
+    _permits: Arc<Semaphore>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    future: F,
+) -> F::Output {
+    // The browser driver owns its request queue and does not use this native
+    // transport wrapper. Keep the shared server library runtime-free here.
+    future.await
 }
 
 /// Makes `buffer_unordered` absorb every queued future rather than waiting for
@@ -176,15 +212,7 @@ where
                 )
             };
             if let Some(permit) = permit {
-                REQUEST_ADMISSION
-                    .scope(
-                        std::cell::RefCell::new(Some(RequestAdmission {
-                            permits,
-                            permit: Some(permit),
-                        })),
-                        future,
-                    )
-                    .await
+                run_with_request_admission(permits, permit, future).await
             } else {
                 future.await
             }
