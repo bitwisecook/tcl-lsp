@@ -6199,6 +6199,16 @@ struct OpenPublicationLocks<'a> {
     index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
 }
 
+/// The source stores plus semantic-token lifecycle caches reset by a reopen.
+/// Acquiring them as one optimistic bundle makes the reset visible before the
+/// reopened document reaches Salsa readiness without awaiting under `EditOrder`.
+struct ReopenPublicationLocks<'a> {
+    source: LiveSourceLocks<'a>,
+    last_semantic_tokens: tokio::sync::MutexGuard<'a, HashMap<Uri, (String, Vec<u32>)>>,
+    semantic_tokens_refresh_asked: tokio::sync::MutexGuard<'a, HashMap<Uri, u64>>,
+    workspace_class_analyses: tokio::sync::MutexGuard<'a, HashMap<Uri, WorkspaceClassAnalysis>>,
+}
+
 /// Every derived live-buffer cache retired by `didClose`, acquired
 /// optimistically so the final closed-state check and cleanup are atomic with
 /// respect to a racing `didOpen`.
@@ -6225,6 +6235,24 @@ enum LivePublicationWait {
     SemanticRefreshRequests,
     WorkspaceClassAnalyses,
     Documents,
+}
+
+struct LivePublicationRetry {
+    since: crate::rt::Instant,
+    retries: u64,
+    reported: bool,
+    generation: u64,
+}
+
+impl LivePublicationRetry {
+    fn new(generation: u64) -> Self {
+        Self {
+            since: crate::rt::Instant::now(),
+            retries: 0,
+            reported: false,
+            generation,
+        }
+    }
 }
 
 impl LivePublicationWait {
@@ -6755,10 +6783,11 @@ pub struct Backend {
     /// this notify supplies only the race-free wakeup edge.
     live_publication_advanced: Arc<tokio::sync::Notify>,
     /// Cancels a deferred publisher's periodic wait in a contended lock queue
-    /// when any authoritative live-document identity changes. `notify_one`
-    /// deliberately retains a permit if the publisher has not registered yet,
-    /// closing the currency-check-to-queue-registration race.
+    /// when any authoritative live-document identity changes. The generation
+    /// distinguishes a publisher's own preceding invalidation from a newer
+    /// one; the notify supplies the wakeup edge only.
     live_publication_invalidated: Arc<tokio::sync::Notify>,
+    live_publication_generation: Arc<std::sync::atomic::AtomicU64>,
     /// Serialises the deferred source/index commits after document-sync turns
     /// have been released. This preserves edit order without making the gate a
     /// request barrier or retaining the document map while Salsa cancels old
@@ -7991,6 +8020,7 @@ impl Backend {
             edit_order: EditOrder::default(),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
             live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
+            live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             live_publication_gate: Arc::new(Mutex::new(())),
             store,
         }
@@ -8302,6 +8332,56 @@ impl Backend {
         Ok(OpenPublicationLocks { source, index })
     }
 
+    fn try_reopen_publication_locks(
+        &self,
+    ) -> Result<ReopenPublicationLocks<'_>, LivePublicationWait> {
+        let source = self.try_live_source_locks()?;
+        let last_semantic_tokens = self
+            .last_semantic_tokens
+            .try_lock()
+            .map_err(|_| LivePublicationWait::SemanticTokens)?;
+        let semantic_tokens_refresh_asked = self
+            .semantic_tokens_refresh_asked
+            .try_lock()
+            .map_err(|_| LivePublicationWait::SemanticRefreshRequests)?;
+        let workspace_class_analyses = self
+            .workspace_class_analyses
+            .try_lock()
+            .map_err(|_| LivePublicationWait::WorkspaceClassAnalyses)?;
+        Ok(ReopenPublicationLocks {
+            source,
+            last_semantic_tokens,
+            semantic_tokens_refresh_asked,
+            workspace_class_analyses,
+        })
+    }
+
+    /// Establish snapshot writer intent on the first non-empty census and keep
+    /// it across transient `db` misses. A queued snapshot briefly owns `db`
+    /// before it can observe the intent and back out; dropping the guard for
+    /// that miss would wake the whole reader queue and replenish the census.
+    /// Other dependency misses cannot be caused by a snapshot, so release the
+    /// intent rather than blocking database readers behind unrelated stores.
+    fn update_snapshot_drain(
+        &self,
+        wait: LivePublicationWait,
+        drain: &mut Option<SnapshotDrainGuard>,
+    ) {
+        match wait {
+            LivePublicationWait::SalsaSnapshots => {
+                drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
+            }
+            LivePublicationWait::Database if drain.is_some() => {}
+            _ => drop(drain.take()),
+        }
+    }
+
+    fn invalidate_live_publication(&self) {
+        self.live_publication_generation
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        self.live_publication_invalidated.notify_waiters();
+    }
+
     fn try_close_publication_locks(
         &self,
     ) -> Result<ClosePublicationLocks<'_>, LivePublicationWait> {
@@ -8341,12 +8421,11 @@ impl Backend {
         operation: &'static str,
         uri: &Uri,
         wait: LivePublicationWait,
-        retries: u64,
-        since: crate::rt::Instant,
-        reported: &mut bool,
+        retry: &mut LivePublicationRetry,
     ) {
-        if !*reported && since.elapsed() >= EDIT_BARRIER_STALL_WARN {
-            *reported = true;
+        retry.retries = retry.retries.saturating_add(1);
+        if !retry.reported && retry.since.elapsed() >= EDIT_BARRIER_STALL_WARN {
+            retry.reported = true;
             let db = self.db.contention();
             let db_files = self.db_files.contention();
             self.client
@@ -8358,8 +8437,9 @@ impl Backend {
                          map are both free; requests for other documents remain serviceable. \
                          Salsa store contention: [{db}] [{db_files}] (#1849).",
                         uri.as_str(),
-                        since.elapsed().as_secs_f64(),
+                        retry.since.elapsed().as_secs_f64(),
                         wait.dependency(),
+                        retries = retry.retries,
                     ),
                 )
                 .await;
@@ -8370,23 +8450,28 @@ impl Backend {
         // retry the whole bundle. A newer live-document identity cancels the
         // queue wait: callers retain the publication gate here, so letting a
         // stale publisher remain queued would stop the authoritative publisher
-        // behind that gate. `notify_one` retains an earlier invalidation as a
-        // permit, covering a change between the caller's currency check and
-        // this registration (#1854 review).
-        if retries.is_multiple_of(1024) {
+        // behind that gate. A generation check distinguishes the publisher's
+        // own mutation from a later invalidation and closes the check-to-wakeup
+        // race (#1854 review).
+        if retry.retries.is_multiple_of(1024) {
             match wait {
                 LivePublicationWait::Database => {
-                    self.join_live_publication_queue(self.db.lock()).await;
+                    self.join_live_publication_queue(self.db.lock(), retry.generation)
+                        .await;
                 }
                 LivePublicationWait::Files => {
-                    self.join_live_publication_queue(self.db_files.lock()).await;
+                    self.join_live_publication_queue(self.db_files.lock(), retry.generation)
+                        .await;
                 }
                 LivePublicationWait::Tombstones => {
-                    self.join_live_publication_queue(self.db_tombstones.lock())
+                    self.join_live_publication_queue(
+                        self.db_tombstones.lock(),
+                        retry.generation,
+                    )
                         .await;
                 }
                 LivePublicationWait::Project => {
-                    self.join_live_publication_queue(self.db_project.lock())
+                    self.join_live_publication_queue(self.db_project.lock(), retry.generation)
                         .await;
                 }
                 // The census is not an async lock with a queue to join. The
@@ -8394,27 +8479,42 @@ impl Backend {
                 // retires synchronously when its worker finishes.
                 LivePublicationWait::SalsaSnapshots => {}
                 LivePublicationWait::WorkspaceIndex => {
-                    self.join_live_publication_queue(self.workspace_index.write())
+                    self.join_live_publication_queue(
+                        self.workspace_index.write(),
+                        retry.generation,
+                    )
                         .await;
                 }
                 LivePublicationWait::DiagnosticsSlots => {
-                    self.join_live_publication_queue(self.diag_slots.lock())
+                    self.join_live_publication_queue(self.diag_slots.lock(), retry.generation)
                         .await;
                 }
                 LivePublicationWait::SemanticTokens => {
-                    self.join_live_publication_queue(self.last_semantic_tokens.lock())
+                    self.join_live_publication_queue(
+                        self.last_semantic_tokens.lock(),
+                        retry.generation,
+                    )
                         .await;
                 }
                 LivePublicationWait::SemanticRefreshRequests => {
-                    self.join_live_publication_queue(self.semantic_tokens_refresh_asked.lock())
+                    self.join_live_publication_queue(
+                        self.semantic_tokens_refresh_asked.lock(),
+                        retry.generation,
+                    )
                         .await;
                 }
                 LivePublicationWait::WorkspaceClassAnalyses => {
-                    self.join_live_publication_queue(self.workspace_class_analyses.lock())
+                    self.join_live_publication_queue(
+                        self.workspace_class_analyses.lock(),
+                        retry.generation,
+                    )
                         .await;
                 }
                 LivePublicationWait::Documents => {
-                    self.join_live_publication_queue(self.documents.lock(operation))
+                    self.join_live_publication_queue(
+                        self.documents.lock(operation),
+                        retry.generation,
+                    )
                         .await;
                 }
             }
@@ -8422,10 +8522,24 @@ impl Backend {
         crate::rt::sleep(std::time::Duration::from_millis(1)).await;
     }
 
-    async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>) {
+    async fn join_live_publication_queue<T>(
+        &self,
+        lock: impl Future<Output = T>,
+        generation: u64,
+    ) {
+        let invalidated = self.live_publication_invalidated.notified();
+        tokio::pin!(invalidated);
+        invalidated.as_mut().enable();
+        if self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire)
+            != generation
+        {
+            return;
+        }
         tokio::select! {
             guard = lock => drop(guard),
-            () = self.live_publication_invalidated.notified() => {}
+            () = invalidated => {}
         }
     }
 
@@ -8794,10 +8908,11 @@ impl Backend {
     {
         {
             let _publication = self.live_publication_gate.lock().await;
+            let generation = self
+                .live_publication_generation
+                .load(std::sync::atomic::Ordering::Acquire);
             let mut snapshot_drain = None;
-            let since = crate::rt::Instant::now();
-            let mut retries = 0_u64;
-            let mut reported = false;
+            let mut retry = LivePublicationRetry::new(generation);
             loop {
                 if let Some(docs) = self.documents.try_lock("did_open_currency")
                     && !docs
@@ -8806,23 +8921,11 @@ impl Backend {
                 {
                     return false;
                 }
-                let locks = match self.try_live_source_locks() {
+                let locks = match self.try_reopen_publication_locks() {
                     Ok(locks) => locks,
                     Err(wait) => {
-                        if wait == LivePublicationWait::SalsaSnapshots {
-                            snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
-                        } else {
-                            drop(snapshot_drain.take());
-                        }
-                        retries = retries.saturating_add(1);
-                        self.pause_open_publication(
-                            "did_open",
-                            uri,
-                            wait,
-                            retries,
-                            since,
-                            &mut reported,
-                        )
+                        self.update_snapshot_drain(wait, &mut snapshot_drain);
+                        self.pause_open_publication("did_open", uri, wait, &mut retry)
                         .await;
                         continue;
                     }
@@ -8830,14 +8933,11 @@ impl Backend {
 
                 let Some(docs) = self.documents.try_lock("did_open") else {
                     drop(locks);
-                    retries = retries.saturating_add(1);
                     self.pause_open_publication(
                         "did_open",
                         uri,
                         LivePublicationWait::Documents,
-                        retries,
-                        since,
-                        &mut reported,
+                        &mut retry,
                     )
                     .await;
                     continue;
@@ -8852,11 +8952,17 @@ impl Backend {
                 drop(docs);
 
                 {
-                    let LiveSourceLocks {
-                        mut db,
-                        mut files,
-                        mut tombstones,
-                        mut project,
+                    let ReopenPublicationLocks {
+                        source:
+                            LiveSourceLocks {
+                                mut db,
+                                mut files,
+                                mut tombstones,
+                                mut project,
+                            },
+                        mut last_semantic_tokens,
+                        mut semantic_tokens_refresh_asked,
+                        mut workspace_class_analyses,
                     } = locks;
                     let membership_changed = Self::set_db_sources_locked(
                         &mut db,
@@ -8867,7 +8973,11 @@ impl Backend {
                     if membership_changed {
                         Self::sync_db_project(&mut db, &files, &mut project);
                     }
+                    last_semantic_tokens.remove(uri);
+                    semantic_tokens_refresh_asked.remove(uri);
+                    workspace_class_analyses.remove(uri);
                 }
+                drop(snapshot_drain.take());
 
                 // Semantic tokens need the current Salsa source, but deliberately
                 // do not need the workspace-index seed below: their enriched read
@@ -8913,10 +9023,11 @@ impl Backend {
         index_needs_seed: bool,
     ) -> bool {
         let _publication = self.live_publication_gate.lock().await;
+        let generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
         let mut snapshot_drain = None;
-        let since = crate::rt::Instant::now();
-        let mut retries = 0_u64;
-        let mut reported = false;
+        let mut retry = LivePublicationRetry::new(generation);
         loop {
             if let Some(docs) = self.documents.try_lock(operation)
                 && !docs
@@ -8928,34 +9039,19 @@ impl Backend {
             let locks = match self.try_live_source_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
-                    if wait == LivePublicationWait::SalsaSnapshots {
-                        snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
-                    } else {
-                        drop(snapshot_drain.take());
-                    }
-                    retries = retries.saturating_add(1);
-                    self.pause_open_publication(
-                        operation,
-                        uri,
-                        wait,
-                        retries,
-                        since,
-                        &mut reported,
-                    )
+                    self.update_snapshot_drain(wait, &mut snapshot_drain);
+                    self.pause_open_publication(operation, uri, wait, &mut retry)
                     .await;
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock(operation) else {
                 drop(locks);
-                retries = retries.saturating_add(1);
                 self.pause_open_publication(
                     operation,
                     uri,
                     LivePublicationWait::Documents,
-                    retries,
-                    since,
-                    &mut reported,
+                    &mut retry,
                 )
                 .await;
                 continue;
@@ -8985,6 +9081,7 @@ impl Backend {
                     Self::sync_db_project(&mut db, &files, &mut project);
                 }
             }
+            drop(snapshot_drain.take());
             let mut docs = self.documents.lock(operation).await;
             let Some(doc) = docs.get_mut(uri) else {
                 return false;
@@ -9021,10 +9118,11 @@ impl Backend {
         revision: u64,
     ) -> bool {
         let publication = self.live_publication_gate.lock().await;
+        let generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
         let mut snapshot_drain = None;
-        let since = crate::rt::Instant::now();
-        let mut retries = 0_u64;
-        let mut reported = false;
+        let mut retry = LivePublicationRetry::new(generation);
         loop {
             if let Some(docs) = self.documents.try_lock(operation)
                 && !docs
@@ -9036,34 +9134,19 @@ impl Backend {
             let locks = match self.try_open_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
-                    if wait == LivePublicationWait::SalsaSnapshots {
-                        snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
-                    } else {
-                        drop(snapshot_drain.take());
-                    }
-                    retries = retries.saturating_add(1);
-                    self.pause_open_publication(
-                        operation,
-                        uri,
-                        wait,
-                        retries,
-                        since,
-                        &mut reported,
-                    )
+                    self.update_snapshot_drain(wait, &mut snapshot_drain);
+                    self.pause_open_publication(operation, uri, wait, &mut retry)
                     .await;
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock(operation) else {
                 drop(locks);
-                retries = retries.saturating_add(1);
                 self.pause_open_publication(
                     operation,
                     uri,
                     LivePublicationWait::Documents,
-                    retries,
-                    since,
-                    &mut reported,
+                    &mut retry,
                 )
                 .await;
                 continue;
@@ -9098,6 +9181,7 @@ impl Backend {
                 }
                 index.remove_document(uri.as_str());
             }
+            drop(snapshot_drain.take());
             let mut docs = self.documents.lock(operation).await;
             let Some(doc) = docs.get_mut(uri) else {
                 return false;
@@ -9128,9 +9212,10 @@ impl Backend {
     /// wins the final currency check and keeps all of its newly-armed caches.
     async fn commit_closed_live_state(&self, uri: &Uri) -> bool {
         let _publication = self.live_publication_gate.lock().await;
-        let since = crate::rt::Instant::now();
-        let mut retries = 0_u64;
-        let mut reported = false;
+        let generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let mut retry = LivePublicationRetry::new(generation);
         loop {
             if let Some(docs) = self.documents.try_lock("did_close_currency")
                 && docs.contains_key(uri)
@@ -9140,29 +9225,18 @@ impl Backend {
             let locks = match self.try_close_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
-                    retries = retries.saturating_add(1);
-                    self.pause_open_publication(
-                        "did_close",
-                        uri,
-                        wait,
-                        retries,
-                        since,
-                        &mut reported,
-                    )
+                    self.pause_open_publication("did_close", uri, wait, &mut retry)
                     .await;
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock("did_close") else {
                 drop(locks);
-                retries = retries.saturating_add(1);
                 self.pause_open_publication(
                     "did_close",
                     uri,
                     LivePublicationWait::Documents,
-                    retries,
-                    since,
-                    &mut reported,
+                    &mut retry,
                 )
                 .await;
                 continue;
@@ -9317,7 +9391,7 @@ impl Backend {
                 doc.bump_analysis_generation();
                 (doc.text.clone(), doc.revision)
             };
-            self.live_publication_invalidated.notify_one();
+            self.invalidate_live_publication();
             if self
                 .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
                 .await
@@ -9635,6 +9709,7 @@ impl Backend {
         let config = self.resolved_db_config(uri).await;
         let (class_factory_generation, workspace_class_factories) =
             self.published_class_factories_for_fresh_analysis().await;
+        let file_path = uri.to_file_path().map(|path| path.display().to_string());
         let (disabled, na_mode, extra, pack_key, resource) = {
             let db = self.db.lock().await;
             (
@@ -9649,7 +9724,8 @@ impl Backend {
             let analysis_text = tcl_lexer::normalise_lone_cr(&text);
             let mut analyser =
                 Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
-                    .with_workspace_class_factories(workspace_class_factories);
+                    .with_workspace_class_factories(workspace_class_factories)
+                    .with_file_path(file_path);
             Arc::new(analyser.analyse(&analysis_text, &dialect))
         })
         .await
@@ -10209,7 +10285,9 @@ impl Backend {
                 Some(doc) if readiness.is_ready(&doc) => {
                     return Some(doc.normalised_for_analysis());
                 }
-                Some(_) => advanced.await,
+                Some(_) => {
+                    crate::transport_liveness::await_outside_request_admission(advanced).await;
+                }
                 None => break,
             }
         }
@@ -10246,9 +10324,10 @@ impl Backend {
 
     /// Read the current live bytes once their matching Salsa source exists.
     ///
-    /// Formatting and format-on-save are document-local operations. They must
-    /// not inherit the independent workspace-index barrier, which can remain
-    /// pending while a cold large file's first index analysis runs.
+    /// Formatting, folding, outlines, linked editing, and selection ranges are
+    /// document-local operations. They must not inherit the independent
+    /// workspace-index barrier, which can remain pending while a cold large
+    /// file's first index analysis runs.
     async fn read_local_document(&self, url: &Uri) -> Option<DocumentState> {
         self.read_document_at(url, DocumentReadiness::Salsa).await
     }
@@ -11222,6 +11301,7 @@ impl Backend {
             edit_order: _,
             live_publication_advanced: _,
             live_publication_invalidated: _,
+            live_publication_generation: _,
             live_publication_gate: _,
             store: _,
         } = self;
@@ -19179,26 +19259,37 @@ impl Backend {
     /// pending publisher needs the rehoming gate its caller already owns.
     async fn rehoming_document_snapshot(&self, uri: &Uri) -> RehomingDocumentSnapshot {
         let docs = self.documents.lock("refresh_source_rehoming").await;
-        match docs.get(uri) {
+        let live = match docs.get(uri) {
             Some(doc) if doc.publication != DocumentPublication::Indexed => {
-                RehomingDocumentSnapshot::Pending
+                return RehomingDocumentSnapshot::Pending;
             }
-            Some(doc) => RehomingDocumentSnapshot::Ready(
-                doc.clone().normalised_for_analysis(),
-                Some(doc.revision),
-            ),
-            None => {
-                let db = self.db.lock().await;
-                let files = self.db_files.lock().await;
-                let Some(file) = files.get(uri).copied() else {
-                    return RehomingDocumentSnapshot::Missing;
-                };
-                RehomingDocumentSnapshot::Ready(
-                    DocumentState::new(file.text(&*db).clone(), file.dialect(&*db).clone())
-                        .normalised_for_analysis(),
-                    None,
-                )
-            }
+            Some(doc) => Some((doc.clone().normalised_for_analysis(), doc.revision)),
+            None => None,
+        };
+        drop(docs);
+        if let Some((doc, revision)) = live {
+            return RehomingDocumentSnapshot::Ready(doc, Some(revision));
+        }
+
+        let snapshot = {
+            let db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            files.get(uri).copied().map(|file| {
+                DocumentState::new(file.text(&*db).clone(), file.dialect(&*db).clone())
+                    .normalised_for_analysis()
+            })
+        };
+        if self
+            .documents
+            .lock("refresh_source_rehoming_currency")
+            .await
+            .contains_key(uri)
+        {
+            RehomingDocumentSnapshot::Pending
+        } else if let Some(snapshot) = snapshot {
+            RehomingDocumentSnapshot::Ready(snapshot, None)
+        } else {
+            RehomingDocumentSnapshot::Missing
         }
     }
 
@@ -20208,11 +20299,12 @@ impl Backend {
             // Both results are required for an enriched viewport. A concurrent
             // setter can cancel either read after its sibling finishes; treating
             // that partial tier as enriched can compare equal to coarse tokens
-            // and strand the viewport. Rearm the deterministic seam and let the
-            // next request retry instead (#1854 convergence stress).
+            // and strand the viewport. Schedule a coalesced client re-pull so
+            // cancellation is retryable rather than merely observable (#1854).
             let cancelled = cu.is_none() || analysis.is_none();
             let (refreshed, outcome) = if cancelled {
-                (false, RangeSettleOutcome::Cancelled)
+                refresh_ctx.request_refresh_coalesced();
+                (true, RangeSettleOutcome::Cancelled)
             } else {
                 let enriched = crate::rt::spawn_blocking(move || {
                     core_semantic_tokens::range_with_cu_and_analysis(
@@ -20245,7 +20337,10 @@ impl Backend {
                         };
                         (refreshed, outcome)
                     }
-                    Err(_) => (false, RangeSettleOutcome::Cancelled),
+                    Err(_) => {
+                        refresh_ctx.request_refresh_coalesced();
+                        (true, RangeSettleOutcome::Cancelled)
+                    }
                 }
             };
             // The convergence decision is now made (a refresh was asked for, or the
@@ -20268,6 +20363,41 @@ impl Backend {
             let refreshed = refresh_if_coalesced(&refresh_ctx, &mut guard, refreshed);
             log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
         });
+    }
+
+    fn request_semantic_tokens_retry(&self) {
+        SemanticTokensRefreshCtx {
+            client: self.client.clone(),
+            last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+            refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
+        }
+        .request_refresh_coalesced();
+    }
+
+    fn retry_cancelled_range(&self, outcome: RangeSettleOutcome) -> bool {
+        if !matches!(outcome, RangeSettleOutcome::Cancelled) {
+            return false;
+        }
+        self.request_semantic_tokens_retry();
+        true
+    }
+
+    fn inline_range_settlement(
+        &self,
+        served_enriched: bool,
+        had_analysis_handles: bool,
+    ) -> (bool, RangeSettleOutcome) {
+        let outcome = if served_enriched {
+            RangeSettleOutcome::ServedEnriched
+        } else if had_analysis_handles {
+            // Both handles existed, but a concurrent Salsa write cancelled
+            // their reads. This is retryable, not the terminal unindexed case.
+            RangeSettleOutcome::Cancelled
+        } else {
+            RangeSettleOutcome::NoAnalysis
+        };
+        (self.retry_cancelled_range(outcome), outcome)
     }
 }
 
@@ -20583,7 +20713,7 @@ impl LanguageServer for Backend {
         let mut documents = self.documents.lock("did_open").await;
         documents.insert(uri.clone(), state);
         drop(documents);
-        self.live_publication_invalidated.notify_one();
+        self.invalidate_live_publication();
 
         // Poll the index writer once while the edit turn still excludes new
         // requests. If the lock is busy this registers our writer in Tokio's
@@ -20741,7 +20871,7 @@ impl LanguageServer for Backend {
             let revision = entry.revision;
             (text, dialect, language_id, revision, index_needs_seed)
         };
-        self.live_publication_invalidated.notify_one();
+        self.invalidate_live_publication();
         // The ordered operation is the buffer splice. Hand the global turn on
         // before Salsa publication: a setter can wait for a snapshot, and the
         // v2.2.2 incident demonstrated that retaining this turn across such a
@@ -20845,7 +20975,7 @@ impl LanguageServer for Backend {
             let mut docs = self.documents.lock("did_close").await;
             docs.remove(uri);
         }
-        self.live_publication_invalidated.notify_one();
+        self.invalidate_live_publication();
         drop(turn);
         self.live_publication_advanced.notify_waiters();
 
@@ -21062,7 +21192,7 @@ impl LanguageServer for Backend {
                 }
             }
             drop(docs);
-            self.live_publication_invalidated.notify_one();
+            self.invalidate_live_publication();
             self.live_publication_advanced.notify_waiters();
         }
         let domain_changed =
@@ -21228,7 +21358,7 @@ impl LanguageServer for Backend {
             // lets sticky scroll fall through to its indentation model.
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         // BIG-IP config documents fold on their stanza tree rather than the
@@ -21287,7 +21417,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         // BIG-IP config documents get a `module → kind → object` outline
@@ -22069,7 +22199,7 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
@@ -22476,18 +22606,9 @@ impl LanguageServer for Backend {
             // the marker must not be left waiting for a continuation that will
             // never run. Which of the two no-continuation cases it was is
             // recorded in `outcome`.
-            let outcome = if served_enriched {
-                RangeSettleOutcome::ServedEnriched
-            } else if had_analysis_handles {
-                // Both handles existed, but a concurrent Salsa write cancelled
-                // their reads. This is retryable, not the terminal unindexed
-                // case: calling it `no-analysis` could bless coarse viewport
-                // tokens as final after didOpen publication (#1849).
-                RangeSettleOutcome::Cancelled
-            } else {
-                RangeSettleOutcome::NoAnalysis
-            };
-            log_range_convergence_settled(&self.client, uri.as_str(), false, outcome).await;
+            let (refreshed, outcome) =
+                self.inline_range_settlement(served_enriched, had_analysis_handles);
+            log_range_convergence_settled(&self.client, uri.as_str(), refreshed, outcome).await;
         }
 
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
@@ -23244,7 +23365,7 @@ impl LanguageServer for Backend {
         }
         let uri = params.text_document.uri.clone();
         let positions = params.positions;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let analysis = self
@@ -33189,6 +33310,7 @@ mod tests {
             edit_order: EditOrder::default(),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
             live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
+            live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             live_publication_gate: Arc::new(Mutex::new(())),
             store: Arc::new(vfs::NativeStore),
         }
@@ -42072,15 +42194,16 @@ proc p {} {
         .expect("the live indexed document exists");
     }
 
-    /// Exact-head review of #1854: document-local formatting reads the live
-    /// Salsa source, not the independently seeded workspace index. A cold
-    /// file can remain at `Salsa` while its whole-file index analysis runs;
-    /// format, range-format, and format-on-save must remain prompt there.
+    /// Exact-head review of #1854: document-local providers read the live Salsa
+    /// source, not the independently seeded workspace index. A cold file can
+    /// remain at `Salsa` while its whole-file index analysis runs; formatting,
+    /// folding, outlines, linked editing, and selection ranges remain prompt.
     #[tokio::test]
     async fn local_providers_do_not_wait_for_did_open_index_seed_1854() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///format-before-index-1854.tcl").unwrap();
-        register(&backend, &uri, "if {1} {puts ready}\n").await;
+        let source = "proc ready {} { ready }\n";
+        register(&backend, &uri, source).await;
         {
             let mut docs = backend.documents.lock("test").await;
             docs.get_mut(&uri)
@@ -42095,7 +42218,7 @@ proc p {} {
         .await
         .expect("a local provider only waits for the matching Salsa source")
         .expect("the live local document exists");
-        assert_eq!(local.text.as_ref(), "if {1} {puts ready}\n");
+        assert_eq!(local.text.as_ref(), source);
 
         let params: DocumentFormattingParams = serde_json::from_value(serde_json::json!({
             "textDocument": { "uri": uri.as_str() },
@@ -42109,6 +42232,56 @@ proc p {} {
         .await
         .expect("formatting must not wait for the workspace-index seed")
         .expect("formatting must succeed");
+
+        let folding: FoldingRangeParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() }
+        }))
+        .expect("valid folding request");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.folding_range(folding),
+        )
+        .await
+        .expect("folding must not wait for the workspace-index seed")
+        .expect("folding must succeed");
+
+        let symbols: DocumentSymbolParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() }
+        }))
+        .expect("valid document-symbol request");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.document_symbol(symbols),
+        )
+        .await
+        .expect("document symbols must not wait for the workspace-index seed")
+        .expect("document symbols must succeed");
+
+        let linked: LinkedEditingRangeParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "position": { "line": 0, "character": 5 }
+        }))
+        .expect("valid linked-editing request");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.linked_editing_range(linked),
+        )
+        .await
+        .expect("linked editing must not wait for the workspace-index seed")
+        .expect("linked editing must succeed");
+
+        let selection: SelectionRangeParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "positions": [{ "line": 0, "character": 5 }]
+        }))
+        .expect("valid selection-range request");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.selection_range(selection),
+        )
+        .await
+        .expect("selection ranges must not wait for the workspace-index seed")
+        .expect("selection ranges must succeed");
 
         assert!(
             crate::rt::timeout(
@@ -42164,6 +42337,20 @@ proc p {} {
         })
         .await
         .expect("the live publisher must establish drain intent");
+
+        let database = crate::rt::timeout(std::time::Duration::from_secs(5), backend.db.lock())
+            .await
+            .expect("the test must briefly win transient database contention");
+        crate::rt::sleep(std::time::Duration::from_millis(25)).await;
+        assert!(
+            backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire),
+            "transient database contention must not reopen the snapshot stream",
+        );
+        drop(database);
 
         let mut later_reader = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -42664,16 +42851,21 @@ proc p {} {
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
+                // Match production: the operation invalidates older publishers
+                // before entering its own publication loop.
+                backend.invalidate_live_publication();
+                let generation = backend
+                    .live_publication_generation
+                    .load(std::sync::atomic::Ordering::Acquire);
                 let _publication = backend.live_publication_gate.lock().await;
-                let mut reported = false;
+                let mut retry = LivePublicationRetry::new(generation);
+                retry.retries = 1023;
                 backend
                     .pause_open_publication(
                         "did_open",
                         &uri,
                         LivePublicationWait::Database,
-                        1024,
-                        crate::rt::Instant::now(),
-                        &mut reported,
+                        &mut retry,
                     )
                     .await;
             }
@@ -42755,6 +42947,127 @@ proc p {} {
         assert!(
             analysis.all_procs.contains_key("::current"),
             "the fresh index seed must parse the same normalised source as Salsa",
+        );
+    }
+
+    /// The standalone seed must receive the source path just like the Salsa
+    /// analyser. `pkgIndex.tcl` gives `$dir` an implicit initial value, so a
+    /// pathless seed incorrectly reports its first assignment as dead.
+    #[tokio::test]
+    async fn fresh_open_index_seed_carries_file_path_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///packages/demo/pkgIndex.tcl").unwrap();
+        let analysis = backend
+            .fresh_analysis_for(
+                &uri,
+                Arc::from("set dir first\nset dir second\nputs $dir\n"),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        assert!(
+            analysis
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::W220),
+            "the fresh pkgIndex seed must honour its loader-provided $dir: {:?}",
+            analysis.diagnostics,
+        );
+    }
+
+    /// Exact-head review of #1854: a closed-file rehoming snapshot must release
+    /// the global document map before waiting for Salsa and must reject the
+    /// captured disk source if the editor opens the URI in that interval.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn rehoming_snapshot_releases_documents_and_rechecks_open_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///rehoming-snapshot-1854.tcl").unwrap();
+        backend
+            .db_set_source(&uri, "proc disk {} {}\n", "tcl8.6".to_owned())
+            .await;
+
+        let database = backend.db.lock().await;
+        let snapshot = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.rehoming_document_snapshot(&uri).await }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.db.contention().contains("1 queued waiter") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the rehoming snapshot must reach the held Salsa database");
+        let mut documents = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("rehoming-review"),
+        )
+        .await
+        .expect("a rehoming Salsa wait retained the global document map");
+        documents.insert(
+            uri.clone(),
+            DocumentState::with_version(
+                "proc live {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            ),
+        );
+        drop(documents);
+        drop(database);
+
+        assert!(matches!(
+            snapshot.await.expect("snapshot task panicked"),
+            RehomingDocumentSnapshot::Pending
+        ));
+    }
+
+    /// A close tail superseded by a reopen cannot clear the old lifecycle's
+    /// token caches itself. The reopen clears them before advertising Salsa
+    /// readiness, so its first coarse/enriched comparison starts clean.
+    #[tokio::test]
+    async fn reopen_clears_prior_semantic_token_lifecycle_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///reopen-token-cache-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), ("old".to_owned(), vec![1, 2, 3]));
+        backend
+            .semantic_tokens_refresh_asked
+            .lock()
+            .await
+            .insert(uri.clone(), 42);
+        let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+
+        assert!(
+            backend
+                .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
+                    FreshAnalysisSeed {
+                        analysis,
+                        class_factory_generation: 0,
+                    }
+                })
+                .await
+        );
+        assert!(!backend.last_semantic_tokens.lock().await.contains_key(&uri));
+        assert!(
+            !backend
+                .semantic_tokens_refresh_asked
+                .lock()
+                .await
+                .contains_key(&uri)
         );
     }
 
@@ -45867,6 +46180,21 @@ proc p {} {
         assert_eq!(RangeSettleOutcome::Cancelled.as_str(), "cancelled");
         assert_eq!(RangeSettleOutcome::NoAnalysis.as_str(), "no-analysis");
         assert_eq!(RangeSettleOutcome::Coalesced.as_str(), "coalesced");
+    }
+
+    /// Exact-head review of #1854: a cancelled pair of Salsa enrichment reads
+    /// is not a terminal coarse result. It schedules the same bounded,
+    /// workspace-wide re-pull used by detached convergence.
+    #[tokio::test]
+    async fn cancelled_range_enrichment_schedules_retry_1854() {
+        let backend = test_backend();
+        assert!(backend.retry_cancelled_range(RangeSettleOutcome::Cancelled));
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            "cancelled range enrichment must schedule a client re-pull",
+        );
     }
 
     /// A fire already scheduled must absorb a second request rather than
