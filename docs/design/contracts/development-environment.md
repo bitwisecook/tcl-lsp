@@ -7,7 +7,7 @@ names are the executable truth.
 ## Prerequisites
 
 - **Rust** — the floating `stable` channel pinned in `rust-toolchain.toml`;
-  `Cargo.toml`'s `rust-version` tracks it (1.98.0, 2026-08-18, as of this
+  `Cargo.toml`'s `rust-version` tracks it (1.98.1, 2026-09-03, as of this
   writing). CI resolves `stable` at run time, so a fresh release can fail
   `pr-gate`'s `cargo clippy -D warnings` on untouched code the day it lands:
   `rustup update` before debugging a clippy failure you cannot reproduce.

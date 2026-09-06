@@ -2035,8 +2035,8 @@ an INI file you can commit alongside the project.
 ## Building and contributing
 
 - A Rust toolchain (current stable) via [rustup](https://rustup.rs/).  The
-  workspace tracks the floating `stable` channel; current stable is 1.98.0,
-  released 2026-08-18.
+  workspace tracks the floating `stable` channel; current stable is 1.98.1,
+  released 2026-09-03.
 - Node.js 24+ with npm (pinned to v12 via `packageManager`; run `corepack enable npm`)
 - VS Code 1.93+
 
