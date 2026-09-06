@@ -378,6 +378,13 @@ impl DocumentState {
             && !self.backing_file_deleted
     }
 
+    /// Whether these bytes still identify this live revision, including an
+    /// open buffer whose backing path has been deleted. Orphaned buffers keep
+    /// serving local providers even though they have no workspace-index view.
+    fn matches_live_source_publication(&self, text: &str, dialect: &str, revision: u64) -> bool {
+        self.revision == revision && self.text.as_ref() == text && self.dialect.as_str() == dialect
+    }
+
     fn mark_dialect_resolution_dirty(&mut self) {
         self.dialect_resolution_generation = self.dialect_resolution_generation.saturating_add(1);
     }
@@ -6278,12 +6285,12 @@ impl LivePublicationWait {
 
 /// Whether a disk-side removal is allowed to retire an editor-open URI.
 #[derive(Clone, Copy)]
-enum DiskRemovalPolicy {
+enum DiskRemovalPolicy<'a> {
     /// Folder removal and stale scans preserve live, possibly-unsaved buffers.
     ClosedOnly,
     /// A filesystem `DELETED` event retires the dead path even if its buffer is
     /// still open; the document remains usable but is marked orphaned.
-    IncludeOpen,
+    IncludeOpen(&'a HashMap<Uri, u64>),
 }
 
 /// LSP server backend.
@@ -8609,7 +8616,7 @@ impl Backend {
         &self,
         replacements: &[(Uri, String, String, AnalysisResult)],
         removals: &[Uri],
-        removal_policy: DiskRemovalPolicy,
+        removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
     ) -> Vec<Uri> {
         if replacements.is_empty() && removals.is_empty() {
@@ -8637,9 +8644,16 @@ impl Backend {
         _rehoming_guard: &tokio::sync::MutexGuard<'_, ()>,
         replacements: &[(Uri, String, String, AnalysisResult)],
         removals: &[Uri],
-        removal_policy: DiskRemovalPolicy,
+        removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
     ) -> Vec<Uri> {
+        // Serialise the final disk commit with live source publication. The
+        // document-map check below can then be released before the bounded
+        // Salsa setters without a didOpen/didChange source commit landing in
+        // the check-to-mutation gap. A live mutation that becomes visible
+        // while this waits either changes the removal classification below or
+        // republishes after this transaction releases the gate.
+        let _live_publication = self.live_publication_gate.lock().await;
         loop {
             let Some(locks) = self.try_publication_locks() else {
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
@@ -8664,18 +8678,35 @@ impl Backend {
                 .iter()
                 .filter(|(uri, _, _, _)| !docs.contains_key(uri))
                 .collect();
+            let mut index_only_removals = Vec::new();
             let removals: Vec<_> = removals
                 .iter()
-                .filter(|uri| {
-                    matches!(removal_policy, DiskRemovalPolicy::IncludeOpen)
-                        || !docs.contains_key(*uri)
+                .filter(|uri| match removal_policy {
+                    DiskRemovalPolicy::ClosedOnly => !docs.contains_key(*uri),
+                    DiskRemovalPolicy::IncludeOpen(deleted_revisions) => {
+                        let Some(doc) = docs.get(*uri) else {
+                            return true;
+                        };
+                        if !doc.backing_file_deleted {
+                            return false;
+                        }
+                        if deleted_revisions.get(*uri) == Some(&doc.revision) {
+                            true
+                        } else {
+                            // A post-deletion edit owns the current Salsa
+                            // source, but the filesystem identity is still
+                            // dead and must leave the cross-document index.
+                            index_only_removals.push(*uri);
+                            false
+                        }
+                    }
                 })
                 .collect();
             // This is the crucial #1800 boundary: all potentially slow work is
             // below, after the global map is available to every handler again.
             drop(docs);
 
-            if replacements.is_empty() && removals.is_empty() {
+            if replacements.is_empty() && removals.is_empty() && index_only_removals.is_empty() {
                 return Vec::new();
             }
 
@@ -8709,6 +8740,10 @@ impl Backend {
                 index.remove_document(uri.as_str());
                 seeds.remove(uri.as_str());
             }
+            for uri in &index_only_removals {
+                index.remove_document(uri.as_str());
+                seeds.remove(uri.as_str());
+            }
             for entry in &replacements {
                 index.replace_document(entry.0.as_str(), &entry.3);
                 seeds.remove(entry.0.as_str());
@@ -8716,6 +8751,7 @@ impl Backend {
 
             return removals
                 .into_iter()
+                .chain(index_only_removals)
                 .chain(replacements.into_iter().map(|entry| &entry.0))
                 .cloned()
                 .collect();
@@ -8874,6 +8910,18 @@ impl Backend {
     ) -> bool {
         if !index_needs_seed {
             return true;
+        }
+        {
+            let docs = self.documents.lock("did_change_restore_index").await;
+            let Some(doc) = docs.get(uri) else {
+                return false;
+            };
+            if !doc.matches_live_source_publication(text, dialect, revision) {
+                return false;
+            }
+            if doc.backing_file_deleted {
+                return true;
+            }
         }
         let seed = self
             .fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
@@ -9095,10 +9143,13 @@ impl Backend {
         let mut retry =
             LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
+            if self.live_publication_uri_generation(uri) != retry.uri_generation {
+                return false;
+            }
             if let Some(docs) = self.documents.try_lock(operation) {
                 if !docs
                     .get(uri)
-                    .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
+                    .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
                 {
                     return false;
                 }
@@ -9134,7 +9185,8 @@ impl Backend {
             };
             let current = docs
                 .get(uri)
-                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
+                .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
+                && self.live_publication_uri_generation(uri) == retry.uri_generation;
             if !current {
                 return false;
             }
@@ -9162,10 +9214,12 @@ impl Backend {
             let Some(doc) = docs.get_mut(uri) else {
                 return false;
             };
-            if !doc.matches_live_publication(text, dialect, revision) {
+            if !doc.matches_live_source_publication(text, dialect, revision)
+                || self.live_publication_uri_generation(uri) != retry.uri_generation
+            {
                 return false;
             }
-            doc.publication = if index_needs_seed {
+            doc.publication = if index_needs_seed && !doc.backing_file_deleted {
                 DocumentPublication::Salsa
             } else {
                 DocumentPublication::Indexed
@@ -20715,17 +20769,19 @@ fn push_check_code_actions(
 
 impl Backend {
     /// Apply watched delete/revive state to buffers that remain open and
-    /// return the revived snapshots that need live Salsa/index publication.
+    /// return the revived snapshots that need live Salsa/index publication and
+    /// the exact orphan revisions a deletion transaction may fully retire.
     async fn update_watched_open_paths(
         &self,
         deleted: &HashSet<Uri>,
         revived: &[Uri],
-    ) -> Vec<(Uri, Arc<str>, String, u64)> {
+    ) -> (Vec<(Uri, Arc<str>, String, u64)>, HashMap<Uri, u64>) {
         if deleted.is_empty() && revived.is_empty() {
-            return Vec::new();
+            return (Vec::new(), HashMap::new());
         }
         let mut docs = self.documents.lock("did_change_watched_files").await;
         let mut publications = Vec::new();
+        let mut deleted_revisions = HashMap::new();
         for uri in deleted {
             if let Some(doc) = docs.get_mut(uri) {
                 doc.backing_file_deleted = true;
@@ -20734,6 +20790,7 @@ impl Backend {
                 // local providers do not wait for a seed which must never
                 // resurrect the deleted path.
                 doc.publication = DocumentPublication::Indexed;
+                deleted_revisions.insert(uri.clone(), doc.revision);
             }
         }
         for uri in revived {
@@ -20755,7 +20812,6 @@ impl Backend {
                 ));
             }
         }
-        drop(docs);
         // A normal CREATED/CHANGED notification for an already-live open
         // buffer changes no authoritative state and starts no replacement
         // publisher. Invalidating it here would retire a contended didOpen or
@@ -20769,7 +20825,8 @@ impl Backend {
             );
             self.live_publication_advanced.notify_waiters();
         }
-        publications
+        drop(docs);
+        (publications, deleted_revisions)
     }
 }
 
@@ -21383,7 +21440,7 @@ impl LanguageServer for Backend {
         // Apply the orphan marks before any re-analysis is scheduled, so the
         // publish path (which consults the flag under the `documents` lock)
         // cannot re-add a just-retired path.
-        let revived_publications = self
+        let (revived_publications, deleted_revisions) = self
             .update_watched_open_paths(&deleted_while_open, &revived_while_open)
             .await;
         let domain_changed =
@@ -21420,7 +21477,7 @@ impl LanguageServer for Backend {
             self.publish_disk_results(
                 &[],
                 &deleted,
-                DiskRemovalPolicy::IncludeOpen,
+                DiskRemovalPolicy::IncludeOpen(&deleted_revisions),
                 "did_change_watched_files: deleted",
             )
             .await;
@@ -43106,6 +43163,202 @@ proc p {} {
         let doc = docs.get(&uri).expect("the open buffer remains tracked");
         assert!(!doc.backing_file_deleted);
         assert_eq!(doc.publication, DocumentPublication::Pending);
+    }
+
+    /// Exact-head automated review of #1854: deleting an open path retires its
+    /// cross-document identity, not its editor buffer. A subsequent didChange
+    /// must publish the new bytes to Salsa and settle local-provider readiness
+    /// while leaving the orphan absent from the workspace index.
+    #[tokio::test]
+    async fn post_deletion_edit_remains_locally_publishable_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///post-deletion-edit-1854.tcl").unwrap();
+        let initial = "proc before_delete {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+        let analysis = Arc::new(Analyser::new().analyse(initial, "tcl8.6").clone());
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+
+        let edited = "proc after_delete {} {}\n";
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: edited.to_owned(),
+                }],
+            })
+            .await;
+
+        drop(rehoming);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the deletion must finish after its disk commit is released")
+            .expect("the deletion task must not panic");
+
+        let current = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(&uri),
+        )
+        .await
+        .expect("local providers must not wedge after editing an orphan")
+        .expect("the orphaned buffer remains open");
+        assert_eq!(current.text.as_ref(), edited);
+        assert!(current.backing_file_deleted);
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(edited),
+            "the post-deletion revision must be the Salsa source",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the edited orphan must not regain a cross-document identity",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a watched delete can mark an old
+    /// open revision, stall at the disk-publication gate, and then be overtaken
+    /// by didClose plus a new didOpen. Its final removal must currency-check the
+    /// open identity rather than deleting the reopened Salsa source.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn stale_watched_delete_preserves_reopened_source_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///reopened-during-delete-1854.tcl").unwrap();
+        let initial = "proc stale_open {} {}\n";
+        let reopened = "proc authoritative_reopen {} {}\n";
+        register(&backend, &uri, initial).await;
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+
+        let closing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri },
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if !backend.documents.lock("test").await.contains_key(&uri) {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didClose must retire the old open identity");
+
+        let opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 2,
+                            text: reopened.to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let reopened_is_visible = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| !doc.backing_file_deleted && doc.text.as_ref() == reopened);
+                if reopened_is_visible {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the new didOpen identity must become authoritative");
+
+        drop(rehoming);
+        for (label, task) in [
+            ("deletion", deleting),
+            ("close", closing),
+            ("reopen", opening),
+        ] {
+            crate::rt::timeout(std::time::Duration::from_secs(30), task)
+                .await
+                .unwrap_or_else(|_| panic!("the {label} task must finish"))
+                .unwrap_or_else(|err| panic!("the {label} task must not panic: {err}"));
+        }
+
+        let current = backend
+            .read_document(&uri)
+            .await
+            .expect("the reopened document remains readable");
+        assert_eq!(current.text.as_ref(), reopened);
+        assert!(!current.backing_file_deleted);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(reopened),
+            "the stale watched deletion must not remove the reopened Salsa source",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::authoritative_reopen"),
+            "the reopened document must retain its current index view",
+        );
     }
 
     /// Exact-head automated review of #1854: watched handlers are concurrent,
