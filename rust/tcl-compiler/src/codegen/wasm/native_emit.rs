@@ -1542,7 +1542,7 @@ impl Emitter<'_, '_> {
                 // `settle_return` ignores every completion code but `Return`.
                 if *code == CompletionCode::Return {
                     self.i32(PLAIN_RETURN_LEVEL);
-                    self.i32(i64::from(CompletionCode::Ok.as_int()));
+                    self.i32(CompletionCode::Ok.as_int());
                     self.call(self.imports.return_state);
                 }
                 self.i32(code.as_int());

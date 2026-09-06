@@ -17,6 +17,7 @@ use super::{
     lower_function,
 };
 use crate::compilation_unit::CompilationUnit;
+use crate::dispatch_proof::DispatchEntryAssumption;
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 
 fn native_config() -> SemanticOptimisationConfig {
@@ -534,4 +535,105 @@ fn a_statement_carries_the_site_its_error_frame_names() {
 fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
     let (top, _) = lower("set a 1\n", native_config()).expect("lowers");
     assert_eq!(top.protocol, EntryProtocol::Script);
+}
+
+/// A definition may only register words the statement writes out literally.
+///
+/// `Procedure` records the *written* body text, but lowering may have compiled
+/// the body from a value it materialised instead — a const-mapped `$body`, or
+/// a `[subst -nocommands …]` template — and it keeps the original word beside
+/// that compiled body. Registering the word would report the wrong `info body`
+/// and, worse, make any later run of the source body evaluate the substitution
+/// in the *procedure's own frame*, where its operands do not exist.
+///
+/// The materialising paths only fire inside a procedure body (both consult the
+/// const map, which is empty at depth 0), and no procedure-body site is proven
+/// under `UnknownWorld` — so today the two never coincide. This lowers the
+/// enclosing body under `PristineRegistryWorld` to remove that coincidence,
+/// because it is exactly the assumption P5 proper introduces, and the point of
+/// the guard is that the invariant holds by construction rather than by luck.
+#[test]
+fn a_definition_declines_a_body_the_statement_does_not_write_out() {
+    let source = "proc make {} {\n set body {return hello}\n proc p {x} $body\n}\nmake\n";
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+
+    // The front end really does record a body it did not compile.
+    let inner = unit
+        .ir_module
+        .procedures
+        .get("::p")
+        .expect("the materialised body registers a procedure");
+    assert_eq!(inner.body_source.as_deref(), Some("${body}"));
+    assert_eq!(
+        inner.body.statements.len(),
+        1,
+        "…while the compiled body came from the materialised `return hello`"
+    );
+
+    let outer = unit.procedures.get("::make").expect("::make is a unit");
+    let facts = &outer.semantic_facts;
+    let function = facts
+        .executable()
+        .function()
+        .expect("::make builds executable IR");
+    let hints = BTreeMap::new();
+    let input = LoweringInput {
+        registry: &registry,
+        context: facts.context(),
+        function,
+        source: &unit.source,
+        module: &unit.ir_module,
+        config: native_config(),
+        escape: None,
+        top_level: false,
+        line_origin: 0,
+        entry_assumption: DispatchEntryAssumption::PristineRegistryWorld,
+        type_hints: &hints,
+    };
+    let (lowered, report) = lower_function(&input).expect("::make lowers");
+    assert_eq!(
+        outcomes(&report, "invoke"),
+        vec![StatementOutcome::GenericInvoke],
+        "the definition keeps the runtime's own `proc`, which evaluates the \
+         body word at the call site as Tcl does"
+    );
+    assert_eq!(
+        count(&lowered, |op| matches!(op, NativeOp::DefineProc { .. })),
+        0
+    );
+}
+
+/// The same statement with a written-out body still binds, so the guard is a
+/// rule about substitution rather than a blanket refusal.
+#[test]
+fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
+    let source = "proc make {} {\n proc p {x} {return hello}\n}\nmake\n";
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    let outer = unit.procedures.get("::make").expect("::make is a unit");
+    let facts = &outer.semantic_facts;
+    let function = facts
+        .executable()
+        .function()
+        .expect("::make builds executable IR");
+    let hints = BTreeMap::new();
+    let input = LoweringInput {
+        registry: &registry,
+        context: facts.context(),
+        function,
+        source: &unit.source,
+        module: &unit.ir_module,
+        config: native_config(),
+        escape: None,
+        top_level: false,
+        line_origin: 0,
+        entry_assumption: DispatchEntryAssumption::PristineRegistryWorld,
+        type_hints: &hints,
+    };
+    let (lowered, _) = lower_function(&input).expect("::make lowers");
+    assert_eq!(
+        count(&lowered, |op| matches!(op, NativeOp::DefineProc { .. })),
+        1
+    );
 }

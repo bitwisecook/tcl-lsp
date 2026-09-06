@@ -4288,7 +4288,12 @@ mod tests {
         leak_free(|| unsafe {
             with_current_interp(|interp| {
                 define_native(b"p", b"", b"return source", Some(stub_plain_return));
-                define_native(b"bad", b"", b"return source", Some(stub_return_without_state));
+                define_native(
+                    b"bad",
+                    b"",
+                    b"return source",
+                    Some(stub_return_without_state),
+                );
 
                 // Poison the pending state exactly as a caught deferred
                 // return does, then ask each entry for its answer.

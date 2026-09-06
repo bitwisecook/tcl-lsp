@@ -314,6 +314,18 @@ to whatever sits at slot 0. Each definition statement then reads its entry as
 `base + slot`. `ProcedurePlan` is the single owner of proc → function index and
 proc → table slot; `ProcDef` owns proc → entry on the runtime side.
 
+Every word a definition registers has to be a word the statement writes out
+literally. `Procedure` records the *written* name, parameter list and body
+text, but lowering may have compiled the body from a value it materialised
+instead — a const-mapped `$body`, or a `[subst -nocommands …]` template — and
+it records the original word beside that compiled body. Registering that word
+would report the wrong `info body` and, worse, make any later run of the source
+body (a step trace, or a declined entry) evaluate the substitution *in the
+procedure's own frame*, where its operands do not exist. A substituted name,
+parameter list or body therefore keeps the generic invocation, and the
+runtime's own `proc` — which evaluates the word at the call site, as Tcl does
+— defines the procedure.
+
 Two consequences fall straight out of where the front end keeps procedures.
 Lowering keeps the **first** definition of a name (a later `proc p` only
 records a redefinition), so only that statement can name a compiled body and a

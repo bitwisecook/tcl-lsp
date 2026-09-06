@@ -895,7 +895,26 @@ impl<'a> Lowerer<'a> {
         let body_source = procedure.body_source.clone()?;
         // The runtime's `proc` still owns every error this form can raise, so
         // only the exact `proc name params body` shape is taken.
-        if invoke.original_words.len() != 4 {
+        let [head, name, params, body] = invoke.original_words.as_slice() else {
+            return None;
+        };
+        let _ = head;
+        // Every word this hands the runtime has to be the word the statement
+        // actually writes. `Procedure` records the *written* name, parameter
+        // list and body text, but lowering may have compiled the body from a
+        // value it materialised instead — a const-mapped `$body`, or a
+        // `[subst -nocommands …]` template — and it records the original word
+        // beside that compiled body, not the text it compiled. Registering
+        // that word would report the wrong `info body`, and any later run of
+        // the source body (a step trace, or a declined entry) would evaluate
+        // the substitution *in the procedure's own frame*, where its operands
+        // do not exist. A substituted word therefore keeps the generic
+        // invocation, and the runtime's own `proc` — which evaluates the word
+        // at the call site, as Tcl does — defines the procedure.
+        if !is_written_literal(name) || !word_is_literally(params, &procedure.params_raw) {
+            return None;
+        }
+        if !word_is_literally(body, &body_source) {
             return None;
         }
         self.emit(NativeOp::DefineProc {
@@ -1957,6 +1976,23 @@ fn expr_variable_place(name: &str) -> Option<CellPlace> {
 ///
 /// [`variable_word_place`] is the one owner of the reading; this only names
 /// the refusal.
+/// Whether the word is written out literally, so what the front end recorded
+/// for it is the text the statement itself carries.
+fn is_written_literal(word: &WordExpr) -> bool {
+    matches!(
+        word,
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+    )
+}
+
+/// Whether the word is a literal whose content is exactly `recorded`.
+fn word_is_literally(word: &WordExpr, recorded: &str) -> bool {
+    match word {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => text == recorded,
+        _ => false,
+    }
+}
+
 /// The 1-based line of `offset` within the body that opens at `origin`.
 ///
 /// `errorInfo` counts a procedure's lines from the first byte of its body

@@ -1532,6 +1532,44 @@ opaque region — is not proven and keeps the generic invocation. The two new
 samples put their definitions first for exactly that reason, and
 `wasm-codegen.md` says so.
 
+### Registering only words the statement writes (P1 review finding (b))
+
+**Found by review; a latent trap rather than a live wrong answer, and worth
+being precise about which.** `lower_definition` took `Procedure`'s
+`qualified_name` / `params_raw` / `body_source` and handed them to the runtime
+as the definition. But `Lowering::lower_proc` records the *written* body text
+while compiling the body from a value it may have materialised instead: a
+const-mapped `$body`, or a `[subst -nocommands …]` template. `proc make {} {
+set body {return hello} ; proc p {x} $body }` really does produce
+`Procedure { body_source: Some("${body}"), body: <one statement from "return
+hello"> }` — pinned by
+`a_definition_declines_a_body_the_statement_does_not_write_out`.
+
+I could not make it produce a wrong answer through any tier, and the reason is
+a coincidence, not a design: both materialising paths require `proc_depth > 0`
+(each consults the const map, which is empty at depth 0), and no procedure-body
+site is ever proven, because procedure units are lowered under
+`DispatchEntryAssumption::UnknownWorld` — which makes
+`analyse_dispatch_stability` return the empty analysis. So the two conditions
+are today mutually exclusive. P5 proper plans to make procedure bodies proven;
+the day it does, this becomes a wrong `info body` and a source-body fallback
+that evaluates the substitution in the procedure's own frame.
+
+The fix makes the invariant hold by construction: the definition's name,
+parameter list and body words must each be a written literal, and the body and
+parameter words must match the text the front end recorded. Anything else keeps
+the generic invocation, where the runtime's own `proc` evaluates the word at
+the call site exactly as Tcl does. The test lowers the enclosing body under
+`PristineRegistryWorld` to remove the coincidence and fails without the guard;
+its sibling shows a written-out body still binds under the same proof, so the
+rule is about substitution rather than a blanket refusal.
+
+The same registration exists in the legacy analysis tier
+(`try_emit_direct_operation` → `tcl_codegen_proc_register`), which has always
+passed `body_source` unchecked. It is out of this issue's scope and equally
+unreachable for the same reason, but it is the same defect and deserves its own
+ticket rather than a silent fix here.
+
 ### The `errorInfo` frame (delivered, step 6)
 
 Every NLIR statement now carries `site: Option<StatementSite>` — the enclosing
