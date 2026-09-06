@@ -55,6 +55,33 @@ pub(crate) fn has_unescaped_subst(s: &str) -> bool {
     false
 }
 
+/// Whether `s` contains a **backslash-escaped** substitution marker (`\$` or
+/// `\[`).
+///
+/// The sibling of [`has_unescaped_subst`], and the question that decides
+/// whether a word may be deferred to the VM's `subst_word`. It may not: the
+/// VM reads a compiled literal under the convention that codegen already
+/// decoded the word's escapes, so a surviving backslash is an ordinary
+/// character and the `$` after it starts a live `${…}`. Handing over an
+/// *undecoded* word therefore breaks that contract — `puts A:[string length
+/// "\$\{x}"]` read the variable `x`, and with no closing brace it raised
+/// `missing close-brace for variable name`, on scripts both oracles run.
+pub(crate) fn has_escaped_subst_marker(s: &str) -> bool {
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i + 1 < b.len() {
+        if b[i] == b'\\' {
+            if matches!(b[i + 1], b'$' | b'[') {
+                return true;
+            }
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    false
+}
+
 /// Tag appended to no-dedup literal comments.
 pub(crate) const NO_DEDUP_TAG: &str = " #nodedup";
 
@@ -355,7 +382,14 @@ impl CodegenCtx<'_> {
         value: &str,
         value_needs_backsubst: bool,
     ) {
-        let value = if value_needs_backsubst && !value.contains('[') && !value.contains("${") {
+        // Whether this word's escapes were decoded *here*. A decoded value is
+        // finished: every marker left in it came from an escape and is data, so
+        // it must not be read as source again. `set v "\$\{x}"` decodes to the
+        // four characters `${x}`, and re-reading that as a variable reference —
+        // which is what the value emitter's `${…}` fast path does — loaded `x`
+        // and stored one character instead.
+        let decoded_here = value_needs_backsubst && !value.contains('[') && !value.contains("${");
+        let value = if decoded_here {
             tcl_lexer::backslash_subst_in(value, self.escapes).into_owned()
         } else {
             // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
@@ -380,7 +414,10 @@ impl CodegenCtx<'_> {
         // command surface declines the fold, dispatch the same whole-word
         // substitution through that surface's inline hook rather than a
         // command-name allow/deny list in this consumer.
-        if self.try_emit_constant_fold(&value) {
+        if decoded_here {
+            // Finished above: byte-exact, with no further reading of the text.
+            self.push_lit_exact(&value);
+        } else if self.try_emit_constant_fold(&value) {
             // The shared fold emitted the value.
         } else if inline {
             self.emit_inline_cmd_subst(&value);
@@ -676,6 +713,35 @@ impl CodegenCtx<'_> {
         // stack) rather than via the runtime `subst_word` fallback, so a
         // `[yield]`/`[cmd]` inside it stays yieldable in a coroutine.
         if self.try_emit_whole_cmd_subst(value) {
+            return;
+        }
+        // A word carrying an *escaped* marker cannot be deferred at all, even
+        // when it also carries a live one. The VM reads a compiled literal's
+        // backslashes as ordinary characters, so an undecoded `\$\{x}` handed
+        // over raw is read back as a live `${x}`. Resolve the word here
+        // instead: the template parser decodes each literal run and separates
+        // the substitutions that really are live, so the escaped marker ends up
+        // as data and the `[…]` beside it still runs.
+        if has_escaped_subst_marker(value)
+            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
+        {
+            for part in &parts {
+                match part {
+                    SubstPart::Lit(text) => self.push_lit_exact(text),
+                    SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
+                    SubstPart::Var(name) => self.load_var(name),
+                }
+            }
+            if parts.len() > 1 {
+                self.emit(
+                    Op::STR_CONCAT1,
+                    vec![Operand::Imm(
+                        i32::try_from(parts.len()).expect("part count fits in i32"),
+                    )],
+                );
+            } else if parts.is_empty() {
+                self.push_lit_exact("");
+            }
             return;
         }
         // Default: the word's own text is its value — push it unsubstituted

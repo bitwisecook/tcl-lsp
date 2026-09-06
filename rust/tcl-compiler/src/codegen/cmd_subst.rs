@@ -952,6 +952,33 @@ impl CodegenCtx<'_> {
         if interpolate && self.try_emit_whole_cmd_subst(value) {
             return;
         }
+        // A word whose markers are *escaped* is still source, not a value: the
+        // escapes have to be decoded before anything is pushed, and deferring
+        // it to the VM hands over backslashes that its compiled-word
+        // convention reads as ordinary characters. The template parser decodes
+        // each literal run, so `"\$\{x}"` becomes the four-character value
+        // `${x}` rather than its six-character spelling. The twin of the same
+        // arm in `emit_value_interpolated`.
+        if crate::codegen::statements::has_escaped_subst_marker(value)
+            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
+        {
+            for part in &parts {
+                match part {
+                    SubstPart::Lit(text) => self.push_lit_exact(text),
+                    SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
+                    SubstPart::Var(name) => self.load_var(name),
+                }
+            }
+            if parts.len() > 1 {
+                self.emit(
+                    Op::STR_CONCAT1,
+                    vec![Operand::Imm(bytecode_imm(parts.len()))],
+                );
+            } else if parts.is_empty() {
+                self.push_lit_exact("");
+            }
+            return;
+        }
         // Default: the word's own text is its value — unsubstituted unless a
         // `${…}` / `[…]` the runtime still owns survived the arms above. The
         // twin of `emit_value_interpolated`'s default, and missed when that one
