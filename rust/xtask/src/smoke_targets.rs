@@ -962,7 +962,10 @@ fn is_builtin_include_macro(path: &syn::Path) -> bool {
     let Some(second) = segments.next() else {
         return first.ident.unraw() == "include";
     };
-    segments.next().is_none() && first.ident.unraw() == "std" && second.ident.unraw() == "include"
+    let namespace = first.ident.unraw();
+    segments.next().is_none()
+        && (namespace == "std" || namespace == "core")
+        && second.ident.unraw() == "include"
 }
 
 fn lexed_ident_is(token: LexedToken, text: &str, expected: &str) -> bool {
@@ -990,17 +993,29 @@ fn is_builtin_include_invocation(tokens: &[LexedToken], text: &str, index: usize
     {
         let namespace = index - 3;
         return tokens.get(namespace).is_some_and(|token| {
-            lexed_ident_is(*token, text, "std")
-                && (namespace == 0
-                    || (namespace >= 2
-                        && tokens[namespace - 1].kind == TokenKind::Colon
-                        && tokens[namespace - 2].kind == TokenKind::Colon
-                        && namespace.checked_sub(3).is_none_or(|prefix| {
-                            !matches!(
-                                tokens[prefix].kind,
-                                TokenKind::Ident | TokenKind::RawIdent | TokenKind::Dollar
-                            )
-                        })))
+            (lexed_ident_is(*token, text, "std") || lexed_ident_is(*token, text, "core"))
+                && if namespace >= 2
+                    && tokens[namespace - 1].kind == TokenKind::Colon
+                    && tokens[namespace - 2].kind == TokenKind::Colon
+                {
+                    namespace.checked_sub(3).is_none_or(|prefix| {
+                        !matches!(
+                            tokens[prefix].kind,
+                            TokenKind::Ident | TokenKind::RawIdent | TokenKind::Dollar
+                        )
+                    })
+                } else {
+                    namespace.checked_sub(1).is_none_or(|prefix| {
+                        !matches!(
+                            tokens[prefix].kind,
+                            TokenKind::Ident
+                                | TokenKind::RawIdent
+                                | TokenKind::Dollar
+                                | TokenKind::Dot
+                                | TokenKind::Colon
+                        )
+                    })
+                }
         });
     }
     index
@@ -3476,11 +3491,12 @@ fn inline_smoke_module_include_self_test() -> Result<()> {
     let fixture = Fixture::new()?;
     fixture.write(
         "src/lib.rs",
-        "std::include!(\"outside.rs\");\nmod smoke { helper::include!(\"helper.rs\"); std::include!(\"inside.rs\"); }\n",
+        "std::include!(\"outside.rs\");\nmod smoke { helper::include!(\"helper.rs\"); std::include!(\"inside.rs\"); core::include!(\"core_inside.rs\"); }\n",
     )?;
     fixture.write("src/outside.rs", "#[test]\nfn ordinary() {}\n")?;
     fixture.write("src/helper.rs", "#[test]\nfn ordinary() {}\n")?;
     fixture.write("src/inside.rs", "#[test]\nfn ordinary() {}\n")?;
+    fixture.write("src/core_inside.rs", "#[test]\nfn ordinary() {}\n")?;
     let mut found = BTreeSet::new();
     collect_source_smoke_tests(
         &fixture.root.join("src/lib.rs"),
@@ -3488,7 +3504,12 @@ fn inline_smoke_module_include_self_test() -> Result<()> {
         &mut HashSet::new(),
         &mut found,
     )?;
-    if found != BTreeSet::from([fixture.root.join("src/inside.rs")]) {
+    if found
+        != BTreeSet::from([
+            fixture.root.join("src/core_inside.rs"),
+            fixture.root.join("src/inside.rs"),
+        ])
+    {
         bail!("inline smoke-module include context self-test failed: {found:?}");
     }
     Ok(())
@@ -3925,9 +3946,9 @@ fn include_macro_scanner_self_test() -> Result<()> {
 
 fn namespaced_include_scanner_self_test() -> Result<()> {
     let namespaced = source_include_macros(
-        "std::include!(\"std.rs\"); ::std::include!(\"absolute.rs\"); helper::include!(\"helper.rs\"); $crate::include!(\"crate.rs\"); helper::std::include!(\"nested.rs\");",
+        "std::include!(\"std.rs\"); ::std::include!(\"absolute.rs\"); core::include!(\"core.rs\"); ::core::include!(\"absolute_core.rs\"); helper::include!(\"helper.rs\"); $crate::include!(\"crate.rs\"); helper::std::include!(\"nested.rs\"); helper::core::include!(\"nested_core.rs\");",
     )?;
-    if namespaced.literal_paths != ["std.rs", "absolute.rs"] {
+    if namespaced.literal_paths != ["std.rs", "absolute.rs", "core.rs", "absolute_core.rs"] {
         bail!(
             "include scanner accepted the wrong namespace: {:?}",
             namespaced.literal_paths
@@ -4217,6 +4238,12 @@ mod tests {
     fn namespaced_include_preserves_smoke_module_context() {
         inline_smoke_module_include_self_test()
             .expect("namespaced include smoke-module context self-test");
+    }
+
+    #[test]
+    fn namespaced_include_scanner_recognises_builtin_namespaces() {
+        namespaced_include_scanner_self_test()
+            .expect("namespaced include lexical scanner self-test");
     }
 
     #[test]
