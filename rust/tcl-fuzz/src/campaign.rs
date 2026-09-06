@@ -152,6 +152,7 @@ impl Campaign<'_> {
                     reference_engine: self.reference.engine.label(),
                     subject_engine: self.subject.engine.label(),
                     versions: &self.versions,
+                    generator_rates: crate::findings::GeneratorRates::of(&self.config),
                 },
             );
             if self.registry.record(&finding)? {

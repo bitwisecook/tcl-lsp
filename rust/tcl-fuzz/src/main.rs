@@ -87,6 +87,16 @@ struct Cli {
     /// the same way the campaign that recorded it did.
     #[arg(long, global = true, default_value_t = GenConfig::default().malformed_expr_permille)]
     malformed_expr_permille: u32,
+    /// How often a generated word is given a value that differs from its
+    /// source spelling — delimiter-shaped (`"{}"`, `"{$x}"`), escape-bearing
+    /// (`a\ b`, `\x41`), or non-ASCII / whitespace-bearing (`"café"`,
+    /// `"a b"`, `""`) — in parts per thousand. `0` opts out entirely and
+    /// restores the exact pre-existing generator stream, so a registry's
+    /// historical findings still replay. Global for the same reason
+    /// `--malformed-expr-permille` is: `replay` has to generate a seed the way
+    /// the campaign that recorded it did.
+    #[arg(long, global = true, default_value_t = GenConfig::default().word_shape_permille)]
+    word_shape_permille: u32,
     #[command(subcommand)]
     command: Cmd,
 }
@@ -715,6 +725,36 @@ fn replay_command(
         eprintln!("error: {error}");
         return std::process::ExitCode::from(2);
     }
+    // The generator configuration the campaign ran with, restored from the
+    // record rather than taken from today's CLI defaults. A rate is a `chance`
+    // draw per candidate statement, so a changed rate re-phases the PRNG and
+    // the same seed regenerates a different script — replay would "reproduce"
+    // something that is not the finding. The same reason `tcl_version` is
+    // recorded and restored above.
+    let mut config = *config;
+    if let Some(prior) = selection.finding.as_ref() {
+        match prior.generator_rates {
+            Some(rates) => {
+                let cli_rates = findings::GeneratorRates::of(&config);
+                if rates != cli_rates {
+                    eprintln!(
+                        "note: restoring the finding's generator rates (malformed-expr {}‰, word-shape {}‰); the command line asked for {}‰ / {}‰",
+                        rates.malformed_expr_permille,
+                        rates.word_shape_permille,
+                        cli_rates.malformed_expr_permille,
+                        cli_rates.word_shape_permille,
+                    );
+                }
+                rates.restore(&mut config);
+            }
+            None => eprintln!(
+                "WARNING: finding {seed} predates recorded generator rates; replaying at the current \
+                 rates (malformed-expr {}‰, word-shape {}‰), which may not regenerate the recorded script",
+                config.malformed_expr_permille, config.word_shape_permille,
+            ),
+        }
+    }
+    let config = &config;
     if let Some(prior) = selection.finding {
         eprintln!(
             "note: seed {seed} is a recorded finding ({:?}) using {}",
@@ -806,6 +846,7 @@ fn main() -> std::process::ExitCode {
     let timeout = Duration::from_millis(cli.timeout_ms);
     let config = GenConfig {
         malformed_expr_permille: cli.malformed_expr_permille,
+        word_shape_permille: cli.word_shape_permille,
         ..GenConfig::default()
     };
 
@@ -1637,6 +1678,7 @@ mod tests {
                     reference: Some(version::EngineVersion::parse(tcl_version.patchlevel())),
                     subject: Some(version::EngineVersion::parse(tcl_version.patchlevel())),
                 },
+                generator_rates: findings::GeneratorRates::of(&generator::GenConfig::default()),
             },
         )
     }

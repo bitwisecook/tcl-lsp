@@ -21,11 +21,21 @@
 //! Scoped to the surface the native VM implements so a divergence points at a
 //! real miscompile rather than an unimplemented command. Every emitted script:
 //!
-//! * is syntactically valid Tcl (balanced `{}` / `[]` / `""`);
+//! * is syntactically valid Tcl — a *complete script*, which is not the same
+//!   as balanced delimiter counts once a generated word's value can be `{`;
 //! * is **pure** — no I/O, file, socket, exec, clock, or `after` commands;
 //! * has **bounded** loops (literal integer bounds), so neither backend hangs;
 //! * prints deterministic output via `puts`, so the differential has something
 //!   to compare.
+//!
+//! Two productions exist because the generator was *structurally* unable to
+//! reach a bug class, rather than reaching it rarely — a distinction worth
+//! keeping in mind before reading anything into a clean campaign. A
+//! deliberately [`Malformed`] expression, because every generated expression
+//! was well-formed by construction; and a [`WordShape`], because every
+//! generated word came from [`WORDS`], where the spelling *is* the value. The
+//! second was added after a 1500-script campaign returned 0 findings against a
+//! build that answered `string index "{}" 0` as the empty string.
 //!
 //! The generator is parameterised by a [`GenConfig`] and a seed, so any finding
 //! replays exactly.
@@ -66,6 +76,31 @@ pub struct GenConfig {
     /// pre-existing generator stream exactly and historical findings still
     /// replay from their recorded seeds.
     pub malformed_expr_permille: u32,
+    /// How often a generated word is given a **delimiter-shaped value** — a
+    /// value that looks like a braced word without being one (`"{}"`, `"{$x}"`,
+    /// `\{\}`) — in parts per thousand.
+    ///
+    /// Until this existed the generator drew its words from [`WORDS`], none of
+    /// which contains a brace, bracket, quote or backslash. It was therefore
+    /// structurally incapable of producing a word whose *value* is delimiter
+    /// shaped, and the whole word-value class was invisible: a 1500-script
+    /// campaign found 0 findings against a build that provably answered
+    /// `string index "{}" 0` as the empty string and `set v "{}"` as 0
+    /// characters. Same failure mode as `malformed_expr_permille`, same
+    /// remedy — see [`WordShape`] for what the shapes are and what each one
+    /// caught.
+    ///
+    /// This class is much cheaper than a malformed expression: every shape is
+    /// well-formed, so it does not abort the script and the statements after
+    /// it still run. The rate is correspondingly higher — but only to the
+    /// point where it still leaves most of the corpus to the rest of the
+    /// grammar. At 60‰ a third of scripts carry a shape; 120‰ put it over half,
+    /// which is more of the budget than one class should own.
+    ///
+    /// `0` opts out entirely, and consumes no random draw, so a rate-`0`
+    /// campaign reproduces the pre-existing generator stream exactly and
+    /// historical findings still replay from their recorded seeds.
+    pub word_shape_permille: u32,
 }
 
 impl Default for GenConfig {
@@ -76,6 +111,7 @@ impl Default for GenConfig {
             max_list_len: 5,
             max_expr_depth: 3,
             malformed_expr_permille: 20,
+            word_shape_permille: 60,
         }
     }
 }
@@ -235,6 +271,265 @@ const MALFORMED_BINARY_OPS: &[&str] = &[
     ">>", "**", "eq", "ne", "in", "ni", "lt", "gt",
 ];
 
+/// One way a word's **value** can differ from its source spelling.
+///
+/// The generator's own word pool ([`WORDS`]) is nine short alphanumeric words:
+/// for every one of them the spelling *is* the value, so an emitter that
+/// confuses the two answers correctly by accident. Every shape here breaks
+/// that identity, which is the only way the confusion becomes observable.
+///
+/// Three groups, each derived from measured divergences rather than invented:
+///
+/// * **Delimiter-shaped** — the value looks like a braced word without being
+///   one. A de-quoted word is a value, and handing it back to the VM's
+///   `subst_word` reads it as source a second time, so a value that merely
+///   looks braced lost a brace layer and one that looks braced *and* still
+///   carries a marker had the marker eaten (#1893).
+/// * **Escape-bearing** — the value is what the escapes decode to, not the
+///   text that spells them. This is the release-parameterised escape grammar
+///   (#1479), and it is also where the word *boundary* moves: `a\ b` is one
+///   word, not two.
+/// * **Non-ASCII and whitespace-bearing** — the value's character count is not
+///   its byte count, and a value carrying a space, a `#`, or nothing at all is
+///   the case list quoting exists for.
+///
+/// Each group's variants say what they caught. Where a shape is a control
+/// rather than a catch, it says that too.
+///
+/// **Every shape is a single well-formed Tcl word**, so it drops into any word
+/// position without changing the shape of the surrounding script — the same
+/// discipline [`Malformed`] keeps for the expression grammar. Shapes that are
+/// not brace-balanced (`"{"`, `"}"`) are additionally kept out of the contexts
+/// that wrap the word in braces; see [`Self::brace_balanced`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WordShape {
+    /// `"{}"` — the value `{}`. `string index "{}" 0` answered the empty
+    /// string where both oracles say `{`, and `set v "{}"` stored 0 characters
+    /// where both say 2.
+    QuotedEmptyBraces,
+    /// `"{abc}"` — the value `{abc}`. `string length` answered 3 for 5.
+    QuotedBracedWord,
+    /// `"{$x}"` — braced-shaped *and* still carrying a live variable. Pushed
+    /// raw, the VM stripped the braces and handed back the inside
+    /// unsubstituted: `puts "{$x}"` printed `${x}`.
+    QuotedBracedVar,
+    /// `"{[…]}"` — the command-substitution half of the same shape.
+    QuotedBracedCmd,
+    /// `"{}$x"` — a composite word whose *literal fragment* is brace-shaped.
+    /// The fragment is already decoded, so re-substituting it stripped the
+    /// braces off it: `string length "{}$x"` answered 1 for 3.
+    QuotedFragmentBraces,
+    /// `"{} {}"` — brace-shaped but *not* a whole braced word, so the VM would
+    /// never have stripped it. The negative control for every shape above.
+    QuotedBraceRun,
+    /// `"{"` — an unbalanced single brace as a value.
+    QuotedOpenBrace,
+    /// `"}"` — the same, closing.
+    QuotedCloseBrace,
+    /// `\{\}` — braces reached by escape rather than by quoting: the same word
+    /// one step later, finished once its escapes are decoded. `[format %s \{\}]`
+    /// froze the 4-byte source spelling where both oracles give 2.
+    EscapedBraces,
+    /// `"\{\}"` — both routes at once.
+    QuotedEscapedBraces,
+    /// `{{}}` — a *genuinely* braced word, which must still lose exactly one
+    /// layer (issue #1602). The positive control: the fix for every shape
+    /// above must not disturb this one.
+    BracedDoubleGroup,
+    /// `{a[…]}` — a braced word whose brackets are data. A engine that treats
+    /// the de-braced value as source *runs* the command, so the shape names a
+    /// command that does not exist and the divergence is loud.
+    BracedCmdIsData,
+    /// `{a${…}}` — the variable half of the same control, naming a variable
+    /// that does not exist.
+    BracedVarIsData,
+    /// `"{a}b{c}"` — two brace groups in one value, so the first `{` does not
+    /// match the last `}`. Distinguishes a real balance walk from a two-byte
+    /// `starts_with('{') && ends_with('}')` test, which is the bug that made
+    /// `switch -- "{}$x" …` refuse a script both oracles run.
+    QuotedTwoGroups,
+
+    // -- escape-bearing --
+    /// `a\ b` — one word whose value carries a space, because the backslash
+    /// escapes the separator. The word *boundary* is the thing under test:
+    /// `string length a\ b` answers `wrong # args` where both oracles say 3,
+    /// so the escaped space is being read as a word break.
+    EscapedSpace,
+    /// `\x41` — a hex escape; the value is one character, the spelling four.
+    /// Hex escape width is a release axis (#1479).
+    EscapedHex,
+    /// `\101` — the octal spelling of the same character, whose width is a
+    /// release axis of its own.
+    EscapedOctal,
+    /// `\\` — an escaped backslash: the value is one byte the *next* decode
+    /// would consume if a path decoded twice.
+    EscapedBackslash,
+    /// `a\tb` — an escape in the middle of a word, so the value carries a
+    /// control character no spelling of it contains.
+    EscapedTab,
+
+    // -- non-ASCII and whitespace-bearing --
+    /// `"café"` — a value whose character count (4) is not its byte count (5).
+    /// `[format %s "café"]` answered 5 characters and printed mojibake, having
+    /// walked the quoted word a byte at a time.
+    NonAscii,
+    /// `"{café}"` — non-ASCII crossed with the brace shape, so a byte-wise
+    /// walk and a brace walk have to be right at the same time.
+    NonAsciiBraced,
+    /// `"a b"` — a value carrying a space, which is what list quoting exists
+    /// for: `[list "a b"]` is `{a b}`, and that fold has been wrong before.
+    QuotedSpace,
+    /// `" "` — nothing but a separator.
+    QuotedSpaceOnly,
+    /// `""` — the empty value, which a list or dict element can collapse.
+    QuotedEmpty,
+    /// `"#"` — the character list quoting brace-wraps at element position 0
+    /// and nowhere else (`[list #]` is `{#}`, `[list a #]` is `a #`), a rule
+    /// the `dict create` fold's own documentation calls out.
+    QuotedHash,
+}
+
+impl WordShape {
+    /// Every shape, so the generator draws uniformly over them and the tests
+    /// can assert each one is reachable.
+    const ALL: &'static [Self] = &[
+        Self::QuotedEmptyBraces,
+        Self::QuotedBracedWord,
+        Self::QuotedBracedVar,
+        Self::QuotedBracedCmd,
+        Self::QuotedFragmentBraces,
+        Self::QuotedBraceRun,
+        Self::QuotedOpenBrace,
+        Self::QuotedCloseBrace,
+        Self::EscapedBraces,
+        Self::QuotedEscapedBraces,
+        Self::BracedDoubleGroup,
+        Self::BracedCmdIsData,
+        Self::BracedVarIsData,
+        Self::QuotedTwoGroups,
+        Self::EscapedSpace,
+        Self::EscapedHex,
+        Self::EscapedOctal,
+        Self::EscapedBackslash,
+        Self::EscapedTab,
+        Self::NonAscii,
+        Self::NonAsciiBraced,
+        Self::QuotedSpace,
+        Self::QuotedSpaceOnly,
+        Self::QuotedEmpty,
+        Self::QuotedHash,
+    ];
+
+    /// The word's source spelling. `$x` is the generator's own seeded
+    /// variable, which [`generate`] sets before any statement runs and
+    /// [`Gen::word_shape_stmt`] re-seeds inside a proc body.
+    const fn spelling(self) -> &'static str {
+        match self {
+            Self::QuotedEmptyBraces => "\"{}\"",
+            Self::QuotedBracedWord => "\"{abc}\"",
+            Self::QuotedBracedVar => "\"{$x}\"",
+            Self::QuotedBracedCmd => "\"{[string length ab]}\"",
+            Self::QuotedFragmentBraces => "\"{}$x\"",
+            Self::QuotedBraceRun => "\"{} {}\"",
+            Self::QuotedOpenBrace => "\"{\"",
+            Self::QuotedCloseBrace => "\"}\"",
+            Self::EscapedBraces => r"\{\}",
+            Self::QuotedEscapedBraces => "\"\\{\\}\"",
+            Self::BracedDoubleGroup => "{{}}",
+            Self::BracedCmdIsData => "{a[nosuchcmd]}",
+            Self::BracedVarIsData => "{a${nosuchvar}}",
+            Self::QuotedTwoGroups => "\"{a}b{c}\"",
+            Self::EscapedSpace => r"a\ b",
+            Self::EscapedHex => r"\x41",
+            Self::EscapedOctal => r"\101",
+            Self::EscapedBackslash => r"\\",
+            Self::EscapedTab => r"a\tb",
+            Self::NonAscii => "\"café\"",
+            Self::NonAsciiBraced => "\"{café}\"",
+            Self::QuotedSpace => "\"a b\"",
+            Self::QuotedSpaceOnly => "\" \"",
+            Self::QuotedEmpty => "\"\"",
+            Self::QuotedHash => "\"#\"",
+        }
+    }
+
+    /// Whether the spelling's braces balance, which decides if it can be
+    /// nested inside a braced word. `"{"` inside `expr {…}` would close the
+    /// *expression's* brace and break `Tcl_ParseCommand`, turning a
+    /// word-value probe into a uniformly uninteresting unparsable script —
+    /// the same trap [`Malformed`] documents for its own shapes.
+    const fn brace_balanced(self) -> bool {
+        !matches!(self, Self::QuotedOpenBrace | Self::QuotedCloseBrace)
+    }
+}
+
+/// Where a [`WordShape`] is placed. The shape decides what the value *is*; the
+/// context decides which emitter resolves it, and the two cross — which is the
+/// point. Each context was reached by a real defect: the assignment emitter,
+/// the two command-word emitters, the fold path, and the `expr`-operand arm
+/// each had their own copy of the same mistake, so a shape that only ever
+/// appeared in one position would have found one of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WordContext {
+    /// `set _wv <word>` — the assignment value emitter.
+    Assign,
+    /// A builtin's argument — the outer command-word emitter.
+    CommandArg,
+    /// An argument of a command nested in `[…]` — the *inner* word emitter,
+    /// which carried its own copy of the hole.
+    NestedArg,
+    /// An argument to a generated proc, so the value crosses a call boundary.
+    ProcArg,
+    /// Assigned inside a proc body, where the local-variable table is in play.
+    ProcLocal,
+    /// A `list` element, then read back out.
+    ListElement,
+    /// A `dict create` value, then read back out.
+    DictValue,
+    /// Appended to a variable.
+    Append,
+    /// A `switch` subject, which reaches codegen as an expression operand.
+    SwitchSubject,
+    /// Inside `expr {…}` — brace-balanced shapes only.
+    ExprOperand,
+    /// `[format %s <word>]` in a value position, which constant-folds.
+    FormatFold,
+    /// `[list <word>]` in a value position, which constant-folds.
+    ListFold,
+}
+
+impl WordContext {
+    const ALL: &'static [Self] = &[
+        Self::Assign,
+        Self::CommandArg,
+        Self::NestedArg,
+        Self::ProcArg,
+        Self::ProcLocal,
+        Self::ListElement,
+        Self::DictValue,
+        Self::Append,
+        Self::SwitchSubject,
+        Self::ExprOperand,
+        Self::FormatFold,
+        Self::ListFold,
+    ];
+
+    /// Whether this context nests the word inside a braced word, and so can
+    /// only take a brace-balanced shape.
+    ///
+    /// Two do, for different reasons: `expr {…}` braces its expression, and a
+    /// proc *body* is itself a braced word. Miss either and the shape's brace
+    /// closes the enclosing word instead of being content — `proc _wl {} {…
+    /// set v "{" …}` stops being a parsable script at all, which is a
+    /// uniformly uninteresting whole-script failure rather than a word-value
+    /// probe. The contexts that merely bracket the word (`[list …]`,
+    /// `[format …]`, `[string length …]`) are unaffected: a brace inside a
+    /// bracket word is content already.
+    const fn braces_the_word(self) -> bool {
+        matches!(self, Self::ExprOperand | Self::ProcLocal)
+    }
+}
+
 /// Generate one script from `seed`.
 #[must_use]
 pub fn generate(seed: u64, config: &GenConfig) -> String {
@@ -294,6 +589,22 @@ impl Gen {
             && self.rng.chance(self.config.malformed_expr_permille, 1000)
         {
             self.malformed_expr_stmt();
+            return;
+        }
+        // A word-shape probe, at the configured rate. Top-level only, for one
+        // of the two reasons the malformed production is: a probe nested in a
+        // `catch`/`try` body would have its status divergence swallowed, and
+        // `BracedCmdIsData` / `BracedVarIsData` announce themselves precisely
+        // by erroring on an engine that substitutes what should be data.
+        //
+        // Checked before `chance`, so a rate of 0 consumes no random draw and
+        // leaves the generated stream byte-identical to what it was before
+        // this production existed (see `GenConfig::word_shape_permille`).
+        if depth == 0
+            && self.config.word_shape_permille > 0
+            && self.rng.chance(self.config.word_shape_permille, 1000)
+        {
+            self.word_shape_stmt();
             return;
         }
         // At max depth, only emit leaf (non-nesting) statements.
@@ -831,7 +1142,27 @@ _cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
     }
 
     /// A simple scalar value: a variable read or a small literal word/integer.
+    ///
+    /// At the configured rate this is a [`WordShape`] instead, which is how the
+    /// shapes reach the two positions this producer feeds — a `switch` subject
+    /// and a proc's return value — without the dedicated probe having to model
+    /// either.
+    ///
+    /// Balanced shapes only, unconditionally: both positions can sit *inside*
+    /// a braced word (a proc body always does, and a `switch` nested at any
+    /// depth does), and this producer is not told its depth. Requiring balance
+    /// is the cheap way to be right in every caller rather than the two that
+    /// happen to be top-level today. The unbalanced shapes are not lost — they
+    /// reach the ten non-bracing contexts through
+    /// [`word_shape_stmt`](Self::word_shape_stmt).
+    ///
+    /// Checked before `chance`, so a rate of 0 consumes no draw.
     fn simple_value(&mut self) -> String {
+        if self.config.word_shape_permille > 0
+            && self.rng.chance(self.config.word_shape_permille, 1000)
+        {
+            return self.word_shape(true).spelling().to_owned();
+        }
         match self.rng.below(3) {
             0 => format!("${}", self.var()),
             1 => self.rng.below(20).to_string(),
@@ -1131,6 +1462,98 @@ _cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
             // variable pool the rest of the script reads.
             _ => {
                 let _ = writeln!(self.out, "set _mxv [expr {{{e}}}]");
+            }
+        }
+    }
+
+    /// One delimiter-shaped word, drawn uniformly from [`WordShape::ALL`].
+    ///
+    /// `braceable` restricts the draw to shapes that can be nested inside a
+    /// braced word; a caller that does not brace the word passes `false` and
+    /// gets the whole table.
+    fn word_shape(&mut self, must_balance: bool) -> WordShape {
+        loop {
+            let shape = *self.rng.pick(WordShape::ALL);
+            if !must_balance || shape.brace_balanced() {
+                break shape;
+            }
+        }
+    }
+
+    /// Emit one word-shape probe: a [`WordShape`] crossed with a
+    /// [`WordContext`], printing an observable so the differential has
+    /// something to compare.
+    ///
+    /// Every probe prints the value's *length* as well as the value itself.
+    /// Length is what makes a lost brace layer visible at all — the two
+    /// oracles and a broken engine can print byte sequences that look alike in
+    /// a terminal, and `{}` versus the empty string is exactly such a pair.
+    ///
+    /// Private `_w*` names throughout, so whichever statement slot this lands
+    /// in it cannot perturb the shared variable pool the rest of the script
+    /// reads — the same containment `malformed_expr_stmt` keeps.
+    fn word_shape_stmt(&mut self) {
+        let ctx = *self.rng.pick(WordContext::ALL);
+        let shape = self.word_shape(ctx.braces_the_word());
+        let w = shape.spelling();
+        match ctx {
+            WordContext::Assign => {
+                let _ = writeln!(self.out, "set _wv {w}");
+                let _ = writeln!(self.out, "puts \"[string length $_wv]:$_wv\"");
+            }
+            WordContext::CommandArg => {
+                let _ = writeln!(self.out, "puts [string length {w}]");
+            }
+            WordContext::NestedArg => {
+                let _ = writeln!(self.out, "puts [string length [format %s {w}]]");
+            }
+            WordContext::ProcArg => {
+                let _ = writeln!(self.out, "proc _wp {{s}} {{return [string length $s]:$s}}");
+                let _ = writeln!(self.out, "puts [_wp {w}]");
+            }
+            // The body seeds its own `x`: `$x` inside a proc is a *local*
+            // read, so a shape carrying one would otherwise raise
+            // `can't read "x"` on both engines and compare error text
+            // instead of a word value.
+            WordContext::ProcLocal => {
+                let _ = writeln!(
+                    self.out,
+                    "proc _wl {{}} {{set x 7; set v {w}; return [string length $v]:$v}}"
+                );
+                let _ = writeln!(self.out, "puts [_wl]");
+            }
+            WordContext::ListElement => {
+                let _ = writeln!(self.out, "set _wl [list {w} q]");
+                let _ = writeln!(
+                    self.out,
+                    "puts [llength $_wl]:[string length [lindex $_wl 0]]"
+                );
+            }
+            WordContext::DictValue => {
+                let _ = writeln!(self.out, "set _wd [dict create k {w}]");
+                let _ = writeln!(self.out, "puts [string length [dict get $_wd k]]");
+            }
+            WordContext::Append => {
+                let _ = writeln!(self.out, "set _wa \"\"");
+                let _ = writeln!(self.out, "append _wa {w}");
+                let _ = writeln!(self.out, "puts [string length $_wa]");
+            }
+            WordContext::SwitchSubject => {
+                let _ = writeln!(
+                    self.out,
+                    "switch -- {w} zz {{puts _ws_hit}} default {{puts _ws_def}}"
+                );
+            }
+            WordContext::ExprOperand => {
+                let _ = writeln!(self.out, "puts [expr {{[string length {w}] + 0}}]");
+            }
+            WordContext::FormatFold => {
+                let _ = writeln!(self.out, "set _wf [format %s {w}]");
+                let _ = writeln!(self.out, "puts [string length $_wf]:$_wf");
+            }
+            WordContext::ListFold => {
+                let _ = writeln!(self.out, "set _wg [list {w}]");
+                let _ = writeln!(self.out, "puts [string length $_wg]:$_wg");
             }
         }
     }
@@ -1466,22 +1889,17 @@ mod tests {
         let cfg = GenConfig::default();
         for seed in 0..200 {
             let src = generate(seed, &cfg);
-            let (mut braces, mut brackets) = (0i32, 0i32);
-            for b in src.bytes() {
-                match b {
-                    b'{' => braces += 1,
-                    b'}' => braces -= 1,
-                    b'[' => brackets += 1,
-                    b']' => brackets -= 1,
-                    _ => {}
-                }
-                assert!(
-                    braces >= 0 && brackets >= 0,
-                    "seed {seed}: closer before opener"
-                );
-            }
-            assert_eq!(braces, 0, "seed {seed}: unbalanced braces\n{src}");
-            assert_eq!(brackets, 0, "seed {seed}: unbalanced brackets\n{src}");
+            // Asked of the owner of the question (`info complete`'s engine),
+            // not of a byte counter. A counter was an adequate proxy only
+            // while no generated word could contain a delimiter; the
+            // `WordShape` productions emit words whose *value* is `{` or `}`,
+            // and `set _w "{"` is a complete script whose braces do not
+            // balance by count. The owner knows a delimiter inside a quoted
+            // word is content, so it answers what this test always meant.
+            assert!(
+                tcl_lexer::script_is_complete(&src),
+                "seed {seed}: generated script is not a complete script\n{src}"
+            );
         }
     }
 
@@ -1827,6 +2245,195 @@ mod tests {
                     nested.out
                 );
             }
+        }
+    }
+
+    /// Every shape renders the spelling its documentation names, and every one
+    /// is a single Tcl word — the invariant that lets a shape drop into any
+    /// word position without reshaping the script around it.
+    #[test]
+    fn word_shapes_each_render_their_documented_spelling() {
+        for &shape in WordShape::ALL {
+            let w = shape.spelling();
+            assert!(!w.is_empty(), "{shape:?} renders nothing");
+            // Exactly one word, asked of the segmentation owner rather than of
+            // a "contains a space" guess. `EscapedSpace` is precisely the
+            // shape a guess gets wrong — `a\ b` reads as two words and is one
+            // — and being one word is the property under test for it, so the
+            // assertion has to be the real boundary rule.
+            let probe = format!("puts {w}\n");
+            let tokens = tcl_lexer::Lexer::new(&probe)
+                .tokenise_all()
+                .unwrap_or_else(|e| panic!("{shape:?} does not lex: {e:?}"));
+            let commands =
+                tcl_lexer::group_commands(&tokens, &probe, tcl_lexer::LexerConfig::default());
+            assert_eq!(
+                commands.len(),
+                1,
+                "{shape:?} renders `{w}`, which is not one command"
+            );
+            assert_eq!(
+                commands[0].words.len(),
+                2,
+                "{shape:?} renders `{w}`, which is not exactly one word"
+            );
+            // And it is a complete script on its own as a command argument, so
+            // it cannot be what makes a generated script unparsable.
+            assert!(
+                tcl_lexer::script_is_complete(&probe),
+                "{shape:?} does not form a complete script: {probe}"
+            );
+        }
+        assert_eq!(WordShape::QuotedEmptyBraces.spelling(), "\"{}\"");
+        assert_eq!(WordShape::EscapedBraces.spelling(), r"\{\}");
+        assert_eq!(WordShape::BracedDoubleGroup.spelling(), "{{}}");
+        assert_eq!(WordShape::QuotedOpenBrace.spelling(), "\"{\"");
+    }
+
+    /// `brace_balanced` agrees with an actual brace walk, so the guard that
+    /// keeps `"{"` out of `expr {…}` and out of a proc body cannot drift from
+    /// the spellings it is guarding.
+    #[test]
+    fn brace_balanced_matches_a_real_walk() {
+        for &shape in WordShape::ALL {
+            let mut depth = 0i32;
+            let bytes = shape.spelling().as_bytes();
+            let mut i = 0;
+            let mut ok = true;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'\\' => i += 1,
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth < 0 {
+                            ok = false;
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            assert_eq!(
+                shape.brace_balanced(),
+                ok && depth == 0,
+                "{shape:?} declares brace_balanced()={} but walks to depth {depth}",
+                shape.brace_balanced()
+            );
+        }
+    }
+
+    /// The invariant that decides whether a probe is a probe: a context that
+    /// nests the word inside a braced word must only ever be handed a
+    /// brace-balanced shape. Get it wrong and the shape's brace closes the
+    /// enclosing word — `proc _wl {} {… set v "{" …}` — and the script stops
+    /// parsing, which is a whole-script failure rather than a word-value
+    /// comparison. Asserted over the real corpus, not over the table, because
+    /// `script_is_complete` is what actually catches the mistake.
+    #[test]
+    fn unbalanced_shapes_never_reach_a_bracing_context() {
+        let cfg = GenConfig {
+            word_shape_permille: 1000,
+            malformed_expr_permille: 0,
+            ..GenConfig::default()
+        };
+        for seed in 0..400u64 {
+            let src = generate(seed, &cfg);
+            assert!(
+                tcl_lexer::script_is_complete(&src),
+                "seed {seed}: a word shape broke the script\n{src}"
+            );
+        }
+    }
+
+    /// Every shape and every context is reachable from the default config, so
+    /// no row of the cross is dead.
+    #[test]
+    fn every_word_shape_and_context_is_reachable() {
+        let cfg = GenConfig {
+            word_shape_permille: 400,
+            ..GenConfig::default()
+        };
+        let corpus: Vec<String> = (0..600u64).map(|s| generate(s, &cfg)).collect();
+        for &shape in WordShape::ALL {
+            let w = shape.spelling();
+            assert!(
+                corpus.iter().any(|s| s.contains(w)),
+                "shape {shape:?} (`{w}`) never appears in the corpus"
+            );
+        }
+        // One marker per context's emitted form.
+        for (ctx, marker) in [
+            (WordContext::Assign, "set _wv "),
+            (WordContext::CommandArg, "puts [string length "),
+            (WordContext::NestedArg, "[format %s "),
+            (WordContext::ProcArg, "proc _wp "),
+            (WordContext::ProcLocal, "proc _wl "),
+            (WordContext::ListElement, "set _wl [list "),
+            (WordContext::DictValue, "set _wd [dict create k "),
+            (WordContext::Append, "append _wa "),
+            (WordContext::SwitchSubject, "_ws_def"),
+            (WordContext::ExprOperand, "puts [expr {[string length "),
+            (WordContext::FormatFold, "set _wf [format %s "),
+            (WordContext::ListFold, "set _wg [list "),
+        ] {
+            assert!(
+                corpus.iter().any(|s| s.contains(marker)),
+                "context {ctx:?} never appears in the corpus (marker `{marker}`)"
+            );
+        }
+    }
+
+    /// The word-shape production reaches scripts at the default rate without
+    /// dominating them — the same balance `malformed_expressions_reach_...`
+    /// keeps for its own class.
+    #[test]
+    fn word_shapes_reach_scripts_at_the_default_rate() {
+        let cfg = GenConfig::default();
+        let corpus: Vec<String> = (0..1000u64).map(|s| generate(s, &cfg)).collect();
+        let carrying = corpus
+            .iter()
+            .filter(|s| WordShape::ALL.iter().any(|sh| s.contains(sh.spelling())))
+            .count();
+        assert!(
+            carrying > 0,
+            "the word-shape production is dead at the default rate"
+        );
+        // A band, not a floor: the class is cheap (every shape is well-formed,
+        // so it neither aborts the script nor displaces the statements after
+        // it), but it still has to leave most of the budget on the rest of the
+        // grammar. Measured 332/1000 at the default rate — the rate was set
+        // *to* that, having started at 120‰ and reached 534, which is more of
+        // the corpus than one class should own however productive it is. The
+        // bounds are wide enough that ordinary generator changes do not trip
+        // them and narrow enough that losing or dominating the class does.
+        assert!(
+            (150..=550).contains(&carrying),
+            "word shapes reach {carrying}/1000 scripts at the default rate, outside the intended band"
+        );
+    }
+
+    /// At rate 0 the production is gone *and* consumes no random draw, so the
+    /// stream is byte-identical to a build that never had it — which is what
+    /// lets a historical finding still replay from its recorded seed.
+    #[test]
+    fn word_shape_rate_zero_opts_out_and_leaves_the_stream_alone() {
+        let off = GenConfig {
+            word_shape_permille: 0,
+            ..GenConfig::default()
+        };
+        for seed in 0..400u64 {
+            let src = generate(seed, &off);
+            for &shape in WordShape::ALL {
+                assert!(
+                    !src.contains(shape.spelling()),
+                    "rate 0 still emitted {shape:?} (seed {seed}):\n{src}"
+                );
+            }
+            assert!(
+                !src.contains("_wv") && !src.contains("_ws_def"),
+                "rate 0 still emitted a word-shape probe (seed {seed}):\n{src}"
+            );
         }
     }
 
