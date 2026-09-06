@@ -346,18 +346,26 @@ jobs:
     # `pr-gate` is already a required status on `rust`. Run even when a needed
     # job failed, then fail explicitly below: Actions otherwise skips a job
     # whose dependency failed, and a skipped required check does not propagate
-    # the SpecTcl failure as a red `pr-gate` verdict.
+    # the SpecTcl or front-end failure as a red `pr-gate` verdict.
+    #
+    # `web-frontends` rides the same route for the same reason: it is not
+    # itself a required status, so on its own it would go red without
+    # blocking anything — which is precisely the merge this whole job exists
+    # to stop. It is Node-only and finishes in well under a minute, so it
+    # costs the gate nothing to wait for.
     if: ${{ always() }}
-    needs: [channel, spectcl-compat]
+    needs: [channel, spectcl-compat, web-frontends]
     runs-on: ubuntu-26.04
     steps:
       - name: Propagate prerequisite gate failures
         env:
           CHANNEL_RESULT: ${{ needs.channel.result }}
           SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
+          WEB_FRONTENDS_RESULT: ${{ needs.web-frontends.result }}
         run: |
-          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ]; then
-            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT" >&2
+          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ] \
+            || [ "$WEB_FRONTENDS_RESULT" != success ]; then
+            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT web-frontends=$WEB_FRONTENDS_RESULT" >&2
             exit 1
           fi
 
