@@ -871,7 +871,10 @@ pub struct InterpState {
     /// a similarly named command. The registry decides when this table applies;
     /// this map merely retains the registered implementation.
     fixed_math_builtins: HashMap<String, BuiltinFn>,
-    /// Pre-compiled proc bodies from the module(s), keyed by qualified name.
+    /// Pre-compiled proc bodies from the module(s). Unlike every other table
+    /// here, this one mirrors a compiler artefact and is keyed the compiler's
+    /// way — `ModuleAsm::procedures`' **rooted** qnames (`::p`, `::a::p`) —
+    /// not the unrooted command key. `cmd_proc` roots its lookup to match.
     module_procs: HashMap<String, Rc<FunctionAsm>>,
     /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
     /// top governs `proc`/command/variable name resolution. `namespace eval`
@@ -1025,12 +1028,15 @@ pub struct InterpState {
     /// entered — see [`Vm::ensure_proc_compiled_for_tracing`].
     trace_deopt_epoch: std::cell::Cell<u64>,
     /// Set for the duration of [`Vm::run_cmd_trace_callback`]'s evaluation:
-    /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c`) — while any command or
-    /// execution trace callback is running, no further interp-wide trace
-    /// firing happens for commands *inside* that callback (`TclCheckInterpTraces`
-    /// returns immediately). Without this, a step-traced proc's `enterstep`
-    /// callback (e.g. `puts "…"`) would itself be step-observed, and its own
-    /// `puts` dispatch would recurse into firing traces again. A `Cell`, not
+    /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c` 9.0.4:1765, set only by
+    /// `TraceExecutionProc`) — while an **execution** trace callback is
+    /// running, no further interp-wide trace firing happens for commands
+    /// *inside* that callback (`TclCheckInterpTraces` returns immediately).
+    /// Without this, a step-traced proc's `enterstep` callback (e.g. `puts
+    /// "…"`) would itself be step-observed, and its own `puts` dispatch would
+    /// recurse into firing traces again. A `rename`/`delete` callback does
+    /// **not** raise it — C's `CallCommandTraces` sets no flag — so
+    /// [`Vm::run_command_trace_callback`] leaves it alone. A `Cell`, not
     /// a plain `bool` field, so a read-only dispatch-site check
     /// (`self.trace_in_progress.get()`) doesn't need `&mut self` — and so it
     /// doesn't count toward `clippy::struct_excessive_bools` alongside the
@@ -6673,14 +6679,44 @@ impl Vm {
         ))
     }
 
-    /// Run one trace callback with `args` appended (list-quoted), in the
-    /// current frame — C evaluates trace callbacks in the context where the
-    /// traced operation occurred.  The entry is disabled while its own
-    /// callback runs (C's re-entrancy rule), a nested fire returning ok.
+    /// Run one **execution** trace callback (`enter`/`leave`/`enterstep`/
+    /// `leavestep`) with `args` appended (list-quoted), in the current frame —
+    /// C evaluates trace callbacks in the context where the traced operation
+    /// occurred.  The entry is disabled while its own callback runs (C's
+    /// re-entrancy rule), a nested fire returning ok.
+    ///
+    /// This is the one callback kind C wraps in `INTERP_TRACE_IN_PROGRESS`
+    /// (`TraceExecutionProc`, tclTrace.c 9.0.4:1765), so the callback's own
+    /// commands are not step-observed.
     pub(crate) fn run_cmd_trace_callback(
         &mut self,
         entry: &CmdTraceEntry,
         args: &[Value],
+    ) -> Completion<Value> {
+        self.run_trace_callback(entry, args, true)
+    }
+
+    /// Run one **command** (`rename`/`delete`) trace callback.  C's
+    /// `CallCommandTraces` sets no interpreter flag, so — unlike an execution
+    /// callback — a command this one dispatches is traced like any other: its
+    /// `enter`/`leave` traces fire, and an enclosing step scope steps it.
+    /// Re-entering *this* command's own rename/delete traces is suppressed per
+    /// command by [`Self::firing_cmd_traces`] instead.
+    pub(crate) fn run_command_trace_callback(
+        &mut self,
+        entry: &CmdTraceEntry,
+        args: &[Value],
+    ) -> Completion<Value> {
+        self.run_trace_callback(entry, args, false)
+    }
+
+    /// The shared body of the two above; `interp_trace_in_progress` says
+    /// whether this callback kind raises C's interpreter-wide gate.
+    fn run_trace_callback(
+        &mut self,
+        entry: &CmdTraceEntry,
+        args: &[Value],
+        interp_trace_in_progress: bool,
     ) -> Completion<Value> {
         if entry.firing.get() {
             return ok(Value::empty());
@@ -6691,13 +6727,14 @@ impl Vm {
             script.push(' ');
             script.push_str(&tcl_syntax::list::list_element(&a.to_str()));
         }
-        // C's `INTERP_TRACE_IN_PROGRESS`: no interp-wide trace fires for a
-        // command dispatched *by* this callback (saved/restored, not merely
-        // set — a callback can itself be dispatched from inside another
-        // callback's evaluation only if re-entrant nesting is legitimate, but
-        // the common case is one level; save-restore keeps either correct).
+        // Saved/restored, not merely set — a callback can itself be dispatched
+        // from inside another callback's evaluation only if re-entrant nesting
+        // is legitimate, but the common case is one level; save-restore keeps
+        // either correct, and keeps a command callback nested inside an
+        // execution one from clearing the gate that one raised.
         let saved = self.trace_in_progress.get();
-        self.trace_in_progress.set(true);
+        self.trace_in_progress
+            .set(saved || interp_trace_in_progress);
         let res = match self.eval_source(&script) {
             Ok(c) => c,
             Err(e) => err(e.message),
@@ -6749,7 +6786,7 @@ impl Vm {
             if entry.untraced() {
                 continue;
             }
-            let _ = self.run_cmd_trace_callback(
+            let _ = self.run_command_trace_callback(
                 &entry,
                 &[
                     Value::string(old_display),
@@ -6859,7 +6896,7 @@ impl Vm {
 
     /// The key a command's state lives under now, following any open rename
     /// window (see [`Self::rename_windows`]). Identity outside one.
-    fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
+    pub(crate) fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
         match self.rename_windows.iter().find(|(from, _)| *from == key) {
             Some((_, to)) => to.clone(),
             None => key,
@@ -7141,12 +7178,37 @@ impl Vm {
         self.module_procs.get(qname).cloned()
     }
 
-    /// Compile a proc body at runtime (for `proc` with a dynamically-built
-    /// body that wasn't pre-compiled into a module). The body is compiled as a
-    /// script; its parameters resolve through the call frame (`loadStk`), so a
-    /// top-level compilation runs correctly as a proc body. Any procs the body
-    /// itself defines are merged into the registry.
+    /// Compile a **script** at runtime — a unit that is entered the way the
+    /// top level of a file is, not through a call frame of its own (the
+    /// `coroutine` wrapper). Any procs the script itself defines are merged
+    /// into the pre-compiled body cache.
+    pub(crate) fn compile_dynamic_script(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
+        self.compile_dynamic(src, |module| module.top_level)
+    }
+
+    /// Compile a **body** at runtime — a `proc` body the compiler did not
+    /// pre-compile, an `apply` lambda, a `TclOO` method — as a *procedure*
+    /// rather than as a top-level script.
+    ///
+    /// The shape is not cosmetic. A script-shaped body reaches every variable
+    /// through the dispatched `*Stk` forms, so it never executes the
+    /// specialised arms (`STORE_SCALAR1`, `INCR_SCALAR1`,
+    /// `LAPPEND_{SCALAR,ARRAY}`, the compiled `unset`) an AOT-compiled proc
+    /// body runs — and those arms carry semantics of their own, so the same
+    /// source would observe different variable traces depending only on
+    /// whether the compiler happened to pre-compile it. See
+    /// [`ModuleAsm::top_level_body`](tcl_bytecode::ModuleAsm::top_level_body).
     pub(crate) fn compile_dynamic_body(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
+        self.compile_dynamic(src, |module| module.top_level_body)
+    }
+
+    /// Compile `src` for the interpreter's current profile and take one of the
+    /// module's two top-level shapes, merging any procs it defines.
+    fn compile_dynamic(
+        &mut self,
+        src: &str,
+        shape: fn(ModuleAsm) -> FunctionAsm,
+    ) -> Option<Rc<FunctionAsm>> {
         let module = self
             .compiler
             .as_ref()?
@@ -7154,7 +7216,7 @@ impl Vm {
             .ok()?;
         self.validate_module_profile(&module).ok()?;
         self.merge_procs(&module.procedures);
-        Some(Rc::new(module.top_level))
+        Some(Rc::new(shape(module)))
     }
 
     /// Enforce the bytecode artifact's exact profile at every consumption
@@ -7217,7 +7279,11 @@ impl Vm {
         }
         self.merge_procs(&module.procedures);
         let mut fresh = (*proc).clone();
-        fresh.body = Rc::new(module.top_level);
+        // A proc body, not a script: keep the recompile on the same shape the
+        // definition-time compile produced (see [`Self::compile_dynamic_body`]),
+        // so crossing a trace-deopt or profile generation cannot silently
+        // demote a body out of its `is_proc` forms.
+        fresh.body = Rc::new(module.top_level_body);
         fresh.compiled_epoch = want_epoch;
         fresh.compiled_profile_generation = want_profile;
         Rc::new(fresh)
@@ -7567,12 +7633,6 @@ impl Vm {
             Some(Command::Proc(p)) => Some(p),
             _ => None,
         }
-    }
-
-    /// Whether `name` is already a defined user proc — distinguishes a `proc`
-    /// redefinition (which must recompile its body) from a first definition.
-    pub(crate) fn is_proc_defined(&self, name: &str) -> bool {
-        matches!(self.lookup_command(name), Some(Command::Proc(_)))
     }
 
     /// The invocation argv of the frame at absolute `level` (`info level N`).

@@ -98,42 +98,55 @@ Both entries reference the one `Command`, and the traces hang off that, not
 off either entry. So for the callbacks' duration the vacating name **is** the
 destination command:
 
-- both names resolve and are callable;
+- both names resolve and are callable, and the command is already re-homed
+  (`cmdPtr->nsPtr = newNsPtr` happens before the firing), so a body invoked
+  through the vacating name reports the *destination's* `namespace current` —
+  and likewise a TclOO object, an ensemble, an import redirect and a live
+  coroutine all still dispatch through the vacating name, because C reaches
+  each of them through the one `Command` (in `runtime/rust`,
+  `Namespaces::rehome_command` re-points the identity our `Command` variants
+  carry in its stead);
 - `trace info command <old>` and `… <new>` answer the same list, and a
-  `trace add` or `trace remove` through either name edits it;
+  `trace add` or `trace remove` through either name edits it — and dispatching
+  through either name fires the command's one set of `enter`/`leave` traces,
+  with the callback receiving the spelling the caller actually invoked;
 - a `rename` or a delete through *either* name moves or destroys that one
   command — and C's `CMD_TRACE_ACTIVE` keeps the pass's remaining callbacks
   from re-firing when it does.
 
-The VM reproduces that window rather than the naive "mutate, then fire":
-`cmd_rename` registers the destination, `on_command_renamed_traces` moves the
-sidecars to the destination key and fires from there (passing the old
-fully-qualified name for the callback's first word), and only afterwards does
-`retire_renamed_command_source` drop the source entry — the VM's spelling of
-`Tcl_DeleteHashEntry(oldHPtr)`, a plain table removal that fires no `delete`
-trace.
+**Both** runtimes reproduce that window rather than the naive "mutate, then
+fire", by the same three steps: publish the destination, move everything the
+command carries to the destination key and fire from there — passing the old
+fully-qualified name for the callback's first word — and only afterwards drop
+the source's table entry, which is `Tcl_DeleteHashEntry(oldHPtr)`: a plain
+removal that fires no `delete` trace.
 
-The VM has no shared command object to hang that equivalence on, so an open
-window records it as a source→destination pair (`rename_windows`, a stack, one
-frame per nested rename). `renamed_command_key` resolves a key through it —
-used by `trace add`/`remove`/`info` and by `prepare_command_rename`, which is
-what makes a callback's `rename <old> <third>` and `rename <old> {}` act on
-the destination. A nested rename would otherwise strand that state on the key
-it just vacated, so `relocate_rename_state` retargets every enclosing window
-*and* every `firing_cmd_traces` record — the key-addressed stand-in for
+| | publish | fire from | retire the source |
+|---|---|---|---|
+| `runtime/rust` | `Namespaces::publish_rename_destination` (writes the re-homed command into *both* slots) | `Interp::move_bound_command`, after moving the trace list, the import redirects, the TclOO registration and the coroutine | `Namespaces::retire_rename_source` |
+| `rust/tcl-vm` | `cmd_rename` registers the destination | `on_command_renamed_traces`, after moving the sidecars | `retire_renamed_command_source` |
+
+Neither has a shared command object to hang that equivalence on, so an open
+window is recorded as a source→destination pair — `TraceTable::rename_windows`
+in the tree-walker, `rename_windows` in the VM, a stack either way with one
+frame per nested rename. `Interp::renamed_cmd_key` / `renamed_command_key`
+resolves a name through it: used by `trace add`/`remove`/`info`, by the
+tree-walker's execution-trace lookup and coroutine registry, and by
+`Interp::rename_command` / `prepare_command_rename`, which is what makes a
+callback's `rename <old> <third>` and `rename <old> {}` act on the
+destination. A nested rename would otherwise strand that state on the key it
+just vacated, so `relocate_rename_state` retargets every enclosing window
+*and* every `firing_cmd_traces` record — the name-addressed stand-in for
 `CMD_TRACE_ACTIVE`, which C gets for free from the `Command` being one object.
 
-Two residues of that same missing shared identity are not emulated, both
-because C's own behaviour there is a torn-state artefact rather than a
-contract: re-*creating* the vacating name from a callback (`proc <old> {} …`)
-kills the destination in C but not in the VM, and 8.6 and 9.0 disagree with
-each other on what `info commands <old>` reports after a callback deletes the
-command.
+Two residues of that same missing shared identity are not emulated by either
+engine, both because C's own behaviour there is a torn-state artefact rather
+than a contract: re-*creating* the vacating name from a callback
+(`proc <old> {} …`) leaves C deleting a freed hash entry and killing the
+destination with it, where both engines leave the command standing under its
+new name; and 8.6 and 9.0 disagree with each other on what
+`info commands <old>` reports after a callback deletes the command.
 
-**Known gap:** `runtime/rust` fires the `rename` traces *before* any table
-mutation, so a callback there sees the old name but not yet the new one — the
-mirror image of the divergence the VM used to have. Its window has not been
-brought onto C's ordering yet.
 
 ## Callback shape and firing order
 
@@ -254,11 +267,38 @@ the same variable does not re-fire itself. Command-trace firing is gated the
 way C gates it — **per command**, on the command whose traces are running
 (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a deletion), not interpreter-wide: a
 callback that deletes a *different* command still fires that command's own
-delete traces, nested inside the first. Execution and step traces keep the
-interpreter-wide gate (`INTERP_TRACE_IN_PROGRESS`), so a callback's own
-dispatches are never step-observed. The interpreter result is preserved across
-every callback (held with an explicit `+1` and restored afterwards), so a trace
-cannot clobber the result of the operation it observed.
+delete traces, nested inside the first. The interpreter result is preserved
+across every callback (held with an explicit `+1` and restored afterwards), so
+a trace cannot clobber the result of the operation it observed.
+
+The interpreter-wide gate (`INTERP_TRACE_IN_PROGRESS`) belongs to **execution
+traces alone**. C sets it in exactly one place — `TraceExecutionProc`
+(`tclTrace.c` 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep`
+callback — and reads it in exactly one place, `TclCheckInterpTraces` (:1426),
+the step machinery. So an execution callback's own dispatches are never
+step-observed, while `CallCommandTraces` sets nothing at all: a command a
+`rename`/`delete` callback dispatches is traced like any other — its
+`enter`/`leave` traces fire, and an enclosing step scope steps both the
+callback's invocation and the commands its body runs. Both runtimes used to
+raise their stand-in (`TraceTable::exec_firing`, and the VM's
+`trace_in_progress`) for command callbacks too, which silently untraced
+everything such a callback dispatched.
+
+Both stand-ins are *read* exactly where C reads its flag and nowhere else:
+`runtime/rust` gates only the step firing in `Interp::dispatch_traced`, and the
+VM only its `step_scopes_to_fire`. So a command dispatched from inside an
+execution callback fires its own `enter` and `leave` traces, the way
+`TclCheckExecutionTraces` fires them; only an `enterstep`/`leavestep` scope
+goes quiet for the callback's duration. Both engines used to read the gate at
+the whole traced-dispatch fast path instead, and fired neither.
+
+What bounds a callback that invokes the command it traces is C's **per-trace**
+`TCL_TRACE_EXEC_IN_PROGRESS` (:1655), not the interpreter-wide flag — and per
+*trace* is observably different from per command: a second `enter` trace on the
+same command fires for that inner call, and so does a `leave` trace while an
+`enter` one is running. `runtime/rust` carries that as
+`TraceTable::firing_exec_traces` over `CmdTrace::id`; the VM carries it per
+entry as `CmdTraceEntry::firing`.
 
 A read or write callback that errors reshapes the operation's result
 (`can't read "NAME": …` / `can't set "NAME": …`) and stops further firing —
@@ -290,5 +330,6 @@ not here.
 | `runtime/rust/src/frame.rs` | per-frame variable cells the variable-trace key resolves against |
 | `rust/tcl-vm/src/cmd_trace.rs` | the `trace` command for the bytecode VM |
 | `rust/tcl-vm/src/interp.rs` | VM trace tables, the step-trace epoch, `cmd_trace_entries` |
+| `runtime/rust/tests/trace_semantics.rs` | tclsh-pinned transcripts for the tree-walker, including the `rename` window |
 | `rust/tcl-vm/tests/command_traces_e2e.rs` | tclsh-pinned command/execution/variable trace vectors, including firing order |
 | `rust/tcl-vm/tests/legacy_variable_traces_e2e.rs` | tclsh-pinned cross-version vectors for `trace variable`/`vdelete`/`vinfo` |

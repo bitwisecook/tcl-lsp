@@ -91,6 +91,7 @@ impl Asm {
             labels: resolved,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            proc_body_src: None,
             error_regions: Vec::new(),
         }
     }
@@ -1119,26 +1120,35 @@ fn irule_operators_agree_with_the_core_commands() {
 
 // -- yield / yieldToInvoke / coroName ----------------------------------------
 
+/// The body text the seeded assembly stands in for — the cache is keyed by name
+/// *and* body word, so the seed must claim the same text the `proc` supplies.
+const SEEDED_BODY: &str = "this body is replaced by the seeded one";
+
 /// Run `body` as the compiled body of a global proc `p`.
 ///
 /// The seam is the pre-compiled-body cache: `cmd_proc` takes the module-supplied
-/// assembly for the first definition of a name, so seeding `p` here (under the
-/// VM's own registration key — `p`, unrooted) and then defining it from source
-/// gives a proc whose body is this hand-built stream. That is the only way to
-/// reach an opcode from *inside* a coroutine or a method call, which is where the
-/// coroutine and `TclOO` opcodes live.
+/// assembly for a `proc` whose name *and* body word match the compiled unit's,
+/// so seeding `p` here — under the compiler's own qname for a global proc
+/// (`::p`, rooted, the spelling `ModuleAsm::procedures` uses) and claiming
+/// [`SEEDED_BODY`] as the body it was compiled from — and then defining `p` from
+/// that exact source gives a proc whose body is this hand-built stream. That is
+/// the only way to reach an opcode from *inside* a coroutine or a method call,
+/// which is where the coroutine and `TclOO` opcodes live.
 fn vm_with_seeded_proc(body: Asm) -> Vm {
+    let mut seeded = body.build();
+    seeded.proc_body_src = Some(SEEDED_BODY.to_owned());
     let mut procedures = HashMap::new();
-    procedures.insert("p".to_string(), body.build());
+    procedures.insert("::p".to_string(), seeded);
     let module = ModuleAsm {
         profile: tcl_dialect::DialectProfile::plain_tcl(),
         top_level: Asm::new().build(),
+        top_level_body: tcl_bytecode::FunctionAsm::default(),
         procedures,
     };
     let mut vm = Vm::new();
     vm.set_compiler(Box::new(compiler::svc()));
     assert_eq!(vm.run_module(&module).code, Code::Ok, "seeding failed");
-    vm.eval_source("proc p {} {this body is replaced by the seeded one}")
+    vm.eval_source(&format!("proc p {{}} {{{SEEDED_BODY}}}"))
         .expect("proc defines");
     vm
 }

@@ -1301,10 +1301,18 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // bare proc name resolves against the current namespace, so two procs that
     // share an unqualified name in different namespaces (`::a::p` vs `::b::p`)
     // must not collide on one cached body — keying by `reg_name` keeps them
-    // distinct. Global procs (`reg_name == ::name`) still hit the compiler's
-    // `::name`-keyed entry; namespaced bodies the compiler globalised under
-    // `::name` simply miss and recompile via `compile_dynamic_body`.
-    let body_key = reg_name.clone();
+    // distinct.
+    //
+    // The cache is filled from `ModuleAsm::procedures`, whose keys are the
+    // compiler's **rooted** qnames (`::p`, `::a::p`), while `qualify_name`
+    // answers the unrooted command key (`p`, `a::p`) every other command table
+    // in this interpreter is keyed by. Root the lookup rather than unrooting
+    // the merge: `module_procs` mirrors a compiler artefact, and the two
+    // spellings must not be allowed to collide in it. Missing the root here
+    // meant *every* proc missed its pre-compiled body and silently recompiled
+    // as a top-level script, so no proc body anywhere ran with `is_proc`
+    // codegen.
+    let body_key = format!("::{reg_name}");
     // `reg_name` is canonical (single `::`s); the shared qualifier split keeps
     // the namespace correct for colon-run sources too (`proc foo:::baz` in an
     // existing `foo` defines `::foo::baz`, tclsh8.6-verified — the old
@@ -1324,16 +1332,22 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(p) => p,
         Err(e) => return err(e),
     };
-    // The pre-compiled `module_procs` cache is keyed by name, and the compiler
-    // keeps only the *first* definition of a name, so it is stale for a
-    // *redefinition* (`proc p {} …` then `proc p {bar} …` — common in test
-    // suites). A redefinition therefore compiles the body actually supplied to
-    // this call; the first definition keeps the pre-compiled fast path (so
-    // loading a library does not recompile every proc body).
+    // The pre-compiled `module_procs` cache is keyed by name, and one name is
+    // reachable from several `proc` commands with different bodies — a
+    // redefinition (`proc p {} …` then `proc p {bar} …`, common in test
+    // suites), the two arms of an `if`, a second `eval` after a `rename` —
+    // while a compiled unit records only the first. Take the cached assembly
+    // only when its body word is *exactly* the one supplied here; anything
+    // else compiles the body actually given. Matching on the text rather than
+    // on "is this the first definition?" is what makes the fast path sound:
+    // the alternative silently runs a body the script never asked for.
+    //
+    // A body built by substitution (`proc p {} "return $x"`) never matches,
+    // since the compiler recorded the unsubstituted word — it simply misses.
     let body_str = body_text.to_str();
-    let pre = (!vm.is_proc_defined(&reg_name))
-        .then(|| vm.module_proc(&body_key))
-        .flatten();
+    let pre = vm
+        .module_proc(&body_key)
+        .filter(|asm| asm.proc_body_src.as_deref() == Some(&*body_str));
     let body = match pre {
         Some(b) => b,
         None => match vm.compile_dynamic_body(&body_str) {

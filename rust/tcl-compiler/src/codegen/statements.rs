@@ -24,7 +24,7 @@
 
 use crate::ir::Statement;
 
-use super::cmd_subst::{has_command_separator, parse_cmd_parts};
+use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts};
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
@@ -233,7 +233,7 @@ impl CodegenCtx<'_> {
             } => {
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.compiles_locals()) {
                     self.push_var_ref(name, target.key_is_literal);
                 }
                 // A constant value is verbatim: push it as-is so the VM does
@@ -269,9 +269,9 @@ impl CodegenCtx<'_> {
                 let inline = Self::assign_value_inlines_cmd_subst(&value);
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.compiles_locals()) {
                     self.push_var_ref(name, target.key_is_literal);
-                } else if inline && self.is_proc && !is_qualified(name) {
+                } else if inline && self.compiles_locals() && !is_qualified(name) {
                     // Pre-intern the target so it gets a lower LVT slot than any
                     // variable introduced inside the substitution (catch result
                     // var, etc.) — matches tclsh slot order.
@@ -294,7 +294,7 @@ impl CodegenCtx<'_> {
             } => {
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.compiles_locals()) {
                     self.push_var_ref(name, target.key_is_literal);
                 }
                 let inner_end = self.fresh_label("cmd_end");
@@ -632,8 +632,11 @@ impl CodegenCtx<'_> {
     /// keep the literal + `subst_word` path, which the inline command-parser
     /// cannot match on escaped brackets.
     fn assign_value_inlines_cmd_subst(value: &str) -> bool {
-        value.starts_with('[')
-            && value.ends_with(']')
+        // `is_pure_cmd_subst`, not "starts and ends with a bracket": the inline
+        // emitter strips the outer brackets and word-splits the rest, so
+        // `set r [llength $a]:[join $a ,]` — three concatenated parts — would
+        // be mangled into one bogus command.
+        is_pure_cmd_subst(value)
             && value.len() > 2
             && value[1..value.len() - 1].contains(' ')
             && !value.starts_with("[list ")
@@ -714,7 +717,7 @@ impl CodegenCtx<'_> {
         };
         // In a proc the base is the LVT slot `store_var` names; only the key
         // goes on the stack.
-        if !self.is_proc || is_qualified(name) {
+        if !self.compiles_locals() || is_qualified(name) {
             self.push_lit_exact(base);
         }
         if key_is_literal {

@@ -128,6 +128,12 @@ pub struct CmdTrace {
     /// untrace can cancel it. A delete walk needs both: it fires the dying
     /// token's list to the end even as a callback rebinds the name, and still
     /// skips whatever that callback untraced.
+    ///
+    /// It is also C's `TraceCommandInfo *` for the purpose its
+    /// `TCL_TRACE_EXEC_IN_PROGRESS` flag hangs off: suppression while a
+    /// callback runs is **per trace**, not per command, so a second trace on
+    /// the same command still fires for a call the first one's callback makes
+    /// (see [`TraceTable::firing_exec_traces`]).
     pub id: u64,
     /// The generation of the command **token** this trace hangs off, or `None`
     /// when the binding had none (a hidden command).
@@ -223,25 +229,73 @@ pub struct TraceTable {
     /// **delete** walk holds the dying token's list, so a callback that
     /// re-creates the command under the same name takes the name-keyed table
     /// entry over without cancelling the remaining callbacks; only an explicit
-    /// untrace does. Recorded only while `exec_firing > 0` and cleared when the
-    /// outermost walk ends, so it never grows unbounded.
+    /// untrace does. Recorded only while a walk is in flight
+    /// ([`Self::trace_walk_in_flight`]) and cleared when the outermost one
+    /// ends, so it never grows unbounded.
     pub untraced_cmd_trace_ids: Vec<u64>,
+    /// The execution traces whose callbacks are currently running — C's
+    /// per-trace `TCL_TRACE_EXEC_IN_PROGRESS` (`tclTrace.c` 9.0.4:1655,
+    /// "Inside any kind of execution trace callback, we do not allow any
+    /// further execution trace callbacks to be called for the same trace").
+    /// This is what bounds a callback that invokes the command it traces;
+    /// [`Self::exec_firing`] deliberately does not, because it gates only the
+    /// step machinery. Distinct from [`Self::untraced_cmd_trace_ids`], which
+    /// records registrations a callback *removed* rather than ones it is
+    /// running.
+    pub firing_exec_traces: Vec<u64>,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
-    /// Non-zero while a command/execution trace callback is running — C's
-    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant execution/step firing
-    /// so a callback that invokes the traced command doesn't recurse.
+    /// Non-zero while an **execution** trace callback (`enter`/`leave`/
+    /// `enterstep`/`leavestep`) is running — C's `INTERP_TRACE_IN_PROGRESS`,
+    /// which `TraceExecutionProc` sets around exactly those callbacks
+    /// (tclTrace.c 9.0.4:1765) and nothing else sets. A `rename`/`delete`
+    /// callback does **not** raise it: C's `CallCommandTraces` sets no flag, so
+    /// a command such a callback dispatches is traced like any other.
+    ///
+    /// It is read exactly where C reads its flag — `TclCheckInterpTraces`
+    /// (:1426), the `enterstep`/`leavestep` machinery — and nowhere else:
+    /// `TclCheckExecutionTraces` (:1301) never consults it, so a command
+    /// dispatched from inside a callback still fires its own `enter`/`leave`
+    /// traces. Re-entry into the *same* trace is bounded by
+    /// [`Self::firing_exec_traces`], and into a command's own `rename`/`delete`
+    /// traces by [`Self::firing_cmd_traces`] — which is also what marks such a
+    /// walk in flight (see [`Self::trace_walk_in_flight`]).
     pub exec_firing: usize,
     /// The commands whose `rename`/`delete` traces are currently firing. C
     /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a
     /// deletion), not interpreter-wide: a callback that deletes a *different*
     /// command still fires that command's own delete traces, nested.
     pub firing_cmd_traces: Vec<Vec<u8>>,
+    /// Source→destination FQN pairs for the `rename` windows currently open,
+    /// innermost last. C creates the destination hash entry, fires the
+    /// `rename` traces and only then deletes the source, and *both* entries
+    /// reference the one `Command` — so for the callbacks' duration the
+    /// vacating name **is** the destination command: it answers `trace info`,
+    /// takes `trace add`/`remove`, and a `rename` or delete through it moves
+    /// or destroys the destination (tclsh 8.6.16 and 9.0.4 identical). Our
+    /// registries are keyed by name, so each open window records that
+    /// equivalence; [`crate::interp::Interp::renamed_cmd_key`] reads it.
+    pub rename_windows: Vec<(Vec<u8>, Vec<u8>)>,
     /// The error message a read/write variable-trace callback left, captured so
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
     pub pending_err: Option<Vec<u8>>,
+}
+
+impl TraceTable {
+    /// Whether a command or execution trace walk is in flight — the window in
+    /// which a `trace remove` has to be recorded so the walk skips the
+    /// registration it unlinked (see [`Self::untraced_cmd_trace_ids`]).
+    ///
+    /// Two pieces of state, because the two walks are marked differently: an
+    /// execution callback raises [`Self::exec_firing`], C's
+    /// `INTERP_TRACE_IN_PROGRESS`, while a `rename`/`delete` walk deliberately
+    /// raises nothing of the sort — C's `CallCommandTraces` sets no interpreter
+    /// flag — and is marked only by its entry in [`Self::firing_cmd_traces`].
+    pub fn trace_walk_in_flight(&self) -> bool {
+        self.exec_firing > 0 || !self.firing_cmd_traces.is_empty()
+    }
 }
 
 /// Whether `t` belongs to the resolved variable identity. Namespace variables
@@ -457,6 +511,10 @@ fn cmd_trace_add_remove(
     let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
         return interp.unknown_command(&name);
     };
+    // Inside a rename's callbacks the vacating name reaches the destination's
+    // list: C hangs the traces off the shared `Command`, not off either hash
+    // entry, so both names edit the one list.
+    let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
     let command = obj_bytes(argv[5]);
     if is_add {
         // The trace belongs to the token standing at `fqn` now, not to the
@@ -487,7 +545,7 @@ fn cmd_trace_add_remove(
             .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
             let mut traces = interp.traces.borrow_mut();
-            if traces.exec_firing > 0 {
+            if traces.trace_walk_in_flight() {
                 let id = traces.cmd_traces[i].id;
                 traces.untraced_cmd_trace_ids.push(id);
             }
@@ -518,6 +576,9 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
     let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
         return interp.unknown_command(&name);
     };
+    // As in `cmd_trace_add_remove`: a rename's vacating name answers with the
+    // destination's list, because C keeps one list on the shared `Command`.
+    let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
     // (bit, label) pairs in C's print order for each category.
     let order: &[(u8, &[u8])] = if category == ops::EXEC_ANY {
         &[

@@ -128,8 +128,8 @@ type inference, and `liveness_dead_stores()`
 | `Instruction` | `op`, `operands: Vec<Operand>`, `comment`, `offset`, plus source-mapping and emitter hint fields |
 | `LiteralTable` | Intern pool: string → object-array index |
 | `LocalVarTable` | LVT: variable name → slot index |
-| `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels`, `loop_targets`, `error_regions` |
-| `ModuleAsm` | `top_level: FunctionAsm` + `procedures: HashMap<String, FunctionAsm>` |
+| `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels`, `loop_targets`, `proc_body_src`, `error_regions` |
+| `ModuleAsm` | `top_level` (as a script) + `top_level_body` (the same source as a proc body) + `procedures: HashMap<String, FunctionAsm>` |
 
 ### Orchestration (`compilation_unit.rs`)
 

@@ -1198,10 +1198,29 @@ describe("readStoredTabs and restoreTabs", () => {
       ]),
       [
         { name: "lsort", where: "registry", groups: ["Identity"], scroll: 40 },
-        { name: "lindex", where: "pack", groups: [], scroll: 0 },
+        { name: "lindex", where: "pack", groups: null, scroll: 0 },
         { name: "lset", where: "pack", groups: ["Behaviour"], scroll: 0 },
       ],
     );
+  });
+
+  it("keeps an all-closed view distinct from a tab that was never left", () => {
+    // Both round-trip, and they must not collapse into each other: `[]` is an
+    // author who closed every group, `null` is one who never arranged this
+    // tab at all and should get the form's defaults back.
+    const closedEverything = rememberView(focusTab(opened(["a"]), 0), 0, {
+      groups: [],
+      scroll: 0,
+    });
+    assert.deepEqual(storedTabs(closedEverything)[0]?.groups, []);
+    assert.deepEqual(
+      activeTab(restoreTabs(readStoredTabs(storedTabs(closedEverything)), "a"))?.groups,
+      [],
+    );
+
+    const neverLeft = opened(["a"]);
+    assert.equal(storedTabs(neverLeft)[0]?.groups, null);
+    assert.equal(activeTab(restoreTabs(readStoredTabs(storedTabs(neverLeft)), "a"))?.groups, null);
   });
 
   it("reads a record written before tabs existed as no tabs, not as a failure", () => {

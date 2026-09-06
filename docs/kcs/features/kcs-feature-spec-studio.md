@@ -134,6 +134,64 @@ of Reference entries. At most sixty are shown, and the count says if there
 were more. Specification fields are not in this search: the **?** buttons,
 the **Docs** panel, and the Reference tab already cover those.
 
+### Several commands at once
+
+Every command you open gets a tab in a strip above the workbench tabs, up to
+twelve, so comparing two specifications or copying an option table from a
+shipped command into your own is a click rather than a trip back through
+the browser. A tab is a place to stand, not a copy: every edit goes straight
+into the pack document, so there is nothing to save before you switch and
+nothing to lose by closing. A dot on a tab marks a command you have edited
+since opening it. Come back to a tab and the form is as you left it — the
+same groups open, scrolled to the same place — and clicking the tab you are
+already on from another pane returns you to the editor.
+
+| Key or gesture | Does |
+|---|---|
+| Click, or `Enter` on a focused tab | Opens that command |
+| `←` `→` `Home` `End` | Move along the strip without opening anything |
+| ✕, middle-click, or `Delete` on a focused tab | Closes that tab — these always work |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab, where the browser lets a page have the key |
+| `Ctrl+W` or `Cmd+W` | Closes the tab you are on, likewise |
+
+Closing a tab brings its neighbour forward; closing the last leaves the form
+on an empty draft. Opening a thirteenth command closes the tab you have used
+least recently among those you have not edited — never the one you are on —
+and the status line says which. If every other tab has been edited, the
+least recently used of those goes instead. Either way the command is still
+in the pack, one click away in the browser.
+
+Tabs and history agree. Switching to a tab counts as opening that command,
+so ◀ ▶ and the browser's Back step through tabs like anything else you
+opened, and a link someone sends you opens its command as a tab. Closing a
+tab is not a move, so Back does not revisit it. Open tabs are part of live
+save: reload, and the strip comes back with the same tab in front.
+
+**New command** starts a draft that belongs to no tab until you press **Add
+to pack**; the strip shows nothing selected until then, so it is plain the
+edits are going into a fresh draft and not into an open command.
+
+### Finding a command from anywhere
+
+Press `/` when you are not typing in a box to search three places at once:
+the pack you are building, the shipped packs of the selected dialect, and
+the Reference vocabulary — the picker catalogues and their values, such as
+a trait or an argument role. Type to narrow, `↑` `↓` to move, `Enter` to
+open, `Esc` to close.
+
+Every result says where it came from — `pack mylib`, `shipped · Tcl 9.0`
+with the pack's chip, or `Reference` — and marks the part of the name or
+summary that matched, and the line above the list says what was searched
+and how much of each answered: `3 matches — 1 in pack mylib, 1 in the
+shipped Tcl 9.0 packs, 1 in the Reference vocabulary`. So "no match" is no
+match in all three, and you can place a hit before you open it. Results are
+ordered by how well the name matches — an exact name first, then a name
+starting with what you typed, then one containing it, then a match in the
+summary only — with your own pack ahead of shipped commands and those ahead
+of Reference entries. At most sixty are shown, and the count says if there
+were more. Specification fields are not in this search: the **?** buttons,
+the **Docs** panel, and the Reference tab already cover those.
+
 ### The Docs panel
 
 Beside the form — a sidebar on a wide screen, a bar along the bottom of the

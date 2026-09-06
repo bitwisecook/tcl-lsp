@@ -570,14 +570,26 @@ pub struct FunctionAsm {
     pub labels: HashMap<String, usize>,   // label → byte offset
     pub loop_targets: HashMap<usize, (Option<i32>, Option<i32>)>,
     pub body_base_line: u32,
+    pub proc_body_src: Option<String>,    // procedures only: the body word compiled
     pub error_regions: Vec<ErrorRegion>,
 }
 
 pub struct ModuleAsm {
-    pub top_level: FunctionAsm,
+    pub top_level: FunctionAsm,        // entered as a script
+    pub top_level_body: FunctionAsm,   // the same source, emitted as a proc body
     pub procedures: HashMap<String, FunctionAsm>,   // keyed by qualified name
 }
 ```
+
+A unit's top level is emitted twice because the consumer, not the compiler,
+knows how it will be entered. A body compiled at run time — `proc`'s body when
+the pre-compiled entry misses, an `apply` lambda, a `TclOO` method — arrives as
+a bare script, and running it as one would deny it the `is_proc` specialisation
+(`STORE_SCALAR1`, `LAPPEND_SCALAR1`, the compiled `unset`, the inline `catch`)
+that an AOT-compiled proc of the same source gets. `proc_body_src` lets a
+consumer keyed by *name* — the VM's pre-compiled body cache — confirm that the
+body it was handed is the body that was compiled, since one name is reachable
+from several `proc` commands with different bodies.
 
 ### Orchestration (`rust/tcl-compiler/src/compilation_unit.rs`)
 

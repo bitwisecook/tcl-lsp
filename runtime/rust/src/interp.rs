@@ -1805,8 +1805,20 @@ impl Interp {
     }
 
     /// `rename old new` (or `rename old ""` to delete), relative to the current
-    /// namespace. Drives the one command table; see [`Namespaces::rename`].
+    /// namespace. Drives the one command table: the guards C's
+    /// `TclRenameCommand` applies before anything observable happens, then
+    /// [`Self::move_bound_command`] or [`Self::delete_bound_command`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+        // Inside an open `rename` window the vacating name still resolves, but
+        // it *is* the destination command — C's two hash entries reference the
+        // one `Command` — so a callback's `rename <old> <third>` or `rename
+        // <old> {}` moves or destroys that command rather than a second copy
+        // standing at the vacating name. Resolved up front, because every guard
+        // below and both halves address the binding through this name.
+        let through_window = self
+            .resolve_cmd_fqn(old)
+            .and_then(|fqn| self.renamed_cmd_key(&fqn));
+        let old: &[u8] = through_window.as_deref().unwrap_or(old);
         // C's `TclPreventAliasLoop` guards `rename` too, and refuses before
         // anything observable happens — no rename trace fires for a rename that
         // does not take place.
@@ -1850,6 +1862,83 @@ impl Interp {
         {
             return RenameOutcome::NoSuchCommand;
         }
+        if new.is_empty() {
+            self.delete_bound_command(old)
+        } else {
+            self.move_bound_command(old, new)
+        }
+    }
+
+    /// The `rename old new` half, after [`Self::rename_command`]'s guards.
+    ///
+    /// C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
+    /// entry, fires the `rename` traces, and only *then* deletes the source
+    /// one; both entries reference the one `Command`, and the traces hang off
+    /// that rather than off either entry. So for the callbacks' duration the
+    /// vacating name **is** the destination command: both names resolve and are
+    /// callable, `trace info` answers the same list through either, a `trace
+    /// add`/`remove` through either edits it, and a `rename` or delete through
+    /// either moves or destroys that one command. Everything the command
+    /// carries therefore moves to the destination *before* the callbacks run,
+    /// and the window
+    /// ([`rename_windows`](crate::cmd_trace::TraceTable::rename_windows))
+    /// records the equivalence our name-keyed registries cannot express.
+    fn move_bound_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+        self.invalidate_command_environment();
+        let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
+            return RenameOutcome::NoSuchCommand;
+        };
+        let Some(publication) = self.namespaces.borrow_mut().publish_rename_destination(
+            self.current_ns.get(),
+            old,
+            new,
+        ) else {
+            return RenameOutcome::NoSuchCommand;
+        };
+        let new_fqn = publication.destination_fqn.clone();
+        // `Namespaces::publish_rename_destination` writes the table entry
+        // directly rather than going through `ns_register`, so drop the marking
+        // that described whatever it displaced at the destination. Today an OO
+        // rename is also re-registered through the funnel by
+        // `oo_command_renamed`, which clears it; doing it here as well makes the
+        // invariant — "a root marking never outlives the entry it described" —
+        // hold for the rename path on its own, rather than by way of a
+        // follow-up call that a future refactor could reorder or drop.
+        self.forget_registry_object_root(&new_fqn);
+        // The trace list (and any OO object) follows to the new name, and so
+        // does every `namespace import` redirect of the old name — C's imports
+        // hold the source's command token, so they survive a source rename
+        // (tclsh-pinned; see `Namespaces::retarget_imports`). All of it happens
+        // here, before the callbacks, because C had moved its one `Command`
+        // before it fired them.
+        self.move_cmd_traces(&old_fqn, &new_fqn);
+        self.retarget_import_sources(&old_fqn, &new_fqn);
+        crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
+        if !self.oo_is_empty() {
+            self.oo_command_renamed(&old_fqn, Some(&new_fqn));
+        }
+        self.traces
+            .borrow_mut()
+            .rename_windows
+            .push((old_fqn.clone(), new_fqn.clone()));
+        self.fire_cmd_trace(&new_fqn, &old_fqn, &new_fqn, crate::cmd_trace::ops::RENAME);
+        self.traces.borrow_mut().rename_windows.pop();
+        // C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of `TclRenameCommand`:
+        // a plain table removal, firing no `delete` trace, after which the
+        // command stands under its new name alone. Whatever occupies the slot
+        // goes — C's captured entry pointer does not care either, and a
+        // callback that rebound the vacating name left C dereferencing freed
+        // memory, so there is no behaviour there to match.
+        self.namespaces
+            .borrow_mut()
+            .retire_rename_source(&publication);
+        RenameOutcome::Renamed
+    }
+
+    /// The `rename old ""` half, after [`Self::rename_command`]'s guards — C's
+    /// `Tcl_DeleteCommandFromToken`, whose `delete` traces fire while the
+    /// command is still bound under its name.
+    fn delete_bound_command(&mut self, old: &[u8]) -> RenameOutcome {
         let (ensemble_token, import_token) =
             match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
                 Some(Command::Ensemble(token)) => (Some(token), None),
@@ -1857,11 +1946,11 @@ impl Interp {
                 _ => (None, None),
             };
         self.invalidate_command_environment();
-        // Command traces fire *before* the table mutation (C's TclRenameCommand:
-        // the command still exists under its old name during the callback), with
-        // the fully-qualified old and new names. C deletes the command *token*
-        // it captured here, not whatever the name holds when the callback
-        // returns — so the binding is captured alongside the name.
+        // Command traces fire *before* the table mutation (the command still
+        // exists under its name during the callback), with the fully-qualified
+        // old name and an empty new one. C deletes the command *token* it
+        // captured here, not whatever the name holds when the callback returns
+        // — so the binding is captured alongside the name.
         let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
         // The token whose trace list this deletion frees, captured before the
         // callbacks can bind a replacement at the same name.
@@ -1869,43 +1958,21 @@ impl Interp {
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
-                if new.is_empty() {
-                    self.fire_cmd_trace(of, b"", crate::cmd_trace::ops::DELETE);
-                } else {
-                    let nf = self.fqn_for(new);
-                    self.fire_cmd_trace(of, &nf, crate::cmd_trace::ops::RENAME);
-                }
+                self.fire_cmd_trace(of, of, b"", crate::cmd_trace::ops::DELETE);
             }
         }
         let existed = old_fqn.is_some();
         // Deleting a suspended coroutine's command tears down its worker first.
-        if new.is_empty() {
-            if let Some(of) = &old_fqn {
-                crate::cmd_coro::on_command_deleted(self, of);
-            }
-        }
-        // `Namespaces::rename` moves the table entry directly rather than going
-        // through `ns_register`, so clear the destination's TclOO root marking
-        // here too. Today an OO rename is also re-registered through the funnel
-        // by `oo_command_renamed`, which clears it; doing it here as well makes
-        // the invariant — "a root marking never outlives the entry it
-        // described" — hold for the rename path on its own, rather than by way
-        // of a follow-up call that a future refactor could reorder or drop.
-        if !new.is_empty() {
-            let dest = self.fqn_for(new);
-            self.forget_registry_object_root(&dest);
+        if let Some(of) = &old_fqn {
+            crate::cmd_coro::on_command_deleted(self, of);
         }
         // An imported command carries a stable identity. Its delete trace may
         // force-reimport or otherwise replace the same binding; delete the
         // captured old identity wherever it moved, never the callback's fresh
         // command at the old name.
-        let removed_import_fqn = if new.is_empty() {
-            import_token
-                .as_ref()
-                .and_then(|identity| self.remove_import_identity(identity))
-        } else {
-            None
-        };
+        let removed_import_fqn = import_token
+            .as_ref()
+            .and_then(|identity| self.remove_import_identity(identity));
         // A delete-trace callback that re-creates the command (`proc foo {} …`)
         // has bound a *new* command at the old name. C's captured token is
         // `CMD_DYING` and no longer owns the hash entry, so its deletion leaves
@@ -1914,77 +1981,56 @@ impl Interp {
         // "whatever is at the name now" would remove the callback's work
         // instead. This is the command half of the rule the import branch just
         // above already applies to its own identity. Issue #1633.
-        let recreated = new.is_empty()
-            && match (
-                &bound_before,
-                self.namespaces.borrow().resolve(self.current_ns.get(), old),
-            ) {
-                (Some(before), Some(now)) => !before.is_same_binding(&now),
-                _ => false,
-            };
+        let recreated = match (
+            &bound_before,
+            self.namespaces.borrow().resolve(self.current_ns.get(), old),
+        ) {
+            (Some(before), Some(now)) => !before.is_same_binding(&now),
+            _ => false,
+        };
         let raw = if recreated {
             RenameOutcome::Deleted
-        } else if new.is_empty() && import_token.is_some() {
+        } else if import_token.is_some() {
             if removed_import_fqn.is_some() {
                 RenameOutcome::Deleted
             } else {
                 RenameOutcome::NoSuchCommand
             }
+        } else if self
+            .namespaces
+            .borrow_mut()
+            .delete(self.current_ns.get(), old)
+        {
+            RenameOutcome::Deleted
         } else {
-            self.namespaces
-                .borrow_mut()
-                .rename(self.current_ns.get(), old, new)
+            RenameOutcome::NoSuchCommand
         };
         // A delete-trace callback may itself delete the command (e.g. by
         // deleting the object's namespace). C captured the command token before
         // the callback, so the deletion still succeeds — treat "existed at
-        // entry, gone now, `new` empty" as a normal delete (cleanup is
-        // idempotent) rather than reporting "command doesn't exist".
-        let outcome = if existed && matches!(raw, RenameOutcome::NoSuchCommand) && new.is_empty() {
+        // entry, gone now" as a normal delete (cleanup is idempotent) rather
+        // than reporting "command doesn't exist".
+        let outcome = if existed && matches!(raw, RenameOutcome::NoSuchCommand) {
             RenameOutcome::Deleted
         } else {
             raw
         };
-        if let Some(of) = old_fqn {
-            let oo_live = !self.oo_is_empty();
-            match outcome {
-                // The trace list (and any OO object) follows to the new name,
-                // and so does every `namespace import` redirect of the old
-                // name — C's imports hold the source's command token, so they
-                // survive a source rename (tclsh-pinned; see
-                // `Namespaces::retarget_imports`).
-                RenameOutcome::Renamed => {
-                    let nf = self.fqn_for(new);
-                    self.move_cmd_traces(&of, &nf);
-                    self.retarget_import_sources(&of, &nf);
-                    if oo_live {
-                        self.oo_command_renamed(&of, Some(&nf));
-                    }
+        // The command is gone; the dying token's traces and OO registry entry
+        // go with it. A replacement the delete callback bound at the same name
+        // keeps its own traces (C frees only `cmdPtr->tracePtr`).
+        if let (Some(of), RenameOutcome::Deleted) = (old_fqn, outcome) {
+            self.remove_cmd_traces_of_token(&of, dying_token);
+            let tokens: Vec<_> = ensemble_token.into_iter().collect();
+            let mut origins = vec![of.clone()];
+            if let Some(removed_fqn) = removed_import_fqn {
+                if removed_fqn != of {
+                    self.remove_cmd_traces(&removed_fqn);
+                    origins.push(removed_fqn);
                 }
-                // The command is gone; the dying token's traces and OO
-                // registry entry go with it. A replacement the delete callback
-                // bound at the same name keeps its own traces (C frees only
-                // `cmdPtr->tracePtr`).
-                RenameOutcome::Deleted => {
-                    self.remove_cmd_traces_of_token(&of, dying_token);
-                    let tokens: Vec<_> = ensemble_token.into_iter().collect();
-                    let mut origins = vec![of.clone()];
-                    if let Some(removed_fqn) = removed_import_fqn {
-                        if removed_fqn != of {
-                            self.remove_cmd_traces(&removed_fqn);
-                            origins.push(removed_fqn);
-                        }
-                    }
-                    self.remove_imports_for_deleted_origins(origins, &tokens);
-                    if oo_live {
-                        self.oo_command_renamed(&of, None);
-                    }
-                }
-                // `AliasLoop` and `TargetExists` both returned above, before
-                // the table was touched.
-                RenameOutcome::NoSuchCommand
-                | RenameOutcome::AliasLoop
-                | RenameOutcome::TargetExists => {}
+            }
+            self.remove_imports_for_deleted_origins(origins, &tokens);
+            if !self.oo_is_empty() {
+                self.oo_command_renamed(&of, None);
             }
         }
         outcome
@@ -2278,7 +2324,7 @@ impl Interp {
         {
             return;
         }
-        self.fire_cmd_trace_of_token(fqn, b"", crate::cmd_trace::ops::DELETE, dying);
+        self.fire_cmd_trace_of_token(fqn, fqn, b"", crate::cmd_trace::ops::DELETE, dying);
         self.remove_cmd_traces_of_token(fqn, dying);
     }
 
@@ -3846,8 +3892,8 @@ impl Interp {
     /// commands"). Re-entrant firing on *this* command is suppressed (C's
     /// per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`); the interp result is
     /// preserved across the callbacks.
-    fn fire_cmd_trace(&mut self, old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
-        self.fire_cmd_trace_of_token(old_fqn, new_fqn, op_bit, None);
+    fn fire_cmd_trace(&mut self, key: &[u8], old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
+        self.fire_cmd_trace_of_token(key, old_fqn, new_fqn, op_bit, None);
     }
 
     /// [`fire_cmd_trace`] restricted to one command token's own trace list.
@@ -3857,8 +3903,15 @@ impl Interp {
     /// token being deleted. `dying` is `None` when the caller has no token to
     /// discriminate by, and then the whole name fires (rename, and hidden
     /// commands, which carry no generation).
+    ///
+    /// `key` addresses the trace list and gates re-entry; `old_fqn` only names
+    /// the command in the callback's first word. They differ for a rename,
+    /// which fires from the *destination's* list (see
+    /// [`Self::move_bound_command`]) while still naming the command it is
+    /// leaving.
     fn fire_cmd_trace_of_token(
         &mut self,
+        key: &[u8],
         old_fqn: &[u8],
         new_fqn: &[u8],
         op_bit: u8,
@@ -3869,7 +3922,7 @@ impl Interp {
             .borrow()
             .firing_cmd_traces
             .iter()
-            .any(|firing| firing == old_fqn)
+            .any(|firing| firing == key)
         {
             return;
         }
@@ -3892,7 +3945,7 @@ impl Interp {
             // token under the same name), while the id lets the walk skip a
             // registration an explicit `trace remove` cancelled mid-walk.
             .filter(|t| {
-                t.name == old_fqn && (t.ops & op_bit) != 0 && cmd_trace_owned_by(t.token, dying)
+                t.name == key && (t.ops & op_bit) != 0 && cmd_trace_owned_by(t.token, dying)
             })
             .map(|t| (t.id, t.command.clone()))
             .collect();
@@ -3908,11 +3961,20 @@ impl Interp {
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
-        {
-            let mut traces = self.traces.borrow_mut();
-            traces.exec_firing += 1;
-            traces.firing_cmd_traces.push(old_fqn.to_vec());
-        }
+        // Only `firing_cmd_traces` is raised, never `exec_firing`: C sets
+        // `INTERP_TRACE_IN_PROGRESS` in exactly one place — `TraceExecutionProc`
+        // (tclTrace.c 9.0.4:1765), around an *execution* trace's callback —
+        // and `CallCommandTraces` sets nothing. So a command dispatched from a
+        // `rename`/`delete` callback is traced like any other: its `enter` and
+        // `leave` traces fire, and an enclosing `enterstep`/`leavestep` scope
+        // steps the callback's own commands. Re-entering *this* command's
+        // rename/delete traces is what is suppressed, per command, above.
+        // `firing_cmd_traces` is therefore what marks this walk as in flight
+        // for `TraceTable::trace_walk_in_flight`.
+        self.traces
+            .borrow_mut()
+            .firing_cmd_traces
+            .push(key.to_vec());
         for (id, cmd) in entries {
             if self.cmd_trace_untraced(id) {
                 continue;
@@ -3931,9 +3993,8 @@ impl Interp {
         }
         {
             let mut traces = self.traces.borrow_mut();
-            traces.exec_firing -= 1;
             traces.firing_cmd_traces.pop();
-            if traces.exec_firing == 0 {
+            if !traces.trace_walk_in_flight() {
                 traces.untraced_cmd_trace_ids.clear();
             }
         }
@@ -3962,6 +4023,16 @@ impl Interp {
             .iter()
             .find(|t| t.id == id)
             .map(|t| t.command.clone())
+    }
+
+    /// Whether execution trace `id` is currently running its own callback —
+    /// C's per-trace `TCL_TRACE_EXEC_IN_PROGRESS` (`tclTrace.c` 9.0.4:1655),
+    /// which is what bounds a callback that invokes the command it traces. Per
+    /// *trace*: a second trace on the same command still fires for that inner
+    /// call, and so does a `leave` trace while an `enter` one is running
+    /// (tclsh 8.6/9.0-pinned).
+    fn exec_trace_is_firing(&self, id: u64) -> bool {
+        self.traces.borrow().firing_exec_traces.contains(&id)
     }
 
     /// Whether `trace remove` has unlinked command trace `id` since this walk
@@ -4000,6 +4071,11 @@ impl Interp {
         self.traces.borrow_mut().exec_firing += 1;
         let mut abort: Option<Code> = None;
         for id in ids {
+            // A trace whose own callback is running is skipped, per trace
+            // rather than per command (C's `TCL_TRACE_EXEC_IN_PROGRESS`).
+            if self.exec_trace_is_firing(id) {
+                continue;
+            }
             let Some(cmd) = self.live_cmd_trace(id) else {
                 continue;
             };
@@ -4008,7 +4084,9 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.traces.borrow_mut().firing_exec_traces.push(id);
             let c = self.eval_str(&line);
+            self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 // The callback's result becomes the command's result; abort.
                 abort = Some(c);
@@ -4058,6 +4136,11 @@ impl Interp {
         self.traces.borrow_mut().exec_firing += 1;
         let mut override_code: Option<Code> = None;
         for id in ids {
+            // A trace whose own callback is running is skipped, per trace
+            // rather than per command (C's `TCL_TRACE_EXEC_IN_PROGRESS`).
+            if self.exec_trace_is_firing(id) {
+                continue;
+            }
             let Some(cmd) = self.live_cmd_trace(id) else {
                 continue;
             };
@@ -4072,7 +4155,9 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.traces.borrow_mut().firing_exec_traces.push(id);
             let c = self.eval_str(&line);
+            self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 override_code = Some(c);
                 break;
@@ -4097,10 +4182,47 @@ impl Interp {
         }
     }
 
+    /// The name a command's identity lives under now, following any open
+    /// `rename` window (see [`crate::cmd_trace::TraceTable::rename_windows`]) —
+    /// `None` outside one. Inside a rename's callbacks the vacating name still
+    /// resolves, but it *is* the destination command, so a `trace`, a `rename`
+    /// or a delete through it must reach the destination's state.
+    pub(crate) fn renamed_cmd_key(&self, fqn: &[u8]) -> Option<Vec<u8>> {
+        self.traces
+            .borrow()
+            .rename_windows
+            .iter()
+            .find(|(from, _)| from == fqn)
+            .map(|(_, to)| to.clone())
+    }
+
+    /// A command moved `old_fqn` → `new_fqn`: point every open `rename` window
+    /// and every in-flight firing record that named the old key at the new one.
+    /// C needs no equivalent — both its hash entries reference one `Command`, so
+    /// a nested rename cannot strand them — but our name-keyed state would
+    /// otherwise be left on a name the move just vacated: an enclosing window
+    /// would stop answering through the vacating name, and the
+    /// `firing_cmd_traces` record standing in for `CMD_TRACE_ACTIVE` would stop
+    /// suppressing the command's own remaining callbacks.
+    fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8]) {
+        let mut traces = self.traces.borrow_mut();
+        for (_, destination) in &mut traces.rename_windows {
+            if destination == old_fqn {
+                *destination = new_fqn.to_vec();
+            }
+        }
+        for firing in &mut traces.firing_cmd_traces {
+            if firing == old_fqn {
+                *firing = new_fqn.to_vec();
+            }
+        }
+    }
+
     /// Move every command/execution trace on `old_fqn` to `new_fqn` (the trace
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
     fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+        self.relocate_rename_state(old_fqn, new_fqn);
         // C moves the `Command` itself, so its trace list travels with the
         // token. Re-stamp to whatever token now stands at the destination, so
         // a later deletion there still tells this list from a replacement's.
@@ -6369,12 +6491,13 @@ impl Interp {
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         self.cmd_count.set(self.cmd_count.get() + 1);
-        // Fast path: no command/execution traces, or we're already inside a
-        // trace callback (C's INTERP_TRACE_IN_PROGRESS) — original dispatch.
-        let traced = {
-            let t = self.traces.borrow();
-            !t.cmd_traces.is_empty() && t.exec_firing == 0
-        };
+        // Fast path: nothing is registered, so nothing can fire. Being inside a
+        // trace callback is *not* a reason to skip: C's
+        // `TclCheckExecutionTraces` never consults `INTERP_TRACE_IN_PROGRESS`,
+        // so a command dispatched from a callback still fires its own
+        // `enter`/`leave` traces. Only the step machinery is gated, in
+        // `dispatch_traced`.
+        let traced = !self.traces.borrow().cmd_traces.is_empty();
         if !traced {
             return self.dispatch_inner(argv);
         }
@@ -6388,7 +6511,15 @@ impl Interp {
     fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
         use crate::cmd_trace::ops;
         let name = obj_bytes(argv[0]);
-        let fqn = self.resolve_cmd_fqn(&name);
+        // Inside a rename's callbacks the vacating name still resolves, but the
+        // one command's trace list has already moved to the destination key —
+        // so look the traces up there, as C reaches them through the shared
+        // `Command` from either hash entry. Only the *key* is canonicalised:
+        // the callback's own words stay the spelling the caller invoked
+        // (`cmd_word` below), which is what tclsh passes.
+        let fqn = self
+            .resolve_cmd_fqn(&name)
+            .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
         let (has_enter, has_leave, has_step) = match &fqn {
             Some(f) => {
                 let t = self.traces.borrow();
@@ -6402,7 +6533,13 @@ impl Interp {
             }
             None => (false, false, false),
         };
-        let stepping = !self.traces.borrow().step_active.is_empty();
+        // C's one read of `INTERP_TRACE_IN_PROGRESS`: `TclCheckInterpTraces`
+        // returns immediately while an execution callback is running, so the
+        // callback's own commands are never step-observed.
+        let stepping = {
+            let t = self.traces.borrow();
+            !t.step_active.is_empty() && t.exec_firing == 0
+        };
         if !has_enter && !has_leave && !has_step && !stepping {
             return self.dispatch_inner(argv);
         }

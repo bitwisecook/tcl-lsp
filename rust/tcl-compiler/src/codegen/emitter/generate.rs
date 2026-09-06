@@ -837,6 +837,7 @@ fn finalize_function(
         labels,
         loop_targets,
         body_base_line: 0,
+        proc_body_src: None,
         error_regions,
     }
 }
@@ -854,6 +855,19 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new(proc_defs);
     state.try_finally_info = detect_try_finally(cfg, &block_order);
+
+    // The same-frame script bodies folded into this function, so the variable
+    // emitters can decline the compiled-local forms inside them
+    // (`CodegenCtx::compiles_locals`). Same regions the `errorInfo` body frames
+    // are built from at the end of this function.
+    ctx.same_frame_eval_spans = cfg
+        .inline_body_error_sites
+        .iter()
+        .filter(|site| {
+            site.context == tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation
+        })
+        .map(|site| (site.span.start(), site.span.end()))
+        .collect();
 
     let fe = setup_foreach(ctx, cfg, &mut loop_ctx);
 

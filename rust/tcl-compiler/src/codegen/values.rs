@@ -304,9 +304,13 @@ pub fn is_qualified(name: &str) -> bool {
 
 /// True when a store/load needs the name/key pushed onto the stack
 /// first (i.e. uses `*Stk` instructions).
+///
+/// `compiles_locals` is [`CodegenCtx::compiles_locals`], not
+/// [`CodegenCtx::is_proc`]: a name inside a folded same-frame `eval` body is
+/// not a compiled local even though the enclosing function is a proc.
 #[must_use]
-pub fn needs_stk_var_ref(name: &str, is_proc: bool) -> bool {
-    if !is_proc {
+pub fn needs_stk_var_ref(name: &str, compiles_locals: bool) -> bool {
+    if !compiles_locals {
         return true;
     }
     if is_qualified(name) {
@@ -414,7 +418,7 @@ impl CodegenCtx<'_> {
     /// Proc context uses LVT-based opcodes; top-level uses stack-based.
     /// Array references are decomposed into base + element.
     pub fn load_var(&mut self, name: &str) {
-        if self.is_proc && !is_qualified(name) {
+        if self.compiles_locals() && !is_qualified(name) {
             if let Some((base, elem)) = split_array_ref(name) {
                 let slot = self.lvt.intern(base);
                 self.push_array_key(elem);
@@ -465,7 +469,7 @@ impl CodegenCtx<'_> {
     /// `storeScalar1`/`storeArray1`.  For top-level, caller must have
     /// pushed name (and key for arrays) before the value.
     pub fn store_var(&mut self, name: &str) {
-        if self.is_proc && !is_qualified(name) {
+        if self.compiles_locals() && !is_qualified(name) {
             if let Some((base, _elem)) = split_array_ref(name) {
                 let slot = self.lvt.intern(base);
                 self.emit_comment(
@@ -504,7 +508,7 @@ impl CodegenCtx<'_> {
     /// [`push_var_ref`](CodegenCtx::push_var_ref) documents, so a name the
     /// compiler already resolved is never word-substituted again by the VM.
     pub fn emit_incr(&mut self, name: &str, key_is_literal: bool, amount: Option<&str>) {
-        if self.is_proc && !is_qualified(name) {
+        if self.compiles_locals() && !is_qualified(name) {
             self.emit_incr_local(name, amount);
         } else {
             self.emit_incr_global_or_array(name, key_is_literal, amount);
