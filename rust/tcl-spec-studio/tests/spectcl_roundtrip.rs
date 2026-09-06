@@ -21,11 +21,12 @@
 //! [`render_spectcl`](tcl_spec_studio::render_spectcl) is the inverse of
 //! [`spectcl::evaluate_pack`](tcl_spec_studio::spectcl::evaluate_pack), so the honest
 //! test of it is the round trip, run over the *whole* command surface rather
-//! than a handful of examples: every command in every browsable dialect is
-//! drafted from the live registry, rendered to `SpecTcl`, loaded back, drafted
-//! again, and the two drafts are compared **field by field** — the same
-//! comparison `tests/spectcl_ports.rs` makes between a ported pack and the
-//! shipped spec it was ported from.
+//! than a handful of examples: every distinct immutable command spec is
+//! drafted from the live registries, rendered to `SpecTcl`, loaded back, and
+//! drafted again. The reloaded draft is then compared **field by field** at
+//! every browsable dialect/name position where that exact spec appears — the
+//! same comparison `tests/spectcl_ports.rs` makes between a ported pack and
+//! the shipped spec it was ported from.
 //!
 //! ## What "unequal" is allowed to mean
 //!
@@ -47,7 +48,7 @@
 //! so the eight function-pointer families round-trip *equal*, and the gate
 //! checks that they do rather than excusing them.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 
 use serde_json::Value;
@@ -261,8 +262,6 @@ struct Trip {
     notices: Vec<String>,
     /// The rendered pack.
     text: String,
-    /// Fields the renderer said up front it could not carry.
-    losses: Vec<render_spectcl::Loss>,
 }
 
 /// Render `shipped`, load the pack back, and report what happened.
@@ -276,7 +275,7 @@ fn round_trip(shipped: &Value) -> Trip {
         .and_then(Value::as_str)
         .unwrap_or("pack")
         .to_owned();
-    let (text, losses) = render_spectcl::render_pack_reporting(&[draft], &pack_name);
+    let text = render_spectcl::render_pack(&[draft], &pack_name);
     let pack = spectcl::evaluate_pack(&text);
     let name = shipped["name"].as_str().unwrap_or_default();
     // Naming a lowering or codegen hook is *reported* by design — "this
@@ -296,7 +295,6 @@ fn round_trip(shipped: &Value) -> Trip {
         reloaded,
         notices,
         text,
-        losses,
     }
 }
 
@@ -428,37 +426,116 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
     let mut lossy: BTreeMap<String, (usize, String)> = BTreeMap::new();
     let mut noticed: BTreeMap<String, (usize, String)> = BTreeMap::new();
 
-    for (dialect, _) in browsable_dialects() {
+    let dialects: Vec<_> = browsable_dialects()
+        .map(|(dialect, _)| {
+            let names = command_names(dialect);
+            let registry = tcl_spec_studio::environment::store_for_dialect(dialect);
+            let specs: Vec<&'static tcl_registry::CommandSpec> = names
+                .iter()
+                .map(|name| {
+                    registry.get(name).unwrap_or_else(|| {
+                        panic!("{name} is listed in {dialect} but does not load")
+                    })
+                })
+                .collect();
+            (dialect, names, specs)
+        })
+        .collect();
+
+    // A command name can resolve to different immutable specs on different
+    // version/dialect surfaces, so those variants cannot share one pack. Put
+    // the first variant of every name in pack zero, the second in pack one,
+    // and so on. Every distinct spec is rendered and evaluated exactly once,
+    // while every dialect/name position below still compares its exact spec.
+    let mut variants: BTreeMap<&'static str, Vec<&'static tcl_registry::CommandSpec>> =
+        BTreeMap::new();
+    for (_, _, specs) in &dialects {
+        for &spec in specs {
+            let same_name = variants.entry(spec.name).or_default();
+            if !same_name.iter().any(|other| std::ptr::eq(*other, spec)) {
+                same_name.push(spec);
+            }
+        }
+    }
+    let pack_count = variants.values().map(Vec::len).max().unwrap_or_default();
+    let mut groups = vec![Vec::new(); pack_count];
+    for same_name in variants.values() {
+        for (index, &spec) in same_name.iter().enumerate() {
+            groups[index].push(spec);
+        }
+    }
+
+    // spec allocation → (source draft, reloaded draft, losses, fixture text)
+    let mut trips: HashMap<
+        *const tcl_registry::CommandSpec,
+        (Value, Value, Vec<render_spectcl::Loss>, usize),
+    > = HashMap::new();
+    let mut fixture_texts = Vec::with_capacity(groups.len());
+    for (index, specs) in groups.into_iter().enumerate() {
+        let drafts: Vec<draft::Draft> = specs
+            .iter()
+            .map(|spec| draft::from_command_spec(spec))
+            .collect();
+        let (text, command_losses) = render_spectcl::render_pack_reporting_by_command(
+            &drafts,
+            &format!("round-trip-{index}"),
+        );
+        let losses: BTreeMap<&str, &[render_spectcl::Loss]> = command_losses
+            .iter()
+            .map(|report| (report.command.as_str(), report.losses.as_slice()))
+            .collect();
+        let pack = spectcl::evaluate_pack(&text);
+        for notice in pack
+            .notices
+            .iter()
+            .filter(|notice| !is_policy_report(&notice.message))
+        {
+            let notice = notice.to_string();
+            let entry = noticed
+                .entry(notice_shape(&notice))
+                .or_insert_with(|| (0, format!("fixture {index}: {notice}")));
+            entry.0 += 1;
+        }
+        for (spec, draft) in specs.into_iter().zip(drafts) {
+            let reloaded = pack.command(spec.name).map_or(Value::Null, |command| {
+                Value::Object(draft::from_command_spec(command.spec))
+            });
+            trips.insert(
+                std::ptr::from_ref(spec),
+                (
+                    Value::Object(draft),
+                    reloaded,
+                    losses.get(spec.name).copied().unwrap_or_default().to_vec(),
+                    index,
+                ),
+            );
+        }
+        fixture_texts.push(text);
+    }
+
+    for (dialect, names, specs) in dialects {
         let mut dialect_total = 0usize;
         let mut dialect_clean = 0usize;
-        for name in command_names(dialect) {
-            let shipped = load_command(name, dialect)
-                .unwrap_or_else(|| panic!("{name} is listed in {dialect} but does not load"));
-            let trip = round_trip(&shipped);
+        for (name, spec) in names.into_iter().zip(specs) {
+            let (shipped, reloaded, losses, fixture_index) = trips
+                .get(&std::ptr::from_ref(spec))
+                .unwrap_or_else(|| panic!("{dialect}/{name}: spec was not round-tripped"));
+            let text = &fixture_texts[*fixture_index];
             total += 1;
             dialect_total += 1;
 
             assert!(
-                !trip.reloaded.is_null(),
-                "{dialect}/{name}: the rendered pack does not declare the command:\n{}",
-                trip.text
+                !reloaded.is_null(),
+                "{dialect}/{name}: the rendered pack does not declare the command:\n{text}"
             );
 
-            for notice in &trip.notices {
-                let entry = noticed
-                    .entry(notice_shape(notice))
-                    .or_insert_with(|| (0, format!("{dialect}/{name}: {notice}")));
-                entry.0 += 1;
-            }
-
-            let found = diffs(&trip.reloaded, &shipped);
+            let found = diffs(reloaded, shipped);
             if found.is_empty() {
                 clean += 1;
                 dialect_clean += 1;
                 continue;
             }
-            let reported: BTreeSet<&str> =
-                trip.losses.iter().map(|loss| loss.key.as_str()).collect();
+            let reported: BTreeSet<&str> = losses.iter().map(|loss| loss.key.as_str()).collect();
             for diff in &found {
                 let field = field_of(&diff.key);
                 // Three ways a difference is legitimate: the field is in the
@@ -474,8 +551,8 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
                     })
                     .or_else(|| {
                         (field == "arg_roles"
-                            && at_level(&diff.key, &trip.reloaded)
-                                .zip(at_level(&diff.key, &shipped))
+                            && at_level(&diff.key, reloaded)
+                                .zip(at_level(&diff.key, shipped))
                                 .is_some_and(|(a, b)| only_implied_command_prefix_roles(a, b)))
                         .then(|| "arg_roles (implied by -appends)".to_owned())
                     });
@@ -507,6 +584,12 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
     let _ = writeln!(
         report,
         "\n     total: {clean} / {total} commands round-trip with no difference at all"
+    );
+    let _ = writeln!(
+        report,
+        "     distinct specs rendered and evaluated once: {} in {} conflict-free packs",
+        trips.len(),
+        fixture_texts.len()
     );
     let _ = writeln!(report, "\nDocumented losses, by field:");
     for (key, (count, example)) in &lossy {
