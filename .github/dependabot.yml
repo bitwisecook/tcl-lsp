@@ -67,9 +67,13 @@ updates:
       # Compile against the oldest API declared in engines.vscode. Newer types
       # would allow calls that fail for users on the supported 1.95 floor.
       - dependency-name: "@types/vscode"
-      # typescript-eslint 8.69 supports TypeScript only below 6.1.
+      # typescript-eslint 8.69 supports TypeScript only below 6.1, so the
+      # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
+      # package.json: the range keeps a plain `npm install` on 6.0.x, and
+      # this keeps Dependabot from proposing the bump the range would
+      # reject. 6.0.x patches still flow.
       - dependency-name: typescript
-        versions: [">=7.0.0"]
+        versions: [">=6.1.0"]
 
   # Every npm project in the tree needs its own entry — Dependabot does not
   # walk sub-directories.  The spec-studio web app was the gap that let four
@@ -89,9 +93,13 @@ updates:
         exclude-patterns:
           - "npm"
     ignore:
-      # typescript-eslint 8.69 supports TypeScript only below 6.1.
+      # typescript-eslint 8.69 supports TypeScript only below 6.1, so the
+      # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
+      # package.json: the range keeps a plain `npm install` on 6.0.x, and
+      # this keeps Dependabot from proposing the bump the range would
+      # reject. 6.0.x patches still flow.
       - dependency-name: typescript
-        versions: [">=7.0.0"]
+        versions: [">=6.1.0"]
 
   - package-ecosystem: npm
     directory: /rust/bigip-report-gen/frontend
@@ -107,9 +115,13 @@ updates:
         exclude-patterns:
           - "npm"
     ignore:
-      # typescript-eslint 8.69 supports TypeScript only below 6.1.
+      # typescript-eslint 8.69 supports TypeScript only below 6.1, so the
+      # wall is 6.1.0 and not 7.0.0. Pair this with the `~6.0.3` range in
+      # package.json: the range keeps a plain `npm install` on 6.0.x, and
+      # this keeps Dependabot from proposing the bump the range would
+      # reject. 6.0.x patches still flow.
       - dependency-name: typescript
-        versions: [">=7.0.0"]
+        versions: [">=6.1.0"]
 
   # Every cargo root in the tree, not just the workspace at `/`.  The root
   # `[workspace] exclude` list (Cargo.toml) holds each target that cannot
