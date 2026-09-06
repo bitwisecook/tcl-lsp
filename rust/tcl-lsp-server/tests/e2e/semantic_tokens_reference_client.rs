@@ -1145,59 +1145,80 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
 
     let uri = unique_uri("tcl");
     let _ = lsp.open_ready_timeout(&uri, &big, BIG_DOC_SETTLE);
-    let req_since = lsp.server_request_cursor();
-    let log_since = lsp.notification_cursor();
-    let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
-    assert!(
-        !first.is_empty(),
-        "the cold range must still serve the coarse tier immediately"
-    );
+    let deadline = Instant::now() + scaled_timeout(Duration::from_mins(1));
+    let mut attempts = 0_u32;
+    loop {
+        assert!(
+            Instant::now() < deadline,
+            "the forced coarse range comparison was repeatedly cancelled for {attempts} rounds"
+        );
+        attempts += 1;
+        let req_since = lsp.server_request_cursor();
+        let log_since = lsp.notification_cursor();
+        let first = decode_semantic_tokens(&lsp.semantic_tokens_range(&uri, start, end));
+        assert!(
+            !first.is_empty(),
+            "the cold range must still serve the coarse tier immediately"
+        );
 
-    // Deterministic readiness via message passing — not a fixed sleep.  Every
-    // range request logs
-    // `[timing] semantic_tokens.range_convergence.settled (uri=…, refresh=…, outcome=…)`
-    // once its convergence decision is final, so waiting for exactly that line
-    // makes "settled without a refresh" distinguishable from "the decision has
-    // not been made yet".  The timeout is only a backstop against a total hang,
-    // never the synchronisation.
-    //
-    // `outcome=compared-equal` proves the one-shot seam served the coarse tier and the
-    // detached continuation (#844 Gap 4) compared it with the recomputed
-    // enriched viewport. This wait observes that real deep-tier comparison;
-    // first-response latency is asserted separately, so the timeout is only a
-    // hang guard for a loaded debug runner.
-    let settled = lsp.await_log(
-        &["semantic_tokens.range_convergence.settled", uri.as_str()],
-        Duration::from_mins(1),
-        log_since,
-    );
-    eprintln!("range_semantic_tokens_no_spurious_refresh_when_converged: {settled}");
-    assert!(
-        settled.contains("outcome=compared-equal"),
-        "the forced coarse branch must execute its equality comparison: {settled:?}"
-    );
-    // The decision is recorded in the marker itself: `refresh=false` means
-    // `request_refresh_coalesced` was not called, so no debounced
-    // `workspace/semanticTokens/refresh` can ever fire for this request.  This is
-    // the primary, race-free guard against the spurious-refresh regression.
-    assert!(
-        settled.contains("refresh=false"),
-        "the converged viewport must settle without asking for a refresh: {settled:?}"
-    );
-    // Belt-and-suspenders: confirm no refresh request actually reached the client.
-    let refreshes = lsp
-        .server_requests()
-        .into_iter()
-        .skip(req_since)
-        .filter(|r| {
-            r.get("method").and_then(|m| m.as_str()) == Some("workspace/semanticTokens/refresh")
-        })
-        .count();
-    assert_eq!(
-        refreshes, 0,
-        "no workspace/semanticTokens/refresh must fire when the coarse and enriched \
-         viewports are identical — a spurious refresh flickers every open document"
-    );
+        // Deterministic readiness via message passing — not a fixed sleep.
+        // Every range request logs its settled decision. A concurrent project
+        // write may legitimately cancel either Salsa read; that path rearms the
+        // one-shot coarse seam and requests a retry, so consume the refresh and
+        // re-request rather than confusing cancellation with a failed equality
+        // comparison. This is the same retry contract exercised by
+        // `converge_via_refresh`, made explicit here because the assertion is
+        // specifically about the eventual `compared-equal` round.
+        let settled = lsp.await_log(
+            &["semantic_tokens.range_convergence.settled", uri.as_str()],
+            ROUND_SETTLE,
+            log_since,
+        );
+        eprintln!(
+            "range_semantic_tokens_no_spurious_refresh_when_converged \
+             attempt {attempts}: {settled}"
+        );
+        if settled.contains("outcome=cancelled") {
+            assert!(
+                settled.contains("refresh=true"),
+                "a cancelled comparison must request its retry: {settled:?}"
+            );
+            lsp.await_server_request(
+                "workspace/semanticTokens/refresh",
+                REFRESH_ARRIVAL,
+                req_since,
+            );
+            continue;
+        }
+
+        // `outcome=compared-equal` proves the forced coarse branch actually
+        // compared the recomputed enriched viewport. `refresh=false` is the
+        // race-free primary assertion; the request census is an independent
+        // guard that no workspace-wide refresh reached the client for this
+        // equal round.
+        assert!(
+            settled.contains("outcome=compared-equal"),
+            "the forced coarse branch must execute its equality comparison: {settled:?}"
+        );
+        assert!(
+            settled.contains("refresh=false"),
+            "the converged viewport must settle without asking for a refresh: {settled:?}"
+        );
+        let refreshes = lsp
+            .server_requests()
+            .into_iter()
+            .skip(req_since)
+            .filter(|r| {
+                r.get("method").and_then(|m| m.as_str()) == Some("workspace/semanticTokens/refresh")
+            })
+            .count();
+        assert_eq!(
+            refreshes, 0,
+            "no workspace/semanticTokens/refresh must fire when the coarse and enriched \
+             viewports are identical — a spurious refresh flickers every open document"
+        );
+        return;
+    }
 }
 
 // -- generators / small utils --------------------------------------------
