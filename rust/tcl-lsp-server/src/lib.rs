@@ -6313,7 +6313,7 @@ struct ClosePublicationLocks<'a> {
 
 /// The exact dependency a deferred `didOpen` publication last failed to
 /// acquire. Kept typed so telemetry and tests use the same names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum LivePublicationWait {
     Database,
     Files,
@@ -6328,6 +6328,24 @@ enum LivePublicationWait {
     SemanticRefreshRequests,
     WorkspaceClassAnalyses,
     Documents,
+}
+
+#[derive(Default)]
+struct DiskPublicationRetries {
+    per_dependency: HashMap<LivePublicationWait, u64>,
+}
+
+impl DiskPublicationRetries {
+    fn record(&mut self, wait: LivePublicationWait) -> u64 {
+        let retries = self.per_dependency.entry(wait).or_default();
+        *retries = retries.saturating_add(1);
+        *retries
+    }
+
+    #[cfg(test)]
+    fn count(&self, wait: LivePublicationWait) -> u64 {
+        self.per_dependency.get(&wait).copied().unwrap_or_default()
+    }
 }
 
 struct LivePublicationRetry {
@@ -8606,10 +8624,9 @@ impl Backend {
         &self,
         operation: &'static str,
         wait: LivePublicationWait,
-        retries: &mut u64,
+        retries: &mut DiskPublicationRetries,
     ) {
-        *retries = retries.saturating_add(1);
-        if retries.is_multiple_of(1024) {
+        if retries.record(wait).is_multiple_of(1024) {
             match wait {
                 LivePublicationWait::Database => drop(self.db.lock().await),
                 LivePublicationWait::Files => drop(self.db_files.lock().await),
@@ -8837,7 +8854,7 @@ impl Backend {
         // Otherwise sustained readers queued on Tokio's fair `db` mutex can
         // prevent `try_lock` from ever reaching the census check below.
         let snapshot_drain = self.db.begin_snapshot_drain();
-        let mut retries = 0;
+        let mut retries = DiskPublicationRetries::default();
         loop {
             let locks = match self.try_publication_locks() {
                 Ok(locks) => locks,
@@ -43410,7 +43427,10 @@ proc p {} {
         let pausing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             async move {
-                let mut retries = 1023;
+                let mut retries = DiskPublicationRetries::default();
+                for _ in 0..1023 {
+                    retries.record(LivePublicationWait::WorkspaceIndex);
+                }
                 backend
                     .pause_disk_publication(
                         "test_disk_index_queue",
@@ -43418,7 +43438,7 @@ proc p {} {
                         &mut retries,
                     )
                     .await;
-                retries
+                retries.count(LivePublicationWait::WorkspaceIndex)
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -43454,6 +43474,35 @@ proc p {} {
             .await
             .expect("the later reader must resume after disk publication")
             .expect("the later reader must not panic");
+    }
+
+    /// Exact-head automated review of #1854: alternating failures retain an
+    /// independent fair-queue budget for every contended dependency.
+    #[test]
+    fn disk_publication_retry_budget_is_per_dependency_1854() {
+        let mut retries = DiskPublicationRetries::default();
+        for _ in 0..1023 {
+            assert!(
+                !retries
+                    .record(LivePublicationWait::Database)
+                    .is_multiple_of(1024)
+            );
+            assert!(
+                !retries
+                    .record(LivePublicationWait::WorkspaceIndex)
+                    .is_multiple_of(1024)
+            );
+        }
+        assert!(
+            retries
+                .record(LivePublicationWait::Database)
+                .is_multiple_of(1024)
+        );
+        assert!(
+            retries
+                .record(LivePublicationWait::WorkspaceIndex)
+                .is_multiple_of(1024)
+        );
     }
 
     /// Fresh exact-head review of #1854: disk publication must establish
