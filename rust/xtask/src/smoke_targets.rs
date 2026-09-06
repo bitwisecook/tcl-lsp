@@ -358,7 +358,7 @@ fn workspace_target_features(
         features.insert(package.name.clone(), BTreeSet::new());
     }
 
-    let mut workspace_args = vec![
+    let workspace_args = vec![
         "tree".to_owned(),
         "--workspace".to_owned(),
         "--locked".to_owned(),
@@ -373,15 +373,18 @@ fn workspace_target_features(
         "--format".to_owned(),
         "{p}\t{f}".to_owned(),
     ];
-    for package in &proc_macro_packages {
-        workspace_args.extend(["--exclude".to_owned(), package.clone()]);
-    }
     let mut command = Command::new("cargo");
     command.args(&workspace_args).current_dir(root);
     let output = command_output(&mut command)?;
     let stdout = String::from_utf8(output.stdout).context("cargo tree output is not UTF-8")?;
     record_target_features(&stdout, &display_to_name, &mut features);
     for package in proc_macro_packages {
+        // Keep features that this root contributes to ordinary dependencies,
+        // but replace its own host-unit features with its isolated root unit.
+        features
+            .get_mut(&package)
+            .context("procedural-macro workspace package is missing from the feature map")?
+            .clear();
         let mut command = Command::new("cargo");
         command
             .args([
@@ -2348,7 +2351,7 @@ const CARGO_FIXTURE_FILES: &[(&str, &str)] = &[
     (
         "Cargo.toml",
         r#"[workspace]
-members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u"]
 resolver = "2"
 "#,
     ),
@@ -2422,6 +2425,9 @@ edition = "2024"
 
 [lib]
 proc-macro = true
+
+[dependencies]
+u = { path = "../u", features = ["proc_dependency"] }
 
 [features]
 default = ["root"]
@@ -2764,19 +2770,48 @@ fn smoke_proc_macro_link_path() {
 }
 "#,
     ),
+    (
+        "u/Cargo.toml",
+        r#"[package]
+name = "u"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+proc_dependency = []
+
+[[bin]]
+name = "proc_dependency_smoke"
+path = "src/main.rs"
+required-features = ["proc_dependency"]
+"#,
+    ),
+    (
+        "u/src/main.rs",
+        "#[cfg(not(feature = \"proc_dependency\"))]\ncompile_error!(\"procedural-macro dependency feature is missing\");\nfn main() {}\n",
+    ),
 ];
 
 fn verify_fixture_metadata(fixture: &Fixture, targets: &[Target]) -> Result<()> {
     let build_smoke = fixture_target(targets, "a", "build_smoke")?;
     let normal_smoke = fixture_target(targets, "a", "normal_smoke")?;
+    let proc_dependency_smoke = fixture_target(targets, "u", "proc_dependency_smoke")?;
     let proc_macro_host_smoke = fixture_target(targets, "d", "proc_macro_host_smoke")?;
     let proc_macro_root_smoke = fixture_target(targets, "d", "proc_macro_root_smoke")?;
     if build_smoke.available
         || !normal_smoke.available
+        || !proc_dependency_smoke.available
         || proc_macro_host_smoke.available
         || !proc_macro_root_smoke.available
     {
-        bail!("resolver-v2 target feature-context self-test failed");
+        bail!(
+            "resolver-v2 target feature-context self-test failed: build={}, normal={}, proc-dependency={}, proc-host={}, proc-root={}",
+            build_smoke.available,
+            normal_smoke.available,
+            proc_dependency_smoke.available,
+            proc_macro_host_smoke.available,
+            proc_macro_root_smoke.available
+        );
     }
     if fixture_target(targets, "d", "d")?.kind != "lib"
         || fixture_target(targets, "g", "g")?.kind != "lib"
