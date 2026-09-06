@@ -20756,8 +20756,19 @@ impl Backend {
             }
         }
         drop(docs);
-        self.invalidate_live_publication(deleted.iter().chain(revived.iter()));
-        self.live_publication_advanced.notify_waiters();
+        // A normal CREATED/CHANGED notification for an already-live open
+        // buffer changes no authoritative state and starts no replacement
+        // publisher. Invalidating it here would retire a contended didOpen or
+        // didChange forever. Only actual orphan-to-live transitions appear in
+        // `publications`; pair those with the genuine deletions.
+        if !deleted.is_empty() || !publications.is_empty() {
+            self.invalidate_live_publication(
+                deleted
+                    .iter()
+                    .chain(publications.iter().map(|(uri, ..)| uri)),
+            );
+            self.live_publication_advanced.notify_waiters();
+        }
         publications
     }
 }
@@ -21376,7 +21387,7 @@ impl LanguageServer for Backend {
             .update_watched_open_paths(&deleted_while_open, &revived_while_open)
             .await;
         let domain_changed =
-            !deleted.is_empty() || !changed.is_empty() || !revived_while_open.is_empty();
+            !deleted.is_empty() || !changed.is_empty() || !revived_publications.is_empty();
 
         // Closed files that already carry a badge (a pull-cache entry) and whose
         // on-disk change must refresh (#865) or clear that badge — computed once
@@ -43040,6 +43051,61 @@ proc p {} {
                 .workspace_command_exists("::revived"),
             "the revived editor buffer must regain its workspace-index facts",
         );
+    }
+
+    /// Exact-head automated review of #1854: a disk notification for an
+    /// already-live open buffer is a no-op because the editor buffer remains
+    /// authoritative. It must not retire a contended publisher without
+    /// starting a replacement, especially when diagnostics cannot repair it.
+    #[tokio::test]
+    async fn watched_change_preserves_live_open_publication_currency_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///live-watched-change-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(
+                "proc still_pending {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        let global_before = backend
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let uri_before = backend.live_publication_uri_generation(&uri);
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CHANGED,
+                }],
+            })
+            .await;
+
+        assert_eq!(
+            backend
+                .live_publication_generation
+                .load(std::sync::atomic::Ordering::Acquire),
+            global_before,
+            "a no-op open-buffer disk event must not wake every publisher",
+        );
+        assert_eq!(
+            backend.live_publication_uri_generation(&uri),
+            uri_before,
+            "a no-op open-buffer disk event must not obsolete its publisher",
+        );
+        let docs = backend.documents.lock("test").await;
+        let doc = docs.get(&uri).expect("the open buffer remains tracked");
+        assert!(!doc.backing_file_deleted);
+        assert_eq!(doc.publication, DocumentPublication::Pending);
     }
 
     /// Exact-head automated review of #1854: watched handlers are concurrent,
