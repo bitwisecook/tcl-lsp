@@ -1911,7 +1911,10 @@ fn node_extent_at(node: &ExprNode, depth: u32) -> Option<(u32, u32)> {
             let (_, fe) = node_extent_at(false_branch, depth + 1)?;
             Some((cs, fe))
         }
-        ExprNode::Raw { .. } => None,
+        // `CompiledWord` carries no source span either: it is a *word* the IR
+        // reduced to its value, not a slice of the expression text this
+        // extent indexes into.
+        ExprNode::Raw { .. } | ExprNode::CompiledWord { .. } => None,
     }
 }
 

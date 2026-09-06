@@ -786,7 +786,11 @@ fn walk_expr(
                 walk_expr(&reparsed, ssa_versions, ctx, out, depth + 1);
             }
         }
-        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
+        // `CompiledWord` is a word, not an expression: nothing here to inspect.
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Var { .. } => {}
     }
 }
 

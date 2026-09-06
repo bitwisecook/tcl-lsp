@@ -473,20 +473,29 @@ impl CodegenCtx<'_> {
             // for these modes.
             Statement::Switch {
                 raw_args,
-                patterns_braced,
+                raw_arg_braced,
                 ..
             } => {
-                // The single-braced arm form `switch … { pat body … }` passes
-                // the whole arm block as one braced-literal word: its patterns
-                // and bodies are data, so a `[…]`/`$…` inside (e.g. a `-regexp`
-                // character class `{[0-9]+}`) must not be substituted. Mark that
-                // trailing word `Str` so it is pushed verbatim; the leading
-                // option/subject words still interpolate (the subject may be
-                // `$s`). The multi-word form keeps the all-interpolated path.
-                if *patterns_braced && !raw_args.is_empty() {
+                // Each word goes out the way it was written. A braced word is
+                // data — its `[…]` / `${…}` must not run — and that is true of
+                // every position, not just the trailing arm list this used to
+                // special-case: `switch -glob -- {a[bc]d} {a\[bc\]d} …` ran
+                // `bc` for the subject, and decoded the pattern to `a[bc]d`,
+                // which then matched as a character class rather than as the
+                // literal both oracles match.
+                //
+                // `raw_arg_braced` is the lexer's answer, carried through the
+                // IR because `raw_args` are values and a value cannot say how
+                // it was written. Empty means unknown (a hand-built
+                // statement), which keeps the old all-interpolated behaviour.
+                if raw_arg_braced.iter().any(|braced| *braced) {
                     let n = raw_args.len();
                     let mut kinds = vec![tcl_lexer::TokenType::Esc; n + 1];
-                    kinds[n] = tcl_lexer::TokenType::Str;
+                    for (i, braced) in raw_arg_braced.iter().enumerate() {
+                        if *braced && i + 1 < kinds.len() {
+                            kinds[i + 1] = tcl_lexer::TokenType::Str;
+                        }
+                    }
                     let toks = crate::ir::CommandTokens::from_lossy_parts(
                         Vec::new(),
                         Vec::new(),

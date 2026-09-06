@@ -2541,6 +2541,7 @@ fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: 
         }
         ExprNode::Literal { .. }
         | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. } => {}
     }

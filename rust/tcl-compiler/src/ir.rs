@@ -937,8 +937,17 @@ pub struct TryHandler {
 /// A `switch` arm: pattern + body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SwitchArm {
-    /// Pattern text.
+    /// Pattern text — the word's *value*.
     pub pattern: String,
+    /// Whether this arm's pattern word was braced, so its value is literal.
+    ///
+    /// Per-arm, because the two arm forms differ per *word*: a single braced
+    /// `{pat body …}` block holds literal list elements, while the multi-word
+    /// form (`switch $s $pat {body}`) is a word each, and `{${x}}` there is
+    /// literal while a bare `$pat` substitutes. The whole-switch
+    /// `Statement::Switch::patterns_braced` cannot say that, and using it
+    /// substituted a braced pattern.
+    pub pattern_braced: bool,
     /// Source span of the pattern.
     pub pattern_span: Span,
     /// Body script (`None` for fall-through arms).
@@ -1403,6 +1412,21 @@ pub enum Statement {
         nocase: bool,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// Per-[`Self::Switch::raw_args`] "this word was braced" flags, for the
+        /// generic-invoke fallback the opaque modes take.
+        ///
+        /// `raw_args` are *values*, and a value cannot say how it was written,
+        /// so the emitter that pushes them has no way to tell a braced word's
+        /// literal content from a bare word that still substitutes. It used to
+        /// fabricate the flags — marking only a single braced arm list — and
+        /// everything else went out substituting: `switch -glob -- {a[bc]d}`
+        /// ran `bc`, and the pattern `{a\[bc\]d}` was decoded to `a[bc]d` and
+        /// matched as a character class, so it matched `abd` and not the
+        /// literal both oracles match.
+        ///
+        /// Empty when the flags are unknown (a hand-built statement), which the
+        /// emitter reads as "none braced" — the prior behaviour.
+        raw_arg_braced: Vec<bool>,
         /// `true` when the arms came from a single braced
         /// `{pat body …}` block — patterns are literal list elements
         /// with no substitution. `false` when supplied as separate
@@ -2348,12 +2372,14 @@ mod tests {
     fn switch_statement() {
         let stmt = Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: Span::new(0, 80),
             subject: "$cmd".into(),
             subject_span: Span::new(7, 11),
             arms: vec![
                 SwitchArm {
                     pattern: "start".into(),
+                    pattern_braced: true,
                     pattern_span: Span::new(13, 18),
                     body: Some(Script::new()),
                     body_span: Some(Span::new(19, 22)),
@@ -2361,6 +2387,7 @@ mod tests {
                 },
                 SwitchArm {
                     pattern: "stop".into(),
+                    pattern_braced: true,
                     pattern_span: Span::new(23, 27),
                     body: None,
                     body_span: None,

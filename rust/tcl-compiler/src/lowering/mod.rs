@@ -47,7 +47,10 @@ use tcl_dialect::model::surface_admits;
 use tcl_syntax::word_rules::WordValueRules;
 
 pub(crate) mod hooks;
-mod structured;
+// `pub(crate)` for one item: `structured::parse_switch_options`, which the
+// opaque-switch emitter asks where a `switch`'s options end rather than
+// carrying a second copy of that rule.
+pub(crate) mod structured;
 
 /// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single
 /// [`Statement::Barrier`] spanning `[base_offset, base_offset + len)`, so

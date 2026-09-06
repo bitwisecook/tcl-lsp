@@ -426,6 +426,68 @@ puts [string length $f]:$f
         want: "4:café",
         since: TclVersion::V8_4,
     },
+    // -- The operand contract: a word's value is not expression source. --
+    Vector {
+        // A `switch` subject is a *word*, and its value was handed to an
+        // operand shape whose text is source-including-delimiters. A value
+        // that merely looks braced was read back as one and stripped, so the
+        // five-character `{abc}` matched the arm `abc`. The second line is the
+        // case that cannot be rescued by re-bracketing: the value both looks
+        // braced *and* still owes a substitution, so it is resolved at compile
+        // time instead.
+        name: "a switch subject is a value, not expression source",
+        script: r#"switch -- "{abc}" abc {puts A:abc} {{abc}} {puts A:braced} default {puts A:def}
+set x 7
+switch -- "{$x}" {{7}} {puts B:match} default {puts B:def}
+"#,
+        want: "A:braced\nB:match",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        // The same rule for the *pattern*, and through the opaque modes, whose
+        // emitter fabricated its word kinds: it marked only a single braced arm
+        // list, so a braced subject ran its `[…]` and a braced pattern was
+        // decoded and then matched as a glob character class — `a\[bc\]d`
+        // matched `abd` and not the literal `a[bc]d`.
+        name: "an opaque switch pushes each word the way it was written",
+        script: r"switch -glob -- {a[bc]d} {a\[bc\]d} {puts C:match} default {puts C:def}
+switch -glob -- abd {a\[bc\]d} {puts D:class} default {puts D:def}
+switch -glob -- {a[nosuchcmd]} zz {puts E:hit} default {puts E:def}
+",
+        want: "C:match\nD:def\nE:def",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        // A quoted `expr` operand's decoded inner is finished text too, and was
+        // pushed substituting: `expr {"{abc}"}` answered `abc`.
+        name: "a quoted expr operand keeps a brace-shaped value",
+        script: r#"puts [expr {"{abc}"}]:[string length [expr {"{abc}"}]]:[string length [expr {"{}"}]]
+"#,
+        want: "{abc}:5:2",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        // A braced subject whose value *spells* a variable reference is still
+        // literal, and the whole-variable fast path must not claim it: it read
+        // `x` instead, which also errors when the name is unset. The pattern
+        // side is per *arm*, not per switch — the multi-word form is a word
+        // each, so a braced `{${…}}` pattern is literal while `$p`
+        // substitutes.
+        //
+        // The first two lines used to pass by accident: the subject wrongly
+        // loaded the variable *and* the pattern wrongly substituted, so the two
+        // wrongs compared equal. The third line separates them — a literal
+        // subject cannot match the variable's value.
+        name: "a braced subject that spells a variable is still literal",
+        script: r"switch -- {${undefinedvar}} {${undefinedvar}} {puts A:literal} default {puts A:def}
+set p {${undefinedvar}}
+switch -- {${undefinedvar}} $p {puts B:match} default {puts B:def}
+set x foo
+switch -- {${x}} foo {puts C:value} default {puts C:literal}
+",
+        want: "A:literal\nB:match\nC:literal",
+        since: TclVersion::V8_4,
+    },
 ];
 
 #[test]

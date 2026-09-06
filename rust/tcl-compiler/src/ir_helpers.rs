@@ -626,6 +626,7 @@ fn expr_has_command_at(expr: &ExprNode, depth: u32) -> bool {
         ExprNode::Call { args, .. } => args.iter().any(|a| expr_has_command_at(a, depth + 1)),
         ExprNode::Literal { .. }
         | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. } => false,
     }

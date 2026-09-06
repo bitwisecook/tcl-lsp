@@ -4209,11 +4209,13 @@ mod tests {
     fn opaque_switch(subject: &str, pattern: &str, body: crate::ir::Script) -> Statement {
         Statement::Switch {
             subject_braced: false,
+            raw_arg_braced: Vec::new(),
             span: Span::new(0, 40),
             subject: subject.into(),
             subject_span: Span::new(0, 1),
             arms: vec![crate::ir::SwitchArm {
                 pattern: pattern.into(),
+                pattern_braced: true,
                 pattern_span: Span::new(0, 1),
                 body: Some(body),
                 body_span: Some(Span::new(0, 1)),

@@ -310,7 +310,7 @@ fn infer_expr_type(
     match node {
         ExprNode::Literal { text, .. } => expr_literal_type(text, numbers),
 
-        ExprNode::String { .. } => TypeLattice::of(TclType::String),
+        ExprNode::String { .. } | ExprNode::CompiledWord { .. } => TypeLattice::of(TclType::String),
 
         ExprNode::Var { name, .. } => {
             let base = normalise_var_name(name);
