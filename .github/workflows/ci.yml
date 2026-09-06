@@ -1550,6 +1550,26 @@ jobs:
         with:
           node-version: "24"
 
+      # Both front-end package.json files pin the npm CLI through
+      # `packageManager`, and this job's entire value is how npm resolves a
+      # peer range — so it has to be the pinned npm and not whatever
+      # setup-node bundled. Same shim + assertion as `test-ext`.
+      - name: Enable Corepack (pin npm via packageManager)
+        if: env.RUN_WEB_FRONTENDS == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly or the shim isn't created and the bundled npm wins.
+          corepack enable npm
+          cd rust/bigip-report-gen/frontend
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
+
       # Keyed on both lockfiles: the cache invalidates whenever either
       # resolved tree changes, which is the only time a re-resolve costs
       # anything.
@@ -1581,13 +1601,23 @@ jobs:
           (cd rust/tcl-spec-studio/web && npm ci)
           touch build/stamps/spec-studio-npm-install
 
-      - name: Shared report front-end (typecheck + lint)
+      # `check-report-assets` and not just typecheck+lint: `frontend/dist/*.js`
+      # is committed and `include_str!`d into the report binary by
+      # rust/bigip-report-gen/rust/src/render.rs, so a PR that edits the
+      # TypeScript without rebuilding the bundles would otherwise stay green
+      # and ship the old front-end in a native release.
+      - name: Shared report front-end (typecheck + lint + asset drift)
         if: env.RUN_WEB_FRONTENDS == 'true'
-        run: make typecheck-report-ts lint-report-ts
+        run: make typecheck-report-ts lint-report-ts check-report-assets
 
-      - name: Spec studio front-end (typecheck + lint + unit tests)
+      # `spec-studio-assets` builds the production bundle. `spec-studio-test`
+      # alone does not: `build.mjs --tests` bundles the unit tests and then
+      # `process.exit(0)`s, so the controller, native-editor, Monaco, grammar
+      # and asset paths never execute and a break there would surface only in
+      # the post-merge Pages build.
+      - name: Spec studio front-end (typecheck + lint + build + unit tests)
         if: env.RUN_WEB_FRONTENDS == 'true'
-        run: make typecheck-spec-studio-ts lint-spec-studio-ts spec-studio-test
+        run: make typecheck-spec-studio-ts lint-spec-studio-ts spec-studio-assets spec-studio-test
 
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing
