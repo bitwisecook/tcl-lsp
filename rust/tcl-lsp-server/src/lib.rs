@@ -6243,15 +6243,17 @@ struct LivePublicationRetry {
     retries: u64,
     reported: bool,
     generation: u64,
+    uri_generation: u64,
 }
 
 impl LivePublicationRetry {
-    fn new(generation: u64) -> Self {
+    fn new(generation: u64, uri_generation: u64) -> Self {
         Self {
             since: crate::rt::Instant::now(),
             retries: 0,
             reported: false,
             generation,
+            uri_generation,
         }
     }
 }
@@ -6625,6 +6627,10 @@ pub struct Backend {
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
     diag_inputs_epoch: std::sync::atomic::AtomicU64,
+    /// Serialises analyser-input mutations with the final standalone-index
+    /// epoch check and replacement. Writers hold this across the mutation and
+    /// epoch bump; seed publishers hold a reader through their no-await commit.
+    analyser_inputs_gate: tokio::sync::RwLock<()>,
     /// The `now_serving` position the last document-sync barrier stall was
     /// reported at, so a wedge logs once rather than once per blocked request.
     /// See [`Backend::report_edit_barrier_stall`].
@@ -6779,6 +6785,10 @@ pub struct Backend {
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them. See [`EditOrder`].
     edit_order: EditOrder,
+    /// Serialises watched-file batches. Notification handlers run
+    /// concurrently, but an older delete must not retire a path after a later
+    /// create has already revived and republished its open buffer.
+    watched_file_change_gate: Arc<Mutex<()>>,
     /// Wakes requests waiting for either tier of the matching open document's
     /// deferred publication. `DocumentState::publication` is the condition;
     /// this notify supplies only the race-free wakeup edge.
@@ -6789,6 +6799,10 @@ pub struct Backend {
     /// one; the notify supplies the wakeup edge only.
     live_publication_invalidated: Arc<tokio::sync::Notify>,
     live_publication_generation: Arc<std::sync::atomic::AtomicU64>,
+    /// Per-URI invalidation generations let a publisher distinguish its own
+    /// obsolescence from an unrelated global wake without acquiring the
+    /// contended document map it may currently be queued behind.
+    live_publication_uri_generations: std::sync::Mutex<HashMap<Uri, u64>>,
     /// Serialises the deferred source/index commits after document-sync turns
     /// have been released. This preserves edit order without making the gate a
     /// request barrier or retaining the document map while Salsa cancels old
@@ -7996,6 +8010,7 @@ impl Backend {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            analyser_inputs_gate: tokio::sync::RwLock::new(()),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -8019,9 +8034,11 @@ impl Backend {
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            watched_file_change_gate: Arc::new(Mutex::new(())),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
             live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
             live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store,
         }
@@ -8377,21 +8394,40 @@ impl Backend {
         }
     }
 
-    fn invalidate_live_publication(&self) {
+    fn invalidate_live_publication<'a>(&self, uris: impl IntoIterator<Item = &'a Uri>) {
+        let mut uri_generations = self
+            .live_publication_uri_generations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for uri in uris {
+            let generation = uri_generations.entry(uri.clone()).or_default();
+            *generation = generation.saturating_add(1);
+        }
+        drop(uri_generations);
         self.live_publication_generation
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.live_publication_invalidated.notify_waiters();
     }
 
-    /// Adopt a newer global invalidation only after the caller has proved its
-    /// own document identity is still current. An edit to another URI must not
-    /// permanently disable this publisher's periodic fair-queue joins, while
-    /// an edit to this URI must still wake the queued wait and fail currency on
-    /// the next loop iteration.
-    fn refresh_live_publication_generation(&self, retry: &mut LivePublicationRetry) {
-        retry.generation = self
-            .live_publication_generation
-            .load(std::sync::atomic::Ordering::Acquire);
+    fn live_publication_uri_generation(&self, uri: &Uri) -> u64 {
+        self.live_publication_uri_generations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(uri)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Adopt unrelated global invalidations without acquiring `documents`.
+    /// The separate per-URI generation remains readable while the document map
+    /// is contended, so a current publisher can still join that map's fair
+    /// queue and an obsolete publisher leaves promptly after its own URI moves.
+    fn refresh_live_publication_generation(&self, uri: &Uri, retry: &mut LivePublicationRetry) {
+        if self.live_publication_uri_generation(uri) == retry.uri_generation {
+            retry.generation = self
+                .live_publication_generation
+                .load(std::sync::atomic::Ordering::Acquire);
+        }
     }
 
     fn try_close_publication_locks(
@@ -8434,7 +8470,10 @@ impl Backend {
         uri: &Uri,
         wait: LivePublicationWait,
         retry: &mut LivePublicationRetry,
-    ) {
+    ) -> bool {
+        if self.live_publication_uri_generation(uri) != retry.uri_generation {
+            return false;
+        }
         retry.retries = retry.retries.saturating_add(1);
         if !retry.reported && retry.since.elapsed() >= EDIT_BARRIER_STALL_WARN {
             retry.reported = true;
@@ -8466,6 +8505,7 @@ impl Backend {
         // own mutation from a later invalidation and closes the check-to-wakeup
         // race (#1854 review).
         if retry.retries.is_multiple_of(1024) {
+            self.refresh_live_publication_generation(uri, retry);
             match wait {
                 LivePublicationWait::Database => {
                     self.join_live_publication_queue(self.db.lock(), retry.generation)
@@ -8529,6 +8569,7 @@ impl Backend {
             }
         }
         crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+        self.live_publication_uri_generation(uri) == retry.uri_generation
     }
 
     async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>, generation: u64) {
@@ -8713,6 +8754,7 @@ impl Backend {
         mut seed: FreshAnalysisSeed,
     ) -> bool {
         loop {
+            let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
             let rehoming_guard = self.rehoming_gate.lock().await;
             let class_factory_generation = self.class_factory_generation.read().await;
             if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
@@ -8720,6 +8762,7 @@ impl Backend {
             {
                 drop(class_factory_generation);
                 drop(rehoming_guard);
+                drop(analyser_inputs_guard);
                 seed = self
                     .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
                     .await;
@@ -8772,6 +8815,7 @@ impl Backend {
         mut seed: FreshAnalysisSeed,
     ) -> bool {
         loop {
+            let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
             let rehoming_guard = self.rehoming_gate.lock().await;
             let class_factory_generation = self.class_factory_generation.read().await;
             if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
@@ -8779,6 +8823,7 @@ impl Backend {
             {
                 drop(class_factory_generation);
                 drop(rehoming_guard);
+                drop(analyser_inputs_guard);
                 seed = self
                     .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
                     .await;
@@ -8921,7 +8966,8 @@ impl Backend {
                 .live_publication_generation
                 .load(std::sync::atomic::Ordering::Acquire);
             let mut snapshot_drain = None;
-            let mut retry = LivePublicationRetry::new(generation);
+            let mut retry =
+                LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
             loop {
                 if let Some(docs) = self.documents.try_lock("did_open_currency") {
                     if !docs
@@ -8930,27 +8976,35 @@ impl Backend {
                     {
                         return false;
                     }
-                    self.refresh_live_publication_generation(&mut retry);
+                    self.refresh_live_publication_generation(uri, &mut retry);
                 }
                 let locks = match self.try_reopen_publication_locks() {
                     Ok(locks) => locks,
                     Err(wait) => {
                         self.update_snapshot_drain(wait, &mut snapshot_drain);
-                        self.pause_open_publication("did_open", uri, wait, &mut retry)
-                            .await;
+                        if !self
+                            .pause_open_publication("did_open", uri, wait, &mut retry)
+                            .await
+                        {
+                            return false;
+                        }
                         continue;
                     }
                 };
 
                 let Some(docs) = self.documents.try_lock("did_open") else {
                     drop(locks);
-                    self.pause_open_publication(
-                        "did_open",
-                        uri,
-                        LivePublicationWait::Documents,
-                        &mut retry,
-                    )
-                    .await;
+                    if !self
+                        .pause_open_publication(
+                            "did_open",
+                            uri,
+                            LivePublicationWait::Documents,
+                            &mut retry,
+                        )
+                        .await
+                    {
+                        return false;
+                    }
                     continue;
                 };
 
@@ -9038,7 +9092,8 @@ impl Backend {
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
         let mut snapshot_drain = None;
-        let mut retry = LivePublicationRetry::new(generation);
+        let mut retry =
+            LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
             if let Some(docs) = self.documents.try_lock(operation) {
                 if !docs
@@ -9047,26 +9102,34 @@ impl Backend {
                 {
                     return false;
                 }
-                self.refresh_live_publication_generation(&mut retry);
+                self.refresh_live_publication_generation(uri, &mut retry);
             }
             let locks = match self.try_live_source_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
                     self.update_snapshot_drain(wait, &mut snapshot_drain);
-                    self.pause_open_publication(operation, uri, wait, &mut retry)
-                        .await;
+                    if !self
+                        .pause_open_publication(operation, uri, wait, &mut retry)
+                        .await
+                    {
+                        return false;
+                    }
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock(operation) else {
                 drop(locks);
-                self.pause_open_publication(
-                    operation,
-                    uri,
-                    LivePublicationWait::Documents,
-                    &mut retry,
-                )
-                .await;
+                if !self
+                    .pause_open_publication(
+                        operation,
+                        uri,
+                        LivePublicationWait::Documents,
+                        &mut retry,
+                    )
+                    .await
+                {
+                    return false;
+                }
                 continue;
             };
             let current = docs
@@ -9135,7 +9198,8 @@ impl Backend {
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
         let mut snapshot_drain = None;
-        let mut retry = LivePublicationRetry::new(generation);
+        let mut retry =
+            LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
             if let Some(docs) = self.documents.try_lock(operation) {
                 if !docs
@@ -9144,26 +9208,34 @@ impl Backend {
                 {
                     return false;
                 }
-                self.refresh_live_publication_generation(&mut retry);
+                self.refresh_live_publication_generation(uri, &mut retry);
             }
             let locks = match self.try_open_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
                     self.update_snapshot_drain(wait, &mut snapshot_drain);
-                    self.pause_open_publication(operation, uri, wait, &mut retry)
-                        .await;
+                    if !self
+                        .pause_open_publication(operation, uri, wait, &mut retry)
+                        .await
+                    {
+                        return false;
+                    }
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock(operation) else {
                 drop(locks);
-                self.pause_open_publication(
-                    operation,
-                    uri,
-                    LivePublicationWait::Documents,
-                    &mut retry,
-                )
-                .await;
+                if !self
+                    .pause_open_publication(
+                        operation,
+                        uri,
+                        LivePublicationWait::Documents,
+                        &mut retry,
+                    )
+                    .await
+                {
+                    return false;
+                }
                 continue;
             };
             let current = docs
@@ -9230,31 +9302,40 @@ impl Backend {
         let generation = self
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
-        let mut retry = LivePublicationRetry::new(generation);
+        let mut retry =
+            LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
             if let Some(docs) = self.documents.try_lock("did_close_currency") {
                 if docs.contains_key(uri) {
                     return false;
                 }
-                self.refresh_live_publication_generation(&mut retry);
+                self.refresh_live_publication_generation(uri, &mut retry);
             }
             let locks = match self.try_close_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
-                    self.pause_open_publication("did_close", uri, wait, &mut retry)
-                        .await;
+                    if !self
+                        .pause_open_publication("did_close", uri, wait, &mut retry)
+                        .await
+                    {
+                        return false;
+                    }
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock("did_close") else {
                 drop(locks);
-                self.pause_open_publication(
-                    "did_close",
-                    uri,
-                    LivePublicationWait::Documents,
-                    &mut retry,
-                )
-                .await;
+                if !self
+                    .pause_open_publication(
+                        "did_close",
+                        uri,
+                        LivePublicationWait::Documents,
+                        &mut retry,
+                    )
+                    .await
+                {
+                    return false;
+                }
                 continue;
             };
             if docs.contains_key(uri) {
@@ -9407,7 +9488,7 @@ impl Backend {
                 doc.bump_analysis_generation();
                 (doc.text.clone(), doc.revision)
             };
-            self.invalidate_live_publication();
+            self.invalidate_live_publication(std::iter::once(uri));
             if self
                 .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
                 .await
@@ -11328,6 +11409,7 @@ impl Backend {
             feature_toggles: _,
             optimiser_enabled: _,
             diag_inputs_epoch: _,
+            analyser_inputs_gate: _,
             edit_barrier_stall_reported: _,
             shimmer_enabled: _,
             optimiser_profile: _,
@@ -11342,9 +11424,11 @@ impl Backend {
             semantic_tokens_refresh_pending: _,
             warm_task: _,
             edit_order: _,
+            watched_file_change_gate: _,
             live_publication_advanced: _,
             live_publication_invalidated: _,
             live_publication_generation: _,
+            live_publication_uri_generations: _,
             live_publication_gate: _,
             store: _,
         } = self;
@@ -16381,10 +16465,11 @@ impl Backend {
         if !cfg.is_object() {
             return;
         }
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
         }
-        self.apply_global_library_paths(cfg).await;
+        let rescan_workspace = self.apply_global_library_paths(cfg).await;
         self.apply_global_toggles(cfg, signature_fallback_cfg).await;
         self.apply_global_formatting(cfg).await;
         self.apply_global_analyser_knobs(cfg).await;
@@ -16396,12 +16481,17 @@ impl Backend {
         // an edit schedules between here and the reload's own reschedule
         // (issue #1651).
         self.invalidate_diag_inputs();
+        drop(analyser_inputs_guard);
+        if rescan_workspace {
+            self.scan_workspace_folders().await;
+        }
     }
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
     /// `auto_path` (the user's picked installation / hand-entered paths).
     /// A change rebuilds the database so the new paths take effect immediately.
-    async fn apply_global_library_paths(&self, cfg: &serde_json::Value) {
+    async fn apply_global_library_paths(&self, cfg: &serde_json::Value) -> bool {
+        let mut rescan_workspace = false;
         if let Some(paths) = cfg
             .get("libraryPaths")
             .and_then(serde_json::Value::as_array)
@@ -16422,7 +16512,7 @@ impl Backend {
                 }
             };
             if changed {
-                self.scan_workspace_folders().await;
+                rescan_workspace = true;
             }
         }
         // `tclLsp.packages.preferLatest` — the interpreter's starting
@@ -16458,9 +16548,10 @@ impl Backend {
             // index entry, so a change to them has to re-scan — the same
             // treatment `libraryPaths` gets above (issue #1813 review).
             if changed {
-                self.scan_workspace_folders().await;
+                rescan_workspace = true;
             }
         }
+        rescan_workspace
     }
 
     /// The interpreter's **starting** `package prefer` mode — the base
@@ -16694,6 +16785,7 @@ impl Backend {
     /// save for a folder toggling an override.
     async fn apply_folder_configs(&self, parsed: Vec<(Uri, FolderConfig)>) {
         use salsa::Setter as _;
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         {
             let mut global_disabled: Vec<String> = self
                 .disabled_diagnostics
@@ -16805,6 +16897,7 @@ impl Backend {
         // through, so a replaced chain retires the scheduler's cached copies for
         // the same reason `apply_global_config` does.
         self.invalidate_diag_inputs();
+        drop(analyser_inputs_guard);
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with
@@ -18654,6 +18747,10 @@ impl Backend {
             return false;
         };
 
+        // Keep the pack registry and its Salsa key one analyser-input
+        // generation. A standalone index seed either commits before this
+        // writer or observes the bumped epoch after the complete transition.
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         // What publishing the set did to the live environment registry, when
         // it was published — `None` when this reload changed nothing.
         let mut registration: Option<tcl_spectcl::PackSetRegistration> = None;
@@ -18693,11 +18790,6 @@ impl Backend {
                 // the *current* set came from, so a reload that read the disk
                 // earlier than that can never take its place.
                 *guard = PublishedPackSet { seq, packs: loaded };
-                // The new set decides `registry_for_dialect`, and every cached
-                // `DiagInputs` holds a registry handle resolved from the old
-                // one.  Retired here, with the swap, so the next scheduled run
-                // resolves against what is now published.
-                self.invalidate_diag_inputs();
             }
             changed
         };
@@ -18731,6 +18823,13 @@ impl Backend {
             // before anything re-analyses.
             self.sync_db_config().await;
         }
+        if changed {
+            // The new set decides `registry_for_dialect`, and every cached
+            // `DiagInputs` holds a registry handle resolved from the old one.
+            // Bump only after the registry and Salsa config key are both live.
+            self.invalidate_diag_inputs();
+        }
+        drop(analyser_inputs_guard);
         self.report_pack_reload(&packs, registration.as_ref(), changed)
             .await;
         self.settle_pack_reload(changed, trigger).await;
@@ -20657,7 +20756,7 @@ impl Backend {
             }
         }
         drop(docs);
-        self.invalidate_live_publication();
+        self.invalidate_live_publication(deleted.iter().chain(revived.iter()));
         self.live_publication_advanced.notify_waiters();
         publications
     }
@@ -20805,7 +20904,7 @@ impl LanguageServer for Backend {
         let mut documents = self.documents.lock("did_open").await;
         documents.insert(uri.clone(), state);
         drop(documents);
-        self.invalidate_live_publication();
+        self.invalidate_live_publication(std::iter::once(&uri));
 
         // Poll the index writer once while the edit turn still excludes new
         // requests. If the lock is busy this registers our writer in Tokio's
@@ -20963,7 +21062,7 @@ impl LanguageServer for Backend {
             let revision = entry.revision;
             (text, dialect, language_id, revision, index_needs_seed)
         };
-        self.invalidate_live_publication();
+        self.invalidate_live_publication(std::iter::once(&uri));
         // The ordered operation is the buffer splice. Hand the global turn on
         // before Salsa publication: a setter can wait for a snapshot, and the
         // v2.2.2 incident demonstrated that retaining this turn across such a
@@ -21013,6 +21112,7 @@ impl LanguageServer for Backend {
             .or_else(|| params.settings.get("dialect"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         if let Some(d) = dialect {
             *self.default_dialect.lock().await = d;
             *self.default_dialect_explicit.lock().await = true;
@@ -21039,6 +21139,7 @@ impl LanguageServer for Backend {
         // and it must not need a second notification to take effect on the next
         // keystroke.
         self.invalidate_diag_inputs();
+        drop(analyser_inputs_guard);
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -21067,7 +21168,7 @@ impl LanguageServer for Backend {
             let mut docs = self.documents.lock("did_close").await;
             docs.remove(uri);
         }
-        self.invalidate_live_publication();
+        self.invalidate_live_publication(std::iter::once(uri));
         drop(turn);
         self.live_publication_advanced.notify_waiters();
 
@@ -21192,6 +21293,11 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        // tower-lsp-server dispatches notification handlers concurrently.
+        // Preserve watched-event transaction order so an older deletion cannot
+        // finish its index/Salsa removal after a newer create has revived the
+        // same still-open path.
+        let _watched_change = self.watched_file_change_gate.lock().await;
         // External (non-editor) file changes — `git checkout`, a generated
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
@@ -33367,6 +33473,7 @@ mod tests {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            analyser_inputs_gate: tokio::sync::RwLock::new(()),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -33390,9 +33497,11 @@ mod tests {
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            watched_file_change_gate: Arc::new(Mutex::new(())),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
             live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
             live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store: Arc::new(vfs::NativeStore),
         }
@@ -42933,6 +43042,113 @@ proc p {} {
         );
     }
 
+    /// Exact-head automated review of #1854: watched handlers are concurrent,
+    /// so an older delete must finish its Salsa/index removal before a later
+    /// create republishes the same still-open buffer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_transaction_precedes_later_revive_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///ordered-watched-revive-1854.tcl").unwrap();
+        let text = "proc ordered_revive {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deletion = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.backing_file_deleted);
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the deletion must mark the open buffer before its removal blocks");
+        assert!(
+            backend.watched_file_change_gate.try_lock().is_err(),
+            "the deletion must retain the watched transaction gate",
+        );
+
+        let revival = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::CREATED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), async {
+                while !revival.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "the later create must wait for the older deletion transaction",
+        );
+
+        drop(rehoming);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deletion)
+            .await
+            .expect("the deletion must finish after rehoming is released")
+            .expect("the deletion task must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(5), revival)
+            .await
+            .expect("the later create must finish after the deletion")
+            .expect("the revival task must not panic");
+
+        let docs = backend.documents.lock("test").await;
+        let revived = docs.get(&uri).expect("the open buffer remains tracked");
+        assert!(!revived.backing_file_deleted);
+        assert_eq!(revived.publication, DocumentPublication::Indexed);
+        drop(docs);
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::ordered_revive"),
+            "the older deletion must not remove the later revived index view",
+        );
+    }
+
     /// Exact-head automated review of #1854: a cold seed analysed under an old
     /// class-factory oracle must be recomputed if the project publishes a new
     /// oracle before its standalone index commit.
@@ -43041,7 +43257,7 @@ proc p {} {
     /// are disabled or excluded and therefore cannot repair the index later.
     #[tokio::test]
     async fn open_index_seed_retries_after_analyser_input_change_1854() {
-        let backend = test_backend();
+        let backend = Arc::new(test_backend());
         let uri = Uri::from_str("file:///analyser-input-race-1854.tcl").unwrap();
         let text = "proc current {} {}\n";
         backend.documents.lock("test").await.insert(
@@ -43066,11 +43282,34 @@ proc p {} {
             class_factory_generation: 0,
         };
 
-        backend.invalidate_diag_inputs();
+        let update = backend.analyser_inputs_gate.write().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
         assert!(
-            backend
-                .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
-                .await,
+            crate::rt::timeout(std::time::Duration::from_millis(25), async {
+                while !publishing.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "index publication must wait for the analyser-input writer",
+        );
+        backend.invalidate_diag_inputs();
+        drop(update);
+        let published = crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+            .await
+            .expect("the seed publisher must finish after the input transaction")
+            .expect("the seed publisher must not panic");
+        assert!(
+            published,
             "the current open must publish its recomputed seed",
         );
         let index = backend.workspace_index.read().await;
@@ -43111,21 +43350,25 @@ proc p {} {
             async move {
                 // Match production: the operation invalidates older publishers
                 // before entering its own publication loop.
-                backend.invalidate_live_publication();
+                backend.invalidate_live_publication(std::iter::once(&uri));
                 let generation = backend
                     .live_publication_generation
                     .load(std::sync::atomic::Ordering::Acquire);
+                let uri_generation = backend.live_publication_uri_generation(&uri);
                 let _publication = backend.live_publication_gate.lock().await;
-                let mut retry = LivePublicationRetry::new(generation);
+                let mut retry = LivePublicationRetry::new(generation, uri_generation);
                 retry.retries = 1023;
-                backend
-                    .pause_open_publication(
-                        "did_open",
-                        &uri,
-                        LivePublicationWait::Database,
-                        &mut retry,
-                    )
-                    .await;
+                assert!(
+                    !backend
+                        .pause_open_publication(
+                            "did_open",
+                            &uri,
+                            LivePublicationWait::Database,
+                            &mut retry,
+                        )
+                        .await,
+                    "the stale publisher must observe its URI invalidation",
+                );
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -43189,8 +43432,8 @@ proc p {} {
 
     /// Exact-head automated review of #1854: the invalidation generation is
     /// global, so an edit to another URI may wake a current publisher's fair
-    /// queue wait. Once that publisher rechecks its own identity, it must adopt
-    /// the new generation and be able to join the dependency queue again.
+    /// queue wait. It must adopt the new generation and join even when the
+    /// document map itself is the contended dependency it cannot inspect.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn unrelated_invalidation_refreshes_fair_queue_generation_1854() {
         let backend = Arc::new(test_backend());
@@ -43204,11 +43447,13 @@ proc p {} {
         let generation = backend
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
-        let mut retry = LivePublicationRetry::new(generation);
+        let mut retry =
+            LivePublicationRetry::new(generation, backend.live_publication_uri_generation(&uri));
 
         // This represents an edit to document B: A's identity remains current,
         // but its captured global generation is now old.
-        backend.invalidate_live_publication();
+        let unrelated = Uri::from_str("file:///fair-queue-b-1854.tcl").unwrap();
+        backend.invalidate_live_publication(std::iter::once(&unrelated));
         {
             let docs = backend.documents.lock("test").await;
             assert!(
@@ -43217,35 +43462,38 @@ proc p {} {
                 "the unrelated invalidation must not obsolete document A",
             );
         }
-        backend.refresh_live_publication_generation(&mut retry);
         retry.retries = 1023;
 
-        let database = backend.db.lock().await;
+        let documents = backend.documents.lock("test-held-map").await;
         let joining = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
-                backend
-                    .pause_open_publication(
-                        "did_open",
-                        &uri,
-                        LivePublicationWait::Database,
-                        &mut retry,
-                    )
-                    .await;
+                assert!(
+                    backend
+                        .pause_open_publication(
+                            "did_open",
+                            &uri,
+                            LivePublicationWait::Documents,
+                            &mut retry,
+                        )
+                        .await,
+                    "an unrelated invalidation must preserve the publisher",
+                );
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
             loop {
-                if backend.db.contention().contains("1 queued waiter") {
+                let (_, waiters) = backend.documents.watchdog_snapshot();
+                if waiters.iter().any(|waiter| waiter.site == "did_open") {
                     break;
                 }
                 crate::rt::yield_now().await;
             }
         })
         .await
-        .expect("the current publisher must rejoin the database's fair queue");
-        drop(database);
+        .expect("the current publisher must rejoin the document map's fair queue");
+        drop(documents);
         crate::rt::timeout(std::time::Duration::from_secs(5), joining)
             .await
             .expect("the refreshed fair-queue join must finish")
