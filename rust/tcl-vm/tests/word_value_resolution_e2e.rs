@@ -65,6 +65,20 @@
 //! The negative vectors below pin both boundaries: live substitution still
 //! happens, and a genuinely braced word still loses exactly one layer.
 //!
+//! The last group is the paths the first pass at this rule did not reach, all
+//! found by the fuzzer once it could generate a word whose value is not its
+//! spelling (#1897). Two are the same rule in an emitter that was missed —
+//! `emit_value`'s default push, the twin of the one that was fixed, which is
+//! the path a proc's `return` value takes; and a braced `switch` subject,
+//! whose braced-ness the IR recorded for the *patterns* but never for the
+//! subject. Three are neighbouring reads of a word that were wrong in their own
+//! way: a fold's brace-depth scan that counted braces inside a quoted word as a
+//! group, a word splitter that ended a word at an escaped blank, and a fold
+//! that walked a quoted argument one byte at a time. The last is the mistake
+//! `parse_subst_template` had fixed for #1441, surviving in its neighbour —
+//! which is the argument for pinning all of them here rather than beside each
+//! emitter.
+//!
 //! Every vector runs through the VM at all five releases and, when the matching
 //! real tclsh is installed, under it too, so the table cannot drift from C Tcl.
 //! A word's value is not a release axis — 8.6.16 and 9.0.4 agree on every
@@ -368,6 +382,80 @@ switch -- "{}$z" "{}x" { puts B:hit } default { puts B:def }
         script: r#"puts [string length "{} {}"]:[string length "a{}b"]
 "#,
         want: "5:4",
+        since: TclVersion::V8_4,
+    },
+    // -- The paths the first pass at this rule did not reach. --
+    Vector {
+        // `emit_value`'s default push — the twin of `emit_value_interpolated`'s,
+        // fixed at the same time as its sibling was not. It is the emitter a
+        // proc's `return` value goes through, so the value came back de-braced.
+        name: "a proc's return value is a value, braces included",
+        script: r#"proc pr {} { return "{abc}" }
+proc pe {} { return "{}" }
+puts [pr]:[string length [pr]]:[string length [pe]]
+"#,
+        want: "{abc}:5:2",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        // A braced `switch` subject is a literal: its `[…]` and `${…}` are
+        // data. The IR recorded whether the *patterns* were braced but never
+        // the subject, so codegen could not tell it from a bare word and ran
+        // the command. The third arm is the boundary — an unbraced subject
+        // still substitutes, which is the common form and what broke first
+        // when the braced flag was read off the wrong predicate.
+        name: "a braced switch subject is a literal, and an unbraced one is not",
+        script: r"switch -- {a[nosuchcmd]} zz {puts A:hit} default {puts A:def}
+switch -- {a${nosuchvar}} zz {puts B:hit} default {puts B:def}
+set z hit
+switch -- $z hit {puts C:match} default {puts C:def}
+",
+        want: "A:def\nB:def\nC:match",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        // The `list` fold's brace-depth scan counted a brace inside a *quoted*
+        // word as a group, so a live `$x` / `[…]` looked protected and the fold
+        // froze the source spelling instead of declining.
+        name: "a fold declines on a quoted word that still substitutes",
+        script: r#"set x 7
+set l [list "{$x}"]
+set m [list "{[string length ab]}"]
+puts [string length $l]:$l:$m
+"#,
+        want: "5:{{7}}:{{2}}",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        name: "the same fold rule reaches dict create",
+        script: r#"set d [dict create k "{[string length ab]}"]
+puts [string length [dict get $d k]]
+"#,
+        want: "3",
+        since: TclVersion::V8_5,
+    },
+    Vector {
+        // An escaped blank is word *content*: `a\ b` is one word. The bracket
+        // word splitter ended the word there anyway, so `string length` was
+        // handed two arguments. The `\t` case is the same escape one step on —
+        // the value carries a character no spelling of it contains.
+        name: "an escaped blank does not end a word",
+        script: r"puts [string length a\ b]:[llength [list a\ b c]]:[string length a\tb]
+",
+        want: "3:2:3",
+        since: TclVersion::V8_4,
+    },
+    Vector {
+        // `format`'s fold walked its quoted argument one *byte* at a time
+        // through `char::from`, which maps a byte to that value's Latin-1 code
+        // point — so every byte of a multi-byte character became its own
+        // mojibake char. The same mistake was fixed in `parse_subst_template`
+        // for #1441 and survived in its neighbour.
+        name: "a folded format result counts characters, not bytes",
+        script: r#"set f [format %s "café"]
+puts [string length $f]:$f
+"#,
+        want: "4:café",
         since: TclVersion::V8_4,
     },
 ];

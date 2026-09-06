@@ -469,11 +469,33 @@ fn fold_cmd_arg_values(
     }
 
     // Cannot fold if UNBRACED arguments contain substitutions.
+    //
+    // "Braced" means *the word is a braced word*, which is why the quote state
+    // has to be tracked alongside the depth: inside a `"…"` word a brace is
+    // ordinary content, not a group, and it suppresses nothing. Counting it as
+    // a group made `"{$x}"` look protected, so `[list "{$x}"]` folded and froze
+    // the source spelling — `{{$x}}` where both oracles say `{{7}}` — and
+    // `[dict create k "{[…]}"]` froze an unrun command substitution.
+    //
+    // Deliberately still blind to backslashes: an escaped `\$` in a bare word
+    // is a constant this declines to fold, which costs a fold and answers
+    // correctly. Teaching it to escape-skip would *enable* new folds, which is
+    // a different change with a different risk.
     let mut depth: i32 = 0;
+    let mut in_quotes = false;
     for ch in inner.bytes() {
         match ch {
-            b'{' => depth += 1,
-            b'}' => depth -= 1,
+            // The two states gate each other, and both directions matter. A
+            // brace inside a *quoted* word is content, so it opens no group —
+            // miss that and `"{$x}"` looks protected. A quote inside a *braced*
+            // word is equally content, so it opens no quoted region — miss that
+            // and the `}` that closes the brace is skipped as "inside a quote",
+            // depth never returns to 0, and everything after `[list {"} $x]`
+            // looks protected: it folded to `{"} {$x}` where both oracles say
+            // `{"} 7`.
+            b'"' if depth == 0 => in_quotes = !in_quotes,
+            b'{' if !in_quotes => depth += 1,
+            b'}' if !in_quotes => depth -= 1,
             b'$' | b'[' if depth == 0 => return None,
             _ => {}
         }
@@ -575,15 +597,28 @@ pub fn fold_dict_create_cmd(
 ///
 /// Only handles simple `%s` and `%d` conversions with literal args.
 /// Returns `None` if the format cannot be folded.
+///
+/// `escapes` is the *document's* escape grammar, threaded because the fold
+/// decodes its arguments and that decode is a release axis (#1479): `\x`
+/// runs unbounded before 8.6, so `[format %s "\x4142"]` is the one byte `B`
+/// on 8.4 and `A42` from 8.6 on. Folding under one grammar for every document
+/// answered `A42` at `--dialect tcl8.4`, where the real 8.4 says `B`.
+///
+/// This is reached from the optimiser as well as codegen
+/// (`sccp::fold_builtin_call`), so the wrong answer is one the LSP shows.
+/// Both callers have the axis in hand — codegen from its own `CodegenCtx`,
+/// SCCP from `FoldPolicy::dialect` — which is what makes threading it
+/// possible now; the note this replaces said the SCCP caller had no release
+/// to give, and that stopped being true when the policy gained a profile.
 #[must_use]
-pub fn try_format_fold(value: &str) -> Option<String> {
+pub fn try_format_fold(value: &str, escapes: EscapeSyntax) -> Option<String> {
     let inner = value.strip_prefix("[format ")?.strip_suffix(']')?;
 
     // Parse the command parts (format string + arguments). Bails (`None`) when
     // any word is a runtime substitution (`$var` / `[cmd]`) rather than a
     // compile-time constant — folding those would freeze the literal source
     // text (`$cmd`) into the result instead of its value.
-    let parts = parse_format_parts(inner)?;
+    let parts = parse_format_parts(inner, escapes)?;
     if parts.is_empty() {
         return None;
     }
@@ -618,8 +653,14 @@ pub fn try_format_fold(value: &str) -> Option<String> {
                 _ => return None,
             }
         } else {
-            result.push(char::from(fmt_bytes[fi]));
-            fi += 1;
+            // The *character*, not the byte. Every `%`-arm above advances by
+            // two ASCII bytes, so `fi` is always a char boundary here.
+            let ch = fmt[fi..]
+                .chars()
+                .next()
+                .expect("fi is a char boundary inside fmt");
+            result.push(ch);
+            fi += ch.len_utf8();
         }
     }
 
@@ -630,7 +671,7 @@ pub fn try_format_fold(value: &str) -> Option<String> {
 /// is a runtime substitution (a quoted or bare word containing an unescaped `$`
 /// or `[`) — such a word is not a compile-time constant and must not be folded.
 /// Braced words are always literal (Tcl braces suppress substitution).
-fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
+fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>> {
     let bytes = inner.as_bytes();
     let mut parts = Vec::new();
     let mut i = 0;
@@ -641,27 +682,32 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
             b'"' => {
                 // Quoted string — subject to substitution, so a `$`/`[` makes it
                 // non-constant (an escaped `\$`/`\[` stays literal).
+                //
+                // Scanned by *slice*, not by pushing one byte at a time
+                // through `char::from`: that maps a byte to the Latin-1 code
+                // point of its value, so every byte of a multi-byte character
+                // became its own mojibake char and `[format %s "café"]` folded
+                // to five characters of `cafÃ©`. The same mistake was fixed in
+                // `parse_subst_template` for issue #1441
+                // (`subst_template_multibyte_literal_text_with_var`) and
+                // survived here, in its neighbour.
                 i += 1;
-                let mut buf = String::new();
+                let start = i;
                 let mut subst = false;
                 while i < bytes.len() && bytes[i] != b'"' {
                     if bytes[i] == b'\\' {
-                        if i + 1 < bytes.len() {
-                            buf.push(char::from(bytes[i]));
-                            buf.push(char::from(bytes[i + 1]));
-                            i += 2;
-                        } else {
-                            buf.push(char::from(bytes[i]));
-                            i += 1;
-                        }
-                    } else {
-                        if matches!(bytes[i], b'$' | b'[') {
-                            subst = true;
-                        }
-                        buf.push(char::from(bytes[i]));
+                        // Past the backslash — ASCII, so `i` stays a char
+                        // boundary — then over the whole escaped character.
                         i += 1;
+                        i += inner[i..].chars().next().map_or(0, char::len_utf8);
+                        continue;
                     }
+                    if matches!(bytes[i], b'$' | b'[') {
+                        subst = true;
+                    }
+                    i += inner[i..].chars().next().map_or(1, char::len_utf8);
                 }
+                let buf = &inner[start..i];
                 if i < bytes.len() {
                     i += 1; // skip closing "
                 }
@@ -673,13 +719,12 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
                 // `\$`/`\[`, …) must be substituted to get the folded value —
                 // otherwise `[format "x\"y"]` would freeze the literal `x\"y`.
                 //
-                // Release-blind by necessity: `try_format_fold` is also an SCCP
-                // const-folder, which has no target release in hand, so this
-                // reads under Tcl 9.0 — the documented `Unknown` posture. The
-                // release-variant forms (`\x` with three or more hex digits,
-                // `\U`, three-digit octal at or above `\40`) are the ones it
-                // therefore folds under 9.0 for every dialect (issue #1479).
-                parts.push(tcl_lexer::backslash_subst(&buf).into_owned());
+                // Decoded under the *document's* escape grammar, which the
+                // caller threads: the release-variant forms (`\x` with three or
+                // more hex digits, `\U`, three-digit octal at or above `\40`)
+                // fold to different values per release (#1479), and this fold
+                // is one the optimiser shows in the editor.
+                parts.push(tcl_lexer::backslash_subst_in(buf, escapes).into_owned());
             }
             b'{' => {
                 // Braced string — always literal.
@@ -728,7 +773,7 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
                 if has_unescaped_subst(word) {
                     return None;
                 }
-                parts.push(tcl_lexer::backslash_subst(word).into_owned());
+                parts.push(tcl_lexer::backslash_subst_in(word, escapes).into_owned());
             }
         }
     }
@@ -1064,6 +1109,28 @@ mod tests {
         );
     }
 
+    /// The fold decodes under the *document's* escape grammar, and that
+    /// grammar changes the answer. `\x` runs unbounded before 8.6
+    /// (`TclParseHex` gets the whole remaining input as its digit budget), so
+    /// `\x4142` is the single byte `B` there and `A` + a literal `42` from 8.6
+    /// on — measured on `tclsh8.4`/`tclsh8.5` (`1:B`) and
+    /// `tclsh8.6`/`tclsh9.0` (`3:A42`).
+    ///
+    /// Worth a test of its own because this fold is reached from the optimiser
+    /// (`sccp::fold_builtin_call`) as well as codegen, so folding under one
+    /// grammar for every document put the wrong constant in front of an editor
+    /// — `A42` at `--dialect tcl8.4`.
+    #[test]
+    fn format_fold_decodes_under_the_documents_escape_grammar() {
+        let fold = |escapes| try_format_fold(r#"[format %s "\x4142"]"#, escapes);
+        assert_eq!(fold(EscapeSyntax::Tcl84), Some("B".into()));
+        assert_eq!(fold(EscapeSyntax::default()), Some("A42".into()));
+        // The bare-word arm decodes through the same axis as the quoted one.
+        let bare = |escapes| try_format_fold(r"[format %s \x4142]", escapes);
+        assert_eq!(bare(EscapeSyntax::Tcl84), Some("B".into()));
+        assert_eq!(bare(EscapeSyntax::default()), Some("A42".into()));
+    }
+
     #[test]
     fn subst_template_octal_escape() {
         // Regression for issue #1441: `\101` was emitted as the literal text
@@ -1159,6 +1226,30 @@ mod tests {
 
     // -- fold_cmd_args / fold_list_cmd / fold_dict_create_cmd --
 
+    /// The two delimiter states gate each other. A brace inside a quoted word
+    /// opens no group, and a quote inside a braced word opens no quoted
+    /// region — get the second wrong and the `}` that closes the brace is
+    /// skipped, `depth` never returns to 0, and every later `$` looks
+    /// protected. Both directions are asserted because fixing only the first
+    /// is what introduced the second.
+    #[test]
+    fn fold_declines_when_a_marker_is_live_under_either_delimiter() {
+        let tcl = tcl_syntax::word_rules::WordValueRules::TCL;
+        // Quoted word, live marker inside braces that are only content.
+        assert_eq!(fold_list_cmd(r#"[list "{$x}"]"#, tcl), None);
+        assert_eq!(fold_list_cmd(r#"[list "{[cmd]}"]"#, tcl), None);
+        // Braced word containing a quote: the brace still closes, so the `$x`
+        // after it is unprotected and the fold declines. Folding it froze the
+        // literal `{$x}` where both oracles substitute.
+        assert_eq!(fold_list_cmd(r#"[list {"} $x]"#, tcl), None);
+        // A braced word really does protect its own markers.
+        assert_eq!(
+            fold_list_cmd("[list {a$b}]", tcl),
+            Some("{a$b}".into()),
+            "a braced word's markers are data and still fold"
+        );
+    }
+
     #[test]
     fn fold_list_cmd_basic() {
         assert_eq!(
@@ -1211,47 +1302,68 @@ mod tests {
     #[test]
     fn format_fold_simple_s() {
         assert_eq!(
-            try_format_fold("[format \"%s world\" hello]"),
+            try_format_fold("[format \"%s world\" hello]", EscapeSyntax::default()),
             Some("hello world".into())
         );
     }
 
     #[test]
     fn format_fold_simple_d() {
-        assert_eq!(try_format_fold("[format \"%d\" 42]"), Some("42".into()));
+        assert_eq!(
+            try_format_fold("[format \"%d\" 42]", EscapeSyntax::default()),
+            Some("42".into())
+        );
     }
 
     #[test]
     fn format_fold_percent_escape() {
-        assert_eq!(try_format_fold("[format \"100%%\"]"), Some("100%".into()));
+        assert_eq!(
+            try_format_fold("[format \"100%%\"]", EscapeSyntax::default()),
+            Some("100%".into())
+        );
     }
 
     #[test]
     fn format_fold_no_match() {
-        assert_eq!(try_format_fold("not format"), None);
+        assert_eq!(try_format_fold("not format", EscapeSyntax::default()), None);
     }
 
     #[test]
     fn format_fold_bails_on_variable_arg() {
         // A `$var` argument is a runtime substitution, not a constant — folding
         // it would freeze the literal text `$cmd` into the result.
-        assert_eq!(try_format_fold("[format {x %s} $cmd]"), None);
-        assert_eq!(try_format_fold("[format {%s} $cmd]"), None);
+        assert_eq!(
+            try_format_fold("[format {x %s} $cmd]", EscapeSyntax::default()),
+            None
+        );
+        assert_eq!(
+            try_format_fold("[format {%s} $cmd]", EscapeSyntax::default()),
+            None
+        );
     }
 
     #[test]
     fn format_fold_bails_on_command_sub_arg() {
-        assert_eq!(try_format_fold("[format {%s} [id]]"), None);
+        assert_eq!(
+            try_format_fold("[format {%s} [id]]", EscapeSyntax::default()),
+            None
+        );
     }
 
     #[test]
     fn format_fold_bails_on_quoted_subst() {
-        assert_eq!(try_format_fold("[format {%s} \"$x\"]"), None);
+        assert_eq!(
+            try_format_fold("[format {%s} \"$x\"]", EscapeSyntax::default()),
+            None
+        );
     }
 
     #[test]
     fn format_fold_multiline_template_constant_args() {
         // A multi-line braced template with constant args still folds.
-        assert_eq!(try_format_fold("[format {a\n%s} hi]"), Some("a\nhi".into()));
+        assert_eq!(
+            try_format_fold("[format {a\n%s} hi]", EscapeSyntax::default()),
+            Some("a\nhi".into())
+        );
     }
 }

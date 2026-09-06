@@ -520,6 +520,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
     };
     let make = |mode: SwitchMode| {
         Script::from_statements(vec![Statement::Switch {
+            subject_braced: false,
             span: sp(),
             subject: "$x".into(),
             subject_span: sp(),

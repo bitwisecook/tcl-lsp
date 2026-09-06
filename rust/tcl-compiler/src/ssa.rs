@@ -4169,6 +4169,7 @@ mod tests {
     /// arm's pattern and the canonical braced arm block.
     fn opaque_switch(subject: &str, pattern: &str, body: crate::ir::Script) -> Statement {
         Statement::Switch {
+            subject_braced: false,
             span: Span::new(0, 40),
             subject: subject.into(),
             subject_span: Span::new(0, 1),

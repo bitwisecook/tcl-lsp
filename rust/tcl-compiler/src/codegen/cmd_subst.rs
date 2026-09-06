@@ -147,6 +147,24 @@ pub fn has_command_separator(text: &str) -> bool {
 /// in `{…}` (braces are stripped from the returned text). This
 /// lets the caller decide whether to re-wrap the value in braces.
 // Sequential character-walk parser; the brace / quote / bracket / escape
+/// Whether `byte` separates two words inside a `[…]` substitution body.
+///
+/// The one place this private splitter states the rule, delegating to the
+/// dialect owner rather than spelling out a byte set. It is pinned to
+/// [`WordSeparators::Tcl`] because that is what every caller is: each one is a
+/// [`CodegenCtx`] method compiling a document whose grammar the context
+/// already carries, and no dialect on the Tcl ladder moves this axis — only
+/// `JimTcl` does, by making `\v` a word character.
+///
+/// That is what makes this *ready* rather than *aware*: threading the
+/// document's axis is changing this constant to a parameter and passing
+/// `self`'s, not rewriting the scan. Kept a constant until a Jim-dialect
+/// caller exists, so the change lands with a test that can tell the
+/// difference.
+const fn is_word_sep(byte: u8) -> bool {
+    tcl_dialect::WordSeparators::Tcl.is_separator(byte)
+}
+
 /// Skip past a balanced `[...]` substitution starting at *i*.
 /// Returns the new cursor position past the matching `]`.
 fn skip_cmd_subst(bytes: &[u8], n: usize, mut i: usize) -> usize {
@@ -215,9 +233,25 @@ fn parse_braced_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Strin
 /// `[cmd]` mid-word is consumed as an opaque substitution.
 fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
     let start = i;
-    while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
+    while i < n && !is_word_sep(bytes[i]) {
         if bytes[i] == b'[' {
             i = skip_cmd_subst(bytes, n, i);
+        } else if bytes[i] == b'\\' {
+            // A backslash escapes the next character, and an escaped blank is
+            // *word content*, not a separator: `a\ b` is one word whose value
+            // is `a b`. Splitting on it handed `string length` two arguments,
+            // so `[string length a\ b]` raised `wrong # args` where both
+            // oracles answer 3.
+            //
+            // `\<newline>` is the one exception — that really is a word
+            // separator ([`skip_word_seps`] owns it) — so the word ends before
+            // it and the caller consumes it.
+            if matches!(bytes.get(i + 1), Some(b'\n' | b'\r')) {
+                break;
+            }
+            i += 1;
+            // Over the whole escaped character, which may be multi-byte.
+            i += text[i..].chars().next().map_or(0, char::len_utf8);
         } else {
             i += 1;
         }
@@ -235,7 +269,7 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
 /// every test file using the `{-body … -result …}` dict form).
 fn skip_word_seps(bytes: &[u8], n: usize, mut i: usize) -> usize {
     loop {
-        if i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        if i < n && is_word_sep(bytes[i]) {
             i += 1;
         } else if i + 1 < n && bytes[i] == b'\\' && (bytes[i + 1] == b'\n' || bytes[i + 1] == b'\r')
         {
@@ -330,7 +364,7 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
                 let start = i;
                 i = skip_cmd_subst(bytes, n, i);
                 // Continue past trailing non-ws (e.g. ``[ns current]::foo``).
-                while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
+                while i < n && !is_word_sep(bytes[i]) {
                     if bytes[i] == b'[' {
                         i = skip_cmd_subst(bytes, n, i);
                     } else {
@@ -374,8 +408,7 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
         }
         // `{*}` immediately followed by non-whitespace word content → expansion.
         let mut expand = false;
-        if i + 3 < n && &bytes[i..i + 3] == b"{*}" && bytes[i + 3] != b' ' && bytes[i + 3] != b'\t'
-        {
+        if i + 3 < n && &bytes[i..i + 3] == b"{*}" && !is_word_sep(bytes[i + 3]) {
             expand = true;
             i += 3;
         }
@@ -391,7 +424,7 @@ pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
             b'[' => {
                 let start = i;
                 let mut j = skip_cmd_subst(bytes, n, i);
-                while j < n && bytes[j] != b' ' && bytes[j] != b'\t' {
+                while j < n && !is_word_sep(bytes[j]) {
                     if bytes[j] == b'[' {
                         j = skip_cmd_subst(bytes, n, j);
                     } else {
@@ -784,8 +817,12 @@ impl CodegenCtx<'_> {
         if interpolate && self.try_emit_whole_cmd_subst(value) {
             return;
         }
-        // Default: push as literal
-        self.push_lit(value);
+        // Default: the word's own text is its value — unsubstituted unless a
+        // `${…}` / `[…]` the runtime still owns survived the arms above. The
+        // twin of `emit_value_interpolated`'s default, and missed when that one
+        // was fixed: this is the emitter a proc's `return` value goes through,
+        // so `proc p {} { return "{abc}" }` answered `abc`.
+        self.push_word_value(value);
     }
 
     /// Resolve the registry-stamped [`InlineCodegenHookId`] for a

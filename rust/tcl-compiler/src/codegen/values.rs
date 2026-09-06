@@ -95,7 +95,7 @@ impl CodegenCtx<'_> {
         }
         // Constant-fold [format "..." arg ...] with literal args (%s/%d/%%).
         if self.trusts_builtin("format")
-            && let Some(folded) = super::helpers::try_format_fold(value)
+            && let Some(folded) = super::helpers::try_format_fold(value, self.escapes)
         {
             self.push_lit_no_dedup_verbatim(&folded);
             return true;

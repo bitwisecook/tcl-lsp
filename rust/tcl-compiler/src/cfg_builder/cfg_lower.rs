@@ -115,7 +115,27 @@ fn literal_true_expr() -> ExprNode {
 /// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
 /// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
 /// can never be compared as if it were its own literal text.
-fn switch_subject_operand(subject: &str) -> ExprNode {
+fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
+    // A braced subject is a literal: its `$` and `[` are data. `ExprNode::String`
+    // carries *source text including delimiters* — that is its documented
+    // contract — so the braces go back on and `emit_expr_string` recognises the
+    // word through the shared `whole_braced_word` owner and pushes its content
+    // verbatim. Handing over the bare value instead made it indistinguishable
+    // from an unbraced word, and `switch -- {a[nosuchcmd]}` ran the command
+    // where both oracles match the literal and take the default arm.
+    //
+    // Re-bracing is lossless here, and only here: a braced word's content is
+    // brace-balanced or escaped by construction, so wrapping it always yields a
+    // word the balance walk accepts. The same is not true of an arbitrary
+    // value, which is why this is gated on the word really having been braced
+    // rather than applied to anything that looks like it could be.
+    if braced {
+        return ExprNode::String {
+            text: format!("{{{subject}}}"),
+            start: 0,
+            end: 0,
+        };
+    }
     if is_whole_var_ref(subject) {
         return ExprNode::Raw {
             text: subject.to_owned(),
@@ -763,6 +783,7 @@ impl CfgBuilder {
         let Statement::Switch {
             span,
             subject,
+            subject_braced,
             arms,
             default_body,
             default_span,
@@ -829,7 +850,7 @@ impl CfgBuilder {
             let cond = if *mode == SwitchMode::Exact {
                 ExprNode::Binary {
                     op: BinOp::StrEq,
-                    left: Box::new(switch_subject_operand(subject)),
+                    left: Box::new(switch_subject_operand(subject, *subject_braced)),
                     right: Box::new(ExprNode::Literal {
                         text: arm.pattern.clone(),
                         start: 0,
@@ -1215,6 +1236,7 @@ mod tests {
     #[test]
     fn switch_exact_creates_branches() {
         let script = Script::from_statements(vec![Statement::Switch {
+            subject_braced: false,
             span: Span::new(0, 50),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
@@ -1251,6 +1273,7 @@ mod tests {
     /// Build a one-arm switch (body reads `$y`) in the given mode.
     fn glob_regexp_switch(mode: SwitchMode) -> Script {
         Script::from_statements(vec![Statement::Switch {
+            subject_braced: false,
             span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
