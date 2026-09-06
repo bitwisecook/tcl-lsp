@@ -96,7 +96,16 @@ __STYLES__
       </div>
 
       <div>
-        <div class="tabs" role="tablist">
+        <!-- The open commands, one tab each. A pack is many commands and one
+             deliverable, and writing one is constant motion between them —
+             comparing two specs, copying an option table across, checking a
+             subcommand against its sibling. Every tab is a *view*: the
+             `.tclspec` document below is still the only store, and a tab holds
+             its command's name and how its form was arranged, never a draft.
+             Filled by renderOpenTabs(); hidden while nothing is open. -->
+        <div class="opentabs" id="openTabs" role="tablist" aria-label="Open commands" hidden></div>
+
+        <div class="tabs" role="tablist" aria-label="Workbench views">
           <button type="button" role="tab" id="tab-editor" aria-controls="pane-editor" aria-selected="true">Spec editor</button>
           <button type="button" role="tab" id="tab-dsl" aria-controls="pane-dsl" aria-selected="false">Pack DSL</button>
           <button type="button" role="tab" id="tab-test" aria-controls="pane-test" aria-selected="false">Test</button>
@@ -351,12 +360,17 @@ __STYLES__
     </div>
   </div>
 
-  <!-- `/` anywhere opens command search over the pack and the registry alike.
+  <!-- `/` anywhere opens search over three surfaces at once: the pack under
+       edit, the dialect's shipped packs, and the Reference vocabulary. It says
+       which of them it looked in and how much of each answered, and every row
+       says which one it came from — a result you cannot place is one you have
+       to open to evaluate, which is the cost this box exists to remove.
        Keyboard first: type to narrow, ↑/↓ to move, Enter to open, Esc to
        dismiss. -->
   <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Search commands" hidden>
     <div class="box">
-      <input type="search" id="paletteInput" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search the pack and the registry…" aria-label="Search commands" aria-controls="paletteList">
+      <input type="search" id="paletteInput" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search the pack, the registry, and the Reference…" aria-label="Search commands, the registry, and the Reference vocabulary" aria-controls="paletteList">
+      <div class="scope" id="paletteScope" aria-live="polite"></div>
       <ul id="paletteList" role="listbox" aria-label="Matching commands"></ul>
       <div class="foot"><b>↑↓</b> move · <b>Enter</b> open · <b>Esc</b> close · <b>/</b> reopens</div>
     </div>

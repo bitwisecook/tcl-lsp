@@ -72,6 +72,32 @@ import {
   type Route,
   type Restore,
 } from "../src/docsDock.js";
+import {
+  activeTab,
+  closeTab,
+  cycleIndex,
+  emptyTabs,
+  focusTab,
+  markEdited,
+  openTab,
+  readStoredTabs,
+  rememberView,
+  renameTab,
+  restoreTabs,
+  retainTabs,
+  storedTabs,
+  tabIndex,
+  type TabSource,
+  type TabState,
+} from "../src/openTabs.js";
+import {
+  highlight,
+  paletteSummary,
+  searchPalette,
+  surfaceLabel,
+  type PaletteCandidate,
+  type PaletteNames,
+} from "../src/paletteSearch.js";
 import { mapSelectionThroughFormat } from "../src/textSelection.js";
 import type { CodeExample, FieldSchema, IndexEntry, PackRow, Schema } from "../src/types.js";
 
@@ -961,5 +987,452 @@ describe("routeSubject", () => {
       catalogue: "taint",
       key: "Http",
     });
+  });
+});
+
+/* The open-command tabs -------------------------------------------------- */
+
+/** Open `names` in order, so a list has a known least-recently-used end. */
+function opened(names: string[], cap = 3, where: TabSource = "pack"): TabState {
+  return names.reduce((list, name) => openTab(list, name, where, cap).state, emptyTabs());
+}
+
+describe("openTab", () => {
+  it("adds a command and gives it the form, in the order it was opened", () => {
+    const list = opened(["lsort", "lindex"]);
+    assert.deepEqual(
+      list.tabs.map((tab) => tab.name),
+      ["lsort", "lindex"],
+    );
+    assert.equal(activeTab(list)?.name, "lindex");
+  });
+
+  it("focuses a command already open rather than opening it twice", () => {
+    const list = rememberView(opened(["lsort", "lindex"]), 0, {
+      groups: ["Identity"],
+      scroll: 240,
+    });
+    const again = openTab(list, "lsort", "pack");
+    assert.equal(again.state.tabs.length, 2);
+    assert.equal(activeTab(again.state)?.name, "lsort");
+    // The whole reason to come back to a tab is to find it as you left it.
+    assert.deepEqual(activeTab(again.state)?.groups, ["Identity"]);
+    assert.equal(activeTab(again.state)?.scroll, 240);
+  });
+
+  it("keeps where a command was opened from, which is how it reopens", () => {
+    const list = openTab(emptyTabs(), "lsort", "registry").state;
+    assert.equal(activeTab(list)?.where, "registry");
+    // Re-opening the same name from the pack list does not rewrite that: the
+    // tab is the same view of the same declaration.
+    assert.equal(activeTab(openTab(list, "lsort", "pack").state)?.where, "registry");
+  });
+});
+
+describe("the cap on open tabs", () => {
+  it("closes the least recently used clean tab, and says which", () => {
+    const evicted = openTab(opened(["a", "b", "c"]), "d", "pack", 3);
+    assert.equal(evicted.evicted?.name, "a");
+    assert.deepEqual(
+      evicted.state.tabs.map((tab) => tab.name),
+      ["b", "c", "d"],
+    );
+    assert.equal(activeTab(evicted.state)?.name, "d");
+  });
+
+  it("counts a revisit as use, so the tab you keep returning to survives", () => {
+    const list = focusTab(opened(["a", "b", "c"]), 0);
+    assert.equal(openTab(list, "d", "pack", 3).evicted?.name, "b");
+  });
+
+  it("passes over a tab that has been edited while a clean one is available", () => {
+    const list = markEdited(opened(["a", "b", "c"]), "a");
+    assert.equal(openTab(list, "d", "pack", 3).evicted?.name, "b");
+  });
+
+  it("closes the oldest edited tab when every other one is edited", () => {
+    // Nothing is lost either way — the document holds every edit — so the cap
+    // is honoured rather than quietly abandoned.
+    const list = ["a", "b", "c"].reduce(
+      (at, name) => markEdited(at, name),
+      opened(["a", "b", "c"]),
+    );
+    assert.equal(openTab(list, "d", "pack", 3).evicted?.name, "a");
+  });
+
+  it("never closes the tab the form is showing", () => {
+    const list = markEdited(markEdited(opened(["a", "b"], 2), "a"), "b");
+    const next = openTab(list, "c", "pack", 2);
+    assert.equal(next.evicted?.name, "a");
+    assert.equal(activeTab(next.state)?.name, "c");
+  });
+});
+
+describe("closeTab", () => {
+  it("brings the tab to the right forward, then the one to the left", () => {
+    const list = focusTab(opened(["a", "b", "c"]), 1);
+    const closed = closeTab(list, "b");
+    assert.equal(closed.focus?.name, "c");
+    assert.equal(activeTab(closed.state)?.name, "c");
+    const last = closeTab(closed.state, "c");
+    assert.equal(last.focus?.name, "a");
+  });
+
+  it("leaves the form alone when the tab closed was not the one showing", () => {
+    const closed = closeTab(opened(["a", "b", "c"]), "a");
+    assert.equal(closed.focus, null, "closing another tab is not a move to anywhere");
+    assert.equal(activeTab(closed.state)?.name, "c");
+  });
+
+  it("empties out rather than leaving a phantom focus", () => {
+    const closed = closeTab(opened(["a"]), "a");
+    assert.deepEqual(closed.state.tabs, []);
+    assert.equal(closed.state.active, -1);
+    assert.equal(closed.focus, null);
+  });
+
+  it("ignores a name it does not have open", () => {
+    const list = opened(["a", "b"]);
+    assert.deepEqual(closeTab(list, "nosuch").state, list);
+  });
+});
+
+describe("cycleIndex", () => {
+  it("wraps both ways over the strip", () => {
+    const list = focusTab(opened(["a", "b", "c"]), 0);
+    assert.equal(cycleIndex(list, 1), 1);
+    assert.equal(cycleIndex(list, -1), 2);
+    assert.equal(cycleIndex(focusTab(list, 2), 1), 0);
+  });
+
+  it("has nowhere to go with nothing open, and enters at an end otherwise", () => {
+    assert.equal(cycleIndex(emptyTabs(), 1), -1);
+    const detached: TabState = { ...opened(["a", "b"]), active: -1 };
+    assert.equal(cycleIndex(detached, 1), 0);
+    assert.equal(cycleIndex(detached, -1), 1);
+  });
+});
+
+describe("renameTab", () => {
+  it("follows a rename in place, keeping the tab's position and its view", () => {
+    const list = rememberView(focusTab(opened(["a", "b", "c"]), 1), 1, {
+      groups: ["Behaviour"],
+      scroll: 90,
+    });
+    const renamed = renameTab(list, "b", "bee");
+    assert.deepEqual(
+      renamed.tabs.map((tab) => tab.name),
+      ["a", "bee", "c"],
+    );
+    assert.deepEqual(renamed.tabs[1]?.groups, ["Behaviour"]);
+    assert.equal(renamed.tabs[1]?.scroll, 90);
+  });
+
+  it("leaves an unopened or unchanged name alone", () => {
+    const list = opened(["a", "b"]);
+    assert.deepEqual(renameTab(list, "nosuch", "z"), list);
+    assert.deepEqual(renameTab(list, "a", "a"), list);
+  });
+
+  it("does not leave two tabs over one declaration", () => {
+    // Renaming onto a name already open would give the same declaration two
+    // views; the older tab is the one the document no longer has.
+    const renamed = renameTab(focusTab(opened(["a", "b", "c"]), 2), "c", "a");
+    assert.deepEqual(
+      renamed.tabs.map((tab) => tab.name),
+      ["b", "a"],
+    );
+  });
+});
+
+describe("retainTabs", () => {
+  it("closes the tabs whose declaration the document no longer has", () => {
+    const kept = retainTabs(focusTab(opened(["a", "b", "c"]), 1), new Set(["a", "c"]));
+    assert.deepEqual(
+      kept.state.tabs.map((tab) => tab.name),
+      ["a", "c"],
+    );
+    assert.equal(kept.focus?.name, "c", "the form was showing b, so something has to come forward");
+  });
+
+  it("says nothing came forward when the tab showing survived", () => {
+    const kept = retainTabs(focusTab(opened(["a", "b", "c"]), 2), new Set(["b", "c"]));
+    assert.equal(kept.focus, null);
+    assert.equal(activeTab(kept.state)?.name, "c");
+  });
+});
+
+describe("readStoredTabs and restoreTabs", () => {
+  it("keeps the rows a session record actually carries and drops the rest", () => {
+    assert.deepEqual(
+      readStoredTabs([
+        { name: "lsort", where: "registry", groups: ["Identity"], scroll: 40 },
+        { name: "" },
+        "not a row",
+        null,
+        { name: "lindex" },
+        { name: "lset", where: "nonsense", groups: [1, "Behaviour"], scroll: "x" },
+      ]),
+      [
+        { name: "lsort", where: "registry", groups: ["Identity"], scroll: 40 },
+        { name: "lindex", where: "pack", groups: null, scroll: 0 },
+        { name: "lset", where: "pack", groups: ["Behaviour"], scroll: 0 },
+      ],
+    );
+  });
+
+  it("keeps an all-closed view distinct from a tab that was never left", () => {
+    // Both round-trip, and they must not collapse into each other: `[]` is an
+    // author who closed every group, `null` is one who never arranged this
+    // tab at all and should get the form's defaults back.
+    const closedEverything = rememberView(focusTab(opened(["a"]), 0), 0, {
+      groups: [],
+      scroll: 0,
+    });
+    assert.deepEqual(storedTabs(closedEverything)[0]?.groups, []);
+    assert.deepEqual(
+      activeTab(restoreTabs(readStoredTabs(storedTabs(closedEverything)), "a"))?.groups,
+      [],
+    );
+
+    const neverLeft = opened(["a"]);
+    assert.equal(storedTabs(neverLeft)[0]?.groups, null);
+    assert.equal(activeTab(restoreTabs(readStoredTabs(storedTabs(neverLeft)), "a"))?.groups, null);
+  });
+
+  it("reads a record written before tabs existed as no tabs, not as a failure", () => {
+    assert.deepEqual(readStoredTabs(undefined), []);
+    assert.deepEqual(readStoredTabs("tabs"), []);
+    assert.deepEqual(restoreTabs([], "lsort"), emptyTabs());
+  });
+
+  it("round-trips the strip and reopens on the command that was showing", () => {
+    const list = rememberView(focusTab(opened(["a", "b", "c"]), 1), 1, {
+      groups: ["Identity"],
+      scroll: 12,
+    });
+    const back = restoreTabs(readStoredTabs(storedTabs(list)), "b");
+    assert.deepEqual(
+      back.tabs.map((tab) => tab.name),
+      ["a", "b", "c"],
+    );
+    assert.equal(activeTab(back)?.name, "b");
+    assert.deepEqual(activeTab(back)?.groups, ["Identity"]);
+    assert.equal(activeTab(back)?.scroll, 12);
+    // A restored tab is not yet somewhere work is happening, so the cap may
+    // still reclaim it.
+    assert.equal(
+      back.tabs.every((tab) => !tab.edited),
+      true,
+    );
+  });
+
+  it("restores a list the studio could have produced: no duplicates, within the cap", () => {
+    const rows = readStoredTabs([
+      { name: "a" },
+      { name: "b" },
+      { name: "a" },
+      { name: "c" },
+      { name: "d" },
+    ]);
+    const back = restoreTabs(rows, "d", 3);
+    assert.deepEqual(
+      back.tabs.map((tab) => tab.name),
+      ["a", "b", "c"],
+    );
+    // `d` did not survive the cap, so the strip opens on its first tab rather
+    // than on nothing.
+    assert.equal(activeTab(back)?.name, "a");
+  });
+
+  it("keeps the restored tab clear of the first eviction", () => {
+    const back = restoreTabs(readStoredTabs([{ name: "a" }, { name: "b" }, { name: "c" }]), "a");
+    assert.equal(openTab(back, "d", "pack", 3).evicted?.name, "b");
+  });
+
+  it("has no tab to give when the record named none", () => {
+    assert.equal(tabIndex(emptyTabs(), "a"), -1);
+    assert.equal(activeTab(emptyTabs()), null);
+  });
+});
+
+/* The command palette ---------------------------------------------------- */
+
+const paletteNames: PaletteNames = { pack: "mylib", dialect: "Tcl 9.0" };
+
+function packRow(name: string, summary = ""): PaletteCandidate {
+  return {
+    surface: "pack",
+    name,
+    summary,
+    pack: "",
+    target: { open: "command", name, where: "pack" },
+  };
+}
+
+function registryRow(name: string, summary = "", pack = "tcl"): PaletteCandidate {
+  return {
+    surface: "registry",
+    name,
+    summary,
+    pack,
+    target: { open: "command", name, where: "registry" },
+  };
+}
+
+function referenceRow(name: string, summary = ""): PaletteCandidate {
+  return {
+    surface: "reference",
+    name,
+    summary,
+    pack: "",
+    target: { open: "reference", catalogue: "taintColour", variant: name },
+  };
+}
+
+describe("highlight", () => {
+  it("finds the query case-insensitively and keeps the source's own casing", () => {
+    assert.deepEqual(highlight("lsort", "SO"), { before: "l", match: "so", after: "rt" });
+    assert.deepEqual(highlight("Taint colours", "taint"), {
+      before: "",
+      match: "Taint",
+      after: " colours",
+    });
+  });
+
+  it("marks nothing rather than everything when there is nothing to mark", () => {
+    assert.deepEqual(highlight("lsort", "zz"), { before: "lsort", match: "", after: "" });
+    assert.deepEqual(highlight("lsort", ""), { before: "lsort", match: "", after: "" });
+    assert.deepEqual(highlight("", "so"), { before: "", match: "", after: "" });
+  });
+});
+
+describe("searchPalette", () => {
+  it("answers with the best kind of match first", () => {
+    const result = searchPalette(
+      [
+        registryRow("lappend", "append to a list"),
+        registryRow("mylist"),
+        registryRow("listing"),
+        registryRow("list"),
+      ],
+      "list",
+      10,
+    );
+    assert.deepEqual(
+      result.hits.map((hit) => hit.candidate.name),
+      ["list", "listing", "mylist", "lappend"],
+    );
+  });
+
+  it("puts the pack under edit before the registry, and both before the Reference", () => {
+    const result = searchPalette(
+      [referenceRow("taint"), registryRow("taint"), packRow("taint")],
+      "taint",
+      10,
+    );
+    assert.deepEqual(
+      result.hits.map((hit) => hit.candidate.surface),
+      ["pack", "registry", "reference"],
+    );
+  });
+
+  it("prefers the shorter name among equals, then the alphabet", () => {
+    const result = searchPalette(
+      [registryRow("lsortx"), registryRow("blsort"), registryRow("alsort")],
+      "lsort",
+      10,
+    );
+    assert.deepEqual(
+      result.hits.map((hit) => hit.candidate.name),
+      ["lsortx", "alsort", "blsort"],
+    );
+  });
+
+  it("locates the match in the name and in the summary alike", () => {
+    const [byName, bySummary] = searchPalette(
+      [registryRow("lsort", "sort a list"), registryRow("lappend", "append to a list")],
+      "list",
+      10,
+    ).hits;
+    assert.deepEqual(byName?.summary, { before: "sort a ", match: "list", after: "" });
+    assert.equal(byName?.name.match, "");
+    assert.deepEqual(bySummary?.summary, { before: "append to a ", match: "list", after: "" });
+  });
+
+  it("offers the surfaces in their own order when nothing has been typed", () => {
+    const result = searchPalette(
+      [referenceRow("Taint colours"), registryRow("lsort"), packRow("mycmd")],
+      "  ",
+      10,
+    );
+    assert.deepEqual(
+      result.hits.map((hit) => hit.candidate.name),
+      ["mycmd", "lsort", "Taint colours"],
+    );
+    assert.equal(
+      result.hits.every((hit) => hit.name.match === ""),
+      true,
+    );
+  });
+
+  it("counts every match, not only the ones the cap left room for", () => {
+    const result = searchPalette(
+      [packRow("lsort"), registryRow("lsorted"), registryRow("lsorting"), referenceRow("lsortish")],
+      "lsort",
+      2,
+    );
+    assert.equal(result.hits.length, 2);
+    assert.equal(result.total, 4);
+    assert.deepEqual(result.counts, { pack: 1, registry: 2, reference: 1 });
+  });
+});
+
+describe("paletteSummary and surfaceLabel", () => {
+  it("names every surface it is about to search before anything is typed", () => {
+    const result = searchPalette([packRow("a")], "", 10);
+    assert.equal(
+      paletteSummary("", result, paletteNames),
+      "Searching pack mylib, the shipped Tcl 9.0 packs and the Reference vocabulary.",
+    );
+  });
+
+  it("says where it looked when it found nothing, which is what makes that useful", () => {
+    const result = searchPalette([packRow("a")], "zz", 10);
+    assert.equal(
+      paletteSummary("zz", result, paletteNames),
+      "No match in pack mylib, the shipped Tcl 9.0 packs or the Reference vocabulary.",
+    );
+  });
+
+  it("breaks the hits down by surface, and says so when the cap held some back", () => {
+    const rows = [packRow("lsort"), registryRow("lsorted"), referenceRow("lsortish")];
+    assert.equal(
+      paletteSummary("lsort", searchPalette(rows, "lsort", 10), paletteNames),
+      "3 matches — 1 in pack mylib, 1 in the shipped Tcl 9.0 packs, 1 in the Reference vocabulary",
+    );
+    assert.equal(
+      paletteSummary("lsort", searchPalette(rows, "lsort", 1), paletteNames),
+      "1 of 3 matches — 1 in pack mylib, 1 in the shipped Tcl 9.0 packs, 1 in the Reference vocabulary",
+    );
+  });
+
+  it("leaves out a surface that answered nothing, and counts one match as one", () => {
+    assert.equal(
+      paletteSummary("lsort", searchPalette([registryRow("lsort")], "lsort", 10), paletteNames),
+      "1 match — 1 in the shipped Tcl 9.0 packs",
+    );
+  });
+
+  it("names the pack under edit even before the document has one", () => {
+    const anonymous: PaletteNames = { pack: "", dialect: "Tcl 9.0" };
+    assert.equal(surfaceLabel("pack", anonymous), "this pack");
+    assert.equal(surfaceLabel("pack", paletteNames), "pack mylib");
+    assert.equal(surfaceLabel("registry", paletteNames), "shipped · Tcl 9.0");
+    assert.equal(surfaceLabel("reference", paletteNames), "Reference");
+    assert.equal(
+      paletteSummary("", searchPalette([], "", 10), anonymous),
+      "Searching the pack under edit, the shipped Tcl 9.0 packs and the Reference vocabulary.",
+    );
   });
 });

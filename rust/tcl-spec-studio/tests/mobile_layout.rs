@@ -259,6 +259,136 @@ fn the_dock_follows_focus_and_never_the_pointer() {
     }
 }
 
+/* The open-command tab strip.
+ *
+ * Several commands open at once is what makes the studio an IDE for the DSL
+ * rather than a form with one slot — and the strip that carries them is the
+ * one new thing on the page that can push the workbench around. A strip that
+ * wraps grows a row every few tabs and moves the form under it; a strip whose
+ * tabs shrink to fit is twelve tabs nobody can read. Both are pinned here. */
+
+#[test]
+fn the_open_command_strip_scrolls_sideways_rather_than_wrapping() {
+    let css = squashed(CSS);
+    assert!(
+        css.contains(".opentabs{display:flex;flex-wrap:nowrap;"),
+        "the open-command strip must never wrap — a second row of tabs changes \
+         the strip's height and moves the form underneath it"
+    );
+    assert!(
+        css.contains("overflow-x:auto;overflow-y:hidden;"),
+        "the open-command strip must scroll sideways when it overflows, the \
+         way the workbench tab strip already does on a phone"
+    );
+    assert!(
+        css.contains(".opentab{flex:00auto;"),
+        "an open-command tab must hold its size: tabs squeezed to fit are tabs \
+         that no longer name the command they carry"
+    );
+}
+
+#[test]
+fn an_open_command_tab_is_a_real_tab_that_can_be_closed_from_the_keyboard() {
+    assert!(
+        HTML.contains(r#"id="openTabs" role="tablist" aria-label="Open commands""#),
+        "the strip must be a labelled tablist, not a row of buttons"
+    );
+    assert!(
+        STUDIO_TS.contains(r#"role: "tab","#)
+            && STUDIO_TS.contains(r#""aria-controls": "pane-editor""#),
+        "each open-command tab must own the editor panel it switches"
+    );
+    for wiring in [
+        "focusTabButton",
+        "\"ArrowRight\"",
+        "\"Delete\"",
+        "closeActiveOpenTab",
+    ] {
+        assert!(
+            STUDIO_TS.contains(wiring),
+            "the strip must be navigable and closable from the keyboard: {wiring} not found"
+        );
+    }
+    assert!(
+        STUDIO_TS.contains("auxclick"),
+        "middle-click must close a tab, as it does on every other tab strip"
+    );
+}
+
+#[test]
+fn an_open_command_tab_is_a_view_and_never_a_second_store() {
+    // The property the whole feature rests on: the `.tclspec` document stays
+    // the one model, and `writeBackOpenCommand` stays the one path into it.
+    assert!(
+        STUDIO_TS.contains("state.tabs = ") && !STUDIO_TS.contains("tab.draft"),
+        "a tab must carry its command's name and its view, never a draft"
+    );
+    assert!(
+        STUDIO_TS.contains("function flushEdits"),
+        "moving between commands has to commit the pending write-back first, or \
+         a keystroke inside the settle window is lost when the form is rebuilt"
+    );
+    assert!(
+        STUDIO_TS.contains("retainTabs(state.tabs, names)"),
+        "a tab is a view of a declaration: deleting the declaration must take \
+         the tab with it"
+    );
+}
+
+#[test]
+fn the_open_command_strip_has_room_for_a_finger_and_a_narrow_screen() {
+    let css = squashed(CSS);
+    assert!(
+        css.contains(".opentab>[role=tab]{max-width:8.5rem;}"),
+        "the phone breakpoint must shorten the tab names so more than one tab \
+         is reachable without dragging the strip"
+    );
+    assert!(
+        css.contains(".opentab>[role=tab],.opentab.tabclose{min-height:44px;}"),
+        "a coarse pointer must get 44px on both the tab and its close control"
+    );
+}
+
+/* The command palette's provenance.
+ *
+ * The registry browser has said what it is viewing since packs became its top
+ * level; the palette searched more surfaces and said less about any of them. */
+
+#[test]
+fn the_palette_says_what_it_searched_and_where_each_hit_came_from() {
+    assert!(
+        HTML.contains(r#"id="paletteScope""#),
+        "the palette needs a line naming the surfaces it searched, the way the \
+         browser's count line names the dialect and its packs"
+    );
+    for wiring in [
+        "paletteSummary",
+        "surfaceLabel",
+        "markedText",
+        "searchPalette",
+    ] {
+        assert!(
+            STUDIO_TS.contains(wiring),
+            "the palette must label and rank its hits: {wiring} not found"
+        );
+    }
+    assert!(
+        STUDIO_TS.contains("candidate.pack ? packChip(candidate.pack) : null"),
+        "a hit's pack chip is the only thing that says which shipped pack \
+         declares it, and the row already has the data"
+    );
+    assert!(
+        squashed(CSS)
+            .contains(".palette.sm{color:var(--muted);font-size:.78rem;flex:11auto;min-width:0;"),
+        "the summary must take the slack and give it back, or a long one pushes \
+         the provenance chips off the end of the row"
+    );
+    assert!(
+        squashed(CSS).contains(".palettemark{"),
+        "the matched run has to be visibly marked, in both themes"
+    );
+}
+
 #[test]
 fn the_inline_help_panels_remain_the_narrow_viewport_surface() {
     // The dock is an additional surface over the same schema text, not a

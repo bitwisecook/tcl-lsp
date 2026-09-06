@@ -105,9 +105,11 @@ rung 3 needs no separate state.
 
 ### Bundle discipline
 
-The controller (~113 KB) is what every visitor loads; the editor chunk (~2.7 MB
-minified, ~680 KB gzipped) and the server wasm (~5.6 MB gzipped) load only when
-an editor tab is opened. esbuild's code splitting cannot express this — it needs
+The controller (~180 KB) is what every visitor loads; the editor chunk (~3.2 MB
+minified) and the server wasm (~5.6 MB gzipped) load only when an editor tab is
+opened. The controller grew from ~113 KB with the pack navigator, the
+documentation dock and the open-command strip — all of which a first paint
+needs, which is why they are in it rather than deferred. esbuild's code splitting cannot express this — it needs
 `format: "esm"` for the whole build and the controller must stay a classic
 script — so `build.mjs` runs two builds and `studio.ts` reaches the second one
 through a dynamic `import()` of a **runtime-built** URL, which is what stops
@@ -251,6 +253,91 @@ and opened that way. The first throw switches routing off for the session:
 `navigate` opens the visit directly and ◀ ▶ carry on from the visit stack
 alone. Deep links are lost there and the Back button is not, which is what
 the "opening `index.html` straight off disk still works" promise needs.
+
+## The open-command strip
+
+A pack is many commands and one deliverable, and the studio had one editing
+slot: `loadDraft` rebuilt the form over whatever was in it, so comparing two
+specs or copying an option table across was a round trip through the browser
+each time. A strip above the workbench tabs now holds the commands that are
+open. `web/src/openTabs.ts` decides what it holds — opening, focus, eviction,
+closing, renaming, persistence — as pure functions of a tab list, and
+`studio.ts` paints the decision, as it does for the dock.
+
+**A tab is a view, never a store.** It carries a command's name, where it was
+opened from, the form groups the author had open, the scroll offset when it
+lost focus, an edited flag, and a use stamp — and no draft. `state.pack.source`
+is still the one document and `writeBackOpenCommand` the only path from a
+form edit into it, so twelve open commands are twelve views of one `.tclspec`
+rather than twelve copies waiting to disagree. Everything else follows: an
+edit is in the document the moment it settles, so closing a tab loses nothing
+and there is no "unsaved" state to show; the dot marks where the author is
+*working*, not what is at risk; and a declaration deleted in the DSL pane
+takes its tab with it (`retainTabs`), because a view of nothing is a lie. A
+draft with no declaration yet — **New command**, or one inferred from
+imported source — shows with no tab selected (`detachForm`): a highlighted
+tab would say the edits are going somewhere they are not.
+
+**Twelve, and which one goes.** `MAX_OPEN_TABS` is two working sets: the
+cluster an author moves between — a command and its subcommands, or siblings
+being compared — plus the few shipped commands opened to copy from. Past that
+the strip cannot be read at a glance, and a tab that cannot be seen is a
+leak. Over the cap `evictionTarget` closes the least-recently-used tab that
+has *not* been edited, and never the focused one; when every other tab has
+been edited it takes the least-recently-used of those, because the document
+already holds the work and honouring the cap costs a click, not an edit. The
+status line names what was closed. The stamp is a counter rather than a
+clock, so "least recently used" is a total order.
+
+**Still one history.** Switching to a tab *is* a navigation: it goes through
+`openPackCommand`/`openCommand`, records a visit, and pushes one
+session-history entry, exactly as opening from the browser does — so ◀ ▶ and
+the browser's Back move the strip, and a deep link opens its command as a
+tab. Closing one is *not*: the neighbour that comes forward (to the right,
+else to the left, as a browser does it) was not gone to and earns no entry.
+`replaceRoute` corrects the entry showing in place, keeping its `visit` tag,
+so the fragment names what is on screen. A later Back landing there finds
+tag and fragment disagreeing, and `restoreFor`'s rule — the fragment decides
+— opens what the reader will see. The strip's arrow keys move a roving focus
+without activating, for the same reason: arrowing across twelve tabs would
+record twelve places nobody went.
+
+**`flushEdits` exists because of the settle window.** `onDraftChanged`
+debounces the write-back by 120 ms, and `loadDraft` clears `formDirty` when
+it rebuilds the form. Leave a command inside that window and the timer fires
+over a draft it no longer owns: the keystroke is gone. This was always so;
+with one slot it was rare, and with a strip it is the common case.
+`leaveOpenCommand` therefore commits the pending write-back before anything
+replaces the form, then records the view — and only onto the tab the form is
+still a projection of, since after a close the focused tab is the neighbour.
+
+**Restored, not rebuilt.** The strip rides the IndexedDB session record as
+`tabs`, read by `readStoredTabs` as defensively as `expanded` and `dockOpen`;
+a record from before the strip existed restores from `open` alone.
+Duplicates and anything over the cap are dropped on the way in, so a restored
+strip is one the studio could have produced. The edited flag is not
+persisted — it marks a session's work — so after a reload the first eviction
+falls on the left of the strip rather than on whichever row was read first.
+
+### `/` says where it looked
+
+The palette searched the pack and the registry and labelled neither, while
+the browser's count line has said what it is viewing since packs became its
+top level. `web/src/paletteSearch.ts` now ranks and labels, pure like
+`packs.ts`, over three surfaces: the pack under edit, the dialect's shipped
+packs, and the Reference vocabulary — the catalogues and their values, which
+is what `#/ref/…` addresses. Spec fields are left out on purpose: the form
+and the dock already answer "where is this setting", and a third answer
+would be one too many. Each row names its surface, keeps the shipped pack's
+chip, and marks the matched run; the line above the list says what was
+searched and how much of each answered — `3 matches — 1 in pack mylib, 1 in
+the shipped Tcl 9.0 packs, 1 in the Reference vocabulary` — so "no match"
+says what was looked in. Ranking is the order an answer is wanted in: exact
+name, prefix, name containing the query, summary only; within a tier the
+pack under edit, then the registry, then Reference; then the shorter name,
+then alphabetical. An empty query ranks nothing and offers the surfaces in
+their own order, so opening the palette shows the pack being written rather
+than the alphabet.
 
 ## The schema is the single source of truth
 

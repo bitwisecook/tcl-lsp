@@ -35,9 +35,19 @@ dormant-to-distant enough in this space that the pun wins.)
 > **Landed (hook execution):** hook bodies run — see "What exists today"
 > below for the crates that do it and the measured cost.
 >
-> **Not yet:** the Pack DSL tab's own editing surface is a highlighted
-> textarea with hover and notice markers (`docs/kcs/features/kcs-feature-spec-studio.md`),
-> not the Monaco-plus-wasm-LSP pack workbench phase 2 below describes.
+> **Landed (phase 2, the workbench):** the `.tclspec` document is the
+> studio's one authoritative document, with the form and the Pack DSL pane
+> as projections of it; the DSL and Test panes are Monaco with the language
+> server compiled to wasm behind them; live save keeps the document, the
+> sample, and the open tabs in IndexedDB; `/` searches the pack, the shipped
+> registry, and the Reference vocabulary and says which each hit came from;
+> ◀ ▶ and the browser's Back are one history; and up to twelve commands are
+> open at once in a tab strip, every tab a view of the one document and
+> never a copy. The contract is
+> [`contracts/command-spec-studio.md`](contracts/command-spec-studio.md).
+>
+> **Not yet:** the skill-in-studio tab — the page reaches nothing but
+> GitHub's two hosts, for the release fetcher.
 
 ## The problem
 
@@ -1216,7 +1226,8 @@ of pairwise syncs to maintain.
   and which spec field produced each token. "My stuff is working" is
   observed, not asserted.
 - **Navigation built for many commands.** `/` anywhere opens
-  command search (registry and pack alike, keyboard-first); browser-style
+  command search (the pack, the registry, and the Reference vocabulary
+  alike, each hit saying which, keyboard-first); browser-style
   forward/back moves through the commands visited, with unsaved edits
   carried by the live-save layer rather than blocked by prompts. The
   pack's own commands live in an **always-visible sidebar** — one click
