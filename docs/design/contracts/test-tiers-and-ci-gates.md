@@ -86,17 +86,20 @@ behind it.
    directory. Literal `include!` sources retain the Cargo target that reaches
    them; modules and further includes declared there resolve beside the
    included file, matching rustc. A direct literal include inside an inline
-   smoke-named module also inherits that module's smoke selection context;
-   the source-wide lexical fallback continues to cover includes in macro
-   bodies. A test source filename is not a separate selection rule when the
+   smoke-named module also inherits that module's smoke selection context. A
+   literal include inside an opaque macro body cannot inherit definition-site
+   context because the macro may be expanded in another namespace, so its
+   declaring source requires one of the explicit classifications below. A test
+   source filename is not a separate selection rule when the
    manifest explicitly gives its Cargo target another name. Attribute macros
    and unresolved `include!` expressions that generate
    a smoke test cannot be inferred from tracked Rust syntax; this includes
    non-literal paths and literal files that do not exist until `build.rs` runs.
    Mark their declaring source with an exact standalone
    `// tcl-lsp-smoke-target` line comment. Every lexically present invocation
-   is checked, including those in
-   macro bodies and expression or statement contexts. An outer declarative or
+   is checked, including those in macro bodies and expression or statement
+   contexts. This includes existing literal files inside opaque macro bodies,
+   whose expansion context cannot be inferred. An outer declarative or
    procedural macro that constructs an `include!` invocation during expansion
    is arbitrary generated syntax, like an attribute-generated test, and its
    declaring source carries the smoke-target marker. A source with exactly one

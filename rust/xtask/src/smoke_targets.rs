@@ -128,6 +128,7 @@ struct SmokeMarkers {
 struct SourceIncludes {
     literal_paths: Vec<String>,
     non_literal_count: usize,
+    ambiguous_literal_count: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -273,58 +274,11 @@ fn metadata(root: &Path, host: &str) -> Result<Metadata> {
     serde_json::from_slice(&output.stdout).context("parsing cargo metadata")
 }
 
-fn workspace_target_features(
-    metadata: &Metadata,
-    host: &str,
-    root: &Path,
-) -> Result<HashMap<String, BTreeSet<String>>> {
-    let members: HashSet<&str> = metadata
-        .workspace_members
-        .iter()
-        .map(String::as_str)
-        .collect();
-    let mut display_to_name = HashMap::new();
-    let mut features = HashMap::new();
-    for package in &metadata.packages {
-        if !members.contains(package.id.as_str()) {
-            continue;
-        }
-        let package_root = package
-            .manifest_path
-            .parent()
-            .context("package manifest has no parent")?;
-        display_to_name.insert(
-            format!(
-                "{} v{} ({})",
-                package.name,
-                package.version,
-                package_root.display()
-            ),
-            package.name.clone(),
-        );
-        features.insert(package.name.clone(), BTreeSet::new());
-    }
-
-    let mut command = Command::new("cargo");
-    command
-        .args([
-            "tree",
-            "--workspace",
-            "--locked",
-            "--target",
-            host,
-            "--edges",
-            "normal,dev,no-proc-macro",
-            "--depth",
-            "0",
-            "--prefix",
-            "none",
-            "--format",
-            "{p}\t{f}",
-        ])
-        .current_dir(root);
-    let output = command_output(&mut command)?;
-    let stdout = String::from_utf8(output.stdout).context("cargo tree output is not UTF-8")?;
+fn record_target_features(
+    stdout: &str,
+    display_to_name: &HashMap<String, String>,
+    features: &mut HashMap<String, BTreeSet<String>>,
+) {
     for line in stdout.lines().filter(|line| !line.is_empty()) {
         let Some((display, raw_features)) = line.split_once('\t') else {
             continue;
@@ -344,6 +298,112 @@ fn workspace_target_features(
                     .map(ToOwned::to_owned),
             );
         }
+    }
+}
+
+fn workspace_target_features(
+    metadata: &Metadata,
+    host: &str,
+    root: &Path,
+) -> Result<HashMap<String, BTreeSet<String>>> {
+    let members: HashSet<&str> = metadata
+        .workspace_members
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let mut display_to_name = HashMap::new();
+    let mut features = HashMap::new();
+    let proc_macro_packages: BTreeSet<String> = metadata
+        .packages
+        .iter()
+        .filter(|package| {
+            members.contains(package.id.as_str())
+                && package
+                    .targets
+                    .iter()
+                    .any(|target| target.kind.iter().any(|kind| kind == "proc-macro"))
+        })
+        .map(|package| package.name.clone())
+        .collect();
+    for package in &metadata.packages {
+        if !members.contains(package.id.as_str()) {
+            continue;
+        }
+        let package_root = package
+            .manifest_path
+            .parent()
+            .context("package manifest has no parent")?;
+        let display = format!(
+            "{} v{} ({})",
+            package.name,
+            package.version,
+            package_root.display()
+        );
+        display_to_name.insert(display, package.name.clone());
+        if package
+            .targets
+            .iter()
+            .any(|target| target.kind.iter().any(|kind| kind == "proc-macro"))
+        {
+            display_to_name.insert(
+                format!(
+                    "{} v{} (proc-macro) ({})",
+                    package.name,
+                    package.version,
+                    package_root.display()
+                ),
+                package.name.clone(),
+            );
+        }
+        features.insert(package.name.clone(), BTreeSet::new());
+    }
+
+    let mut workspace_args = vec![
+        "tree".to_owned(),
+        "--workspace".to_owned(),
+        "--locked".to_owned(),
+        "--target".to_owned(),
+        host.to_owned(),
+        "--edges".to_owned(),
+        "normal,dev,no-proc-macro".to_owned(),
+        "--depth".to_owned(),
+        "0".to_owned(),
+        "--prefix".to_owned(),
+        "none".to_owned(),
+        "--format".to_owned(),
+        "{p}\t{f}".to_owned(),
+    ];
+    for package in &proc_macro_packages {
+        workspace_args.extend(["--exclude".to_owned(), package.clone()]);
+    }
+    let mut command = Command::new("cargo");
+    command.args(&workspace_args).current_dir(root);
+    let output = command_output(&mut command)?;
+    let stdout = String::from_utf8(output.stdout).context("cargo tree output is not UTF-8")?;
+    record_target_features(&stdout, &display_to_name, &mut features);
+    for package in proc_macro_packages {
+        let mut command = Command::new("cargo");
+        command
+            .args([
+                "tree",
+                "-p",
+                &package,
+                "--locked",
+                "--target",
+                host,
+                "--edges",
+                "normal,dev,no-proc-macro",
+                "--depth",
+                "0",
+                "--prefix",
+                "none",
+                "--format",
+                "{p}\t{f}",
+            ])
+            .current_dir(root);
+        let output = command_output(&mut command)?;
+        let stdout = String::from_utf8(output.stdout).context("cargo tree output is not UTF-8")?;
+        record_target_features(&stdout, &display_to_name, &mut features);
     }
     Ok(features)
 }
@@ -948,19 +1008,6 @@ fn is_builtin_include_invocation(tokens: &[LexedToken], text: &str, index: usize
         .is_none_or(|previous| tokens[previous].kind != TokenKind::Colon)
 }
 
-fn collect_literal_includes(
-    source: &Path,
-    text: &str,
-    inside_smoke_module: bool,
-    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
-    found: &mut BTreeSet<PathBuf>,
-) -> Result<()> {
-    for path in source_include_macros(text)?.literal_paths {
-        collect_literal_include(source, &path, inside_smoke_module, visited, found)?;
-    }
-    Ok(())
-}
-
 fn collect_smoke_test_sources(
     source: &Path,
     directory: &Path,
@@ -1015,15 +1062,6 @@ fn collect_smoke_test_sources(
                         found,
                     )?;
                 }
-            }
-            syn::Item::Macro(item_macro) if item_macro.mac.path.is_ident("macro_rules") => {
-                collect_literal_includes(
-                    source,
-                    &item_macro.mac.tokens.to_string(),
-                    inside_smoke_module,
-                    visited,
-                    found,
-                )?;
             }
             _ => {}
         }
@@ -1097,7 +1135,7 @@ fn collect_source_smoke_tests_at(
         .with_context(|| format!("reading Rust module {}", source.display()))?;
     let parsed = syn::parse_file(&text)
         .with_context(|| format!("parsing Rust module {}", source.display()))?;
-    let (markers, source_includes) = source_smoke_contract(source, &text)
+    let (markers, _source_includes) = source_smoke_contract(source, &text)
         .with_context(|| format!("checking smoke markers in {}", source.display()))?;
     if markers.target {
         found.insert(source.to_path_buf());
@@ -1110,12 +1148,9 @@ fn collect_source_smoke_tests_at(
         visited,
         found,
     )?;
-    for path in source_includes.literal_paths {
-        // The AST walk above preserves inline-module context for direct item
-        // includes. This source-wide fallback also covers parseable includes
-        // nested in macro bodies.
-        collect_literal_include(source, &path, inside_smoke_module, visited, found)?;
-    }
+    // Direct includes are handled by the AST walk above. Opaque macro-body
+    // includes are intentionally not traversed: a macro can be defined here
+    // and invoked from a different namespace.
     Ok(())
 }
 
@@ -1246,9 +1281,37 @@ fn source_include_macros(text: &str) -> Result<SourceIncludes> {
     Ok(includes)
 }
 
+fn count_opaque_literal_includes(source: &Path, items: &[syn::Item]) -> Result<usize> {
+    let parent = source
+        .parent()
+        .with_context(|| format!("Rust source has no parent: {}", source.display()))?;
+    let mut count = 0;
+    for item in items {
+        match item {
+            syn::Item::Mod(module) => {
+                if let Some((_, items)) = &module.content {
+                    count += count_opaque_literal_includes(source, items)?;
+                }
+            }
+            syn::Item::Macro(item_macro) if !is_builtin_include_macro(&item_macro.mac.path) => {
+                count += source_include_macros(&item_macro.mac.tokens.to_string())?
+                    .literal_paths
+                    .into_iter()
+                    .filter(|path| lexically_normalise(&parent.join(path)).is_file())
+                    .count();
+            }
+            _ => {}
+        }
+    }
+    Ok(count)
+}
+
 fn source_smoke_contract(source: &Path, text: &str) -> Result<(SmokeMarkers, SourceIncludes)> {
     let markers = source_smoke_markers(text)?;
-    let includes = source_include_macros(text)?;
+    let mut includes = source_include_macros(text)?;
+    if let Ok(parsed) = syn::parse_file(text) {
+        includes.ambiguous_literal_count = count_opaque_literal_includes(source, &parsed.items)?;
+    }
     let parent = source
         .parent()
         .with_context(|| format!("Rust source has no parent: {}", source.display()))?;
@@ -1257,7 +1320,8 @@ fn source_smoke_contract(source: &Path, text: &str) -> Result<(SmokeMarkers, Sou
         .iter()
         .filter(|path| !lexically_normalise(&parent.join(path)).is_file())
         .count();
-    let unresolved_count = includes.non_literal_count + missing_literal_count;
+    let unresolved_count =
+        includes.non_literal_count + missing_literal_count + includes.ambiguous_literal_count;
     if markers.no_smoke_include && unresolved_count != 1 {
         bail!(
             "a no-smoke-include marker must classify exactly one unresolved include! invocation; found {unresolved_count}"
@@ -2343,6 +2407,21 @@ edition = "2024"
 
 [lib]
 proc-macro = true
+
+[features]
+default = ["root"]
+host_only = []
+root = []
+
+[[test]]
+name = "proc_macro_host_smoke"
+path = "tests/host.rs"
+required-features = ["host_only"]
+
+[[test]]
+name = "proc_macro_root_smoke"
+path = "tests/root.rs"
+required-features = ["root"]
 "#,
     ),
     (
@@ -2353,6 +2432,8 @@ proc-macro = true
         "d/src/lib.rs",
         "extern crate proc_macro;\n#[proc_macro]\npub fn marker(_input: proc_macro::TokenStream) -> proc_macro::TokenStream { proc_macro::TokenStream::new() }\n",
     ),
+    ("d/tests/host.rs", "#[test]\nfn host_only() {}\n"),
+    ("d/tests/root.rs", "#[test]\nfn root() {}\n"),
     (
         "e/Cargo.toml",
         r#"[package]
@@ -2636,7 +2717,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-d = { path = "../d" }
+d = { path = "../d", features = ["host_only"] }
 "#,
     ),
     (
@@ -2673,7 +2754,13 @@ fn smoke_proc_macro_link_path() {
 fn verify_fixture_metadata(fixture: &Fixture, targets: &[Target]) -> Result<()> {
     let build_smoke = fixture_target(targets, "a", "build_smoke")?;
     let normal_smoke = fixture_target(targets, "a", "normal_smoke")?;
-    if build_smoke.available || !normal_smoke.available {
+    let proc_macro_host_smoke = fixture_target(targets, "d", "proc_macro_host_smoke")?;
+    let proc_macro_root_smoke = fixture_target(targets, "d", "proc_macro_root_smoke")?;
+    if build_smoke.available
+        || !normal_smoke.available
+        || proc_macro_host_smoke.available
+        || !proc_macro_root_smoke.available
+    {
         bail!("resolver-v2 target feature-context self-test failed");
     }
     if fixture_target(targets, "d", "d")?.kind != "lib"
@@ -2838,7 +2925,10 @@ fn verify_cargo_runtime_path_order(
         .lines()
         .map(PathBuf::from)
         .collect();
-    let cargo_path_order = fixture_linked_path_order(&cargo_paths);
+    let cargo_path_order: Vec<_> = fixture_linked_path_order(&cargo_paths)
+        .into_iter()
+        .filter(|path| *path != "d-proc-macro-native")
+        .collect();
     if cargo_path_order != direct_path_order {
         bail!(
             "direct harness build-script path order {direct_path_order:?} differs from Cargo {cargo_path_order:?}"
@@ -3016,7 +3106,10 @@ fn verify_fixture_proc_macro_link_path(
     let cargo_paths = read_fixture_runtime_paths(&cargo_record)?;
     let direct = fixture_linked_path_order(&direct_paths);
     let cargo = fixture_linked_path_order(&cargo_paths);
-    if direct != ["d-proc-macro-native"] || !cargo.contains(&"d-proc-macro-native") {
+    if direct.is_empty()
+        || direct.iter().any(|path| *path != "d-proc-macro-native")
+        || !cargo.contains(&"d-proc-macro-native")
+    {
         bail!(
             "direct harness procedural-macro paths {direct:?} do not preserve Cargo's dependency path {cargo:?}: direct {direct_paths:?}, Cargo {cargo_paths:?}"
         );
@@ -3405,20 +3498,95 @@ fn macro_rules_smoke_module_include_self_test() -> Result<()> {
     let fixture = Fixture::new()?;
     fixture.write(
         "src/lib.rs",
-        "macro_rules! top_level { () => { include!(\"top.rs\"); }; } top_level!(); mod smoke { macro_rules! generated { () => { include!(\"inside.rs\"); helper::include!(\"helper.rs\"); }; } generated!(); }\n",
+        "macro_rules! generated { () => { include!(\"inside.rs\"); helper::include!(\"helper.rs\"); }; } mod smoke { generated!(); }\n",
     )?;
-    fixture.write("src/top.rs", "#[test]\nfn ordinary() {}\n")?;
     fixture.write("src/inside.rs", "#[test]\nfn ordinary() {}\n")?;
     fixture.write("src/helper.rs", "#[test]\nfn ordinary() {}\n")?;
     let mut found = BTreeSet::new();
+    if collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )
+    .is_ok()
+    {
+        bail!("unclassified macro-body include was not rejected");
+    }
+
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-smoke-target\nmacro_rules! generated { () => { include!(\"inside.rs\"); helper::include!(\"helper.rs\"); }; } mod smoke { generated!(); }\n",
+    )?;
+    found.clear();
     collect_source_smoke_tests(
         &fixture.root.join("src/lib.rs"),
         false,
         &mut HashSet::new(),
         &mut found,
     )?;
-    if found != BTreeSet::from([fixture.root.join("src/inside.rs")]) {
-        bail!("macro_rules smoke-module include context self-test failed: {found:?}");
+    if found != BTreeSet::from([fixture.root.join("src/lib.rs")]) {
+        bail!("smoke-classified macro-body include self-test failed: {found:?}");
+    }
+
+    fixture.write(
+        "src/lib.rs",
+        "// tcl-lsp-no-smoke-include\nmacro_rules! generated { () => { include!(\"inside.rs\"); helper::include!(\"helper.rs\"); }; } mod smoke { generated!(); }\n",
+    )?;
+    found.clear();
+    collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if !found.is_empty() {
+        bail!("no-smoke macro-body include selected a source: {found:?}");
+    }
+
+    fixture.write(
+        "src/lib.rs",
+        "macro_rules! top_level { () => { include!(\"inside.rs\"); }; } top_level!();\n",
+    )?;
+    if collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut BTreeSet::new(),
+    )
+    .is_ok()
+    {
+        bail!("top-level macro invocation escaped classification");
+    }
+
+    fixture.write(
+        "src/lib.rs",
+        "macro_rules! unused { () => { include!(\"inside.rs\"); }; }\n",
+    )?;
+    if collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut BTreeSet::new(),
+    )
+    .is_ok()
+    {
+        bail!("unused macro-body include escaped classification");
+    }
+
+    fixture.write(
+        "src/lib.rs",
+        "macro_rules! helper_only { () => { helper::include!(\"helper.rs\"); }; } helper_only!();\n",
+    )?;
+    found.clear();
+    collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if !found.is_empty() {
+        bail!("custom namespaced include was traversed: {found:?}");
     }
     Ok(())
 }
@@ -3521,7 +3689,7 @@ fn literal_include_scanner_self_test() -> Result<()> {
     let macro_fixture = Fixture::new()?;
     macro_fixture.write(
         "src/lib.rs",
-        "macro_rules! generated { () => { include!(\"sub/generated_tests.rs\"); }; }\ngenerated!();\n",
+        "// tcl-lsp-smoke-target\nmacro_rules! generated { () => { include!(\"sub/generated_tests.rs\"); }; }\ngenerated!();\n",
     )?;
     macro_fixture.write(
         "src/sub/generated_tests.rs",
@@ -3534,7 +3702,7 @@ fn literal_include_scanner_self_test() -> Result<()> {
         &mut HashSet::new(),
         &mut found,
     )?;
-    if found != BTreeSet::from([macro_fixture.root.join("src/sub/generated_tests.rs")]) {
+    if found != BTreeSet::from([macro_fixture.root.join("src/lib.rs")]) {
         bail!("macro-body literal include self-test failed: {found:?}");
     }
     Ok(())
