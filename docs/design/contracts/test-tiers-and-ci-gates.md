@@ -98,6 +98,15 @@ CI skips only what demonstrably did not change. The rules live in
 - `cargo-deny` never skips: new advisories arrive against unchanged trees.
 - Every skip fails safe: API error or ambiguity → run everything.
 
+Trusted pull requests prefer the self-hosted `tank` runner for `rust-tests`.
+When that serial queue is overloaded, a maintainer may cancel the queued run
+and manually dispatch CI against the same pull-request head branch with
+`rust_tests_runner` set to `hosted`. This changes runner placement only: it does
+not skip a test, alter the nextest filter, or carry forward a result. Fork pull
+requests and runner-policy changes always use hosted capacity. Tank jobs retain
+every pending request and remain serial because its runner registrations share
+one physical host.
+
 Keep these properties: skips are **step-level** (jobs still report success so
 required checks and the release `needs:` graph hold), keyed on **content
 identity** (tree/SHA, never a label or commit message), and bounded in time.

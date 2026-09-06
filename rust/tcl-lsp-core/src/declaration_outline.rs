@@ -19,8 +19,11 @@
 //! The outline of a **declaration document**.
 //!
 //! A declaration document is one whose dialect states facts rather than
-//! running a script — today that is the `sslictcl` environment, whose
-//! defining property is that nothing in a `.sslictcl` file is ever evaluated.
+//! running a script — the `sslictcl` and `spectcl` environments, whose
+//! defining property is that nothing in such a file is ever evaluated. The
+//! registry says which those are: a dialect declaring a
+//! [`CommandRegistry::document_grammar`] has declared its document root a
+//! closed member vocabulary.
 //! Its *blocks* are its structure: each block statement is a declared entity,
 //! so it is an outline entry, and a nested block is a child of the one that
 //! contains it. A script document's outline comes from the analyser's scope
@@ -38,6 +41,7 @@
 //! token walk read, and which answers for every definition body rather than
 //! only a declaration document's.
 //!
+//! [`CommandRegistry::document_grammar`]: tcl_registry::CommandRegistry::document_grammar
 //! [`DefinitionBodyGrammar`]: tcl_registry::definer::DefinitionBodyGrammar
 //! [`ArgRole::Name`]: tcl_registry::arg_role::ArgRole::Name
 //! [`ArgRole::Body`]: tcl_registry::arg_role::ArgRole::Body
@@ -83,15 +87,24 @@ impl BlockDeclaration {
 
 /// Whether documents of `dialect` are declarations rather than scripts.
 ///
-/// The same resolved-authoring-surface question
-/// [`crate::sslictcl_diagnostics::applies_to`] asks, and deliberately the
-/// same answer: the property both surfaces here depend on — that the document
-/// is never evaluated — is precisely what makes the `SslicTcl` loader the
-/// authority over it. When a second such environment appears, both read the
-/// widened predicate rather than growing a list of dialects apiece.
+/// The registry answers it, and the answer is one field: a dialect whose
+/// command surface declares a [`CommandRegistry::document_grammar`] has said
+/// that the *root* of its documents is a closed member vocabulary rather than
+/// an open command position — which is exactly what "this file states facts"
+/// means. `SslicTcl` and `SpecTcl` both declare one; plain Tcl, iRules, and
+/// every EDA shell declare none, so their outline stays the analyser's scope
+/// tree.
+///
+/// Deliberately *not* a package test: keying on a surface name would have to
+/// grow a name per authoring dialect, and the fact the outline actually needs
+/// is already modelled.
+///
+/// [`CommandRegistry::document_grammar`]: tcl_registry::CommandRegistry::document_grammar
 #[must_use]
 pub fn is_declaration_document(dialect: &DialectProfile) -> bool {
-    crate::sslictcl_diagnostics::applies_to(dialect)
+    crate::registry_for_dialect_profile(dialect)
+        .document_grammar()
+        .is_some()
 }
 
 /// Every block declaration in `source`, in source order, nested.
@@ -251,6 +264,41 @@ mod tests {
                 .map(BlockDeclaration::label)
                 .collect::<Vec<_>>(),
             vec!["check modern", "grade"],
+        );
+    }
+
+    /// A `.tclspec` pack is a declaration document on the same registry
+    /// footing as a `.sslictcl` one: `SpecTcl` declares a document grammar
+    /// too, so the pack's blocks are its outline with nothing dialect-specific
+    /// in this module.
+    #[test]
+    fn a_spec_pack_outlines_as_its_own_declaration_blocks() {
+        const PACK: &str = "speclib mylib 1 {\n\
+                            \x20   command mylib::x {\n\
+                            \x20       arity 1\n\
+                            \x20       hover {\n\
+                            \x20           summary {Do a thing.}\n\
+                            \x20       }\n\
+                            \x20   }\n\
+                            }\n";
+        let outline = declarations(PACK, profile_for_dialect("spectcl"));
+        let labels: Vec<String> = outline.iter().map(BlockDeclaration::label).collect();
+        assert_eq!(labels, vec!["speclib mylib"]);
+        assert_eq!(
+            outline[0]
+                .children
+                .iter()
+                .map(BlockDeclaration::label)
+                .collect::<Vec<_>>(),
+            vec!["command mylib::x"],
+        );
+        assert_eq!(
+            outline[0].children[0]
+                .children
+                .iter()
+                .map(BlockDeclaration::label)
+                .collect::<Vec<_>>(),
+            vec!["hover"],
         );
     }
 

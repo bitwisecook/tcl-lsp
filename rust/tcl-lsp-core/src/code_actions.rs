@@ -53,6 +53,11 @@
 //!   it never fires on a comment, a string, an argument word, or a
 //!   definition's name (issue #1191).
 //!
+//! * Spec-pack did-you-mean actions ([`spec_pack_quick_fixes`]) — the
+//!   `SpecTcl` loader drops a word it does not know and says so; the
+//!   vocabulary it was measured against is closed, so the notice is a typo
+//!   with one computable correction.
+//!
 //! Limitations:
 //!
 //! * [`package_require_actions`] derives its catalogue from
@@ -1883,6 +1888,227 @@ const REGEX_QUOTE_PROC: &str =
 /// carriage-return characters to empty, not the two-character sequences.
 const CRLF_STRIP_MAP: &str = "string map {\"\\n\" \"\" \"\\r\" \"\"}";
 
+/// The diagnostic code every `SpecTcl` pack-load notice carries.
+///
+/// One code for the family rather than one per notice kind: the notices are
+/// *degradations* the loader chose to report, not a diagnostic catalogue with
+/// per-code documentation and quick fixes behind it. A user who does not want
+/// them silences the family.
+///
+/// It lives here rather than beside the publisher so the code the notices go
+/// out under and the code the quick-fix below reads back are one string.
+pub const SPEC_PACK_DIAGNOSTIC_CODE: &str = "SPECTCL";
+
+/// How many candidates a did-you-mean rewrite offers.
+///
+/// One, not a menu: a pack-load notice names one word, and three near-equal
+/// candidates out of a closed vocabulary is a worse answer than none — at that
+/// point the author wants the vocabulary, which completion already offers on
+/// the same line, not a ranking of guesses.
+const SPEC_PACK_SUGGESTIONS: usize = 1;
+
+/// Did-you-mean quick-fixes for a spec pack's load notices.
+///
+/// A `SpecTcl` vocabulary is **closed**: a property word is a member of the
+/// grammar in force where it was written, and a flag is an entry in the option
+/// table of the row it was written on. So a notice naming a word the loader
+/// dropped is a typo with a computable correction, and the fix is the one edit
+/// that turns the pack the author meant to write into the pack that loads.
+///
+/// The notice says *which* word (it quotes it); the source says *what kind* of
+/// word it is, from its position in the row — which is why nothing here reads
+/// the notice's prose beyond the quoted word itself. A word the source does
+/// not confirm at the position the notice points to, or one with no candidate
+/// inside the edit-distance budget, yields no action rather than a guess.
+///
+/// Only the two positionally-determined kinds are offered — a row's own
+/// keyword and a flag on a row — because those are the two whose candidate
+/// vocabulary is a fact of this registry. A misspelled trait, dialect or taint
+/// colour is a *value* inside a row whose vocabulary the pack loader owns, and
+/// no consumer here can enumerate it.
+#[must_use]
+pub fn spec_pack_quick_fixes(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    diags: &[ContextDiagnostic],
+) -> Vec<CodeAction> {
+    let registry = crate::registry_for_dialect_profile(dialect);
+    // A dialect with no document grammar has no pack vocabulary to correct
+    // against; every notice below is by construction on a declaration file.
+    if registry.document_grammar().is_none() {
+        return Vec::new();
+    }
+    let line_index = LineIndex::new(source);
+    let mut out = Vec::new();
+    for d in diags.iter().filter(|d| d.code == SPEC_PACK_DIAGNOSTIC_CODE) {
+        let Some(word) = quoted_word(&d.message) else {
+            continue;
+        };
+        let Some((line_text, word_start)) = word_site(source, d.range.start_line, word) else {
+            continue;
+        };
+        let offset = line_index.line_start(d.range.start_line)
+            + u32::try_from(word_start).unwrap_or(u32::MAX);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar);
+        let Some(head) = statement_head_at(source, offset, config) else {
+            continue;
+        };
+        let head = head.as_str();
+        let grammar = crate::oo_body::definition_grammar_at(
+            source,
+            offset,
+            registry,
+            config,
+            Some(dialect.surface_query()),
+        );
+        let candidates: Vec<&str> = if head == word {
+            // The row's own keyword: the member vocabulary of the grammar this
+            // row sits in, which is exactly what completion offers here.
+            grammar.map(|g| g.members.iter().map(|m| m.keyword).collect())
+        } else if word.starts_with('-') {
+            // A flag on a row: the option table of the row's own spec.
+            registry
+                .get(head)
+                .map(|spec| spec.options.iter().map(|opt| opt.name).collect())
+        } else {
+            None
+        }
+        .unwrap_or_default();
+        let Some(&suggestion) = tcl_compiler::text::suggest_similar(
+            word,
+            candidates,
+            SPEC_PACK_SUGGESTIONS,
+            tcl_compiler::text::scaled_max_distance(word),
+        )
+        .first() else {
+            continue;
+        };
+        let start = char_col_to_utf16_local(line_text, line_text[..word_start].chars().count());
+        let end = char_col_to_utf16_local(
+            line_text,
+            line_text[..word_start + word.len()].chars().count(),
+        );
+        out.push(CodeAction::new(
+            format!("Change `{word}` to `{suggestion}`"),
+            vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: d.range.start_line,
+                    start_character: start,
+                    end_line: d.range.start_line,
+                    end_character: end,
+                },
+                new_text: suggestion.to_owned(),
+            }],
+            ActionKind::QuickFix,
+            None,
+        ));
+    }
+    out
+}
+
+/// The first `` `word` `` a notice quotes.
+///
+/// Every "unknown X dropped" notice quotes the word it dropped, and that
+/// quoting is the notice's only machine-readable part — the word is not
+/// recoverable from the whole-line range alone, which is all the diagnostic
+/// otherwise carries.
+fn quoted_word(message: &str) -> Option<&str> {
+    let rest = message.split_once('`')?.1;
+    let (word, _) = rest.split_once('`')?;
+    (!word.is_empty() && !word.contains(char::is_whitespace)).then_some(word)
+}
+
+/// The keyword of the statement `offset` falls inside.
+///
+/// A statement is not a line: Tcl ends one at `;` as readily as at a newline,
+/// so on `arity 1; arty 2` the line's first word names the *neighbouring* row
+/// and every candidate set derived from it is the wrong one. The segmenter is
+/// what knows where a row begins, and the descent into braced words is what
+/// brings a nested row — every row of a pack is nested at least twice — within
+/// its reach.
+///
+/// `None` when no statement covers the offset (a word inside a comment, a
+/// nest deeper than the walk follows), which costs an action rather than
+/// offering one computed against the wrong row.
+fn statement_head_at(source: &str, offset: u32, config: tcl_lexer::LexerConfig) -> Option<String> {
+    fn walk(
+        source: &str,
+        slice: &str,
+        base: u32,
+        offset: u32,
+        depth: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<String> {
+        // The same bound every other walk over a nested body carries.
+        if depth > 32 {
+            return None;
+        }
+        for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            slice,
+            base,
+            config.at_depth(depth),
+        ) {
+            if offset < cmd.span.start() || offset >= cmd.span.end() {
+                continue;
+            }
+            // A braced word holding the offset is a script of its own, and the
+            // row the notice points at is one of *its* statements.
+            for tok in cmd.argv.iter().skip(1) {
+                if tok.kind != tcl_lexer::TokenType::Str {
+                    continue;
+                }
+                let inner_start = tok
+                    .span
+                    .start()
+                    .saturating_add(u32::from(tok.content_offset));
+                let inner_end = tok
+                    .span
+                    .end()
+                    .min(u32::try_from(source.len()).unwrap_or(u32::MAX));
+                if inner_start > inner_end || offset < inner_start || offset >= inner_end {
+                    continue;
+                }
+                let Some(inner) = source.get(inner_start as usize..inner_end as usize) else {
+                    continue;
+                };
+                return walk(source, inner, inner_start, offset, depth + 1, config);
+            }
+            return Some(cmd.name().to_owned());
+        }
+        None
+    }
+
+    walk(source, source, 0, offset, 0, config)
+}
+
+/// `line`'s text and the byte offset of `word` within it, when the word really
+/// is a whole word there.
+///
+/// The confirmation matters: a notice quotes a word the *loader* read, and the
+/// buffer may have moved on since the pack was loaded. An edit that no longer
+/// matches the text yields no action instead of rewriting whatever now sits at
+/// that offset.
+fn word_site<'a>(source: &'a str, line: u32, word: &str) -> Option<(&'a str, usize)> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let mut from = 0;
+    while let Some(rel) = line_text[from..].find(word) {
+        let at = from + rel;
+        let before_ok = line_text[..at]
+            .chars()
+            .next_back()
+            .is_none_or(|c| c.is_whitespace() || c == '{');
+        let after_ok = line_text[at + word.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| c.is_whitespace() || c == '}');
+        if before_ok && after_ok {
+            return Some((line_text, at));
+        }
+        from = at + word.len();
+    }
+    None
+}
+
 /// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
 /// double-encode removal).
 #[must_use]
@@ -3301,5 +3527,173 @@ mod tests {
             .expect("data_group_definition payload");
         assert!(def.contains("ltm data-group internal"), "{def:?}");
         assert!(def.contains("type string"), "{def:?}");
+    }
+
+    /// A pack-load notice about a dropped property becomes the one edit that
+    /// spells the property the way the grammar in force does.
+    #[test]
+    fn a_dropped_property_offers_the_nearest_real_word() {
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arty 1\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "mylib::x: unknown property `arty` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 14,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].title, "Change `arty` to `arity`");
+        assert_eq!(actions[0].edits.len(), 1);
+        assert_eq!(actions[0].edits[0].new_text, "arity");
+        assert_eq!(actions[0].edits[0].range.start_line, 2);
+        assert_eq!(actions[0].edits[0].range.start_character, 8);
+        assert_eq!(actions[0].edits[0].range.end_character, 12);
+    }
+
+    /// The candidate set is the grammar *in force*, not the pack's whole
+    /// vocabulary: `summary` is a `hover` word, so a typo of it inside a
+    /// `command` body must not resolve to it.
+    #[test]
+    fn the_candidate_vocabulary_is_the_grammar_in_force() {
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        hover {\n            sumary {x}\n        }\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown property `sumary` dropped".to_owned(),
+            range: LspRange {
+                start_line: 3,
+                start_character: 0,
+                end_line: 3,
+                end_character: 22,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits[0].new_text, "summary");
+
+        // The same misspelling one level out has no `summary` to reach.
+        let outer = "speclib mylib 1 {\n    command mylib::x {\n        sumary {x}\n    }\n}\n";
+        let outer_diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown property `sumary` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 18,
+            },
+        }];
+        assert!(
+            !spec_pack_quick_fixes(outer, crate::profile_for_dialect("spectcl"), &outer_diags)
+                .iter()
+                .any(|a| a.edits[0].new_text == "summary")
+        );
+    }
+
+    /// A dropped flag is corrected against the option table of the row it was
+    /// written on, which the registry owns.
+    #[test]
+    fn a_dropped_flag_offers_the_nearest_option() {
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arg 0 -rle Body\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown flag `-rle` on `arg` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 23,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits[0].new_text, "-role");
+    }
+
+    /// Two rows on one line: `;` ends a statement, so the row a word sits on
+    /// is the segmenter's answer and not the line's first word — which here
+    /// names the *neighbour* and would offer nothing at all.
+    #[test]
+    fn a_row_sharing_its_line_is_corrected_against_its_own_head() {
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1; arty 2\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "mylib::x: unknown property `arty` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 23,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits[0].new_text, "arity");
+        assert_eq!(actions[0].edits[0].range.start_character, 17);
+
+        // …and the flag case, whose option table comes from the head of the
+        // row the flag was written on (`arg`), not the line's (`arity`).
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1; arg 0 -rle Body\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown flag `-rle` on `arg` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 32,
+            },
+        }];
+        let actions = spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].edits[0].new_text, "-role");
+    }
+
+    /// A word the buffer no longer carries — the notice is from the last load,
+    /// the author has since retyped the line — yields no edit at all.
+    #[test]
+    fn a_notice_the_buffer_has_moved_past_offers_nothing() {
+        let src = "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n    }\n}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown property `arty` dropped".to_owned(),
+            range: LspRange {
+                start_line: 2,
+                start_character: 0,
+                end_line: 2,
+                end_character: 15,
+            },
+        }];
+        assert!(
+            spec_pack_quick_fixes(src, crate::profile_for_dialect("spectcl"), &diags).is_empty()
+        );
+    }
+
+    /// Only a pack file: the same-shaped diagnostic on an ordinary Tcl
+    /// document has no closed vocabulary behind it.
+    #[test]
+    fn an_ordinary_tcl_document_gets_no_pack_quick_fix() {
+        let src = "proc arty {} {}\n";
+        let diags = vec![ContextDiagnostic {
+            code: SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            message: "unknown property `arty` dropped".to_owned(),
+            range: LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 0,
+                end_character: 15,
+            },
+        }];
+        assert!(
+            spec_pack_quick_fixes(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                &diags,
+            )
+            .is_empty()
+        );
     }
 }

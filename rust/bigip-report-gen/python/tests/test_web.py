@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 import urllib.request
@@ -69,3 +70,25 @@ def test_generate_plaintext_config(server):
     assert resp.headers.get("X-Device-Count") == "1"
     assert 'data-report-id="abc-123"' in html
     assert "vs" in html  # the virtual server made it into the report
+
+
+def test_uploads_with_colliding_sanitised_names_stay_distinct():
+    """Two filenames that sanitise to one basename must not overwrite each
+    other: the report would lose a device and show another twice."""
+    parts = [
+        web.Part("files", "prod east.ucs", b"ltm virtual /Common/east { }\n"),
+        web.Part("files", "prod_east.ucs", b"ltm virtual /Common/west { }\n"),
+    ]
+    sources, tmp = web._Handler._sources_from_parts(parts, "")
+    try:
+        assert len({uri for uri, _ in sources}) == 2
+        # The basename still has to survive the spill — `_device_name` falls
+        # back to it, and the engine reads the extension to spot a UCS.
+        assert [os.path.basename(uri) for uri, _ in sources] == [
+            "prod_east.ucs",
+            "prod_east.ucs",
+        ]
+        assert "/Common/east" in sources[0][1]
+        assert "/Common/west" in sources[1][1]
+    finally:
+        web._rmtree(tmp)

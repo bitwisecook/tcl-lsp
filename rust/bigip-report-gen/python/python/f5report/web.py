@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import tempfile
 import uuid as _uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -124,6 +125,20 @@ def _parse_multipart(body: bytes, content_type: str) -> list[Part]:
     return parts
 
 
+_UNSAFE_UPLOAD_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def _upload_basename(filename: str | None) -> str:
+    """Reduce a client-supplied upload filename to a bare, inert basename.
+
+    ``os.path.basename`` alone is not enough: on POSIX it keeps Windows
+    separators and drive letters, and it lets ``.``, ``..`` and the empty name
+    through. The extension survives because `load_paths` dispatches on it.
+    """
+    name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    return _UNSAFE_UPLOAD_CHARS.sub("_", name).lstrip(".") or "upload"
+
+
 # ---- request handling ------------------------------------------------------
 
 
@@ -150,18 +165,39 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         return self.rfile.read(length) if length else b""
 
-    def _sources_from_parts(self, parts: list[Part], passphrase: str):
+    @staticmethod
+    def _sources_from_parts(parts: list[Part], passphrase: str):
         """Spill uploaded files to a temp dir and load them (UCS extract +
         full cert PEMs), returning (sources, tmpdir) — caller cleans tmpdir."""
         files = [p for p in parts if p.filename]
         tmp = tempfile.mkdtemp(prefix="f5report-")
-        paths = []
-        for p in files:
-            dest = os.path.join(tmp, os.path.basename(p.filename or "upload"))
-            with open(dest, "wb") as fh:
-                fh.write(p.data)
-            paths.append(dest)
-        sources = load_paths(paths, passphrase=passphrase or None) if paths else []
+        try:
+            # `tmp` itself may sit behind a symlink (/var -> /private/var on
+            # macOS), so both sides of the containment check are resolved.
+            root = os.path.realpath(tmp)
+            paths = []
+            for i, p in enumerate(files):
+                # One directory per upload. Two distinct names can sanitise to
+                # the same basename ("prod east.ucs" and "prod_east.ucs"), and
+                # in a shared directory the second would overwrite the first —
+                # dropping one device from the report and duplicating another.
+                # Renaming instead would not do: the basename is what
+                # `_device_name` falls back to for a config with no hostname,
+                # and the extension is how the engine spots a UCS.
+                spill = os.path.join(root, str(i))
+                os.mkdir(spill)
+                dest = os.path.realpath(
+                    os.path.join(spill, _upload_basename(p.filename))
+                )
+                if not dest.startswith(spill + os.sep):
+                    raise ValueError(f"unsafe upload filename: {p.filename!r}")
+                with open(dest, "wb") as fh:
+                    fh.write(p.data)
+                paths.append(dest)
+            sources = load_paths(paths, passphrase=passphrase or None) if paths else []
+        except Exception:
+            _rmtree(tmp)
+            raise
         return sources, tmp
 
     @staticmethod
@@ -270,6 +306,7 @@ def serve(host: str = "127.0.0.1", port: int = 8080) -> None:
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        # Ctrl-C is the advertised way to stop; `finally` closes the socket.
         pass
     finally:
         httpd.server_close()

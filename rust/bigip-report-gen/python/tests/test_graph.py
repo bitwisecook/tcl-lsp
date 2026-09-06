@@ -22,8 +22,7 @@ from __future__ import annotations
 
 import pathlib
 
-import f5report
-from f5report import graph
+from f5report import graph, load_paths
 from f5report.report import collect_model
 
 DATA = pathlib.Path(__file__).parent / "data"
@@ -31,7 +30,7 @@ UCS1 = str(DATA / "lab-device-01.ucs")
 
 
 def _device():
-    return collect_model(f5report.load_paths([UCS1]))["devices"][0]
+    return collect_model(load_paths([UCS1]))["devices"][0]
 
 
 def test_graph_nodes_and_edges():

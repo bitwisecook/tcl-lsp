@@ -421,6 +421,130 @@ fn a_trace_removed_during_firing_does_not_fire_in_that_pass() {
     );
 }
 
+/// The command and execution firing loops follow the same rule: a trace an
+/// earlier callback removed does not fire in that pass. C's
+/// `CallCommandTraces` and `TclCheckExecutionTraces` walk the live list through
+/// `nextPtr` and `Tcl_UntraceCommand` unlinks a record at once — for `enter`
+/// and `delete`, which run newest-first, and for `leave`, whose reverse scan
+/// reaches the *oldest* first.
+///
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; these three loops
+/// used to snapshot the callback strings, so `E2`, `D2` and `L1` still fired.
+#[test]
+fn a_command_or_execution_trace_removed_during_firing_does_not_fire() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc target {} { return T }\n\
+         proc E1 args { trace remove execution target enter E2\n\
+         \x20   lappend ::log \"E1: [trace info execution target]\" }\n\
+         proc E2 args { lappend ::log \"E2 fired\" }\n\
+         trace add execution target enter E2\n\
+         trace add execution target enter E1\n\
+         target\n\
+         proc victim {} {}\n\
+         proc D1 args { trace remove command victim delete D2\n\
+         \x20   lappend ::log \"D1: [trace info command victim]\" }\n\
+         proc D2 args { lappend ::log \"D2 fired\" }\n\
+         trace add command victim delete D2\n\
+         trace add command victim delete D1\n\
+         rename victim {}\n\
+         proc lt {} { return L }\n\
+         proc L1 args { lappend ::log \"L1 fired\" }\n\
+         proc L2 args { trace remove execution lt leave L1\n\
+         \x20   lappend ::log \"L2: [trace info execution lt]\" }\n\
+         trace add execution lt leave L2\n\
+         trace add execution lt leave L1\n\
+         lt\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "E1: {enter E1}\n\
+         D1: {delete D1}\n\
+         L2: {leave L2}"
+    );
+}
+
+/// A **delete** walk is handed the dying token's own trace list
+/// (`CallCommandTraces`, `tclBasic.c` 9.0.4:3972-3993), so a callback that
+/// re-creates the command under the same name takes the *name-keyed* entry over
+/// while the rest of that list still fires. Only an explicit `trace remove`
+/// cancels a pending callback, and once a replacement holds the name a
+/// `trace remove` reaches the replacement's empty list and cancels nothing.
+///
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below. Deciding liveness
+/// by name-keyed table membership skipped `OLD` and `B1`, because the
+/// callback's `proc` emptied the entry the walk was consulting.
+#[test]
+fn a_delete_callback_recreating_the_command_does_not_cancel_the_walk() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc foo {} { return FOO }\n\
+         proc OLD {o n op} { lappend ::log [list OLD $o $n $op] }\n\
+         proc NEW {o n op} { lappend ::log [list NEW $o $n $op]\n\
+         \x20   proc foo {} { return FOO2 } }\n\
+         trace add command foo delete OLD\n\
+         trace add command foo delete NEW\n\
+         rename foo {}\n\
+         lappend ::log \"call:[foo]\" \"traces:[trace info command foo]\"\n\
+         proc A1 {o n op} { lappend ::log A1 }\n\
+         proc A2 {o n op} { lappend ::log A2\n\
+         \x20   trace remove command a delete A1 }\n\
+         proc a {} {}\n\
+         trace add command a delete A1\n\
+         trace add command a delete A2\n\
+         rename a {}\n\
+         proc B1 {o n op} { lappend ::log B1 }\n\
+         proc B2 {o n op} { lappend ::log B2\n\
+         \x20   proc b {} {}\n\
+         \x20   trace remove command b delete B1 }\n\
+         proc b {} {}\n\
+         trace add command b delete B1\n\
+         trace add command b delete B2\n\
+         rename b {}\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "NEW ::foo {} delete\n\
+         OLD ::foo {} delete\n\
+         call:FOO2\n\
+         traces:\n\
+         A2\n\
+         B2\n\
+         B1"
+    );
+}
+
+/// The counterpart to the walk above, and the reason the two loops ask
+/// different questions. `TclCheckExecutionTraces` follows the list of whatever
+/// command the name holds *now*, so a callback that redefines the traced
+/// command stops the rest of that walk — `E1` and `L1` never run. The delete
+/// walk keeps firing the dying token's list instead. Measured on tclsh 8.6.16
+/// and 9.0.4.
+#[test]
+fn an_execution_callback_redefining_the_command_stops_that_walk() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc t {} { return T }\n\
+         proc E1 args { lappend ::log E1 }\n\
+         proc E2 args { lappend ::log E2\n\
+         \x20   proc t {} { return T2 } }\n\
+         trace add execution t enter E1\n\
+         trace add execution t enter E2\n\
+         lappend ::log \"call:[t]\" \"traces:[trace info execution t]\"\n\
+         proc u {} { return U }\n\
+         proc L1 args { lappend ::log L1 }\n\
+         proc L2 args { lappend ::log L2\n\
+         \x20   proc u {} { return U2 } }\n\
+         trace add execution u leave L2\n\
+         trace add execution u leave L1\n\
+         lappend ::log \"call:[u]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "E2\ncall:T2\ntraces:\nL2\ncall:U");
+}
+
 /// A command-delete trace whose callback re-creates the command leaves the
 /// *new* command standing: C deletes the token it captured before the callback
 /// (`CMD_DYING`, its hash entry taken over by the new command), not whatever
