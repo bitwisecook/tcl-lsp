@@ -971,6 +971,12 @@ impl<T> TrackedMutex<T> {
 /// on guard drop.
 struct DocumentStore {
     docs: Mutex<HashMap<Uri, DocumentState>>,
+    /// Ordinary acquisitions take a shared admission only until they own
+    /// `docs`. A live-index commit takes the exclusive admission after two
+    /// different dependencies defeat its fair turns, giving that rare slow
+    /// path one quiet document-map hand-off. The ordinary optimistic path
+    /// holds only a shared admission until it acquires the map.
+    admission: tokio::sync::RwLock<()>,
     /// Who holds the map, who held it last, and how many times it has been
     /// taken — under **one** lock, deliberately.
     ///
@@ -1141,6 +1147,7 @@ impl Default for DocumentStore {
     fn default() -> Self {
         Self {
             docs: Mutex::new(HashMap::new()),
+            admission: tokio::sync::RwLock::new(()),
             tracking: std::sync::Mutex::new(DocumentsTracking::default()),
         }
     }
@@ -1153,6 +1160,14 @@ impl DocumentStore {
     /// `site` is a `&'static str` naming the caller — it ends up in a stall
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
+        let admission = self.admission.read().await;
+        let docs = self.lock_without_admission(site).await;
+        drop(admission);
+        docs
+    }
+
+    /// Take the map while the caller owns the exclusive admission.
+    async fn lock_without_admission(&self, site: &'static str) -> DocumentsGuard<'_> {
         // Uncontended fast path: no waiter, so nothing to instrument, and the
         // poll/wake shim's per-poll waker allocation is never paid. tokio's
         // mutex is fair, so `try_lock` cannot barge past a queued waiter — a
@@ -1171,10 +1186,14 @@ impl DocumentStore {
     /// what prevents that low-priority work from inverting the foreground
     /// `documents -> db -> workspace_index` order used by document sync.
     fn try_lock(&self, site: &'static str) -> Option<DocumentsGuard<'_>> {
-        self.docs
+        let admission = self.admission.try_read().ok()?;
+        let documents = self
+            .docs
             .try_lock()
             .ok()
-            .map(|docs| self.record_acquisition(docs, site))
+            .map(|docs| self.record_acquisition(docs, site));
+        drop(admission);
+        documents
     }
 
     /// Attach holder telemetry to an already-acquired map guard.
@@ -9114,19 +9133,30 @@ impl Backend {
     async fn live_index_commit_locks(&self, site: &'static str) -> LiveIndexCommitLocks<'_> {
         let mut fair_turn = None;
         loop {
-            match self.try_live_index_commit_locks(site, fair_turn.take()) {
+            let retained_turn = fair_turn.take();
+            let had_retained_turn = retained_turn.is_some();
+            match self.try_live_index_commit_locks(site, retained_turn) {
                 Ok(locks) => return locks,
                 Err(LivePublicationWait::Documents) => {
+                    if had_retained_turn {
+                        break;
+                    }
                     fair_turn = Some(LiveIndexFairTurn::Documents(
                         self.documents.lock(site).await,
                     ));
                 }
                 Err(LivePublicationWait::WorkspaceIndex) => {
+                    if had_retained_turn {
+                        break;
+                    }
                     fair_turn = Some(LiveIndexFairTurn::WorkspaceIndex(
                         self.workspace_index.write().await,
                     ));
                 }
                 Err(LivePublicationWait::RehomedSourceSeeds) => {
+                    if had_retained_turn {
+                        break;
+                    }
                     fair_turn = Some(LiveIndexFairTurn::RehomedSourceSeeds(
                         self.rehomed_source_seeds.lock().await,
                     ));
@@ -9136,6 +9166,49 @@ impl Backend {
                     wait.dependency()
                 ),
             }
+        }
+
+        self.live_index_commit_locks_after_alternating_contention(site)
+            .await
+    }
+
+    /// Close an alternating-contention cycle without holding `documents`
+    /// while an index reader drains.
+    ///
+    /// The exclusive admission starts only after two different fair turns
+    /// failed to form the bundle. It lets every already-admitted document-map
+    /// user finish, then stops a fresh one from taking the map between our
+    /// queued index writer and the final no-await commit. The index writer is
+    /// polled while the map is held, as in `did_open`, so a document holder
+    /// that follows the canonical `documents -> workspace_index` order is
+    /// already ahead of us rather than deadlocking behind us.
+    async fn live_index_commit_locks_after_alternating_contention(
+        &self,
+        site: &'static str,
+    ) -> LiveIndexCommitLocks<'_> {
+        let admission = self.documents.admission.write().await;
+        let documents = self.documents.lock_without_admission(site).await;
+        let mut index_write = std::pin::pin!(self.workspace_index.write());
+        let mut index = None;
+        std::future::poll_fn(|cx| {
+            if let Poll::Ready(guard) = index_write.as_mut().poll(cx) {
+                index = Some(guard);
+            }
+            Poll::Ready(())
+        })
+        .await;
+        drop(documents);
+        let index = match index {
+            Some(index) => index,
+            None => index_write.await,
+        };
+        let documents = self.documents.lock_without_admission(site).await;
+        let seeds = self.rehomed_source_seeds.lock().await;
+        drop(admission);
+        LiveIndexCommitLocks {
+            documents,
+            index,
+            seeds,
         }
     }
 
@@ -44061,6 +44134,114 @@ proc p {} {
             .await
             .expect("the later reader must finish after release")
             .expect("the later reader must not panic");
+    }
+
+    /// Fresh automated review of #1854: a publisher that fairly drains the
+    /// document map and then the index must not surrender each turn to traffic
+    /// queued on the other dependency forever.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_index_commit_closes_alternating_dependency_contention_1854() {
+        let backend = Arc::new(test_backend());
+        let documents = backend.documents.lock("test_alternating_initial").await;
+        let index = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                drop(
+                    backend
+                        .live_index_commit_locks("test_alternating_publisher")
+                        .await,
+                );
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend
+                .documents
+                .waiters()
+                .iter()
+                .any(|waiter| waiter.site == "test_alternating_publisher")
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the publisher must first join the document-map queue");
+        drop(documents);
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.workspace_index.try_read().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the publisher must retain admission while queueing for the index");
+
+        let (documents_polled, documents_were_polled) = tokio::sync::oneshot::channel();
+        let (release_documents, documents_release) = tokio::sync::oneshot::channel();
+        let late_documents = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                let mut acquisition =
+                    std::pin::pin!(backend.documents.lock("test_alternating_late"));
+                let mut guard = None;
+                std::future::poll_fn(|cx| {
+                    if let Poll::Ready(acquired) = acquisition.as_mut().poll(cx) {
+                        guard = Some(acquired);
+                    }
+                    Poll::Ready(())
+                })
+                .await;
+                let _ = documents_polled.send(());
+                let _guard = match guard {
+                    Some(guard) => guard,
+                    None => acquisition.await,
+                };
+                let _ = documents_release.await;
+            }
+        });
+        documents_were_polled
+            .await
+            .expect("the later document acquisition must be polled");
+        let (index_polled, index_was_polled) = tokio::sync::oneshot::channel();
+        let (release_index, index_release) = tokio::sync::oneshot::channel();
+        let late_index = crate::rt::spawn({
+            let workspace_index = Arc::clone(&backend.workspace_index);
+            async move {
+                let mut acquisition = std::pin::pin!(workspace_index.read());
+                let mut guard = None;
+                std::future::poll_fn(|cx| {
+                    if let Poll::Ready(acquired) = acquisition.as_mut().poll(cx) {
+                        guard = Some(acquired);
+                    }
+                    Poll::Ready(())
+                })
+                .await;
+                let _ = index_polled.send(());
+                let _guard = match guard {
+                    Some(guard) => guard,
+                    None => acquisition.await,
+                };
+                let _ = index_release.await;
+            }
+        });
+        index_was_polled
+            .await
+            .expect("the later index acquisition must be polled");
+
+        drop(index);
+        crate::rt::timeout(std::time::Duration::from_secs(2), publishing)
+            .await
+            .expect("the publisher must commit ahead of both later contenders")
+            .expect("the publisher task must not panic");
+        let _ = release_documents.send(());
+        let _ = release_index.send(());
+        crate::rt::timeout(std::time::Duration::from_secs(5), late_documents)
+            .await
+            .expect("the later document holder must finish after release")
+            .expect("the later document task must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(5), late_index)
+            .await
+            .expect("the later index reader must finish after release")
+            .expect("the later index task must not panic");
     }
 
     async fn mark_open_buffer_deleted_while_publication_waits_1854(
