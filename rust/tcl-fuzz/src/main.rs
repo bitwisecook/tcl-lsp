@@ -87,6 +87,16 @@ struct Cli {
     /// the same way the campaign that recorded it did.
     #[arg(long, global = true, default_value_t = GenConfig::default().malformed_expr_permille)]
     malformed_expr_permille: u32,
+    /// How often a generated word is given a value that differs from its
+    /// source spelling — delimiter-shaped (`"{}"`, `"{$x}"`), escape-bearing
+    /// (`a\ b`, `\x41`), or non-ASCII / whitespace-bearing (`"café"`,
+    /// `"a b"`, `""`) — in parts per thousand. `0` opts out entirely and
+    /// restores the exact pre-existing generator stream, so a registry's
+    /// historical findings still replay. Global for the same reason
+    /// `--malformed-expr-permille` is: `replay` has to generate a seed the way
+    /// the campaign that recorded it did.
+    #[arg(long, global = true, default_value_t = GenConfig::default().word_shape_permille)]
+    word_shape_permille: u32,
     #[command(subcommand)]
     command: Cmd,
 }
@@ -806,6 +816,7 @@ fn main() -> std::process::ExitCode {
     let timeout = Duration::from_millis(cli.timeout_ms);
     let config = GenConfig {
         malformed_expr_permille: cli.malformed_expr_permille,
+        word_shape_permille: cli.word_shape_permille,
         ..GenConfig::default()
     };
 
