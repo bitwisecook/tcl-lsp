@@ -166,7 +166,21 @@ pub struct CodegenCtx<'r> {
     /// Monotonic counter for generating unique label names.
     label_counter: u32,
     /// Whether we are compiling a proc body (affects LVT vs stack ops).
+    ///
+    /// This is the *function's* shape. It is not the same question as "may a
+    /// variable here be addressed as a compiled local" — see
+    /// [`Self::compiles_locals`].
     pub is_proc: bool,
+    /// Source spans of the same-frame script bodies this function folded into
+    /// its own instruction stream (`eval {…}`), from the CFG's
+    /// `inline_body_error_sites`.
+    ///
+    /// The fold is this compiler's optimisation; C has no `eval` compiler, so
+    /// the script becomes its own unit whose variables are *not* the enclosing
+    /// proc's compiled locals. Codegen therefore keeps the dispatched variable
+    /// forms inside these spans, which is what makes an in-proc
+    /// `eval {lappend l z}` fire the `read` C fires.
+    pub(crate) same_frame_eval_spans: Vec<(u32, u32)>,
     /// Command index for `startCommand` numbering.
     pub cmd_index: u32,
     /// End label for the current `startCommand` (paired by `end_command`).
@@ -284,6 +298,7 @@ impl<'r> CodegenCtx<'r> {
             label_positions: HashMap::new(),
             label_counter: 0,
             is_proc,
+            same_frame_eval_spans: Vec::new(),
             cmd_index: 0,
             start_cmd_end_label: None,
             break_target: None,
@@ -304,6 +319,39 @@ impl<'r> CodegenCtx<'r> {
             line_index: None,
             cmd_arg_braced: Vec::new(),
         }
+    }
+
+    /// Whether a variable named here may be addressed as a *compiled local* of
+    /// this function.
+    ///
+    /// A proc body's variables are its frame's locals — except inside a
+    /// same-frame script body this compiler folded in
+    /// ([`Self::same_frame_eval_spans`]), which C compiles as a separate unit
+    /// with no access to the enclosing proc's local table. Every emitter that
+    /// chooses between a slot form and its dispatched `*Stk` sibling asks this,
+    /// not [`Self::is_proc`].
+    #[must_use]
+    pub fn compiles_locals(&self) -> bool {
+        self.is_proc && !self.inside_same_frame_eval()
+    }
+
+    /// Whether the statement being emitted lies inside a folded same-frame
+    /// script body. Matched by source containment, exactly as the executor
+    /// matches an instruction to its [`tcl_bytecode::ErrorRegion`].
+    fn inside_same_frame_eval(&self) -> bool {
+        self.current_span.is_some_and(|span| {
+            self.same_frame_eval_spans
+                .iter()
+                .any(|(start, end)| span.start() >= *start && span.end() <= *end)
+        })
+    }
+
+    /// The compile's own lexer config — the dialect grammar every nested
+    /// re-lex in codegen (a re-lowered body, a segmented catch body) must use,
+    /// rather than the default grammar.
+    #[must_use]
+    pub fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_profile(self.registry.profile())
     }
 
     /// Set the module source text (see [`Self::source`]) so emitted instructions
@@ -451,6 +499,7 @@ impl<'r> CodegenCtx<'r> {
             labels,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            proc_body_src: None,
             error_regions: Vec::new(),
         }
     }

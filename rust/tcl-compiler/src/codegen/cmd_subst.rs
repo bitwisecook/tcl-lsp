@@ -250,6 +250,50 @@ fn skip_word_seps(bytes: &[u8], n: usize, mut i: usize) -> usize {
     i
 }
 
+/// Whether `body` is a body the *single-command* inline emitters
+/// ([`CodegenCtx::emit_catch_body`], [`CodegenCtx::emit_try_handler_body`])
+/// can compile.
+///
+/// Those emitters split the body into *words* with [`parse_cmd_parts`] and emit
+/// one command from them, so the body must be one command and nothing else.
+/// Two questions, because neither answers the whole thing:
+///
+/// * [`has_command_separator`] — is there a `;` or newline the *word splitter*
+///   would swallow into a word? A segment count does not catch this: both
+///   `{error boom;}` and `{# note<newline>error boom}` hold one command, while
+///   the splitter reads `boom;` as an argument and `#` as a command name.
+///   This is the same question, and the same owner, that
+///   [`CodegenCtx::emit_inline_cmd_subst`] already asks before deferring a
+///   multi-command substitution to `EVAL_STK`.
+/// * the segmenter — is there exactly one command at all? A body that is only
+///   a comment has no separator and no command, and must not reach an emitter
+///   that would take its `#` for a command name.
+///
+/// A `{*}` body is rejected outright: [`parse_cmd_parts`] has no expansion
+/// form, so it reads the prefix as a braced word and the emitters pass a
+/// literal `*` plus the unexpanded list (`catch {cfg {*}$a}` called
+/// `cfg * {-verbose b}`). The value-position dispatcher reaches for
+/// [`parse_cmd_parts_expand`] here; these emitters have no such path, so they
+/// decline instead.
+///
+/// An empty body is inlinable: the emitters push the empty result for it.
+///
+/// The caller must also have established that the body is a **braced** word.
+/// This reads the text the compiler can see, and an unbraced body
+/// (`catch $script`) merely *names* a script whose commands are not known
+/// until run time.
+#[must_use]
+pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> bool {
+    if body.trim().is_empty() {
+        return true;
+    }
+    if has_command_separator(body) || body.contains("{*}") {
+        return false;
+    }
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
+    matches!(segments.as_slice(), [only] if !only.is_partial)
+}
+
 /// Parse a command-substitution body into `(text, braced)` parts.
 /// `braced=true` means the text was a `{...}` literal — the caller
 /// should not interpolate it.  Strips the outer `[...]` if present.
@@ -886,7 +930,18 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::DictGet) if args.len() >= 3 => {
                 self.emit_inline_dict_get(args);
             }
-            Some(InlineCodegenHookId::Catch) if self.is_proc && (1..=3).contains(&args.len()) => {
+            // The inline form compiles the body as one command, so it is only
+            // reachable for a body that *is* one command (`is_single_command_body`).
+            // The inline form compiles the body as one command it can see, so it
+            // needs a *braced* body (an unbraced `catch $script` names a script
+            // whose commands are not known until run time) that is exactly one
+            // command.
+            Some(InlineCodegenHookId::Catch)
+                if self.is_proc
+                    && (1..=3).contains(&args.len())
+                    && args[0].1
+                    && is_single_command_body(&args[0].0, self.lexer_config()) =>
+            {
                 let result_var = args.get(1).map(|(s, _)| s.as_str());
                 if result_var.is_some_and(|v| v.starts_with("::")) {
                     self.used_inline_cmd_subst = false;
@@ -939,7 +994,7 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
         let var_name = &args[0].0;
-        if self.is_proc && !is_qualified(var_name) {
+        if self.compiles_locals() && !is_qualified(var_name) {
             let slot = bytecode_imm(self.lvt.intern(var_name));
             if args.len() == 1 {
                 self.emit_comment(
@@ -1019,7 +1074,7 @@ impl CodegenCtx<'_> {
     fn emit_inline_info_exists(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         let var_name = &args[1].0;
-        if self.is_proc && !is_qualified(var_name) {
+        if self.compiles_locals() && !is_qualified(var_name) {
             let slot = bytecode_imm(self.lvt.intern(var_name));
             self.emit_comment(
                 Op::EXIST_SCALAR,
@@ -1464,7 +1519,8 @@ impl CodegenCtx<'_> {
     fn emit_inline_array(&mut self, args: &[(String, bool)]) {
         let sub = &args[0].0;
         let rest = &args[1..];
-        if sub == "exists" && rest.len() == 1 && self.is_proc && !is_qualified(&rest[0].0) {
+        if sub == "exists" && rest.len() == 1 && self.compiles_locals() && !is_qualified(&rest[0].0)
+        {
             self.used_inline_cmd_subst = true;
             let slot = bytecode_imm(self.lvt.intern(&rest[0].0));
             self.emit_comment(

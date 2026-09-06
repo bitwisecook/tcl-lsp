@@ -1237,11 +1237,13 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         labels,
         loop_targets: std::collections::HashMap::new(),
         body_base_line: 0,
+        proc_body_src: None,
         error_regions: Vec::new(),
     };
     let module = ModuleAsm {
         profile: tcl_dialect::DialectProfile::plain_tcl(),
         top_level: top,
+        top_level_body: FunctionAsm::default(),
         procedures: std::collections::HashMap::new(),
     };
     let mut vm = Vm::new();
@@ -1761,5 +1763,289 @@ fn inline_cmd_subst_review_fixes() {
     assert_eq!(
         run("set x [set y 1; concat a {*}{b c}]; puts $x").2,
         "a b c\n"
+    );
+}
+
+// -- the pre-compiled proc-body cache -------------------------------------
+
+/// Build a VM whose pre-compiled body cache holds one entry: a hand-built
+/// assembly returning `marker`, filed under `qname` — the compiler's **rooted**
+/// spelling — and claiming `body_src` as the body word it was compiled from.
+fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
+    use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, ModuleAsm, Op};
+
+    let mut literals = LiteralTable::new();
+    literals.intern(marker);
+    let mut instructions = vec![pushv(0), Instruction::new(Op::DONE, vec![])];
+    let labels =
+        tcl_bytecode::layout::resolve_layout(&mut instructions, &std::collections::HashMap::new());
+    let cached = FunctionAsm {
+        name: qname.to_owned(),
+        literals,
+        lvt: LocalVarTable::new(&[]),
+        instructions,
+        labels,
+        loop_targets: std::collections::HashMap::new(),
+        body_base_line: 0,
+        proc_body_src: Some(body_src.to_owned()),
+        error_regions: Vec::new(),
+    };
+
+    let mut procedures = std::collections::HashMap::new();
+    procedures.insert(qname.to_owned(), cached);
+    let module = ModuleAsm {
+        profile: tcl_dialect::DialectProfile::plain_tcl(),
+        top_level: FunctionAsm::default(),
+        top_level_body: FunctionAsm::default(),
+        procedures,
+    };
+
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    }));
+    assert!(vm.run_module(&module).code.is_ok(), "seeding failed");
+    vm
+}
+
+/// `proc` runs the body the compiler already emitted for it.
+///
+/// `ModuleAsm::procedures` is keyed by the compiler's **rooted** qname (`::p`),
+/// while the VM's own command tables use the unrooted key `qualify_name`
+/// answers (`p`); the lookup roots itself to bridge the two. When it did not,
+/// every proc missed its pre-compiled entry and silently recompiled its body as
+/// a *top-level script*, so no proc body anywhere ran with the `is_proc`
+/// specialisation — an invisible failure, since a script-shaped body still
+/// computes the right answer.
+///
+/// The qualified case takes the same route: the runtime key is `a::p`, the
+/// compiler's `::a::p`.
+#[test]
+fn a_proc_runs_the_body_the_compiler_emitted_for_it() {
+    let mut vm = vm_with_cached_body("::p", "return SOURCE", "PRECOMPILED");
+    vm.eval_source("proc p {} {return SOURCE}").expect("define");
+    assert_eq!(
+        &*vm.eval_source("p").expect("call").result.to_str(),
+        "PRECOMPILED"
+    );
+
+    let mut vm = vm_with_cached_body("::a::p", "return SOURCE", "PRECOMPILED");
+    vm.eval_source("namespace eval a {}\nproc a::p {} {return SOURCE}")
+        .expect("define");
+    assert_eq!(
+        &*vm.eval_source("a::p").expect("call").result.to_str(),
+        "PRECOMPILED"
+    );
+}
+
+/// The cached entry is taken only for the body word it was compiled from.
+///
+/// One name is reachable from several `proc` commands with different bodies,
+/// and a compiled unit records only the first — so a name-only cache would run
+/// a body the script never asked for. Matching the body word turns that into a
+/// miss.
+#[test]
+fn a_proc_with_a_different_body_word_compiles_the_body_it_was_given() {
+    let mut vm = vm_with_cached_body("::p", "return SOURCE", "PRECOMPILED");
+    vm.eval_source("proc p {} {return OTHER}").expect("define");
+    assert_eq!(
+        &*vm.eval_source("p").expect("call").result.to_str(),
+        "OTHER"
+    );
+}
+
+/// The same rule, seen from Tcl: whichever `proc` command actually runs defines
+/// the body that runs with it — the arm of an `if` the script took, the last
+/// definition after a `rename`, the body a nested `proc` supplied.
+///
+/// tclsh 8.6.16 / 9.0.4 print `B` for each.
+#[test]
+fn the_proc_command_that_runs_is_the_one_whose_body_is_installed() {
+    assert_eq!(
+        run("if {0} { proc p {} {return A} } else { proc p {} {return B} }\nputs [p]").2,
+        "B\n"
+    );
+    assert_eq!(
+        run("eval {proc q {} {return A}}\nrename q {}\neval {proc q {} {return B}}\nputs [q]").2,
+        "B\n"
+    );
+    assert_eq!(
+        run("proc mk {} { proc r {} {return A} }\nmk\nrename r {}\n\
+             proc mk2 {} { proc r {} {return B} }\nmk2\nputs [r]")
+        .2,
+        "B\n"
+    );
+}
+
+// -- the inline emitters a proc-shaped body reaches ------------------------
+//
+// These paths are gated on `is_proc`, so until a proc body actually ran with
+// the procedure codegen none of them executed through the `proc` command. Every
+// expectation below is byte-checked against tclsh 8.6.16 and 9.0.4.
+
+/// A value-position `catch` inlines only a body it can compile — *one* command.
+///
+/// The inline emitter splits the body into words and emits a single invocation
+/// from them, so a two-command body became `set y 1 set z 2` (one `set` with
+/// four arguments) and a comment body invoked a command named `#`. Both now
+/// fall back to the dispatched `catch`.
+#[test]
+fn a_value_position_catch_inlines_only_a_single_command_body() {
+    assert_eq!(
+        run("proc p {} { set c [catch { set y 1; set z 2 } m]; return \"$c/$m\" }\nputs [p]").2,
+        "0/2\n"
+    );
+    assert_eq!(
+        run("proc p {} { set c [catch { set y 1\nset z 2 } m]; return \"$c/$m\" }\nputs [p]").2,
+        "0/2\n"
+    );
+    assert_eq!(
+        run("proc p {} { set c [catch { # nothing } m]; return \"$c/$m\" }\nputs [p]").2,
+        "0/\n"
+    );
+    // A single command still inlines, and still reports what C reports.
+    assert_eq!(
+        run("proc p {} { set c [catch { error one } m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/one\n"
+    );
+    // The nested `try … on error` form takes the same rule for both its bodies.
+    assert_eq!(
+        run(
+            "proc p {} { set c [catch { try { set a 1; error e } on error {e} { set b 2 } } m]; \
+             return \"$c/$m\" }\nputs [p]"
+        )
+        .2,
+        "0/2\n"
+    );
+    assert_eq!(
+        run(
+            "proc p {} { set c [catch { try { error e } on error {e} { set b 2; set d 3 } } m]; \
+             return \"$c/$m\" }\nputs [p]"
+        )
+        .2,
+        "0/3\n"
+    );
+}
+
+/// An inlined catch body's *command name* may itself be a substitution.
+///
+/// `catch {$handler}` is how an event dispatcher calls a handler it looked up;
+/// pushing the name as a bare literal invoked a command called `$handler`, and
+/// the `catch` swallowed the resulting error, so the handler simply never ran.
+#[test]
+fn an_inlined_catch_body_substitutes_its_command_name() {
+    assert_eq!(
+        run("proc bump {} { set ::hit 1; return B }\n\
+             proc p {} { set n bump; set c [catch {$n} m]; return \"$c/$m\" }\n\
+             puts [p]\nputs [info exists ::hit]")
+        .2,
+        "0/B\n1\n"
+    );
+}
+
+/// The inline `catch` needs a body it can *see*: a braced word holding exactly
+/// one command, and nothing else.
+///
+/// Three ways a body defeats the word splitter that the segment count alone
+/// does not catch. An unbraced body (`catch $script`) only *names* a script —
+/// its commands are not known until run time, so compiling it as one command
+/// invoked the whole script value as a command name. A trailing separator
+/// (`{error boom;}`) and a leading comment (`{# note\nerror boom}`) each still
+/// segment to one command, but the splitter reads `boom;` as an argument and
+/// `#` as a command name. All three now take the dispatched `catch`.
+#[test]
+fn the_inline_catch_needs_a_braced_body_that_is_only_one_command() {
+    // A dynamic body, single- and multi-command alike.
+    assert_eq!(
+        run(
+            "proc p {} { set s {set x 1; set x 2}; set c [catch $s m]; return \"$c/$m\" }\n\
+             puts [p]"
+        )
+        .2,
+        "0/2\n"
+    );
+    assert_eq!(
+        run("proc p {} { set s {set x 9}; set c [catch $s m]; return \"$c/$m\" }\nputs [p]").2,
+        "0/9\n"
+    );
+    // A trailing `;` is a separator, not part of the argument.
+    assert_eq!(
+        run("proc p {} { set c [catch {error boom;} m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/boom\n"
+    );
+    // A leading comment is not the command.
+    assert_eq!(
+        run("proc p {} { set c [catch {# note\nerror boom} m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/boom\n"
+    );
+}
+
+/// A `{*}`-expanded word inside an inlined `catch` body still expands.
+///
+/// The single-command emitters split with `parse_cmd_parts`, which has no
+/// expansion form and reads the `{*}` prefix as a braced word — so
+/// `catch {cfg {*}$a}` called `cfg * {-verbose b}`. That is how `tcltest`'s
+/// option parser came to report `ambiguous option *`.
+#[test]
+fn an_inlined_catch_body_expands_a_star_word() {
+    assert_eq!(
+        run("proc cfg {args} { return \"[llength $args]:$args\" }\n\
+             proc p {} { set a {-verbose b}; set c [catch {cfg {*}$a} m]; return \"$c/$m\" }\n\
+             puts [p]")
+        .2,
+        "0/2:-verbose b\n"
+    );
+    assert_eq!(
+        run("proc cfg {args} { return \"[llength $args]:$args\" }\n\
+             proc p {} { set a {x y}; set c [catch {cfg {*}$a extra} m]; return \"$c/$m\" }\n\
+             puts [p]")
+        .2,
+        "0/3:x y extra\n"
+    );
+}
+
+/// The body word reaching the inline emitter is already the `catch` argument's
+/// *value*, so the braces still in it belong to the script.
+///
+/// `[catch {{set x 1}} m]` runs the one-word command `set x 1` and catches
+/// `invalid command name`; stripping a second brace layer compiled a
+/// successful `set` instead.
+#[test]
+fn an_inlined_catch_body_keeps_the_braces_that_belong_to_its_script() {
+    assert_eq!(
+        run("proc p {} { set c [catch {{set x 1}} m]; return \"$c/$m\" }\nputs [p]").2,
+        "1/invalid command name \"set x 1\"\n"
+    );
+}
+
+/// A braced word inside an inlined command substitution is already the finished
+/// value, so it is pushed verbatim: the VM's word substitution would otherwise
+/// read a value that merely looks like a braced word as one and strip a brace
+/// layer that was never there.
+#[test]
+fn a_braced_argument_of_an_inlined_command_substitution_keeps_its_braces() {
+    assert_eq!(
+        run("proc p {} { return \"[string index {{}} 0][string length {{}}]\" }\nputs [p]").2,
+        "{2\n"
+    );
+}
+
+/// A `return`/`set` value that merely *begins and ends* with a bracket is not
+/// one command substitution: `[llength $a]:[join $a ,]` is three concatenated
+/// parts. Treating it as one mangled it into a single bogus invocation.
+#[test]
+fn a_value_that_is_not_one_whole_command_substitution_still_concatenates() {
+    assert_eq!(
+        run("proc p {args} { return [llength $args]:[join $args ,] }\nputs [p x y]").2,
+        "2:x,y\n"
+    );
+    assert_eq!(
+        run("proc p {args} { set r [llength $args]:[join $args ,]; return $r }\nputs [p x y]").2,
+        "2:x,y\n"
+    );
+    // The genuine whole-word form is unaffected.
+    assert_eq!(
+        run("proc p {args} { return [llength $args] }\nputs [p x y]").2,
+        "2\n"
     );
 }

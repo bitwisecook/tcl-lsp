@@ -25,6 +25,11 @@
 //! traces, `{cmd-string op}` / `{cmd-string code result op}` argument forms,
 //! an enter-trace error aborting the command, a leave-trace error replacing
 //! its result, traces following `rename`, and redefinition firing `delete`.
+//!
+//! The table also carries the *variable*-trace shapes that depend on which
+//! opcode a command compiled to — the operation set an in-proc `lappend` or
+//! `unset` reports — since this is the file that owns the differential harness
+//! those shapes have to be pinned against.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -780,6 +785,39 @@ const VECTORS: &[Vector] = &[
                delqux delete\n\
                hi\n\
                0",
+    },
+    // Which *operations* a variable trace sees depends on the opcode the
+    // command compiled to, and inside a procedure body that is the specialised
+    // form. C's `INST_LAPPEND_{SCALAR,ARRAY}` read the old value without
+    // `TCL_TRACE_READS` (`tclExecute.c`), so a single-value `lappend` fires
+    // `write` alone. C's `INST_UNSET_ARRAY` passes a two-part access, so the
+    // callback is told `name1 = a`, `name2 = k`, not `name1 = a(k)`.
+    //
+    // Every proc body used to be compiled as a top-level *script*, so none of
+    // those arms ever ran and this vector could not have been written.
+    Vector {
+        name: "in-proc lappend/unset report the operations the compiled forms report",
+        script: "proc log {n1 n2 op} { puts \"$op|$n1|$n2\" }\n\
+                 proc p {} {\n\
+                     set l {a b}\n\
+                     trace add variable l {read write} log\n\
+                     lappend l z\n\
+                     trace remove variable l {read write} log\n\
+                     array set arr {k {1 2}}\n\
+                     trace add variable arr {read write} log\n\
+                     lappend arr(k) z\n\
+                     trace remove variable arr {read write} log\n\
+                     set a(k) 1\n\
+                     trace add variable a {read write unset} log\n\
+                     unset a(k)\n\
+                     trace remove variable a {read write unset} log\n\
+                     return \"$l|$arr(k)\"\n\
+                 }\n\
+                 puts [p]\n",
+        want: "write|l|\n\
+               write|arr|k\n\
+               unset|a|k\n\
+               a b z|1 2 z",
     },
 ];
 

@@ -96,6 +96,7 @@ impl Asm {
             labels: resolved,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            proc_body_src: None,
             error_regions: Vec::new(),
         }
     }

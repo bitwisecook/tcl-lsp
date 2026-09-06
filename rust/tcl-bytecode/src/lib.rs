@@ -1342,6 +1342,22 @@ pub struct FunctionAsm {
     /// `N = instruction_line − body_base_line + 1`, so the line is relative to
     /// the proc, not the whole module. `0` for the top level / hand-built asm.
     pub body_base_line: u32,
+    /// For an entry in [`ModuleAsm::procedures`], the `proc` command's body
+    /// **word value** — the source text with the one substitution braces permit
+    /// applied, so it compares equal to the value a runtime `proc` is handed.
+    /// `None` for every other function (both top-level shapes, hand-built
+    /// assembly, a synthetic proc with no source).
+    ///
+    /// A runtime consumer keyed by *name* cannot assume the body it is handed
+    /// is the body that was compiled: a name is reachable from more than one
+    /// `proc` command (a redefinition, opposite arms of an `if`, a second
+    /// `eval` after a `rename`), and a compiled unit records only the first.
+    /// Comparing this against the body word actually supplied turns that
+    /// ambiguity into a cache miss instead of a wrong body.
+    ///
+    /// A body the script *builds* (`proc p {} "return $x"`) never matches — the
+    /// compiler records the unsubstituted word — so it misses and recompiles.
+    pub proc_body_src: Option<String>,
     /// Inline command-body regions (`eval {…}` / `while`/`for`/`foreach` bodies)
     /// folded into this function's instruction stream. As an error unwinds past
     /// a covering region the executor synthesises the body frame the *uncompiled*
@@ -1388,8 +1404,28 @@ pub struct ModuleAsm {
     /// must reject an AOT module compiled for another profile rather than
     /// treating its specialised opcodes as belonging to its current surface.
     pub profile: &'static tcl_dialect::DialectProfile,
-    /// Top-level script assembly.
+    /// Top-level script assembly — the unit entered as a *script*.
     pub top_level: FunctionAsm,
+    /// The same top level emitted as a **procedure body**: LVT variable forms
+    /// (`STORE_SCALAR1`, `INCR_SCALAR1`, `LAPPEND_SCALAR1`, the compiled
+    /// `unset`) and the proc return protocol, exactly as an entry in
+    /// [`Self::procedures`] is emitted.
+    ///
+    /// A body compiled at run time — `proc`'s body when the pre-compiled entry
+    /// misses, an `apply` lambda, a `TclOO` method — is the *whole* source the
+    /// compiler was handed, so it arrives here as a top level rather than as a
+    /// procedure. Running that as a script would deny every dynamically
+    /// compiled body the `is_proc` specialisation an AOT-compiled one gets, and
+    /// the two would diverge on any semantics the specialised opcodes carry
+    /// (C's `INST_LAPPEND_SCALAR` omits `TCL_TRACE_READS`; `INST_UNSET_ARRAY`
+    /// reports a two-part access). Both shapes are emitted so the consumer
+    /// picks by how it will *enter* the code, not by how it was compiled.
+    ///
+    /// The local variable table is not pre-seeded with parameter names (the
+    /// compiler is handed a body, never its parameter list), so slot *order*
+    /// can differ from the AOT form. Slots resolve by name at run time, so this
+    /// is a disassembly difference only.
+    pub top_level_body: FunctionAsm,
     /// Procedure assemblies keyed by qualified name.
     pub procedures: HashMap<String, FunctionAsm>,
 }

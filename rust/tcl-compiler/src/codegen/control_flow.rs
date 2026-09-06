@@ -28,7 +28,7 @@ use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 
-use super::cmd_subst::parse_cmd_parts;
+use super::cmd_subst::{is_single_command_body, parse_cmd_parts};
 use super::values::is_qualified;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
@@ -243,11 +243,8 @@ impl CodegenCtx<'_> {
             return false;
         }
         // The body must be a straight-line sequence of simple commands.
-        let body_ir = crate::lowering::lower_to_ir_with_config(
-            body_text,
-            self.registry,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        );
+        let body_ir =
+            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
@@ -351,11 +348,8 @@ impl CodegenCtx<'_> {
         if !self.is_proc {
             return false;
         }
-        let body_ir = crate::lowering::lower_to_ir_with_config(
-            body_text,
-            self.registry,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        );
+        let body_ir =
+            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -476,7 +470,7 @@ impl CodegenCtx<'_> {
     /// unless proc context, a plain-local dict var and targets, and a
     /// straight-line body whose final statement yields a value.
     pub fn emit_dict_update(&mut self, rest: &[String]) -> bool {
-        if !self.is_proc || rest.len() < 4 || !rest.len().is_multiple_of(2) {
+        if !self.compiles_locals() || rest.len() < 4 || !rest.len().is_multiple_of(2) {
             return false;
         }
         let dict_var = &rest[0];
@@ -490,11 +484,8 @@ impl CodegenCtx<'_> {
         if vars.iter().any(|v| is_qualified(v) || v.contains('(')) {
             return false;
         }
-        let body_ir = crate::lowering::lower_to_ir_with_config(
-            body_text,
-            self.registry,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        );
+        let body_ir =
+            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -591,14 +582,11 @@ impl CodegenCtx<'_> {
     /// final statement yields a value. The path form (`dict with d k … {body}`)
     /// is left to the runtime invoke.
     pub fn emit_dict_with(&mut self, dict_var: &str, body_text: &str) -> bool {
-        if !self.is_proc || is_qualified(dict_var) || dict_var.contains('(') {
+        if !self.compiles_locals() || is_qualified(dict_var) || dict_var.contains('(') {
             return false;
         }
-        let body_ir = crate::lowering::lower_to_ir_with_config(
-            body_text,
-            self.registry,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        );
+        let body_ir =
+            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -702,13 +690,12 @@ impl CodegenCtx<'_> {
         result_var: Option<&str>,
         options_var: Option<&str>,
     ) {
-        // Strip outer braces from body text.
+        // `body_text` is already the body word's *value* — `parse_cmd_parts`
+        // removed the braces that delimited the `catch` argument. Any braces
+        // still here belong to the script: `[catch {{set x 1}} m]` runs the
+        // one-word command `set x 1` and catches `invalid command name`, so
+        // stripping a second layer would compile a successful `set` instead.
         let body = body_text.trim();
-        let body = if body.starts_with('{') && body.ends_with('}') {
-            &body[1..body.len() - 1]
-        } else {
-            body
-        };
 
         // Pre-intern result_var so it gets a lower LVT slot
         if let Some(rv) = result_var
@@ -787,6 +774,11 @@ impl CodegenCtx<'_> {
 
     /// Compile a single-command catch body inline.
     ///
+    /// The caller must have checked
+    /// [`is_single_command_body`](super::cmd_subst::is_single_command_body):
+    /// this splits `body` into *words*, so a body holding two commands would be
+    /// emitted as one bogus invocation.
+    ///
     /// Both classifications here are registry data: the
     /// `startCommand`-wrapping set is [`Traits::NEEDS_START_CMD`] and
     /// the per-command inline emitters dispatch on the spec's
@@ -794,6 +786,7 @@ impl CodegenCtx<'_> {
     /// `::`-qualified spellings (`catch {::error x}`) on the generic
     /// path, exactly as the retired raw-word `match` did.
     pub fn emit_catch_body(&mut self, body: &str) {
+        let cfg = self.lexer_config();
         let body_parts = parse_cmd_parts(body);
         if body_parts.is_empty() {
             self.push_lit("");
@@ -850,11 +843,18 @@ impl CodegenCtx<'_> {
                     self.emit_expr(&node);
                 }
             }
+            // Both bodies go to a single-command emitter, so both must be a
+            // braced word holding exactly one command — the same rule the
+            // value-position `catch` arm applies.
             Some(InlineCodegenHookId::Try)
                 if self.is_proc
                     && body_args.len() == 5
                     && body_args[1].0 == "on"
-                    && body_args[2].0 == "error" =>
+                    && body_args[2].0 == "error"
+                    && body_args[0].1
+                    && body_args[4].1
+                    && is_single_command_body(&body_args[0].0, cfg)
+                    && is_single_command_body(&body_args[4].0, cfg) =>
             {
                 let try_sc = self.fresh_label("catch_body_end");
                 self.emit_comment(
@@ -868,8 +868,12 @@ impl CodegenCtx<'_> {
                 self.seen_generic_invoke = true;
             }
             _ => {
-                // Generic command call
-                self.push_lit(body_cmd);
+                // Generic command call. The command *name* may itself be a
+                // substitution (`catch {$proc_name}` — the shape an event
+                // dispatcher uses), so it goes through the same per-word path as
+                // the arguments; pushing it as a bare literal invoked a command
+                // literally named `$proc_name`, which `catch` then swallowed.
+                self.emit_cmd_word(body_cmd, false);
                 for (arg, braced) in body_args {
                     self.emit_cmd_subst_arg(arg, *braced);
                 }
@@ -1149,6 +1153,8 @@ impl CodegenCtx<'_> {
 
     /// Compile a try/on handler body inline with `startCommand`.
     pub fn emit_try_handler_body(&mut self, body_text: &str) {
+        // Single-command only, like `emit_catch_body` — guarded at the `Try`
+        // arm that reaches `emit_try_on_error_inline`.
         let parts = parse_cmd_parts(body_text);
         if parts.is_empty() {
             self.push_lit("");
@@ -1172,7 +1178,9 @@ impl CodegenCtx<'_> {
                 self.store_var(&cmd_args[0].0);
             }
             _ => {
-                self.push_lit(cmd);
+                // The command name may be a substitution — see the same arm in
+                // [`Self::emit_catch_body`].
+                self.emit_cmd_word(cmd, false);
                 for (a, b) in cmd_args {
                     self.emit_cmd_subst_arg(a, *b);
                 }
