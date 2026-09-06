@@ -496,7 +496,28 @@ async function main() {
     });
     await page.waitForSelector("#importOut .found", { timeout: 30_000 });
     await page.click("#importAll");
-    await page.click("#tab-rs");
+    // The per-command Rendered .rs and Tcl stub panes are now one Export pane
+    // listing everything the pack produces, so the generated Rust is reached
+    // by opening a file rather than by its own tab. The list opens on the
+    // .tclspec, which draws on the Tcl surface — the Rust surface is only on
+    // screen once a Rust file is chosen, and the one that carries the
+    // imported command is its own .rs, not the pack's mod.rs.
+    await page.click("#tab-export");
+    await page.waitForSelector('#exportList [role="option"]', {
+      timeout: 30_000,
+    });
+    const rsAt = await page.$$eval('#exportList [role="option"]', (rows) =>
+      rows.findIndex((row) => {
+        const name = row.querySelector(".nm")?.textContent ?? "";
+        return name.endsWith(".rs") && name !== "mod.rs";
+      }),
+    );
+    if (rsAt < 0) {
+      throw new Error(
+        "the export list offered no per-command .rs for the imported command",
+      );
+    }
+    await page.click(`#exportList [role="option"] >> nth=${rsAt}`);
     await page.waitForFunction(
       () => {
         const text =
