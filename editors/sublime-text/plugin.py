@@ -44,7 +44,7 @@ STATE_KEY = "LSP-Tcl-state.sublime-settings"
 GITHUB_REPO = "bitwisecook/tcl-lsp"
 SERVER_BASENAME = "tcl-lsp-server"
 CHECKSUM_ASSET = "SHA256SUMS"
-VERSION_RESOURCE = "Packages/{}/server_version.json".format(PACKAGE_NAME)
+VERSION_RESOURCE = f"Packages/{PACKAGE_NAME}/server_version.json"
 BUILTIN_TCL_SYNTAX = "Packages/TCL/Tcl.sublime-syntax"
 
 SERVER_TRIPLES = {
@@ -200,7 +200,7 @@ def _installed_versions():
 
 def _user_agent():
     # type: () -> str
-    return "{}/Sublime-Text (+https://github.com/{})".format(PACKAGE_NAME, GITHUB_REPO)
+    return f"{PACKAGE_NAME}/Sublime-Text (+https://github.com/{GITHUB_REPO})"
 
 
 def _fetch(url, timeout=30):
@@ -212,9 +212,9 @@ def _fetch(url, timeout=30):
 
 def _latest_release_version():
     # type: () -> str
-    url = "https://api.github.com/repos/{}/releases/latest".format(GITHUB_REPO)
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
     tag = (json.loads(_fetch(url).decode("utf-8")) or {}).get("tag_name") or ""
-    version = tag[1:] if tag.startswith("v") else tag
+    version = tag.removeprefix("v")
     if not _RELEASE_VERSION_RE.match(version):
         raise RuntimeError("latest tcl-lsp release is not a plain version tag")
     return version
@@ -222,9 +222,7 @@ def _latest_release_version():
 
 def _asset_url(version, asset):
     # type: (str, str) -> str
-    return "https://github.com/{}/releases/download/v{}/{}".format(
-        GITHUB_REPO, version, asset
-    )
+    return f"https://github.com/{GITHUB_REPO}/releases/download/v{version}/{asset}"
 
 
 def _release_checksum(version, asset):
@@ -234,28 +232,28 @@ def _release_checksum(version, asset):
         parts = line.split()
         if len(parts) == 2 and os.path.basename(parts[1]) == asset:
             return parts[0]
-    raise RuntimeError(
-        "release v{} has no {} entry for {}".format(version, CHECKSUM_ASSET, asset)
-    )
+    raise RuntimeError(f"release v{version} has no {CHECKSUM_ASSET} entry for {asset}")
 
 
 def _download_verified(url, expected_sha256, destination):
     # type: (str, str, str) -> None
     digest = hashlib.sha256()
     request = urllib.request.Request(url, headers={"User-Agent": _user_agent()})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        with open(destination, "wb") as handle:
-            while True:
-                chunk = response.read(256 * 1024)
-                if not chunk:
-                    break
-                digest.update(chunk)
-                handle.write(chunk)
+    with (
+        urllib.request.urlopen(request, timeout=120) as response,
+        open(destination, "wb") as handle,
+    ):
+        while True:
+            chunk = response.read(256 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            handle.write(chunk)
     actual = digest.hexdigest()
     if actual != expected_sha256:
         os.remove(destination)
         raise RuntimeError(
-            "checksum mismatch: expected {}, got {}".format(expected_sha256, actual)
+            f"checksum mismatch: expected {expected_sha256}, got {actual}"
         )
 
 
@@ -278,13 +276,13 @@ def _install_server():
     triple = _server_triple()
     if not triple:
         raise RuntimeError(
-            "no tcl-lsp-server build for {}-{}; set 'server_path' in "
-            "LSP-Tcl settings".format(sublime.platform(), sublime.arch())
+            f"no tcl-lsp-server build for {sublime.platform()}-{sublime.arch()}; set 'server_path' in "
+            "LSP-Tcl settings"
         )
 
     version = _packaged_version() or _latest_release_version()
     suffix = ".exe" if sublime.platform() == "windows" else ""
-    asset = "{}-{}{}".format(SERVER_BASENAME, triple, suffix)
+    asset = f"{SERVER_BASENAME}-{triple}{suffix}"
     target_dir = _managed_dir(version)
     if not target_dir:
         raise RuntimeError("the LSP package is not available")
@@ -296,7 +294,7 @@ def _install_server():
 
     parent = os.path.dirname(target_dir)
     os.makedirs(parent, exist_ok=True)
-    staging = tempfile.mkdtemp(prefix=".{}-".format(version), dir=parent)
+    staging = tempfile.mkdtemp(prefix=f".{version}-", dir=parent)
     try:
         binary = os.path.join(staging, _server_filename())
         _download_verified(_asset_url(version, asset), expected, binary)
@@ -309,11 +307,7 @@ def _install_server():
 
     _prune_managed_versions(version)
     integrity = "package-pinned digest" if pinned else "release SHA256SUMS fallback"
-    print(
-        "{}: installed tcl-lsp-server {} ({}; {})".format(
-            PACKAGE_NAME, version, triple, integrity
-        )
-    )
+    print(f"{PACKAGE_NAME}: installed tcl-lsp-server {version} ({triple}; {integrity})")
 
 
 def _resolve_server():
@@ -428,7 +422,7 @@ def plugin_loaded():
         sublime.set_timeout(_suggest_lsp_install, 2000)
         return
     register_plugin(_LSP_PLUGIN_CLASS)
-    print("{}: registered tcl-lsp".format(PACKAGE_NAME))
+    print(f"{PACKAGE_NAME}: registered tcl-lsp")
 
 
 def plugin_unloaded():

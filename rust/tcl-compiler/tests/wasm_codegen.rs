@@ -24,11 +24,12 @@
 //! present) validates the bytes for full structural validity.
 
 use tcl_compiler::codegen::wasm::{
-    RESERVED_DATA_BASE, SemanticOptimisationConfig, SemanticOptimisationPassId, WasmCompileOptions,
-    WasmModule, compile_wasm as compile_wasm_unit,
+    RESERVED_DATA_BASE, SemanticOptimisationConfig, SemanticOptimisationPassId, ValType,
+    WasmCompileOptions, WasmModule, WasmOp, compile_wasm as compile_wasm_unit,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
+use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 /// Lower Tcl source and run the greenfield WASM backend over its top level.
 fn compile_wasm(source: &str) -> WasmModule {
@@ -1050,4 +1051,346 @@ fn wasmtime_validates_emitted_modules() {
         let _ = std::fs::remove_file(&wasm);
         let _ = std::fs::remove_file(&cwasm);
     }
+}
+
+// -- native proc entries (issue #1774) ---------------------------------------
+
+/// Compile under the native tier, standalone-free, for shape assertions.
+fn compile_native(source: &str) -> WasmModule {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked().native_tier(),
+    )
+    .into_module()
+}
+
+/// Every `call` target in `function`, decoded from its LEB128 operand.
+fn call_targets(function: &tcl_compiler::codegen::wasm::WasmFunction) -> Vec<u64> {
+    function
+        .body
+        .iter()
+        .filter(|instruction| instruction.op == WasmOp::Call)
+        .filter_map(|instruction| {
+            let mut value = 0u64;
+            let mut shift = 0;
+            for byte in &instruction.operands {
+                value |= u64::from(byte & 0x7F) << shift;
+                if byte & 0x80 == 0 {
+                    return Some(value);
+                }
+                shift += 7;
+            }
+            None
+        })
+        .collect()
+}
+
+fn import_index(module: &WasmModule, id: CodegenAbiImportId) -> u64 {
+    let want = id.descriptor().name;
+    let index = module
+        .imports
+        .iter()
+        .position(|import| import.name == want)
+        .unwrap_or_else(|| panic!("the native tier imports {want}"));
+    index as u64
+}
+
+/// A compiled procedure body is emitted in the runtime's proc-entry shape and
+/// takes neither an activation nor a Tcl frame.
+///
+/// This is the contract `NativeProcEntry`'s doc comment states: `run_proc` has
+/// already pushed the variable frame and bound the formals, and
+/// `run_native_body` holds the activation and the `CmdFrame`. Reusing the
+/// module-function prologue here would push a second, nameless frame at the
+/// caller's namespace and halve the recursion depth Tcl allows, and neither
+/// mistake shows up in a result assertion.
+#[test]
+fn a_compiled_proc_body_is_emitted_prologue_free() {
+    let module = compile_native("proc add {a b} { return [expr {$a + $b}] }\nset r [add 1 2]\n");
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name == "::add")
+        .expect("the tier emits the procedure body");
+    assert_eq!(entry.kind, "native-proc");
+    assert_eq!(
+        (entry.params.as_slice(), entry.results.as_slice()),
+        (
+            [ValType::I32, ValType::I32, ValType::I32].as_slice(),
+            [ValType::I32].as_slice()
+        ),
+        "a proc entry is (argv, argc, out) -> status"
+    );
+    let targets = call_targets(entry);
+    for absent in [
+        CodegenAbiImportId::ActivationEnter,
+        CodegenAbiImportId::ActivationLeave,
+        CodegenAbiImportId::FramePush,
+        CodegenAbiImportId::FramePop,
+    ] {
+        let index = import_index(&module, absent);
+        assert!(
+            !targets.contains(&index),
+            "a proc entry must not call {}",
+            absent.descriptor().name
+        );
+    }
+    // The module's own entry point still holds its activation.
+    let top = module
+        .functions
+        .iter()
+        .find(|function| function.name == "::top")
+        .expect("the tier emits ::top");
+    assert!(top.params.is_empty() && top.results.is_empty());
+    assert!(
+        call_targets(top).contains(&import_index(&module, CodegenAbiImportId::ActivationEnter))
+    );
+}
+
+/// `::top` grows the runtime's shared table once and installs one entry per
+/// bound body, and the definition statement hands the runtime that index.
+#[test]
+fn top_installs_one_table_entry_per_bound_body() {
+    let mut module = compile_native("proc a {} { return 1 }\nproc b {} { return 2 }\nset r [a]\n");
+    assert!(module.import_table, "the module imports the shared table");
+    assert_eq!(module.globals.len(), 1, "one table-base global");
+    assert_eq!(
+        module.elem_declared.len(),
+        2,
+        "both bodies are declared for ref.func"
+    );
+    let wat = module.to_wat();
+    assert!(wat.contains("table.grow"), "{wat}");
+    assert_eq!(
+        wat.matches("table.set").count(),
+        2,
+        "one install per bound body:\n{wat}"
+    );
+    let top = module
+        .functions
+        .iter()
+        .find(|function| function.name == "::top")
+        .expect("the tier emits ::top");
+    assert_eq!(
+        call_targets(top)
+            .iter()
+            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineNative))
+            .count(),
+        2,
+        "each definition binds through the definition ABI"
+    );
+}
+
+/// A module that binds nothing asks for no table, no global and no element
+/// segment — so it still instantiates against a runtime that never exported
+/// one.
+#[test]
+fn a_module_that_binds_nothing_keeps_its_old_shape() {
+    let mut module = compile_native("set a 1\nincr a\n");
+    assert!(!module.import_table);
+    assert!(module.globals.is_empty());
+    assert!(module.elem_declared.is_empty());
+    assert!(!module.to_wat().contains("table.grow"));
+}
+
+/// Two definitions of one name: only the statement whose body became this
+/// module's function binds an entry. The other stays a generic invocation, so
+/// re-running it at run time installs an ordinary source-only procedure —
+/// which is what makes a mid-script redefinition behave.
+#[test]
+fn only_the_definition_whose_body_was_compiled_binds_an_entry() {
+    let module = compile_native("proc pick {} { return first }\nset a [pick]\n");
+    let top = module
+        .functions
+        .iter()
+        .find(|function| function.name == "::top")
+        .expect("the tier emits ::top");
+    assert_eq!(
+        call_targets(top)
+            .iter()
+            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineNative))
+            .count(),
+        1
+    );
+    // The second definition of the same name keeps the front end's first
+    // `Procedure`, so its own statement never matches a compiled body.
+    let redefined =
+        compile_native("proc pick {} { return first }\nproc pick {} { return second }\n");
+    assert_eq!(
+        call_targets(
+            redefined
+                .functions
+                .iter()
+                .find(|function| function.name == "::top")
+                .expect("the tier emits ::top")
+        )
+        .iter()
+        .filter(|target| **target == import_index(&redefined, CodegenAbiImportId::ProcDefineNative))
+        .count(),
+        1,
+        "only one of the two statements binds"
+    );
+    assert_eq!(redefined.elem_declared.len(), 1);
+}
+
+/// A compiled statement logs its own `errorInfo` site, with the line counted
+/// from the start of the body it was compiled from.
+///
+/// The runtime's frame arithmetic passes a body-relative line straight through
+/// to `errorLine` (`run_native_body` sets `proc_line_base = line_base`), so a
+/// file-absolute line here would report the wrong `(procedure "boom" line N)`.
+#[test]
+fn a_compiled_statement_logs_its_own_error_site() {
+    let module = compile_native("proc boom {a} {\n    set b 1\n    error \"bad $a\"\n}\nset r 1\n");
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.name == "::boom")
+        .expect("the tier emits the procedure body");
+    let log = import_index(&module, CodegenAbiImportId::LogCommand);
+    // The call sequence is `i32.const line`, the interned text pointer and
+    // length, then the call — so the line sits three instructions back.
+    let lines: Vec<i64> = entry
+        .body
+        .iter()
+        .enumerate()
+        .filter(|(_, instruction)| {
+            instruction.op == WasmOp::Call && decode_uleb(&instruction.operands) == Some(log)
+        })
+        .filter_map(|(index, _)| {
+            let constant = entry.body.get(index.checked_sub(3)?)?;
+            (constant.op == WasmOp::I32Const).then(|| decode_sleb(&constant.operands))?
+        })
+        .collect();
+    assert!(
+        !lines.is_empty(),
+        "the body must log its statement sites at all"
+    );
+    assert!(
+        lines.contains(&3),
+        "`error \"bad $a\"` is the body's third line, got {lines:?}"
+    );
+    assert!(
+        lines.iter().all(|line| *line <= 3),
+        "the lines are body-relative, not file-absolute: {lines:?}"
+    );
+}
+
+fn decode_uleb(bytes: &[u8]) -> Option<u64> {
+    let mut value = 0u64;
+    let mut shift = 0;
+    for byte in bytes {
+        value |= u64::from(byte & 0x7F) << shift;
+        if byte & 0x80 == 0 {
+            return Some(value);
+        }
+        shift += 7;
+    }
+    None
+}
+
+fn decode_sleb(bytes: &[u8]) -> Option<i64> {
+    let mut value = 0i64;
+    let mut shift = 0u32;
+    for byte in bytes {
+        value |= i64::from(byte & 0x7F) << shift;
+        shift += 7;
+        if byte & 0x80 == 0 {
+            if shift < 64 && byte & 0x40 != 0 {
+                value |= -1i64 << shift;
+            }
+            return Some(value);
+        }
+    }
+    None
+}
+
+/// A body whose answer the compiled form cannot produce is emitted but not
+/// bound: the runtime keeps running the source body, so the procedure still
+/// answers what Tcl answers.
+///
+/// A one-armed `if` is the reachable case today — the executable IR completes
+/// the region with no result at all, so binding it would answer with the empty
+/// string where Tcl answers with the arm's value. (`append` reaching the
+/// in-place cell shape is the other, and it is why `CellAppend` is not on the
+/// result-determining list; here it keeps the generic invocation, which adopts
+/// the runtime's whole triple and is therefore fine.)
+#[test]
+fn a_body_whose_answer_cannot_be_produced_keeps_its_source_body() {
+    let registry = CommandRegistry::build_default();
+    let source = "\
+proc grow {s} { append s ! }
+proc branch {x} { if {$x} { set y yes } }
+proc plain {x} { set y $x }
+set r [grow hi]
+";
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+    let output = compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked().native_tier(),
+    );
+    let binding = |name: &str| {
+        output
+            .native
+            .function(name)
+            .unwrap_or_else(|| panic!("{name} has a native-tier report"))
+            .binding
+            .as_str()
+    };
+    assert_eq!(binding("::branch"), "source-only");
+    assert_eq!(
+        binding("::grow"),
+        "bound-natively",
+        "this `append` kept the generic invocation, which determines the result"
+    );
+    assert_eq!(
+        binding("::plain"),
+        "bound-natively",
+        "a `set`-ending body is bound: the emitter materialises the value it stored"
+    );
+    assert_eq!(
+        output.native.function("::branch").unwrap().binding.reason(),
+        Some(tcl_compiler::native_lowering::ProcEntryDecline::UndeterminedResult)
+    );
+}
+
+/// A compiled `return` calls the pending-return-state ABI, because completing
+/// with code 2 is only half of what the `return` command does.
+///
+/// The other half — `-level 1, -code ok` — is what the enclosing procedure's
+/// return boundary consumes. Without it a caught `return -level 2` earlier in
+/// the program makes the call propagate a return instead of its value.
+#[test]
+fn a_compiled_return_records_the_pending_return_state() {
+    let module = compile_native("proc p {} { return v }\nproc q {} { return }\nset r [p]\n");
+    let state = import_index(&module, CodegenAbiImportId::ReturnState);
+    for name in ["::p", "::q"] {
+        let entry = module
+            .functions
+            .iter()
+            .find(|function| function.name == name)
+            .unwrap_or_else(|| panic!("the tier emits {name}"));
+        assert!(
+            call_targets(entry).contains(&state),
+            "{name} completes with a return, so it must record the state"
+        );
+    }
+    // An option-carrying `return` keeps the generic invocation, which records
+    // the state itself — so the emitter must not double-write it there.
+    let options = compile_native("proc r {} { return -code error boom }\nset a 1\n");
+    let entry = options
+        .functions
+        .iter()
+        .find(|function| function.name == "::r")
+        .expect("the tier emits ::r");
+    let targets = call_targets(entry);
+    assert!(
+        !targets.contains(&import_index(&options, CodegenAbiImportId::ReturnState)),
+        "an option-carrying `return` reaches the runtime command"
+    );
+    assert!(targets.contains(&import_index(&options, CodegenAbiImportId::InvokeArgv)));
 }

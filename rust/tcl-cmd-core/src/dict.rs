@@ -322,6 +322,12 @@ pub fn getdef<O: ValueOps>(
 }
 
 /// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand.
+/// `dict filter`'s type word, in C table order (`filters[]`, `tclDictObj.c`):
+/// `Tcl_GetIndexFromObj(…, "filterType", 0)`, so `k`/`s`/`v` abbreviate and
+/// the empty word — a prefix of all three — is `ambiguous filterType ""`.
+const FILTER_TYPES: crate::prefix::OptionTable<'static> =
+    crate::prefix::OptionTable::abbreviating("filterType", &["key", "script", "value"]);
+
 /// Returns `None` for a not-yet-ported (variable-mutating) subcommand so the
 /// caller falls back to its legacy path.
 pub fn dispatch_canon<O: ValueOps>(
@@ -363,13 +369,11 @@ pub fn dispatch_canon<O: ValueOps>(
         // dict is parsed (tclsh: `dict filter {a b c} bogus` is a bad-filterType
         // error, not a bad-dict one).
         "filter" => match (rest.first(), rest.get(1)) {
-            (Some(dict), Some(ft)) => match ops.as_str(ft).as_ref() {
-                "key" => Some(filter(ops, dict, true, &rest[2..])),
-                "value" => Some(filter(ops, dict, false, &rest[2..])),
-                "script" => None,
-                other => Some(Err(CmdError::new(format!(
-                    "bad filterType \"{other}\": must be key, script, or value"
-                )))),
+            (Some(dict), Some(ft)) => match FILTER_TYPES.index_of_str(ops.as_str(ft).as_ref()) {
+                Ok(0) => Some(filter(ops, dict, true, &rest[2..])),
+                Ok(2) => Some(filter(ops, dict, false, &rest[2..])),
+                Ok(_) => None,
+                Err(e) => Some(Err(e)),
             },
             _ => Some(Err(CmdError::wrong_args(
                 "dict filter dictionary filterType ?arg ...?",

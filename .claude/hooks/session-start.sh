@@ -42,9 +42,9 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 tcl_reference_load_toolchains "$REPO_ROOT"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
-WASMTIME_VERSION="47.0.3"
+WASMTIME_VERSION="48.0.1"
 BINARYEN_VERSION="132"
-WASI_SDK_VERSION="33.0"
+WASI_SDK_VERSION="34.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
 # (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
 # version — keeps it auto-updating to the latest stable and, critically,
@@ -167,9 +167,9 @@ install_wasmtime() {
     local expected_sha=""
     case "$wasm_arch" in
         x86_64-linux)
-            expected_sha="ca1fc56d1afc40c8782e96c297fd182a0da162f9a8f52a1e7b094e1dd648e178" ;;
+            expected_sha="4c2e31b68ad99e0a519f225a261fda099eb15f056d4a24fdb3c2a46517bde1df" ;;
         aarch64-linux)
-            expected_sha="497b518db00ae585f04390758eaa99ad555bee50612dce7d102602778fb46ff0" ;;
+            expected_sha="fdbebd838ed7b9cc4e2b63f6d7d855b33386fc388f3595f668bf394131dd072f" ;;
     esac
     if [ -z "$expected_sha" ]; then
         echo "session-start: no pinned wasmtime sha256 for ${wasm_arch}" >&2
@@ -294,9 +294,9 @@ install_wasi_sdk() {
     local expected actual
     case "$sdk_arch" in
         x86_64)
-            expected="0ba8b5bfaeb2adf3f29bab5841d76cf5318ab8e1642ea195f88baba1abd47bce" ;;
+            expected="b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4" ;;
         arm64)
-            expected="4f98ee738c7abb45c81a94d1461fc53cc569d1cd01498951c8184d841a027844" ;;
+            expected="f7e243dff54d60bcc576e94d6166b69f410f2500ae4a9ceef34315be10e77971" ;;
         *)
             expected="" ;;
     esac

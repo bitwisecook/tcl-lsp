@@ -51,8 +51,8 @@ import re
 import subprocess
 import sys
 import textwrap
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[2]
 RESULTS = ROOT / "scripts" / "perf" / "results"
@@ -251,8 +251,10 @@ def build_section(version: str, versions: Sequence[str]) -> str:
         lines += [
             f"### {title}",
             "",
-            f"![{title} across the {line} {noun}s]"
-            f"({ASSET_BASE}/v{version}/perf-{slug}.svg)",
+            (
+                f"![{title} across the {line} {noun}s]"
+                f"({ASSET_BASE}/v{version}/perf-{slug}.svg)"
+            ),
             "",
         ]
 

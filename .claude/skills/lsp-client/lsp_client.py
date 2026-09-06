@@ -61,6 +61,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -344,7 +345,7 @@ class LspClient:
         exists to remove.
         """
         body = json.dumps(data).encode("utf-8")
-        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
+        header = f"Content-Length: {len(body)}\r\n\r\n".encode()
         payload = header + body
         assert self.process and self.process.stdin
         fd = self.process.stdin.fileno()
@@ -405,7 +406,7 @@ class LspClient:
         while self._running:
             try:
                 msg = self._read_message()
-            except Exception:
+            except (OSError, UnicodeError, ValueError):
                 break
             if msg is None:
                 break
@@ -542,7 +543,7 @@ class LspClient:
                 line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
                 with self._lock:
                     self._stderr_lines.append(line)
-            except Exception:
+            except OSError:
                 break
 
     def get_stderr_lines(self) -> list[str]:
@@ -642,31 +643,17 @@ class LspClient:
     def shutdown(self) -> None:
         """Cleanly shut down the server."""
         self._running = False
-        try:
-            if self.process and self.process.poll() is None:
-                try:
-                    self.send_request("shutdown", {}, timeout=5.0)
-                except Exception:
-                    # Best-effort courtesy: a server that will not answer
-                    # `shutdown` is killed below regardless.
-                    pass
-                try:
-                    self.send_notification("exit")
-                except Exception:
-                    # Same — a broken pipe here only means `exit` never landed.
-                    pass
-                try:
-                    self.process.wait(timeout=3.0)
-                except subprocess.TimeoutExpired:
+        if self.process and self.process.poll() is None:
+            with contextlib.suppress(OSError, RuntimeError, TimeoutError):
+                self.send_request("shutdown", {}, timeout=5.0)
+            with contextlib.suppress(OSError, RuntimeError):
+                self.send_notification("exit")
+            try:
+                self.process.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                with contextlib.suppress(OSError):
                     self.process.kill()
                     self.process.wait(timeout=2.0)
-        except Exception:
-            if self.process:
-                try:
-                    self.process.kill()
-                except Exception:
-                    # Already reaped, which is the outcome this wanted.
-                    pass
 
 
 # LSP lifecycle helpers
@@ -838,10 +825,7 @@ def print_semantic_tokens(tokens: list[dict]) -> None:
 
 def print_diagnostics(diag_params: list[dict]) -> None:
     """Print diagnostics from publishDiagnostics notification params."""
-    all_diags = []
-    for params in diag_params:
-        for d in params.get("diagnostics", []):
-            all_diags.append(d)
+    all_diags = [d for params in diag_params for d in params.get("diagnostics", [])]
 
     print(f"=== Diagnostics ({len(all_diags)} items) ===")
     if not all_diags:
@@ -994,7 +978,7 @@ def print_code_actions(actions: list[dict] | None) -> None:
         print(f"  [{kind}] {title}")
         edit = action.get("edit", {})
         changes = edit.get("changes", {})
-        for uri, edits in changes.items():
+        for edits in changes.values():
             for e in edits:
                 r = e.get("range", {})
                 s = r.get("start", {})
@@ -1484,10 +1468,7 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
     if not matching:
         matching = [n["params"] for n in notifs]
 
-    all_diags = []
-    for params in matching:
-        for d in params.get("diagnostics", []):
-            all_diags.append(d)
+    all_diags = [d for params in matching for d in params.get("diagnostics", [])]
 
     # Filter to actionable (error + warning)
     actionable = [d for d in all_diags if d.get("severity", 0) <= 2]
@@ -1531,7 +1512,7 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
         else:
             print("=== Symbol Definitions ===")
             print("  (none)")
-    except Exception:
+    except (OSError, RuntimeError, TimeoutError):
         print("=== Symbol Definitions ===")
         print("  (unavailable)")
 
@@ -1562,7 +1543,7 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
                         print(f"    sample: {', '.join(samples)}")
                 else:
                     print(f"  {event_name}: metadata unavailable")
-            except Exception:
+            except (OSError, RuntimeError, TimeoutError):
                 print(f"  {event_name}: metadata unavailable")
         if len(events) > 8:
             print(f"  ... and {len(events) - 8} more events")
@@ -1611,6 +1592,15 @@ def cmd_bench(
 
     td = {"textDocument": {"uri": uri}}
 
+    def _step(
+        step_times: list[tuple[str, float]], name: str, method: str, params: dict
+    ) -> Any:
+        t = time.perf_counter()
+        result = client.send_request(method, params, timeout=120.0)
+        elapsed = (time.perf_counter() - t) * 1000
+        step_times.append((name, elapsed))
+        return result
+
     for i in range(iterations):
         client.clear_timing()
         # Close and re-open to force a full rebuild.
@@ -1647,13 +1637,6 @@ def cmd_bench(
         # Sequential request chain — each waits for its response.
         step_times: list[tuple[str, float]] = []
 
-        def _step(name: str, method: str, params: dict) -> Any:
-            t = time.perf_counter()
-            result = client.send_request(method, params, timeout=120.0)
-            elapsed = (time.perf_counter() - t) * 1000
-            step_times.append((name, elapsed))
-            return result
-
         code_action_params = {
             "textDocument": {"uri": uri},
             "range": {
@@ -1669,14 +1652,16 @@ def cmd_bench(
                 "end": {"line": min(n_lines, 50), "character": 0},
             },
         }
-        _step("documentSymbol", "textDocument/documentSymbol", td)
-        _step("codeAction", "textDocument/codeAction", code_action_params)
-        _step("documentLink", "textDocument/documentLink", td)
-        _step("inlayHint", "textDocument/inlayHint", inlay_hint_params)
-        _step("foldingRange", "textDocument/foldingRange", td)
-        _step("documentSymbol", "textDocument/documentSymbol", td)
+        _step(step_times, "documentSymbol", "textDocument/documentSymbol", td)
+        _step(step_times, "codeAction", "textDocument/codeAction", code_action_params)
+        _step(step_times, "documentLink", "textDocument/documentLink", td)
+        _step(step_times, "inlayHint", "textDocument/inlayHint", inlay_hint_params)
+        _step(step_times, "foldingRange", "textDocument/foldingRange", td)
+        _step(step_times, "documentSymbol", "textDocument/documentSymbol", td)
 
-        result = _step("semanticTokens/full", "textDocument/semanticTokens/full", td)
+        result = _step(
+            step_times, "semanticTokens/full", "textDocument/semanticTokens/full", td
+        )
 
         t_tokens = time.perf_counter()
         total_ms = (t_tokens - t_open) * 1000

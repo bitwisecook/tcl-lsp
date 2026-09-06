@@ -186,6 +186,11 @@ until you tap it. Open, it takes half the screen, and the control you are
 editing is scrolled up from under it. The **?** buttons stay the quicker
 route there.
 
+The **Docs** panel is a one-line strip at the bottom of the screen, folded
+until you tap it. Open, it takes half the screen, and the control you are
+editing is scrolled up from under it. The **?** buttons stay the quicker
+route there.
+
 ![The spec studio on a phone, with a command loaded by name](../../screenshots/spec-studio-mobile.png)
 
 ### Looking things up: the Reference tab

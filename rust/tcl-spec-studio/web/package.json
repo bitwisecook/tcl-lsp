@@ -4,6 +4,7 @@
   "private": true,
   "description": "TypeScript front-end for the tcl-lsp command-registry spec studio.",
   "license": "AGPL-3.0-or-later",
+  "packageManager": "npm@12.0.2",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
@@ -15,9 +16,9 @@
   "devDependencies": {
     "@types/node": "^26.4.1",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
-    "@typescript-eslint/parser": "^8.67.0",
+    "@typescript-eslint/parser": "^8.69.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "monaco-editor": "^0.56.0",
     "prettier": "^3.9.6",

@@ -34,9 +34,9 @@ case "$(cat "$WORKFLOW")" in
 esac
 
 case "$(cat "$WORKFLOW")" in
-    *'.github/workflows/ci.yml | scripts/dev/test-rust-tests-runner.sh)'*) ;;
+    *'.github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/test-rust-tests-runner.sh)'*) ;;
     *)
-        echo "runner-policy changes must classify themselves for hosted proof" >&2
+        echo "runner and dependency-policy changes must classify themselves for hosted proof" >&2
         exit 1
         ;;
 esac

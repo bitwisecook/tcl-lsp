@@ -561,9 +561,10 @@ format: format-ts format-py ## Format TypeScript and Python code
 # Python tooling. Versions are pinned so a new ruff/ty/pyright release cannot
 # change the verdict of a gate between a local run and CI — the failure mode the
 # floating Rust `stable` channel already gives us (see rust-toolchain.toml).
-RUFF_VERSION    := 0.15.20
-TY_VERSION      := 0.0.57
+RUFF_VERSION    := 0.16.6
+TY_VERSION      := 0.0.78
 PYRIGHT_VERSION := 1.1.411
+PYTEST_VERSION  := 9.1.1
 
 # The typecheck venv installs f5report — which maturin-compiles the native
 # `_engine` extension — plus pytest, so ty and pyright resolve every import for
@@ -599,10 +600,10 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 	@cd $(ROOT) && \
 	  stamp="$(PY_VENV)/.f5report-src-hash"; \
 	  files=$$(git ls-files -- rust/bigip-report-gen/python | LC_ALL=C sort); \
-	  hash=$$( { printf '%s\n' "$$files"; printf '%s\n' "$$files" | xargs git hash-object; } | git hash-object --stdin ); \
+	  hash=$$( { printf '%s\n' "$$files"; printf '%s\n' "$$files" | xargs git hash-object; printf '%s\n' "pytest=$(PYTEST_VERSION)"; } | git hash-object --stdin ); \
 	  if [ ! -f "$$stamp" ] || [ "$$(cat "$$stamp")" != "$$hash" ]; then \
 	    uv pip install --python $(PY_VENV) --quiet \
-	        --reinstall-package f5report ./rust/bigip-report-gen/python pytest; \
+	        --reinstall-package f5report ./rust/bigip-report-gen/python pytest==$(PYTEST_VERSION) || exit; \
 	    printf '%s' "$$hash" > "$$stamp"; \
 	  else \
 	    echo "    f5report source unchanged — venv already current"; \
@@ -1341,8 +1342,8 @@ rust-deny: ## Audit every locked Rust workspace with cargo-deny (advisories/lice
 		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; exit 1; \
 	fi; \
 	if ! cargo deny --version >/dev/null 2>&1; then \
-		echo "==> cargo-deny not found — installing (cargo install cargo-deny)"; \
-		cargo install cargo-deny --locked; \
+		echo "==> cargo-deny not found — installing 0.20.2"; \
+		cargo install cargo-deny --version 0.20.2 --locked; \
 	fi; \
 	echo "==> Auditing every locked Rust workspace with cargo-deny (deny.toml)"; \
 	cd $(ROOT) && bash scripts/dev/cargo-deny-all.sh
@@ -1689,7 +1690,7 @@ codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalog
 # into that same dir. `build.rs` then embeds the whole bundle, and
 # `tcl explore --serve` serves it from memory — no CDN, no network at runtime.
 
-MERMAID_VERSION  := 11
+MERMAID_VERSION  := 11.17.2
 MERMAID_JS       := $(EXPLORER_STATIC)/mermaid.min.js
 MERMAID_CDN      := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 
@@ -1757,7 +1758,7 @@ tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the pri
 .PHONY: report-wasm
 report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-gen/wasm/dist/
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
-		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.127'"; exit 1; }
+		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.128'"; exit 1; }
 	bash $(ROOT)rust/bigip-report-gen/wasm/build-wasm.sh
 
 .PHONY: spec-studio-assets spec-studio-wasm

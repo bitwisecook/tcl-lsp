@@ -683,6 +683,19 @@ pub struct ProcDef {
     pub native: Option<NativeProcEntry>,
 }
 
+/// Whether a command trace hangs off the token being deleted. Generations are
+/// minted in binding order across the whole interpreter, so anything at or
+/// below the dying token's generation is part of its list, and a trace on a
+/// later token bound at the same name is not. `None` on either side means the
+/// binding carried no identity (a hidden command, or a caller with no token to
+/// discriminate by) and the whole name is taken.
+fn cmd_trace_owned_by(token: Option<u64>, dying: Option<u64>) -> bool {
+    match (token, dying) {
+        (Some(token), Some(dying)) => token <= dying,
+        _ => true,
+    }
+}
+
 /// The entry point of a natively lowered proc body — a wasm32 function-table
 /// index on the emitted side, an ordinary function pointer here.
 ///
@@ -1152,16 +1165,23 @@ fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
     }
 }
 
-/// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
+/// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
+/// it with `Tcl_GetIndexFromObj(…, "debug option", 0)`, so `-f`/`-fr`
+/// abbreviate and a miss is `bad debug option "…": must be -frame` — a
+/// one-entry table is never `ambiguous`, not even for the empty word. Shared
+/// with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
+const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("debug option", &[b"-frame"]);
+
+/// `interp limit`'s type word (`limitTypes[]`, `tclInterp.c`): the noun is
+/// `limit type` and the flags are `0`, so `c`/`t` abbreviate and the empty
+/// word — a prefix of both entries — is `ambiguous limit type ""`.
+pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("limit type", &[b"commands", b"time"]);
+
+/// Validate an `interp debug` option through the shared owner.
 fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
-    let o = obj_bytes(opt);
-    if !o.is_empty() && b"-frame".starts_with(o.as_slice()) {
-        return Ok(());
-    }
-    let mut m = b"bad debug option \"".to_vec();
-    m.extend_from_slice(&o);
-    m.extend_from_slice(b"\": must be -frame");
-    Err(m)
+    DEBUG_OPTIONS.index_of(&obj_bytes(opt)).map(|_| ())
 }
 
 /// Parse an `interp limit` integer option value (`expected integer but got "X"`).
@@ -2209,13 +2229,7 @@ impl Interp {
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
         self.invalidate_command_environment();
-        let qn = self.namespaces.borrow().qualified_name(ns);
-        let mut fqn = qn.clone();
-        if qn != b"::" {
-            fqn.extend_from_slice(b"::");
-        }
-        fqn.extend_from_slice(tail);
-        self.on_command_replaced(&fqn);
+        self.on_bound_command_replaced(ns, tail);
         self.namespaces.borrow_mut().bind(ns, tail, command);
     }
 
@@ -2228,6 +2242,33 @@ impl Interp {
     /// while one it registers on a replacement it bound at the same name lives
     /// on that new token.
     fn on_command_replaced(&mut self, fqn: &[u8]) {
+        let dying = self.resolve_cmd_token(fqn);
+        self.fire_delete_traces_of_token(fqn, dying);
+    }
+
+    /// [`on_command_replaced`] for an exact binding the caller already holds.
+    /// A fully-qualified name is not a token identity once a retained
+    /// namespace and a same-named recreation both hold `::N::q`: resolving the
+    /// name again would find the live one and fire its traces instead. An
+    /// unbound slot has no token, so — like C's `TclCreateObjCommandInNs`,
+    /// which only deletes when `Tcl_FindHashEntry` found an entry — nothing
+    /// fires and nothing is dropped.
+    pub(crate) fn on_bound_command_replaced(&mut self, ns: NsId, tail: &[u8]) {
+        let (fqn, dying) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.command_fqn_at(ns, tail),
+                namespaces.command_generation(ns, tail),
+            )
+        };
+        if dying.is_none() {
+            return;
+        }
+        self.fire_delete_traces_of_token(&fqn, dying);
+    }
+
+    /// Fire `fqn`'s `delete` traces and drop the ones the dying token owned.
+    fn fire_delete_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
         if self
             .traces
             .borrow()
@@ -2237,8 +2278,7 @@ impl Interp {
         {
             return;
         }
-        let dying = self.resolve_cmd_token(fqn);
-        self.fire_cmd_trace(fqn, b"", crate::cmd_trace::ops::DELETE);
+        self.fire_cmd_trace_of_token(fqn, b"", crate::cmd_trace::ops::DELETE, dying);
         self.remove_cmd_traces_of_token(fqn, dying);
     }
 
@@ -2261,13 +2301,9 @@ impl Interp {
     fn remove_cmd_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
         let mut traces = self.traces.borrow_mut();
         let old_len = traces.cmd_traces.len();
-        traces.cmd_traces.retain(|t| {
-            t.name != fqn
-                || match (t.token, dying) {
-                    (Some(token), Some(dying)) => token > dying,
-                    _ => false,
-                }
-        });
+        traces
+            .cmd_traces
+            .retain(|t| t.name != fqn || !cmd_trace_owned_by(t.token, dying));
         let removed = traces.cmd_traces.len() != old_len;
         drop(traces);
         if removed {
@@ -2414,16 +2450,41 @@ impl Interp {
         }
     }
 
+    /// Record the activation `Tcl_PushCallFrame` adds to the namespace token a
+    /// new call frame runs in. Every frame counts — proc, `apply`, TclOO
+    /// method, `namespace eval`/`inscope` — and a namespace deleted while the
+    /// count is non-zero keeps its contents until the matching pop.
+    pub(crate) fn enter_namespace_activation(&self, ns: NsId) {
+        self.namespaces.borrow_mut().activation_enter(ns);
+    }
+
+    /// Give back the activation a popped frame held. When it was the last one
+    /// holding a namespace whose deletion waited on it, the teardown runs here,
+    /// exactly as C's `Tcl_PopCallFrame` calls `Tcl_DeleteNamespace` again —
+    /// with the frame already gone and the caller's namespace current.
+    pub(crate) fn leave_namespace_activation(&mut self, popped: Option<NsId>) {
+        let Some(ns) = popped else { return };
+        if self.namespaces.borrow_mut().activation_leave(ns) {
+            self.delete_namespace_by_id(ns);
+        }
+    }
+
     /// Enter a generated procedure body using the ordinary Tcl variable frame.
     pub(crate) fn codegen_frame_push(&mut self) {
-        self.frames.borrow_mut().push(self.current_ns.get());
+        let ns = self.current_ns.get();
+        self.enter_namespace_activation(ns);
+        self.frames.borrow_mut().push(ns);
     }
 
     /// Leave a generated procedure body and restore its caller's namespace.
     pub(crate) fn codegen_frame_pop(&mut self) {
-        let mut frames = self.frames.borrow_mut();
-        frames.pop();
-        self.current_ns.set(frames.frame_ns(frames.current_level()));
+        let popped = {
+            let mut frames = self.frames.borrow_mut();
+            let popped = frames.pop();
+            self.current_ns.set(frames.frame_ns(frames.current_level()));
+            popped
+        };
+        self.leave_namespace_activation(popped);
     }
 
     /// Associate an indexed generated local with its name-addressable Tcl cell.
@@ -2832,6 +2893,7 @@ impl Interp {
         // namespace (so `set`/`variable`/`upvar 0` inside `namespace eval` —
         // including when nested in a proc — target the namespace, not the
         // enclosing proc's locals).
+        self.enter_namespace_activation(target);
         self.frames.borrow_mut().push_namespace(target);
         let (kind, file, line_base) = match loc {
             Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
@@ -2861,8 +2923,9 @@ impl Interp {
             let fqn = self.namespaces.borrow().qualified_name(target);
             self.append_namespace_eval_frame(&fqn);
         }
-        self.frames.borrow_mut().pop();
+        let popped = self.frames.borrow_mut().pop();
         self.current_ns.set(saved);
+        self.leave_namespace_activation(popped);
         code
     }
 
@@ -3784,6 +3847,23 @@ impl Interp {
     /// per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`); the interp result is
     /// preserved across the callbacks.
     fn fire_cmd_trace(&mut self, old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
+        self.fire_cmd_trace_of_token(old_fqn, new_fqn, op_bit, None);
+    }
+
+    /// [`fire_cmd_trace`] restricted to one command token's own trace list.
+    /// C walks `cmdPtr->tracePtr`, so a trace registered on a *later* token
+    /// bound at the same name — a replacement, or a same-named command in a
+    /// namespace that took the retained one's spelling — never fires for the
+    /// token being deleted. `dying` is `None` when the caller has no token to
+    /// discriminate by, and then the whole name fires (rename, and hidden
+    /// commands, which carry no generation).
+    fn fire_cmd_trace_of_token(
+        &mut self,
+        old_fqn: &[u8],
+        new_fqn: &[u8],
+        op_bit: u8,
+        dying: Option<u64>,
+    ) {
         if self
             .traces
             .borrow()
@@ -3806,7 +3886,14 @@ impl Interp {
             .cmd_traces
             .iter()
             .rev()
-            .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
+            // Both mechanisms are needed and neither can do the other's
+            // job: the token generation says which registrations this
+            // deletion *owns* (a callback's re-creation binds a different
+            // token under the same name), while the id lets the walk skip a
+            // registration an explicit `trace remove` cancelled mid-walk.
+            .filter(|t| {
+                t.name == old_fqn && (t.ops & op_bit) != 0 && cmd_trace_owned_by(t.token, dying)
+            })
             .map(|t| (t.id, t.command.clone()))
             .collect();
         if entries.is_empty() {
@@ -4135,12 +4222,77 @@ impl Interp {
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
         self.invalidate_command_environment();
+        if self.defer_namespace_teardown(ns) {
+            return;
+        }
         let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
         self.delete_namespace_token(ns);
         self.sweep_dying_namespace(ns, &teardown_ids);
         self.namespaces
             .borrow_mut()
             .finish_namespace_teardown(&teardown_ids);
+    }
+
+    /// C's `activationCount > (nsPtr == globalNsPtr)` branch of
+    /// `Tcl_DeleteNamespace`: a token a call frame is still running in retires
+    /// its owned ensembles and drops its public name now, but keeps its command
+    /// table, variables and children for those frames. `Tcl_PopCallFrame` calls
+    /// the deletion again once the last of them goes away. Reports whether the
+    /// teardown was deferred.
+    fn defer_namespace_teardown(&mut self, ns: NsId) -> bool {
+        if !self.namespaces.borrow().namespace_is_active(ns) {
+            return false;
+        }
+        self.retire_namespace_owned_ensembles(ns);
+        self.namespaces.borrow_mut().defer_namespace(ns);
+        true
+    }
+
+    /// The same token teardown, entered the way C's
+    /// `TclDeleteNamespaceChildren` enters it — through `Tcl_DeleteNamespace`,
+    /// so a child with its own live frame defers in turn.
+    fn delete_namespace_token_checked(&mut self, ns: NsId) {
+        if self.defer_namespace_teardown(ns) {
+            return;
+        }
+        self.delete_namespace_token(ns);
+    }
+
+    /// Retire the ensemble tokens configured against `ns`, and the imports of
+    /// the commands they were bound to. C pops `nsPtr->ensembles` before it
+    /// looks at the activation count, so an owned ensemble dies immediately
+    /// even when the namespace itself is retained.
+    fn retire_namespace_owned_ensembles(&mut self, ns: NsId) {
+        let ids = std::collections::HashSet::from([ns]);
+        let mut deleted_origins: std::collections::HashSet<Vec<u8>> =
+            std::collections::HashSet::new();
+        let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&ids);
+        let hidden_tokens: Vec<(Vec<u8>, Rc<crate::ensemble::EnsembleToken>)> = self
+            .hidden
+            .borrow()
+            .iter()
+            .filter_map(|(name, command)| match command {
+                Command::Ensemble(token) if ids.contains(&token.config().ns) => {
+                    let mut fqn = b"::".to_vec();
+                    fqn.extend_from_slice(name);
+                    Some((fqn, Rc::clone(token)))
+                }
+                _ => None,
+            })
+            .collect();
+        ensemble_victims.extend(hidden_tokens);
+        let mut deleted_tokens = Vec::with_capacity(ensemble_victims.len());
+        for (fqn, token) in ensemble_victims {
+            if deleted_tokens.iter().any(|seen| Rc::ptr_eq(seen, &token)) {
+                continue;
+            }
+            deleted_origins.insert(fqn.clone());
+            if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
+                deleted_origins.insert(live_fqn);
+            }
+            deleted_tokens.push(token);
+        }
+        self.remove_imports_for_deleted_origins(deleted_origins, &deleted_tokens);
     }
 
     /// Tear down one exact namespace token in Tcl's recursive order. Its owned
@@ -4156,38 +4308,7 @@ impl Interp {
         // their binding lives elsewhere (for example the default global `::ns`
         // command), so they retire before this token is marked dying. Every
         // other command in the table retires one token at a time below.
-        {
-            let ids = std::collections::HashSet::from([ns]);
-            let mut deleted_origins: std::collections::HashSet<Vec<u8>> =
-                std::collections::HashSet::new();
-            let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&ids);
-            let hidden_tokens: Vec<(Vec<u8>, Rc<crate::ensemble::EnsembleToken>)> = self
-                .hidden
-                .borrow()
-                .iter()
-                .filter_map(|(name, command)| match command {
-                    Command::Ensemble(token) if ids.contains(&token.config().ns) => {
-                        let mut fqn = b"::".to_vec();
-                        fqn.extend_from_slice(name);
-                        Some((fqn, Rc::clone(token)))
-                    }
-                    _ => None,
-                })
-                .collect();
-            ensemble_victims.extend(hidden_tokens);
-            let mut deleted_tokens = Vec::with_capacity(ensemble_victims.len());
-            for (fqn, token) in ensemble_victims {
-                if deleted_tokens.iter().any(|seen| Rc::ptr_eq(seen, &token)) {
-                    continue;
-                }
-                deleted_origins.insert(fqn.clone());
-                if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
-                    deleted_origins.insert(live_fqn);
-                }
-                deleted_tokens.push(token);
-            }
-            self.remove_imports_for_deleted_origins(deleted_origins, &deleted_tokens);
-        }
+        self.retire_namespace_owned_ensembles(ns);
         self.namespaces.borrow_mut().begin_namespace_teardown(ns);
         self.namespaces.borrow_mut().clear_namespace_token(ns);
         self.fire_unset_callbacks(victims);
@@ -4199,7 +4320,7 @@ impl Interp {
         let children = self.namespaces.borrow().children_hash_order(ns);
         for child in children {
             if self.namespaces.borrow().namespace_is_live(child) {
-                self.delete_namespace_token(child);
+                self.delete_namespace_token_checked(child);
             }
         }
     }
@@ -4227,7 +4348,7 @@ impl Interp {
                     continue;
                 }
                 let fqn = self.namespaces.borrow().command_fqn_at(ns, &tail);
-                self.on_command_replaced(&fqn);
+                self.on_bound_command_replaced(ns, &tail);
                 if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
                     // The callback deleted this token, or redefined the name:
                     // its own deletion already unlinked the entry, and any
@@ -4249,17 +4370,37 @@ impl Interp {
         }
     }
 
+    /// `root`'s subtree with every retained token's subtree stepped over — the
+    /// nodes this teardown still owns.
+    fn retained_teardown_ids(&self, root: NsId) -> Vec<NsId> {
+        let namespaces = self.namespaces.borrow();
+        namespaces
+            .descendant_ids(root)
+            .into_iter()
+            .filter(|id| !namespaces.under_deferred_token(*id))
+            .collect()
+    }
+
     /// Finish commands created re-entrantly while a namespace's original
     /// delete callbacks ran. The detached namespace remains command-addressable
     /// during this sweep, but never reappears in the visible namespace tree.
     fn sweep_dying_namespace(&mut self, root: NsId, retained_ids: &[NsId]) {
-        let mut ids = retained_ids.to_vec();
-        let mut traced = std::collections::HashSet::<Vec<u8>>::new();
+        // A child whose own frame was still running deferred its teardown; it
+        // and its subtree keep every binding they had until that frame pops.
+        let mut ids: Vec<NsId> = {
+            let namespaces = self.namespaces.borrow();
+            retained_ids
+                .iter()
+                .copied()
+                .filter(|id| !namespaces.under_deferred_token(*id))
+                .collect()
+        };
+        let mut traced = std::collections::HashSet::<(NsId, Vec<u8>)>::new();
         let mut origins = std::collections::HashSet::<Vec<u8>>::new();
         let mut tokens = Vec::<Rc<crate::ensemble::EnsembleToken>>::new();
 
         loop {
-            for id in self.namespaces.borrow().descendant_ids(root) {
+            for id in self.retained_teardown_ids(root) {
                 if !ids.contains(&id) {
                     ids.push(id);
                 }
@@ -4293,20 +4434,19 @@ impl Interp {
                 tokens.push(token);
             }
 
-            let fqns = self.namespaces.borrow().command_fqns_in_ids(&ids);
-            let new_fqns: Vec<Vec<u8>> = fqns
-                .iter()
-                .filter(|fqn| !traced.contains(*fqn))
-                .cloned()
+            let slots = self.namespaces.borrow().command_slots_in_ids(&ids);
+            let new_slots: Vec<(NsId, Vec<u8>)> = slots
+                .into_iter()
+                .filter(|slot| !traced.contains(slot))
                 .collect();
-            for fqn in &new_fqns {
+            for (id, tail) in &new_slots {
                 // Callback-created command traces fire while the command is
                 // still addressable through the dying namespace token.
-                self.on_command_replaced(fqn);
-                traced.insert(fqn.clone());
+                self.on_bound_command_replaced(*id, tail);
+                traced.insert((*id, tail.clone()));
             }
 
-            for id in self.namespaces.borrow().descendant_ids(root) {
+            for id in self.retained_teardown_ids(root) {
                 if !ids.contains(&id) {
                     ids.push(id);
                 }
@@ -4314,10 +4454,10 @@ impl Interp {
             origins.extend(self.namespaces.borrow().command_fqns_in_ids(&ids));
             self.remove_imports_for_deleted_origins(origins.iter().cloned(), &tokens);
 
-            let remaining = self.namespaces.borrow().command_fqns_in_ids(&ids);
+            let remaining = self.namespaces.borrow().command_slots_in_ids(&ids);
             if !found_new_token
-                && new_fqns.is_empty()
-                && remaining.iter().all(|f| traced.contains(f))
+                && new_slots.is_empty()
+                && remaining.iter().all(|slot| traced.contains(slot))
             {
                 break;
             }
@@ -4325,7 +4465,7 @@ impl Interp {
 
         // Import delete callbacks may have added a new child under the detached
         // root during the last fixed-point pass.
-        for id in self.namespaces.borrow().descendant_ids(root) {
+        for id in self.retained_teardown_ids(root) {
             if !ids.contains(&id) {
                 ids.push(id);
             }
@@ -6655,6 +6795,29 @@ impl Interp {
             .resolve_fqn(self.current_ns.get(), name)
     }
 
+    /// The child-as-command subcommand words, in C table order (`options[]` in
+    /// `NRChildCmd`, `tclInterp.c`), resolved with
+    /// `Tcl_GetIndexFromObj(…, "option", 0)` — so `ev` abbreviates `eval` and
+    /// the empty word is `ambiguous option ""`. The child command object
+    /// advertises a *shorter* list than `interp` does (no `children`, `create`,
+    /// `delete`, or `exists`: those are only ever spelled `interp <op> path`),
+    /// and this runtime dispatches all thirteen (issue #1412 item 7).
+    pub(crate) const CHILD_OPTIONS: &[&[u8]] = &[
+        b"alias",
+        b"aliases",
+        b"bgerror",
+        b"debug",
+        b"eval",
+        b"expose",
+        b"hide",
+        b"hidden",
+        b"issafe",
+        b"invokehidden",
+        b"limit",
+        b"marktrusted",
+        b"recursionlimit",
+    ];
+
     /// The `wrong # args: should be "<child><tail>"` message for the `$child
     /// <sub>` shorthand. C's `NRChildCmd` builds every one of its arity errors
     /// with `Tcl_WrongNumArgs(interp, 1, objv, …)`, so the noun is **`objv[0]`
@@ -6673,6 +6836,15 @@ impl Interp {
     /// `Tcl_WrongNumArgs` reads back. This runtime's alias trampoline records no
     /// such rewrite, so `bar hidden extra` reports the target's name rather than
     /// `bar` — a separate gap in alias dispatch, not in this seam.
+    ///
+    /// The *subcommand* half of the noun goes the other way: every `tail` here
+    /// spells the table word in full, because `Tcl_WrongNumArgs` expands an
+    /// index-typed argument back to its table entry (`tclIndexObj.c`) and
+    /// `Tcl_GetIndexFromObj` has already retyped `objv[1]` by the time the
+    /// arity check runs. So an abbreviated call reports the canonical word:
+    /// `kid hidd extra` is `"kid hidden"`, not `"kid hidd"` (tclsh
+    /// 8.6.16 / 9.0.4-pinned). Written word for the command, canonical word
+    /// for the subcommand.
     fn child_wrong_args(&mut self, argv: &[*mut TclObj], tail: &[u8]) -> Code {
         let mut message = b"wrong # args: should be \"".to_vec();
         message.extend_from_slice(&invoked_word(argv));
@@ -6694,7 +6866,23 @@ impl Interp {
         if argv.len() < 2 {
             return self.child_wrong_args(argv, b" cmd ?arg ...?");
         }
-        match obj_bytes(argv[1]).as_slice() {
+        let word = obj_bytes(argv[1]);
+        // `$child delete` is this runtime's own extra — C's child table has no
+        // `delete` (it is only ever spelled `interp delete path`) — so it is
+        // matched exactly, never abbreviates, and stays out of the enumeration.
+        let sub: &[u8] = if word == b"delete" {
+            b"delete"
+        } else {
+            match crate::cmd_alias::resolve_interp_option(
+                Self::CHILD_OPTIONS,
+                Self::CHILD_OPTIONS,
+                &word,
+            ) {
+                Ok(canonical) => canonical,
+                Err(m) => return self.error(&m),
+            }
+        };
+        match sub {
             b"eval" => {
                 if argv.len() < 3 {
                     return self.child_wrong_args(argv, b" eval arg ?arg ...?");
@@ -6721,7 +6909,8 @@ impl Interp {
             // qualified *token* and `kid expose ::foo::bar` a qualified
             // *destination*, so the two report different errors.
             b"hide" | b"expose" => {
-                let hide = obj_bytes(argv[1]) == b"hide";
+                // The *resolved* word, so `kid ex foo` is an expose too.
+                let hide = sub == b"hide";
                 let op = if hide {
                     CommandVisibilityOp::Hide
                 } else {
@@ -6782,7 +6971,10 @@ impl Interp {
             // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
             // the child delegating to `targetCmd` in this (parent) interp. (The
             // target is implicitly the parent, so there is no target-path arg.)
-            b"alias" if argv.len() >= 4 => {
+            b"alias" => {
+                if argv.len() < 4 {
+                    return self.child_wrong_args(argv, b" alias aliasName ?targetName? ?arg ...?");
+                }
                 let alias = obj_bytes(argv[2]);
                 let target = obj_bytes(argv[3]);
                 let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
@@ -6863,22 +7055,14 @@ impl Interp {
                     None => self.error(b"could not find interpreter"),
                 }
             }
+            // Unreachable: every name in `Self::CHILD_OPTIONS` has an arm above.
             other => {
-                // Same `bad option` shape as the `interp` ensemble's own
-                // fallthrough (`cmd_alias.rs::interp_cmd`) — the child
-                // command object (`NRChildCmd`, tclInterp.c) advertises a
-                // *shorter* list than `interp` does (no `children`,
-                // `create`, `delete`, or `exists`: those are only ever
-                // spelled `interp <op> path`, never `$child <op>`), but the
-                // shape is the same tclsh `bad option` error, not a
-                // runtime-specific message (issue #1412 item 7).
                 let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(other);
-                m.extend_from_slice(
-                    b"\": must be alias, aliases, bgerror, debug, eval, expose, \
-                      hide, hidden, issafe, invokehidden, limit, marktrusted, \
-                      or recursionlimit",
-                );
+                m.extend_from_slice(b"\": must be ");
+                m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
+                    Self::CHILD_OPTIONS,
+                ));
                 self.error(&m)
             }
         }
@@ -7466,15 +7650,9 @@ impl Interp {
         ltype: &[u8],
         opts: &[*mut TclObj],
     ) -> Result<*mut TclObj, Vec<u8>> {
-        match ltype {
-            b"commands" => self.limit_commands(opts),
-            b"time" => self.limit_time(opts),
-            other => {
-                let mut m = b"bad limit type \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be commands or time");
-                Err(m)
-            }
+        match LIMIT_TYPES.index_of(ltype)? {
+            0 => self.limit_commands(opts),
+            _ => self.limit_time(opts),
         }
     }
 
@@ -7830,6 +8008,7 @@ impl Interp {
         }
         self.recursion_depth.set(self.recursion_depth.get() + 1);
 
+        self.enter_namespace_activation(ns);
         if meta.same_level {
             self.frames.borrow_mut().push_same_level(ns);
         } else {
@@ -7875,14 +8054,16 @@ impl Interp {
                     }
                 }
             } else {
-                self.frames.borrow_mut().pop();
+                let popped = self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
+                self.leave_namespace_activation(popped);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
                 return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
             };
             if stored.is_err() {
-                self.frames.borrow_mut().pop();
+                let popped = self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
+                self.leave_namespace_activation(popped);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
                 return self.error(b"proc parameter binding failed");
             }
@@ -7981,12 +8162,13 @@ impl Interp {
         } else {
             self.frame_teardown_unset_traces(proc_level)
         };
-        self.frames.borrow_mut().pop();
+        let popped = self.frames.borrow_mut().pop();
         if !self.traces.borrow().traces.is_empty() {
             self.clear_frame_var_traces(proc_level);
         }
         self.current_ns.set(saved_ns);
         self.fire_unset_callbacks(teardown);
+        self.leave_namespace_activation(popped);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
@@ -8067,6 +8249,13 @@ impl Interp {
             return Ok(Code::Error);
         }
         self.cmd_frames.borrow_mut().push(frame);
+        // `Tcl_EvalEx` resets the result at entry; `eval_script_mode` can skip
+        // that because its first command always sets one. A compiled body
+        // cannot promise the same — `set`/`incr`/`puts` write no interpreter
+        // result — so a completion that comes back with a null result means
+        // "the body left the result alone", and that has to be the empty
+        // string the eval loop would have produced, never the caller's.
+        self.set_result_bytes(b"");
         let mut out = crate::codegen_abi::TclCompletionAbi {
             code: 0,
             result: core::ptr::null_mut(),

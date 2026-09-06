@@ -239,9 +239,7 @@ def extract_test_source(test_file: Path, test_name: str) -> dict | None:
     start_idx = None
     for i, line in enumerate(lines):
         stripped = line.lstrip()
-        if stripped.startswith(f"test {test_name} ") or stripped.startswith(
-            f"test {test_name}\t"
-        ):
+        if stripped.startswith((f"test {test_name} ", f"test {test_name}\t")):
             start_idx = i
             break
 
@@ -472,15 +470,7 @@ def extract_file_context(test_file: Path, test_raw: str) -> str:
         stripped = block.lstrip()
         # Extract identifier from proc/testConstraint/set/unset
         ident = None
-        if stripped.startswith("proc "):
-            parts = stripped.split(None, 2)
-            if len(parts) >= 2:
-                ident = parts[1]
-        elif stripped.startswith("testConstraint "):
-            parts = stripped.split(None, 2)
-            if len(parts) >= 2:
-                ident = parts[1]
-        elif stripped.startswith("set ") or stripped.startswith("unset "):
+        if stripped.startswith(("proc ", "testConstraint ", "set ", "unset ")):
             parts = stripped.split(None, 2)
             if len(parts) >= 2:
                 ident = parts[1]

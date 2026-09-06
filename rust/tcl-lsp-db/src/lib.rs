@@ -2774,6 +2774,8 @@ pub fn function_optimisations<'db>(
         // the body verbatim, so a slice here would nest the whole `proc …`.
         params_raw: deps.proc_params_raw(db).clone(),
         body_source: Some(deps.proc_body_source(db).clone()),
+        // The unit source here *is* the body text, so it opens at offset 0.
+        body_offset: 0,
         namespace_scoped: false,
         base_priority: 0,
     };

@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import pathlib
 
-import pytest
-
 import f5report
+import pytest
+from f5report import _engine
 
 DATA = pathlib.Path(__file__).parent / "data"
 UCS1 = str(DATA / "lab-device-01.ucs")
@@ -32,8 +32,8 @@ CONF1 = str(DATA / "device-01.bigip.conf")
 
 
 def test_version_exposed():
-    assert isinstance(f5report._engine.__version__, str)
-    assert f5report.engine_version() == f5report._engine.__version__
+    assert isinstance(_engine.__version__, str)
+    assert f5report.engine_version() == _engine.__version__
 
 
 def test_load_plain_conf():
@@ -109,19 +109,19 @@ def test_merge_refuses_colliding_identities():
     # engine, surfaced verbatim as a QueryError).
     a = ("a.conf", "ltm pool /Common/dup { }\n")
     b = ("b.conf", "ltm pool /Common/dup { }\n")
-    with pytest.raises(f5report._engine.QueryError):
+    with pytest.raises(_engine.QueryError):
         f5report.query(".ltm.pool[]", [a, b], merge=True)
 
 
 def test_bad_query_raises_queryerror():
     sources = f5report.load_paths([UCS1])
-    with pytest.raises(f5report._engine.QueryError):
+    with pytest.raises(_engine.QueryError):
         f5report.query(".ltm.virtual[", sources)
 
 
 def test_mutating_query_rejected():
     sources = f5report.load_paths([UCS1])
-    with pytest.raises(f5report._engine.QueryError):
+    with pytest.raises(_engine.QueryError):
         f5report.query('.ltm.pool[] | .name = "x"', sources)
 
 

@@ -18,7 +18,7 @@ tracks.
 | T0 | `t0-straight-line/` | none: native `i64`/`f64` locals, one box at the `puts` boundary |
 | T1 | `t1-expr-control/` | none: native expression evaluation and structured control flow |
 | T2 | `t2-values/` | boxed `TclObj` values and runtime intrinsics for list/string/dict/regexp ops; no Tcl frame |
-| T3 | `t3-procs/` | native functions for leaf procs; a Tcl frame only where a formal-parameter or completion rule needs one |
+| T3 | `t3-procs/` | native functions for leaf procs, dispatched through the runtime's shared function table; a Tcl frame only where a formal-parameter or completion rule needs one |
 | T4 | `t4-scopes/` | named variable cells for the exact names `global`/`variable`/`upvar`/arrays/namespaces make observable |
 | T5 | `t5-completion/` | the full completion triple (`code`, result, return options) through `catch`/`try`/`return -code` |
 | T6 | `t6-tcloo/` | a light object frame: real call chain, `self`/`my`/`next`, instance-variable links; no per-call chain rebuild |

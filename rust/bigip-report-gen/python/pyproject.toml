@@ -17,7 +17,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 [build-system]
-requires = ["maturin>=1.7,<2.0"]
+requires = ["maturin>=1.15,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -32,7 +32,7 @@ keywords = ["f5", "big-ip", "bigip", "report", "irules", "pyo3"]
 dependencies = [
     # MiniJinja (Jinja2-compatible) is the single templating engine shared with
     # the Rust generator, so the two backends render the identical template.
-    "minijinja>=2.0",
+    "minijinja>=2.24,<3",
 ]
 
 [project.scripts]

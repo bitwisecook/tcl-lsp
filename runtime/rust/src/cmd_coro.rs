@@ -731,6 +731,58 @@ mod tests {
         assert_eq!(run(&mut i, b"coroutine w who"), b"::w");
     }
 
+    /// A coroutine frame is an activation like any other (C's
+    /// `Tcl_PushCallFrame` counts every frame), so a namespace deleted while a
+    /// suspended coroutine holds it is retained, and torn down when the
+    /// coroutine's frames unwind. Measured on tclsh 9.0.4 and 8.6.16.
+    #[test]
+    fn a_suspended_coroutine_holds_the_namespace_it_parked_in() {
+        let mut i = Interp::new();
+        run(&mut i, b"set log {}");
+        run(
+            &mut i,
+            b"proc rec {old new op} {lappend ::log [list $old $op]}",
+        );
+        run(&mut i, b"namespace eval N {proc q {} {return Q}}");
+        run(&mut i, b"trace add command ::N::q delete rec");
+        run(
+            &mut i,
+            b"coroutine ::co apply {{} {namespace eval ::N \
+               {yield ready; list [q] [namespace exists ::N] [namespace current]}}}",
+        );
+        run(&mut i, b"namespace delete ::N");
+        // Unpublished at once, but nothing has fired yet.
+        assert_eq!(
+            run(&mut i, b"list [namespace exists ::N] [llength $::log]"),
+            b"0 0"
+        );
+        // Resuming still resolves `q` through the parked frame's token.
+        assert_eq!(run(&mut i, b"co"), b"Q 0 ::N");
+        assert_eq!(run(&mut i, b"set log"), b"{::N::q delete}");
+    }
+
+    /// Deleting the coroutine instead frees its frames without popping them, so
+    /// C never runs the deferred teardown at all — the retained namespace is
+    /// simply abandoned (`tclNamesp.c` deletes only from `Tcl_PopCallFrame`).
+    #[test]
+    fn deleting_a_suspended_coroutine_abandons_its_retained_namespace() {
+        let mut i = Interp::new();
+        run(&mut i, b"set log {}");
+        run(
+            &mut i,
+            b"proc rec {old new op} {lappend ::log [list $old $op]}",
+        );
+        run(&mut i, b"namespace eval N {proc q {} {return Q}}");
+        run(&mut i, b"trace add command ::N::q delete rec");
+        run(
+            &mut i,
+            b"coroutine ::co apply {{} {namespace eval ::N {yield ready; list [q]}}}",
+        );
+        run(&mut i, b"namespace delete ::N");
+        run(&mut i, b"rename ::co {}");
+        assert_eq!(run(&mut i, b"list $log [namespace exists ::N]"), b"{} 0");
+    }
+
     #[test]
     fn corotype_reports_active_and_yield() {
         use crate::interp::Code;

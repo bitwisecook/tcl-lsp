@@ -65,6 +65,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+from typing import Self
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAPI_RS = REPO_ROOT / "runtime/rust/src/capi.rs"
@@ -361,7 +362,7 @@ class _EnvVarGuard:
         self.name = name
         self.old_value: str | None = os.environ.get(name)
 
-    def __enter__(self) -> "_EnvVarGuard":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -380,7 +381,7 @@ def _self_test_tcl_source_stays_unconfigured_when_trees_are_present(
     never, by themselves, activate the header cross-check. Only an explicit
     `--tcl-source` / `CHECK_C_API_OWNERSHIP_TCL_SOURCE` selects a tree."""
     trees_dir = tmp_dir / "trees_present_but_unconfigured"
-    for name in ("tcl8.4.20", "tcl8.6.16", "tcl9.0.3"):
+    for name in ("tcl8.4.20", "tcl8.6.18", "tcl9.0.3"):
         (trees_dir / name / "generic").mkdir(parents=True)
     with _EnvVarGuard(TCL_SOURCE_ENV_VAR):
         os.environ.pop(TCL_SOURCE_ENV_VAR, None)

@@ -109,9 +109,41 @@ pub struct NativeFunction {
     pub completion_count: usize,
     /// The largest argv the function passes to a generic invocation.
     pub max_argc: usize,
-    /// Whether the function is a procedure body that must push a name
-    /// addressable Tcl frame before its first cell access.
-    pub pushes_frame: bool,
+    /// How the emitted function is entered and left.
+    pub protocol: EntryProtocol,
+}
+
+/// How an emitted native function is entered and left — the one thing the
+/// runtime and the emitter must agree on exactly, because it decides who owns
+/// the compiled activation and the Tcl call frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryProtocol {
+    /// The module's own entry point (`::top`): `() -> ()`. It takes one
+    /// compiled activation for the script it runs and pushes no Tcl call
+    /// frame — the script runs in the frame the host already has.
+    Script,
+    /// A procedure body reached through the runtime's native proc dispatch:
+    /// `(argv, argc, out) -> status`.
+    ///
+    /// It holds **neither** an activation **nor** a Tcl call frame.
+    /// `Interp::run_proc` has already pushed the variable frame in the proc's
+    /// own namespace, recorded `info level`'s words and bound the formals by
+    /// name, and `Interp::run_native_body` holds the compiled activation and
+    /// the `CmdFrame`. Emitting [`Self::Script`]'s prologue here would push a
+    /// second, nameless frame at the caller's namespace and put `namespace
+    /// current`, `upvar 1` and `info level` off by one level.
+    ProcEntry,
+}
+
+impl EntryProtocol {
+    /// Stable Explorer spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Script => "script",
+            Self::ProcEntry => "proc-entry",
+        }
+    }
 }
 
 impl NativeFunction {
@@ -141,8 +173,26 @@ pub struct NativeStatement {
     pub completion: CompletionId,
     /// The source-semantic node the statement belongs to, when it has one.
     pub node: Option<NodeId>,
+    /// The command site this statement belongs to, when the lowering knows
+    /// one: what the runtime needs to write an `errorInfo` frame for it.
+    pub site: Option<StatementSite>,
     /// Straight-line operations.
     pub ops: Vec<NativeOp>,
+}
+
+/// A statement's enclosing command as `errorInfo` reports it: the exact
+/// source text of the command, and its 1-based line within the body the
+/// function was compiled from.
+///
+/// The line is body-relative because that is what the runtime's frame
+/// arithmetic expects — `run_native_body` sets `proc_line_base = line_base`,
+/// so `log_command_bytes` passes the line through unchanged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatementSite {
+    /// 1-based line within the enclosing body.
+    pub line: u32,
+    /// The command's exact source text.
+    pub text: String,
 }
 
 /// The block terminator, mirroring the executable terminator vocabulary.
@@ -557,6 +607,22 @@ pub enum NativeOp {
         code: CompletionCode,
         /// The completion result (`Obj`), or the empty string.
         result: Option<NativeValueId>,
+    },
+    /// Define a Tcl procedure this module also compiled: the runtime binds the
+    /// source body as `proc` does, plus the compiled entry when the module
+    /// installed one for it.
+    ///
+    /// Only the `proc` statement whose body became this module's function
+    /// lowers to this shape; every other `proc` statement stays a generic
+    /// invocation, so a redefinition at run time replaces the binding with an
+    /// ordinary source-only procedure.
+    DefineProc {
+        /// The procedure's fully qualified name.
+        qualified_name: String,
+        /// The formal-parameter list exactly as written.
+        params_raw: String,
+        /// The body's exact source text.
+        body_source: String,
     },
     /// The last rung: evaluate the statement's exact source text through the
     /// runtime, because the lowering declined it for the recorded reason.

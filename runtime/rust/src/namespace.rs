@@ -78,12 +78,14 @@ pub enum RenameOutcome {
 /// every rebuild, all of which a namespace's command-delete traces observe.
 /// The generation distinguishes a command a delete callback replaced from the
 /// token the teardown snapshot named, so the replacement waits for the next
-/// pass exactly as C's `CMD_DYING` early return makes it.
+/// pass exactly as C's `CMD_DYING` early return makes it. Generations are
+/// minted by the owning [`Namespaces`], so they identify a token across the
+/// whole interpreter — a retained table and a same-named recreation hold two
+/// distinct `::N::q` tokens at once.
 #[derive(Default)]
 struct CommandTable {
     entries: BTreeMap<Vec<u8>, (u64, Command)>,
     order: TclStringHashOrder,
-    next_generation: u64,
 }
 
 impl CommandTable {
@@ -116,9 +118,7 @@ impl CommandTable {
     /// Bind `command` at `key`, returning whatever it displaced. A live key is
     /// re-created at its bucket head, as C's `TclCreateObjCommandInNs` does
     /// when it deletes the old hash entry and creates a fresh one.
-    fn insert(&mut self, key: Vec<u8>, command: Command) -> Option<Command> {
-        let generation = self.next_generation;
-        self.next_generation += 1;
+    fn insert(&mut self, key: Vec<u8>, command: Command, generation: u64) -> Option<Command> {
         match self.entries.insert(key.clone(), (generation, command)) {
             Some((_, displaced)) => {
                 self.order.reinsert(&key);
@@ -212,6 +212,11 @@ struct Namespace {
     /// uses the interpreter default (the global `::unknown`); an empty handler
     /// also resets to the default.
     unknown: Option<Vec<u8>>,
+    /// The name a retained token keeps reporting once its parent edge is gone.
+    /// C's deferred deletion nulls `parentPtr` — freeing the name for a fresh
+    /// token — but leaves `fullName` alone, so `namespace current` in the
+    /// frames still holding the token is unchanged.
+    retained_fqn: Option<Vec<u8>>,
 }
 
 impl Namespace {
@@ -226,6 +231,7 @@ impl Namespace {
             exports: Vec::new(),
             vars: VarTable::default(),
             unknown: None,
+            retained_fqn: None,
         }
     }
 }
@@ -233,11 +239,25 @@ impl Namespace {
 /// The namespace tree + the command resolver.
 pub struct Namespaces {
     arena: Vec<Namespace>,
+    /// Call frames currently running in each arena slot (C's
+    /// `Namespace.activationCount`). `Tcl_PushCallFrame` counts every frame —
+    /// proc, `apply`, TclOO method, `namespace eval`/`inscope` — and
+    /// `Tcl_PopCallFrame` runs the deletion a non-zero count deferred.
+    activations: Vec<u32>,
     /// Namespace-token identities permanently invalidated by deletion. Arena
     /// slots are stable and never reused, so a namespace recreated with the
     /// same name receives a distinct live identity while retained activations
     /// keep naming their deleted token.
     dead: BTreeSet<NsId>,
+    /// The next command-token generation. One counter for the interpreter, so
+    /// a token's identity is unique across namespaces and across a table that
+    /// was thrown away and recreated under the same name.
+    next_command_generation: u64,
+    /// Tokens deleted while a frame was still running in them: C's
+    /// `activationCount > 0` branch of `Tcl_DeleteNamespace` marks `NS_DYING`,
+    /// unlinks the parent edge and returns, leaving the commands, variables and
+    /// children in place for the frames that still hold the token.
+    deferred: BTreeSet<NsId>,
     /// Namespace nodes detached during command-delete callbacks. They are not
     /// visible to `namespace exists`, but command definition/resolution still
     /// reaches their command tables until the deletion sweep finishes, just as
@@ -266,6 +286,12 @@ impl Namespaces {
         }
     }
 
+    /// The identity a freshly bound command token carries.
+    fn mint_command_generation(&mut self) -> u64 {
+        self.next_command_generation += 1;
+        self.next_command_generation
+    }
+
     fn command_fqn(&self, ns: NsId, simple: &[u8]) -> Vec<u8> {
         let mut fqn = self.qualified_name(ns);
         if fqn != b"::" {
@@ -287,7 +313,8 @@ impl Namespaces {
         if let Command::Ensemble(token) = &command {
             token.rename(self.command_fqn(ns, &simple));
         }
-        self.arena[ns].commands.insert(simple, command);
+        let generation = self.mint_command_generation();
+        self.arena[ns].commands.insert(simple, command, generation);
     }
 
     /// A fresh tree with just the global namespace `::`.
@@ -296,7 +323,10 @@ impl Namespaces {
         Namespaces {
             ns_var_global_fallback: false,
             arena: vec![Namespace::new(Vec::new(), None)],
+            activations: vec![0],
+            next_command_generation: 0,
             dead: BTreeSet::new(),
+            deferred: BTreeSet::new(),
             dying_children: BTreeMap::new(),
             dying: BTreeSet::new(),
         }
@@ -779,6 +809,68 @@ impl Namespaces {
         !self.dead.contains(&ns) && !self.dying.contains(&ns)
     }
 
+    // -- activations and deferred teardown (C's `activationCount`) -----------
+
+    /// Count the activation `Tcl_PushCallFrame` adds when a call frame starts
+    /// running in `ns`.
+    pub(crate) fn activation_enter(&mut self, ns: NsId) {
+        self.activations[ns] += 1;
+    }
+
+    /// Drop the activation a popped frame held, reporting whether that was the
+    /// last one holding a deferred token — the caller then runs the teardown
+    /// `Tcl_PopCallFrame` re-enters `Tcl_DeleteNamespace` for.
+    pub(crate) fn activation_leave(&mut self, ns: NsId) -> bool {
+        let count = &mut self.activations[ns];
+        *count = count.saturating_sub(1);
+        *count == 0 && self.deferred.remove(&ns)
+    }
+
+    /// Whether a call frame is still running in `ns`. The global namespace is
+    /// never deferred (C compares against `nsPtr == globalNsPtr`), so its
+    /// permanent frame does not count.
+    #[must_use]
+    pub(crate) fn namespace_is_active(&self, ns: NsId) -> bool {
+        ns != GLOBAL && self.activations[ns] > 0
+    }
+
+    /// Retain a deleted token for the frames still running in it: the public
+    /// parent edge goes immediately, so `namespace exists` and every absolute
+    /// name stop resolving, but the command table, variables, children and
+    /// exports stay exactly as they are until the last activation pops. No
+    /// `dying_children` edge is recorded — unlike the synchronous window, the
+    /// name is free for a fresh token straight away (C nulls `parentPtr`).
+    pub(crate) fn defer_namespace(&mut self, ns: NsId) {
+        self.dead.insert(ns);
+        self.deferred.insert(ns);
+        // C frees `unknownHandlerPtr` before it looks at the activation count.
+        self.arena[ns].unknown = None;
+        if let Some(parent) = self.arena[ns].parent {
+            let fqn = self.qualified_name(ns);
+            let name = self.arena[ns].name.clone();
+            self.arena[parent].children.remove(&name);
+            self.arena[parent].child_order.remove(&name);
+            // C nulls `parentPtr`: the spelling is free for a wholly separate
+            // token straight away, and this one answers from its own name.
+            self.arena[ns].parent = None;
+            self.arena[ns].retained_fqn = Some(fqn);
+        }
+    }
+
+    /// Whether `ns` is a retained token, or lies inside one. A deferred token
+    /// keeps its whole subtree, so the enclosing teardown must step over it.
+    #[must_use]
+    pub(crate) fn under_deferred_token(&self, ns: NsId) -> bool {
+        let mut cur = Some(ns);
+        while let Some(id) = cur {
+            if self.deferred.contains(&id) {
+                return true;
+            }
+            cur = self.arena[id].parent;
+        }
+        false
+    }
+
     // -- per-namespace variable tables (the variable resolver's storage) ------
 
     /// For a **qualified** variable name, the `(namespace, simple tail)` it
@@ -860,12 +952,17 @@ impl Namespaces {
     pub fn qualified_name(&self, ns: NsId) -> Vec<u8> {
         let mut parts: Vec<&[u8]> = Vec::new();
         let mut cur = ns;
-        while let Some(parent) = self.arena[cur].parent {
+        let mut out = loop {
+            if let Some(fqn) = self.arena[cur].retained_fqn.as_deref() {
+                break fqn.to_vec();
+            }
+            let Some(parent) = self.arena[cur].parent else {
+                break Vec::new();
+            };
             parts.push(&self.arena[cur].name);
             cur = parent;
-        }
-        let mut out = Vec::new();
-        if parts.is_empty() {
+        };
+        if out.is_empty() && parts.is_empty() {
             return b"::".to_vec();
         }
         for part in parts.iter().rev() {
@@ -1228,17 +1325,27 @@ impl Namespaces {
     /// teardown.
     #[must_use]
     pub(crate) fn command_fqns_in_ids(&self, ids: &[NsId]) -> Vec<Vec<u8>> {
-        let mut fqns = Vec::new();
+        self.command_slots_in_ids(ids)
+            .into_iter()
+            .map(|(id, tail)| self.command_fqn(id, &tail))
+            .collect()
+    }
+
+    /// The same bindings as `(namespace, simple name)` pairs. A retained token
+    /// and a same-named recreation share every fully-qualified name they hold,
+    /// so a teardown that must fire exactly one of them addresses the slot.
+    pub(crate) fn command_slots_in_ids(&self, ids: &[NsId]) -> Vec<(NsId, Vec<u8>)> {
+        let mut slots = Vec::new();
         for &id in ids {
-            fqns.extend(
+            slots.extend(
                 self.arena[id]
                     .commands
                     .hash_order()
                     .into_iter()
-                    .map(|(name, _)| self.command_fqn(id, &name)),
+                    .map(|(name, _)| (id, name)),
             );
         }
-        fqns
+        slots
     }
 
     /// Clear callback-created state from explicit dying arena nodes. The
@@ -1423,6 +1530,7 @@ impl Namespaces {
         }
         let id = self.arena.len();
         self.arena.push(Namespace::new(name.to_vec(), Some(parent)));
+        self.activations.push(0);
         self.arena[parent].children.insert(name.to_vec(), id);
         self.arena[parent].child_order.insert(name);
         id

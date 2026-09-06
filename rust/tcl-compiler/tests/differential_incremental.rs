@@ -207,7 +207,7 @@ fn incremental_matches_fresh_for_dynamically_named_procs() {
 fn incremental_matches_fresh_over_corpus() {
     let dialect = "tcl8.6";
     let mut files = Vec::new();
-    for v in ["tcl8.6.16/library", "tcllib-2.0/modules"] {
+    for v in ["tcl8.6.18/library", "tcllib-2.0/modules"] {
         gather(&repo_root().join("tmp").join(v), &mut files, 200);
     }
     // Chunk / resume support (env `TCL_FUZZ_SKIP` / `TCL_FUZZ_LIMIT`).
