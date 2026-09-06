@@ -411,6 +411,23 @@ const VECTORS: &[Vector] = &[
                E:victim2|enter\nL:victim2\nnew:V\n\
                E:victim2|enter\nL:victim2\nout:V",
     },
+    // C re-homes the one `Command` (`cmdPtr->nsPtr = newNsPtr`) *before* it
+    // fires, and both hash entries reference it, so during the window a proc
+    // invoked through the vacating name reports the destination's `namespace
+    // current` and resolves `variable` there. The VM registered the re-homed
+    // command at the destination only, leaving the surviving source entry
+    // pointing at the un-re-homed one.
+    Vector {
+        name: "the vacating name reports the destination's namespace",
+        script: "namespace eval a { variable v A\n\
+                     proc p {} { variable v; return \"[namespace current] $v\" } }\n\
+                 namespace eval b { variable v B }\n\
+                 proc R {old new op} { puts \"old: [a::p]\"; puts \"new: [b::q]\" }\n\
+                 trace add command a::p rename R\n\
+                 rename a::p ::b::q\n\
+                 puts \"after: [b::q]\"\n",
+        want: "old: ::b B\nnew: ::b B\nafter: ::b B",
+    },
     Vector {
         name: "namespace-qualified names arrive fully qualified",
         script: "proc tracer args { puts \"T:[join $args |]\" }\n\

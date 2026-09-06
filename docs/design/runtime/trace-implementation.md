@@ -124,7 +124,7 @@ removal that fires no `delete` trace.
 | | publish | fire from | retire the source |
 |---|---|---|---|
 | `runtime/rust` | `Namespaces::publish_rename_destination` (writes the re-homed command into *both* slots) | `Interp::move_bound_command`, after moving the trace list, the import redirects, the TclOO registration and the coroutine | `Namespaces::retire_rename_source` |
-| `rust/tcl-vm` | `cmd_rename` registers the destination | `on_command_renamed_traces`, after moving the sidecars | `retire_renamed_command_source` |
+| `rust/tcl-vm` | `cmd_rename` registers the destination, and `install_renamed_command` re-points the standing source entry at the same re-homed command | `on_command_renamed_traces`, after moving the sidecars | `retire_renamed_command_source` |
 
 Neither has a shared command object to hang that equivalence on, so an open
 window is recorded as a source→destination pair — `TraceTable::rename_windows`

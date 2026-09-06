@@ -398,6 +398,28 @@ fn namespace_import_rejects_self_and_unknown_sources() {
 
 // #1451 — namespace teardown (`TclTeardownNamespace`, tclNamesp.c:1084)
 
+/// A rename whose destination lands in the caller's *retained* namespace — one
+/// the running proc deleted out from under itself — leaves nothing publicly
+/// addressable at the new key: `register_command` ends in
+/// `absorb_retained_binding`, which moves the fresh binding into the retained
+/// namespace's own table. Anything on the rename path that expects to read the
+/// command back out of the live map afterwards is therefore wrong. tclsh
+/// 8.6.16 and 9.0.4 both complete the rename and invoke the ensemble.
+#[test]
+fn renaming_an_ensemble_into_a_retained_namespace_still_dispatches() {
+    assert_eq!(
+        run("namespace eval E { proc sub {} { return S }\n\
+             \x20   namespace export sub; namespace ensemble create }\n\
+             namespace eval N { proc p {} {\n\
+             \x20   namespace delete ::N\n\
+             \x20   rename ::E local\n\
+             \x20   return [local sub]\n\
+             } }\n\
+             N::p"),
+        "S"
+    );
+}
+
 #[test]
 fn deleting_a_namespace_clears_paths_in_both_directions() {
     // (a) another namespace's path loses the deleted entry, and a recreated
