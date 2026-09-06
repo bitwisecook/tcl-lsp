@@ -488,6 +488,31 @@ switch -- {${x}} foo {puts C:value} default {puts C:literal}
         want: "A:literal\nB:match\nC:literal",
         since: TclVersion::V8_4,
     },
+    Vector {
+        // The escaped-marker family #1646 named. Its own repro (the last line)
+        // was fixed by #1754; these are the rest of it.
+        //
+        // An escaped marker is *data*, and stays data after the escape is
+        // decoded — so a decoded word is finished and must not be read as
+        // source again. The assignment path decoded `"\$\{x}"` to the four
+        // characters `${x}` and then took them for a variable reference,
+        // storing one. A composite word went the other way: deferred to the VM
+        // with its escapes *undecoded*, which breaks the compiled-word
+        // convention the VM documents — a surviving backslash is an ordinary
+        // character there, so `\$\{x}` read back as a live `${x}`, and without
+        // a closing brace it raised `missing close-brace for variable name` on
+        // a script both oracles run.
+        name: "an escaped marker is data, before and after decoding",
+        script: r#"set x V
+set v "\$\{x}"
+puts [string length $v]:$v
+puts A:[string length "\$\{x}"]
+puts B:[string length "\$\{x"]
+puts C:[string length "x\$y"]
+"#,
+        want: "4:${x}\nA:4\nB:3\nC:3",
+        since: TclVersion::V8_4,
+    },
 ];
 
 #[test]
