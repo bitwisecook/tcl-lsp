@@ -233,7 +233,7 @@ impl CodegenCtx<'_> {
             } => {
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.compiles_locals()) {
                     self.push_var_ref(name, target.key_is_literal);
                 }
                 // A constant value is verbatim: push it as-is so the VM does
@@ -269,9 +269,9 @@ impl CodegenCtx<'_> {
                 let inline = Self::assign_value_inlines_cmd_subst(&value);
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.compiles_locals()) {
                     self.push_var_ref(name, target.key_is_literal);
-                } else if inline && self.is_proc && !is_qualified(name) {
+                } else if inline && self.compiles_locals() && !is_qualified(name) {
                     // Pre-intern the target so it gets a lower LVT slot than any
                     // variable introduced inside the substitution (catch result
                     // var, etc.) — matches tclsh slot order.
@@ -294,7 +294,7 @@ impl CodegenCtx<'_> {
             } => {
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.compiles_locals()) {
                     self.push_var_ref(name, target.key_is_literal);
                 }
                 let inner_end = self.fresh_label("cmd_end");
@@ -717,7 +717,7 @@ impl CodegenCtx<'_> {
         };
         // In a proc the base is the LVT slot `store_var` names; only the key
         // goes on the stack.
-        if !self.is_proc || is_qualified(name) {
+        if !self.compiles_locals() || is_qualified(name) {
             self.push_lit_exact(base);
         }
         if key_is_literal {

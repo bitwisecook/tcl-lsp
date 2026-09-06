@@ -470,7 +470,7 @@ impl CodegenCtx<'_> {
     /// unless proc context, a plain-local dict var and targets, and a
     /// straight-line body whose final statement yields a value.
     pub fn emit_dict_update(&mut self, rest: &[String]) -> bool {
-        if !self.is_proc || rest.len() < 4 || !rest.len().is_multiple_of(2) {
+        if !self.compiles_locals() || rest.len() < 4 || !rest.len().is_multiple_of(2) {
             return false;
         }
         let dict_var = &rest[0];
@@ -582,7 +582,7 @@ impl CodegenCtx<'_> {
     /// final statement yields a value. The path form (`dict with d k … {body}`)
     /// is left to the runtime invoke.
     pub fn emit_dict_with(&mut self, dict_var: &str, body_text: &str) -> bool {
-        if !self.is_proc || is_qualified(dict_var) || dict_var.contains('(') {
+        if !self.compiles_locals() || is_qualified(dict_var) || dict_var.contains('(') {
             return false;
         }
         let body_ir =

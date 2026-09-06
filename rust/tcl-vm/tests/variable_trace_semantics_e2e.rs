@@ -291,17 +291,14 @@ const VECTORS: &[Vector] = &[
     // missed and its body was recompiled as a top-level script, losing every
     // `is_proc` specialisation. Rooting that lookup made both correct.
     //
-    // Residual, deliberately absent from this sheet: an in-proc
-    // `eval {lappend l z}`. C has no `eval` compiler — the script becomes its
-    // own unit, where `l` is not a compiled local, so `lappend` dispatches and
-    // fires `read write`. This compiler *relaxes* a literal `eval` body into
-    // the enclosing function (`try_lower_eval_static` → `Statement::Block`),
-    // and the CFG builder flattens it, so inside a proc the body inherits the
-    // proc's compiled locals and fires `write` alone. The divergence is the
-    // relaxation, not the trace code, and it predates the lookup fix — a
-    // script-shaped proc body simply masked it. Closing it means carrying
-    // eval-body provenance through the CFG to codegen, or not relaxing `eval`
-    // inside a proc at all.
+    // `proc-eval` is the one that separates "is a proc body" from "is a
+    // compiled local". C has no `eval` compiler: the script becomes its own
+    // unit, where `l` is not a compiled local, so `lappend` dispatches and
+    // fires `read write` — even though the enclosing frame is a proc. This
+    // compiler *relaxes* a literal `eval` body into the enclosing function
+    // (`try_lower_eval_static` → `Statement::Block`, flattened by the CFG
+    // builder), so codegen asks `CodegenCtx::compiles_locals` — which excludes
+    // the folded body's span — rather than `is_proc`.
     Vector {
         name: "lappend fires read on the dispatched and multi-value paths only",
         script: "proc R {n1 n2 op} { lappend ::log $op }\n\
@@ -336,6 +333,9 @@ const VECTORS: &[Vector] = &[
                  set ::log {}\n\
                  lappend l z\n\
                  puts \"proc-local1: $::log\"\n\
+                 set ::log {}\n\
+                 eval {lappend l z}\n\
+                 puts \"proc-eval: $::log\"\n\
                  array set arr {k a}\n\
                  trace add variable arr(k) {read write} R\n\
                  set ::log {}\n\
@@ -354,6 +354,7 @@ const VECTORS: &[Vector] = &[
                proc-local2: read write\n\
                proc-local0: read\n\
                proc-local1: write\n\
+               proc-eval: read write\n\
                proc-elem2: read write\n\
                proc-elem1: write",
     },

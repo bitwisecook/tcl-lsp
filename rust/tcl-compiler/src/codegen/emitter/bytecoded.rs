@@ -195,7 +195,7 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     let indices = &args[1..args.len() - 1];
     let value = args.last().expect("args.len() >= 3");
 
-    if ctx.is_proc && !is_qualified(var_name) && !indices.is_empty() {
+    if ctx.compiles_locals() && !is_qualified(var_name) && !indices.is_empty() {
         let slot = ctx.lvt.intern(var_name);
         for idx in indices {
             ctx.emit_value_interpolated(idx);
@@ -282,13 +282,13 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     // Non-proc (or qualified-var) mutating `dict` subcommand → the top-level
     // ensemble-rewrite `INVOKE_REPLACE` form (see [`dict_ensemble`]); the
     // proc-local scalar path below keeps its specialised `DICT_*` opcodes.
-    let proc_local = ctx.is_proc && !is_qualified(&rest[0]);
+    let proc_local = ctx.compiles_locals() && !is_qualified(&rest[0]);
     if !proc_local && matches!(sub, "set" | "unset" | "incr" | "append" | "lappend") {
         dict_ensemble(ctx, sub, rest);
         return true;
     }
 
-    if !ctx.is_proc || args.len() < 3 {
+    if !ctx.compiles_locals() || args.len() < 3 {
         return false;
     }
     let var_name = &rest[0];
@@ -508,7 +508,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
         return true;
     }
 
-    if ctx.is_proc {
+    if ctx.compiles_locals() {
         return false;
     }
     match sub {
@@ -540,7 +540,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
 /// dynamic `$…` / `[…]` reference. The shared gate for the statement-
 /// position `append`/`lappend` specialisations.
 fn is_compilable_local(ctx: &CodegenCtx, var: &str) -> bool {
-    ctx.is_proc && !is_qualified(var) && !var.starts_with('$') && !var.starts_with('[')
+    ctx.compiles_locals() && !is_qualified(var) && !var.starts_with('$') && !var.starts_with('[')
 }
 
 /// [`is_compilable_local`] restricted to a *scalar*: an `arr(k)`-shaped name is
@@ -693,7 +693,7 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// the bare `push ""` return in tail position). Mirrors C Tcl's
 /// `TclCompileUnsetCmd`. Toplevel falls back to the generic invoke.
 fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if !ctx.is_proc {
+    if !ctx.compiles_locals() {
         return false;
     }
     // Leading options: `-nocomplain` clears the complain flag; `--` ends
@@ -814,7 +814,7 @@ fn concat_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// nops (or the bare `push ""` return in tail position). Qualified/dynamic
 /// names, or top-level context, fall back to the generic invoke.
 fn global_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if !ctx.is_proc || args.is_empty() {
+    if !ctx.compiles_locals() || args.is_empty() {
         return false;
     }
     if !args.iter().all(|n| is_compilable_scalar_local(ctx, n)) {
@@ -855,7 +855,7 @@ fn is_upvar_level(arg: &str) -> bool {
 /// must be a simple proc-local name. A dynamic level, a malformed pair
 /// count, a qualified/dynamic local, or top-level context fall back.
 fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if !ctx.is_proc || args.len() < 2 {
+    if !ctx.compiles_locals() || args.len() < 2 {
         return false;
     }
     let (level, pairs): (&str, &[String]) = if is_upvar_level(&args[0]) {

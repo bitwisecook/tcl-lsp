@@ -994,7 +994,7 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
         let var_name = &args[0].0;
-        if self.is_proc && !is_qualified(var_name) {
+        if self.compiles_locals() && !is_qualified(var_name) {
             let slot = bytecode_imm(self.lvt.intern(var_name));
             if args.len() == 1 {
                 self.emit_comment(
@@ -1074,7 +1074,7 @@ impl CodegenCtx<'_> {
     fn emit_inline_info_exists(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         let var_name = &args[1].0;
-        if self.is_proc && !is_qualified(var_name) {
+        if self.compiles_locals() && !is_qualified(var_name) {
             let slot = bytecode_imm(self.lvt.intern(var_name));
             self.emit_comment(
                 Op::EXIST_SCALAR,
@@ -1519,7 +1519,8 @@ impl CodegenCtx<'_> {
     fn emit_inline_array(&mut self, args: &[(String, bool)]) {
         let sub = &args[0].0;
         let rest = &args[1..];
-        if sub == "exists" && rest.len() == 1 && self.is_proc && !is_qualified(&rest[0].0) {
+        if sub == "exists" && rest.len() == 1 && self.compiles_locals() && !is_qualified(&rest[0].0)
+        {
             self.used_inline_cmd_subst = true;
             let slot = bytecode_imm(self.lvt.intern(&rest[0].0));
             self.emit_comment(
