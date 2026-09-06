@@ -725,6 +725,36 @@ fn replay_command(
         eprintln!("error: {error}");
         return std::process::ExitCode::from(2);
     }
+    // The generator configuration the campaign ran with, restored from the
+    // record rather than taken from today's CLI defaults. A rate is a `chance`
+    // draw per candidate statement, so a changed rate re-phases the PRNG and
+    // the same seed regenerates a different script — replay would "reproduce"
+    // something that is not the finding. The same reason `tcl_version` is
+    // recorded and restored above.
+    let mut config = *config;
+    if let Some(prior) = selection.finding.as_ref() {
+        match prior.generator_rates {
+            Some(rates) => {
+                let cli_rates = findings::GeneratorRates::of(&config);
+                if rates != cli_rates {
+                    eprintln!(
+                        "note: restoring the finding's generator rates (malformed-expr {}‰, word-shape {}‰); the command line asked for {}‰ / {}‰",
+                        rates.malformed_expr_permille,
+                        rates.word_shape_permille,
+                        cli_rates.malformed_expr_permille,
+                        cli_rates.word_shape_permille,
+                    );
+                }
+                rates.restore(&mut config);
+            }
+            None => eprintln!(
+                "WARNING: finding {seed} predates recorded generator rates; replaying at the current \
+                 rates (malformed-expr {}‰, word-shape {}‰), which may not regenerate the recorded script",
+                config.malformed_expr_permille, config.word_shape_permille,
+            ),
+        }
+    }
+    let config = &config;
     if let Some(prior) = selection.finding {
         eprintln!(
             "note: seed {seed} is a recorded finding ({:?}) using {}",
@@ -1648,6 +1678,7 @@ mod tests {
                     reference: Some(version::EngineVersion::parse(tcl_version.patchlevel())),
                     subject: Some(version::EngineVersion::parse(tcl_version.patchlevel())),
                 },
+                generator_rates: findings::GeneratorRates::of(&generator::GenConfig::default()),
             },
         )
     }

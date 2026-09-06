@@ -117,6 +117,55 @@ pub struct Finding {
     /// after ruling out "the versions disagree".
     #[serde(default)]
     pub version_skew: bool,
+    /// The generator rates the campaign ran with — the *other* piece of
+    /// campaign configuration replay must restore, for the same reason
+    /// [`Self::tcl_version`] is recorded rather than re-read from the CLI.
+    ///
+    /// A rate is not a knob that only matters when its production fires. Each
+    /// one is a `chance` draw taken per candidate statement, so changing a
+    /// rate re-phases the whole PRNG stream and the seed regenerates a
+    /// *different script* even when no shape or malformed expression is
+    /// emitted. Replaying against today's defaults would therefore silently
+    /// reproduce something other than the recorded finding, which is worse
+    /// than refusing.
+    ///
+    /// `None` is a record written before this field existed. It does not get
+    /// its own [`Self::replay_metadata_version`] bump: that marker's
+    /// documented meaning is the *Tcl release* dimension, and
+    /// [`Self::campaign_tcl_version`] keys on its exact value, so widening it
+    /// here would break the check it exists for. The `Option` is this
+    /// dimension's own marker.
+    #[serde(default)]
+    pub generator_rates: Option<GeneratorRates>,
+}
+
+/// The generator configuration a campaign ran with, as recorded on a
+/// [`Finding`]. Only the rates: every other [`crate::generator::GenConfig`]
+/// field is a shape bound the CLI does not expose, so a finding cannot have
+/// been recorded under a different value for one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GeneratorRates {
+    /// [`crate::generator::GenConfig::malformed_expr_permille`].
+    pub malformed_expr_permille: u32,
+    /// [`crate::generator::GenConfig::word_shape_permille`].
+    pub word_shape_permille: u32,
+}
+
+impl GeneratorRates {
+    /// The rates `config` carries.
+    #[must_use]
+    pub const fn of(config: &crate::generator::GenConfig) -> Self {
+        Self {
+            malformed_expr_permille: config.malformed_expr_permille,
+            word_shape_permille: config.word_shape_permille,
+        }
+    }
+
+    /// Apply these rates to `config`, leaving its shape bounds alone.
+    pub const fn restore(self, config: &mut crate::generator::GenConfig) {
+        config.malformed_expr_permille = self.malformed_expr_permille;
+        config.word_shape_permille = self.word_shape_permille;
+    }
 }
 
 /// The backend outcomes and identities attached to one finding.
@@ -134,6 +183,8 @@ pub struct FindingContext<'a> {
     pub subject_engine: &'a str,
     /// Backend versions probed for this campaign.
     pub versions: &'a crate::version::PairVersions,
+    /// The generator rates this campaign ran with.
+    pub generator_rates: GeneratorRates,
 }
 
 impl Finding {
@@ -171,6 +222,7 @@ impl Finding {
                 .as_ref()
                 .map(|version| version.patchlevel.clone()),
             version_skew: context.versions.skewed(),
+            generator_rates: Some(context.generator_rates),
         }
     }
 
@@ -201,6 +253,86 @@ impl Finding {
                 self.seed,
             ))
         }
+    }
+}
+
+/// A rate change re-phases the generator's PRNG, so the same seed produces a
+/// different script even when neither production fires. That is the whole
+/// reason [`Finding::generator_rates`] is recorded: without it, `replay` runs
+/// today's defaults and "reproduces" a script the campaign never generated.
+#[cfg(test)]
+mod rate_replay_tests {
+    use super::GeneratorRates;
+    use crate::generator::{GenConfig, generate};
+
+    #[test]
+    fn a_changed_rate_regenerates_a_different_script() {
+        let recorded = GenConfig {
+            malformed_expr_permille: 20,
+            word_shape_permille: 0,
+            ..GenConfig::default()
+        };
+        let today = GenConfig {
+            malformed_expr_permille: 20,
+            word_shape_permille: 60,
+            ..GenConfig::default()
+        };
+        // Not "some seed somewhere": most of them, because the re-phasing is
+        // systematic rather than a rare collision.
+        let differing = (0..200u64)
+            .filter(|&seed| generate(seed, &recorded) != generate(seed, &today))
+            .count();
+        assert!(
+            differing > 100,
+            "a rate change left {}/200 seeds generating the same script; if this is ever 0 the \
+             recorded-rates machinery is unnecessary, and if it is small the warning text \
+             overstates the risk",
+            200 - differing
+        );
+    }
+
+    #[test]
+    fn restoring_the_recorded_rates_reproduces_the_recorded_script() {
+        let recorded = GenConfig {
+            malformed_expr_permille: 20,
+            word_shape_permille: 0,
+            ..GenConfig::default()
+        };
+        let rates = GeneratorRates::of(&recorded);
+        let mut replayed = GenConfig::default();
+        rates.restore(&mut replayed);
+        for seed in 0..200u64 {
+            assert_eq!(
+                generate(seed, &recorded),
+                generate(seed, &replayed),
+                "seed {seed} did not reproduce after restoring the recorded rates"
+            );
+        }
+    }
+
+    /// `restore` moves the rates and nothing else: the shape bounds are not
+    /// campaign configuration and a record never carried them.
+    #[test]
+    fn restore_leaves_the_shape_bounds_alone() {
+        let mut config = GenConfig {
+            max_depth: 9,
+            max_stmts: 7,
+            max_list_len: 6,
+            max_expr_depth: 5,
+            malformed_expr_permille: 1,
+            word_shape_permille: 2,
+        };
+        GeneratorRates {
+            malformed_expr_permille: 40,
+            word_shape_permille: 50,
+        }
+        .restore(&mut config);
+        assert_eq!(config.malformed_expr_permille, 40);
+        assert_eq!(config.word_shape_permille, 50);
+        assert_eq!(config.max_depth, 9);
+        assert_eq!(config.max_stmts, 7);
+        assert_eq!(config.max_list_len, 6);
+        assert_eq!(config.max_expr_depth, 5);
     }
 }
 
@@ -538,6 +670,7 @@ mod tests {
                 reference_engine: "tclsh",
                 subject_engine: "tclvm",
                 versions: &crate::version::PairVersions::default(),
+                generator_rates: GeneratorRates::of(&crate::generator::GenConfig::default()),
             },
         )
     }
@@ -572,6 +705,7 @@ mod tests {
                 reference_engine: "tclsh",
                 subject_engine: "tclvm",
                 versions: &crate::version::PairVersions::default(),
+                generator_rates: GeneratorRates::of(&crate::generator::GenConfig::default()),
             },
         );
         assert!(reg.record(&f).unwrap());
@@ -721,6 +855,7 @@ mod tests {
                     reference: Some(crate::version::EngineVersion::parse("8.6.16")),
                     subject: Some(crate::version::EngineVersion::parse("9.0.4")),
                 },
+                generator_rates: GeneratorRates::of(&crate::generator::GenConfig::default()),
             },
         );
         assert!(reg.record(&f).unwrap());
@@ -757,6 +892,7 @@ mod tests {
                     reference: Some(crate::version::EngineVersion::parse("8.6.16")),
                     subject: Some(crate::version::EngineVersion::parse("8.6.16")),
                 },
+                generator_rates: GeneratorRates::of(&crate::generator::GenConfig::default()),
             },
         );
         assert!(reg.record(&finding).unwrap());
