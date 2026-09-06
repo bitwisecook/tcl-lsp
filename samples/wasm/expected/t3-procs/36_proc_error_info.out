@@ -1,0 +1,13 @@
+1
+bad Q
+bad Q
+    while executing
+"error "bad $a""
+    (procedure "boom" line 3)
+    invoked from within
+"boom Q"
+NONE
+CALL {boom Q}
+5
+1
+nope MY CODE

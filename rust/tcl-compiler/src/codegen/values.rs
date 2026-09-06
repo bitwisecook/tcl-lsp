@@ -45,28 +45,24 @@ pub(crate) fn is_bare_var_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
-/// Which literal-pool entry point a folded constant takes.
-///
-/// The only thing that ever distinguished the two value emitters' copies of
-/// the constant-fold block, and not interchangeable: the verbatim path also
-/// sets `push_verbatim`, which suppresses runtime word substitution on the
-/// pushed literal. That matters for a folded result that still contains a `$`
-/// — `[list {a$b}]` folds to `a$b`, since the braced word is literal — so each
-/// emitter keeps the entry point it had.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FoldedLiteral {
-    /// [`CodegenCtx::push_lit_no_dedup_verbatim`] — `emit_value_interpolated`.
-    Verbatim,
-    /// [`CodegenCtx::push_lit_no_dedup`] — `emit_value`.
-    NoDedup,
-}
-
 // -- Literal emission --
 
 impl CodegenCtx<'_> {
     /// The `[list …]` / `[format …]` / `[dict create …]` constant folds and
     /// the two `list` inlinings that sit between them — one copy, shared by
-    /// both value emitters, which carried it identically apart from `kind`.
+    /// both value emitters.
+    ///
+    /// **A folded result is a value, so it is always pushed verbatim.** Folding
+    /// *is* running the command at compile time; its result has no word rule
+    /// left to apply, and handing it back to the VM's `subst_word` runs the
+    /// substitution a second time. The two emitters used to differ here — a
+    /// `kind` parameter picked the verbatim entry point for the assignment
+    /// emitter and the substituting one for `emit_value`, and the `dict create`
+    /// arm ignored `kind` and substituted in *both* — so a fold whose result
+    /// carried a marker or looked braced came back wrong: `set d [dict create k
+    /// {a${b}}]` read `b` and `set v [dict get [dict create k \{\}] k]` measured
+    /// 0 where both oracles say 5 characters and 2. That asymmetry was never a
+    /// decision, only two emitters keeping the entry point each already had.
     ///
     /// Every fold is gated on its own builtin still *being* the builtin
     /// anywhere in this unit (issue #1585): a fold **is** that command's
@@ -77,16 +73,12 @@ impl CodegenCtx<'_> {
     /// under `--tcl-version 8.4`.
     ///
     /// Returns `true` when it emitted the value and the caller must stop.
-    pub(crate) fn try_emit_constant_fold(&mut self, value: &str, kind: FoldedLiteral) -> bool {
-        let push = |ctx: &mut Self, folded: &str| match kind {
-            FoldedLiteral::Verbatim => ctx.push_lit_no_dedup_verbatim(folded),
-            FoldedLiteral::NoDedup => ctx.push_lit_no_dedup(folded),
-        };
+    pub(crate) fn try_emit_constant_fold(&mut self, value: &str) -> bool {
         // Constant-fold [list arg1 arg2 ...].
         if self.trusts_builtin("list")
             && let Some(folded) = super::helpers::fold_list_cmd(value, self.word_rules)
         {
-            push(self, &folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             return true;
         }
         // Inline [list {*}$a {*}$b] → load a, load b, listConcat. tclsh 9.0
@@ -105,7 +97,7 @@ impl CodegenCtx<'_> {
         if self.trusts_builtin("format")
             && let Some(folded) = super::helpers::try_format_fold(value)
         {
-            push(self, &folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             return true;
         }
         // Constant-fold [dict create k v ...].
@@ -113,7 +105,7 @@ impl CodegenCtx<'_> {
             && self.trusts_builtin("dict")
             && let Some(folded) = super::helpers::fold_dict_create_cmd(value, self.word_rules)
         {
-            self.push_lit(&folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             self.emit(Op::DUP, vec![]);
             self.emit(Op::VERIFY_DICT, vec![]);
             return true;
@@ -182,6 +174,46 @@ impl CodegenCtx<'_> {
             &format!("\"{}\"", esc(value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
+    }
+
+    /// Push a word's **finished value** — text every word-level rule has
+    /// already been applied to, so the VM must not run `subst_word` over it a
+    /// second time.
+    ///
+    /// A de-quoted or plain word is a value, not source: `"{}"` *is* the
+    /// two-byte string `{}`. Handed to the substituting [`push_lit`], the VM's
+    /// `subst_word` reads it back as a whole-word braced literal and strips the
+    /// braces a second time — `string index "{}" 0` answered empty where both
+    /// oracles say `{`, and `set v "{}"` stored the empty string (issue #1602
+    /// fixed the braced half of this; the quoted half is the same hole).
+    ///
+    /// The marker test is the VM's own, byte for byte: `subst_word` returns a
+    /// word carrying no `${` and no `[` unchanged *apart from* that brace
+    /// strip, so suppressing substitution on one is behaviour-preserving in
+    /// every other respect. A value that does still carry a marker is one the
+    /// codegen deliberately defers to the runtime scan, so it keeps
+    /// [`push_lit`].
+    ///
+    /// The same rule, unconditionally, covers a *fragment* — the `Lit` part a
+    /// composite word decomposes to. `parse_subst_template` has already carved
+    /// the real substitutions out of it and decoded its escapes, so a marker
+    /// left in one is data by construction and the three decomposition loops
+    /// push a `Lit` through [`push_lit_exact`](Self::push_lit_exact) directly.
+    /// A fragment that looked braced was being stripped too: `"{}$z"`
+    /// concatenated to `x` rather than `{}x`.
+    ///
+    /// This is [`push_lit_exact`](Self::push_lit_exact), not
+    /// [`push_lit_verbatim`](Self::push_lit_verbatim): the value is not a
+    /// braced word, so the brace-word `\<newline>` collapse is not its rule —
+    /// a quoted word's continuations were folded when its escapes were decoded.
+    /// The literal bytes are unchanged either way, so disassembly stays stable
+    /// and only the out-of-band `push_verbatim` flag differs.
+    pub fn push_word_value(&mut self, value: &str) {
+        if value.contains("${") || value.contains('[') {
+            self.push_lit(value);
+        } else {
+            self.push_lit_exact(value);
+        }
     }
 
     /// Push a literal using a fresh slot (no deduplication).

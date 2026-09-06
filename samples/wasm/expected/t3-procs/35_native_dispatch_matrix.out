@@ -1,0 +1,33 @@
+6765
+hello bob (0)
+1
+wrong # args: should be "greet name ?greeting? ?arg ...?"
+0
+b a (3)
+2 lvl
+15 1
+enter: traced 21
+leave: traced 21 -> 42
+42
+step: set y ab
+step: list ab ab
+step: return {ab ab}
+ab ab
+8
+12
+12
+1
+invalid command name "twice"
+in
+1
+invalid command name "ns::inner"
+first
+second
+hello
+42
+inner
+<
+<
+<
+hi!
+yes|<

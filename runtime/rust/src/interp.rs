@@ -8249,6 +8249,13 @@ impl Interp {
             return Ok(Code::Error);
         }
         self.cmd_frames.borrow_mut().push(frame);
+        // `Tcl_EvalEx` resets the result at entry; `eval_script_mode` can skip
+        // that because its first command always sets one. A compiled body
+        // cannot promise the same — `set`/`incr`/`puts` write no interpreter
+        // result — so a completion that comes back with a null result means
+        // "the body left the result alone", and that has to be the empty
+        // string the eval loop would have produced, never the caller's.
+        self.set_result_bytes(b"");
         let mut out = crate::codegen_abi::TclCompletionAbi {
             code: 0,
             result: core::ptr::null_mut(),

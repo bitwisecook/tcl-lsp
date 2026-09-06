@@ -522,7 +522,7 @@ impl CodegenCtx<'_> {
         // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
         // `list` inlinings — shared with `emit_value`, which carried an
         // identical copy of them (issues #1427 / #1585).
-        if self.try_emit_constant_fold(value, super::values::FoldedLiteral::Verbatim) {
+        if self.try_emit_constant_fold(value) {
             return;
         }
         // Whole-word variable-index array element `$arr($idx)`: route through
@@ -543,25 +543,41 @@ impl CodegenCtx<'_> {
         // normalised `${name}` but not an array element with a substituted
         // index, so decompose the word at compile time. Plain `$scalar`
         // interpolation keeps its existing (deferred-literal) lowering.
-        // Also decompose a `{…}`-wrapped value that contains a command
-        // substitution (e.g. `"{[list …]}"`): the braces are literal word
-        // content and the `[…]` must run, but pushing the value raw would let
-        // the runtime `subst_word` mistake it for a braced literal and strip the
-        // braces. A genuine braced argument never reaches here (it is emitted by
-        // the braced-word path), so decomposing is safe.
+        // Also decompose a `{…}`-wrapped value that still carries a live
+        // substitution (e.g. `"{[list …]}"`, `"{$z}"`): the braces are literal
+        // word content and the `[…]` / `${…}` must run, but pushing the value
+        // raw would let the runtime `subst_word` mistake it for a braced
+        // literal, strip the braces and hand back the *unsubstituted* inside —
+        // `puts "{$z}"` printed `${z}`, and `set q "{$z}"` stored four bytes
+        // where both oracles store three. This is the marker-carrying half of
+        // the value rule `push_word_value` states: a value the runtime still
+        // owns cannot simply be frozen, so it is resolved here instead. A
+        // genuine braced argument never reaches here (it is emitted by the
+        // braced-word path), so decomposing is safe.
+        //
+        // The brace test is the VM's own rule, through the same owner the VM
+        // asks (`whole_braced_word`) — this arm exists precisely because
+        // `subst_word` *will* strip, so anything looser decomposes words it
+        // would not have touched and anything two-byte repeats the bug this
+        // change is about. `{}${z}` is the discriminating case: it is not a
+        // braced word, the VM's general scan substitutes it correctly, and it
+        // stays on the literal path.
         if (value.contains('$') || value.contains('['))
             && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
             && parts.len() > 1
             && (parts
                 .iter()
                 .any(|p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()))
-                || (value.starts_with('{')
-                    && value.ends_with('}')
-                    && parts.iter().any(|p| matches!(p, SubstPart::Cmd(_)))))
+                || (tcl_syntax::word_rules::whole_braced_word(value).is_some()
+                    && parts
+                        .iter()
+                        .any(|p| matches!(p, SubstPart::Cmd(_) | SubstPart::Var(_)))))
         {
             for part in &parts {
                 match part {
-                    SubstPart::Lit(text) => self.push_lit(text),
+                    // A decoded fragment is finished text, never source — see
+                    // `push_word_value`, whose fragment rule this is.
+                    SubstPart::Lit(text) => self.push_lit_exact(text),
                     SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
                     SubstPart::Var(name) => self.load_var(name),
                 }
@@ -597,8 +613,12 @@ impl CodegenCtx<'_> {
         if self.try_emit_whole_cmd_subst(value) {
             return;
         }
-        // Default: push as literal
-        self.push_lit(value);
+        // Default: the word's own text is its value — push it unsubstituted
+        // unless a `${…}` / `[…]` the runtime still owns survived the arms
+        // above (`push_word_value`). Substituting a finished value strips a
+        // brace layer that was never source: `set v "{}"` stored the empty
+        // string where both oracles store the two-byte `{}`.
+        self.push_word_value(value);
     }
 
     /// Whether a `set x VALUE` value should inline-compile its command
@@ -739,7 +759,7 @@ impl CodegenCtx<'_> {
             if a.contains('[') || a.contains("${") {
                 self.push_lit(a);
             } else {
-                self.push_lit(&tcl_lexer::backslash_subst_in(a, self.escapes));
+                self.push_word_value(&tcl_lexer::backslash_subst_in(a, self.escapes));
             }
         } else {
             self.emit_value_interpolated(a);

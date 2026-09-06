@@ -1955,6 +1955,7 @@ impl<'r> Lowerer<'r> {
                         body,
                         params_raw: args[1].clone(),
                         body_source: Some(args[2].clone()),
+                        body_offset,
                         namespace_scoped: self.in_namespace_eval,
                         base_priority: 500,
                     });
@@ -2204,6 +2205,7 @@ impl<'r> Lowerer<'r> {
                 body,
                 params_raw: String::new(),
                 body_source: None,
+                body_offset,
                 namespace_scoped: false,
                 base_priority,
             },
@@ -2503,6 +2505,7 @@ impl<'r> Lowerer<'r> {
                 body,
                 params_raw: String::new(),
                 body_source: None,
+                body_offset: 0,
                 namespace_scoped: false,
                 base_priority: 500,
             },

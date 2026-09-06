@@ -278,6 +278,15 @@ pub enum CodegenAbiImportId {
     /// result: the runtime owns the `already_logged` protocol, so a statement
     /// already logged deeper in the same body is a no-op.
     LogCommand,
+    /// Record the pending `return -level`/`-code` state, exactly as the
+    /// `return` command records it. Parameters are the level and the Tcl
+    /// completion code. No result.
+    ///
+    /// A compiled `return` completes with code `2` without dispatching the
+    /// `return` command, so nothing else would write this state and the
+    /// procedure's return boundary (`Interp::settle_return`) would consume
+    /// whatever an earlier `return -level N` left behind.
+    ReturnState,
     /// The number of proc bodies dispatched through a native entry.
     ///
     /// A test boundary, like [`Self::CallFrameAlloc`]'s outstanding-frame
@@ -372,6 +381,7 @@ impl CodegenAbiImportId {
                 I32,
             ),
             Self::LogCommand => tcl_import("tcl_codegen_log_command", I32_I32_I32, NONE),
+            Self::ReturnState => tcl_import("tcl_codegen_return_state", I32_I32, NONE),
             Self::NativeProcDispatches => {
                 tcl_import("tcl_codegen_native_proc_dispatches", NONE, I32)
             }
@@ -772,6 +782,15 @@ mod tests {
         assert_eq!(log.name, "tcl_codegen_log_command");
         assert_eq!(log.parameters, &[I32; 3][..]);
         assert!(log.results.is_empty());
+
+        // The pending-return-state writer takes the same (level, code) pair
+        // the `return` command records, and answers nothing: it is a state
+        // write, not a completion.
+        let state = CodegenAbiImportId::ReturnState.descriptor();
+        assert_eq!(state.module, "tcl");
+        assert_eq!(state.name, "tcl_codegen_return_state");
+        assert_eq!(state.parameters, &[I32; 2][..]);
+        assert!(state.results.is_empty());
 
         let dispatches = CodegenAbiImportId::NativeProcDispatches.descriptor();
         assert_eq!(dispatches.module, "tcl");
