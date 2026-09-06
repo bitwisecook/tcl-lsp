@@ -2839,10 +2839,20 @@ impl Vm {
         // fire destination delete traces and invalidate command/trace guard
         // state.
         self.register_command(new_key, command.clone());
+        // What that surviving entry points *at* does move, though: C re-homes
+        // the one `Command` (`cmdPtr->nsPtr = newNsPtr`) before it fires, and
+        // both hash entries reference it, so a proc invoked through the
+        // vacating name reports the *destination's* `namespace current` — and
+        // resolves `variable` there — for the callbacks' duration.
+        self.rebind_rename_source(&transaction.old_key.clone(), command);
         self.command_generations
             .insert(new_key.to_owned(), transaction.source_generation);
         if transaction.source_import_binding.is_none()
-            && let Command::Ensemble(token) = command
+            && let Command::Ensemble(token) = self
+                .commands
+                .get(new_key)
+                .cloned()
+                .expect("the renamed command was just registered")
         {
             token.rename(display_namespace(new_key));
         }
@@ -2864,6 +2874,20 @@ impl Vm {
             &CommandSidecarKey::visible(&transaction.old_key),
             &CommandSidecarKey::visible(new_key),
         );
+    }
+
+    /// Point the still-standing source entry of an open rename at the re-homed
+    /// command, without disturbing the entry itself.  Deliberately *not*
+    /// [`Self::register_command`]: this is not a replacement, so no `delete`
+    /// trace may fire, no generation may be minted and no sidecar may detach —
+    /// it is the one command under both of its names, which is what C gets for
+    /// free from the two hash entries sharing a `Command *`.  A callback that
+    /// deleted the source itself leaves nothing to rebind, and that is not an
+    /// error.
+    fn rebind_rename_source(&mut self, key: &str, cmd: Command) {
+        if self.commands.contains_key(key) {
+            self.commands.insert(key.to_owned(), cmd);
+        }
     }
 
     /// Drop the source half of a rename once its `rename` traces have run —
