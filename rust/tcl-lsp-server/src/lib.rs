@@ -448,6 +448,24 @@ struct FreshAnalysisSeed {
     class_factory_generation: u64,
 }
 
+/// The no-await write set that publishes one live document's index seed.
+struct LiveIndexCommitLocks<'a> {
+    documents: DocumentsGuard<'a>,
+    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
+}
+
+/// A fair dependency turn retained into the next live-index bundle attempt.
+///
+/// Tokio hands a released writer to the readers queued behind it before a
+/// later `try_write` can barge in. Keeping the acquired turn here is what
+/// turns fair admission into an actual atomic commit opportunity.
+enum LiveIndexFairTurn<'a> {
+    Documents(DocumentsGuard<'a>),
+    WorkspaceIndex(tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>),
+    RehomedSourceSeeds(tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>),
+}
+
 /// A snapshot of what the editor holds for every open document, by path.
 ///
 /// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
@@ -8610,15 +8628,16 @@ impl Backend {
 
     /// Yield after one failed deferred-open publication attempt and emit one
     /// bounded, exact diagnostic if contention persists.
-    async fn pause_open_publication(
-        &self,
+    async fn pause_open_publication<'a>(
+        &'a self,
+        publication: tokio::sync::MutexGuard<'a, ()>,
         operation: &'static str,
         uri: &Uri,
         wait: LivePublicationWait,
         retry: &mut LivePublicationRetry,
-    ) -> bool {
+    ) -> Option<tokio::sync::MutexGuard<'a, ()>> {
         if self.live_publication_uri_generation(uri) != retry.uri_generation {
-            return false;
+            return None;
         }
         retry.retries = retry.retries.saturating_add(1);
         if !retry.reported && retry.since.elapsed() >= EDIT_BARRIER_STALL_WARN {
@@ -8643,20 +8662,23 @@ impl Backend {
         }
         // `try_lock` correctly avoids retaining a partial bundle, but Tokio's
         // fair mutexes do not let a try-lock barge past queued waiters. Join
-        // the exact dependency's fair queue periodically, then drop it and
-        // retry the whole bundle. A newer live-document identity cancels the
-        // queue wait: callers retain the publication gate here, so letting a
-        // stale publisher remain queued would stop the authoritative publisher
-        // behind that gate. A generation check distinguishes the publisher's
-        // own mutation from a later invalidation and closes the check-to-wakeup
-        // race (#1854 review).
-        if retry.retries.is_multiple_of(1024) {
+        // the exact dependency's fair queue periodically, but release the
+        // live-publication gate first. Readers admitted after that fair turn
+        // may defeat the next optimistic bundle again; keeping the global gate
+        // while repeating that cycle would starve every later live edit. A
+        // newer publisher can now proceed and its per-URI generation makes
+        // this older attempt retire after it reacquires the gate.
+        let publication = if retry.retries.is_multiple_of(1024) {
             self.refresh_live_publication_generation(uri, retry);
+            drop(publication);
             self.join_live_publication_dependency(operation, wait, retry.generation)
                 .await;
-        }
+            self.live_publication_gate.lock().await
+        } else {
+            publication
+        };
         crate::rt::sleep(std::time::Duration::from_millis(1)).await;
-        self.live_publication_uri_generation(uri) == retry.uri_generation
+        (self.live_publication_uri_generation(uri) == retry.uri_generation).then_some(publication)
     }
 
     async fn join_live_publication_dependency(
@@ -9012,6 +9034,111 @@ impl Backend {
         );
     }
 
+    fn try_live_index_commit_locks<'a>(
+        &'a self,
+        site: &'static str,
+        fair_turn: Option<LiveIndexFairTurn<'a>>,
+    ) -> Result<LiveIndexCommitLocks<'a>, LivePublicationWait> {
+        match fair_turn {
+            None => {
+                let documents = self
+                    .documents
+                    .try_lock(site)
+                    .ok_or(LivePublicationWait::Documents)?;
+                let index = self
+                    .workspace_index
+                    .try_write()
+                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+                let seeds = self
+                    .rehomed_source_seeds
+                    .try_lock()
+                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+            Some(LiveIndexFairTurn::Documents(documents)) => {
+                let index = self
+                    .workspace_index
+                    .try_write()
+                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+                let seeds = self
+                    .rehomed_source_seeds
+                    .try_lock()
+                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+            Some(LiveIndexFairTurn::WorkspaceIndex(index)) => {
+                let documents = self
+                    .documents
+                    .try_lock(site)
+                    .ok_or(LivePublicationWait::Documents)?;
+                let seeds = self
+                    .rehomed_source_seeds
+                    .try_lock()
+                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+            Some(LiveIndexFairTurn::RehomedSourceSeeds(seeds)) => {
+                let documents = self
+                    .documents
+                    .try_lock(site)
+                    .ok_or(LivePublicationWait::Documents)?;
+                let index = self
+                    .workspace_index
+                    .try_write()
+                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+        }
+    }
+
+    /// Acquire the live-index commit bundle without ever awaiting while a
+    /// partial bundle is held. The dependency awaited fairly is retained into
+    /// the next optimistic attempt, so sustained readers cannot take its turn
+    /// back before the no-await commit begins.
+    async fn live_index_commit_locks(&self, site: &'static str) -> LiveIndexCommitLocks<'_> {
+        let mut fair_turn = None;
+        loop {
+            match self.try_live_index_commit_locks(site, fair_turn.take()) {
+                Ok(locks) => return locks,
+                Err(LivePublicationWait::Documents) => {
+                    fair_turn = Some(LiveIndexFairTurn::Documents(
+                        self.documents.lock(site).await,
+                    ));
+                }
+                Err(LivePublicationWait::WorkspaceIndex) => {
+                    fair_turn = Some(LiveIndexFairTurn::WorkspaceIndex(
+                        self.workspace_index.write().await,
+                    ));
+                }
+                Err(LivePublicationWait::RehomedSourceSeeds) => {
+                    fair_turn = Some(LiveIndexFairTurn::RehomedSourceSeeds(
+                        self.rehomed_source_seeds.lock().await,
+                    ));
+                }
+                Err(wait) => unreachable!(
+                    "live index publication cannot wait for {}",
+                    wait.dependency()
+                ),
+            }
+        }
+    }
+
     /// Mark the matching `didOpen` revision safe for Salsa-backed providers.
     async fn mark_open_salsa_published_if_current(
         &self,
@@ -9058,37 +9185,32 @@ impl Backend {
                     .await;
                 continue;
             }
-            let mut docs = self.documents.lock("did_open_publish_complete").await;
-            let current = docs
+            let LiveIndexCommitLocks {
+                mut documents,
+                mut index,
+                mut seeds,
+            } = self
+                .live_index_commit_locks("did_open_publish_complete")
+                .await;
+            let current = documents
                 .get(uri)
                 .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
             if !current {
                 return false;
             }
-            docs.retag("did_open_publish_complete: workspace_index.try_write");
-            let Ok(mut index) = self.workspace_index.try_write() else {
-                drop(docs);
-                drop(self.workspace_index.write().await);
-                continue;
-            };
-            docs.retag("did_open_publish_complete: rehomed_source_seeds.try_lock");
-            let Ok(mut seeds) = self.rehomed_source_seeds.try_lock() else {
-                drop(index);
-                drop(docs);
-                drop(self.rehomed_source_seeds.lock().await);
-                continue;
-            };
+            documents.retag("did_open_publish_complete: commit");
             index.replace_document(uri.as_str(), &seed.analysis);
             // This is a standalone replacement. Invalidate any source-site
             // view marker in the same rehoming transaction so the next
             // workspace query reapplies its qualified views.
             seeds.remove(uri.as_str());
-            docs.get_mut(uri)
+            documents
+                .get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
                 .publication = DocumentPublication::Indexed;
             drop(seeds);
             drop(index);
-            drop(docs);
+            drop(documents);
             self.live_publication_advanced.notify_waiters();
             return true;
         }
@@ -9119,34 +9241,29 @@ impl Backend {
                     .await;
                 continue;
             }
-            let mut docs = self.documents.lock("did_change_publish_complete").await;
-            let current = docs
+            let LiveIndexCommitLocks {
+                mut documents,
+                mut index,
+                mut seeds,
+            } = self
+                .live_index_commit_locks("did_change_publish_complete")
+                .await;
+            let current = documents
                 .get(uri)
                 .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
             if !current {
                 return false;
             }
-            docs.retag("did_change_publish_complete: workspace_index.try_write");
-            let Ok(mut index) = self.workspace_index.try_write() else {
-                drop(docs);
-                drop(self.workspace_index.write().await);
-                continue;
-            };
-            docs.retag("did_change_publish_complete: rehomed_source_seeds.try_lock");
-            let Ok(mut seeds) = self.rehomed_source_seeds.try_lock() else {
-                drop(index);
-                drop(docs);
-                drop(self.rehomed_source_seeds.lock().await);
-                continue;
-            };
+            documents.retag("did_change_publish_complete: commit");
             index.replace_document(uri.as_str(), &seed.analysis);
             seeds.remove(uri.as_str());
-            docs.get_mut(uri)
+            documents
+                .get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
                 .publication = DocumentPublication::Indexed;
             drop(seeds);
             drop(index);
-            drop(docs);
+            drop(documents);
             self.live_publication_advanced.notify_waiters();
             return true;
         }
@@ -9263,7 +9380,7 @@ impl Backend {
         F: Future<Output = FreshAnalysisSeed>,
     {
         {
-            let _publication = self.live_publication_gate.lock().await;
+            let mut publication = self.live_publication_gate.lock().await;
             let generation = self
                 .live_publication_generation
                 .load(std::sync::atomic::Ordering::Acquire);
@@ -9284,20 +9401,22 @@ impl Backend {
                     Ok(locks) => locks,
                     Err(wait) => {
                         self.update_snapshot_drain(wait, &mut snapshot_drain);
-                        if !self
-                            .pause_open_publication("did_open", uri, wait, &mut retry)
+                        publication = match self
+                            .pause_open_publication(publication, "did_open", uri, wait, &mut retry)
                             .await
                         {
-                            return false;
-                        }
+                            Some(publication) => publication,
+                            None => return false,
+                        };
                         continue;
                     }
                 };
 
                 let Some(docs) = self.documents.try_lock("did_open") else {
                     drop(locks);
-                    if !self
+                    publication = match self
                         .pause_open_publication(
+                            publication,
                             "did_open",
                             uri,
                             LivePublicationWait::Documents,
@@ -9305,8 +9424,9 @@ impl Backend {
                         )
                         .await
                     {
-                        return false;
-                    }
+                        Some(publication) => publication,
+                        None => return false,
+                    };
                     continue;
                 };
 
@@ -9375,7 +9495,7 @@ impl Backend {
         revision: u64,
         index_needs_seed: bool,
     ) -> bool {
-        let _publication = self.live_publication_gate.lock().await;
+        let mut publication = self.live_publication_gate.lock().await;
         let generation = self
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
@@ -9399,19 +9519,21 @@ impl Backend {
                 Ok(locks) => locks,
                 Err(wait) => {
                     self.update_snapshot_drain(wait, &mut snapshot_drain);
-                    if !self
-                        .pause_open_publication(operation, uri, wait, &mut retry)
+                    publication = match self
+                        .pause_open_publication(publication, operation, uri, wait, &mut retry)
                         .await
                     {
-                        return false;
-                    }
+                        Some(publication) => publication,
+                        None => return false,
+                    };
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock(operation) else {
                 drop(locks);
-                if !self
+                publication = match self
                     .pause_open_publication(
+                        publication,
                         operation,
                         uri,
                         LivePublicationWait::Documents,
@@ -9419,8 +9541,9 @@ impl Backend {
                     )
                     .await
                 {
-                    return false;
-                }
+                    Some(publication) => publication,
+                    None => return false,
+                };
                 continue;
             };
             let Some(current) = docs.get(uri).filter(|doc| {
@@ -9471,7 +9594,7 @@ impl Backend {
         dialect: &str,
         revision: u64,
     ) -> bool {
-        let publication = self.live_publication_gate.lock().await;
+        let mut publication = self.live_publication_gate.lock().await;
         let generation = self
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
@@ -9495,19 +9618,21 @@ impl Backend {
                 Ok(locks) => locks,
                 Err(wait) => {
                     self.update_snapshot_drain(wait, &mut snapshot_drain);
-                    if !self
-                        .pause_open_publication(operation, uri, wait, &mut retry)
+                    publication = match self
+                        .pause_open_publication(publication, operation, uri, wait, &mut retry)
                         .await
                     {
-                        return false;
-                    }
+                        Some(publication) => publication,
+                        None => return false,
+                    };
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock(operation) else {
                 drop(locks);
-                if !self
+                publication = match self
                     .pause_open_publication(
+                        publication,
                         operation,
                         uri,
                         LivePublicationWait::Documents,
@@ -9515,8 +9640,9 @@ impl Backend {
                     )
                     .await
                 {
-                    return false;
-                }
+                    Some(publication) => publication,
+                    None => return false,
+                };
                 continue;
             };
             let Some(current) = docs
@@ -9575,7 +9701,7 @@ impl Backend {
     /// either the edit-order turn or a partial lock bundle. A racing re-open
     /// wins the final currency check and keeps all of its newly-armed caches.
     async fn commit_closed_live_state(&self, uri: &Uri) -> bool {
-        let _publication = self.live_publication_gate.lock().await;
+        let mut publication = self.live_publication_gate.lock().await;
         let generation = self
             .live_publication_generation
             .load(std::sync::atomic::Ordering::Acquire);
@@ -9591,19 +9717,21 @@ impl Backend {
             let locks = match self.try_close_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
-                    if !self
-                        .pause_open_publication("did_close", uri, wait, &mut retry)
+                    publication = match self
+                        .pause_open_publication(publication, "did_close", uri, wait, &mut retry)
                         .await
                     {
-                        return false;
-                    }
+                        Some(publication) => publication,
+                        None => return false,
+                    };
                     continue;
                 }
             };
             let Some(docs) = self.documents.try_lock("did_close") else {
                 drop(locks);
-                if !self
+                publication = match self
                     .pause_open_publication(
+                        publication,
                         "did_close",
                         uri,
                         LivePublicationWait::Documents,
@@ -9611,8 +9739,9 @@ impl Backend {
                     )
                     .await
                 {
-                    return false;
-                }
+                    Some(publication) => publication,
+                    None => return false,
+                };
                 continue;
             };
             if docs.contains_key(uri) {
@@ -21126,10 +21255,14 @@ impl Backend {
             if let Some(doc) = docs.get_mut(uri) {
                 doc.backing_file_deleted = true;
                 // For an orphan the current cross-document index view is
-                // deliberately absent. Mark that derived state settled so
-                // local providers do not wait for a seed which must never
-                // resurrect the deleted path.
-                doc.publication = DocumentPublication::Indexed;
+                // deliberately absent. A revision that already reached Salsa
+                // can become fully settled immediately; a pending revision
+                // must remain pending until the deletion transaction retires
+                // the preceding Salsa handle, otherwise local providers can
+                // combine these live bytes with stale memoised analysis.
+                if doc.publication != DocumentPublication::Pending {
+                    doc.publication = DocumentPublication::Indexed;
+                }
                 deleted_revisions.insert(uri.clone(), doc.revision);
             }
         }
@@ -21167,6 +21300,30 @@ impl Backend {
         }
         drop(docs);
         (publications, deleted_revisions)
+    }
+
+    /// Release pending local readers only after the watched-delete transaction
+    /// has retired the stale Salsa handle for the same orphan revision.
+    async fn settle_deleted_open_paths(&self, deleted_revisions: &HashMap<Uri, u64>) {
+        let mut docs = self
+            .documents
+            .lock("did_change_watched_files: settle deleted")
+            .await;
+        let mut advanced = false;
+        for (uri, revision) in deleted_revisions {
+            if let Some(doc) = docs.get_mut(uri)
+                && doc.backing_file_deleted
+                && doc.revision == *revision
+                && doc.publication == DocumentPublication::Pending
+            {
+                doc.publication = DocumentPublication::Indexed;
+                advanced = true;
+            }
+        }
+        drop(docs);
+        if advanced {
+            self.live_publication_advanced.notify_waiters();
+        }
     }
 }
 
@@ -21821,6 +21978,7 @@ impl LanguageServer for Backend {
                 "did_change_watched_files: deleted",
             )
             .await;
+            self.settle_deleted_open_paths(&deleted_revisions).await;
         }
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
@@ -43872,14 +44030,37 @@ proc p {} {
         .expect("an index wait must not retain the document map");
         drop(documents);
 
+        // Queue a reader behind the publisher's fair writer turn, then keep it
+        // held. Dropping the writer before the currency-checked commit would
+        // admit this reader and leave the seed pending indefinitely.
+        let (late_reader_queued, queued) = tokio::sync::oneshot::channel();
+        let (release_late_reader, release) = tokio::sync::oneshot::channel();
+        let late_reader = crate::rt::spawn({
+            let workspace_index = Arc::clone(&backend.workspace_index);
+            async move {
+                let _ = late_reader_queued.send(());
+                let _guard = workspace_index.read().await;
+                let _ = release.await;
+            }
+        });
+        queued
+            .await
+            .expect("the late reader must start queueing behind the writer");
+        crate::rt::yield_now().await;
+
         drop(index_reader);
         assert!(
-            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+            crate::rt::timeout(std::time::Duration::from_secs(2), publishing)
                 .await
-                .expect("the open index publisher must finish once the reader drains")
+                .expect("the queued writer must commit before the later reader")
                 .expect("the open index publisher must not panic"),
             "the still-current open seed must publish",
         );
+        let _ = release_late_reader.send(());
+        crate::rt::timeout(std::time::Duration::from_secs(5), late_reader)
+            .await
+            .expect("the later reader must finish after release")
+            .expect("the later reader must not panic");
     }
 
     async fn mark_open_buffer_deleted_while_publication_waits_1854(
@@ -43907,9 +44088,7 @@ proc p {} {
                     .lock("test")
                     .await
                     .get(uri)
-                    .is_some_and(|doc| {
-                        doc.backing_file_deleted && doc.publication == DocumentPublication::Indexed
-                    });
+                    .is_some_and(|doc| doc.backing_file_deleted);
                 if orphaned {
                     break;
                 }
@@ -43917,7 +44096,7 @@ proc p {} {
             }
         })
         .await
-        .expect("the watcher must settle the open buffer as an orphan");
+        .expect("the watcher must mark the open buffer as an orphan");
         deleting
     }
 
@@ -43987,6 +44166,94 @@ proc p {} {
         Open,
         Change,
         Dialect,
+    }
+
+    /// Exact-head automated review of #1854: watched deletion must not wake a
+    /// pending live buffer at Salsa readiness while the database still names
+    /// the preceding revision. It becomes locally readable only after the
+    /// deletion transaction retires that stale handle.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_keeps_pending_buffer_below_salsa_readiness_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///deleted-pending-source-1854.tcl").unwrap();
+        let stale = "proc stale {} {}\n";
+        let current = "proc current {} {}\n";
+        backend
+            .db_set_source(&uri, stale, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(current.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let deleting = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.backing_file_deleted);
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the watched delete must mark the buffer orphaned");
+        assert_eq!(
+            backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("the open buffer remains present")
+                .publication,
+            DocumentPublication::Pending,
+            "the stale Salsa handle must not be labelled ready",
+        );
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(100),
+                backend.read_local_document(&uri),
+            )
+            .await
+            .is_err(),
+            "local providers must wait while the stale handle remains",
+        );
+
+        drop(database);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the deletion transaction must finish after db is released")
+            .expect("the deletion task must not panic");
+        assert!(!backend.db_files.lock().await.contains_key(&uri));
+        let readable = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.read_local_document(&uri),
+        )
+        .await
+        .expect("the orphan must become readable after stale Salsa retirement")
+        .expect("the orphaned live buffer remains present");
+        assert_eq!(readable.text.as_ref(), current);
+        assert_eq!(readable.publication, DocumentPublication::Indexed);
     }
 
     /// Exact-head automated review of #1854: a watched deletion can overtake
@@ -44948,10 +45215,64 @@ proc p {} {
         );
     }
 
+    /// Exact-head automated review of #1854: a live publisher that joins a
+    /// contended dependency must release the global publication gate first.
+    /// Otherwise sustained readers can repeatedly take the acquired fair turn
+    /// back and one URI prevents every later live edit from publishing.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_publication_releases_gate_while_waiting_fairly_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///live-fair-gate-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .commit_live_source("test_live_fair_gate", &uri, text, "tcl8.6", 0, false)
+                    .await
+            }
+        });
+
+        let publication = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.live_publication_gate.lock(),
+        )
+        .await
+        .expect("the contended live publisher must release its global gate");
+        drop(database);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), async {
+                while !publishing.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "the publisher must reacquire the publication gate before committing",
+        );
+        drop(publication);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the live publisher must finish after both locks are released")
+                .expect("the live publisher must not panic"),
+            "the still-current live source must publish",
+        );
+    }
+
     /// Final automated review of #1854: the periodic fair-queue join must not
     /// retain `live_publication_gate` after a newer edit invalidates the
-    /// publisher. Otherwise the current edit publishes its buffer, then waits
-    /// behind that gate while the stale publisher remains queued on `db`.
+    /// publisher. The authoritative edit must be able to take the gate while
+    /// the stale publisher remains queued on `db`, then both retire in order
+    /// once that dependency becomes available.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn stale_fair_queue_wait_yields_to_newer_edit_1854() {
         use tower_lsp_server::ls_types::{
@@ -44980,18 +45301,20 @@ proc p {} {
                     .live_publication_generation
                     .load(std::sync::atomic::Ordering::Acquire);
                 let uri_generation = backend.live_publication_uri_generation(&uri);
-                let _publication = backend.live_publication_gate.lock().await;
+                let publication = backend.live_publication_gate.lock().await;
                 let mut retry = LivePublicationRetry::new(generation, uri_generation);
                 retry.retries = 1023;
                 assert!(
-                    !backend
+                    backend
                         .pause_open_publication(
+                            publication,
                             "did_open",
                             &uri,
                             LivePublicationWait::Database,
                             &mut retry,
                         )
-                        .await,
+                        .await
+                        .is_none(),
                     "the stale publisher must observe its URI invalidation",
                 );
             }
@@ -45040,16 +45363,15 @@ proc p {} {
         })
         .await
         .expect("the newer edit must publish its authoritative buffer");
-        crate::rt::timeout(std::time::Duration::from_millis(500), stale_publisher)
-            .await
-            .expect("the invalidated publisher must leave the fair queue while db remains held")
-            .expect("the stale publisher must not panic");
-
         drop(database);
         crate::rt::timeout(std::time::Duration::from_secs(5), current_publisher)
             .await
             .expect("the current publisher must finish once db is released")
             .expect("the current publisher must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(5), stale_publisher)
+            .await
+            .expect("the invalidated publisher must retire after the current edit")
+            .expect("the stale publisher must not panic");
         let docs = backend.documents.lock("test").await;
         let current = docs.get(&uri).expect("the edited document remains open");
         assert_eq!(current.publication, DocumentPublication::Indexed);
@@ -45094,15 +45416,18 @@ proc p {} {
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
+                let publication = backend.live_publication_gate.lock().await;
                 assert!(
                     backend
                         .pause_open_publication(
+                            publication,
                             "did_open",
                             &uri,
                             LivePublicationWait::Documents,
                             &mut retry,
                         )
-                        .await,
+                        .await
+                        .is_some(),
                     "an unrelated invalidation must preserve the publisher",
                 );
             }
