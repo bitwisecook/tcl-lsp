@@ -1545,8 +1545,8 @@ mod tests {
         let src = "oo::class create Pin { method cfg {args} {} }\n\
                    oo::class create Dev {\n\
                      variable pins\n\
-                     method add {k} { dict set pins $k [Pin new] }\n\
-                     method use {k} { [dict get $pins $k] cfg -node 1 }\n\
+                     method add {k} { ::dict set pins $k [::Pin new] }\n\
+                     method use {k} { [::dict get $pins $k] cfg -node 1 }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let map = object_collection_classes(&cu);
@@ -1570,9 +1570,9 @@ mod tests {
                      oo::configurable create Device {\n\
                        variable Pins\n\
                        method actOnPin {action pin node} {\n\
-                         switch -- $action {\n\
-                           add { dict append Pins $pin [::SpiceGenTcl::Pin new $pin $node] }\n\
-                           node { [dict get $Pins $pin] configure -node $node }\n\
+                         ::switch -- $action {\n\
+                           add { ::dict append Pins $pin [::SpiceGenTcl::Pin new $pin $node] }\n\
+                           node { [::dict get $Pins $pin] configure -node $node }\n\
                          }\n\
                        }\n\
                      }\n\
@@ -1939,8 +1939,8 @@ mod tests {
         // `::A::make`'s own return type names an object class, so the captured
         // handle is a ::B in both facts.
         let (_r, facts) = facts_for(
-            "oo::class create A { method make {} { return [B new] } }\n\
-             oo::class create B { method greet {} { return \"hi\" } }\n\
+            "oo::class create A { method make {} { ::return [::B new] } }\n\
+             oo::class create B { method greet {} { ::return \"hi\" } }\n\
              set a [A new]\n\
              set b [$a make]\n\
              $b greet\n",
@@ -1993,7 +1993,7 @@ mod tests {
         // capture in `::other` must not bind in the scope-keyed map (the
         // union may — its documented imprecision).
         let (_r, facts) = facts_for(
-            "oo::class create A { method make {} { return [B new] } }\n\
+            "oo::class create A { method make {} { ::return [::B new] } }\n\
              oo::class create B {}\n\
              proc mk {} { set a [A new]\n set b [$a make] }\n\
              proc other {} { set a 1\n set b [$a make] }\n",

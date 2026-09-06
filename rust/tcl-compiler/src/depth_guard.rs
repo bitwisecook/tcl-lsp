@@ -111,14 +111,17 @@ const SOURCE_WALK_STACK_RESERVE: u32 = MIN_SOURCE_WALK_STACK / 4;
 ///
 /// | walk | bytes per nesting level |
 /// |---|---|
-/// | `lowering::Lowerer::lower_body` ↔ `lower_segmented` ↔ `lower_command` ↔ `lower_foreach` | 18,864 |
+/// | `lowering::Lowerer::lower_body` ↔ `lower_segmented` ↔ `lower_command` ↔ `lower_foreach` | < 24,576 |
 /// | `cfg_builder::CfgBuilder::lower_script` | 8,288 |
 /// | `analyser::commands::Analyser::analyse_body` | 3,840 |
 ///
 /// The lowering chain sets the number: eight Rust frames per braced-body
-/// level, several of them large. 20 KiB is that 18,864 rounded up, so the
-/// arithmetic below keeps a little slack even before the reserve.
-pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 20 * 1024;
+/// level, several of them large. It originally measured 18,864 bytes; retaining
+/// registry-resolved structured-command dependencies in the recursive IR made
+/// the old 20 KiB envelope fail this module's exact constrained-stack test.
+/// 24 KiB is the next conservative envelope, revalidated by that same test, so
+/// the arithmetic below keeps slack even before the reserve.
+pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 24 * 1024;
 
 /// Depth cap for the braced-body descent shared by the lowering, CFG-builder
 /// and analyser walks — issue #1654.
@@ -127,7 +130,7 @@ pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 20 * 1024;
 /// and all three carried a hand-picked 256 that matched this crate's
 /// full-tree convention. That number was never checked against a stack: at
 /// the lowering walk's measured 18,864 bytes a level, 256 levels want about
-/// 4.6 MiB, so ~400 nested `foreach` bodies aborted the process on any
+/// 4.6 MiB at the original measurement, so ~400 nested `foreach` bodies aborted the process on any
 /// default-stack thread — the cap tripped at 256 long after the stack ran
 /// out at ~112 (issue #1654; the containment the caps exist to provide,
 /// absent exactly where it was claimed).

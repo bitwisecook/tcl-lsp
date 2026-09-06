@@ -36,35 +36,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_traced};
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_traced(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::{Code, Completion, NativeCommand, Value, Vm};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -88,9 +63,7 @@ fn vm_output(src: &str) -> String {
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }
@@ -453,6 +426,42 @@ const VECTORS: &[Vector] = &[
         want: "E:boom|enter\nE:boom|1|BOOM|leave\ncatch:1:BOOM",
     },
     Vector {
+        name: "catch leave observes the absorbed command result",
+        script: "proc etracer args { puts \"E:[join $args |]\" }\n\
+                 trace add execution catch {enter leave} etracer\n\
+                 puts result:[catch {error BOOM}]\n",
+        want: "E:catch {error BOOM}|enter\n\
+               E:catch {error BOOM}|0|1|leave\n\
+               result:1",
+    },
+    Vector {
+        name: "catch leave failure escapes rather than being caught by itself",
+        script: "proc fail args {\n\
+                     if {[lindex $args 0] eq {catch {error BOOM}}} { error LEAVEFAIL }\n\
+                 }\n\
+                 trace add execution catch leave fail\n\
+                 set code [catch {catch {error BOOM}} result]\n\
+                 puts [list $code $result]\n",
+        want: "1 LEAVEFAIL",
+    },
+    Vector {
+        name: "try leave observes the final handled result",
+        script: "proc etracer args { puts \"E:[join $args |]\" }\n\
+                 trace add execution try {enter leave} etracer\n\
+                 puts result:[try {error BOOM} on error m {set m HANDLED}]\n",
+        want: "E:try {error BOOM} on error m {set m HANDLED}|enter\n\
+               E:try {error BOOM} on error m {set m HANDLED}|0|HANDLED|leave\n\
+               result:HANDLED",
+    },
+    Vector {
+        name: "try leave failure escapes rather than entering its own handler",
+        script: "proc fail args { error LEAVEFAIL }\n\
+                 trace add execution try leave fail\n\
+                 set code [catch {try {error BOOM} on error m {set m HANDLED}} result]\n\
+                 puts [list $code $result]\n",
+        want: "1 LEAVEFAIL",
+    },
+    Vector {
         name: "an enter-trace error aborts the traced command",
         script: "proc q {} { return Q }\n\
                  proc failtrace args { error TRACEFAIL }\n\
@@ -533,6 +542,87 @@ const VECTORS: &[Vector] = &[
                  trace add execution target {enter leave} e2\n\
                  target\n",
         want: "e2:enter\ne1:enter\ne1:leave\ne2:leave",
+    },
+    Vector {
+        name: "a leave trace added by an enter callback joins this invocation",
+        script: "set log {}\n\
+                 proc late args { lappend ::log late-[lindex $args end] }\n\
+                 proc add args { lappend ::log add-enter; trace add execution target leave late }\n\
+                 proc target {} { lappend ::log body; return T }\n\
+                 trace add execution target enter add\n\
+                 set result [target]\n\
+                 puts [list $result $log]\n",
+        want: "T {add-enter body late-leave}",
+    },
+    Vector {
+        name: "a body-added leave trace joins when the owner was traced at entry",
+        script: "set log {}\n\
+                 proc late args { lappend ::log late-[lindex $args end] }\n\
+                 proc entered args { lappend ::log entered-[lindex $args end] }\n\
+                 proc target {} {\n\
+                     lappend ::log body\n\
+                     trace add execution target leave late\n\
+                     return T\n\
+                 }\n\
+                 trace add execution target enter entered\n\
+                 set result [target]\n\
+                 puts [list $result $log]\n",
+        want: "T {entered-enter body late-leave}",
+    },
+    Vector {
+        name: "a builtin snapshots leave traces after its enter callbacks",
+        script: "set log {}\n\
+                 proc late args { lappend ::log late-[lindex $args end] }\n\
+                 proc add args {\n\
+                     lappend ::log add-enter\n\
+                     trace remove execution list enter add\n\
+                     trace add execution list leave late\n\
+                 }\n\
+                 trace add execution list enter add\n\
+                 set result [list OK]\n\
+                 puts [list $result $log]\n",
+        want: "OK {add-enter late-leave}",
+    },
+    Vector {
+        name: "enter-time rename and replacement cancel the old leave owner",
+        script: "set log {}\n\
+                 proc trace_target args {\n\
+                     set op [lindex $args end]\n\
+                     lappend ::log $op\n\
+                     if {$op eq {enter}} {\n\
+                         rename target moved\n\
+                         proc target {} { lappend ::log new; return NEW }\n\
+                     }\n\
+                 }\n\
+                 proc target {} { lappend ::log old; return OLD }\n\
+                 trace add execution target {enter leave} trace_target\n\
+                 set result [target]\n\
+                 puts [list $result $log]\n",
+        want: "NEW {enter new}",
+    },
+    Vector {
+        name: "enter-time rename away cancels the old leave owner",
+        script: "set log {}\n\
+                 proc trace_target args {\n\
+                     set op [lindex $args end]\n\
+                     lappend ::log $op\n\
+                     if {$op eq {enter}} { rename target moved }\n\
+                 }\n\
+                 proc target {} { return OLD }\n\
+                 trace add execution target {enter leave} trace_target\n\
+                 set code [catch {target} result]\n\
+                 puts [list $code $result $log]\n",
+        want: "1 {invalid command name \"target\"} enter",
+    },
+    Vector {
+        name: "body-time self rename retains the command's leave owner",
+        script: "set log {}\n\
+                 proc trace_target args { lappend ::log [lindex $args end] }\n\
+                 proc target {} { rename target moved; return OLD }\n\
+                 trace add execution target {enter leave} trace_target\n\
+                 set result [target]\n\
+                 puts [list $result $log]\n",
+        want: "OLD {enter leave}",
     },
     Vector {
         name: "enterstep fires newest-first, leavestep oldest-first",
@@ -871,6 +961,55 @@ fn vm_matches_the_pinned_trace_vectors() {
     for v in VECTORS {
         assert_eq!(vm_output(v.script), v.want, "{}", v.name);
     }
+}
+
+struct NativeTarget;
+
+impl NativeCommand for NativeTarget {
+    fn invoke(&self, _vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        Completion::new(Code::Ok, Value::string("NATIVE"), Value::empty())
+    }
+}
+
+/// The embedder/native entry point shares the same post-enter owner snapshot
+/// as bytecode dispatch: an enter callback can add this invocation's leave
+/// trace, while replacing the native command cancels its old leave ownership
+/// before the generic name is re-resolved.
+#[test]
+fn native_invoke_uses_the_post_enter_trace_owner_snapshot() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    vm.register_native_command("target", Rc::new(NativeTarget));
+    let setup = vm
+        .eval_source(
+            "set log {}; \
+             proc late args {lappend ::log late-[lindex $args end]}; \
+             proc add args {lappend ::log add-enter; trace add execution target leave late}; \
+             trace add execution target enter add",
+        )
+        .expect("setup compiles");
+    assert_eq!(setup.code, Code::Ok);
+
+    let result = vm.invoke_command("target", &[]);
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(result.result.to_str().as_ref(), "NATIVE");
+    let log = vm.eval_source("set log").expect("log lookup compiles");
+    assert_eq!(log.code, Code::Ok);
+    assert_eq!(log.result.to_str().as_ref(), "add-enter late-leave");
+
+    vm.register_native_command("target2", Rc::new(NativeTarget));
+    let setup = vm
+        .eval_source(
+            "set log {}; \
+             proc replace args {rename target2 moved; proc target2 {} {return NEW}}; \
+             trace add execution target2 {enter leave} replace",
+        )
+        .expect("replacement setup compiles");
+    assert_eq!(setup.code, Code::Ok);
+
+    let result = vm.invoke_command("target2", &[]);
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(result.result.to_str().as_ref(), "NEW");
 }
 
 /// The table itself is pinned to C Tcl (8.6 and 9.0 agree on every shape).

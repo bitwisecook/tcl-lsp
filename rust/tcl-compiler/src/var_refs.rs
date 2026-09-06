@@ -166,8 +166,8 @@ const DEFAULT_CACHE_SIZE: usize = 512;
 
 /// Scan Tcl words/scripts for referenced variable names.
 ///
-/// Results are cached in a bounded LRU keyed by source text **and** scan
-/// mode. The same word/script strings are scanned repeatedly across SSA,
+/// Results are cached in a bounded LRU keyed by source text, scan mode, and
+/// this scanner's normalised exact lexer config. The same word/script strings are scanned repeatedly across SSA,
 /// GVN, and interprocedural passes, so caching avoids redundant
 /// lexer creation and tokenisation. The mode is part of the key because
 /// value-body and script-body scans of identical text give different
@@ -175,33 +175,60 @@ const DEFAULT_CACHE_SIZE: usize = 512;
 /// script) — issue #1024.
 pub struct VarReferenceScanner {
     options: VarScanOptions,
+    /// Exact lexical policy for the local words / bodies this scanner reads.
+    /// Source-coordinate offsets and the whole-file BOM rule are normalised at
+    /// construction because every scan owns a fresh offset-zero buffer.
+    config: LexerConfig,
     /// Bounded LRU: `order` tracks access recency, `cache` stores results.
     cache: HashMap<CacheKey, BTreeSet<String>>,
     order: VecDeque<CacheKey>,
     cache_size: usize,
 }
 
-/// LRU key: the scanned text plus the mode it was scanned in
-/// (`quoted_body` — see [`scan_tokens`]).
-type CacheKey = (String, bool);
+/// LRU key: the scanned text, the mode it was scanned in (`quoted_body` — see
+/// [`scan_tokens`]), and the exact local lexical policy.
+type CacheKey = (String, bool, LexerConfig);
 
 impl VarReferenceScanner {
     /// Create a new scanner with the given options and default cache size.
     #[must_use]
     pub fn new(options: VarScanOptions) -> Self {
-        Self {
-            options,
-            cache: HashMap::new(),
-            order: VecDeque::new(),
-            cache_size: DEFAULT_CACHE_SIZE,
-        }
+        Self::with_config(options, LexerConfig::default())
+    }
+
+    /// Create a scanner under an exact lexer configuration.
+    ///
+    /// Scanner inputs are extracted words or nested scripts, never the whole
+    /// file. Normalising here keeps every token span local to its [`SourceMap`]
+    /// while preserving all dialect grammar axes.
+    #[must_use]
+    pub fn with_config(options: VarScanOptions, config: LexerConfig) -> Self {
+        Self::with_config_and_cache_size(options, config, DEFAULT_CACHE_SIZE)
+    }
+
+    /// Create a scanner for a registry-backed compatibility caller that does
+    /// not already carry the document's exact [`LexerConfig`].
+    #[must_use]
+    pub fn for_registry(options: VarScanOptions, registry: &CommandRegistry) -> Self {
+        Self::with_config(options, LexerConfig::for_profile(registry.profile()))
     }
 
     /// Create a new scanner with a custom cache size.
     #[must_use]
     pub fn with_cache_size(options: VarScanOptions, cache_size: usize) -> Self {
+        Self::with_config_and_cache_size(options, LexerConfig::default(), cache_size)
+    }
+
+    /// [`Self::with_config`] with a custom cache size.
+    #[must_use]
+    pub fn with_config_and_cache_size(
+        options: VarScanOptions,
+        config: LexerConfig,
+        cache_size: usize,
+    ) -> Self {
         Self {
             options,
+            config: config.nested().normalized(),
             cache: HashMap::new(),
             order: VecDeque::new(),
             cache_size,
@@ -213,6 +240,12 @@ impl VarReferenceScanner {
     #[must_use]
     pub fn element_qualified(&self) -> bool {
         self.options.element_qualified
+    }
+
+    /// The normalised local-source lexer configuration owned by this scanner.
+    #[must_use]
+    pub fn lexer_config(&self) -> LexerConfig {
+        self.config
     }
 
     /// The canonical name this scanner's consumer records for a raw
@@ -262,7 +295,7 @@ impl VarReferenceScanner {
         registry: &CommandRegistry,
         quoted_body: bool,
     ) -> BTreeSet<String> {
-        let key: CacheKey = (source.to_owned(), quoted_body);
+        let key: CacheKey = (source.to_owned(), quoted_body, self.config);
 
         // Check cache.
         if let Some(cached) = self.cache.get(&key) {
@@ -273,7 +306,7 @@ impl VarReferenceScanner {
             return result;
         }
 
-        let result = scan_tokens(source, registry, self.options, quoted_body);
+        let result = scan_tokens(source, registry, self.options, quoted_body, self.config);
 
         // Insert into cache.
         self.cache.insert(key.clone(), result.clone());
@@ -346,13 +379,11 @@ fn scan_tokens(
     registry: &CommandRegistry,
     options: VarScanOptions,
     quoted_body: bool,
+    config: LexerConfig,
 ) -> BTreeSet<String> {
     let mut vars_found = BTreeSet::new();
     let source_map = SourceMap::new(source);
-    // The document's grammar comes from the dialect-selected registry's own
-    // profile (the route `dynamic_names::lexer_config_for` takes): a name
-    // recovered under the wrong word grammar tracks the wrong cell.
-    let mut lexer = Lexer::with_config(source, LexerConfig::for_profile(registry.profile()));
+    let mut lexer = Lexer::with_config(source, config);
     if quoted_body {
         lexer = lexer.as_quoted_body();
     }
@@ -371,7 +402,7 @@ fn scan_tokens(
             TokenType::Cmd if options.recurse_cmd_substitutions => {
                 let text = source_map.token_text(*tok);
                 if !text.is_empty() {
-                    vars_found.extend(scan_tokens(text, registry, options, false));
+                    vars_found.extend(scan_tokens(text, registry, options, false, config));
                 }
             }
             // `JimTcl`'s `$(…)`. Its body is an *expression*, not a nested
@@ -383,7 +414,7 @@ fn scan_tokens(
             TokenType::ExprSugar => {
                 let text = source_map.token_text(*tok);
                 if !text.is_empty() {
-                    vars_found.extend(scan_tokens(text, registry, options, false));
+                    vars_found.extend(scan_tokens(text, registry, options, false, config));
                 }
             }
             _ => {}
@@ -396,6 +427,7 @@ fn scan_tokens(
             registry,
             options.include_reads_before_write,
             options.element_qualified,
+            config,
         );
         vars_found.extend(role_vars);
     }
@@ -413,10 +445,11 @@ fn scan_var_read_role_names(
     registry: &CommandRegistry,
     include_rmw: bool,
     element_qualified: bool,
+    config: LexerConfig,
 ) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let source_map = SourceMap::new(source);
-    let lexer = Lexer::with_config(source, LexerConfig::for_profile(registry.profile()));
+    let lexer = Lexer::with_config(source, config);
 
     let Ok(tokens) = lexer.tokenise_all() else {
         return result;
@@ -498,12 +531,15 @@ fn scan_var_read_role_names(
 /// creating a [`VarReferenceScanner`] and reusing it.
 #[must_use]
 pub fn vars_in_word(text: &str, registry: &CommandRegistry) -> BTreeSet<String> {
-    let mut scanner = VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: false,
-        element_qualified: false,
-    });
+    let mut scanner = VarReferenceScanner::for_registry(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: false,
+        },
+        registry,
+    );
     scanner.scan_word(text, registry)
 }
 
@@ -604,7 +640,7 @@ pub fn scan_var_ref_forms_braced_with_config(
     config: LexerConfig,
 ) -> Vec<(String, bool)> {
     let mut out = Vec::new();
-    collect_ref_forms(text, &mut out, config);
+    collect_ref_forms(text, &mut out, config.nested().normalized());
     out
 }
 
@@ -619,6 +655,7 @@ pub fn command_subst_texts_with_config(text: &str, config: LexerConfig) -> Vec<S
     if !text.contains('[') {
         return out;
     }
+    let config = config.nested().normalized();
     let source_map = SourceMap::new(text);
     let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return out;
@@ -670,6 +707,34 @@ mod tests {
         );
         // recurses into command substitutions
         assert_eq!(scan_var_ref_forms_cfg("[foo $b]"), vec!["b".to_owned()]);
+    }
+
+    #[test]
+    fn local_scans_normalize_offsets_bom_and_keep_jim_grammar() {
+        let config = LexerConfig {
+            base_offset: 91,
+            base_line: 7,
+            base_col: 13,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::for_dialect("jim")
+        };
+        assert_eq!(
+            scan_var_ref_forms_with_config("$($a)", config),
+            vec!["a".to_owned()]
+        );
+
+        let scanner = VarReferenceScanner::with_config(VarScanOptions::default(), config);
+        assert_eq!(scanner.lexer_config().base_offset, 0);
+        assert_eq!(scanner.lexer_config().base_line, 0);
+        assert_eq!(scanner.lexer_config().base_col, 0);
+        assert_eq!(
+            scanner.lexer_config().leading_bom,
+            tcl_lexer::LeadingBom::Content
+        );
+        assert_eq!(
+            scanner.lexer_config().var_syntax,
+            tcl_dialect::VarSyntax::Jim
+        );
     }
 
     #[test]
@@ -878,7 +943,11 @@ mod tests {
         scanner.scan_word("$c", &reg); // should evict $a
         assert_eq!(scanner.cache.len(), 2);
         assert!(
-            !scanner.cache.contains_key(&("$a".to_owned(), true)),
+            !scanner.cache.contains_key(&(
+                "$a".to_owned(),
+                true,
+                LexerConfig::default().nested().normalized(),
+            )),
             "oldest entry should be evicted"
         );
     }

@@ -619,6 +619,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp eval path arg ?arg ...?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::Body)],
+        // The complete post-command argv includes the resolved `eval`
+        // subcommand at index zero, followed by the interpreter path.
+        body_interpreter: BodyInterpreter::Argument(1),
         // The script runs in a *child* interpreter — a separate command /
         // variable space — so the analyser opens an isolated scope for it
         // rather than merging the child's definitions into the parent (a

@@ -18,9 +18,10 @@
 
 //! Per-command codegen hook dispatch.
 //!
-//! Commands with compiled bytecode forms (beyond what
-//! `cmd_subst::emit_inline_cmd_subst` already handles) are routed
-//! through this dispatcher. Hook selection is registry-driven: it
+//! Commands with compiled bytecode forms are routed through this dispatcher.
+//! Statement-only [`CodegenHookId`] emitters live here; statement-safe forms
+//! of a value-position [`tcl_registry::hooks::InlineCodegenHookId`] delegate
+//! to their existing emitter. Hook selection is registry-driven: it
 //! reads the active [`tcl_registry::CommandRegistry`] from
 //! `ctx.registry` so dialect-loaded specs (iRules, Tk, EDA) drive
 //! codegen-hook resolution. The compiler still owns the per-variant
@@ -34,8 +35,8 @@ use super::super::Operand;
 use super::super::values::{is_qualified, split_array_ref};
 use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
 
-/// Try to emit specialised bytecode for `cmd args...` via a per-
-/// command hook. Returns `true` if the hook handled the command;
+/// Try to emit specialised bytecode for `cmd args...` via a typed registry
+/// hook. Returns `true` if the hook handled the command;
 /// `false` if the caller should fall back to the generic invoke.
 ///
 /// Hooks are responsible for leaving a single result value on top of
@@ -48,29 +49,84 @@ pub fn try_bytecoded(
     args: &[String],
     used_generic_invoke: &mut bool,
 ) -> bool {
-    // A name this unit renames, aliases, or shadows with a proc no longer
-    // denotes the builtin the hook's emitter open-codes, so decline to
-    // specialise and let the generic invoke dispatch on whatever the name
-    // actually holds — the static stand-in for C Tcl's `INST_START_CMD`
-    // compile-epoch re-dispatch (issue #1585).
-    if !ctx.trusts_builtin(cmd) {
-        return false;
+    if let Some((hook, identity)) = resolved_codegen_hook(ctx, cmd, args) {
+        let emitted = dispatch_codegen_hook(hook, ctx, args, used_generic_invoke);
+        if emitted {
+            ctx.require_command_binding(&identity);
+            return true;
+        }
     }
+
+    // Some typed inline hooks are shared with value position. Their command
+    // statement bridge owns the narrower applicability check and trailing
+    // result discard; unsupported hook variants safely fall through here.
+    ctx.try_inline_statement_codegen(cmd, args, used_generic_invoke)
+}
+
+/// Return the registry hook and binding identity available to the bytecode
+/// emitter before its command-specific shape guard runs.
+fn resolved_codegen_hook(
+    ctx: &CodegenCtx,
+    cmd: &str,
+    args: &[String],
+) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+    if ctx.plain_command_dispatch {
+        return None;
+    }
+    registry_codegen_hook(ctx, cmd, args)
+}
+
+/// Resolve the registry-owned typed hook for this exact command shape without
+/// applying a compilation unit's conservative source-level trust summary.
+///
+/// The registry/profile answer is the semantic fact. Both specialised
+/// statements and generic value-position surrogates retain the returned
+/// binding, so the VM can admit or deoptimise the artifact against the live
+/// command table. That runtime proof is more precise than rejecting a hook
+/// merely because another procedure in the same source can mutate its name.
+fn registry_codegen_hook(
+    ctx: &CodegenCtx,
+    cmd: &str,
+    args: &[String],
+) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     // The registry's own point (issues #1462/#1463): a
     // profile-built registry suppresses the specialised emission of a
     // command its release does not have, keeping it on the generic invoke
     // where the runtime's availability gate can reject it.
-    let Some(resolved) =
-        ctx.registry
-            .resolve_call(cmd, &arg_refs, ctx.registry.own_surface_query())
-    else {
-        return false;
-    };
-    let Some(hook) = resolved.codegen_hook else {
-        return false;
-    };
-    dispatch_codegen_hook(hook, ctx, args, used_generic_invoke)
+    let resolved = ctx
+        .registry
+        .resolve_call(cmd, &arg_refs, ctx.registry.own_surface_query())?;
+    let hook = resolved.codegen_hook?;
+    let identity = ctx.command_binding_identity(cmd, resolved.spec.name);
+    Some((hook, identity))
+}
+
+/// Binding assumed when this exact command shape would use a typed bytecode
+/// hook in statement position.
+///
+/// Whole-command substitutions deliberately use a yieldable generic invoke,
+/// but C Tcl has already entered a command whose compile hook accepted that
+/// shape. Probe the same dispatcher in an isolated context so the surrogate
+/// inherits the hook's one authoritative applicability guard rather than a
+/// second command/arity table.
+pub(crate) fn applicable_codegen_binding(
+    ctx: &CodegenCtx,
+    cmd: &str,
+    args: &[String],
+) -> Option<tcl_runtime_api::CommandBindingIdentity> {
+    if ctx.plain_command_dispatch {
+        return None;
+    }
+    let (hook, identity) = registry_codegen_hook(ctx, cmd, args)?;
+    let mut probe = CodegenCtx::new(ctx.is_proc, &[], ctx.registry);
+    probe.numbers = ctx.numbers;
+    probe.escapes = ctx.escapes;
+    probe.braced_var = ctx.braced_var;
+    probe.dialect = ctx.dialect;
+    probe.cmd_arg_braced.clone_from(&ctx.cmd_arg_braced);
+    let mut used_generic_invoke = false;
+    dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke).then_some(identity)
 }
 
 /// Dispatch a typed [`CodegenHookId`] to its emitter.
@@ -1602,6 +1658,15 @@ mod tests {
             &mut proc_ctx,
             "global",
             &["::g::x".into()],
+            &mut used
+        ));
+        // `global` scans `::` even inside an array-looking index. The generic
+        // command owns that unusual tail rule; NSUPVAR's scalar LVT form does
+        // not represent it.
+        assert!(!try_bytecoded(
+            &mut proc_ctx,
+            "global",
+            &["v(x::y)".into()],
             &mut used
         ));
         let mut top = CodegenCtx::new(false, &[], &registry);

@@ -27,13 +27,12 @@
 //! [`LoweringCommand`] context type, and the shared helpers
 //! (`make_call`, `extract_single_expr_arg_with_config`, `parse_decimal_int`).
 
-use std::collections::HashSet;
-
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, Span};
 use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_runtime_api::CommandBindingIdentity;
 
-use crate::alias::{CommandAliasMap, expr_alias_names};
+use crate::alias::{CommandAliasMap, resolve_alias};
 use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{CommandTokens, Statement};
 
@@ -43,6 +42,8 @@ pub struct LoweringCommand<'a> {
     pub span: Span,
     /// Command name (first word).
     pub name: &'a str,
+    /// Rooted constructed namespace in which the command head resolves.
+    pub resolution_namespace: &'a str,
     /// Arguments (words after the command name).
     pub args: &'a [String],
     /// Whether each word is a single token.
@@ -63,6 +64,26 @@ pub struct LoweringCommand<'a> {
     /// [`crate::expr_ast::ExprNode::Raw`] — which no downstream fold can
     /// evaluate.
     pub dialect: Option<&'static tcl_dialect::DialectProfile>,
+    /// The exact lexer grammar used to segment this command and its nested
+    /// command substitutions.
+    pub lexer_config: LexerConfig,
+}
+
+/// A statement produced by a registry-described lowering hook together with
+/// the exact command binding that made the specialisation valid.
+///
+/// The binding is returned by the same resolution that selected the hook. This
+/// keeps lowering as the semantic owner of provenance: downstream IR/CFG and
+/// codegen never need to reconstruct a command head from source text and risk
+/// disagreeing with the registry context and alias selection used here.
+pub(crate) struct ResolvedLowering {
+    pub(crate) statement: Statement,
+    /// Exact registry binding when the hook replaced ordinary command
+    /// dispatch with specialised IR. A hook may still return a `Call` or
+    /// `Barrier` to preserve analysis metadata while deliberately leaving the
+    /// command for codegen/runtime dispatch; those fallback shapes carry no
+    /// lowering dependency here.
+    pub(crate) binding: Option<CommandBindingIdentity>,
 }
 
 impl LoweringCommand<'_> {
@@ -140,11 +161,46 @@ pub fn try_lower_hook(
     context: Option<&tcl_registry::model::ResolvedContext>,
     safe_on_uninit: bool,
 ) -> Option<Statement> {
+    try_lower_hook_with_binding(cmd, aliases, registry, context, safe_on_uninit)
+        .map(|lowered| lowered.statement)
+}
+
+/// Try to lower a command and retain the exact registry binding consumed by
+/// the hook selection.
+///
+/// [`try_lower_hook`] remains the public statement-only convenience API;
+/// lowering proper uses this provenance-preserving form when constructing IR.
+#[must_use]
+pub(crate) fn try_lower_hook_with_binding(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    safe_on_uninit: bool,
+) -> Option<ResolvedLowering> {
     let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
     let resolved =
         tcl_registry::model::resolve_invocation_in_context(registry, context, cmd.name, &arg_refs)?;
     let hook = resolved.semantics.lowering_hook?;
-    dispatch_lowering_hook(hook, cmd, aliases, safe_on_uninit)
+    let mut statement =
+        dispatch_lowering_hook(hook, cmd, aliases, registry, context, safe_on_uninit)?;
+    let binding = CommandBindingIdentity::in_rooted_namespace(
+        cmd.resolution_namespace,
+        cmd.name,
+        resolved.canonical_command,
+    );
+    if let Statement::ExprEval {
+        command_binding, ..
+    } = &mut statement
+    {
+        *command_binding = binding.clone();
+    }
+    let binding = (!matches!(
+        statement,
+        Statement::Call { .. } | Statement::Barrier { .. }
+    ))
+    .then_some(binding);
+    Some(ResolvedLowering { statement, binding })
 }
 
 /// Dispatch a typed [`LoweringHookId`] to its implementation.
@@ -160,14 +216,16 @@ pub fn dispatch_lowering_hook(
     hook: LoweringHookId,
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
     safe_on_uninit: bool,
 ) -> Option<Statement> {
     match hook {
         LoweringHookId::Expr => crate::lowering::hooks::control::try_lower_expr(cmd),
         LoweringHookId::Return => Some(crate::lowering::hooks::control::try_lower_return(
-            cmd, aliases,
+            cmd, aliases, registry, context,
         )),
-        LoweringHookId::Set => Some(lower_set(cmd, aliases)),
+        LoweringHookId::Set => Some(lower_set(cmd, aliases, registry, context)),
         LoweringHookId::Incr => Some(crate::lowering::hooks::incr::try_lower_incr(
             cmd,
             safe_on_uninit,
@@ -253,7 +311,14 @@ pub(crate) fn word_content_base(span: Span, single: bool, text: &str) -> Option<
 
 // set
 
-fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
+// Set lowering handles its mutually exclusive specialised IR forms.
+#[allow(clippy::too_many_lines)]
+fn lower_set(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+) -> Statement {
     if has_expansion(cmd) || cmd.args.len() != 2 {
         return make_call(cmd);
     }
@@ -365,9 +430,15 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 };
             }
             ArgTokenKind::Cmd => {
-                if let Some(stmt) =
-                    set_expr_from_command_value(cmd, aliases, value, name, name_braced)
-                {
+                if let Some(stmt) = set_expr_from_command_value(
+                    cmd,
+                    aliases,
+                    registry,
+                    context,
+                    value,
+                    name,
+                    name_braced,
+                ) {
                     return stmt;
                 }
             }
@@ -395,6 +466,8 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                         name: name.clone(),
                         name_braced,
                         expr,
+                        command_binding: None,
+                        fallback_value: value.clone(),
                         expr_base,
                     };
                 }
@@ -421,6 +494,8 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
 fn set_expr_from_command_value(
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
     value: &str,
     name: &str,
     name_braced: bool,
@@ -431,11 +506,13 @@ fn set_expr_from_command_value(
         .strip_prefix('[')
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(value);
-    let alias_names = expr_alias_names(aliases);
-    let (expr_arg, rel_base) = extract_single_expr_arg_with_config(
+    let (expr_cmd, canonical_cmd, expr_arg, rel_base) = extract_single_expr_arg_with_config(
         inner,
-        &alias_names,
-        tcl_lexer::LexerConfig::for_profile(cmd.dialect),
+        aliases,
+        cmd.resolution_namespace,
+        registry,
+        context,
+        cmd.lexer_config,
     )?;
     let expr = parse_expr_for_profile(&expr_arg, cmd.dialect);
     // Anchor the expression text absolutely when both the `[...]` value
@@ -458,6 +535,12 @@ fn set_expr_from_command_value(
         name: name.to_owned(),
         name_braced,
         expr,
+        command_binding: Some(CommandBindingIdentity::in_rooted_namespace(
+            cmd.resolution_namespace,
+            expr_cmd,
+            canonical_cmd,
+        )),
+        fallback_value: value.to_owned(),
         expr_base,
     })
 }
@@ -681,8 +764,11 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 
 /// Extract the single expression argument from a `[expr ...]` command.
 ///
-/// Returns `Some((expr_text, content_base))` if the text is
-/// `expr <one-word>` (or an expr alias), `None` otherwise.
+/// Returns `Some((source_name, canonical_name, expr_text, content_base))` when
+/// the registry resolves the text's command (or a compiler-tracked alias) to
+/// the expression lowering operation with exactly one literal word. Rooted
+/// spellings and dialect-specific surfaces therefore follow ordinary command
+/// resolution instead of a second name table.
 /// `content_base` is the offset of the expression text's first byte
 /// *within `text`* when the word content is a verbatim slice of it
 /// (see [`word_content_base`]), letting callers anchor expression-AST
@@ -691,16 +777,33 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 /// `pub(crate)` so per-command hook modules under
 /// [`crate::lowering::hooks`] (e.g. `control::try_lower_return`) can
 /// share the same single-arg-extraction logic as `lower_set` here.
-/// `config` is the document's own [`tcl_lexer::LexerConfig`], so the
-/// `[expr …]` interior is re-lexed under the grammar the document was lexed
-/// with rather than the Tcl 9.x default.
+#[cfg(test)]
+pub(crate) fn extract_single_expr_arg(
+    text: &str,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+) -> Option<(String, String, String, Option<u32>)> {
+    extract_single_expr_arg_with_config(text, aliases, "::", registry, None, LexerConfig::default())
+}
+
+/// Config-aware form of [`extract_single_expr_arg`], used by production
+/// lowering so nested command boundaries match the document dialect. The
+/// explicit [`LexerConfig`] keeps `JimTcl` expression sugar, iRules word joins,
+/// and release-sensitive expansion rules on the same resolved profile as the
+/// outer command.
 pub(crate) fn extract_single_expr_arg_with_config(
     text: &str,
-    expr_aliases: &HashSet<String>,
-    config: tcl_lexer::LexerConfig,
-) -> Option<(String, Option<u32>)> {
+    aliases: &CommandAliasMap,
+    resolution_namespace: &str,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    config: LexerConfig,
+) -> Option<(String, String, String, Option<u32>)> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
+    if !crate::segmenter::has_exactly_one_command_with_config(text, config) {
+        return None;
+    }
     let sm = SourceMap::new(text);
     let lexer = Lexer::with_config(text, config);
     let Ok(tokens) = lexer.tokenise_all() else {
@@ -752,8 +855,29 @@ pub(crate) fn extract_single_expr_arg_with_config(
     if words.len() != 2 {
         return None;
     }
+    // The head itself must be one literal token. `SourceMap::token_text`
+    // deliberately returns a substitution's payload (`$expr` -> `expr`,
+    // `[pick]` -> `pick`), which is useful while reconstructing ordinary word
+    // values but is not proof of a command binding. Fusing such a computed
+    // head would turn runtime dispatch into the registry command whose name
+    // merely happened to appear inside the substitution.
+    if !single[0] || !literal[0] {
+        return None;
+    }
     let cmd_word = &words[0];
-    if cmd_word != "expr" && !expr_aliases.contains(cmd_word.as_str()) {
+    let resolved_name = match resolve_alias(cmd_word, aliases, resolution_namespace) {
+        Some((target, prepended)) if prepended.is_empty() => target,
+        Some(_) => return None,
+        None => cmd_word.clone(),
+    };
+    let arg_refs = [words[1].as_str()];
+    let resolved = tcl_registry::model::resolve_invocation_in_context(
+        registry,
+        context,
+        &resolved_name,
+        &arg_refs,
+    )?;
+    if resolved.semantics.lowering_hook != Some(LoweringHookId::Expr) {
         return None;
     }
     if !single[1] {
@@ -765,7 +889,12 @@ pub(crate) fn extract_single_expr_arg_with_config(
         return None;
     }
     let base = word_content_base(word_spans[1], single[1], &words[1]);
-    Some((words[1].clone(), base))
+    Some((
+        cmd_word.clone(),
+        resolved.canonical_command.to_owned(),
+        words[1].clone(),
+        base,
+    ))
 }
 
 /// Validate text as a decimal integer, returning the source text if valid.
@@ -991,37 +1120,74 @@ mod tests {
         assert_eq!(parse_decimal_int("007"), None); // leading zeros rejected
     }
 
-    fn extract_single_expr_arg_cfg(
-        text: &str,
-        aliases: &HashSet<String>,
-    ) -> Option<(String, Option<u32>)> {
-        extract_single_expr_arg_with_config(text, aliases, tcl_lexer::LexerConfig::default())
-    }
-
     #[test]
     fn extract_expr_arg_basic() {
-        let aliases = HashSet::new();
+        let aliases = CommandAliasMap::new();
+        let registry = CommandRegistry::build_default();
         // token_text strips braces from Str tokens; the content base is the
         // offset just past the `{` (the expr text's first byte in `text`).
         assert_eq!(
-            extract_single_expr_arg_cfg("expr {$a + $b}", &aliases),
-            Some(("$a + $b".into(), Some(6)))
+            extract_single_expr_arg("expr {$a + $b}", &aliases, &registry),
+            Some(("expr".into(), "expr".into(), "$a + $b".into(), Some(6)))
         );
     }
 
     #[test]
     fn extract_expr_arg_too_many_words() {
-        let aliases = HashSet::new();
-        assert_eq!(extract_single_expr_arg_cfg("expr $a + $b", &aliases), None);
+        let aliases = CommandAliasMap::new();
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            extract_single_expr_arg("expr $a + $b", &aliases, &registry),
+            None
+        );
+    }
+
+    #[test]
+    fn extract_expr_arg_refuses_a_second_command() {
+        let aliases = CommandAliasMap::new();
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            extract_single_expr_arg("expr; {1+2}", &aliases, &registry),
+            None
+        );
+        assert_eq!(
+            extract_single_expr_arg("expr {1+2};", &aliases, &registry),
+            Some(("expr".into(), "expr".into(), "1+2".into(), Some(6))),
+        );
     }
 
     #[test]
     fn extract_expr_arg_alias() {
-        let mut aliases = HashSet::new();
-        aliases.insert("=".into());
+        let mut aliases = CommandAliasMap::new();
+        aliases.insert("::=".into(), ("expr".into(), vec![]));
+        let registry = CommandRegistry::build_default();
         assert_eq!(
-            extract_single_expr_arg_cfg("= {1+2}", &aliases),
-            Some(("1+2".into(), Some(3)))
+            extract_single_expr_arg("= {1+2}", &aliases, &registry),
+            Some(("=".into(), "expr".into(), "1+2".into(), Some(3)))
+        );
+    }
+
+    #[test]
+    fn extract_expr_arg_rooted_head_uses_registry_identity() {
+        let aliases = CommandAliasMap::new();
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            extract_single_expr_arg("::expr {1+2}", &aliases, &registry),
+            Some(("::expr".into(), "expr".into(), "1+2".into(), Some(8)))
+        );
+    }
+
+    #[test]
+    fn extract_expr_arg_refuses_a_computed_head() {
+        let aliases = CommandAliasMap::new();
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            extract_single_expr_arg("$expr {1+2}", &aliases, &registry),
+            None
+        );
+        assert_eq!(
+            extract_single_expr_arg("[pick] {1+2}", &aliases, &registry),
+            None
         );
     }
 
@@ -1035,6 +1201,8 @@ mod tests {
         let kinds = vec![ArgTokenKind::Esc, ArgTokenKind::ExprSugar];
         let aliases = CommandAliasMap::new();
         let jim = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(jim).commands();
+        let lexer_config = LexerConfig::for_profile(Some(jim));
         let cmd = LoweringCommand {
             span: Span::new(0, 13),
             name: "set",
@@ -1044,10 +1212,21 @@ mod tests {
             tokens: None,
             arg_kinds: &kinds,
             dialect: Some(jim),
+            resolution_namespace: "::",
+            lexer_config,
         };
-        match lower_set(&cmd, &aliases) {
-            Statement::AssignExpr { name, expr, .. } => {
+        match lower_set(&cmd, &aliases, registry, None) {
+            Statement::AssignExpr {
+                name,
+                expr,
+                command_binding,
+                ..
+            } => {
                 assert_eq!(name, "x");
+                assert!(
+                    command_binding.is_none(),
+                    "syntax-owned expression sugar must not invent a command binding"
+                );
                 let rendered = format!("{expr:?}");
                 assert!(
                     rendered.contains('a'),
@@ -1067,14 +1246,17 @@ mod tests {
         let cmd = LoweringCommand {
             span: Span::new(0, 13),
             name: "set",
+            resolution_namespace: "::",
             args: &args,
             single_token_word: &single,
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
             dialect: None,
+            lexer_config: LexerConfig::default(),
         };
-        let result = lower_set(&cmd, &aliases);
+        let registry = CommandRegistry::build_default();
+        let result = lower_set(&cmd, &aliases, &registry, None);
         assert!(
             matches!(result, Statement::AssignConst { .. }),
             "expected AssignConst; got {result:?}"
@@ -1090,14 +1272,17 @@ mod tests {
         let cmd = LoweringCommand {
             span: Span::new(0, 8),
             name: "set",
+            resolution_namespace: "::",
             args: &args,
             single_token_word: &single,
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
             dialect: None,
+            lexer_config: LexerConfig::default(),
         };
-        let result = lower_set(&cmd, &aliases);
+        let registry = CommandRegistry::build_default();
+        let result = lower_set(&cmd, &aliases, &registry, None);
         assert!(
             matches!(result, Statement::AssignConst { .. }),
             "expected AssignConst for integer; got {result:?}"
@@ -1112,12 +1297,14 @@ mod tests {
         let cmd = LoweringCommand {
             span: Span::new(0, 20),
             name: "upvar",
+            resolution_namespace: "::",
             args: &args,
             single_token_word: &single,
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
             dialect: None,
+            lexer_config: LexerConfig::default(),
         };
         let result = lower_upvar(&cmd);
         assert!(result.is_some());
@@ -1205,12 +1392,14 @@ mod tests {
         let cmd = LoweringCommand {
             span: Span::new(0, 13),
             name: "set",
+            resolution_namespace: "::",
             args: &args,
             single_token_word: &single,
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
             dialect: None,
+            lexer_config: LexerConfig::default(),
         };
         let result = try_lower_hook(&cmd, &aliases, &registry, None, false);
         assert!(
@@ -1232,12 +1421,14 @@ mod tests {
         let cmd = LoweringCommand {
             span: Span::new(0, 4),
             name: "puts",
+            resolution_namespace: "::",
             args: &args,
             single_token_word: &single,
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
             dialect: None,
+            lexer_config: LexerConfig::default(),
         };
         assert!(try_lower_hook(&cmd, &aliases, &registry, None, false).is_none());
     }

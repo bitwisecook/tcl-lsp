@@ -70,6 +70,7 @@ pub fn spec() -> CommandSpec {
         // the caller's frame), so recurse into it for highlighting and
         // treat it as structural.
         arg_role_resolver: Some(bind_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         script_timing_resolver: Some(bind_script_timing),
         callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,

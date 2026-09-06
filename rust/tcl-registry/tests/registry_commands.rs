@@ -2144,12 +2144,9 @@ fn tcloo_dispatch_keyword_membership() {
         reg.method_dispatch_keyword("self"),
         Some(MethodDispatchKind::Introspection)
     );
-    // A leading `::` resolves to the bare name — consumers used to match
-    // `"my" | "::my"` by hand.
-    assert_eq!(
-        reg.method_dispatch_keyword("::my"),
-        Some(MethodDispatchKind::SelfDispatch)
-    );
+    // Tcl does not install a global `::my`; the leading `::` therefore must
+    // not fall back to the contextual bare word.
+    assert_eq!(reg.method_dispatch_keyword("::my"), None);
     for negative in ["puts", "set", "link", "proc", "oo::define"] {
         assert_eq!(
             reg.method_dispatch_keyword(negative),
@@ -2216,6 +2213,10 @@ fn tcloo_method_context_membership() {
             reg.resolves_only_in_method_context(name),
             "{name} carries the trait so the query must answer for it"
         );
+        assert!(
+            !reg.resolves_only_in_method_context(&format!("::{name}")),
+            "Tcl has no global ::{name} command"
+        );
     }
     for qualified in [
         "oo::Helpers::link",
@@ -2281,7 +2282,7 @@ fn tcloo_method_alias_binding_membership() {
     carriers.dedup();
     assert_eq!(carriers, ["link"]);
     assert!(reg.binds_method_alias("link"));
-    assert!(reg.binds_method_alias("::link"));
+    assert!(!reg.binds_method_alias("::link"));
     for negative in ["my", "next", "self", "oo::Helpers::link", "proc"] {
         assert!(
             !reg.binds_method_alias(negative),
@@ -2340,6 +2341,10 @@ fn tcloo_method_frame_membership() {
         assert!(
             reg.resolves_only_in_method_context(name),
             "{name}: the method-frame set is a subset of the scoped set",
+        );
+        assert!(
+            !reg.requires_oo_method_frame(&format!("::{name}")),
+            "Tcl has no global ::{name} command",
         );
     }
     assert!(reg.resolves_only_in_method_context("my"));

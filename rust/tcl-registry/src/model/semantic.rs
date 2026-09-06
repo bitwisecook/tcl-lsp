@@ -228,17 +228,27 @@ mod tests {
 
     #[test]
     fn one_generation_per_environment_id_so_equality_is_identity() {
-        let a = SemanticContext::for_environment("tcl8.6");
-        let b = SemanticContext::for_environment("tcl8.6");
+        // Environment registrations deliberately advance the live generation
+        // and registry tests exercise that channel concurrently.  Sample both
+        // handles inside one stable generation so this test measures the
+        // promotion invariant rather than racing a legitimate reload.
+        let stable_pair = |left: &str, right: &str| loop {
+            let before = crate::model::ingress::environments().generation();
+            let a = SemanticContext::for_environment(left);
+            let b = SemanticContext::for_environment(right);
+            if crate::model::ingress::environments().generation() == before {
+                break (a, b);
+            }
+        };
+
+        let (a, b) = stable_pair("tcl8.6", "tcl8.6");
         assert_eq!(a, b);
         assert_eq!(a.environment_id(), "tcl8.6");
         assert_ne!(a, SemanticContext::for_environment("tcl9.0"));
         // Aliases resolve to the canonical environment, so they share the one
         // generation rather than interning a second view.
-        assert_eq!(
-            SemanticContext::for_environment("irules"),
-            SemanticContext::for_environment("f5-irules")
-        );
+        let (alias, canonical) = stable_pair("irules", "f5-irules");
+        assert_eq!(alias, canonical);
     }
 
     #[test]

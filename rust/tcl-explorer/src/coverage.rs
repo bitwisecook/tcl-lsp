@@ -182,6 +182,7 @@ pub fn assert_durable_field_inventory(unit: &CompilationUnit) {
         source: _source,
         ir_module: _ir_module,
         cfg_module: _cfg_module,
+        command_mutations: _command_mutations,
         top_level: _top_level,
         procedures: _procedures,
         methods: _methods,

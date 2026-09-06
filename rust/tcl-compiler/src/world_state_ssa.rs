@@ -902,7 +902,7 @@ fn domain_wildcards(domain: StateTransitionDomain) -> Vec<WorldRegion> {
         // Namespace membership/lookup and namespace-specific `unknown`
         // handlers are distinct partitions, so a dynamic namespace operand
         // must invalidate both.
-        StateTransitionDomain::Namespaces => vec![
+        StateTransitionDomain::Namespaces | StateTransitionDomain::CommandResolution => vec![
             region(WorldRegionKind::NamespaceLookup),
             region(WorldRegionKind::NamespaceUnknown),
         ],

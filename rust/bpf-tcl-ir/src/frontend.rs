@@ -49,13 +49,6 @@ use crate::unroll::unroll_loops;
 /// # Errors
 /// Returns the first [`BpfError`] encountered (bad event, out-of-subset
 /// construct, type error, …).
-/// The lexer config a BPF body is re-read under: the registry's own
-/// profile, so the CFG builder splits `[…]` texts exactly as the lowering
-/// did (`docs/design/dialect-profile-model.md` §2.5).
-fn lexer_config(registry: &tcl_registry::CommandRegistry) -> tcl_lexer::LexerConfig {
-    tcl_lexer::LexerConfig::for_profile(registry.profile())
-}
-
 pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // The BPF profile provides the typed verbs + `when` *and* its exact Tcl 9.0
     // embedding facts. This is deliberately NOT the iRules dialect, and the BPF
@@ -142,7 +135,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
                 None => unrolled,
             };
             check_policy(&expanded, &policy, registry)?;
-            let cfg = build_cfg_function("main", &expanded, false, lexer_config(registry));
+            let cfg = build_cfg_function("main", &expanded, false, registry, false);
             let program = lower_function(&cfg, ProgType::SocketFilter, registry)?;
             programs.push(BpfProgramDecl {
                 event: "SOCKET_FILTER".to_owned(),
@@ -295,7 +288,8 @@ fn lower_when_decl(
         &format!("::bpf::{event}"),
         &expanded,
         false,
-        lexer_config(registry),
+        registry,
+        false,
     );
     let program = lower_function(&cfg, prog_type, registry).map_err(|e| e.offset(source_base))?;
 

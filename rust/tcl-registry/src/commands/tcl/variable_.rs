@@ -27,7 +27,6 @@ use tcl_dialect::surface;
 
 const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
-    StateTransitionDomain::Namespaces,
     StateTransitionDomain::VariableTraces,
 ];
 
@@ -60,6 +59,7 @@ fn variable_state_transitions(arguments: InvocationArguments<'_>) -> StateTransi
             VariableCellAliasTransition {
                 local: local_alias_name(&variable),
                 target: VariableAliasTarget::CurrentNamespace { variable },
+                writes_value: argument_index + 1 < arguments.len(),
             },
         ));
     }

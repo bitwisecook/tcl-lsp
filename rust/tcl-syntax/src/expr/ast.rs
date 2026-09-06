@@ -31,7 +31,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use tcl_lexer::{Lexer, SourceMap, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
 use crate::naming::normalise_var_name;
 
@@ -396,8 +396,19 @@ impl ExprNode {
     /// the document is read.
     #[must_use]
     pub fn vars_with_grammar(&self, grammar: tcl_dialect::LexerGrammar) -> HashSet<String> {
+        self.vars_with_config(LexerConfig::from_grammar(grammar))
+    }
+
+    /// [`Self::vars_with_grammar`] with the caller's exact lexer
+    /// configuration. This preserves non-profile grammar overrides when a
+    /// [`Self::Raw`] fallback has to be re-lexed.
+    #[must_use]
+    pub fn vars_with_config(&self, config: LexerConfig) -> HashSet<String> {
         let mut result = HashSet::new();
-        self.collect_vars(grammar, &mut result);
+        // `Raw` nodes own local expression text. Keep every grammar axis, but
+        // never apply a caller's source offsets or whole-file BOM prologue rule
+        // to that detached buffer.
+        self.collect_vars(config.nested().normalized(), &mut result);
         result
     }
 
@@ -586,8 +597,8 @@ impl ExprNode {
     }
 
     /// Recursive variable collection helper.
-    fn collect_vars(&self, grammar: tcl_dialect::LexerGrammar, out: &mut HashSet<String>) {
-        self.collect_vars_with(Some(grammar), &|_text, name| name.to_owned(), out);
+    fn collect_vars(&self, config: LexerConfig, out: &mut HashSet<String>) {
+        self.collect_vars_with(Some(config), &|_text, name| name.to_owned(), out);
     }
 
     /// Test-only: the default-grammar form. Production callers hold the
@@ -613,9 +624,17 @@ impl ExprNode {
         &self,
         grammar: tcl_dialect::LexerGrammar,
     ) -> HashSet<String> {
+        self.vars_element_qualified_with_config(LexerConfig::from_grammar(grammar))
+    }
+
+    /// [`Self::vars_element_qualified_with_grammar`] with the caller's exact
+    /// lexer configuration. This is the preferred form when a document or
+    /// compilation-unit config is already available.
+    #[must_use]
+    pub fn vars_element_qualified_with_config(&self, config: LexerConfig) -> HashSet<String> {
         let mut result = HashSet::new();
         self.collect_vars_with(
-            Some(grammar),
+            Some(config.nested().normalized()),
             &|text, _name| crate::naming::element_var_name(text).to_owned(),
             &mut result,
         );
@@ -644,12 +663,12 @@ impl ExprNode {
     /// The shared walk under [`Self::vars`] / [`Self::vars_element_qualified`]:
     /// `pick` maps a `Var` node's `(text, name)` to the reported name.
     ///
-    /// `grammar` is the document's grammar used to re-lex the `Raw` fallback
-    /// text; `None` stops the walk at `Raw` instead
+    /// `config` is the document's exact lexer configuration used to re-lex the
+    /// `Raw` fallback text; `None` stops the walk at `Raw` instead
     /// ([`Self::vars_parsed_only`]).
     fn collect_vars_with(
         &self,
-        grammar: Option<tcl_dialect::LexerGrammar>,
+        config: Option<LexerConfig>,
         pick: &dyn Fn(&str, &str) -> String,
         out: &mut HashSet<String>,
     ) {
@@ -661,24 +680,24 @@ impl ExprNode {
                 }
             }
             Self::Binary { left, right, .. } => {
-                left.collect_vars_with(grammar, pick, out);
-                right.collect_vars_with(grammar, pick, out);
+                left.collect_vars_with(config, pick, out);
+                right.collect_vars_with(config, pick, out);
             }
             Self::Unary { operand, .. } => {
-                operand.collect_vars_with(grammar, pick, out);
+                operand.collect_vars_with(config, pick, out);
             }
             Self::Ternary {
                 condition,
                 true_branch,
                 false_branch,
             } => {
-                condition.collect_vars_with(grammar, pick, out);
-                true_branch.collect_vars_with(grammar, pick, out);
-                false_branch.collect_vars_with(grammar, pick, out);
+                condition.collect_vars_with(config, pick, out);
+                true_branch.collect_vars_with(config, pick, out);
+                false_branch.collect_vars_with(config, pick, out);
             }
             Self::Call { args, .. } => {
                 for arg in args {
-                    arg.collect_vars_with(grammar, pick, out);
+                    arg.collect_vars_with(config, pick, out);
                 }
             }
             // Command substitutions may contain variable references,
@@ -693,8 +712,8 @@ impl ExprNode {
             // substitutions are left to the SSA layer, matching the
             // `Self::Command` policy above.
             Self::Raw { text } => {
-                if let Some(grammar) = grammar {
-                    collect_raw_vars_with(text, grammar, pick, out);
+                if let Some(config) = config {
+                    collect_raw_vars_with(text, config, pick, out);
                 }
             }
         }
@@ -705,23 +724,34 @@ impl ExprNode {
 /// `pick` (the same `(text, base-name)` mapping as the AST walk).
 fn collect_raw_vars_with(
     text: &str,
-    grammar: tcl_dialect::LexerGrammar,
+    config: LexerConfig,
     pick: &dyn Fn(&str, &str) -> String,
     out: &mut HashSet<String>,
 ) {
     let source_map = SourceMap::new(text);
-    let Ok(tokens) =
-        Lexer::with_config(text, tcl_lexer::LexerConfig::from_grammar(grammar)).tokenise_all()
-    else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return;
     };
     for tok in &tokens {
-        if tok.kind == TokenType::Var {
-            let raw = source_map.token_text(*tok);
-            let picked = pick(raw, normalise_var_name(raw));
-            if !picked.is_empty() {
-                out.insert(picked);
+        match tok.kind {
+            TokenType::Var => {
+                let raw = source_map.token_text(*tok);
+                let picked = pick(raw, normalise_var_name(raw));
+                if !picked.is_empty() {
+                    out.insert(picked);
+                }
             }
+            // Jim's `$(...)` is expression substitution, not a nested command.
+            // Its inner variables belong to the enclosing expression just as a
+            // directly-written `$x` does. `Command` deliberately remains opaque
+            // here; nested script reads are owned by the SSA layer.
+            TokenType::ExprSugar => {
+                let inner = source_map.token_text(*tok);
+                if !inner.is_empty() {
+                    collect_raw_vars_with(inner, config, pick, out);
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -839,80 +869,6 @@ pub fn expr_text(node: &ExprNode) -> String {
         ExprNode::Raw { text } => text.clone(),
         _ => render_expr(node),
     }
-}
-
-/// Which command asked an existence question.
-///
-/// The two spellings are *not* interchangeable when the queried name is
-/// known to be a scalar: `info exists` answers "is this name bound",
-/// `array exists` answers "is this name bound **to an array**".  A consumer
-/// that folds the query to a constant has to know which one it is looking
-/// at (issue #1239).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExistenceCommand {
-    /// `info exists NAME` — true for any bound name, scalar or array.
-    Info,
-    /// `array exists NAME` — true only when `NAME` is bound to an array.
-    Array,
-}
-
-/// A recognised `[info exists X]` / `[array exists X]` existence query.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExistenceQuery {
-    /// The queried variable name, exactly as written.
-    pub var: String,
-    /// True for `![info exists X]` — the condition is the query's negation.
-    pub negated: bool,
-    /// Which of the two spellings asked.
-    pub command: ExistenceCommand,
-}
-
-/// Recognise an `[info exists X]` / `[array exists X]` existence-query
-/// condition.  Used to inject guarded-region read narrowing
-/// (`analyser::diagnostics::helpers::collect_existence_guards`), suppress
-/// the existence-query word's W210 read,
-/// and fold the predicate to a constant (analyser I230).
-///
-/// Only the simple two-/three-word command-substitution form is matched
-/// (e.g. `[info exists name]`); anything embedded in a larger expression
-/// returns `None`.
-#[must_use]
-pub fn existence_query_var(node: &ExprNode) -> Option<ExistenceQuery> {
-    match node {
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand,
-        } => existence_query_var(operand).map(|q| ExistenceQuery {
-            negated: !q.negated,
-            ..q
-        }),
-        ExprNode::Command { text, .. } => {
-            existence_query_in_text(text).map(|(var, command)| ExistenceQuery {
-                var,
-                negated: false,
-                command,
-            })
-        }
-        _ => None,
-    }
-}
-
-/// Parse a bracketed command-substitution `text` (e.g. `"[info exists
-/// x]"`) and return the queried variable plus the spelling that asked, when
-/// it is exactly `info exists NAME` or `array exists NAME`.
-#[must_use]
-pub fn existence_query_in_text(text: &str) -> Option<(String, ExistenceCommand)> {
-    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    let words: Vec<&str> = inner.split_whitespace().collect();
-    if words.len() != 3 || words[1] != "exists" {
-        return None;
-    }
-    let command = match words[0] {
-        "info" => ExistenceCommand::Info,
-        "array" => ExistenceCommand::Array,
-        _ => return None,
-    };
-    Some((words[2].to_owned(), command))
 }
 
 #[cfg(test)]
@@ -1169,6 +1125,28 @@ mod tests {
         assert!(vars.contains("col"), "got {vars:?}");
         assert!(vars.contains("arr"), "got {vars:?}");
         assert!(vars.contains("ns::name"), "got {vars:?}");
+    }
+
+    #[test]
+    fn raw_node_exact_config_uses_local_nested_coordinates() {
+        let node = ExprNode::Raw {
+            text: "$($col)".into(),
+        };
+        let config = LexerConfig {
+            base_offset: 91,
+            base_line: 7,
+            base_col: 13,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::for_dialect("jim")
+        };
+        assert_eq!(
+            node.vars_with_config(config),
+            HashSet::from(["col".to_owned()])
+        );
+        assert_eq!(
+            node.vars_element_qualified_with_config(config),
+            HashSet::from(["col".to_owned()])
+        );
     }
 
     #[test]

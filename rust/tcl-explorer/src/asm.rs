@@ -47,7 +47,9 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 
 use tcl_compiler::codegen::format::{format_function_asm, instruction_operand_text};
-use tcl_compiler::codegen::{FunctionAsm, ModuleAsm, Op, Operand, codegen_module};
+use tcl_compiler::codegen::{
+    FunctionAsm, ModuleAsm, Op, Operand, codegen_module_with_command_mutations,
+};
 use tcl_compiler::ir::Module;
 use tcl_lexer::LineIndex;
 // The pack-carrying registry, not the plain one: since the EDA vendor
@@ -72,8 +74,17 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     // all-exit-switch terminators, opaque-switch loop-jump edges,
     // guaranteed-iteration loop rotation) that must not reach codegen.  Rebuild
     // a `faithful_exceptions`-off CFG from the same IR for the disassembly view.
-    let codegen_cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&result.unit.ir_module, false);
-    let module: ModuleAsm = codegen_module(&codegen_cfg, &result.unit.ir_module, registry);
+    let codegen_cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry(
+        &result.unit.ir_module,
+        false,
+        registry,
+    );
+    let module: ModuleAsm = codegen_module_with_command_mutations(
+        &codegen_cfg,
+        &result.unit.ir_module,
+        registry,
+        &result.unit.command_mutations,
+    );
 
     let mut entries: Vec<Value> = Vec::new();
     entries.push(function_explorer(

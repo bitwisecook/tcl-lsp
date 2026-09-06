@@ -71,7 +71,7 @@ export type Catalogues = Record<string, Variant[]>;
 /** How a field is edited, from `schema::FieldKind`. */
 export interface FieldKind {
   tag: string;
-  /** Present on `enum` / `flagSet`: the catalogue to pick from. */
+  /** Present on `enum` / `flagSet` / `enumList`: the catalogue to pick from. */
   catalogue?: string;
   /** Present on `enum` / `flagSet`: whether the Rust field is an `Option`. */
   optional?: boolean;

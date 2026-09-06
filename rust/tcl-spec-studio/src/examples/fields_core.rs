@@ -193,6 +193,25 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "variable_write_min_args",
+        Example {
+            code: "regexp {\\d+} $text\nregexp {\\d+} $text match\nputs $match",
+            focuses: &[
+                focus(
+                    0,
+                    "$text",
+                    "two arguments are below the floor, so this form writes no variable",
+                ),
+                focus(
+                    1,
+                    "match",
+                    "the third argument meets the floor and becomes a write target",
+                ),
+                focus(2, "$match", "resolves to the variable written by that form"),
+            ],
+        },
+    ),
+    (
         "return_type_hook",
         Example {
             code: "set count [regexp {\\d+} $text match]\nset digits [regexp -inline {\\d+} $text]",

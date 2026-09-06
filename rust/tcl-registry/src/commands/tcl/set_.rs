@@ -107,6 +107,7 @@ pub fn spec() -> CommandSpec {
             | Traits::FIRST_ARG_VARNAME,
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(set_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead],
         assigns_variable_at: Some(0),
         // `set NAME [TYPE inst …]` — when the value word is a construction,
         // `NAME` ends up holding an object handle.  Registry data so the

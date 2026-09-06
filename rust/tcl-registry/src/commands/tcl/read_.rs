@@ -120,6 +120,7 @@ pub fn spec() -> CommandSpec {
         // Unchanged across every fetched version, 8.4 through 9.1.
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(read_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Channel],
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

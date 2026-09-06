@@ -1,6 +1,6 @@
 # spectcl golden snapshot v1
 # regenerate with `cargo xtask pack-goldens`; do not edit by hand
-pack tcllib dsl 1.0 display None load_error None
+pack tcllib dsl 2.1 display None load_error None
 target_dependent false
 file_extensions []
 provides []
@@ -11,12 +11,12 @@ dialects []
 registrations 3
 notices 6
 notice command struct::tree / object_class ::struct::tree 96 presentation `arg_role_resolver` hook body on `method walk` is not yet bindable; the field abstains
-notice command fileutil::traverse 290 presentation unknown flag `-readonly` on `option` dropped
-notice command fileutil::traverse 292 presentation unknown flag `-readonly` on `option` dropped
-notice command fileutil::traverse 294 presentation unknown flag `-readonly` on `option` dropped
-notice command fileutil::traverse / object_class ::fileutil::traverse / method foreach 322 presentation unknown flag `-body-kind` on `arg` dropped
-notice command fileutil::traverse / object_class ::fileutil::traverse / method foreach 322 presentation unknown flag `Plain` on `arg` dropped
+notice command fileutil::traverse 291 presentation unknown flag `-readonly` on `option` dropped
+notice command fileutil::traverse 293 presentation unknown flag `-readonly` on `option` dropped
+notice command fileutil::traverse 295 presentation unknown flag `-readonly` on `option` dropped
+notice command fileutil::traverse / object_class ::fileutil::traverse / method foreach 323 presentation unknown flag `-body-kind` on `arg` dropped
+notice command fileutil::traverse / object_class ::fileutil::traverse / method foreach 323 presentation unknown flag `Plain` on `arg` dropped
 commands 3
-command struct::tree line 36 overrides false degraded false spec fc72a591c0e3c8b8 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command struct::graph line 193 overrides false degraded false spec 54f78e1b6d32c38d hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command fileutil::traverse line 247 overrides false degraded false spec 47e9279dfd307640 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command struct::tree line 36 overrides false degraded false spec 5bc971ec003dd5b9 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command struct::graph line 194 overrides false degraded false spec 527623de949cae43 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command fileutil::traverse line 248 overrides false degraded false spec c8de22ff3eb1c6a3 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

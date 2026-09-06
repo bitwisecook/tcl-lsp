@@ -39,8 +39,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_bytecode::FunctionAsm;
-use tcl_runtime_api::Completion;
+use tcl_runtime_api::{Completion, ScriptCompileTarget};
 
 use crate::command::{Command, NativeCommand};
 use crate::error::TclError;
@@ -52,8 +51,10 @@ use crate::value::Value;
 /// Holds the compiled activation behind an `Rc`, so invoking it is a pointer
 /// clone rather than a deep copy of the bytecode — the difference between a
 /// hook body that costs its own execution and one that pays for its
-/// compilation shape on every call site. It also retains its source solely to
-/// refresh the activation when the owning VM changes dialect profile.
+/// compilation shape on every call site. It also retains its source to refresh
+/// the activation when the owning VM changes dialect profile or namespace, or
+/// a specialised command binding no longer resolves to the implementation it
+/// assumed.
 #[derive(Clone)]
 pub struct FunctionHandle {
     source: String,
@@ -61,10 +62,8 @@ pub struct FunctionHandle {
 }
 
 struct FunctionHandleState {
-    asm: Rc<FunctionAsm>,
+    unit: crate::compiled::CompiledUnit,
     owner_nonce: u64,
-    profile: &'static tcl_dialect::DialectProfile,
-    profile_generation: u64,
 }
 
 impl std::fmt::Debug for FunctionHandle {
@@ -72,11 +71,22 @@ impl std::fmt::Debug for FunctionHandle {
         f.debug_struct("FunctionHandle")
             .field("source", &self.source)
             .field("owner_nonce", &self.state.borrow().owner_nonce)
-            .field("profile", &self.state.borrow().profile.name)
-            .field("instructions", &self.state.borrow().asm.instructions.len())
+            .field(
+                "instructions",
+                &self.state.borrow().unit.asm.instructions.len(),
+            )
             .field(
                 "profile_generation",
-                &self.state.borrow().profile_generation,
+                &self.state.borrow().unit.profile_generation,
+            )
+            .field("command_epoch", &self.state.borrow().unit.command_epoch)
+            .field(
+                "source_namespace",
+                &self.state.borrow().unit.source_namespace,
+            )
+            .field(
+                "compiler_generation",
+                &self.state.borrow().unit.compiler.generation(),
             )
             .finish()
     }
@@ -91,10 +101,8 @@ impl Vm {
         Ok(FunctionHandle {
             source: src.to_owned(),
             state: Rc::new(RefCell::new(FunctionHandleState {
-                asm: self.compile_source_cached(src)?,
+                unit: self.compile_script_cached(src)?,
                 owner_nonce: self.owner_nonce,
-                profile: self.dialect_profile(),
-                profile_generation: self.profile_generation(),
             })),
         })
     }
@@ -117,17 +125,16 @@ impl Vm {
         parameters: &[&str],
         body: &str,
     ) -> Result<(), TclError> {
-        let registered = self.qualify_name(name.strip_prefix("::").unwrap_or(name));
-        let namespace = registered
-            .rsplit_once("::")
-            .map_or_else(String::new, |(namespace, _)| namespace.to_owned());
+        let registered = self.qualify_name(name);
+        let namespace = crate::interp::key_holder_and_tail_unrooted(&registered).0;
         let (parameters, has_args) =
             crate::command::parse_params(&parameters.join(" ")).map_err(TclError::new)?;
-        let Some(compiled) = self.compile_dynamic_body(body) else {
-            return Err(TclError::new(format!(
-                "procedure \"{name}\": could not compile body"
-            )));
-        };
+        let compiled = self
+            .prepare_procedure_body(None, &parameters, &namespace, body)
+            .map_err(|mut error| {
+                error.message = format!("procedure \"{name}\": {}", error.message);
+                error
+            })?;
         let ns_id = self.definition_namespace_token(&namespace);
         self.define_proc(crate::command::ProcDef {
             name: registered,
@@ -138,8 +145,6 @@ impl Vm {
             body: compiled,
             body_src: Value::string(body),
             usage_name: None,
-            compiled_epoch: 0,
-            compiled_profile_generation: self.profile_generation(),
         });
         Ok(())
     }
@@ -171,19 +176,53 @@ impl Vm {
         if handle.state.borrow().owner_nonce != self.owner_nonce {
             return crate::interp::err("FunctionHandle belongs to a different Vm");
         }
-        if !std::ptr::eq(handle.state.borrow().profile, self.dialect_profile()) {
-            let asm = match self.compile_source_cached(&handle.source) {
-                Ok(asm) => asm,
+        let profile_changed =
+            handle.state.borrow().unit.profile_generation != self.profile_generation();
+        let compiler_changed = !handle
+            .state
+            .borrow()
+            .unit
+            .compiler
+            .is_current_service(self.compiler_generation());
+        let epoch_changed = handle.state.borrow().unit.command_epoch != self.trace_deopt_epoch();
+        let namespace = self.current_ns().to_owned();
+        let namespace_changed = handle.state.borrow().unit.source_namespace != namespace;
+        let bindings_match = self.function_command_bindings_match(&handle.state.borrow().unit.asm);
+        if profile_changed
+            || compiler_changed
+            || epoch_changed
+            || namespace_changed
+            || !bindings_match
+        {
+            let current_is_plain = handle.state.borrow().unit.asm.plain_command_dispatch;
+            let plain_target = || ScriptCompileTarget {
+                source: &handle.source,
+                namespace: &namespace,
+            };
+            let asm = match if self.step_trace_active() {
+                self.compile_plain_function_cached(plain_target()).map(Some)
+            } else if profile_changed || compiler_changed || namespace_changed {
+                self.compile_fast_function_for_namespace(&handle.source, &namespace)
+            } else if !current_is_plain && !bindings_match {
+                self.compile_plain_function_cached(plain_target()).map(Some)
+            } else if epoch_changed && current_is_plain {
+                self.compile_fast_function_for_namespace(&handle.source, &namespace)
+            } else {
+                Ok(Some(Rc::clone(&handle.state.borrow().unit.asm)))
+            } {
+                Ok(Some(asm)) => asm,
+                Ok(None) => match self.compile_plain_function_cached(plain_target()) {
+                    Ok(asm) => asm,
+                    Err(error) => return crate::command::completion_from_tcl_error(error),
+                },
                 Err(error) => return crate::command::completion_from_tcl_error(error),
             };
             *handle.state.borrow_mut() = FunctionHandleState {
-                asm,
+                unit: self.compiled_unit(asm, namespace),
                 owner_nonce: self.owner_nonce,
-                profile: self.dialect_profile(),
-                profile_generation: self.profile_generation(),
             };
         }
-        self.run_function_rc(Rc::clone(&handle.state.borrow().asm))
+        self.run_compiled_unit(handle.state.borrow().unit.clone())
     }
 
     /// Register an embedder command carrying its own state.

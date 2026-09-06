@@ -41,6 +41,197 @@ pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
+/// A compiler assumption about one runtime command binding.
+///
+/// `resolution_namespace` is the unrooted constructed namespace key at the
+/// source binding site; `name` is the spelling whose live resolution must be
+/// checked there (and may be an alias); `identity` is the registry command
+/// implementation the specialised operation was compiled for. Keeping all
+/// three parts makes aliases and inlined cross-namespace bodies first-class
+/// without teaching a runtime which source names happen to compile specially.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CommandBindingIdentity {
+    /// Constructed namespace key in which the source binding resolved.
+    ///
+    /// This uses the runtime ABI's unrooted representation: `""` is global,
+    /// `"n"` is `::n`, and every byte of a literal-colon namespace segment is
+    /// otherwise preserved.
+    pub resolution_namespace: String,
+    /// Source binding to resolve in [`Self::resolution_namespace`].
+    pub name: String,
+    /// Stable registry identity expected at that binding.
+    pub identity: String,
+}
+
+impl CommandBindingIdentity {
+    /// Construct a binding requirement in the global namespace.
+    #[must_use]
+    pub fn new(name: impl Into<String>, identity: impl Into<String>) -> Self {
+        Self {
+            resolution_namespace: String::new(),
+            name: name.into(),
+            identity: identity.into(),
+        }
+    }
+
+    /// Construct a binding requirement in an unrooted constructed namespace.
+    #[must_use]
+    pub fn in_namespace(
+        resolution_namespace: impl Into<String>,
+        name: impl Into<String>,
+        identity: impl Into<String>,
+    ) -> Self {
+        Self {
+            resolution_namespace: resolution_namespace.into(),
+            name: name.into(),
+            identity: identity.into(),
+        }
+    }
+
+    /// Construct a binding requirement from the compiler's rooted constructed
+    /// namespace representation.
+    ///
+    /// Exactly one global-root marker is removed. This must not use written
+    /// Tcl name canonicalisation: an unrooted key may itself begin with colons
+    /// because they can be literal namespace-segment bytes.
+    #[must_use]
+    pub fn in_rooted_namespace(
+        resolution_namespace: &str,
+        name: impl Into<String>,
+        identity: impl Into<String>,
+    ) -> Self {
+        Self::in_namespace(
+            resolution_namespace
+                .strip_prefix("::")
+                .unwrap_or(resolution_namespace),
+            name,
+            identity,
+        )
+    }
+}
+
+#[cfg(test)]
+mod command_binding_tests {
+    use super::CommandBindingIdentity;
+
+    #[test]
+    fn rooted_constructed_namespace_loses_exactly_one_root_marker() {
+        assert_eq!(
+            CommandBindingIdentity::in_rooted_namespace("::n", "expr", "expr").resolution_namespace,
+            "n",
+        );
+        assert_eq!(
+            CommandBindingIdentity::in_rooted_namespace(":::", "expr", "expr").resolution_namespace,
+            ":",
+            "a literal-colon namespace segment must not be canonicalised as Tcl source",
+        );
+    }
+}
+
+/// A compiler assumption about one exact user-procedure binding.
+///
+/// Unlike [`CommandBindingIdentity`], this is not a registry implementation:
+/// `resolution_namespace` and `invocation_name` identify the source binding
+/// whose call the compiler erased, while `name` is the canonical rooted
+/// constructed command key selected there. `parameters` and `body` identify
+/// the source definition copied into the caller. A runtime may execute that
+/// caller only while the source binding still resolves to that exact command
+/// key and it still holds an equivalent user procedure.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProcedureBindingIdentity {
+    /// Constructed namespace key in which the source invocation resolved.
+    ///
+    /// This uses the runtime ABI's unrooted representation: `""` is global,
+    /// `"n"` is `::n`, and literal namespace-segment bytes are preserved.
+    pub resolution_namespace: String,
+    /// Source invocation to resolve in [`Self::resolution_namespace`].
+    pub invocation_name: String,
+    /// Canonical rooted constructed procedure name (for example `::ns::p`).
+    pub name: String,
+    /// Raw formal-parameter list value, including defaults.
+    pub parameters: String,
+    /// Raw procedure body value copied by the inliner.
+    pub body: String,
+}
+
+impl ProcedureBindingIdentity {
+    /// Construct an exact user-procedure binding requirement in the global
+    /// namespace.
+    #[must_use]
+    pub fn new(
+        invocation_name: impl Into<String>,
+        name: impl Into<String>,
+        parameters: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Self {
+        Self::in_namespace("", invocation_name, name, parameters, body)
+    }
+
+    /// Construct an exact user-procedure binding requirement in an unrooted
+    /// constructed namespace.
+    #[must_use]
+    pub fn in_namespace(
+        resolution_namespace: impl Into<String>,
+        invocation_name: impl Into<String>,
+        name: impl Into<String>,
+        parameters: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Self {
+        Self {
+            resolution_namespace: resolution_namespace.into(),
+            invocation_name: invocation_name.into(),
+            name: name.into(),
+            parameters: parameters.into(),
+            body: body.into(),
+        }
+    }
+
+    /// Construct a requirement from the compiler's rooted constructed
+    /// namespace representation.
+    ///
+    /// Exactly one global-root marker is removed. Written Tcl name
+    /// canonicalisation must not be applied to a constructed namespace key.
+    #[must_use]
+    pub fn in_rooted_namespace(
+        resolution_namespace: &str,
+        invocation_name: impl Into<String>,
+        name: impl Into<String>,
+        parameters: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Self {
+        Self::in_namespace(
+            resolution_namespace
+                .strip_prefix("::")
+                .unwrap_or(resolution_namespace),
+            invocation_name,
+            name,
+            parameters,
+            body,
+        )
+    }
+}
+
+#[cfg(test)]
+mod procedure_binding_tests {
+    use super::ProcedureBindingIdentity;
+
+    #[test]
+    fn rooted_constructed_namespace_loses_exactly_one_root_marker() {
+        let binding =
+            ProcedureBindingIdentity::in_rooted_namespace("::n", "p", "::n::p", "", "return ok");
+        assert_eq!(binding.resolution_namespace, "n");
+        assert_eq!(binding.invocation_name, "p");
+        assert_eq!(binding.name, "::n::p");
+
+        assert_eq!(
+            ProcedureBindingIdentity::in_rooted_namespace(":::", "p", ":::::p", "", "return ok",)
+                .resolution_namespace,
+            ":",
+            "a literal-colon namespace segment must not be canonicalised as Tcl source",
+        );
+    }
+}
+
 /// Target-neutral compiler/runtime code-generation ABI descriptors and wasm32
 /// transport layout constants.
 pub mod codegen_abi;
@@ -53,6 +244,79 @@ pub mod guard;
 /// A compilation failure surfaced by [`CompileService`].
 #[derive(Debug, Clone)]
 pub struct CompileError(pub String);
+
+/// The source-level context required to compile a Tcl procedure body.
+///
+/// Procedure bodies are not scripts: unqualified variables live in a local
+/// variable table seeded by the formal parameter names, `return` terminates a
+/// procedure activation, and command resolution starts in the procedure's
+/// namespace. Keeping this target typed prevents a runtime compiler from
+/// accidentally compiling a body through the top-level script entry point.
+#[derive(Debug, Clone, Copy)]
+pub struct ProcedureCompileTarget<'a> {
+    /// Body source, with offsets relative to the body itself.
+    pub source: &'a str,
+    /// Formal parameter names in declaration order (defaults are a runtime
+    /// binding concern and do not affect bytecode generation).
+    pub parameters: &'a [String],
+    /// Canonical unrooted constructed namespace key in which the procedure
+    /// body resolves commands. The empty string denotes the global namespace;
+    /// this is an identity, not a written Tcl name, so a literal `:` segment is
+    /// retained verbatim.
+    pub namespace: &'a str,
+}
+
+/// A runtime script together with the namespace in which its command words
+/// resolve.
+///
+/// Dynamic `eval`/command-substitution bodies are script frames, not procedure
+/// frames, but their compiler provenance still needs the exact constructed
+/// namespace. Keeping this target typed prevents a compiler from silently
+/// stamping global binding assumptions onto a namespaced evaluation.
+#[derive(Debug, Clone, Copy)]
+pub struct ScriptCompileTarget<'a> {
+    /// Script source, with offsets relative to this string.
+    pub source: &'a str,
+    /// Canonical unrooted constructed namespace key. Empty denotes global.
+    pub namespace: &'a str,
+}
+
+/// Command-dispatch form requested for a procedure-body compilation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcedureDispatch {
+    /// Registry-specialised bytecode guarded by its command-binding summary.
+    Optimised,
+    /// Ordinary runtime dispatch for every command.
+    Plain,
+}
+
+/// Compiler-owned command-at-a-time parse plan for a runtime script.
+///
+/// Tcl parses scripts one command at a time.  A malformed command therefore
+/// does not prevent earlier complete commands from running; after that prefix
+/// completes normally, the malformed tail raises its parse error without
+/// performing substitutions.  The compiler owns the lexer grammar needed to
+/// find that boundary, while runtimes own execution, so this small value is
+/// the seam between them.
+#[derive(Debug, Clone)]
+pub struct ScriptCommandPlan {
+    /// Byte length of the complete-command prefix.  This is always a UTF-8
+    /// boundary in the supplied source.
+    pub complete_prefix_len: usize,
+    /// Parse error raised if the complete prefix finishes normally.
+    pub fatal_tail: Option<CompileError>,
+}
+
+impl ScriptCommandPlan {
+    /// A clean script whose whole source is executable.
+    #[must_use]
+    pub fn complete(source_len: usize) -> Self {
+        Self {
+            complete_prefix_len: source_len,
+            fatal_tail: None,
+        }
+    }
+}
 
 /// Compiles a Tcl source string to a runtime-executable module at runtime.
 ///
@@ -99,6 +363,26 @@ pub trait CompileService {
         }
     }
 
+    /// Compile a runtime script in its exact command-resolution namespace.
+    ///
+    /// The root-namespace default preserves existing compiler services. A
+    /// non-root target fails closed because delegating to
+    /// [`Self::compile_for_profile`] would attach incorrect global binding
+    /// provenance to namespaced bytecode.
+    fn compile_script_for_profile(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        if target.namespace.is_empty() {
+            self.compile_for_profile(target.source, profile)
+        } else {
+            Err(CompileError(
+                "CompileService does not support namespaced script compilation".to_string(),
+            ))
+        }
+    }
+
     /// Compile `src` with every registry-driven inline/structured lowering
     /// hook suppressed: every command compiles to a plain dispatch, so
     /// execution traces — including `enterstep`/`leavestep` step traces —
@@ -109,11 +393,14 @@ pub trait CompileService {
     /// Used to recompile a proc's (or any dynamically-evaluated script's)
     /// body once a step-capable execution trace targets it, and reverted the
     /// same way once the last such trace is removed — the VM never leaves a
-    /// proc permanently de-optimised. The default falls back to [`compile`]
-    /// (an embedder that never threads trace-deopt information keeps its
-    /// existing behaviour; the divergence stays but nothing breaks).
+    /// proc permanently de-optimised. The default fails closed: a compiler
+    /// service must explicitly implement plain dispatch before the runtime can
+    /// safely recover from command mutation or expose step-visible execution.
     fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
-        self.compile(src)
+        let _ = src;
+        Err(CompileError(
+            "CompileService does not support plain command dispatch".to_string(),
+        ))
     }
 
     /// Profile-aware counterpart of [`Self::compile_traced`]. See
@@ -133,6 +420,77 @@ pub trait CompileService {
                 profile.name
             )))
         }
+    }
+
+    /// Compile `src` with command invocations preserved as ordinary runtime
+    /// dispatches for `profile`.
+    ///
+    /// This is the semantic name for the de-optimised form shared by two
+    /// runtime conditions: step-capable execution traces must observe every
+    /// command, and a command-table mutation may have replaced a builtin that
+    /// an optimised unit would otherwise bypass. Both require exactly the
+    /// same compiler contract, so the runtime selects one path rather than
+    /// maintaining parallel trace and mutation compilers.
+    ///
+    /// The existing trace-aware method remains the implementation seam for
+    /// compile services that already override it. Its default is deliberately
+    /// fail-closed: an optimising compiler must explicitly provide this
+    /// capability before the runtime may use it for invalidation recovery.
+    fn compile_plain_dispatch_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compile_traced_for_profile(src, profile)
+    }
+
+    /// Plain-dispatch counterpart of [`Self::compile_script_for_profile`].
+    /// The same fail-closed namespace rule applies even though the returned
+    /// artifact must have no specialised command dependencies: structured
+    /// body lowering and nested definitions still consume the script context.
+    fn compile_plain_script_for_profile(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        if target.namespace.is_empty() {
+            self.compile_plain_dispatch_for_profile(target.source, profile)
+        } else {
+            Err(CompileError(
+                "CompileService does not support namespaced plain script compilation".to_string(),
+            ))
+        }
+    }
+
+    /// Locate the complete-command prefix and optional fatal parse tail of a
+    /// runtime script under `profile`'s exact lexer grammar.
+    ///
+    /// The default preserves compatibility with compile services that do not
+    /// expose their parser: the later whole-script compile remains their error
+    /// boundary. Compiler-backed services should override this so `catch` and
+    /// `try` can execute a valid prefix before observing a malformed tail.
+    fn script_command_plan_for_profile(
+        &self,
+        src: &str,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> ScriptCommandPlan {
+        ScriptCommandPlan::complete(src.len())
+    }
+
+    /// Compile a procedure body for an exact dialect profile and dispatch
+    /// mode. The default deliberately fails closed: silently delegating to
+    /// [`Self::compile_for_profile`] would create script-context bytecode with
+    /// no parameter LVT and incorrect `return`/local-variable semantics.
+    fn compile_procedure_for_profile(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        let _ = (target, profile, dispatch);
+        Err(CompileError(
+            "CompileService does not support procedure-body compilation".to_string(),
+        ))
     }
 }
 

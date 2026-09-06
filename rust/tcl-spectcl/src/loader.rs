@@ -249,6 +249,10 @@ impl Log {
         self.since(line, word, "2.0");
     }
 
+    fn v21(&mut self, line: u32, word: &str) {
+        self.since(line, word, "2.1");
+    }
+
     fn say(&mut self, line: u32, message: impl Into<String>) {
         self.notices.push(Notice {
             context: self.context.clone(),
@@ -1348,19 +1352,16 @@ fn finish_pack_cores(pack: &mut Pack, log: &mut Log) {
 
 /// The `SpecTcl` **vocabulary** versions this loader reads, newest last.
 ///
-/// Additive words never bump the vocabulary version
-/// (`docs/design/spec-packs.md`, "Compatibility policy"), so `1`, `1.0`, `1.1`
-/// and `1.2` all name a vocabulary this build understands in full. `2.0` joins
-/// them under the same rule: the redesign's §6.1 compatibility contract keeps
-/// one parser for every word ever ratified, so a 1.x pack and a 2.0 pack are
-/// read by the same code and a 1.x pack loads to an identical surface. A pack
-/// naming anything else still loads (unless its *major* is unsupported — see
-/// [`check_vocabulary_version`]): the words it uses that this build knows are
-/// read, and the rest hit the ordinary unknown-property rule.
-pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2", "2", "2.0"];
+/// Minor releases add words without changing the meaning of earlier words.
+/// The redesign's §6.1 compatibility contract therefore keeps one parser for
+/// every word ever ratified: an older pack loads to the same surface, while a
+/// pack declaring a newer minor loads maximally and reports words this build
+/// does not know. Only an unsupported major fails closed (see
+/// [`check_vocabulary_version`]).
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "2.0";
+pub const NEWEST_VOCABULARY_VERSION: &str = "2.1";
 
 /// The newest `speclib` **major** this loader supports.
 ///
@@ -4768,6 +4769,14 @@ fn command_from_parts(
             }
         }
 
+        validate_arg_role_capabilities(
+            spec.arg_role_resolver.is_some(),
+            spec.arg_role_resolver_roles,
+            "command",
+            line,
+            log,
+        );
+
         let args = acc.args.seal();
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
@@ -5187,6 +5196,10 @@ fn apply_command_stmt(
             }
         }
         "self_receiver_words" => spec.self_receiver_words = leak_strs(&list_words(&value)),
+        "arg_role_resolver_roles" => {
+            log.v21(stmt.line, "arg_role_resolver_roles");
+            spec.arg_role_resolver_roles = arg_role_capabilities(&value, stmt.line, log);
+        }
 
         // --- types --------------------------------------------------------
         "return_type" => {
@@ -5545,6 +5558,66 @@ fn index_list(text: &str) -> Vec<u8> {
         .iter()
         .filter_map(|word| word.parse().ok())
         .collect()
+}
+
+fn arg_role_capabilities(text: &str, line: u32, log: &mut Log) -> &'static [ArgRole] {
+    let names = list_words(text);
+    if names.is_empty() {
+        log.say_classified(
+            line,
+            VocabularyClass::Assistance,
+            "`arg_role_resolver_roles` must name at least one argument role",
+        );
+        return &[];
+    }
+
+    let mut roles = Vec::new();
+    let mut valid = true;
+    for name in names {
+        match by_name(ArgRole::ALL, &name) {
+            Some(role) if !roles.contains(&role) => roles.push(role),
+            Some(_) => {}
+            None => {
+                valid = false;
+                log.say_classified(
+                    line,
+                    VocabularyClass::Assistance,
+                    format!(
+                        "unknown argument role `{name}` makes the resolver capability set incomplete"
+                    ),
+                );
+            }
+        }
+    }
+    if valid { leak_slice(roles) } else { &[] }
+}
+
+fn validate_arg_role_capabilities(
+    has_resolver: bool,
+    roles: &[ArgRole],
+    owner: &str,
+    line: u32,
+    log: &mut Log,
+) {
+    match (has_resolver, roles.is_empty()) {
+        (true, true) => log.say_classified(
+            line,
+            VocabularyClass::Assistance,
+            format!(
+                "{owner} has an `arg_role_resolver` without a non-empty \
+                 `arg_role_resolver_roles` capability set"
+            ),
+        ),
+        (false, false) => log.say_classified(
+            line,
+            VocabularyClass::Assistance,
+            format!(
+                "{owner} declares `arg_role_resolver_roles` without an \
+                 `arg_role_resolver`"
+            ),
+        ),
+        _ => {}
+    }
 }
 
 fn native_id<T: Copy + fmt::Debug>(stmt: &Stmt, all: &[T], what: &str, log: &mut Log) -> Option<T> {
@@ -6231,6 +6304,13 @@ fn subcommand_from_parts(
         };
         let mut acc = SubAcc::default();
         fill(&mut sub, &mut acc, log);
+        validate_arg_role_capabilities(
+            sub.arg_role_resolver.is_some(),
+            sub.arg_role_resolver_roles,
+            kind,
+            line,
+            log,
+        );
         let args = acc.args.seal();
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
@@ -6315,6 +6395,10 @@ fn apply_subcommand_stmt(
         "body_arg_implicit_args" => sub.body_arg_implicit_args = value.parse().unwrap_or(0),
         "credential_arg" => sub.credential_arg = value.parse().ok(),
         "sensitive_headers" => sub.sensitive_headers = leak_strs(&list_words(&value)),
+        "arg_role_resolver_roles" => {
+            log.v21(stmt.line, "arg_role_resolver_roles");
+            sub.arg_role_resolver_roles = arg_role_capabilities(&value, stmt.line, log);
+        }
         "dialects" => sub.surface = parse_dialects(&value, stmt.line, log),
         "available" => {
             log.v20(stmt.line, "available");
@@ -6889,6 +6973,120 @@ mod tests {
         assert!(pack.notices.iter().any(|n| n.message.contains("above the")));
     }
 
+    #[test]
+    fn resolver_role_capabilities_load_at_both_registry_scopes() {
+        let pack = evaluate_pack(
+            "speclib probe 2.1 {\n\
+             command demo {\n\
+               arg_role_resolver {words ctx} { return }\n\
+               arg_role_resolver_roles {Expr Body Keyword Body}\n\
+               subcommand run {\n\
+                 arg_role_resolver {words ctx} { return }\n\
+                 arg_role_resolver_roles {VarWrite Body}\n\
+               }\n\
+             }\n\
+             }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(
+            spec.arg_role_resolver_roles,
+            &[ArgRole::Expr, ArgRole::Body, ArgRole::Keyword]
+        );
+        assert_eq!(
+            spec.subcommands[0].arg_role_resolver_roles,
+            &[ArgRole::VarWrite, ArgRole::Body]
+        );
+    }
+
+    #[test]
+    fn resolver_role_capabilities_fail_closed_for_assistance() {
+        let pack = evaluate_pack(
+            "speclib probe 2.1 {\n\
+             command missing {\n\
+               arg_role_resolver {words ctx} { return }\n\
+             }\n\
+             command empty {\n\
+               arg_role_resolver {words ctx} { return }\n\
+               arg_role_resolver_roles {}\n\
+             }\n\
+             command orphan {\n\
+               arg_role_resolver_roles Body\n\
+             }\n\
+             command nested {\n\
+               subcommand bad {\n\
+                 arg_role_resolver {words ctx} { return }\n\
+                 arg_role_resolver_roles {Body Invented}\n\
+               }\n\
+             }\n\
+             }",
+        );
+
+        for name in ["missing", "empty", "orphan", "nested"] {
+            assert!(
+                pack.command(name)
+                    .expect("the safe degraded spec loads")
+                    .degraded,
+                "{name} must not advertise complete assistance facts"
+            );
+        }
+        assert!(
+            pack.command("nested")
+                .expect("nested loads")
+                .spec
+                .subcommands[0]
+                .arg_role_resolver_roles
+                .is_empty(),
+            "one invalid member rejects the incomplete capability set"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .all(|notice| notice.class == VocabularyClass::Assistance),
+            "{:#?}",
+            pack.notices
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("without a non-empty")),
+            "{:#?}",
+            pack.notices
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("without an `arg_role_resolver`")),
+            "{:#?}",
+            pack.notices
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("`Invented`")),
+            "{:#?}",
+            pack.notices
+        );
+    }
+
+    #[test]
+    fn resolver_role_capabilities_require_the_2_1_declaration() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n\
+             command demo {\n\
+               arg_role_resolver {words ctx} { return }\n\
+               arg_role_resolver_roles Body\n\
+             }\n\
+             }",
+        );
+        assert!(pack.command("demo").is_some());
+        assert!(pack.notices.iter().any(|notice| {
+            notice
+                .message
+                .contains("`arg_role_resolver_roles` is SpecTcl 2.1 vocabulary")
+        }));
+    }
+
     /// The frozen spelling, whole: `object_class NAME ?-superclass {…}?
     /// ?-allow-unknown? ?-method-prefix-matching Enabled|Strict?
     /// { method … }`, with `method` rows reusing the
@@ -7148,7 +7346,7 @@ mod tests {
         );
     }
 
-    /// `1`, `1.0`, `1.1`, `1.2` and `2.0` are all this vocabulary; an
+    /// `1`, `1.0`, `1.1`, `1.2`, `2.0` and `2.1` are all known; an
     /// unknown *minor* loads with a notice rather than being refused.
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
@@ -7171,7 +7369,7 @@ mod tests {
                 .map(|notice| notice.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.0 — \
+                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.1 — \
                  newer words may be dropped"
             ]
         );
@@ -7188,7 +7386,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 2.0); if it is the library's own version, it belongs in \
+                 2.1); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
         );

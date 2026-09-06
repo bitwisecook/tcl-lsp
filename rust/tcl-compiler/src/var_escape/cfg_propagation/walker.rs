@@ -211,8 +211,10 @@ fn handle_eval(
     // Tcl substitutes it at *this* level. A brace-quoted word (`eval {if
     // {$x > 1} {...}}`) is re-parsed and substituted when the inner command
     // runs, so its names escape too. See `var_escape::walker::handle_eval`.
-    let mut scanner =
-        crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
+    let mut scanner = crate::var_refs::VarReferenceScanner::for_registry(
+        crate::var_refs::VarScanOptions::default(),
+        registry,
+    );
     for ref_ in scanner.scan_word(&body, registry) {
         state.escape(&ref_, defs);
     }
@@ -245,8 +247,10 @@ fn handle_catch(
     }
     // [`scan_word`] for the same over-approximation reason as `handle_eval`:
     // a brace-quoted word inside the caught body still escapes its names.
-    let mut scanner =
-        crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
+    let mut scanner = crate::var_refs::VarReferenceScanner::for_registry(
+        crate::var_refs::VarScanOptions::default(),
+        registry,
+    );
     for ref_ in scanner.scan_word(body, registry) {
         state.escape(&ref_, defs);
     }
@@ -842,7 +846,9 @@ pub fn analyse_cfg_function_with_registry<I: IntoIterator<Item = String>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg_builder::build_cfg_function;
+    use crate::cfg_builder::{
+        build_cfg_function_with_upvars_and_config, prepare_cfg_context_with_registry,
+    };
     use crate::lowering::lower_to_ir;
     use crate::ssa::build_ssa;
     use crate::var_escape::types::EscapeTag;
@@ -851,10 +857,14 @@ mod tests {
     fn analyse(src: &str) -> CfgEscapeResult {
         let registry = CommandRegistry::build_default();
         let m = lower_to_ir(src, &registry);
-        let cfg = build_cfg_function(
+        let context = prepare_cfg_context_with_registry(&m, &registry);
+        let cfg = build_cfg_function_with_upvars_and_config(
             "::top",
             &m.top_level,
             true,
+            &registry,
+            m.plain_command_dispatch,
+            context,
             tcl_lexer::LexerConfig::default(),
         );
         let ssa = build_ssa(&cfg, &registry);

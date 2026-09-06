@@ -98,6 +98,7 @@ pub fn spec() -> CommandSpec {
         // across every fetched version, 8.4 through 9.1.
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(puts_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Channel],
         return_type: Some(TclType::String),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)),
         native_lowering: Some(NativeLowering::Intrinsic {

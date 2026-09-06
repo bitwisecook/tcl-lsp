@@ -46,6 +46,7 @@ fn lower(
         function,
         source: &unit.source,
         module: &unit.ir_module,
+        mutations: &unit.command_mutations,
         config,
         escape: None,
         top_level: true,
@@ -257,6 +258,19 @@ fn renaming_a_math_function_stops_the_native_arm() {
     assert!(
         count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
         "{:?}",
+        all_ops(&function)
+    );
+    // The namespace transition may itself be reached through an alias prefix.
+    // The closed binding owner must carry that lookup effect into every
+    // compiler consumer; a second syntax-only scan would miss `mutate` here.
+    let alias_imported = "namespace eval ::evil { proc abs x { return 999 }; namespace export abs }\n\
+         interp alias {} mutate {} namespace import -force\n\
+         namespace eval ::tcl::mathfunc { ::mutate ::evil::abs }\n\
+         set a -2\nputs [expr {abs($a)}]\n";
+    let (function, _) = lower(alias_imported, native_config()).expect("lowers");
+    assert!(
+        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
+        "an alias-resolved import must return math dispatch to the command table: {:?}",
         all_ops(&function)
     );
     // Untouched, `abs` still folds to the inline compare/negate arm.
@@ -584,6 +598,7 @@ fn a_definition_declines_a_body_the_statement_does_not_write_out() {
         function,
         source: &unit.source,
         module: &unit.ir_module,
+        mutations: &unit.command_mutations,
         config: native_config(),
         escape: None,
         top_level: false,
@@ -624,6 +639,7 @@ fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
         function,
         source: &unit.source,
         module: &unit.ir_module,
+        mutations: &unit.command_mutations,
         config: native_config(),
         escape: None,
         top_level: false,

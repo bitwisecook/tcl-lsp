@@ -395,6 +395,9 @@ mod tests {
             body_base_line: 0,
             proc_body_src: None,
             error_regions: Vec::new(),
+            plain_command_dispatch: false,
+            command_bindings: Vec::new(),
+            procedure_bindings: Vec::new(),
         };
 
         let output = format_function_asm(&asm);

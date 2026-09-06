@@ -4404,8 +4404,8 @@ mod tests {
         // `$b greet` answered nothing because `instance_classes` never bound
         // `b`.  The lattice's scope-keyed singleton now resolves it through
         // the same accessor every dispatch consumer reads.
-        let src = "oo::class create A { method make {} { return [B new] } }\n\
-                   oo::class create B { method greet {} { return \"hi\" } }\n\
+        let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+                   oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
                    set b [$a make]\n\
                    $b greet\n";

@@ -634,13 +634,15 @@ fn bare_tcloo_command_substitution_head_is_e001() {
 fn method_return_captured_handle_has_no_w307_and_bare_dispatch_is_e001() {
     // Issue #1143 + #1200's variable flow, end to end: `set b [$a make]`
     // types `b` through the lattice's method-return edge, so `$b greet` is
-    // silent (no W307), and a bare `$b` is the zero-word E001.
+    // silent (no W307), and a bare `$b` is the zero-word E001. The producing
+    // method roots its command heads so TclOO's runtime receiver namespace
+    // cannot select a different `return` or constructor implementation.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
         &uri,
-        "oo::class create A { method make {} { return [B new] } }\n\
-         oo::class create B { method greet {} { return \"hi\" } }\n\
+        "oo::class create A { method make {} { ::return [::B new] } }\n\
+         oo::class create B { method greet {} { ::return \"hi\" } }\n\
          set a [A new]\n\
          set b [$a make]\n\
          $b greet\n",
@@ -652,8 +654,8 @@ fn method_return_captured_handle_has_no_w307_and_bare_dispatch_is_e001() {
     let uri2 = unique_uri("tcl");
     let diags2 = lsp.open_ready(
         &uri2,
-        "oo::class create A { method make {} { return [B new] } }\n\
-         oo::class create B { method greet {} { return \"hi\" } }\n\
+        "oo::class create A { method make {} { ::return [::B new] } }\n\
+         oo::class create B { method greet {} { ::return \"hi\" } }\n\
          set a [A new]\n\
          set b [$a make]\n\
          $b\n",
@@ -2107,15 +2109,15 @@ fn info_exists_after_my_dispatch_to_an_upvar_sibling_does_not_fire_i230() {
     );
 }
 
-/// TN control for the dispatch widening: with no caller-frame-reaching
-/// method anywhere in the module, a never-set non-instance local still
-/// folds always false after a `my` call (tclsh 9.0.4 / 8.6.14:
-/// `[info exists zzz]` is 0).
+/// TN control for the dispatch widening: with exact command identities and no
+/// caller-frame-reaching method anywhere in the module, a never-set
+/// non-instance local still folds always false after a same-object call
+/// (tclsh 9.0.4 / 8.6.14: `[info exists zzz]` is 0).
 #[test]
 fn info_exists_still_fires_i230_when_no_method_reaches_the_caller_frame() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "oo::class create C {\n    method Helper {} { return 1 }\n    method m {} {\n        my Helper\n        if {[info exists zzz]} { puts hi }\n    }\n}\n";
+    let src = "oo::class create C {\n    method helper {} { ::return 1 }\n    method m {} {\n        [::oo::Helpers::self object] helper\n        ::if {[::info exists zzz]} { ::puts hi }\n    }\n}\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
         has_code(&diags, "I230"),
@@ -3921,11 +3923,11 @@ fn shimmer_fires_inside_tcloo_method_body() {
     // memoised path) has its own top-up loop for methods/body units,
     // independent of `compiler_checks.rs`'s direct path — a regression where
     // both the top-up loop *and* the main loop covered methods/body units
-    // would double-emit every shimmer diagnostic inside one.
+    // would double-emit every shimmer diagnostic inside one. Rooted builtins
+    // make the shimmer independent of receiver-namespace command shadows.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src =
-        "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
+    let src = "oo::class create C {\n    method m {} {\n        ::set x hello\n        ::incr x\n    }\n}\n";
     let diags = lsp.open_ready(&uri, src);
     let s100: Vec<&Value> = diags
         .iter()
@@ -4694,7 +4696,7 @@ fn method_body_unbound_sibling_parameter_read_flags_w210_end_to_end() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
         &uri,
-        "oo::class create Vector3d {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n    method Buggy {type} { return [my DotProduct $other] }\n}\n",
+        "oo::class create Vector3d {\n    variable _x\n    constructor {x} { ::set _x $x }\n    method DotProduct {other} { ::return [::expr {$_x * $other}] }\n    method Buggy {type} { ::return $other }\n}\n",
     );
     assert!(
         has_code(&diags, "W210"),
@@ -4844,7 +4846,7 @@ fn objdefine_method_body_w210_reaches_the_client() {
         "oo::class create C {}\n\
          set k [C new]\n\
          oo::objdefine $k {\n\
-             method probe {} { return $neverBound }\n\
+             method probe {} { ::return $neverBound }\n\
          }\n",
     );
     assert!(

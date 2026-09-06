@@ -41,7 +41,7 @@ const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
 }];
-use tcl_syntax::number::{Number, parse_whole};
+use tcl_syntax::number::{Number, NumberSyntax, Numbers};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "string option arg ?arg ...?",
@@ -142,19 +142,17 @@ fn fold_repeat(args: &[&str]) -> Option<String> {
 /// (NUL) — a strict superset of this set for ASCII input.
 ///
 /// This fold is registered dialect-invariantly (`const_fold`, not
-/// `const_fold_versioned`), so on an 8.6+ dialect it under-trims a
-/// literal leading/trailing NUL byte: a rare input in practice, but a
-/// real (if narrow) divergence from tclsh 8.6+/9.x that this pass
-/// deliberately leaves unfixed — closing it needs threading a version
-/// parameter through `fold_trim`/`fold_trimleft`/`fold_trimright` the way
-/// `fold_is`/`class_available` already do, which is out of scope for a
-/// spec/hover-accuracy pass.
+/// `const_fold_versioned`). A default-set trim containing NUL therefore
+/// abstains: Tcl 8.4/8.5 preserve NUL while Tcl 8.6+/9.x trim it, so no one
+/// invariant answer is sound. An explicit `chars` word remains exact because
+/// it replaces the release-dependent default set.
 const TRIM_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 
 /// `string trim` / `trimleft` / `trimright`.  ASCII-restricted so the
 /// default whitespace set and the explicit chars set match Tcl exactly.
 fn fold_trim_impl(args: &[&str], left: bool, right: bool) -> Option<String> {
     let (s, chars): (&str, Vec<char>) = match args {
+        [s] if s.contains('\0') => return None,
         [s] => (s, TRIM_WS.to_vec()),
         [s, chars] => (s, chars.chars().collect()),
         _ => return None,
@@ -629,7 +627,7 @@ fn tcl9_integer_number(s: &str) -> Option<Number> {
     if !s.is_ascii() {
         return None;
     }
-    parse_whole(s)
+    Numbers::Target(NumberSyntax::Tcl90).parse_whole(s)
 }
 
 /// `string is integer`: known Tcl 9 uses the shared Tcl 9 number parser;
@@ -1352,6 +1350,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Boolean),
         options: MATCH_OPTIONS,
         arg_role_resolver: Some(match_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Pattern],
         pattern_type: Some(PatternType::Glob),
         ..SubCommand::DEFAULT
     },
@@ -2056,6 +2055,16 @@ mod tests {
     }
 
     #[test]
+    fn tcl9_string_is_fold_does_not_read_the_runtime_number_grammar() {
+        let previous = tcl_syntax::number::runtime_syntax();
+        tcl_syntax::number::set_runtime_syntax(tcl_dialect::NumberSyntax::Tcl85);
+        let folded = fold_is(&["integer", "08"], Some(TclVersion::V9_0));
+        tcl_syntax::number::set_runtime_syntax(previous);
+
+        assert_eq!(folded.as_deref(), Some("1"));
+    }
+
+    #[test]
     fn pure_string_subcommands_carry_const_fold() {
         // toupper / tolower / reverse expose a
         // const_fold callback for the optimiser's O129 path.
@@ -2155,6 +2164,8 @@ mod tests {
         assert_eq!(f("trim")(&["xxhixx", "x"]).as_deref(), Some("hi"));
         assert_eq!(f("trimleft")(&["  hi  "]).as_deref(), Some("hi  "));
         assert_eq!(f("trimright")(&["  hi  "]).as_deref(), Some("  hi"));
+        assert_eq!(f("trim")(&["\0hi\0"]), None);
+        assert_eq!(f("trim")(&["\0hi\0", "\0"]).as_deref(), Some("hi"));
         assert_eq!(f("totitle")(&["hELLO"]).as_deref(), Some("Hello"));
         assert_eq!(f("totitle")(&[""]).as_deref(), Some(""));
         assert_eq!(f("totitle")(&["caf\u{e9}"]), None, "non-ASCII bails");

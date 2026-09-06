@@ -28,63 +28,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{
-    first_fatal_parse_error_with_config, lower_to_ir_for_bytecode_with_dialect,
-};
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_registry::CommandRegistry;
 use tcl_test_support::locate_source_tree;
-use tcl_vm::{CompileError, CompileService, Value, Vm};
-
-struct CompilerSvc {
-    registry: &'static CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    profile: &'static DialectProfile,
-}
-
-impl CompilerSvc {
-    fn tcl_9_0() -> Self {
-        let profile = DialectProfile::find("tcl9.0").expect("Tcl 9.0 profile exists");
-        Self {
-            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            profile,
-        }
-    }
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(message) = first_fatal_parse_error_with_config(src, self.config) {
-            return Err(CompileError(message));
-        }
-        let ir = lower_to_ir_for_bytecode_with_dialect(
-            src,
-            self.registry,
-            self.config,
-            Some(self.profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        assert_eq!(profile.name, self.profile.name, "test VM changed profile");
-        self.compile(src)
-    }
-}
+use tcl_vm::{Value, Vm};
 
 fn configure_vm(mut vm: Vm, library: &Path) -> Vm {
     vm.set_runtime_version(TclVersion::V9_0);
-    vm.set_compiler(Box::new(CompilerSvc::tcl_9_0()));
+    let profile = DialectProfile::find("tcl9.0").expect("Tcl 9.0 profile exists");
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     vm.set_var(
         "::tcl_library",
         Value::string(library.to_string_lossy().into_owned()),
@@ -95,6 +47,23 @@ fn configure_vm(mut vm: Vm, library: &Path) -> Vm {
 
 fn vm_for_library(library: &Path) -> Vm {
     configure_vm(Vm::new(), library)
+}
+
+/// Return one upstream Tcltest definition without re-stating its Tcl in this
+/// harness. The adjacent test marker guards the pinned-file shape as well as
+/// keeping execution limited to the selected definition.
+fn upstream_test_definition<'a>(source: &'a str, start_marker: &str, next_marker: &str) -> &'a str {
+    let start = source
+        .find(start_marker)
+        .unwrap_or_else(|| panic!("pinned upstream test is missing {start_marker:?}"));
+    let end = source
+        .find(next_marker)
+        .unwrap_or_else(|| panic!("pinned upstream test is missing {next_marker:?}"));
+    assert!(
+        start < end,
+        "pinned upstream test markers are out of order: {start_marker:?}, {next_marker:?}"
+    );
+    &source[start..end]
 }
 
 #[derive(Clone)]
@@ -222,8 +191,8 @@ fn real_tcl_9_0_4_init_discovers_tcltest_via_package_require() {
     );
 }
 
-/// A real upstream stem reaches `cleanupTests` through the same init/require
-/// path as the sweep driver and emits the summary that xtask parses.
+/// The first upstream `set` definition reaches `cleanupTests` through the
+/// real init/require path and emits the summary that xtask parses.
 #[test]
 fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -251,12 +220,14 @@ fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
                 return;
             }
             let testfile = source_tree.tests_dir().join("set.test");
+            let test_source = fs::read_to_string(&testfile).expect("read pinned set.test");
+            let definition =
+                upstream_test_definition(&test_source, "test set-1.1 {", "test set-1.2 {");
             let script = format!(
                 "package require tcltest\n\
                  namespace import -force ::tcltest::*\n\
-                 ::tcltest::configure -match set-1.1\n\
-                 source {}\n",
-                tcl_syntax::list::list_element(&testfile.to_string_lossy())
+                 {definition}\n\
+                 ::tcltest::cleanupTests\n",
             );
             let run = vm
                 .eval_source(&script)
@@ -268,21 +239,26 @@ fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
         })
         .expect("spawn focused upstream stem");
 
-    let result = match receiver.recv_timeout(Duration::from_secs(30)) {
+    // This in-process, test-profile worker measured 105.80 seconds for the
+    // former whole-stem proof and 145.65 seconds for this extracted definition,
+    // with a contended run exceeding 180 seconds. The sweep's central
+    // 120-second limit applies to its release child process, so retain a
+    // bounded but realistic watchdog here.
+    let result = match receiver.recv_timeout(Duration::from_secs(300)) {
         Ok(result) => result,
         Err(RecvTimeoutError::Disconnected) => {
             worker.join().expect("focused upstream worker panicked");
             unreachable!("worker exited without reporting")
         }
         Err(RecvTimeoutError::Timeout) => {
-            panic!("focused upstream set.test did not finish within 30 seconds")
+            panic!("focused upstream set-1.1 did not finish within 300 seconds")
         }
     };
     worker.join().expect("focused upstream worker panicked");
     let (ok, error, output) = result;
     assert!(ok, "focused upstream set.test failed: {error}\n{output}");
     assert!(
-        output.contains("Total\t64\tPassed\t1\tSkipped\t63\tFailed\t0"),
-        "missing parseable focused Tcltest summary: {output:?}"
+        output.contains("Total\t1\tPassed\t1\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream set-1.1 summary: {output:?}"
     );
 }

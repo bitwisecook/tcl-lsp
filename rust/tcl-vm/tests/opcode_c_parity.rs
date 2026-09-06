@@ -36,8 +36,7 @@
 use std::collections::HashMap;
 
 use tcl_bytecode::{
-    FunctionAsm, Instruction, LiteralTable, LocalVarTable, ModuleAsm, Op, Operand, bytecode_imm,
-    layout,
+    FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand, bytecode_imm, layout,
 };
 use tcl_vm::{Code, Completion, Value, Vm};
 
@@ -93,6 +92,9 @@ impl Asm {
             body_base_line: 0,
             proc_body_src: None,
             error_regions: Vec::new(),
+            plain_command_dispatch: false,
+            command_bindings: Vec::new(),
+            procedure_bindings: Vec::new(),
         }
     }
 }
@@ -1120,35 +1122,23 @@ fn irule_operators_agree_with_the_core_commands() {
 
 // -- yield / yieldToInvoke / coroName ----------------------------------------
 
-/// The body text the seeded assembly stands in for — the cache is keyed by name
-/// *and* body word, so the seed must claim the same text the `proc` supplies.
-const SEEDED_BODY: &str = "this body is replaced by the seeded one";
-
 /// Run `body` as the compiled body of a global proc `p`.
 ///
-/// The seam is the pre-compiled-body cache: `cmd_proc` takes the module-supplied
-/// assembly for a `proc` whose name *and* body word match the compiled unit's,
-/// so seeding `p` here — under the compiler's own qname for a global proc
-/// (`::p`, rooted, the spelling `ModuleAsm::procedures` uses) and claiming
-/// [`SEEDED_BODY`] as the body it was compiled from — and then defining `p` from
-/// that exact source gives a proc whose body is this hand-built stream. That is
-/// the only way to reach an opcode from *inside* a coroutine or a method call,
-/// which is where the coroutine and `TclOO` opcodes live.
+/// The seam is the compiler's pre-compiled-body cache: `cmd_proc` takes the
+/// module-supplied assembly for the first definition of a name. The test
+/// compiler replaces that one body while preserving the ordinary compiler's
+/// profile, registry, lexer, and plain-dispatch selection. That is the only way
+/// to reach an opcode from *inside* a coroutine or a method call, which is where
+/// the coroutine and `TclOO` opcodes live.
+///
+/// Do not seed this through [`Vm::run_module`]. A public module is deliberately
+/// foreign provenance; once a compiler is installed, source-bearing foreign
+/// procedures are recompiled through that service before reuse. These streams
+/// instead need to be artifacts of the VM's current compiler generation.
 fn vm_with_seeded_proc(body: Asm) -> Vm {
-    let mut seeded = body.build();
-    seeded.proc_body_src = Some(SEEDED_BODY.to_owned());
-    let mut procedures = HashMap::new();
-    procedures.insert("::p".to_string(), seeded);
-    let module = ModuleAsm {
-        profile: tcl_dialect::DialectProfile::plain_tcl(),
-        top_level: Asm::new().build(),
-        top_level_body: tcl_bytecode::FunctionAsm::default(),
-        procedures,
-    };
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(compiler::svc()));
-    assert_eq!(vm.run_module(&module).code, Code::Ok, "seeding failed");
-    vm.eval_source(&format!("proc p {{}} {{{SEEDED_BODY}}}"))
+    vm.set_compiler(Box::new(compiler::seeded_proc(body.build())));
+    vm.eval_source(compiler::SEEDED_PROC_DEF)
         .expect("proc defines");
     vm
 }
@@ -2017,33 +2007,105 @@ fn top_level_return_ends_the_script() {
 /// A `tcl-compiler`-backed compile service, so the tests that need real Tcl
 /// setup (traces, `namespace import`, command dispatch) can `eval_source`.
 mod compiler {
-    use tcl_registry::CommandRegistry;
-    use tcl_vm::{CompileError, CompileService};
+    use tcl_bytecode::{FunctionAsm, ModuleAsm};
+    use tcl_compiler::compile_service::BytecodeCompileService;
+    use tcl_dialect::DialectProfile;
+    use tcl_runtime_api::{
+        CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch,
+    };
 
-    pub struct Svc {
-        registry: CommandRegistry,
+    pub const SEEDED_PROC_DEF: &str = "proc p {} {this body is replaced by the seeded one}";
+
+    /// Test compiler that replaces exactly one compiler-produced procedure
+    /// body with a hand-assembled opcode stream. Delegating every compilation
+    /// mode to [`BytecodeCompileService`] keeps registry and dialect selection
+    /// identical to production while making the replacement honest current-
+    /// service bytecode at the VM provenance boundary.
+    pub struct SeededProcCompileService {
+        inner: BytecodeCompileService,
+        body: FunctionAsm,
     }
 
-    impl CompileService for Svc {
-        type Module = tcl_bytecode::ModuleAsm;
-
-        fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-            if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-                return Err(CompileError(msg));
+    impl SeededProcCompileService {
+        fn inject(&self, src: &str, mut module: ModuleAsm) -> ModuleAsm {
+            if src == SEEDED_PROC_DEF {
+                module
+                    .procedures
+                    .get("::p")
+                    .expect("seed source must compile procedure ::p");
+                // `cmd_proc` asks the sidecar cache for its runtime-qualified
+                // (unrooted) command key. The compiler's analysis key remains
+                // rooted, so install the executable replacement under `p`.
+                let mut body = self.body.clone();
+                body.plain_command_dispatch = module.plain_command_dispatch;
+                body.command_bindings.clear();
+                module.procedures.insert("::p".to_string(), body);
             }
-            let ir = tcl_compiler::lowering::lower_to_ir(src, &self.registry);
-            let cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&ir, false);
-            Ok(tcl_compiler::codegen::codegen_module(
-                &cfg,
-                &ir,
-                &self.registry,
-            ))
+            module
         }
     }
 
-    pub fn svc() -> Svc {
-        Svc {
-            registry: CommandRegistry::build_default(),
+    impl CompileService for SeededProcCompileService {
+        type Module = ModuleAsm;
+
+        fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+            self.inner
+                .compile(src)
+                .map(|module| self.inject(src, module))
         }
+
+        fn compile_for_profile(
+            &self,
+            src: &str,
+            profile: &'static DialectProfile,
+        ) -> Result<Self::Module, CompileError> {
+            self.inner
+                .compile_for_profile(src, profile)
+                .map(|module| self.inject(src, module))
+        }
+
+        fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
+            self.inner
+                .compile_traced(src)
+                .map(|module| self.inject(src, module))
+        }
+
+        fn compile_traced_for_profile(
+            &self,
+            src: &str,
+            profile: &'static DialectProfile,
+        ) -> Result<Self::Module, CompileError> {
+            self.inner
+                .compile_traced_for_profile(src, profile)
+                .map(|module| self.inject(src, module))
+        }
+
+        fn compile_plain_dispatch_for_profile(
+            &self,
+            src: &str,
+            profile: &'static DialectProfile,
+        ) -> Result<Self::Module, CompileError> {
+            self.inner
+                .compile_plain_dispatch_for_profile(src, profile)
+                .map(|module| self.inject(src, module))
+        }
+
+        fn compile_procedure_for_profile(
+            &self,
+            target: ProcedureCompileTarget<'_>,
+            profile: &'static DialectProfile,
+            dispatch: ProcedureDispatch,
+        ) -> Result<Self::Module, CompileError> {
+            self.inner
+                .compile_procedure_for_profile(target, profile, dispatch)
+        }
+    }
+
+    pub fn svc() -> BytecodeCompileService {
+        BytecodeCompileService::default()
+    }
+
+    pub fn seeded_proc(body: FunctionAsm) -> SeededProcCompileService {
+        SeededProcCompileService { inner: svc(), body }
     }
 }

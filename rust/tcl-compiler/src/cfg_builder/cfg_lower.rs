@@ -209,7 +209,7 @@ fn is_whole_var_ref(subject: &str) -> bool {
     .any(|style| crate::codegen::values::parse_simple_var_ref(subject, style).is_some())
 }
 
-impl CfgBuilder {
+impl CfgBuilder<'_> {
     // if
 
     /// Flatten `Statement::If` into cascaded branch blocks.
@@ -276,6 +276,7 @@ impl CfgBuilder {
 
             let then_block = self.new_block("if_then");
             let next_dispatch = self.new_block("if_next");
+            self.copy_command_boundary(block_name, &dispatch);
 
             let true_target = self.bid(&then_block);
             let false_target = self.bid(&next_dispatch);
@@ -356,6 +357,7 @@ impl CfgBuilder {
             self.push_empty_clause(block_name, *init_span);
         }
         let init_tail = self.lower_script(init, block_name)?;
+        self.copy_command_boundary(block_name, &init_tail);
 
         let header = self.new_block("for_header");
         let body_block = self.new_block("for_body");
@@ -535,6 +537,7 @@ impl CfgBuilder {
         let header = self.new_block("foreach_header");
         let body_block = self.new_block("foreach_body");
         let end_block = self.new_block("foreach_end");
+        self.copy_command_boundary(block_name, &header);
 
         self.ensure_goto(block_name, &header, Some(*span));
 
@@ -682,7 +685,8 @@ impl CfgBuilder {
         if !self.faithful_exceptions {
             return block_name.to_owned();
         }
-        let completion = crate::cfg_builder::flow_facts_stmt(stmt).1;
+        let completion =
+            crate::cfg_builder::flow_facts_stmt_with_classes(stmt, &self.command_classes).1;
         if completion == Completion::ProcExit {
             if self.block_mut(block_name).terminator.is_none() {
                 self.block_mut(block_name).terminator = Some(Terminator::Return {
@@ -695,7 +699,11 @@ impl CfgBuilder {
             return block_name.to_owned();
         }
         if let Some((break_target, continue_target)) = self.loop_stack.last().cloned() {
-            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps(stmt, 0);
+            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps_with_classes(
+                stmt,
+                0,
+                &self.command_classes,
+            );
             if can_break || can_continue {
                 let escape = SwitchEscape {
                     can_break,
@@ -981,6 +989,7 @@ impl CfgBuilder {
 
         let body_block = self.new_block("try_body");
         let end_block = self.new_block("try_end");
+        self.copy_command_boundary(block_name, &body_block);
 
         self.ensure_goto(block_name, &body_block, Some(*span));
 
@@ -1118,9 +1127,20 @@ impl CfgBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg_builder::build_cfg_function;
+    use crate::cfg_builder::build_cfg_function as build_cfg_function_for_registry;
     use crate::ir::{ForeachIterator, Script, SwitchArm, TryHandler};
     use tcl_lexer::Span;
+    use tcl_registry::CommandRegistry;
+
+    fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> crate::cfg::Function {
+        build_cfg_function_for_registry(
+            name,
+            script,
+            inline_loops,
+            &CommandRegistry::build_default(),
+            false,
+        )
+    }
 
     #[test]
     fn for_loop_creates_header_body_step() {
@@ -1164,7 +1184,7 @@ mod tests {
             condition_base: None,
         }]);
 
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_cfg_function("::test", &script, true);
         // Should have blocks for: entry, for_header, for_body, for_step, for_end, exit
         assert!(func.blocks.len() >= 5, "got {} blocks", func.blocks.len());
         // A for_header block should have a Branch terminator.
@@ -1193,7 +1213,7 @@ mod tests {
             condition_base: None,
         }]);
 
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_cfg_function("::test", &script, true);
         let header = func
             .blocks
             .values()
@@ -1220,7 +1240,7 @@ mod tests {
             raw_tokens: None,
         }]);
 
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_cfg_function("::test", &script, true);
         let header = func
             .blocks
             .values()
@@ -1264,7 +1284,7 @@ mod tests {
             patterns_braced: true,
         }]);
 
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_cfg_function("::test", &script, true);
         // Entry should have a Branch (first arm test).
         let entry = &func.blocks[&func.entry];
         assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
@@ -1309,12 +1329,7 @@ mod tests {
         // Glob/regexp switches are kept opaque (a single `Statement::Switch` in
         // the block, no expanded arm blocks / branches). Codegen emits a generic
         // `switch` invoke for them.
-        let func = build_cfg_function(
-            "::test",
-            &glob_regexp_switch(SwitchMode::Glob),
-            true,
-            tcl_lexer::LexerConfig::default(),
-        );
+        let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Glob), true);
         let entry = &func.blocks[&func.entry];
         assert_eq!(entry.statements.len(), 1, "opaque switch is one statement");
         assert!(
@@ -1334,22 +1349,12 @@ mod tests {
 
     #[test]
     fn switch_regexp_stays_opaque() {
-        let func = build_cfg_function(
-            "::test",
-            &glob_regexp_switch(SwitchMode::Regexp),
-            true,
-            tcl_lexer::LexerConfig::default(),
-        );
+        let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Regexp), true);
         let entry = &func.blocks[&func.entry];
         assert!(matches!(entry.statements[0], Statement::Switch { .. }));
         assert!(matches!(entry.terminator, Some(Terminator::Goto { .. })));
         // Exact switches without fall-through keep the real expanded jump table.
-        let exact = build_cfg_function(
-            "::test",
-            &glob_regexp_switch(SwitchMode::Exact),
-            true,
-            tcl_lexer::LexerConfig::default(),
-        );
+        let exact = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Exact), true);
         assert!(
             matches!(
                 exact.blocks[&exact.entry].terminator,
@@ -1382,7 +1387,7 @@ mod tests {
             raw_args: vec![],
         }]);
 
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_cfg_function("::test", &script, true);
         // Should have a try_finally block.
         assert!(
             func.blocks
@@ -1413,7 +1418,7 @@ mod tests {
             raw_args: vec![],
         }]);
 
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_cfg_function("::test", &script, true);
         assert!(
             func.blocks
                 .values()

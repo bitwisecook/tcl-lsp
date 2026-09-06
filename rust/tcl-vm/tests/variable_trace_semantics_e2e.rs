@@ -41,37 +41,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_traced};
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_traced(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_vm::{CompileService, Vm};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -88,17 +59,18 @@ impl std::io::Write for Capture {
 
 /// Run `src` in the VM; the script's `puts` output is returned.
 fn vm_output(src: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let service = BytecodeCompileService::default();
+    let asm = service.compile(src).expect("test script compiles");
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
-    let _ = vm.run_module(&asm);
+    vm.set_compiler(Box::new(service));
+    let completion = vm.run_module(&asm);
+    assert!(
+        completion.code.is_ok(),
+        "VM run failed: {}",
+        completion.result.to_str()
+    );
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }
 

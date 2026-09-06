@@ -444,6 +444,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],
         arg_role_resolver: Some(oo_define_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
         // Every body argument that `oo_define_arg_roles`
         // surfaces is a TclOO definition / dispatch body, never a

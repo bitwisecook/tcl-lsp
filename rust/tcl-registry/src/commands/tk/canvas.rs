@@ -79,6 +79,7 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         detail: "Associate a command with a canvas item event.",
         synopsis: "pathName bind tagOrId ?sequence? ?command?",
         arg_role_resolver: Some(canvas_bind_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         script_timing_resolver: Some(canvas_bind_script_timing),
         callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,

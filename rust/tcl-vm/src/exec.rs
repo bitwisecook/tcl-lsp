@@ -30,7 +30,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use tcl_bytecode::{ErrorRegion, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
@@ -120,6 +120,9 @@ struct CaughtState {
 /// pushes its resume value via [`Frame::push_operand`]).
 pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
+    /// Canonical unrooted namespace whose command bindings this bytecode was
+    /// specialised against.
+    source_namespace: String,
     /// Dialect-profile generation under which this activation's bytecode was
     /// compiled.
     /// Stored frames cannot be rewound/recompiled after a profile switch (in
@@ -127,11 +130,20 @@ pub(crate) struct Frame {
     /// the trampoline rejects stale execution before another specialised
     /// opcode can run.
     profile_generation: u64,
+    /// Command-binding generation last validated for this live activation.
+    command_epoch: u64,
+    /// Compiler-service generation that produced this activation's bytecode.
+    compiler_generation: u64,
     off2idx: Rc<HashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
     foreach_pairs: Rc<HashMap<usize, usize>>,
     pc: usize,
     stack: Vec<Value>,
+    /// Literal command tokens resolved at their command-head push, before the
+    /// remaining words perform substitutions. Entries are keyed by the
+    /// matching command continuation so nested substitutions compose without
+    /// relying on names or rerunning an already-completed substitution.
+    entered_commands: Vec<EnteredCommand>,
     /// Active `foreach` loops in this activation (innermost last).
     foreach_stack: Vec<ForeachState>,
     /// Compiled `dict for`/`map` iterators, keyed by their local slot.
@@ -161,6 +173,11 @@ pub(crate) struct Frame {
     /// enclosing loop rather than unwinding through it. Mutually exclusive with
     /// `is_proc`.
     is_script: bool,
+    /// Ambient frame namespace replaced by a transparent boundary-replay
+    /// activation.  Replay changes command resolution without adding a Tcl
+    /// call frame, so the namespace entry at the current frame depth is
+    /// replaced in place and restored when this activation unwinds.
+    replay_namespace_restore: Option<(String, tcl_runtime_api::NsId)>,
     /// For a script activation, the `errorInfo` body label the uncompiled command
     /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
     /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
@@ -208,11 +225,11 @@ pub(crate) struct Frame {
 }
 
 /// One traced dispatch's leave-side state: the invoked command string, the
-/// trace-table key to fire `leave` on, and how many step scopes the dispatch
-/// pushed (popped before firing).
+/// still-attached owner eligible for live leave lookup, and how many step
+/// scopes the dispatch pushed (popped before firing).
 pub(crate) struct ExecLeaveCtx {
     cmd_string: String,
-    key: CommandSidecarHandle,
+    leave_owner: Option<CommandSidecarHandle>,
     step_scopes: usize,
 }
 
@@ -235,15 +252,17 @@ impl ExecStepScope {
 pub(crate) struct CatchCtx {
     resvar: Option<Value>,
     optvar: Option<Value>,
+    fatal_tail: Option<String>,
 }
 
 /// A `catch` body deferred to the explicit stack: the compiled body plus the
 /// variable names to bind once it completes. Mirrors `pending_eval`'s tuple, but
 /// its completion is absorbed (see [`Frame::catch`]).
 pub(crate) struct CatchReq {
-    pub(crate) asm: Rc<FunctionAsm>,
+    pub(crate) script: crate::compiled::CompiledUnit,
     pub(crate) resvar: Option<Value>,
     pub(crate) optvar: Option<Value>,
+    pub(crate) fatal_tail: Option<String>,
 }
 
 /// A `subst` deferred to the explicit stack: the template plus its three
@@ -277,7 +296,7 @@ pub(crate) struct EachLoopReq {
     pub(crate) collect: bool,
     pub(crate) groups: Vec<EachLoopGroup>,
     pub(crate) iterations: usize,
-    pub(crate) body: Rc<FunctionAsm>,
+    pub(crate) body: crate::compiled::CompiledUnit,
 }
 
 /// [`EachLoopReq`]'s live iteration state, carried on the activation
@@ -287,7 +306,7 @@ struct EachLoopState {
     collect: bool,
     groups: Vec<EachLoopGroup>,
     iterations: usize,
-    body: Rc<FunctionAsm>,
+    body: crate::compiled::CompiledUnit,
     /// The next iteration to run (`0..iterations`); set to `iterations` early
     /// by a `break` to end the loop on the next tick without running more
     /// bodies.
@@ -312,17 +331,40 @@ enum SubstFold {
     Unwind(Completion<Value>),
 }
 
+/// One literal command whose token was resolved when its head was pushed. The
+/// relocation-aware sidecar follows rename/hide/expose while `command` retains
+/// the callable token itself across deletion or replacement.
+struct EnteredCommand {
+    /// First instruction after the argument-substitution region.
+    resume: usize,
+    continuation: usize,
+    name: String,
+    command: Command,
+    sidecar: CommandSidecarHandle,
+}
+
 impl Frame {
-    pub(crate) fn new(asm: Rc<FunctionAsm>, is_proc: bool, profile_generation: u64) -> Self {
+    pub(crate) fn new(unit: crate::compiled::CompiledUnit, is_proc: bool) -> Self {
+        let crate::compiled::CompiledUnit {
+            asm,
+            source_namespace,
+            profile_generation,
+            command_epoch,
+            compiler,
+        } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
         Self {
             asm,
+            source_namespace,
             profile_generation,
+            command_epoch,
+            compiler_generation: compiler.generation(),
             off2idx,
             foreach_pairs,
             pc: 0,
             stack: Vec::new(),
+            entered_commands: Vec::new(),
             foreach_stack: Vec::new(),
             dict_iters: HashMap::new(),
             expand_markers: Vec::new(),
@@ -330,6 +372,7 @@ impl Frame {
             last_result: Value::empty(),
             is_proc,
             is_script: false,
+            replay_namespace_restore: None,
             body_label: None,
             catch: None,
             subst: None,
@@ -340,16 +383,46 @@ impl Frame {
         }
     }
 
+    /// Report stale bytecode in this activation. The list-only foreach/lmap
+    /// driver is generation-invariant; its separately-owned body activation is
+    /// still checked when entered.
+    fn stale_compilation_message(
+        &self,
+        current_profile: u64,
+        current_compiler: u64,
+    ) -> Option<&'static str> {
+        if self.each_loop.is_some() {
+            None
+        } else if self.profile_generation != current_profile {
+            Some("cannot continue bytecode after dialect profile changed")
+        } else if self.compiler_generation != current_compiler {
+            Some("cannot continue bytecode after compile service changed")
+        } else {
+            None
+        }
+    }
+
+    fn namespace_stale_message(&self, current_namespace: &str) -> Option<&'static str> {
+        (self.each_loop.is_none() && self.source_namespace != current_namespace)
+            .then_some("cannot continue bytecode after namespace changed")
+    }
+
+    /// Build a bytecode frame from the generations owned by its compiled
+    /// script. Keeping this extraction here prevents individual deferred
+    /// consumers from accidentally substituting the VM's current generations.
+    fn from_compiled_unit(unit: crate::compiled::CompiledUnit) -> Self {
+        Self::new(unit, false)
+    }
+
     /// A transparent script activation (see [`Frame::is_script`]) for a body run
     /// yieldably on the explicit stack (`EVAL_STK`, and the `eval`/`uplevel`
     /// builtins routed through it). `label` is the `errorInfo` body-frame label
     /// (`Some("eval")`/`Some("uplevel")`), or `None` for a command substitution.
     pub(crate) fn new_script(
-        asm: Rc<FunctionAsm>,
+        script: crate::compiled::CompiledUnit,
         label: Option<&'static str>,
-        profile_generation: u64,
     ) -> Self {
-        let mut f = Self::new(asm, false, profile_generation);
+        let mut f = Self::from_compiled_unit(script);
         f.is_script = true;
         f.body_label = label;
         f
@@ -358,11 +431,12 @@ impl Frame {
     /// A **catch** activation: the body runs on the explicit stack (yieldable),
     /// but its completion is absorbed by the catch epilogue rather than delivered
     /// to the parent (see [`Frame::catch`]).
-    pub(crate) fn new_catch(req: CatchReq, profile_generation: u64) -> Self {
-        let mut f = Self::new(req.asm, false, profile_generation);
+    pub(crate) fn new_catch(req: CatchReq) -> Self {
+        let mut f = Self::from_compiled_unit(req.script);
         f.catch = Some(Box::new(CatchCtx {
             resvar: req.resvar,
             optvar: req.optvar,
+            fatal_tail: req.fatal_tail,
         }));
         f
     }
@@ -370,8 +444,8 @@ impl Frame {
     /// A **subst** activation: a scanner-driven frame (empty placeholder asm — it
     /// never executes bytecode) carrying the resumable scan state. `tick` runs the
     /// scanner instead of the bytecode dispatch when `subst` is set.
-    pub(crate) fn new_subst(req: SubstReq, profile_generation: u64) -> Self {
-        let mut f = Self::new(Rc::new(FunctionAsm::default()), false, profile_generation);
+    pub(crate) fn new_subst(req: SubstReq, placeholder: crate::compiled::CompiledUnit) -> Self {
+        let mut f = Self::new(placeholder, false);
         f.subst = Some(Box::new(crate::subst::SubstState::new(
             req.template,
             req.backslashes,
@@ -385,8 +459,11 @@ impl Frame {
     /// asm, like `subst`) carrying the resumable `foreach`/`lmap` iteration
     /// state. `tick` runs the loop driver instead of the bytecode dispatch when
     /// `each_loop` is set.
-    pub(crate) fn new_each_loop(req: EachLoopReq, profile_generation: u64) -> Self {
-        let mut f = Self::new(Rc::new(FunctionAsm::default()), false, profile_generation);
+    pub(crate) fn new_each_loop(
+        req: EachLoopReq,
+        placeholder: crate::compiled::CompiledUnit,
+    ) -> Self {
+        let mut f = Self::new(placeholder, false);
         f.each_loop = Some(Box::new(EachLoopState {
             name: req.name,
             collect: req.collect,
@@ -399,11 +476,11 @@ impl Frame {
         f
     }
 
-    /// A **try-phase** activation ([`Frame::try_ctx`]): runs `req.asm` (the
+    /// A **try-phase** activation ([`Frame::try_ctx`]): runs `req.script` (the
     /// current phase's compiled script) as ordinary bytecode, tagged with the
     /// state `Vm::unwind` hands to `cmd_try::advance_try` on completion.
-    pub(crate) fn new_try(req: crate::cmd_try::TryReq, profile_generation: u64) -> Self {
-        let mut f = Self::new(req.asm, false, profile_generation);
+    pub(crate) fn new_try(req: crate::cmd_try::TryReq) -> Self {
+        let mut f = Self::from_compiled_unit(req.script);
         f.try_ctx = Some(Box::new(req.state));
         f
     }
@@ -414,6 +491,17 @@ impl Frame {
     /// put the command's result, so the following instruction is oblivious.
     pub(crate) fn push_operand(&mut self, v: Value) {
         self.stack.push(v);
+    }
+
+    /// Take the innermost literal command token whose substitution region ends
+    /// at the current continuation. Nested commands can share an activation,
+    /// so match by continuation instead of assuming a single pending token.
+    fn take_entered_command(&mut self) -> Option<EnteredCommand> {
+        let index = self
+            .entered_commands
+            .iter()
+            .rposition(|entered| entered.continuation == self.pc)?;
+        Some(self.entered_commands.remove(index))
     }
 }
 
@@ -452,9 +540,10 @@ enum Tick {
     /// command subst); `cleanup_proc` is a command name to delete once the
     /// pushed frame completes (`apply`'s temporary lambda proc).
     PushScript {
-        asm: Rc<FunctionAsm>,
+        script: crate::compiled::CompiledUnit,
         label: Option<&'static str>,
         cleanup_proc: Option<String>,
+        namespace: ScriptNamespace,
     },
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
     /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
@@ -484,6 +573,17 @@ enum Tick {
     /// returns [`RunExit::Yielded`] leaving `acts` intact (pc already past the
     /// suspend point).
     Suspend(YieldReq),
+}
+
+/// Namespace semantics for a transparent script activation.
+///
+/// Dynamic Tcl scripts inherit their caller's namespace. A stale compiled
+/// command boundary is different: executable inlining may have copied that
+/// command from another namespace, so its replay must temporarily restore the
+/// compiler-recorded source-site namespace.
+enum ScriptNamespace {
+    Inherit,
+    CommandBoundary(String),
 }
 
 /// A coroutine suspend request, produced by the `yield`/`yieldto` builtins and
@@ -1073,9 +1173,53 @@ impl Vm {
         if let Err(error) = self.validate_module_profile(module) {
             return crate::command::completion_from_tcl_error(error);
         }
+        let namespace = self.current_ns().to_owned();
+        let namespace_mismatch = module.source_namespace != namespace;
+        let replacement = if self.step_trace_active()
+            || namespace_mismatch
+            || !self.function_command_bindings_match(&module.top_level)
+        {
+            if module.source.is_empty() {
+                return err("stale bytecode module has no source for plain dispatch");
+            }
+            match self.compile_plain_module(&module.source, &namespace) {
+                Ok(module) => Some(module),
+                Err(error) => return crate::command::completion_from_tcl_error(error),
+            }
+        } else {
+            None
+        };
         self.claim_number_grammar();
-        self.merge_procs(&module.procedures);
-        self.run_function_unchecked(&module.top_level)
+        if let Some(module) = replacement.as_ref() {
+            return self.run_current_module(module);
+        }
+        // `ModuleAsm` is a public embedder boundary. Its exact profile and
+        // command bindings have been admitted above, but the VM cannot claim
+        // that its current CompileService produced this assembly. Execute the
+        // top level as supplied; mark reusable procedures foreign so their
+        // source is lazily recompiled through the current service on entry.
+        self.merge_foreign_procs(module);
+        let unit = self.admitted_foreign_unit(
+            Rc::new(module.top_level.clone()),
+            module.source_namespace.clone(),
+        );
+        self.run_compiled_unit(unit)
+    }
+
+    /// Run a module just returned by this VM's current compile service.
+    pub(crate) fn run_current_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
+        if let Err(error) = self.validate_module_profile(module) {
+            return crate::command::completion_from_tcl_error(error);
+        }
+        if let Err(error) = Self::validate_module_namespace(module, self.current_ns()) {
+            return crate::command::completion_from_tcl_error(error);
+        }
+        self.claim_number_grammar();
+        self.merge_procs(module);
+        self.run_function_rc(
+            Rc::new(module.top_level.clone()),
+            module.source_namespace.clone(),
+        )
     }
 
     /// Run one profile-less bytecode function to completion via the NRE
@@ -1099,19 +1243,33 @@ impl Vm {
                 self.dialect_profile().name
             ));
         }
-        self.run_function_unchecked(asm)
-    }
-
-    /// Execute a function whose containing module has already passed the
-    /// exact-profile check, or whose ownership is otherwise VM-internal.
-    fn run_function_unchecked(&mut self, asm: &FunctionAsm) -> Completion<Value> {
-        self.run_function_rc(Rc::new(asm.clone()))
+        let namespace = self.current_ns().to_owned();
+        if self.step_trace_active()
+            || !Self::function_resolution_namespace_matches(asm, &namespace)
+            || !self.function_command_bindings_match(asm)
+        {
+            return err("stale profile-less bytecode has no source for plain dispatch");
+        }
+        let unit = self.admitted_foreign_unit(Rc::new(asm.clone()), namespace);
+        self.run_compiled_unit(unit)
     }
 
     /// Run an already-`Rc`-wrapped function to completion — the clone-free
     /// path behind [`Vm::invoke_function`].
-    pub(crate) fn run_function_rc(&mut self, asm: Rc<FunctionAsm>) -> Completion<Value> {
-        self.run_activation(Frame::new(asm, false, self.profile_generation()))
+    pub(crate) fn run_function_rc(
+        &mut self,
+        asm: Rc<FunctionAsm>,
+        source_namespace: impl Into<String>,
+    ) -> Completion<Value> {
+        let unit = self.compiled_unit(asm, source_namespace);
+        self.run_compiled_unit(unit)
+    }
+
+    pub(crate) fn run_compiled_unit(
+        &mut self,
+        unit: crate::compiled::CompiledUnit,
+    ) -> Completion<Value> {
+        self.run_activation(Frame::new(unit, false))
     }
 
     /// Run one activation stack to completion (the ordinary, non-coroutine path).
@@ -1154,23 +1312,20 @@ impl Vm {
         self.drive(acts, DriveMode::CoroDriver)
     }
 
-    /// Enter an already-validated procedure body.  The frame deliberately
-    /// carries the generation at which the body was compiled, rather than the
-    /// VM's current generation: if a source-less stored body could not be
-    /// refreshed after a profile change, `drive_loop` must reject it before an
-    /// inline opcode can run.
+    /// Enter an already-validated procedure body. The frame carries the body's
+    /// complete compilation provenance rather than the VM's current values.
     fn push_proc_frame(&mut self, acts: &mut Vec<Frame>, proc: &Rc<ProcDef>) {
-        let mut frame = Frame::new(
-            Rc::clone(&proc.body),
-            true,
-            proc.compiled_profile_generation,
-        );
+        let mut frame = Frame::new(proc.body.clone(), true);
         if let Some(ctx) = self.pending_exec_leave.take() {
             frame.exec_leave.push(ctx);
         }
         acts.push(frame);
     }
 
+    // Keep the complete Tick dispatcher together: each arm performs the same
+    // pending-trace transfer and activation-stack settlement protocol, and
+    // splitting individual arms would duplicate that state-machine boundary.
+    #[allow(clippy::too_many_lines)]
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
@@ -1182,7 +1337,7 @@ impl Vm {
                 }
                 continue;
             }
-            match self.unwind_stale_profile_frame(acts) {
+            match self.unwind_stale_compilation_frame(acts) {
                 Ok(false) => {}
                 Ok(true) => continue,
                 Err(exit) => return exit,
@@ -1191,6 +1346,11 @@ impl Vm {
                 let top = acts.last_mut().expect("activation stack is non-empty");
                 self.tick(top)
             };
+            match self.unwind_stale_compilation_frame(acts) {
+                Ok(false) => {}
+                Ok(true) => continue,
+                Err(exit) => return exit,
+            }
             match tick {
                 Tick::Continue => {}
                 Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
@@ -1208,40 +1368,58 @@ impl Vm {
                     }
                 },
                 Tick::PushScript {
-                    asm,
+                    script,
                     label,
                     cleanup_proc,
+                    namespace,
                 } => {
-                    let mut fr = Frame::new_script(asm, label, self.profile_generation());
+                    let mut fr = Frame::new_script(script, label);
                     fr.cleanup_proc = cleanup_proc;
+                    if let ScriptNamespace::CommandBoundary(namespace) = namespace {
+                        match self.enter_replay_namespace(namespace) {
+                            Ok(previous) => fr.replay_namespace_restore = previous,
+                            Err(message) => {
+                                if let Some(done) = self.settle_completion(acts, err(message)) {
+                                    return RunExit::Done(done);
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushCatch(req) => {
-                    let mut fr = Frame::new_catch(req, self.profile_generation());
+                    let mut fr = Frame::new_catch(req);
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushSubst(req) => {
-                    let mut fr = Frame::new_subst(req, self.profile_generation());
+                    let namespace = self.current_ns().to_owned();
+                    let placeholder =
+                        self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
+                    let mut fr = Frame::new_subst(req, placeholder);
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushEachLoop(req) => {
-                    let mut fr = Frame::new_each_loop(req, self.profile_generation());
+                    let namespace = self.current_ns().to_owned();
+                    let placeholder =
+                        self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
+                    let mut fr = Frame::new_each_loop(req, placeholder);
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushTry(req) => {
-                    let mut fr = Frame::new_try(req, self.profile_generation());
+                    let mut fr = Frame::new_try(req);
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
@@ -1257,50 +1435,139 @@ impl Vm {
                         return RunExit::Done(done);
                     }
                 }
-                Tick::Suspend(req) => match mode {
-                    // A coroutine `yield`/`yieldto` freezes `acts` in place (pc
-                    // already past the suspend point) and hands the request out
-                    // to its `resume`.
-                    DriveMode::CoroDriver => {
-                        return RunExit::Yielded(req);
+                Tick::Suspend(req) => {
+                    if let Some(exit) = self.handle_suspend(acts, mode, req) {
+                        return exit;
                     }
-                    // Defensive: the `yield` builtin's boundary check rejects a
-                    // top-level suspend (`cannot yield: C stack busy`) before it
-                    // reaches here.
-                    DriveMode::Plain => {
-                        let c = err("cannot yield: C stack busy");
-                        if let Some(done) = self.unwind(acts, c) {
-                            return RunExit::Done(done);
-                        }
-                    }
-                },
+                }
             }
         }
     }
 
-    /// Reject a frame whose profile changed while it was live. Stored
-    /// activations can have a PC and operand stack in the middle of a lowered
-    /// command, so they cannot be safely recompiled like an unentered proc.
+    fn handle_suspend(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        mode: DriveMode,
+        req: YieldReq,
+    ) -> Option<RunExit> {
+        match mode {
+            // A coroutine `yield`/`yieldto` freezes `acts` in place (pc already
+            // past the suspend point) and hands the request out to its resume.
+            DriveMode::CoroDriver => {
+                if let Some(message) = self.activation_stack_stale_message(acts, self.current_ns())
+                {
+                    // A freshly compiled try handler/finally can sit above an
+                    // activation made stale by the command that selected it.
+                    // Never park that mixed stack.
+                    return self
+                        .settle_stale_activation(acts, message)
+                        .map(RunExit::Done);
+                }
+                Some(RunExit::Yielded(req))
+            }
+            // Defensive: the `yield` builtin's boundary check rejects a
+            // top-level suspend (`cannot yield: C stack busy`) before here.
+            DriveMode::Plain => self
+                .unwind(acts, err("cannot yield: C stack busy"))
+                .map(RunExit::Done),
+        }
+    }
+
+    /// Reject a frame whose profile or compile service changed while it was
+    /// live. Stored activations can have a PC and operand stack in the middle
+    /// of a lowered command, so they cannot be safely recompiled like an
+    /// unentered proc.
     /// `Ok(true)` means unwinding consumed the stale frame and the caller must
     /// continue its drive loop; an empty stack is returned as a completed run.
-    fn unwind_stale_profile_frame(&mut self, acts: &mut Vec<Frame>) -> Result<bool, RunExit> {
-        if acts
-            .last()
-            .is_some_and(|frame| frame.profile_generation != self.profile_generation())
+    fn unwind_stale_compilation_frame(&mut self, acts: &mut Vec<Frame>) -> Result<bool, RunExit> {
+        let current_profile = self.profile_generation();
+        let current_compiler = self.compiler_generation();
+        if let Some(frame) = acts.last_mut()
+            && (frame.profile_generation != current_profile
+                || frame.compiler_generation != current_compiler)
+            && frame.each_loop.is_some()
         {
+            // The foreach/lmap driver contains no bytecode or profile-sensitive
+            // parser state: list grouping is invariant and variable writes use
+            // the VM's live semantics. Its reusable compiled body owns the
+            // originating profile separately, so it is safe to advance the
+            // driver itself and let the next body activation enforce freshness.
+            frame.profile_generation = current_profile;
+            frame.compiler_generation = current_compiler;
+        }
+        let stale_message = self.top_activation_stale_message(acts);
+        if let Some(message) = stale_message {
             // This is a command-like failure at the current instruction
             // boundary. Route it through the ordinary settlement seam so an
             // enclosing inline `catch` observes it before the activation is
             // unwound.
-            return match self.settle_completion(
-                acts,
-                err("cannot continue bytecode after dialect profile changed"),
-            ) {
+            return match self.settle_completion(acts, err(message)) {
                 Some(done) => Err(RunExit::Done(done)),
                 None => Ok(true),
             };
         }
         Ok(false)
+    }
+
+    /// Validate every frozen activation before a coroutine is resumed or
+    /// parked. A current handler/finally frame must not hide a stale ancestor.
+    pub(crate) fn activation_stack_stale_message(
+        &self,
+        acts: &[Frame],
+        current_namespace: &str,
+    ) -> Option<&'static str> {
+        let current_profile = self.profile_generation();
+        let current_compiler = self.compiler_generation();
+        acts.iter()
+            .find_map(|frame| frame.stale_compilation_message(current_profile, current_compiler))
+            .or_else(|| {
+                acts.last()
+                    .and_then(|frame| frame.namespace_stale_message(current_namespace))
+            })
+    }
+
+    /// The single activation-boundary freshness query. Scanner-only drivers
+    /// declare their exemption in `Frame::stale_compilation_message`; every
+    /// execution, unwind, resume, and suspension boundary consults this owner.
+    fn top_activation_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
+        let current_profile = self.profile_generation();
+        let current_compiler = self.compiler_generation();
+        let current_namespace = self.current_ns();
+        acts.last().and_then(|frame| {
+            frame
+                .stale_compilation_message(current_profile, current_compiler)
+                .or_else(|| frame.namespace_stale_message(current_namespace))
+        })
+    }
+
+    fn settle_stale_activation(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        message: &'static str,
+    ) -> Option<Completion<Value>> {
+        self.settle_completion(acts, err(message))
+    }
+
+    /// Reject a frozen coroutine through the ordinary settlement/unwind path.
+    /// Plain drive mode turns any attempted yield during cleanup into another
+    /// unwinding error, so a stale continuation can never become suspended
+    /// again.
+    pub(crate) fn unwind_stale_coroutine(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        message: &'static str,
+    ) -> RunExit {
+        match self.settle_stale_activation(acts, message) {
+            Some(done) => RunExit::Done(done),
+            None => self.drive(acts, DriveMode::Plain),
+        }
+    }
+
+    /// A completion is about to cross from a child activation into its parent.
+    /// A stale parent owns the boundary, so replace even an OK/return completion
+    /// with its provenance error before catch or loop settlement sees it.
+    fn validate_unwind_boundary(&self, acts: &[Frame], c: Completion<Value>) -> Completion<Value> {
+        self.top_activation_stale_message(acts).map_or(c, err)
     }
 
     /// Settle a frame's exceptional completion (`Tick::Return`): a live catch
@@ -1467,11 +1734,39 @@ impl Vm {
         f.catch_ranges.last().and_then(|r| r.caught.as_ref())
     }
 
+    /// Add the error frames owned by one completed activation before its proc
+    /// boundary is unwound. Keeping this here gives compiled `eval`/`uplevel`
+    /// bodies the same single error-context path as every other activation.
+    fn apply_activation_error_context(&mut self, act: &Frame, acts: &[Frame]) {
+        self.apply_error_regions(act);
+        let Some(label) = act.body_label else {
+            return;
+        };
+        self.append_body_frame(label);
+        if let Some((cmd, line)) = acts.last().and_then(|parent| {
+            parent
+                .asm
+                .instructions
+                .get(parent.pc.saturating_sub(1))
+                .map(|instruction| (instruction.source_cmd_text.clone(), instruction.source_line))
+        }) {
+            self.log_command_info(&cmd, "", line);
+        }
+    }
+
     fn unwind(
         &mut self,
         acts: &mut Vec<Frame>,
         mut c: Completion<Value>,
     ) -> Option<Completion<Value>> {
+        // Every direct exceptional hand-off must validate the activation that
+        // is about to consume it before that activation is popped. Most ticks
+        // are already checked by `drive_loop`, but a synchronous tailcall
+        // target can change the compiler and return a non-OK completion from
+        // inside `run_tailcall`. Letting that completion enter the pop loop
+        // first would discard the stale parent before the ordinary child-to-
+        // parent boundary check could see it.
+        c = self.validate_unwind_boundary(acts, c);
         loop {
             let mut act = acts.pop().expect("unwinding a non-empty stack");
             // An error unwinding through an inlined command body (`eval {…}`)
@@ -1479,35 +1774,21 @@ impl Vm {
             // activation's own proc frame (innermost first) — the compiled
             // analogue of C's `CmdFrame` trace.
             if c.code == Code::Error {
-                self.apply_error_regions(&act);
-                // A transparent `eval`/`uplevel` body adds its `("eval" body line
-                // N)` frame as the error unwinds out of it — the compiled-stack
-                // analogue of the post-`eval_source` `append_body_frame` the
-                // builtins used to do (eval-2.5) — then logs the `eval`/`uplevel`
-                // command's own `invoked from within "eval …"` call-site frame
-                // (the enclosing instruction that pushed this body), as the
-                // nested-drive builtins' propagated error did.
-                if let Some(label) = act.body_label {
-                    self.append_body_frame(label);
-                    if let Some((cmd, line)) = acts.last().and_then(|parent| {
-                        parent
-                            .asm
-                            .instructions
-                            .get(parent.pc.saturating_sub(1))
-                            .map(|i| (i.source_cmd_text.clone(), i.source_line))
-                    }) {
-                        self.log_command_info(&cmd, "", line);
-                    }
-                }
+                self.apply_activation_error_context(&act, acts);
             }
             if act.is_proc {
                 self.unwind_proc_frame(&act, acts, &mut c);
+            } else if let Some(previous) = act.replay_namespace_restore.take() {
+                self.leave_replay_namespace(previous);
             }
-            // Settle any execution-trace leave contexts riding on this frame
-            // (M16.3) — a leave-trace error replaces the completion
-            // (tclsh-pinned).  For a traced `catch` this fires with the
-            // pre-absorb completion (the body's), a documented divergence.
-            if !act.exec_leave.is_empty() {
+            // `catch` and `try` still have command-owned completion work below:
+            // catch absorbs its body's completion, while try may advance through
+            // several handler/finally phase activations. Their execution-trace
+            // leave contexts therefore settle only after that work is complete.
+            // Every other activation settles here, preserving the established
+            // proc-boundary and apply-cleanup ordering.
+            let defer_exec_leave = act.catch.is_some() || act.try_ctx.is_some();
+            if !defer_exec_leave && !act.exec_leave.is_empty() {
                 for ctx in act.exec_leave.drain(..).rev() {
                     if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
                         c = replacement;
@@ -1527,20 +1808,12 @@ impl Vm {
             // command's result (`exit` stays uncatchable — `finish_catch` passes
             // it straight through).
             if let Some(ctx) = act.catch.take() {
-                let fc = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
-                match acts.last_mut() {
-                    None => return Some(fc),
-                    Some(parent) => {
-                        if fc.code.is_ok() {
-                            parent.stack.push(fc.result);
-                            return None;
-                        }
-                        // A rare `set`-into-the-result-var failure (or an
-                        // uncatchable `exit`) keeps unwinding.
-                        c = fc;
-                        continue;
-                    }
+                if c.code == Code::Ok
+                    && let Some(message) = ctx.fatal_tail
+                {
+                    c = crate::interp::err(message);
                 }
+                c = self.finish_catch(c, ctx.resvar.as_ref(), ctx.optvar.as_ref());
             }
             // A try-phase activation (body/handler/`finally`) just completed:
             // `advance_try` decides whether another phase follows (pushed here,
@@ -1548,15 +1821,41 @@ impl Vm {
             // parent-stays-put pattern) or the whole `try` is done, in which
             // case `c` becomes its completion and unwinding continues below
             // exactly as for any other completed activation (issue #1311).
-            if let Some(ctx) = act.try_ctx.take() {
+            if let Some(mut ctx) = act.try_ctx.take() {
+                if c.code == Code::Ok
+                    && let Some(message) = ctx.fatal_tail.take()
+                {
+                    c = crate::interp::err(message);
+                }
                 match crate::cmd_try::advance_try(self, *ctx, c) {
                     crate::cmd_try::TryOutcome::Push(req) => {
-                        acts.push(Frame::new_try(req, self.profile_generation()));
+                        let mut next = Frame::new_try(req);
+                        next.exec_leave.append(&mut act.exec_leave);
+                        acts.push(next);
                         return None;
                     }
                     crate::cmd_try::TryOutcome::Deliver(fc) => c = fc,
                 }
             }
+            // Settle a traced catch only after its body completion has been
+            // absorbed into catch's successful integer result. A traced try
+            // reaches here only for its final delivered phase; intermediate
+            // phases transferred these contexts above. A leave-trace failure
+            // now escapes the completed control command instead of being
+            // caught or handled by that same command.
+            if defer_exec_leave && !act.exec_leave.is_empty() {
+                for ctx in act.exec_leave.drain(..).rev() {
+                    if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
+                        c = replacement;
+                    }
+                }
+            }
+            // Crossing an activation boundary is itself a provenance
+            // consumption point. In particular, a freshly compiled computed-
+            // head try handler/finally must not return through a proc made stale
+            // by the try body. The replacement error then follows the parent's
+            // ordinary catch-range and loop settlement below.
+            c = self.validate_unwind_boundary(acts, c);
             // A subst activation's `[…]` child (`act`) just completed: fold its
             // result into the enclosing subst frame's scan by subst rules (see
             // [`Vm::fold_subst_bracket`]). `Resume` re-ticks the subst frame;
@@ -1827,11 +2126,12 @@ impl Vm {
         match step {
             crate::subst::SubstStep::Done(out) => Tick::Return(ok(Value::string(out))),
             crate::subst::SubstStep::Error(msg) => Tick::Return(err(msg)),
-            crate::subst::SubstStep::Bracket(inner) => match self.compile_source_cached(&inner) {
-                Ok(asm) => Tick::PushScript {
-                    asm,
+            crate::subst::SubstStep::Bracket(inner) => match self.compile_script_cached(&inner) {
+                Ok(script) => Tick::PushScript {
+                    script,
                     label: None,
                     cleanup_proc: None,
+                    namespace: ScriptNamespace::Inherit,
                 },
                 Err(e) => Tick::Return(err(e.message)),
             },
@@ -1872,12 +2172,13 @@ impl Vm {
                 }
             }
             st.it += 1;
-            Rc::clone(&st.body)
+            st.body.clone()
         };
         Tick::PushScript {
-            asm: body,
+            script: body,
             label: None,
             cleanup_proc: None,
+            namespace: ScriptNamespace::Inherit,
         }
     }
 
@@ -1912,6 +2213,51 @@ impl Vm {
         EachLoopFold::Resume
     }
 
+    /// Capture the callable token for a typed generic surrogate at its literal
+    /// head push. This is deliberately before every argument substitution: a
+    /// trace, rename, or replacement performed by an earlier word belongs to
+    /// the next invocation, not the command Tcl has already entered.
+    fn capture_entered_command(
+        &mut self,
+        f: &mut Frame,
+        asm: &FunctionAsm,
+        instr: &Instruction,
+        resume: usize,
+    ) -> Result<(), Completion<Value>> {
+        let Some(entered) = instr.entered_command.as_ref() else {
+            return Ok(());
+        };
+        if !self.command_binding_matches(&entered.binding) {
+            return Ok(());
+        }
+        let name = &entered.binding.name;
+        let Some((key, command)) =
+            self.lookup_command_in_namespace(&entered.binding.resolution_namespace, name)
+        else {
+            return Ok(());
+        };
+        let sidecar_key = CommandSidecarKey::visible(key);
+        // A command-specific execution trace makes C Tcl compile this
+        // invocation generically (`CMD_HAS_EXEC_TRACES`). Trace presence is
+        // sampled at command entry: later add/remove/rename operations inside
+        // the arguments cannot retroactively change which form was entered.
+        if self.command_has_execution_trace(&sidecar_key) {
+            return Ok(());
+        }
+        let Some(continuation) = label_to_idx(asm, &f.off2idx, &entered.end) else {
+            return Err(err("entered command has no valid continuation"));
+        };
+        let sidecar = self.active_sidecar(sidecar_key);
+        f.entered_commands.push(EnteredCommand {
+            resume,
+            continuation,
+            name: name.clone(),
+            command,
+            sidecar,
+        });
+        Ok(())
+    }
+
     /// Execute a single instruction of the top activation.
     #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
     fn tick(&mut self, f: &mut Frame) -> Tick {
@@ -1926,6 +2272,12 @@ impl Vm {
         if f.each_loop.is_some() {
             return self.tick_each_loop(f);
         }
+        // A control transfer may skip an entered command's invoke (an error,
+        // catch jump, or stale-command replay). Drop only entries whose
+        // continuation has been reached; enclosing nested commands have later
+        // continuations and remain live.
+        f.entered_commands
+            .retain(|entered| entered.continuation > f.pc);
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {
             return Tick::Return(ok(f
@@ -1935,6 +2287,72 @@ impl Vm {
                 .unwrap_or_else(|| f.last_result.clone())));
         }
         let instr = &asm.instructions[f.pc];
+        if instr.op != Op::START_CMD
+            && instr.source_command_boundary.is_start()
+            && !f
+                .entered_commands
+                .iter()
+                .any(|entered| entered.resume <= f.pc && f.pc < entered.continuation)
+            && f.command_epoch != self.trace_deopt_epoch()
+        {
+            if self.function_command_bindings_match(&asm) && !self.step_trace_active() {
+                f.command_epoch = self.trace_deopt_epoch();
+            } else {
+                let child = match self.compile_plain_function_cached(ScriptCompileTarget {
+                    source: &instr.source_cmd_text,
+                    namespace: &instr.source_command_namespace,
+                }) {
+                    Ok(asm) => asm,
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(error));
+                    }
+                };
+                let mut after = f.pc + 1;
+                while after < asm.instructions.len() {
+                    let candidate = &asm.instructions[after];
+                    if candidate.source_command_boundary.is_start() {
+                        // A command substitution has its own executable source
+                        // boundary inside the enclosing command. Replaying the
+                        // enclosing command already executes that substitution,
+                        // so resuming at the nested boundary would execute the
+                        // outer command repeatedly and eventually consume a
+                        // half-rebuilt operand stack. The compiler's exact spans
+                        // give the nesting relation without naming either
+                        // command; the first non-contained boundary is this
+                        // command's continuation.
+                        let nested = instr.source_span.zip(candidate.source_span).is_some_and(
+                            |(outer, inner)| {
+                                outer.start() <= inner.start() && inner.end() <= outer.end()
+                            },
+                        );
+                        if !nested {
+                            break;
+                        }
+                    }
+                    after += 1;
+                }
+                // Resume on this command's trailing POP so the transparent
+                // child's result becomes the parent's ordinary last result.
+                f.pc = if after > f.pc + 1 && asm.instructions[after - 1].op == Op::POP {
+                    after - 1
+                } else {
+                    after
+                };
+                return Tick::PushScript {
+                    script: self.compiled_unit(child, instr.source_command_namespace.clone()),
+                    label: None,
+                    cleanup_proc: None,
+                    namespace: ScriptNamespace::CommandBoundary(
+                        instr.source_command_namespace.clone(),
+                    ),
+                };
+            }
+        }
+        if let Err(completion) =
+            self.capture_entered_command(f, &asm, instr, f.pc.saturating_add(1))
+        {
+            return Tick::Return(completion);
+        }
         f.pc += 1;
         // Line-watch seam: keep the embedder's cell on the dispatching
         // instruction's source line (see `Vm::set_line_watch`).
@@ -2050,8 +2468,50 @@ impl Vm {
                 }
                 f.stack.push(Value::string(s));
             }
-            // `START_CMD`/`NOP` are inert.
-            Op::NOP | Op::START_CMD => {}
+            Op::START_CMD => {
+                let current_epoch = self.trace_deopt_epoch();
+                // Compiler-only markers have no exact owning Tcl command and
+                // therefore are not safe acknowledgement/replay points. Leave
+                // the frame stale until a real source boundary is reached.
+                if f.command_epoch != current_epoch && !instr.source_cmd_text.is_empty() {
+                    if self.function_command_bindings_match(&asm) && !self.step_trace_active() {
+                        f.command_epoch = current_epoch;
+                    } else {
+                        let Some(target) =
+                            label0(instr).and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                        else {
+                            return Tick::Return(err(
+                                "stale startCommand has no valid continuation",
+                            ));
+                        };
+                        let child = match self.compile_plain_function_cached(ScriptCompileTarget {
+                            source: &instr.source_cmd_text,
+                            namespace: &instr.source_command_namespace,
+                        }) {
+                            Ok(asm) => asm,
+                            Err(error) => {
+                                return Tick::Return(crate::command::completion_from_tcl_error(
+                                    error,
+                                ));
+                            }
+                        };
+                        // The transparent child produces this command's result
+                        // on the parent stack; resume at the original
+                        // startCommand continuation, skipping stale opcodes.
+                        f.pc = target;
+                        return Tick::PushScript {
+                            script: self
+                                .compiled_unit(child, instr.source_command_namespace.clone()),
+                            label: None,
+                            cleanup_proc: None,
+                            namespace: ScriptNamespace::CommandBoundary(
+                                instr.source_command_namespace.clone(),
+                            ),
+                        };
+                    }
+                }
+            }
+            Op::NOP => {}
 
             // A `BEGIN_CATCH4` carrying an out-of-band handler label opens a
             // live catch range (C `INST_BEGIN_CATCH4` pushing the catchStack);
@@ -2631,8 +3091,12 @@ impl Vm {
                 } else {
                     format!("{}::{}", ns.trim_end_matches("::"), var)
                 };
-                // `global`/namespace links resolve in the global frame.
-                self.add_link(&local, 0, &target);
+                // The namespace word has already resolved `target` to the
+                // global storage key. Preserve that constructed identity while
+                // sharing the alias guard/install path with generic `upvar`.
+                if let Err(error) = self.link_upvar_key(0, &target, &local) {
+                    return Tick::Return(crate::command::upvar_link_error(error, &var, &local));
+                }
             }
             Op::UPVAR => {
                 let local = lvt_name(imm0(instr));
@@ -3420,7 +3884,8 @@ impl Vm {
                     return Tick::Return(err("invoke: stack underflow"));
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
-                match self.dispatch_words(f, &words) {
+                let entered = f.take_entered_command();
+                match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
@@ -3469,7 +3934,8 @@ impl Vm {
                 if words.is_empty() {
                     return Tick::Return(command_lookup_error(""));
                 }
-                match self.dispatch_words(f, &words) {
+                let entered = f.take_entered_command();
+                match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
@@ -3497,12 +3963,18 @@ impl Vm {
                     return Tick::Return(err("invokeReplace: stack underflow"));
                 }
                 let words = f.stack.split_off(f.stack.len() - objc);
-                let mut argv = Vec::with_capacity(objc.saturating_sub(opnd) + 1);
-                argv.push(repl);
+                // The entered outer ensemble protects this specialised range
+                // from replay after argument-time mutation, but it is not the
+                // command this opcode invokes. Tcl resolves the rewritten
+                // implementation word after substitution, so an argument may
+                // replace `::tcl::string::equal` for this very invocation.
+                let _entered_range = f.take_entered_command();
+                let mut rewritten = Vec::with_capacity(objc.saturating_sub(opnd) + 1);
+                rewritten.push(repl);
                 if opnd < words.len() {
-                    argv.extend_from_slice(&words[opnd..]);
+                    rewritten.extend_from_slice(&words[opnd..]);
                 }
-                match self.dispatch_words(f, &argv) {
+                match self.dispatch_words_with_entered(f, &rewritten, None) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
@@ -3944,12 +4416,13 @@ impl Vm {
                 // is delivered to this frame by `unwind` exactly as the old inline
                 // push/`Tick::Return` did.
                 let script = pop(f).to_str().to_string();
-                match self.compile_source_cached(&script) {
-                    Ok(asm) => {
+                match self.compile_script_cached(&script) {
+                    Ok(script) => {
                         return Tick::PushScript {
-                            asm,
+                            script,
                             label: None,
                             cleanup_proc: None,
+                            namespace: ScriptNamespace::Inherit,
                         };
                     }
                     Err(e) => return Tick::Return(err(e.message)),
@@ -4140,6 +4613,18 @@ impl Vm {
         f: &mut Frame,
         words: &[Value],
     ) -> Result<Option<Tick>, Completion<Value>> {
+        self.dispatch_words_with_entered(f, words, None)
+    }
+
+    /// Dispatch with an optional command token captured at the command-head
+    /// push. Arguments are the already-substituted values; the captured token
+    /// changes only command selection and never replays them.
+    fn dispatch_words_with_entered(
+        &mut self,
+        f: &mut Frame,
+        words: &[Value],
+        entered: Option<&EnteredCommand>,
+    ) -> Result<Option<Tick>, Completion<Value>> {
         // Every dispatched command is charged against the `commands` limit
         // before anything runs, so an armed budget bounds the work exactly
         // (issue #1373 finding 1).
@@ -4151,9 +4636,101 @@ impl Vm {
         // trace callback is *not* a reason to skip: only the step machinery is
         // gated then, inside `exec_traces_can_fire`.
         if !self.exec_traces_can_fire() {
-            return self.dispatch_words_inner(f, words, None);
+            return self.dispatch_words_inner(f, words, None, entered);
         }
-        self.dispatch_words_traced(f, words)
+        self.dispatch_words_traced(f, words, entered)
+    }
+
+    /// Resolve the trace owner and take the own-trace snapshot for one invoke.
+    /// A retained specialised entry had no execution trace at command entry, so
+    /// traces added by its arguments are deliberately absent from the snapshot.
+    fn dispatch_trace_owner(
+        &mut self,
+        name: &str,
+        entered: Option<&EnteredCommand>,
+    ) -> (CommandSidecarHandle, Vec<Rc<CmdTraceEntry>>) {
+        let sidecar = entered.map_or_else(
+            || {
+                let key = self
+                    .resolve_command_fqn(self.current_ns(), name)
+                    .unwrap_or_default();
+                let key = self.renamed_command_key(CommandSidecarKey::visible(key));
+                self.active_sidecar(key)
+            },
+            |entered| entered.sidecar.clone(),
+        );
+        let own = if entered.is_some() {
+            Vec::new()
+        } else {
+            sidecar
+                .key()
+                .and_then(|key| self.exec_traces.get(&key).cloned())
+                .unwrap_or_default()
+        };
+        (sidecar, own)
+    }
+
+    /// Validate the command owner and snapshot the step-capable traces which
+    /// own its body immediately after all `enter` callbacks have completed and
+    /// immediately before dispatch.
+    ///
+    /// C Tcl lets an `enter` callback add a `leave`/step trace for this same
+    /// invocation. Step scopes are fixed at this point; leave traces are looked
+    /// up live at settlement, but only when this validated owner already had an
+    /// execution trace at entry. Generic dispatch also re-resolves the invoked
+    /// spelling after the callbacks: if a callback renamed, deleted, or
+    /// replaced the entry-time owner, its traces do not own the different
+    /// command selected by that re-resolution. An already-resolved invocation
+    /// passes no name and continues to own its captured command through
+    /// relocation.
+    fn post_enter_trace_snapshot(
+        &self,
+        generic_name: Option<&str>,
+        sidecar: &CommandSidecarHandle,
+        entered: bool,
+    ) -> Option<Vec<Rc<CmdTraceEntry>>> {
+        // A specialised entered token had no execution trace before argument
+        // substitution. A trace added by an argument belongs only to a later
+        // invocation, even though this helper runs immediately before dispatch.
+        if entered {
+            return None;
+        }
+        let owner = sidecar.key()?;
+        if let Some(name) = generic_name {
+            let resolved = self
+                .resolve_command_fqn(self.current_ns(), name)
+                .map(CommandSidecarKey::visible)
+                .map(|key| self.renamed_command_key(key));
+            if resolved.as_ref() != Some(&owner) {
+                return None;
+            }
+        }
+        Some(self.exec_traces.get(&owner).cloned().unwrap_or_default())
+    }
+
+    /// Install the step scopes from the post-enter body-owner snapshot.
+    fn push_exec_step_scopes(
+        &mut self,
+        sidecar: &CommandSidecarHandle,
+        own: &[Rc<CmdTraceEntry>],
+    ) -> usize {
+        let mut pushed = 0usize;
+        for entry in own.iter().rev() {
+            if !sidecar.is_attached() {
+                break;
+            }
+            if !self.exec_trace_entry_live(sidecar, entry) {
+                continue;
+            }
+            if entry.has_op("enterstep") || entry.has_op("leavestep") {
+                self.exec_step_scopes.push(ExecStepScope {
+                    entry: Rc::clone(entry),
+                    key: sidecar.clone(),
+                });
+                pushed += 1;
+            }
+        }
+        pushed
     }
 
     /// Whether the `enterstep`/`leavestep` machinery may fire right now. This
@@ -4196,11 +4773,9 @@ impl Vm {
         &mut self,
         f: &mut Frame,
         words: &[Value],
+        entered: Option<&EnteredCommand>,
     ) -> Result<Option<Tick>, Completion<Value>> {
         let name = words[0].to_str();
-        let key = self
-            .resolve_command_fqn(self.current_ns(), &name)
-            .unwrap_or_default();
         // The complete current command, list-merged (tclsh-pinned shape:
         // `p one {t w o}`).
         let cmd_string = Value::list(words.to_vec()).to_str().to_string();
@@ -4219,16 +4794,16 @@ impl Vm {
                 }
             }
         }
-        // Inside a rename's callbacks the vacating name still resolves, but the
-        // one command's trace list has already moved to the destination key —
-        // so look the traces up there, as C reaches them through the shared
-        // `Command` from either hash entry. Only the *key* is canonicalised:
-        // the callback's own words stay the spelling the caller invoked
-        // (`cmd_string` above).
-        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
-        let sidecar = self.active_sidecar(key.clone());
-        let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
-        for entry in own.iter().rev() {
+        // A retained entry represents a command that was specialised while it
+        // had no execution trace. A trace installed by one of its argument
+        // substitutions applies only to later invocations in C Tcl; consulting
+        // the live table here would make it fire retroactively. When a trace
+        // already existed at command entry no token was retained, so ordinary
+        // live lookup remains correct for that generic invocation. The owner
+        // resolver also follows an open rename window to the command's moved
+        // trace list while leaving `cmd_string` in the caller's spelling.
+        let (sidecar, own_at_entry) = self.dispatch_trace_owner(&name, entered);
+        for entry in own_at_entry.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
@@ -4245,28 +4820,17 @@ impl Vm {
                 }
             }
         }
-        let mut pushed = 0usize;
-        for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
-                break;
-            }
-            if !self.exec_trace_entry_live(&sidecar, entry) {
-                continue;
-            }
-            if entry.has_op("enterstep") || entry.has_op("leavestep") {
-                self.exec_step_scopes.push(ExecStepScope {
-                    entry: Rc::clone(entry),
-                    key: sidecar.clone(),
-                });
-                pushed += 1;
-            }
-        }
+        let post_enter = self.post_enter_trace_snapshot(Some(&name), &sidecar, entered.is_some());
+        let leave_owner =
+            (!own_at_entry.is_empty() && post_enter.is_some()).then(|| sidecar.clone());
+        let pushed =
+            self.push_exec_step_scopes(&sidecar, post_enter.as_deref().unwrap_or_default());
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: sidecar.clone(),
+            leave_owner,
             step_scopes: pushed,
         };
-        match self.dispatch_words_inner(f, words, Some(&sidecar)) {
+        match self.dispatch_words_inner(f, words, Some(&sidecar), entered) {
             Ok(Some(tick)) => {
                 match &tick {
                     // The body runs on a pushed frame: the context rides
@@ -4334,19 +4898,25 @@ impl Vm {
         let mut replacement = None;
         // Tcl threads a successful leave callback's result to the next
         // callback, while the traced command's own completion remains `c`.
+        // The list is intentionally live: when this owner already had a trace
+        // at entry, a leave trace added by an enter callback or by the command
+        // body joins the current invocation. Removal, deletion and relocation
+        // are observed through the sidecar at settlement.
         let mut trace_result = c.result.clone();
-        if let Some(key) = ctx.key.key()
+        if let Some(owner) = &ctx.leave_owner
+            && let Some(key) = owner.key()
             && let Some(entries) = self.exec_traces.get(&key).cloned()
         {
-            for e in entries {
-                if !ctx.key.is_attached() {
+            for entry in entries {
+                if !owner.is_attached() {
                     break;
                 }
-                if !self.exec_trace_entry_live(&ctx.key, &e) {
+                if !self.exec_trace_entry_live(owner, &entry) {
                     continue;
                 }
-                if e.has_op("leave") {
-                    let r = self.run_cmd_trace_callback(&e, &args(trace_result.clone(), "leave"));
+                if entry.has_op("leave") {
+                    let r =
+                        self.run_cmd_trace_callback(&entry, &args(trace_result.clone(), "leave"));
                     if !r.code.is_ok() {
                         replacement = Some(r);
                         break;
@@ -4419,11 +4989,12 @@ impl Vm {
         // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
         // explicit stack (yieldable): drain it into a `PushScript`, whose
         // frame result replaces this builtin's placeholder (as for yield).
-        if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
+        if let Some((script, label, cleanup_proc)) = self.pending_eval.take() {
             return Ok(Some(Tick::PushScript {
-                asm,
+                script,
                 label,
                 cleanup_proc,
+                namespace: ScriptNamespace::Inherit,
             }));
         }
         // A `catch` defers its body the same way, but into a catch frame
@@ -4457,19 +5028,39 @@ impl Vm {
         f: &mut Frame,
         words: &[Value],
         sidecar_handle: Option<&CommandSidecarHandle>,
+        entered: Option<&EnteredCommand>,
     ) -> Result<Option<Tick>, Completion<Value>> {
-        let name = words[0].to_str();
-        match self.lookup_command(&name) {
+        let name = entered.map_or_else(
+            || words[0].to_str().to_string(),
+            |entered| entered.name.clone(),
+        );
+        let command = entered
+            .map(|entered| entered.command.clone())
+            .or_else(|| self.lookup_command(&name));
+        match command {
             Some(Command::Proc(p)) => {
-                let sidecar = self
-                    .resolve_command_fqn(self.current_ns(), &name)
-                    .map(CommandSidecarKey::visible);
-                // A traced dispatch re-resolves after its callbacks. Keep the
-                // handle only when it still identifies that resolved binding;
-                // a callback may have renamed or replaced the original key.
-                let sidecar_handle =
-                    sidecar_handle.filter(|handle| handle.key().as_ref() == sidecar.as_ref());
-                let p = self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle);
+                let p = if let Some(entered) = entered {
+                    let sidecar = entered.sidecar.key();
+                    if sidecar.is_some() {
+                        self.ensure_proc_ready_in(p, sidecar.as_ref(), Some(&entered.sidecar))
+                    } else {
+                        // The entered token can outlive deletion, but publishing
+                        // its refreshed body by ProcDef::name would resurrect it
+                        // or overwrite a replacement created during substitution.
+                        self.ensure_proc_traced(p)
+                    }
+                } else {
+                    let sidecar = self
+                        .resolve_command_fqn(self.current_ns(), &name)
+                        .map(CommandSidecarKey::visible);
+                    // A traced dispatch re-resolves after its callbacks. Keep the
+                    // handle only when it still identifies that resolved binding;
+                    // a callback may have renamed or replaced the original key.
+                    let sidecar_handle =
+                        sidecar_handle.filter(|handle| handle.key().as_ref() == sidecar.as_ref());
+                    self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle)
+                }
+                .map_err(crate::command::completion_from_tcl_error)?;
                 Ok(Some(Tick::Call {
                     proc: p,
                     argv: words[1..].to_vec(),
@@ -4605,8 +5196,8 @@ impl Vm {
         // (`cmd_string` above).
         let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let sidecar = self.active_sidecar(key.clone());
-        let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
-        for entry in own.iter().rev() {
+        let own_at_entry = self.exec_traces.get(&key).cloned().unwrap_or_default();
+        for entry in own_at_entry.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
@@ -4623,25 +5214,14 @@ impl Vm {
                 }
             }
         }
-        let mut pushed = 0usize;
-        for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
-                break;
-            }
-            if !self.exec_trace_entry_live(&sidecar, entry) {
-                continue;
-            }
-            if entry.has_op("enterstep") || entry.has_op("leavestep") {
-                self.exec_step_scopes.push(ExecStepScope {
-                    entry: Rc::clone(entry),
-                    key: sidecar.clone(),
-                });
-                pushed += 1;
-            }
-        }
+        let post_enter = self.post_enter_trace_snapshot(Some(name), &sidecar, false);
+        let leave_owner =
+            (!own_at_entry.is_empty() && post_enter.is_some()).then(|| sidecar.clone());
+        let pushed =
+            self.push_exec_step_scopes(&sidecar, post_enter.as_deref().unwrap_or_default());
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: sidecar.clone(),
+            leave_owner,
             step_scopes: pushed,
         };
         let c = self.invoke_command_inner(name, argv, Some(&sidecar));
@@ -4696,12 +5276,12 @@ impl Vm {
             }
         }
         let sidecar = self.active_sidecar(trace_key.clone());
-        let own = self
+        let own_at_entry = self
             .exec_traces
             .get(&trace_key)
             .cloned()
             .unwrap_or_default();
-        for entry in own.iter().rev() {
+        for entry in own_at_entry.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
@@ -4718,25 +5298,14 @@ impl Vm {
                 }
             }
         }
-        let mut pushed = 0usize;
-        for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
-                break;
-            }
-            if !self.exec_trace_entry_live(&sidecar, entry) {
-                continue;
-            }
-            if entry.has_op("enterstep") || entry.has_op("leavestep") {
-                self.exec_step_scopes.push(ExecStepScope {
-                    entry: Rc::clone(entry),
-                    key: sidecar.clone(),
-                });
-                pushed += 1;
-            }
-        }
+        let post_enter = self.post_enter_trace_snapshot(None, &sidecar, false);
+        let leave_owner =
+            (!own_at_entry.is_empty() && post_enter.is_some()).then(|| sidecar.clone());
+        let pushed =
+            self.push_exec_step_scopes(&sidecar, post_enter.as_deref().unwrap_or_default());
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: sidecar.clone(),
+            leave_owner,
             step_scopes: pushed,
         };
         let Some(live_key) = sidecar.key() else {
@@ -4767,9 +5336,8 @@ impl Vm {
         // trampoline to push onto), so run the body via a nested drive —
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
-        if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
-            let comp =
-                self.run_activation(Frame::new_script(asm, label, self.profile_generation()));
+        if let Some((script, label, cleanup_proc)) = self.pending_eval.take() {
+            let comp = self.run_activation(Frame::new_script(script, label));
             if let Some(name) = cleanup_proc {
                 self.take_command_unchecked(&name);
             }
@@ -4779,21 +5347,29 @@ impl Vm {
         // inside cannot cross this native re-entry), then absorb its
         // completion with the catch epilogue.
         if let Some(req) = self.pending_catch.take() {
-            let comp =
-                self.run_activation(Frame::new_script(req.asm, None, self.profile_generation()));
+            let mut comp = self.run_activation(Frame::new_script(req.script, None));
+            if comp.code == Code::Ok
+                && let Some(message) = req.fatal_tail
+            {
+                comp = err(message);
+            }
             return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
         }
         // A `subst` deferred: run the scanner-driven subst frame via a
         // nested drive (its `[…]` bodies can't yield across this native
         // re-entry), returning its accumulated result.
         if let Some(req) = self.pending_subst.take() {
-            return self.run_activation(Frame::new_subst(req, self.profile_generation()));
+            let namespace = self.current_ns().to_owned();
+            let placeholder = self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
+            return self.run_activation(Frame::new_subst(req, placeholder));
         }
         // A `foreach`/`lmap` runtime-fallback loop deferred: run the
         // scanner-driven each-loop frame via a nested drive (a `yield` in
         // its body can't cross this native re-entry either).
         if let Some(req) = self.pending_each_loop.take() {
-            return self.run_activation(Frame::new_each_loop(req, self.profile_generation()));
+            let namespace = self.current_ns().to_owned();
+            let placeholder = self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
+            return self.run_activation(Frame::new_each_loop(req, placeholder));
         }
         // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
         // `try_ctx` handling, every subsequent phase `advance_try`
@@ -4803,7 +5379,7 @@ impl Vm {
         // `run_activation` call carries the whole construct through to
         // its final completion.
         if let Some(req) = self.pending_try.take() {
-            return self.run_activation(Frame::new_try(req, self.profile_generation()));
+            return self.run_activation(Frame::new_try(req));
         }
         res
     }
@@ -4862,17 +5438,18 @@ impl Vm {
             }
             Command::Native(cmd) => {
                 self.set_invoked_name(name);
+                let saved = std::mem::replace(&mut self.invoked_sidecar, sidecar);
                 let res = cmd.invoke(self, argv);
+                self.invoked_sidecar = saved;
                 self.settle_native_invoke(res)
             }
             Command::Proc(p) => {
-                let p = self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle);
+                let p = match self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle) {
+                    Ok(proc) => proc,
+                    Err(error) => return crate::command::completion_from_tcl_error(error),
+                };
                 match self.enter_proc(&p, argv) {
-                    Ok(()) => self.run_activation(Frame::new(
-                        Rc::clone(&p.body),
-                        true,
-                        p.compiled_profile_generation,
-                    )),
+                    Ok(()) => self.run_activation(Frame::new(p.body.clone(), true)),
                     Err(c) => c,
                 }
             }
@@ -4931,11 +5508,7 @@ impl Vm {
             self.add_link(local, 0, storage);
         }
         self.oo.call_stack.push(frame);
-        let result = self.run_activation(Frame::new(
-            Rc::clone(&proc.body),
-            true,
-            proc.compiled_profile_generation,
-        ));
+        let result = self.run_activation(Frame::new(proc.body.clone(), true));
         self.oo.call_stack.pop();
         result
     }
@@ -5004,11 +5577,7 @@ impl Vm {
             Some(parent) => match self.dispatch_words(parent, words) {
                 Ok(Some(Tick::Call { proc, argv })) => match self.enter_proc(&proc, &argv) {
                     Ok(()) => {
-                        let mut fr = Frame::new(
-                            Rc::clone(&proc.body),
-                            true,
-                            proc.compiled_profile_generation,
-                        );
+                        let mut fr = Frame::new(proc.body.clone(), true);
                         if let Some(ctx) = self.pending_exec_leave.take() {
                             fr.exec_leave.push(ctx);
                         }

@@ -178,7 +178,9 @@ fn emit_binop(op: BinOp) -> Vec<Op> {
         name: "r".into(),
         name_braced: false,
         expr,
+        command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
         expr_base: None,
+        fallback_value: "[expr {$a + $b}]".into(),
     }]);
     opcodes(&codegen_function(&cfg, &[], false, &registry()))
 }
@@ -199,7 +201,9 @@ fn emit_unaryop(op: UnaryOp) -> Vec<Op> {
         name: "r".into(),
         name_braced: false,
         expr,
+        command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
         expr_base: None,
+        fallback_value: "[expr {-$a}]".into(),
     }]);
     opcodes(&codegen_function(&cfg, &[], false, &registry()))
 }
@@ -1983,8 +1987,11 @@ fn codegen_module_empty_has_top() {
 // same answer dynamically: it compiles the specialisation unconditionally but
 // wraps every command in `INST_START_CMD`, which re-dispatches the slow way
 // once `iPtr->compileEpoch` moves (`tclExecute.c`, `instStartCmdFailed`).
-// This compiler emits no epoch guard, so the check is the static
-// whole-unit `command_binding` scan instead.
+// Specialised bytecode now carries the exact source-name/registry-identity
+// binding it assumes. The VM validates those typed dependencies at explicit
+// source-command boundaries and replays stale commands through ordinary
+// dispatch. Transformations which cannot preserve that executable provenance
+// still abstain through the static whole-unit `command_binding` scan.
 //
 // The runtime results below are pinned on tclsh 8.6.16 and 9.0.4 (byte
 // identical): `rename dict {}` then `dict create a 1 b 2` raises
@@ -2047,29 +2054,59 @@ fn dict_create_fold_bails_when_the_unit_deletes_dict() {
 }
 
 #[test]
-fn statement_position_hook_bails_when_the_unit_renames_llength() {
+fn statement_position_hook_with_unit_rename_retains_runtime_binding() {
     let ops = ops_of("set l {a b c}\nllength $l\n");
     assert!(
         ops.contains(&Op::LIST_LENGTH),
         "baseline specialises: {ops:?}"
     );
 
-    let ops = ops_of("rename llength myll\nset l {a b c}\nllength $l\n");
+    let asm = top_asm("rename llength myll\nset l {a b c}\nllength $l\n");
+    let ops = opcodes(&asm);
     assert!(
-        !ops.contains(&Op::LIST_LENGTH),
-        "`llength` must not keep its opcode once renamed away: {ops:?}"
+        ops.contains(&Op::LIST_LENGTH),
+        "the exact runtime binding lets `llength` remain specialised: {ops:?}"
+    );
+    assert!(
+        asm.command_bindings
+            .iter()
+            .any(|binding| binding.name == "llength" && binding.identity == "llength"),
+        "the specialised opcode must retain its exact command dependency: {:?}",
+        asm.command_bindings,
+    );
+    assert!(
+        asm.instructions.iter().any(|instruction| {
+            instruction.source_command_boundary.is_start()
+                && instruction.source_cmd_text == "llength $l"
+        }),
+        "the VM needs an explicit replay boundary before the stale opcode"
     );
 }
 
 #[test]
-fn value_position_hook_bails_when_the_unit_renames_string() {
+fn value_position_hook_with_unit_rename_retains_runtime_binding() {
     let ops = ops_of("set s ab\nset x [string length $s]\n");
     assert!(ops.contains(&Op::STR_LEN), "baseline specialises: {ops:?}");
 
-    let ops = ops_of("rename string mystring\nset s ab\nset x [string length $s]\n");
+    let asm = top_asm("rename string mystring\nset s ab\nset x [string length $s]\n");
+    let ops = opcodes(&asm);
     assert!(
-        !ops.contains(&Op::STR_LEN),
-        "`string length` must not keep its opcode once `string` is renamed: {ops:?}"
+        ops.contains(&Op::STR_LEN),
+        "the exact runtime binding lets `string length` remain specialised: {ops:?}"
+    );
+    assert!(
+        asm.command_bindings
+            .iter()
+            .any(|binding| binding.name == "string" && binding.identity == "string"),
+        "the specialised opcode must retain its exact ensemble dependency: {:?}",
+        asm.command_bindings,
+    );
+    assert!(
+        asm.instructions.iter().any(|instruction| {
+            instruction.source_command_boundary.is_start()
+                && instruction.source_cmd_text == "set x [string length $s]"
+        }),
+        "the VM needs an explicit replay boundary before the stale nested opcode"
     );
 }
 

@@ -199,6 +199,7 @@ use std::sync::Arc;
 use tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
+use tcl_compiler::command_binding::ModuleCommandBindings;
 use tcl_compiler::compilation_unit::{
     CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts, UnitBuildOptions,
 };
@@ -1602,12 +1603,14 @@ pub struct CfgContext<'db> {
     pub proc_params: Vec<(String, Vec<String>)>,
     #[returns(ref)]
     pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
+    #[returns(ref)]
+    pub command_bindings: ModuleCommandBindings,
 }
 
 /// Interned identity of one procedure's **offset-0** baseline lattice
 /// (salsa-native lattice graph).  Holds the procedure's post-inline IR body
 /// normalised to offset 0 plus the CFG-determining module [`CfgContext`] +
-/// params + dialect — *not* its position — so a shifted-but-unchanged body
+/// params + dialect + command-dispatch mode — *not* its position — so a shifted-but-unchanged body
 /// interns to the same key and reuses the cached [`function_lattice`] (the
 /// builder rebases the result to the body's span).  Procedures with
 /// interprocedural `param_constants` (caller-uniform-literal SCCP seeds) are
@@ -1633,6 +1636,11 @@ pub struct FnLatticeKey<'db> {
     pub params: Vec<String>,
     #[returns(copy)]
     pub context: CfgContext<'db>,
+    /// Exact offset-zero lexer configuration that lowered the procedure body.
+    /// Kept in the identity separately from the dialect because document and
+    /// test hosts may apply grammar overrides to one registry profile.
+    #[returns(copy)]
+    pub lexer_config: tcl_lexer::LexerConfig,
     #[returns(ref)]
     pub dialect: String,
     /// Encoded interprocedural SCCP seeds (`(param, version, string)`, sorted);
@@ -1662,6 +1670,10 @@ pub struct FnLatticeKey<'db> {
     /// `traced_variables`.
     #[returns(copy)]
     pub has_dynamic_variable_trace: bool,
+    /// Trace-visible compilation mode: registry command traits must not turn a
+    /// dynamically replaceable command spelling into builtin-only CFG edges.
+    #[returns(copy)]
+    pub plain_command_dispatch: bool,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -1688,21 +1700,21 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
     let registry = db.registry(key.dialect(db));
-    // The **environment's** grammar, not the store's profile: the model
-    // store stamps a registry by catalogue lookup, so for an environment
-    // with no catalogue row (`jim`) `registry.profile()` is the permissive
-    // fallback and this CFG would be segmented as Tcl 9 while the unit
-    // below is built as Jim. One value for both (§2.5).
-    let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
-    );
+    // The request's exact grammar, not one reconstructed from the registry or
+    // environment name: grammar overrides are part of the memo identity.
+    let config = key.lexer_config(db);
     let cfg = build_cfg_function_with_upvars_and_config(
         key.qname(db),
         key.body(db),
         true,
-        upvar,
-        proc_params,
-        global_write_procs,
+        registry,
+        key.plain_command_dispatch(db),
+        (
+            upvar,
+            proc_params,
+            global_write_procs,
+            context.command_bindings(db).clone(),
+        ),
         config,
     );
     let param_constants =
@@ -1887,7 +1899,13 @@ fn build_unit_with_keys<'db>(
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             global_write.sort_by(|a, b| a.0.cmp(&b.0));
-            CfgContext::new(db, upvar, proc_params, global_write)
+            CfgContext::new(
+                db,
+                upvar,
+                proc_params,
+                global_write,
+                req.command_bindings.clone(),
+            )
         });
         let key = FnLatticeKey::new(
             db,
@@ -1895,11 +1913,13 @@ fn build_unit_with_keys<'db>(
             req.qname.to_owned(),
             req.params.to_vec(),
             context,
+            req.lexer_config,
             req.dialect.map_or("", |profile| profile.name).to_owned(),
             req.param_constants.to_vec(),
             req.known_classes.to_vec(),
             req.traced_variables.to_vec(),
             req.has_dynamic_variable_trace,
+            req.plain_command_dispatch,
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         // The memo stores the unit at **offset 0** and the builder rebases the
@@ -2783,6 +2803,9 @@ pub fn function_optimisations<'db>(
     ir_procs.insert(qname.clone(), proc);
     let ir_module = tcl_compiler::ir::Module {
         source: body_source.clone(),
+        // This synthetic module has no executable top-level script; the
+        // procedure entry below carries its own qualified-name namespace.
+        top_level_namespace: "::".to_owned(),
         // The document's dialect, not `None`. The unit is synthesised, but the
         // release it is analysed under is real and known right here
         // (`dialect_opt`, which is also what `optimise_unit_raw` below is
@@ -2798,6 +2821,9 @@ pub fn function_optimisations<'db>(
         // silently means Tcl 9.0, so a future reader would mis-fold rather than
         // fail. Cheap to keep honest, expensive to debug later.
         dialect: dialect_opt.map(|profile| profile.name.to_owned()),
+        // This synthetic optimisation unit models the ordinary compiler path;
+        // it is never a trace/mutation recovery artefact.
+        plain_command_dispatch: false,
         top_level: tcl_compiler::ir::Script::new(),
         procedures: ir_procs,
         methods: HashMap::new(),
@@ -2842,6 +2868,9 @@ pub fn function_optimisations<'db>(
             top_level: empty_cfg,
             procedures: cfg_procs,
         },
+        // This per-procedure memo path is entered only after the whole-unit
+        // solver proves there are no command mutations.
+        command_mutations: tcl_compiler::command_binding::ModuleCommandMutations::default(),
         top_level: top_fu,
         procedures: fu_procs,
         methods: HashMap::new(),
@@ -2897,8 +2926,7 @@ fn solve_optimisations<'db>(
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
-    let mutations =
-        tcl_compiler::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    let mutations = cu.command_mutations.clone();
     let every_proc_keyed = cu
         .procedures
         .keys()
@@ -3017,7 +3045,9 @@ fn top_level_only_unit(
         source: cu.source.clone(),
         ir_module: tcl_compiler::ir::Module {
             source: cu.source.clone(),
+            top_level_namespace: cu.ir_module.top_level_namespace.clone(),
             dialect: cu.ir_module.dialect.clone(),
+            plain_command_dispatch: cu.ir_module.plain_command_dispatch,
             top_level: cu.ir_module.top_level.clone(),
             procedures: HashMap::new(),
             methods: HashMap::new(),
@@ -3039,6 +3069,7 @@ fn top_level_only_unit(
             top_level: cu.cfg_module.top_level.clone(),
             procedures: HashMap::new(),
         },
+        command_mutations: cu.command_mutations.clone(),
         top_level: cu.top_level.clone(),
         procedures: HashMap::new(),
         methods: HashMap::new(),
@@ -3758,6 +3789,97 @@ mod tests {
                 "{qname}: the taint cascade result must be shared across a memo hit",
             );
         }
+    }
+
+    /// A per-procedure lattice is rebuilt through the public single-function
+    /// CFG entry point, so that entry point must receive the document's exact
+    /// registry surface. Tcl 8.4 has no builtin `throw`: a user procedure with
+    /// that name returns normally and the following statement stays reachable.
+    #[test]
+    fn tcl84_memoised_cfg_keeps_user_throw_call_fallthrough_reachable() {
+        const SRC: &str = "proc throw {} {return ok}\n\
+                           proc subject {} {throw; set after_throw 1}\n";
+        let db = TclDatabase::default();
+        let cfg_key = lexer_cfg_key(&db, "tcl8.4");
+        let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.4".to_owned(), None);
+        let unit = compilation_unit(&db, file, cfg_key);
+        let subject = unit
+            .procedures
+            .get("::subject")
+            .expect("subject procedure lattice");
+
+        assert!(
+            subject.cfg.blocks.values().any(|block| {
+                block.statements.iter().any(|stmt| {
+                    matches!(
+                        stmt,
+                        tcl_compiler::ir::Statement::AssignConst { name, .. }
+                            if name == "after_throw"
+                    )
+                })
+            }),
+            "Tcl 8.4 user proc `throw` must fall through to `after_throw`"
+        );
+    }
+
+    #[test]
+    fn function_lattice_key_keeps_the_exact_normalized_lexer_config() {
+        let db = TclDatabase::default();
+        let context = CfgContext::new(
+            &db,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            ModuleCommandBindings::default(),
+        );
+        let make_key = |config: tcl_lexer::LexerConfig| {
+            FnLatticeKey::new(
+                &db,
+                Script::default(),
+                "::subject".to_owned(),
+                Vec::new(),
+                context,
+                config.normalized(),
+                "tcl8.6".to_owned(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                false,
+                false,
+            )
+        };
+
+        let tcl_key = make_key(tcl_lexer::LexerConfig::for_dialect("tcl8.6"));
+        let irules_key = make_key(tcl_lexer::LexerConfig::for_dialect("f5-irules"));
+        let jim_config = tcl_lexer::LexerConfig::for_dialect("jim");
+        let jim_key = make_key(jim_config);
+        assert!(
+            tcl_key != irules_key,
+            "the iRules ghost-separator axis is part of memo identity"
+        );
+        assert!(
+            tcl_key != jim_key,
+            "Jim's vertical-tab word-separator axis is part of memo identity"
+        );
+
+        let shifted_jim_key = make_key(tcl_lexer::LexerConfig {
+            base_offset: 91,
+            base_line: 7,
+            base_col: 13,
+            ..jim_config
+        });
+        assert!(
+            jim_key == shifted_jim_key,
+            "position-only relocation must normalize out of memo identity"
+        );
+
+        let _cold_other_config = function_lattice(&db, tcl_key);
+        let jim_cold = function_lattice(&db, jim_key);
+        let jim_warm = function_lattice(&db, jim_key);
+        assert!(
+            Arc::ptr_eq(&jim_cold, &jim_warm),
+            "the warm exact-config demand must reuse the cold lattice"
+        );
     }
 
     /// Issue #1159: an unchanged proc body must re-intern to the *same*
@@ -4983,10 +5105,14 @@ mod tests {
         // inside a `destructor`, once inside an `apply` lambda, and once inside a
         // `namespace eval` body — the four function kinds outside
         // `analysable_functions`.
-        let body = "if {[info exists Missing]} { puts no }\n\
-                    for {set i 0} {$i < [llength $vals]} {incr i 2} {\n\
-                        set v [lindex $vals [expr {$i+1}]]\n\
-                        puts $v\n\
+        // Absolute command heads keep the TclOO bodies eligible for lexical
+        // analysis: their execution namespace is receiver-selected, so a
+        // relative command may be shadowed at runtime and is deliberately
+        // complexity-guarded by the compiler.
+        let body = "::if {[::info exists Missing]} { ::puts no }\n\
+                    ::for {::set i 0} {$i < [::llength $vals]} {::incr i 2} {\n\
+                        ::set v [::lindex $vals [::expr {$i+1}]]\n\
+                        ::puts $v\n\
                     }\n";
         let src = format!(
             "oo::class create K {{\n\
@@ -5047,10 +5173,10 @@ mod tests {
         let dialect = "tcl8.6";
         let src = "oo::class create C {\n\
                        variable x\n\
-                       constructor {} { set x 1 }\n\
+                       constructor {} { ::set x 1 }\n\
                        method m {} {\n\
-                           if {[info exists x]} { puts got }\n\
-                           if {[info exists zzz]} { puts never }\n\
+                           ::if {[::info exists x]} { ::puts got }\n\
+                           ::if {[::info exists zzz]} { ::puts never }\n\
                        }\n\
                    }\n";
 
@@ -5097,7 +5223,7 @@ mod tests {
             format!(
                 "oo::class create K {{\n{pad}\
                  method m {{}} {{\n\
-                     if {{[info exists Missing]}} {{ puts no }}\n\
+                     ::if {{[::info exists Missing]}} {{ ::puts no }}\n\
                  }}\n\
                  }}\n"
             )
@@ -5105,7 +5231,7 @@ mod tests {
         // Same class with the constant-branch guard removed — no O100 at all.
         let without_hint = "oo::class create K {\n\
              method m {} {\n\
-                 puts no\n\
+                 ::puts no\n\
              }\n\
              }\n";
 

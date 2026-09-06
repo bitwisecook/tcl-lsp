@@ -22,7 +22,7 @@
 #
 # Full evidence and gap numbering: ../external/README.md
 
-speclib tcllib 1.0 {
+speclib tcllib 2.1 {
 
 # ---------------------------------------------------------------------------
 # struct::tree (tree_tcl.tcl:49-161). `tree ?name? ?=|:=|as|deserialize
@@ -121,6 +121,7 @@ command struct::tree {
                 role [expr {$n - 2}] LoopVarList
                 role [expr {$n - 1}] Body
             }
+            arg_role_resolver_roles {Value LoopVarList Body}
             body_kind Plain
 
             # The standard codes ARE sayable, as traits -- the authorable

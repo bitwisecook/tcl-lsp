@@ -53,7 +53,9 @@ pub fn collect_known_names_from_cfg<I: IntoIterator<Item = String>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg_builder::build_cfg_function;
+    use crate::cfg_builder::{
+        build_cfg_function_with_upvars_and_config, prepare_cfg_context_with_registry,
+    };
     use crate::lowering::lower_to_ir;
     use crate::ssa::build_ssa;
     use tcl_registry::CommandRegistry;
@@ -61,10 +63,14 @@ mod tests {
     fn ssa_of(src: &str) -> SsaFunction {
         let registry = CommandRegistry::build_default();
         let m = lower_to_ir(src, &registry);
-        let cfg = build_cfg_function(
+        let context = prepare_cfg_context_with_registry(&m, &registry);
+        let cfg = build_cfg_function_with_upvars_and_config(
             "::top",
             &m.top_level,
             true,
+            &registry,
+            m.plain_command_dispatch,
+            context,
             tcl_lexer::LexerConfig::default(),
         );
         build_ssa(&cfg, &registry)

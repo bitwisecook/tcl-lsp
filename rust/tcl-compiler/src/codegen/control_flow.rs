@@ -21,14 +21,14 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
-use tcl_registry::hooks::InlineCodegenHookId;
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
+use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
 
 use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 
-use super::cmd_subst::{is_single_command_body, parse_cmd_parts};
+use super::cmd_subst::{parse_cmd_parts, parse_cmd_parts_expand};
 use super::values::is_qualified;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
@@ -89,6 +89,28 @@ fn is_straight_line_body(script: &crate::ir::Script, registry: &CommandRegistry)
             _ => true,
         }
     })
+}
+
+#[derive(Clone, Copy)]
+enum InlineBodyEmitter {
+    Catch,
+    TryHandler,
+}
+
+#[derive(Debug, Clone)]
+struct TryHandlerBindings {
+    body_index: usize,
+    handler_body_index: usize,
+    result_var: Option<String>,
+    options_var: Option<String>,
+}
+
+/// Whether a value already resolved by Tcl's word/list grammar can safely use
+/// the procedure-local scalar bytecodes emitted by the narrow catch/try
+/// specialisers. Other valid Tcl variable names (qualified names, arrays, and
+/// names requiring quoting) stay on the generic runtime path.
+fn is_inline_local_scalar_name(name: &str) -> bool {
+    crate::value_shapes::is_static_var_word(name) && !is_qualified(name)
 }
 
 /// Parse a `dict for`/`dict map` variable-list word by the Tcl list grammar
@@ -154,6 +176,138 @@ struct DictMapPatch {
 }
 
 impl CodegenCtx<'_> {
+    /// Whether the literal-body `catch` specialiser can preserve the exact
+    /// source-word semantics of every argument.
+    ///
+    /// A braced body is already the script value which `catch` will evaluate.
+    /// An unbraced/quoted body must first undergo Tcl substitution and escape
+    /// decoding, so it belongs to the generic, explicit-stack runtime command.
+    /// Result/options variable names may be bare literals, but only the shared
+    /// Tcl word classifier and the local-scalar shape acceptor may prove them.
+    pub(crate) fn catch_inline_args_are_static(args: &[(String, bool)]) -> bool {
+        args.first().is_some_and(|(_, braced)| *braced)
+            && args.iter().skip(1).all(|(name, braced)| {
+                !tcl_syntax::naming::word_is_dynamic(name, *braced)
+                    && !name.contains('\\')
+                    && is_inline_local_scalar_name(name)
+            })
+    }
+
+    /// Resolve the one `try body on error variableList handler` shape this
+    /// inline emitter implements.
+    ///
+    /// The registry owns the typed clause grammar and Tcl's shared list codec
+    /// owns `variableList`. This consumer only adds its code-generation proof:
+    /// body and handler must be closed braced script values, and bound names
+    /// must fit procedure-local scalar bytecodes. Anything else declines to
+    /// the generic, yield-aware runtime `try` implementation.
+    fn try_on_error_inline_bindings(
+        &self,
+        command: &str,
+        args: &[(String, bool)],
+    ) -> Option<TryHandlerBindings> {
+        let arg_refs: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
+        let invocation = self.registry.try_control_invocation(
+            command,
+            &arg_refs,
+            self.registry.own_surface_query(),
+        )?;
+        let [clause] = invocation.clauses.as_slice() else {
+            return None;
+        };
+        if clause.kind != TryClauseKind::On(TryCompletionSelector::Error)
+            || clause.fallthrough
+            || !args[invocation.body_index].1
+            || !args[clause.body_index].1
+        {
+            return None;
+        }
+        let variable_list_index = clause.variable_list_index?;
+        if tcl_syntax::naming::word_is_dynamic(
+            &args[variable_list_index].0,
+            args[variable_list_index].1,
+        ) || (!args[variable_list_index].1 && args[variable_list_index].0.contains('\\'))
+        {
+            return None;
+        }
+
+        let names = tcl_syntax::list::split_list(&args[variable_list_index].0).ok()?;
+        let result_var = names
+            .first()
+            .filter(|name| !name.is_empty())
+            .map(ToString::to_string);
+        // Tcl suppresses an empty first result name, but a present empty
+        // second name is still a real options-variable name.
+        let options_var = names.get(1).map(ToString::to_string);
+        if result_var
+            .iter()
+            .chain(options_var.iter().filter(|name| !name.is_empty()))
+            .any(|name| !is_inline_local_scalar_name(name))
+        {
+            return None;
+        }
+
+        Some(TryHandlerBindings {
+            body_index: invocation.body_index,
+            handler_body_index: clause.body_index,
+            result_var,
+            options_var,
+        })
+    }
+
+    /// Emit one complete Tcl body without losing its command boundaries.
+    ///
+    /// Both inline `catch` and its nested `try` phases use this owner. Each
+    /// command is delegated to the phase's existing one-command emitter, and
+    /// every non-final result is discarded exactly as script evaluation does.
+    /// Fatal/incomplete input takes the runtime evaluator path so the live
+    /// surrounding exception range receives the parse error.
+    fn emit_segmented_inline_body(&mut self, body: &str, emitter: InlineBodyEmitter) {
+        let config = self.lexer_config();
+        let segmented = crate::lowering::command_at_time_script_with_config(body, config);
+        if segmented.commands.is_empty() && segmented.fatal_tail.is_none() {
+            self.push_lit("");
+            return;
+        }
+
+        let last_complete = segmented.commands.len().saturating_sub(1);
+        for (index, command) in segmented.commands.iter().enumerate() {
+            let execution_span = command.execution_span(body);
+            let command_text = body
+                .get(execution_span.start() as usize..execution_span.end() as usize)
+                .expect("execution spans index their source body");
+            let emitted_start = self.instructions.len();
+            match emitter {
+                InlineBodyEmitter::Catch => self.emit_catch_body(command_text),
+                InlineBodyEmitter::TryHandler => {
+                    self.emit_try_handler_command(command_text);
+                }
+            }
+            let body_prefix = body
+                .get(..command.span.start() as usize)
+                .expect("segment start indexes its source body");
+            let line = self.span_line().saturating_add(
+                u32::try_from(body_prefix.bytes().filter(|byte| *byte == b'\n').count())
+                    .unwrap_or(u32::MAX),
+            );
+            self.restamp_emitted_inline_command_boundaries(emitted_start, command_text, line);
+            if segmented.fatal_tail.is_some() || index != last_complete {
+                self.emit(Op::POP, vec![]);
+            }
+        }
+
+        if let Some((tail_start, _)) = segmented.fatal_tail {
+            // The enclosing body word was braced and is already a resolved Tcl
+            // value. Push the malformed command suffix verbatim so none of its
+            // substitutions occur before EVAL_STK reports the parse error.
+            let tail = body
+                .get(tail_start..)
+                .expect("fatal command start indexes its source body");
+            self.push_lit_verbatim(tail);
+            self.emit(Op::EVAL_STK, vec![]);
+        }
+    }
+
     /// Emit `dict map`'s catch error epilogue (dead in our VM; present for
     /// C-Tcl byte fidelity). Returns the placeholder `unsetScalar` indices for
     /// the iterator and result temps, to be back-patched by the caller.
@@ -681,8 +835,8 @@ impl CodegenCtx<'_> {
 
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
     ///
-    /// Compiles the body as a single command inline, then emits the
-    /// normal/handler paths and stores result/options variables.
+    /// Compiles each complete body command inline, then emits the normal/handler
+    /// paths and stores result/options variables.
     /// The catch return code is left on the stack.
     pub fn emit_catch_inline(
         &mut self,
@@ -690,12 +844,10 @@ impl CodegenCtx<'_> {
         result_var: Option<&str>,
         options_var: Option<&str>,
     ) {
-        // `body_text` is already the body word's *value* — `parse_cmd_parts`
-        // removed the braces that delimited the `catch` argument. Any braces
-        // still here belong to the script: `[catch {{set x 1}} m]` runs the
-        // one-word command `set x 1` and catches `invalid command name`, so
-        // stripping a second layer would compile a successful `set` instead.
-        let body = body_text.trim();
+        // `parse_cmd_parts` has already resolved the outer argument word. The
+        // value may legitimately begin and end with braced command words
+        // (`catch {{set} x {1}}`), so it must not be stripped a second time.
+        let body = body_text;
 
         // Pre-intern result_var so it gets a lower LVT slot
         if let Some(rv) = result_var
@@ -718,8 +870,15 @@ impl CodegenCtx<'_> {
         );
         self.catch_depth += 1;
 
-        // Compile body command with startCommand wrapping.
-        self.emit_catch_body(body);
+        // Keep every complete command in this activation so a yield freezes the
+        // live catch range itself. The shared segmenter owns command boundaries;
+        // `emit_catch_body` remains the one-command emitter. Discard each
+        // non-final result exactly as ordinary script execution does. For a
+        // fatal or incomplete tail the compiler-owned command plan keeps the
+        // complete prefix executable, then raises the catchable parse error if
+        // that prefix finishes normally; substitutions in the bad command do
+        // not run.
+        self.emit_segmented_inline_body(body, InlineBodyEmitter::Catch);
 
         // Normal completion: push code "0".
         self.push_lit("0");
@@ -774,11 +933,6 @@ impl CodegenCtx<'_> {
 
     /// Compile a single-command catch body inline.
     ///
-    /// The caller must have checked
-    /// [`is_single_command_body`](super::cmd_subst::is_single_command_body):
-    /// this splits `body` into *words*, so a body holding two commands would be
-    /// emitted as one bogus invocation.
-    ///
     /// Both classifications here are registry data: the
     /// `startCommand`-wrapping set is [`Traits::NEEDS_START_CMD`] and
     /// the per-command inline emitters dispatch on the spec's
@@ -786,7 +940,24 @@ impl CodegenCtx<'_> {
     /// `::`-qualified spellings (`catch {::error x}`) on the generic
     /// path, exactly as the retired raw-word `match` did.
     pub fn emit_catch_body(&mut self, body: &str) {
-        let cfg = self.lexer_config();
+        // The catch word has already resolved to a script value, but that
+        // script still has its own Tcl parse/evaluation phase. Preserve TIP
+        // 157 argument expansion in that phase through the same parser and
+        // emitter used by ordinary command substitutions. Re-reading it with
+        // `parse_cmd_parts` would split adjacent `{*}$args` into the literal
+        // `*` and `$args`, changing the callee's argv (notably Tcltest's
+        // `catch {Configure {*}$args}`).
+        let expand_syntax = self
+            .dialect
+            .is_none_or(|profile| profile.grammar.expand_syntax);
+        if expand_syntax && body.contains("{*}") {
+            let expanded = parse_cmd_parts_expand(body);
+            if expanded.iter().any(|(_, _, expand)| *expand) {
+                self.emit_expanded_cmd_subst(&expanded);
+                self.seen_generic_invoke = true;
+                return;
+            }
+        }
         let body_parts = parse_cmd_parts(body);
         if body_parts.is_empty() {
             self.push_lit("");
@@ -821,7 +992,7 @@ impl CodegenCtx<'_> {
         // (`Incr`, `String`, …, which only the value-position
         // dispatcher in `cmd_subst` emits inline) fall to the generic
         // invoke arm, as do guard failures.
-        match spec.and_then(|s| s.inline_codegen_hook) {
+        match self.inline_cmd_subst_hook(body_cmd, body_args) {
             Some(InlineCodegenHookId::Return) => self.emit_catch_return(body_args),
             Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_args),
             Some(InlineCodegenHookId::Break) => {
@@ -843,47 +1014,30 @@ impl CodegenCtx<'_> {
                     self.emit_expr(&node);
                 }
             }
-            // Both bodies go to a single-command emitter, so both must be a
-            // braced word holding exactly one command — the same rule the
-            // value-position `catch` arm applies.
-            Some(InlineCodegenHookId::Try)
-                if self.is_proc
-                    && body_args.len() == 5
-                    && body_args[1].0 == "on"
-                    && body_args[2].0 == "error"
-                    && body_args[0].1
-                    && body_args[4].1
-                    && is_single_command_body(&body_args[0].0, cfg)
-                    && is_single_command_body(&body_args[4].0, cfg) =>
-            {
-                let try_sc = self.fresh_label("catch_body_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(try_sc.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.cmd_index += 1;
-                self.emit_try_on_error_inline(body_args, &try_sc);
-                self.place_label(&try_sc);
-                self.seen_generic_invoke = true;
+            Some(InlineCodegenHookId::Try) if self.is_proc => {
+                if self
+                    .try_on_error_inline_bindings(body_cmd, body_args)
+                    .is_some()
+                {
+                    let try_sc = self.fresh_label("catch_body_end");
+                    self.emit_comment(
+                        Op::START_CMD,
+                        vec![Operand::Label(try_sc.clone()), Operand::Imm(1)],
+                        "",
+                    );
+                    self.cmd_index += 1;
+                    self.emit_try_on_error_inline(body_cmd, body_args, &try_sc);
+                    self.place_label(&try_sc);
+                    self.seen_generic_invoke = true;
+                } else {
+                    self.emit_generic_cmd_subst(body_cmd, body_args);
+                    self.seen_generic_invoke = true;
+                }
             }
             _ => {
-                // Generic command call. The command *name* may itself be a
-                // substitution (`catch {$proc_name}` — the shape an event
-                // dispatcher uses), so it goes through the same per-word path as
-                // the arguments; pushing it as a bare literal invoked a command
-                // literally named `$proc_name`, which `catch` then swallowed.
-                self.emit_cmd_word(body_cmd, false);
-                for (arg, braced) in body_args {
-                    self.emit_cmd_subst_arg(arg, *braced);
-                }
-                let argc = bytecode_imm(1 + body_args.len());
-                let invoke_op = if argc < 256 {
-                    Op::INVOKE_STK1
-                } else {
-                    Op::INVOKE_STK4
-                };
-                self.emit(invoke_op, vec![Operand::Imm(argc)]);
+                // One shared fixed-arity generic emitter owns word
+                // substitution and specialised entered-command metadata.
+                self.emit_generic_cmd_subst(body_cmd, body_args);
                 self.seen_generic_invoke = true;
             }
         }
@@ -1015,14 +1169,79 @@ impl CodegenCtx<'_> {
         self.emit(Op::RETURN_STK, vec![]);
     }
 
+    /// Begin one inline exception range and advance the shared range index.
+    fn begin_inline_catch_range(&mut self) -> usize {
+        let begin = self.emit(
+            Op::BEGIN_CATCH4,
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
+        );
+        self.catch_depth += 1;
+        begin
+    }
+
+    /// Bind the caught error result/options to the handler's declared local
+    /// variables. The typed try-clause parser owns which names are present;
+    /// this helper owns their bytecode transfer from the shared temp slots.
+    fn emit_try_error_bindings(
+        &mut self,
+        bindings: &TryHandlerBindings,
+        result_slot: Option<i32>,
+        options_slot: Option<i32>,
+        temp_result_slot: i32,
+        temp_opts_slot: i32,
+    ) {
+        if let (Some(name), Some(slot)) = (&bindings.result_var, result_slot) {
+            self.emit_comment(
+                Op::LOAD_SCALAR1,
+                vec![Operand::Imm(temp_result_slot)],
+                &format!("temp var {temp_result_slot}"),
+            );
+            self.emit_comment(
+                Op::STORE_SCALAR1,
+                vec![Operand::Imm(slot)],
+                &format!("var \"{name}\""),
+            );
+            self.emit(Op::POP, vec![]);
+        }
+        if let (Some(name), Some(slot)) = (&bindings.options_var, options_slot) {
+            self.emit_comment(
+                Op::LOAD_SCALAR1,
+                vec![Operand::Imm(temp_opts_slot)],
+                &format!("temp var {temp_opts_slot}"),
+            );
+            self.emit_comment(
+                Op::STORE_SCALAR1,
+                vec![Operand::Imm(slot)],
+                &format!("var \"{name}\""),
+            );
+            self.emit(Op::POP, vec![]);
+        }
+    }
+
     /// Emit inline `try { body } on error {var} { handler }` bytecodes.
-    pub fn emit_try_on_error_inline(&mut self, args: &[(String, bool)], normal_exit: &str) {
-        let try_body_text = &args[0].0;
-        let handler_var = args[3].0.trim().to_owned();
-        let handler_body_text = &args[4].0;
+    pub fn emit_try_on_error_inline(
+        &mut self,
+        command: &str,
+        args: &[(String, bool)],
+        normal_exit: &str,
+    ) {
+        let bindings = self
+            .try_on_error_inline_bindings(command, args)
+            .expect("caller proved the typed literal try/on-error shape");
+        let try_body_text = &args[bindings.body_index].0;
+        let handler_body_text = &args[bindings.handler_body_index].0;
 
         // Allocate LVT slots in tclsh order
-        let msg_slot = bytecode_imm(self.lvt.intern(&handler_var));
+        let msg_slot = bindings
+            .result_var
+            .as_ref()
+            .map(|name| bytecode_imm(self.lvt.intern(name)));
+        let handler_opts_slot = bindings
+            .options_var
+            .as_ref()
+            .map(|name| bytecode_imm(self.lvt.intern(name)));
         let temp_result_name = format!("#temp{}", self.catch_depth);
         let temp_opts_name = format!("#temp{}", self.catch_depth + 1);
         let temp_result_slot = bytecode_imm(self.lvt.intern(&temp_result_name));
@@ -1031,16 +1250,11 @@ impl CodegenCtx<'_> {
         let initial_depth = self.catch_depth;
 
         // Try body exception range
-        self.emit(
-            Op::BEGIN_CATCH4,
-            vec![Operand::Imm(
-                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
-            )],
-        );
-        self.catch_depth += 1;
+        let try_begin_idx = self.begin_inline_catch_range();
 
-        // Compile try body
-        self.emit_catch_body(try_body_text);
+        // Compile the complete try body in this activation so a yield freezes
+        // this phase's live exception range.
+        self.emit_segmented_inline_body(try_body_text, InlineBodyEmitter::Catch);
 
         // Normal exit from try body
         self.emit(Op::END_CATCH, vec![]);
@@ -1050,7 +1264,11 @@ impl CodegenCtx<'_> {
             "try_on",
         );
 
-        // Exception handler for try body
+        // Exception handler for try body. The out-of-band target is the VM's
+        // analogue of C Tcl's exception-range catch offset.
+        let try_exception = self.fresh_label("try_on_body_exception");
+        self.place_label(&try_exception);
+        self.instructions[try_begin_idx].catch_target = Some(try_exception);
         self.emit(Op::PUSH_RETURN_CODE, vec![]);
         self.emit(Op::PUSH_RESULT, vec![]);
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
@@ -1083,26 +1301,16 @@ impl CodegenCtx<'_> {
 
         // Matched error handler (code == 1)
         self.emit(Op::POP, vec![]);
-        self.emit_comment(
-            Op::LOAD_SCALAR1,
-            vec![Operand::Imm(temp_result_slot)],
-            &format!("temp var {temp_result_slot}"),
+        self.emit_try_error_bindings(
+            &bindings,
+            msg_slot,
+            handler_opts_slot,
+            temp_result_slot,
+            temp_opts_slot,
         );
-        self.emit_comment(
-            Op::STORE_SCALAR1,
-            vec![Operand::Imm(msg_slot)],
-            &format!("var \"{handler_var}\""),
-        );
-        self.emit(Op::POP, vec![]);
 
         // Handler body exception range
-        self.emit(
-            Op::BEGIN_CATCH4,
-            vec![Operand::Imm(
-                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
-            )],
-        );
-        self.catch_depth += 1;
+        let handler_begin_idx = self.begin_inline_catch_range();
 
         // Compile handler body
         self.emit_try_handler_body(handler_body_text);
@@ -1115,7 +1323,10 @@ impl CodegenCtx<'_> {
             "try_on",
         );
 
-        // Exception handler for handler body
+        // Exception handler for handler body.
+        let handler_exception = self.fresh_label("try_on_handler_exception");
+        self.place_label(&handler_exception);
+        self.instructions[handler_begin_idx].catch_target = Some(handler_exception);
         self.emit(Op::PUSH_RESULT, vec![]);
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
         self.emit(Op::PUSH_RETURN_CODE, vec![]);
@@ -1151,10 +1362,14 @@ impl CodegenCtx<'_> {
         self.catch_depth = initial_depth;
     }
 
-    /// Compile a try/on handler body inline with `startCommand`.
+    /// Compile a complete try/on handler body inline with `startCommand` at
+    /// each command boundary.
     pub fn emit_try_handler_body(&mut self, body_text: &str) {
-        // Single-command only, like `emit_catch_body` — guarded at the `Try`
-        // arm that reaches `emit_try_on_error_inline`.
+        self.emit_segmented_inline_body(body_text, InlineBodyEmitter::TryHandler);
+    }
+
+    /// Compile one command of a try/on handler body.
+    fn emit_try_handler_command(&mut self, body_text: &str) {
         let parts = parse_cmd_parts(body_text);
         if parts.is_empty() {
             self.push_lit("");
@@ -1172,25 +1387,26 @@ impl CodegenCtx<'_> {
         );
         self.cmd_index += 1;
 
-        match cmd.as_str() {
-            "set" if cmd_args.len() == 2 => {
+        let arg_refs: Vec<&str> = cmd_args.iter().map(|(arg, _)| arg.as_str()).collect();
+        let inline_lowering = self.inline_lowering_hook(cmd, &arg_refs);
+        match inline_lowering {
+            // The registry's typed lowering hook proves that this is the
+            // two-argument `set` shape, but its first word is still a Tcl
+            // variable-name word. The specialised STORE_SCALAR1 path cannot
+            // perform Tcl's dynamic name substitution (e.g. `set $v value`),
+            // so decline it unless the shared scalar-name shape proves the
+            // target is a procedure-local name.
+            Some((LoweringHookId::Set, binding))
+                if cmd_args.len() == 2
+                    && !tcl_syntax::naming::word_is_dynamic(&cmd_args[0].0, cmd_args[0].1)
+                    && is_inline_local_scalar_name(&cmd_args[0].0) =>
+            {
+                self.require_command_binding(&binding);
                 self.emit_cmd_subst_arg(&cmd_args[1].0, cmd_args[1].1);
                 self.store_var(&cmd_args[0].0);
             }
             _ => {
-                // The command name may be a substitution — see the same arm in
-                // [`Self::emit_catch_body`].
-                self.emit_cmd_word(cmd, false);
-                for (a, b) in cmd_args {
-                    self.emit_cmd_subst_arg(a, *b);
-                }
-                let argc = bytecode_imm(1 + cmd_args.len());
-                let invoke_op = if argc < 256 {
-                    Op::INVOKE_STK1
-                } else {
-                    Op::INVOKE_STK4
-                };
-                self.emit(invoke_op, vec![Operand::Imm(argc)]);
+                self.emit_generic_cmd_subst(cmd, cmd_args);
             }
         }
 
@@ -1303,10 +1519,10 @@ impl CodegenCtx<'_> {
     /// statement path, as the retired `command == "error"` check did.
     pub fn emit_try_body_stmt(&mut self, stmt: &Statement) {
         if let Statement::Call { command, args, .. } = stmt
-            && self.registry.get(command).is_some_and(|s| {
-                s.name == command.as_str()
-                    && s.inline_codegen_hook == Some(InlineCodegenHookId::Error)
-            })
+            && self.inline_codegen_hook(
+                command,
+                &args.iter().map(String::as_str).collect::<Vec<_>>(),
+            ) == Some(InlineCodegenHookId::Error)
         {
             if let Some(arg) = args.first() {
                 self.emit_value(arg, false);
@@ -1372,6 +1588,30 @@ mod tests {
         assert!(modern.literals.entries().iter().any(|l| l == "8"));
     }
 
+    /// A catch body is a fresh script parse. Its `{*}` marker must reach the
+    /// expansion-aware command emitter instead of becoming a literal `*`
+    /// argument beside the value to expand.
+    #[test]
+    fn catch_body_preserves_argument_expansion() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["args"], &registry);
+        ctx.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile());
+
+        ctx.emit_catch_body("Configure {*}$args");
+
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::EXPAND_START), "{ops:?}");
+        assert!(ops.contains(&Op::EXPAND_STKTOP), "{ops:?}");
+        assert!(ops.contains(&Op::INVOKE_EXPANDED), "{ops:?}");
+        assert!(!ops.contains(&Op::INVOKE_STK1), "{ops:?}");
+        assert!(
+            ctx.literals.entries().iter().all(|literal| literal != "*"),
+            "the expansion marker must not enter argv: {:?}",
+            ctx.literals.entries()
+        );
+    }
+
     #[test]
     fn catch_inline_emits_begin_end_catch() {
         let registry = CommandRegistry::build_default();
@@ -1380,6 +1620,212 @@ mod tests {
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::BEGIN_CATCH4));
         assert!(ops.contains(&Op::END_CATCH));
+    }
+
+    #[test]
+    fn catch_inline_multicommand_body_preserves_each_command_boundary() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile());
+        let body = "set x [yield a]; error \"boom-$x\"";
+
+        ctx.emit_catch_inline(body, Some("result"), None);
+
+        let ops: Vec<Op> = ctx
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(ops.contains(&Op::BEGIN_CATCH4), "{ops:?}");
+        assert!(!ops.contains(&Op::EVAL_STK), "{ops:?}");
+        assert!(ops.contains(&Op::END_CATCH), "{ops:?}");
+        assert!(
+            ops.iter().filter(|&&op| op == Op::INVOKE_STK1).count() >= 2,
+            "the nested yield and enclosing set must retain distinct invokes: {ops:?}"
+        );
+        assert!(
+            ctx.literals.entries().iter().all(|literal| literal != ";"),
+            "the command separator must not become an argument: {:?}",
+            ctx.literals.entries()
+        );
+        assert!(
+            ctx.instructions.iter().any(|instruction| {
+                instruction.op == Op::START_CMD
+                    && instruction.source_cmd_text == "error \"boom-$x\""
+            }),
+            "nested replay text must retain the quoted last word: {:?}",
+            ctx.instructions
+                .iter()
+                .filter(|instruction| instruction.op == Op::START_CMD)
+                .map(|instruction| instruction.source_cmd_text.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn catch_inline_incomplete_body_uses_catchable_script_path() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_catch_inline("set x {", Some("result"), None);
+
+        let ops: Vec<Op> = ctx
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(ops.contains(&Op::EVAL_STK), "{ops:?}");
+    }
+
+    #[test]
+    fn catch_inline_runs_complete_prefix_before_fatal_command_tail() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_catch_inline("incr side; set x \"", Some("result"), None);
+
+        let ops: Vec<Op> = ctx
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        let prefix_invoke = ops
+            .iter()
+            .position(|op| matches!(op, Op::INVOKE_STK1 | Op::INVOKE_STK4))
+            .expect("complete prefix command is emitted");
+        let tail_eval = ops
+            .iter()
+            .position(|op| *op == Op::EVAL_STK)
+            .expect("malformed tail reaches runtime eval");
+        assert!(prefix_invoke < tail_eval, "{ops:?}");
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "set x \""),
+            "only the malformed command suffix reaches runtime eval: {:?}",
+            ctx.literals.entries()
+        );
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .all(|literal| literal != "incr side; set x \""),
+            "the complete prefix must not be replayed by runtime eval: {:?}",
+            ctx.literals.entries()
+        );
+    }
+
+    #[test]
+    fn nested_try_multicommand_phases_keep_live_ranges_and_boundaries() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile());
+        let normal = ctx.fresh_label("normal");
+
+        ctx.emit_try_on_error_inline(
+            "try",
+            &[
+                ("set x ok; error boom-$x".into(), true),
+                ("on".into(), false),
+                ("error".into(), false),
+                ("message".into(), false),
+                (
+                    "set suffix handled; set message $message/$suffix".into(),
+                    true,
+                ),
+            ],
+            &normal,
+        );
+        ctx.place_label(&normal);
+
+        let begin_ranges: Vec<_> = ctx
+            .instructions
+            .iter()
+            .filter(|instruction| instruction.op == Op::BEGIN_CATCH4)
+            .collect();
+        assert_eq!(begin_ranges.len(), 2);
+        assert!(
+            begin_ranges
+                .iter()
+                .all(|instruction| instruction.catch_target.is_some()),
+            "both try phases need live VM exception targets: {begin_ranges:?}"
+        );
+        assert!(
+            ctx.literals.entries().iter().all(|literal| literal != ";"),
+            "phase separators must not become arguments: {:?}",
+            ctx.literals.entries()
+        );
+        assert!(
+            ctx.instructions
+                .iter()
+                .filter(|instruction| instruction.op == Op::POP)
+                .count()
+                >= 2,
+            "each phase must discard its non-final command result"
+        );
+    }
+
+    #[test]
+    fn nested_try_binds_both_typed_handler_variables() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let normal = ctx.fresh_label("normal");
+
+        ctx.emit_try_on_error_inline(
+            "try",
+            &[
+                ("error boom".into(), true),
+                ("on".into(), false),
+                ("error".into(), false),
+                ("message options".into(), true),
+                ("list $message [dict get $options -code]".into(), true),
+            ],
+            &normal,
+        );
+
+        let lvt = ctx.lvt.entries();
+        assert!(lvt.iter().any(|name| name == "message"), "{lvt:?}");
+        assert!(lvt.iter().any(|name| name == "options"), "{lvt:?}");
+        assert!(
+            ctx.instructions
+                .iter()
+                .filter(|instruction| instruction.op == Op::STORE_SCALAR1)
+                .count()
+                >= 4,
+            "result/options temps and both handler bindings must be stored"
+        );
+    }
+
+    #[test]
+    fn nested_try_declines_unbraced_dynamic_phase_words() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+
+        ctx.emit_catch_inline(
+            "try $body on error {message options} $handler",
+            Some("result"),
+            None,
+        );
+
+        let ops: Vec<Op> = ctx
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert_eq!(
+            ops.iter().filter(|&&op| op == Op::BEGIN_CATCH4).count(),
+            1,
+            "only the outer catch may specialise a dynamic try: {ops:?}"
+        );
+        assert!(
+            ops.contains(&Op::INVOKE_STK1),
+            "generic try invoke: {ops:?}"
+        );
+        assert!(
+            !ctx.lvt.entries().iter().any(|name| name == "message"),
+            "a declined handler must not allocate specialised bindings"
+        );
     }
 
     #[test]

@@ -39,11 +39,11 @@
 //!   rejected with C Tcl's `cannot yield: C stack busy`, detected by comparing
 //!   [`Vm::activation_depth`](crate::interp::Vm) against the driver's base depth.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use tcl_runtime_api::Completion;
 
-use crate::command::Command;
+use crate::command::{Command, NativeCommand};
 use crate::exec::{Frame, RunExit, YieldReq};
 use crate::interp::{CommandSidecarHandle, CommandSidecarKey, ParkedFlow, Vm, err, ok};
 use crate::value::Value;
@@ -108,6 +108,18 @@ struct CoroHandle {
     base_depth: usize,
 }
 
+/// Script-created coroutine resume commands are native handlers but not
+/// registry builtin implementations. Keeping that distinction in the command
+/// type makes compiled binding validation reject a coroutine that replaces a
+/// specialised command name before its first activation.
+struct CoroResumeCommand;
+
+impl NativeCommand for CoroResumeCommand {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        coro_resume(vm, args)
+    }
+}
+
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("coroutine", cmd_coroutine);
     vm.register("yield", cmd_yield);
@@ -157,7 +169,7 @@ pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
         vm.fire_parked_unset_traces(&mut state.parked);
     }
     if let Some(p) = state.temp_proc {
-        vm.take_command_unchecked(&p);
+        vm.retire_command_lifecycle_key(&CommandSidecarKey::visible(p));
     }
 }
 
@@ -195,13 +207,9 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let fqn = vm.qualify_name(&name);
     // C's `coroutine` (re)creates the command, *replacing* whatever already
     // exists under that name (a proc, or a leftover coroutine) — it does not
-    // error. A live coroutine at that name has its captured state torn down
-    // first so it does not leak; the command entry itself is overwritten by
-    // `register_command` below.
-    if is_coroutine(vm, &fqn) {
-        vm.detach_active_sidecars(&CommandSidecarKey::visible(&fqn));
-        on_command_deleted(vm, &fqn);
-    }
+    // error. `register_command` below is the single lifecycle owner: it tears
+    // down a replaced coroutine's sidecar and saved state before publishing the
+    // new resume command.
     // `coroutine NAME apply {lambda} arg…` — bind the lambda to an internal proc
     // and run *that* (`lambdaProc arg…`), so the lambda body executes on this
     // coroutine's explicit activation stack and a `yield` inside it is yieldable.
@@ -243,18 +251,26 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `INVOKE` path so a proc call stays on the coroutine's explicit stack.
     let body_src = Value::list(words).to_str();
     // A *script*, not a proc body: the wrapper runs as the coroutine's own
-    // top-level activation, not through a call frame of its own.
-    let Some(body) = vm.compile_dynamic_script(&body_src) else {
+    // top-level activation, not through a call frame of its own. Carry the
+    // compiler/profile/namespace provenance with it because the coroutine may
+    // not enter that activation until after command-table mutation.
+    let Ok(body) = vm.compile_script_cached_in_namespace(&body_src, "") else {
         if let Some(p) = &temp_proc {
             vm.take_command_unchecked(p);
         }
         return err(format!("coroutine \"{name}\": could not compile body"));
     };
-    let profile_generation = vm.profile_generation();
+    // Publish the resume command before attaching its fresh coroutine state.
+    // `register_command` retires any command it replaces, including an old
+    // coroutine at this name; attaching first would let that replacement
+    // teardown mistake the new state for the old command's state and remove
+    // it. Once the replacement is complete, install the state atomically from
+    // the coroutine subsystem's perspective and start it below.
+    vm.register_command(&fqn, Command::Native(Rc::new(CoroResumeCommand)));
     vm.coro.live.insert(
         CommandSidecarKey::visible(&fqn),
         CoroState {
-            acts: vec![Frame::new(body, false, profile_generation)],
+            acts: vec![Frame::new(body, false)],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
             last_suspend: SuspendKind::Yield,
@@ -262,7 +278,6 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             temp_proc,
         },
     );
-    vm.register_command(&fqn, Command::Builtin(coro_resume));
     resume(vm, &CommandSidecarKey::visible(&fqn), &[], &name)
 }
 
@@ -309,6 +324,13 @@ fn resume(
         }
         Some(_) => {}
     }
+    // Snapshot whole-stack freshness before moving the state. Rejection below
+    // happens only after installing the frozen flow, so ordinary unwind fires
+    // unset/leave traces and frame/temp-proc cleanup; queued injections remain
+    // deliberately unexecuted.
+    let stale_message = vm.coro.live.get(key).and_then(|state| {
+        vm.activation_stack_stale_message(&state.acts, state.parked.current_ns())
+    });
     // Borrow choreography: mark the entry Running and move its `acts`/`parked`
     // out (a `Running` sentinel stays in the map) so no `coro.live` borrow is
     // held across the `&mut self` drive.
@@ -340,7 +362,7 @@ fn resume(
     // coroutine starts at pc 0, so it takes no delivered value. Any `coroinject`
     // commands run first, in the coroutine's context, each transforming the
     // delivered value (called with the suspend kind + current value appended).
-    if !was_fresh {
+    if !was_fresh && stale_message.is_none() {
         // A `yield` returns the single resume value (or `""`); a `yieldto`
         // returns the whole resume-argument list.
         let initial = match kind {
@@ -367,7 +389,10 @@ fn resume(
         }
     }
 
-    let exit = vm.drive_coro(&mut acts);
+    let exit = match stale_message {
+        Some(message) => vm.unwind_stale_coroutine(&mut acts, message),
+        None => vm.drive_coro(&mut acts),
+    };
 
     vm.coro.stack.pop();
     // Swap the resumer's flow back in; `parked` again holds the coroutine's flow.
@@ -453,7 +478,7 @@ fn teardown_coro(vm: &mut Vm, key: &CommandSidecarKey) {
     if let Some(state) = vm.coro.live.remove(key)
         && let Some(p) = state.temp_proc
     {
-        vm.take_command_unchecked(&p);
+        vm.retire_command_lifecycle_key(&CommandSidecarKey::visible(p));
     }
 }
 

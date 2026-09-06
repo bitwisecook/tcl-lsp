@@ -57,6 +57,7 @@ pub const fn spec() -> CommandSpec {
         // The timer form's trailing nesting script is a deferred body
         // (runs from a timer wakeup, not the caller's frame).
         arg_role_resolver: Some(after_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
             summary: "Execute iRules code after a set period of delay.",

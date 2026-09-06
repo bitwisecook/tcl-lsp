@@ -150,6 +150,7 @@ fn glob_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// Command spec for `glob`.
+#[allow(clippy::too_many_lines)] // keep each option's Tcl-version contract beside its descriptor
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
@@ -178,6 +179,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::any(),
         pattern_type: Some(PatternType::Glob),
         arg_role_resolver: Some(glob_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Pattern],
         return_type: Some(TclType::List),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

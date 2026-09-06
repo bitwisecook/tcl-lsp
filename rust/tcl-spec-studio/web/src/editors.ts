@@ -51,6 +51,8 @@ export const STRUCTURAL_KINDS = new Set([
   "indexList",
   "optIndexList",
   "flagSet",
+  "enumList",
+  "bodyInterpreter",
   "roleMap",
   "presentationMap",
   "prefixMap",
@@ -662,6 +664,8 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
 
     count: (_kind, value, set) => numberInput(asNumber(value) ?? 0, (n) => set(n ?? 0)),
 
+    optCount: (_kind, value, set) => numberInput(asNumber(value), set, { placeholder: "unset" }),
+
     optIndex: (_kind, value, set) =>
       el("div", { class: "ctl" }, [
         numberInput(asNumber(value), set, { placeholder: "unset" }),
@@ -726,6 +730,37 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       catalogueSelect(kind, typeof value === "string" ? value : null, set),
 
     flagSet: (kind, value, set) => flagChips(kind, value, set),
+
+    enumList: (kind, value, set) => flagChips(kind, value, set),
+
+    bodyInterpreter: (_kind, value, set) => {
+      const current = asRecord(value);
+      const selected = current.kind === "Argument" ? "Argument" : "Current";
+      const select = el("select", {}, [
+        el("option", { value: "Current", text: "Current interpreter" }),
+        el("option", { value: "Argument", text: "Selected by argument" }),
+      ]);
+      select.value = selected;
+      select.addEventListener("change", () =>
+        set(
+          select.value === "Argument"
+            ? { kind: "Argument", index: asNumber(current.index) ?? 0 }
+            : { kind: "Current" },
+        ),
+      );
+      const controls: Child[] = [select];
+      if (selected === "Argument") {
+        controls.push(
+          labelled(
+            "argument index",
+            numberInput(asNumber(current.index) ?? 0, (index) =>
+              set({ kind: "Argument", index: index ?? 0 }, false),
+            ),
+          ),
+        );
+      }
+      return el("div", { class: "ctl" }, controls);
+    },
 
     arity: (_kind, value, set) => {
       const v = asRecord(value);

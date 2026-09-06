@@ -9,7 +9,7 @@ ByteCode ::top, 9 instructions, 22 bytes, 4 literals, 0 variables
     (2) push1 1	# "1"
     (4) storeStk
     (5) pop
-    (6) startCommand -6 1	# next cmd at pc 0, 1 cmds start here
+    (6) startCommand +15 1	# next cmd at pc 21, 1 cmds start here
     (15) push1 2	# "puts"
     (17) push1 3	# "hello"
     (19) invokeStk1 2	# puts

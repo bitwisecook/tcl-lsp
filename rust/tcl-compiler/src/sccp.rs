@@ -1114,6 +1114,7 @@ pub fn existence_constant_branches(
     frame: ExistenceFrame<'_>,
     registry: &tcl_registry::CommandRegistry,
     dynamic_names: crate::dynamic_names::DynamicNameBarrier,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<ConstantBranch> {
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
@@ -1206,11 +1207,8 @@ pub fn existence_constant_branches(
         else {
             continue;
         };
-        let Some(crate::expr_ast::ExistenceQuery {
-            var,
-            negated,
-            command,
-        }) = crate::expr_ast::existence_query_var(condition)
+        let Some(crate::existence_query::ExistenceQuery { var, negated, kind }) =
+            crate::existence_query::in_expr(condition, registry, config)
         else {
             continue;
         };
@@ -1272,7 +1270,7 @@ pub fn existence_constant_branches(
                 //   f 1                                        ;# → no
                 //   proc g {a} { array set a {x 1} }
                 //   g 1  ;# → can't set "a(x)": variable isn't array
-                matches!(command, crate::expr_ast::ExistenceCommand::Info)
+                matches!(kind, crate::existence_query::ExistenceKind::AnyVariable)
             } else if !defined.contains(&var) {
                 // `set $switch {}` may have defined exactly this name — the
                 // argparse idiom the fold used to call unreachable.
@@ -1790,6 +1788,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
             let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
             if let Some(folded) = (crate::const_subst::ConstSubstCtx {
                 registry: f.registry,
+                resolution_namespace: "::",
                 version: f
                     .dialect
                     .and_then(tcl_dialect::DialectProfile::const_fold_version),
@@ -2684,7 +2683,9 @@ mod tests {
                 name: "x".into(),
                 name_braced: false,
                 expr,
+                command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
                 expr_base: None,
+                fallback_value: "[expr {$a + 3}]".into(),
             },
             uses,
             defs,
@@ -2739,7 +2740,9 @@ mod tests {
                 name: "hit".into(),
                 name_braced: false,
                 expr,
+                command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
                 expr_base: None,
+                fallback_value: "[expr {$s contains \"cd\"}]".into(),
             },
             uses,
             defs,

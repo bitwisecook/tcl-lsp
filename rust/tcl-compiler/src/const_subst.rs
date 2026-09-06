@@ -47,12 +47,14 @@
 //!
 //! Soundness stance: **abstain-toward-no-fold**. Every gate that cannot be
 //! answered (a renamed / aliased / shadowed head, a non-literal word, an
-//! escape, an expansion, an unresolvable variable, a class-side method
-//! frame) declines the fold; a wrong constant is a miscompile, a missed one
-//! only a lost optimisation.
+//! expansion, an unresolvable variable, a class-side method frame) declines
+//! the fold; a wrong constant is a miscompile, a missed one only a lost
+//! optimisation. Literal escape decoding is delegated to `tcl-lexer` under
+//! the selected profile rather than reimplemented here.
 
 use tcl_dialect::TclVersion;
-use tcl_registry::{CommandRegistry, CommandSpec};
+use tcl_registry::{CommandRegistry, CommandSpec, TclType};
+use tcl_runtime_api::CommandBindingIdentity;
 
 use crate::naming::normalise_var_name;
 
@@ -68,6 +70,9 @@ const MAX_CONST_SUBST_DEPTH: u32 = 16;
 pub struct ConstSubstCtx<'a> {
     /// Command / subcommand specs — the fold callbacks live here.
     pub registry: &'a CommandRegistry,
+    /// Rooted constructed namespace in which every command head in the
+    /// substitution resolves.
+    pub resolution_namespace: &'a str,
     /// Resolved Tcl release forwarded to versioned folds
     /// (`const_fold_versioned`); `None` when the consumer has no release fact.
     pub version: Option<TclVersion>,
@@ -91,6 +96,24 @@ pub struct ConstSubstCtx<'a> {
     pub lookup_var: &'a dyn Fn(&str) -> Option<String>,
 }
 
+/// A registry-resolved constant command substitution.
+///
+/// Besides the raw folded value, code generators need the exact live command
+/// identities whose semantics the fold consumed. Nested folds contribute
+/// their identities too: folding `[llength [list a b]]` depends on both
+/// commands, not only the outer one. The return type is the registry's answer
+/// for the outer invocation and lets bytecode consumers preserve typed literal
+/// setup such as `VERIFY_DICT` without recognizing a command name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedConstSubst {
+    /// Raw result value, before any caller-specific word quoting.
+    pub value: String,
+    /// Exact source spelling → registry implementation dependencies.
+    pub command_bindings: Vec<CommandBindingIdentity>,
+    /// Registry-declared return type of the outer invocation.
+    pub return_type: Option<TclType>,
+}
+
 impl ConstSubstCtx<'_> {
     /// Fold the command-substitution interior `inner` (text between `[` and
     /// `]`) to its constant result, or `None` to abstain. The result is the
@@ -98,19 +121,31 @@ impl ConstSubstCtx<'_> {
     /// position re-render it themselves.
     #[must_use]
     pub fn fold_cmd_subst(&self, inner: &str) -> Option<String> {
+        self.fold_cmd_subst_resolved(inner).map(|fold| fold.value)
+    }
+
+    /// Fold `inner` and retain every registry command identity the result
+    /// assumes. This is the code-generation face of the shared fold engine;
+    /// analysis-only consumers can continue using [`Self::fold_cmd_subst`].
+    #[must_use]
+    pub fn fold_cmd_subst_resolved(&self, inner: &str) -> Option<ResolvedConstSubst> {
         self.fold_at_depth(inner, 0)
     }
 
-    fn fold_at_depth(&self, inner: &str, depth: u32) -> Option<String> {
+    fn fold_at_depth(&self, inner: &str, depth: u32) -> Option<ResolvedConstSubst> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
-        let words = self.literal_words_at_depth(inner, depth)?;
+        let (words, mut command_bindings) = self.literal_words_at_depth(inner, depth)?;
         let (head, rest) = words.split_first()?;
         if !(self.trusts)(head) {
             return None;
         }
-        let spec = self.registry.get(head)?;
+        let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
+        let resolved =
+            self.registry
+                .resolve_call(head, &arg_refs, self.registry.own_surface_query())?;
+        let spec = resolved.spec;
         // A keyword whose value the enclosing `TclOO` method frame fixes
         // (`[self class]`) answers from the frame rather than from its
         // arguments — it has no `const_fold`, because the value is not a
@@ -119,67 +154,97 @@ impl ConstSubstCtx<'_> {
         if let Some(class) = self.defining_class
             && let Some(folded) = oo_context_fact_fold(spec, rest, class)
         {
-            return Some(folded);
+            command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
+                self.resolution_namespace,
+                head,
+                spec.name,
+            ));
+            return Some(ResolvedConstSubst {
+                value: folded,
+                command_bindings,
+                return_type: spec.return_type_for_call(&arg_refs),
+            });
         }
-        if spec.subcommands.is_empty() {
-            let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
-            spec.run_const_fold(&arg_refs, self.version)
+        let folded = if spec.subcommands.is_empty() {
+            spec.run_const_fold(&arg_refs, self.version)?
         } else {
             // Subcommand-dispatched builtin (`string`, `namespace`, …): the
             // fold lives on the matching subcommand and sees the args after
             // it.
-            let (sub, sub_rest) = rest.split_first()?;
+            let (_, sub_rest) = rest.split_first()?;
             let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
-            spec.resolve_subcommand(sub)?
-                .run_const_fold(&arg_refs, self.version)
-        }
+            resolved.sub?.run_const_fold(&arg_refs, self.version)?
+        };
+        command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
+            self.resolution_namespace,
+            head,
+            spec.name,
+        ));
+        Some(ResolvedConstSubst {
+            value: folded,
+            command_bindings,
+            return_type: spec.return_type_for_call(&arg_refs),
+        })
     }
 
     /// Re-lex a command-substitution interior into its literal words.
     /// Returns `None` (bail — do not fold) if any word is not a single clean
-    /// literal token: a multi-token word (`foo$bar`), a word carrying a
-    /// backslash escape (decoding is out of scope here), a `{*}` expansion,
-    /// or a `$var` that [`Self::lookup_var`](ConstSubstCtx::lookup_var)
-    /// cannot resolve. A braced literal (`{a b}`, `{a$b}`) yields its
-    /// interior text — the contents are literal, so they fold soundly. A
-    /// nested `[cmd …]` substitution is folded recursively:
+    /// literal token: a multi-token word (`foo$bar`), a `{*}` expansion, or a
+    /// `$var` that [`Self::lookup_var`](ConstSubstCtx::lookup_var) cannot
+    /// resolve. Bare and quoted literal escapes are decoded through the
+    /// release-aware lexer owner; a braced literal (`{a b}`, `{a$b}`) yields
+    /// its interior text with only Tcl's permitted backslash-newline collapse.
+    /// A nested `[cmd …]` substitution is folded recursively:
     /// `[llength [list a b c]]` folds its inner `[list a b c]` to `a b c`
     /// first, so `llength` then sees a constant argument and folds to `3`.
     /// A nested sub that doesn't fold to a constant bails the whole fold.
     #[must_use]
     pub fn literal_words(&self, inner: &str) -> Option<Vec<String>> {
         self.literal_words_at_depth(inner, 0)
+            .map(|(words, _)| words)
     }
 
-    fn literal_words_at_depth(&self, inner: &str, depth: u32) -> Option<Vec<String>> {
-        use tcl_lexer::{Lexer, SourceMap, TokenType};
+    fn literal_words_at_depth(
+        &self,
+        inner: &str,
+        depth: u32,
+    ) -> Option<(Vec<String>, Vec<CommandBindingIdentity>)> {
+        use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
+        // Re-split the substitution under the selected registry profile, so
+        // release and dialect word grammar cannot drift from command lookup.
+        let config = LexerConfig::for_profile(self.registry.profile());
+        if !crate::segmenter::has_exactly_one_command_with_config(inner, config) {
+            return None;
+        }
         let sm = SourceMap::new(inner);
-        // The document's grammar, from the dialect-selected registry's own
-        // profile: a fold that re-splits `[…]` under the wrong word grammar
-        // folds a different command's arguments.
-        let tokens = Lexer::with_config(
-            inner,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        )
-        .tokenise_all()
-        .ok()?;
+        let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
         let mut words: Vec<String> = Vec::new();
+        let mut command_bindings = Vec::new();
         let mut prev_is_sep = true;
         for tok in &tokens {
             match tok.kind {
                 TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment => {
                     prev_is_sep = true;
                 }
-                TokenType::Esc | TokenType::Str => {
+                TokenType::Esc => {
                     if !prev_is_sep {
                         return None; // multi-token word — not a clean literal
                     }
                     let text = sm.token_text(*tok);
-                    if text.contains('\\') {
-                        return None; // unhandled escape — bail conservatively
+                    words.push(tcl_lexer::backslash_subst_in(text, config.escapes).into_owned());
+                    prev_is_sep = false;
+                }
+                TokenType::Str => {
+                    if !prev_is_sep {
+                        return None; // multi-token word — not a clean literal
                     }
-                    words.push(text.to_owned());
+                    let text = sm.token_text(*tok);
+                    words.push(
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config)
+                            .collapse_braced_word(text)
+                            .into_owned(),
+                    );
                     prev_is_sep = false;
                 }
                 TokenType::Var => {
@@ -218,14 +283,15 @@ impl ConstSubstCtx<'_> {
                     // fold it directly.
                     let nested = sm.token_text(*tok);
                     let folded = self.fold_at_depth(nested, depth + 1)?;
-                    words.push(folded);
+                    words.push(folded.value);
+                    command_bindings.extend(folded.command_bindings);
                     prev_is_sep = false;
                 }
                 // `{*}$x`-style expansion is substitution-bearing → bail.
                 TokenType::Expand => return None,
             }
         }
-        Some(words)
+        Some((words, command_bindings))
     }
 }
 
@@ -322,6 +388,7 @@ mod tests {
     ) -> ConstSubstCtx<'a> {
         ConstSubstCtx {
             registry,
+            resolution_namespace: "::",
             version: None,
             defining_class: None,
             trusts,
@@ -339,6 +406,17 @@ mod tests {
             Some("::tc"),
         );
         assert_eq!(c.fold_cmd_subst("string length abc").as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn multiple_commands_decline_const_fold() {
+        let trust = |_: &str| true;
+        let lookup = |_: &str| None;
+        let c = ctx(registry(), &trust, &lookup);
+        assert_eq!(c.fold_cmd_subst("string cat a; string cat b"), None);
+        // A separator after the sole command does not manufacture another
+        // command and keeps the existing fold behaviour.
+        assert_eq!(c.fold_cmd_subst("string length abc;").as_deref(), Some("3"));
     }
 
     #[test]
@@ -396,13 +474,52 @@ mod tests {
     }
 
     #[test]
-    fn escapes_expansions_and_composites_bail() {
+    fn literal_escapes_decode_but_expansions_and_composites_bail() {
         let trust = |_: &str| true;
         let lookup = |_: &str| None;
         let c = ctx(registry(), &trust, &lookup);
-        assert_eq!(c.fold_cmd_subst(r"string length a\tb"), None);
+        assert_eq!(
+            c.fold_cmd_subst(r"string length a\tb").as_deref(),
+            Some("3")
+        );
+        assert_eq!(c.fold_cmd_subst(r"format %s a\ b").as_deref(), Some("a b"));
+        assert_eq!(c.fold_cmd_subst(r"format %s \{\}").as_deref(), Some("{}"));
+        assert_eq!(
+            c.fold_cmd_subst(r"format %s {a\tb}").as_deref(),
+            Some(r"a\tb")
+        );
+        assert_eq!(
+            c.fold_cmd_subst("format %s {a\\\n  b}").as_deref(),
+            Some("a b")
+        );
         assert_eq!(c.fold_cmd_subst("list {*}$xs"), None);
         assert_eq!(c.fold_cmd_subst("string length a$b"), None);
+    }
+
+    #[test]
+    fn literal_escape_decoding_uses_the_registry_profile() {
+        let trust = |_: &str| true;
+        let lookup = |_: &str| None;
+        let profile_85 =
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        let profile_86 =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let c85 = ctx(
+            tcl_registry::model::ingress::static_context_for_profile(profile_85).commands(),
+            &trust,
+            &lookup,
+        );
+        let c86 = ctx(
+            tcl_registry::model::ingress::static_context_for_profile(profile_86).commands(),
+            &trust,
+            &lookup,
+        );
+
+        assert_eq!(c85.fold_cmd_subst(r"format %s \x123").as_deref(), Some("#"));
+        assert_eq!(
+            c86.fold_cmd_subst(r"format %s \x123").as_deref(),
+            Some("\u{12}3")
+        );
     }
 
     #[test]

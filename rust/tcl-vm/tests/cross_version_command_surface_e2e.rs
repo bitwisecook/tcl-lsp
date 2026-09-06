@@ -40,9 +40,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_vm::{Code, CompileError, CompileService, Vm};
+use tcl_vm::{Code, CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch, Vm};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -54,54 +55,6 @@ impl std::io::Write for Capture {
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
-    }
-}
-
-/// The `tclvm` compile service: registry, lexer grammar, and expression
-/// dialect all resolved once from the emulated release's profile.
-struct CompilerSvc {
-    registry: &'static tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    dialect: &'static str,
-}
-
-impl CompilerSvc {
-    fn for_profile(profile: &'static DialectProfile) -> Self {
-        Self {
-            registry: tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: profile.name,
-        }
-    }
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) =
-            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(
-            src,
-            self.registry,
-            self.config,
-            Some(
-                tcl_registry::model::ingress::resolve_environment(self.dialect).analyser_profile(),
-            ),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile(src)
     }
 }
 
@@ -122,7 +75,18 @@ impl CompileService for CountingCompilerSvc {
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
         self.calls.set(self.calls.get() + 1);
-        CompilerSvc::for_profile(profile).compile(src)
+        BytecodeCompileService::for_profile(profile).compile(src)
+    }
+
+    fn compile_procedure_for_profile(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        BytecodeCompileService::for_profile(profile)
+            .compile_procedure_for_profile(target, profile, dispatch)
     }
 }
 
@@ -132,10 +96,24 @@ impl CompileService for FixedFallbackCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode(src, &registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &registry))
+        BytecodeCompileService::default().compile(src)
+    }
+
+    fn compile_procedure_for_profile(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        if profile.is_fallback() {
+            BytecodeCompileService::default()
+                .compile_procedure_for_profile(target, profile, dispatch)
+        } else {
+            Err(CompileError(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )))
+        }
     }
 }
 
@@ -145,7 +123,7 @@ impl CompileService for WrongProfileCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
-        CompilerSvc::for_profile(
+        BytecodeCompileService::for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
         )
         .compile(src)
@@ -157,6 +135,17 @@ impl CompileService for WrongProfileCompilerSvc {
         _profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
         self.compile(src)
+    }
+
+    fn compile_procedure_for_profile(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        _profile: &'static DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        BytecodeCompileService::for_profile(wrong)
+            .compile_procedure_for_profile(target, wrong, dispatch)
     }
 }
 
@@ -260,7 +249,7 @@ fn compatible_irules_host_surface_override_remains_accepted() {
 /// vector can pin `extra characters after close-brace` and `invalid command
 /// name "lassign"` the same way it pins a value.
 fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
-    let svc = CompilerSvc::for_profile(profile);
+    let svc = BytecodeCompileService::for_profile(profile);
     let asm = match svc.compile(src) {
         Ok(asm) => asm,
         Err(e) => return e.0,
@@ -268,7 +257,7 @@ fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
     vm.set_dialect_profile(profile);
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
     if !completion.code.is_ok() || out.is_empty() {
@@ -572,7 +561,7 @@ fn version_mutation_rechecks_an_existing_imports_source_identity() {
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     );
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     )));
     let setup = vm
@@ -617,7 +606,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // only reachable there; the resulting object command is script-created and
     // stays callable on every release, which is what the flips below exercise.
     vm.set_dialect_profile(v86);
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(v85)));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v85)));
     let oo_setup = vm
         .eval_source(
             "oo::class create C {method m {} {lassign {a b} x; return $x}}\n\
@@ -645,14 +634,14 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // generation but must never adopt its bytecode.
     let mut foreign_vm = Vm::new();
     foreign_vm.set_dialect_profile(v85);
-    foreign_vm.set_compiler(Box::new(CompilerSvc::for_profile(v85)));
+    foreign_vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v85)));
     assert_eq!(
         foreign_vm.invoke_function(&handle).result.to_str().as_ref(),
         "FunctionHandle belongs to a different Vm"
     );
     // AOT modules carry the profile they were lowered for and are rejected at
     // the entry boundary instead of being stamped with the VM's generation.
-    let aot = CompilerSvc::for_profile(v85)
+    let aot = BytecodeCompileService::for_profile(v85)
         .compile("set profile_aot 1")
         .expect("AOT module compiles");
     foreign_vm.set_dialect_profile(v84);
@@ -997,7 +986,7 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     );
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     )));
     let trace_setup = vm
@@ -1012,7 +1001,7 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
     );
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
     )));
     let setup = vm
@@ -1039,7 +1028,7 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     );
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     )));
     let probe = vm
@@ -1058,7 +1047,7 @@ fn unavailable_local_candidate_falls_through_to_global_command() {
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     );
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
     )));
     let setup = vm
@@ -1069,7 +1058,7 @@ fn unavailable_local_candidate_falls_through_to_global_command() {
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
     );
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
     )));
     let probe = vm

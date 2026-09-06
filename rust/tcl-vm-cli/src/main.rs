@@ -39,14 +39,10 @@
 use std::io::{IsTerminal, Read, Write};
 use std::sync::{Arc, Mutex};
 
-use tcl_compiler::cfg_builder::build_cfg_codegen_with_config;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
-use tcl_dialect::{DialectProfile, TclVersion};
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_dialect::TclVersion;
 use tcl_lexer::script_is_complete;
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Value, Vm};
+use tcl_vm::{CompileService, Value, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
@@ -56,64 +52,7 @@ use tcl_vm::{CompileError, CompileService, Value, Vm};
 /// the lexer grammar (`{*}` expansion, the `${…}` delimiting rule), and the
 /// expression dialect all come from the emulated release, so `--tcl-version
 /// 8.4` rejects `{*}` exactly as `tclsh8.4` does.
-struct Svc {
-    registry: &'static CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    dialect: Option<&'static DialectProfile>,
-}
-
-impl Svc {
-    /// A compile service targeting `profile`'s grammar, registry, and dialect.
-    fn for_profile(profile: &'static DialectProfile) -> Self {
-        Self {
-            // The resolved environment's registry generation, through the
-            // one ingress seam (`tcl_registry::model::ingress`) — the same
-            // store the retired `registry_for_profile` published, shared by
-            // handle (centralisation row C2, ledger row B11).
-            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: Some(profile),
-        }
-    }
-}
-
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) =
-            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg_codegen_with_config(&ir, false, self.config);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile(src)
-    }
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) =
-            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg_codegen_with_config(&ir, false, self.config);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-    fn compile_traced_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile_traced(src)
-    }
-}
+type Svc = BytecodeCompileService;
 
 /// Forward the VM's `puts` output straight through to the process stdout.
 struct Stdout;

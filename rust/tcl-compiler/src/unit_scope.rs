@@ -1166,6 +1166,30 @@ fn collect_upframes<'a>(
     });
 }
 
+/// One extra executable body walked as a call-site source.
+pub(crate) struct ExtraCallSiteScanContext {
+    /// Method/body-unit identity when this CFG is also consumed by the full
+    /// per-unit lattice build. Upframe-only scan contexts leave this absent.
+    analysis_unit: Option<String>,
+    /// Qualified-name-shaped context used by `resolve_internal_call` for the
+    /// exact fallback calls retained in this CFG.
+    resolve_as: String,
+    /// Variable-scope identity carried by the CFG itself.
+    cfg: CfgFunction,
+    /// The namespace Tcl selects when this body actually executes.  `TclOO`
+    /// instance methods receive their object's namespace only at runtime.
+    execution_namespace: crate::ir::ExecutionNamespace,
+    /// Whether this body contains a command whose target can therefore differ
+    /// from the lexical fallback represented by `cfg`.
+    requires_runtime_command_namespace: bool,
+}
+
+impl ExtraCallSiteScanContext {
+    pub(crate) fn analysis_cfg(&self, qname: &str) -> Option<&CfgFunction> {
+        (self.analysis_unit.as_deref() == Some(qname)).then_some(&self.cfg)
+    }
+}
+
 /// Build bare CFGs (no further per-function analysis) for every `TclOO` method,
 /// synthetic body unit (`apply` lambda, `namespace eval` body), and static
 /// `uplevel` body, so [`collect_call_site_constants`] can walk them as
@@ -1189,49 +1213,80 @@ fn collect_upframes<'a>(
 /// [`needs_extra_call_site_scan_contexts`] says so).
 pub(crate) fn build_extra_call_site_scan_contexts(
     ir_module: &IrModule,
-    cfg_context: Option<&crate::cfg_builder::CfgContext>,
+    cfg_context: Option<&crate::cfg_builder::PreparedCfgContext>,
+    registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-) -> Vec<(String, CfgFunction)> {
+) -> Vec<ExtraCallSiteScanContext> {
     let upframes = upframe_scan_bodies(ir_module);
     if ir_module.methods.is_empty() && ir_module.body_units.is_empty() && upframes.is_empty() {
         return Vec::new();
     }
-    let Some((upvar_procs, proc_params, global_write_procs)) = cfg_context else {
+    let Some(cfg_context) = cfg_context else {
         return Vec::new();
     };
     let build = |qname: &str, body: &crate::ir::Script| {
-        crate::cfg_builder::build_cfg_function_with_upvars_and_config(
+        crate::cfg_builder::build_cfg_function_with_prepared_context(
             qname,
             body,
             true,
-            upvar_procs.clone(),
-            proc_params.clone(),
-            global_write_procs.clone(),
+            registry,
+            ir_module.plain_command_dispatch,
+            cfg_context,
             config,
         )
     };
+    let dispatch_barrier = crate::optimiser::method_barrier::compute(ir_module, registry);
     ir_module
         .methods
         .iter()
         .map(|(mqname, method)| {
-            // tclsh8.6-confirmed (live): a bare command inside a `TclOO`
-            // method body resolves against the GLOBAL namespace, never the
-            // class's own declaring namespace — `method go {} { helper }`
-            // calls `::helper` even when a proc of the same name sits in
-            // the class's own namespace. `mqname`'s own namespace (e.g.
-            // `::foo::Widget` for method `::foo::Widget::go`) would be
-            // wrong here, so the caller-context string this scan resolves
-            // against is forced to global — reusing `"::top"`, the same
-            // pseudo-qname the top-level script already uses to mean
-            // exactly that. The CFG's own identity still uses the real
-            // `mqname` (unrelated to this scan's namespace concern).
-            ("::top".to_owned(), build(mqname, &method.body))
+            let execution_namespace = method.execution_namespace.clone();
+            let requires_runtime_command_namespace = matches!(
+                &execution_namespace,
+                crate::ir::ExecutionNamespace::RuntimeSelected
+            )
+                && crate::ir_helpers::requires_runtime_command_namespace(&method.body, registry);
+            let resolve_as = match &execution_namespace {
+                // A qname ending in the method leaf gives
+                // `resolve_internal_call` exactly this defining namespace.
+                crate::ir::ExecutionNamespace::Exact(_) => mqname.clone(),
+                // Only absolute calls are trustworthy in a runtime-selected
+                // method.  They ignore this fallback; relative calls cause the
+                // whole reachable callee set to be poisoned below.
+                crate::ir::ExecutionNamespace::RuntimeSelected => "::top".to_owned(),
+            };
+            let cfg = crate::cfg_builder::build_cfg_method_function_with_prepared_context(
+                mqname,
+                &method.body,
+                execution_namespace.clone(),
+                true,
+                registry,
+                ir_module.plain_command_dispatch,
+                cfg_context,
+                !dispatch_barrier.allows_locals(mqname),
+                config,
+            );
+            ExtraCallSiteScanContext {
+                analysis_unit: Some(mqname.clone()),
+                resolve_as,
+                cfg,
+                execution_namespace,
+                requires_runtime_command_namespace,
+            }
         })
         .chain(
             ir_module
                 .body_units
                 .iter()
-                .map(|(qname, unit)| (qname.clone(), build(qname, &unit.body))),
+                .map(|(qname, unit)| ExtraCallSiteScanContext {
+                    analysis_unit: Some(qname.clone()),
+                    resolve_as: qname.clone(),
+                    cfg: build(qname, &unit.body),
+                    execution_namespace: crate::ir::ExecutionNamespace::exact(
+                        tcl_syntax::naming::key_holder_and_tail(qname).0,
+                    ),
+                    requires_runtime_command_namespace: false,
+                }),
         )
         .chain(upframes.into_iter().map(|up| {
             // Same shape as the method case: the caller context bare command
@@ -1241,7 +1296,16 @@ pub(crate) fn build_extra_call_site_scan_contexts(
             // the CFG's name is this scan's variable-scope key, and reusing
             // the resolution context would overwrite that scope's real
             // variable facts in `collect_module_scope_var_facts`.
-            (up.resolve_as, build(&up.scope, up.body))
+            let execution_namespace = crate::ir::ExecutionNamespace::exact(
+                tcl_syntax::naming::key_holder_and_tail(&up.resolve_as).0,
+            );
+            ExtraCallSiteScanContext {
+                analysis_unit: None,
+                resolve_as: up.resolve_as,
+                cfg: build(&up.scope, up.body),
+                execution_namespace,
+                requires_runtime_command_namespace: false,
+            }
         }))
         .collect()
 }
@@ -1275,7 +1339,7 @@ pub(crate) fn build_extra_call_site_scan_contexts(
 /// 1`) to a fixed boolean.
 pub(crate) fn collect_call_site_constants(
     cfg_module: &CfgModule,
-    extra_callers: &[(String, CfgFunction)],
+    extra_callers: &[ExtraCallSiteScanContext],
     procedures: &HashMap<String, crate::ir::Procedure>,
     namespace_imports: &[(String, String)],
     registry: &CommandRegistry,
@@ -1308,8 +1372,13 @@ pub(crate) fn collect_call_site_constants(
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
             .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
-            .chain(extra_callers.iter().map(|(q, f)| (q.as_str(), f)));
+            .chain(
+                extra_callers
+                    .iter()
+                    .map(|caller| (caller.resolve_as.as_str(), &caller.cfg)),
+            );
         let mut out = CallSiteEvidence::default();
+        record_runtime_selected_extra_callers(&mut out, &ctx, extra_callers);
         scan_cfg_callers(&mut out, &ctx, funcs);
         out
     };
@@ -1383,19 +1452,43 @@ fn unenumerable_reach(
 /// a caller — the input a dispatch word's value set is read from.
 fn collect_module_scope_var_facts(
     cfg_module: &CfgModule,
-    extra_callers: &[(String, CfgFunction)],
+    extra_callers: &[ExtraCallSiteScanContext],
     registry: &CommandRegistry,
 ) -> ModuleVarFacts {
     let mut out = ModuleVarFacts::default();
     let funcs = std::iter::once(&cfg_module.top_level)
         .chain(cfg_module.procedures.values())
-        .chain(extra_callers.iter().map(|(_, f)| f));
+        .chain(extra_callers.iter().map(|caller| &caller.cfg));
     for func in funcs {
         let facts = collect_scope_var_facts(func, registry);
         out.cross_frame_write |= facts.cross_frame_write;
         out.scopes.insert(func.name.clone(), facts);
     }
     out
+}
+
+/// Withdraw every parameter seed reachable from an extra body whose command
+/// namespace is selected only when that body runs.
+///
+/// A `TclOO` method's lexical CFG retains useful fallback calls, but an
+/// object-local command may shadow any relative head and itself invoke any
+/// procedure in `unenumerable_reach` with arbitrary arguments.  That is the
+/// same incomplete-caller condition as an unreadable `$cmd` dispatch, so it
+/// must enter the same evidence lattice.  Keeping this beside
+/// [`scan_cfg_callers`] makes the in-unit and cross-file scans share the rule.
+fn record_runtime_selected_extra_callers(
+    out: &mut CallSiteEvidence,
+    ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+    extra_callers: &[ExtraCallSiteScanContext],
+) {
+    if extra_callers.iter().any(|caller| {
+        matches!(
+            &caller.execution_namespace,
+            crate::ir::ExecutionNamespace::RuntimeSelected
+        ) && caller.requires_runtime_command_namespace
+    }) {
+        out.record_unenumerable_caller(ctx.unenumerable_reach);
+    }
 }
 
 /// Walk each `(caller qname, CFG)` pair's flattened statements, recording
@@ -1424,7 +1517,7 @@ fn scan_cfg_callers<'a>(
     }
     for (resolve_as, func) in funcs {
         // The CFG function's own name is the *variable-scope* identity, which
-        // differs from `resolve_as` for a `TclOO` method (global command
+        // differs from `resolve_as` for a `TclOO` method (lexical fallback
         // resolution, own frame).  A body the unit declares as a procedure is
         // one this evidence map attributes calls *to*; a method or `apply`
         // lambda is not, so its parameters may hold values never seen here.
@@ -1483,10 +1576,18 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     let mut ir_module = crate::lowering::lower_to_ir_with_config(source, registry, config);
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let cfg_module = crate::cfg_builder::build_cfg_with_config(&ir_module, false, config);
-    let cfg_context = needs_extra_call_site_scan_contexts(&ir_module)
-        .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
-    let extra = build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref(), config);
+    let prepared_cfg_context = crate::cfg_builder::prepare_cfg_context_bundle(&ir_module, registry);
+    let cfg_module = crate::cfg_builder::build_cfg_with_registry_and_context(
+        &ir_module,
+        false,
+        registry,
+        &prepared_cfg_context,
+        config,
+    );
+    let cfg_context =
+        needs_extra_call_site_scan_contexts(&ir_module).then_some(prepared_cfg_context);
+    let extra =
+        build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref(), registry, config);
     // The cross-file scan resolves a dispatch word exactly as the in-unit one
     // does — `scan_cfg_callers`/`record_call_site_evidence` are shared, so a
     // `set cmd helper; $cmd dev` in *another* file retracts this unit's seed
@@ -1524,8 +1625,13 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
             .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
-            .chain(extra.iter().map(|(q, f)| (q.as_str(), f)));
+            .chain(
+                extra
+                    .iter()
+                    .map(|caller| (caller.resolve_as.as_str(), &caller.cfg)),
+            );
         let mut round = CallSiteEvidence::default();
+        record_runtime_selected_extra_callers(&mut round, &ctx, &extra);
         scan_cfg_callers(&mut round, &ctx, funcs);
         round
     });
@@ -1708,9 +1814,12 @@ pub(crate) struct UnitCallerView<'a> {
     /// caller; without it, the unit is on its own and any boundary sinks the
     /// seed.
     pub has_cross_file_evidence: bool,
-    /// Whole-module `rename` / `interp alias` / dynamic-redefinition trust
-    /// lattice.
-    pub command_mutations: &'a crate::command_binding::ModuleCommandMutations,
+    /// Prepared trust projection for the declared identity of retained
+    /// procedures. This is intentionally narrower than the optimiser's
+    /// command-mutation projection: an unresolved command or an external
+    /// body can make builtin effects opaque without itself proving that a
+    /// retained procedure name was rebound.
+    pub proc_binding_trust: &'a crate::command_binding::ProcBindingTrustProjection,
 }
 
 /// Boundaries that publish this file's commands to callers **no** host
@@ -1740,11 +1849,12 @@ impl UnitCallerView<'_> {
 /// picture of every real caller (an unproven "every caller I found agrees"
 /// says nothing about callers no scan could see):
 ///
-/// - `!command_mutations.trusts_proc_binding(qname)` — `qname`'s own
+/// - `!proc_binding_trust.trusts_proc_binding(qname)` — `qname`'s own
 ///   binding may have been perturbed by `rename` / `interp alias` / a
 ///   dynamic proc redefinition anywhere in the module, so a call reaching
 ///   it at runtime need not be one this scan attributed to it (and vice
-///   versa).
+///   versa). The projection deliberately does not inherit broader
+///   command-effect opacity from an unrelated unresolved or external body.
 /// - **No registry-declared unit boundary the evidence cannot cover.** The
 ///   two kinds are treated differently, because a host's enumeration can only
 ///   ever bound one of them:
@@ -1782,7 +1892,7 @@ pub(crate) fn params_constants_from_call_sites(
     if view.declines_seeding() {
         return None;
     }
-    if !view.command_mutations.trusts_proc_binding(qname) {
+    if !view.proc_binding_trust.trusts_proc_binding(qname) {
         return None;
     }
     let callee = evidence.get(qname)?;
@@ -1835,7 +1945,7 @@ mod tests {
         linkage: Traits,
         has_cross_file_evidence: bool,
     ) -> Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>> {
-        let mutations = crate::command_binding::ModuleCommandMutations::default();
+        let proc_binding_trust = crate::command_binding::ProcBindingTrustProjection::default();
         params_constants_from_call_sites(
             params,
             evidence,
@@ -1843,7 +1953,7 @@ mod tests {
             &UnitCallerView {
                 linkage,
                 has_cross_file_evidence,
-                command_mutations: &mutations,
+                proc_binding_trust: &proc_binding_trust,
             },
         )
     }
@@ -1895,6 +2005,44 @@ mod tests {
         );
         a.merge_from(&b);
         assert_eq!(a.get("::helper").unwrap().uniform_literal_at(0), None);
+    }
+
+    /// A `TclOO` method's relative command resolves in the receiver object's
+    /// namespace.  The selected implementation may itself call any procedure
+    /// reachable from this source with arguments the lexical CFG never sees,
+    /// so cross-file evidence must withdraw an otherwise-uniform literal.
+    #[test]
+    fn runtime_selected_method_command_poisons_cross_file_param_evidence() {
+        let reg = registry();
+        let evidence = scan_source_call_sites(
+            "::helper prod\noo::class create C { method run {} { hook } }\n",
+            &reg,
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            &known(&["::helper"]),
+            &["::helper".to_owned()],
+        );
+        let helper = evidence.get("::helper").expect("direct call recorded");
+        assert_eq!(
+            helper.uniform_literal_at(0),
+            None,
+            "an object-local hook can call helper with arbitrary arguments: {evidence:?}",
+        );
+    }
+
+    /// Absolute method commands do not depend on the receiver namespace and
+    /// therefore must not discard unrelated exact call-site evidence.
+    #[test]
+    fn absolute_only_method_keeps_cross_file_param_evidence_exact() {
+        let reg = registry();
+        let evidence = scan_source_call_sites(
+            "::helper prod\noo::class create C { method run {} { ::puts ok } }\n",
+            &reg,
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            &known(&["::helper"]),
+            &["::helper".to_owned()],
+        );
+        let helper = evidence.get("::helper").expect("direct call recorded");
+        assert_eq!(helper.uniform_literal_at(0), Some("prod"));
     }
 
     /// A deferred command prefix (`ArgRole::CommandPrefix`) invokes the proc

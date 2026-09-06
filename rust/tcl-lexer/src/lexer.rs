@@ -270,6 +270,23 @@ impl Default for LexerConfig {
 pub const UTF8_BOM: &str = "\u{FEFF}";
 
 impl LexerConfig {
+    /// Return the same lexical policy in local source coordinates.
+    ///
+    /// Cache keys for relocated/nested bodies must retain every semantic
+    /// grammar knob while discarding only the caller's position bookkeeping;
+    /// otherwise moving an unchanged body would mint a different key.  BOM and
+    /// strictness policy are intentionally preserved because they can change
+    /// how the bytes are read.
+    #[must_use]
+    pub fn normalized(self) -> Self {
+        Self {
+            base_offset: 0,
+            base_line: 0,
+            base_col: 0,
+            ..self
+        }
+    }
+
     /// Build a config from a dialect profile's [`LexerGrammar`] — the
     /// dialect-derived fields come from the grammar; the call-site knobs
     /// (strict quoting, sub-lexing offsets) keep their defaults.

@@ -21,11 +21,11 @@ proc shimmer_through_alias {} {
     myindex $z 0
 }
 
-# True case: shimmer fires inside a TclOO method body.
+# True case: rooted builtins isolate shimmer from receiver-namespace shadows.
 oo::class create ShimmerClass {
     method touch {} {
-        set a hello
-        incr a
+        ::set a hello
+        ::incr a
     }
 }
 

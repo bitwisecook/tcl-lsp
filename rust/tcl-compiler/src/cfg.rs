@@ -44,7 +44,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
-use crate::ir::Statement;
+use crate::ir::{CommandBindingSite, Statement};
 
 // Block identity
 
@@ -226,6 +226,20 @@ pub struct Function {
     /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
     /// when no inlined body contributes an error frame.
     pub inline_body_error_sites: Vec<InlineBodyErrorSite>,
+    /// Registry-resolved structured command heads consumed while building this
+    /// CFG. Codegen records these dependencies directly rather than attempting
+    /// to reconstruct them from flattened blocks.
+    pub command_binding_sites: Vec<CommandBindingSite>,
+    /// Exact user-procedure definitions whose bodies were inlined into this
+    /// function and therefore no longer have a surviving call instruction.
+    pub procedure_binding_requirements: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+    /// Exact owning Tcl command for synthetic runtime boundaries emitted at a
+    /// block. Absence means compiler-generated control, not a replay point.
+    pub command_boundary_sites: HashMap<BlockId, CommandBindingSite>,
+    /// Continuation block for a structured command whose inline CFG occupies a
+    /// region rather than one statement or a recognised loop shape. Codegen
+    /// wraps that region in one replayable `START_CMD` boundary.
+    pub command_boundary_continuations: HashMap<BlockId, BlockId>,
     /// Caller-frame injection this function is *subject to*: a callee whose
     /// [frame-effect summary](crate::cfg_builder::upvar_info::UpvarInfo)
     /// says it writes or reads names in **this** frame that no static
@@ -266,6 +280,10 @@ impl Function {
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
             inline_body_error_sites: Vec::new(),
+            command_binding_sites: Vec::new(),
+            procedure_binding_requirements: Vec::new(),
+            command_boundary_sites: HashMap::new(),
+            command_boundary_continuations: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             block_names: Vec::new(),

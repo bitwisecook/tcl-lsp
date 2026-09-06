@@ -194,6 +194,7 @@ pub fn spec() -> CommandSpec {
         // uses.
         arity: Arity::at_least(1),
         arg_role_resolver: Some(try_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body, ArgRole::Keyword],
         lowering_hook: Some(crate::hooks::LoweringHookId::Try),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Try),
         return_type: Some(TclType::String),

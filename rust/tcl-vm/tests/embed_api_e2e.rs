@@ -28,58 +28,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
-use tcl_dialect::DialectProfile;
-use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Value, Vm};
-
-/// A `tcl-compiler`-backed compile service — the injection seam `tcl-vm`
-/// itself never links.
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            config,
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_vm::{Code, CompileService, Completion, NativeCommand, Value, Vm};
 
 fn vm() -> Vm {
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm
 }
 
@@ -88,6 +42,8 @@ fn vm() -> Vm {
 struct Recorder {
     calls: RefCell<Vec<Vec<String>>>,
 }
+
+struct RelativeHostProcDefiner;
 
 impl NativeCommand for Recorder {
     fn invoke(&self, _vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -98,12 +54,67 @@ impl NativeCommand for Recorder {
     }
 }
 
+impl NativeCommand for RelativeHostProcDefiner {
+    fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        match vm.define_procedure("host_relative", &[], "namespace current") {
+            Ok(()) => Completion::new(Code::Ok, Value::empty(), Value::empty()),
+            Err(error) => {
+                Completion::new(Code::Error, Value::string(error.message), Value::empty())
+            }
+        }
+    }
+}
+
 #[test]
 fn invoke_command_is_callable_without_a_driver_script() {
     let mut vm = vm();
     let result = vm.invoke_command("string", &[Value::string("length"), Value::string("abcde")]);
     assert!(result.code.is_ok());
     assert_eq!(result.result.to_str().to_string(), "5");
+}
+
+#[test]
+fn invoke_command_catch_applies_a_fatal_tail_after_its_complete_prefix() {
+    let mut vm = vm();
+    vm.set_var("side", Value::int(0)).expect("side is settable");
+
+    let caught = vm.invoke_command(
+        "catch",
+        &[
+            Value::string("incr side; set x \""),
+            Value::string("result"),
+        ],
+    );
+    assert_eq!(caught.code, Code::Ok);
+    assert_eq!(caught.result.to_str().as_ref(), "1");
+    assert_eq!(
+        vm.get_var("side").expect("side is set").to_str().as_ref(),
+        "1"
+    );
+    assert_eq!(
+        vm.get_var("result")
+            .expect("result is set")
+            .to_str()
+            .as_ref(),
+        "missing \""
+    );
+
+    let early = vm.invoke_command(
+        "catch",
+        &[
+            Value::string("return EARLY; set x \""),
+            Value::string("result"),
+        ],
+    );
+    assert_eq!(early.code, Code::Ok);
+    assert_eq!(early.result.to_str().as_ref(), "2");
+    assert_eq!(
+        vm.get_var("result")
+            .expect("result is reset")
+            .to_str()
+            .as_ref(),
+        "EARLY"
+    );
 }
 
 #[test]
@@ -121,11 +132,51 @@ fn a_compiled_handle_runs_repeatedly_without_recompiling() {
 }
 
 #[test]
+fn host_defined_procedure_compiles_parameters_as_proc_locals() {
+    let mut vm = vm();
+    vm.define_procedure(
+        "join",
+        &["value", "suffix"],
+        "append value $suffix; return $value",
+    )
+    .expect("host procedure compiles");
+    let completion = vm.invoke_command("join", &[Value::string("A"), Value::string("X")]);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "AX");
+}
+
+#[test]
+fn host_defined_procedure_uses_canonical_command_and_namespace_keys() {
+    let mut vm = vm();
+    vm.eval_source("namespace eval outer {}; namespace eval : {}")
+        .expect("namespace setup compiles");
+
+    vm.define_procedure(":::rooted", &[], "namespace current")
+        .expect("odd rooted spelling defines globally");
+    vm.define_procedure("outer:::qualified", &[], "namespace current")
+        .expect("qualified separator run defines in outer");
+    vm.register_native_command("host_define", Rc::new(RelativeHostProcDefiner));
+    let completion = vm
+        .eval_source("namespace eval outer {namespace eval : {host_define; host_relative}}")
+        .expect("host definition in literal-colon namespace compiles");
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "::outer:::");
+
+    for (name, expected) in [("rooted", "::"), ("outer::qualified", "::outer")] {
+        let completion = vm.invoke_command(name, &[]);
+        assert!(
+            completion.code.is_ok(),
+            "{name}: {}",
+            completion.result.to_str()
+        );
+        assert_eq!(completion.result.to_str().as_ref(), expected, "{name}");
+    }
+}
+
+#[test]
 fn raw_function_execution_is_fallback_only_and_cannot_bypass_module_profile() {
-    let service = CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    };
     let v85 = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+    let service = BytecodeCompileService::for_profile(v85);
     let named = service
         .compile_for_profile("lassign {a b} x; set x", v85)
         .expect("named-profile module compiles");

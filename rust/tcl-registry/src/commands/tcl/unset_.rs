@@ -130,6 +130,7 @@ pub fn spec() -> CommandSpec {
         // unset nothing" footgun is surfaced by W217, not an arity error.
         arity: Arity::at_least(0),
         arg_role_resolver: Some(unset_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::VarWrite],
         // NOTE: `unset` does NOT set `assigns_variable_at`. That field means
         // "arg N is assigned a value" (the `set`/`incr` shape); `unset`
         // *destroys* variables, which is modelled by the `DESTROYS_VARIABLE`

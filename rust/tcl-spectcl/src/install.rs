@@ -235,6 +235,14 @@ mod tests {
             registry.command_names().any(|n| n == "mylib::with_var"),
             "and is enumerable, so completion sees it"
         );
+        let semantics = registry.effective_semantics();
+        assert!(Arc::ptr_eq(&semantics, &registry.effective_semantics()));
+        assert!(semantics.binding_names().contains("::mylib::with_var"));
+        let facts = semantics
+            .command("mylib::with_var")
+            .expect("the effective index includes the installed pack command");
+        assert_eq!(facts.traits(), spec.traits);
+        assert_eq!(facts.lowering_hook(), spec.lowering_hook);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

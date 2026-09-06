@@ -33,7 +33,7 @@ use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 
-use tcl_bytecode::{FunctionAsm, ModuleAsm};
+use tcl_bytecode::{FunctionAsm, ModuleAsm, ProcedureProvenance};
 use tcl_core_types::RecursionLimit;
 use tcl_platform::Host;
 use tcl_runtime_api::guard::{
@@ -41,13 +41,15 @@ use tcl_runtime_api::guard::{
 };
 use tcl_runtime_api::{
     Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
-    NsId, ProcInfo, ProcParam, Procs, ROOT_NS, Traces, VarStore,
+    NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
+    ScriptCompileTarget, Traces, VarStore,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
 use crate::command::{
     BuiltinFn, Command, EnsembleDef, ProcDef, err_with_code, lookup_error, register_builtins,
 };
+use crate::compiled::{CompiledUnit, CompilerProvenance};
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
@@ -461,7 +463,7 @@ pub(crate) fn canonical_cmd_key(name: &str) -> std::borrow::Cow<'_, str> {
 /// Canonicalise a namespace name's separators: as [`canonical_cmd_key`], but a
 /// trailing separator run drops entirely — `namespace eval c::: {}` creates
 /// `::c` (tclsh8.6-verified), never a namespace named `c::`.
-fn canonical_ns_name(name: &str) -> std::borrow::Cow<'_, str> {
+pub(crate) fn canonical_ns_name(name: &str) -> std::borrow::Cow<'_, str> {
     if !name.starts_with(':') && !name.contains(":::") && !name.ends_with("::") {
         return std::borrow::Cow::Borrowed(name);
     }
@@ -809,6 +811,17 @@ impl std::ops::DerefMut for Vm {
     }
 }
 
+/// Trust state for bytecode that may bypass ordinary command lookup.
+///
+/// Registration is intentionally ignored while the interpreter installs its
+/// own baseline. Once bootstrap ends, every live command-table mutation bumps
+/// the binding generation checked by compiled artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommandSemantics {
+    Bootstrapping,
+    Tracking,
+}
+
 /// One interpreter's complete state: command table, namespaces, call frames,
 /// error state, traces, coroutines, channels, children. The engine ([`Vm`])
 /// executes with exactly one of these current at a time and swaps between
@@ -854,6 +867,8 @@ pub struct InterpState {
     /// independent of `cmd_epoch`: command resolution can be recomputed from
     /// names, whereas specialised bytecode must be recompiled from source.
     profile_generation: u64,
+    /// Monotonic invalidation generation for the injected compile service.
+    compiler_generation: u64,
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
     /// Command table (builtins + user procs), keyed by canonical name — a
@@ -871,11 +886,10 @@ pub struct InterpState {
     /// a similarly named command. The registry decides when this table applies;
     /// this map merely retains the registered implementation.
     fixed_math_builtins: HashMap<String, BuiltinFn>,
-    /// Pre-compiled proc bodies from the module(s). Unlike every other table
-    /// here, this one mirrors a compiler artefact and is keyed the compiler's
-    /// way — `ModuleAsm::procedures`' **rooted** qnames (`::p`, `::a::p`) —
-    /// not the unrooted command key. `cmd_proc` roots its lookup to match.
-    module_procs: HashMap<String, Rc<FunctionAsm>>,
+    /// Pre-compiled proc bodies from modules, keyed by exact canonical source
+    /// identity. Multiple definitions of one command name may coexist: module
+    /// admission must not make a later valid body depend on merge order.
+    module_procs: HashMap<ProcedureCacheKey, CompiledUnit>,
     /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
     /// top governs `proc`/command/variable name resolution. `namespace eval`
     /// and proc activation push/pop it.
@@ -1019,14 +1033,17 @@ pub struct InterpState {
     /// Every command dispatched while non-empty fires these (C's step
     /// semantics); the traced proc's frame pops its own pushes on completion.
     pub(crate) exec_step_scopes: Vec<crate::exec::ExecStepScope>,
-    /// Bumped on every `trace add|remove execution … enterstep|leavestep …`
-    /// (and command rename, which moves such a trace's registration) — the
-    /// analogue of C's `compileEpoch` bump on `DONT_COMPILE_CMDS_INLINE`
-    /// toggles. `ProcDef::compiled_epoch` records which epoch a proc's body
-    /// was compiled under; a stale epoch triggers a recompile (traced or
-    /// untraced, per [`Self::step_trace_active`]) the next time the proc is
-    /// entered — see [`Vm::ensure_proc_compiled_for_tracing`].
+    /// Shared compilation-deopt epoch. It moves on every
+    /// `trace add|remove execution … enterstep|leavestep …` (and a rename
+    /// that moves such a trace), and on every post-bootstrap runtime command
+    /// resolution mutation (command bindings and `namespace path`). This is
+    /// the analogue of C's
+    /// `compileEpoch`: `ProcDef::body` records the generation a body
+    /// used, and a stale body recompiles in the mode selected by
+    /// [`Self::requires_plain_command_dispatch`] at its next entry.
     trace_deopt_epoch: std::cell::Cell<u64>,
+    /// Whether command-binding generation tracking has passed bootstrap.
+    command_semantics: std::cell::Cell<CommandSemantics>,
     /// Set for the duration of [`Vm::run_cmd_trace_callback`]'s evaluation:
     /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c` 9.0.4:1765, set only by
     /// `TraceExecutionProc`) — while an **execution** trace callback is
@@ -1104,17 +1121,19 @@ pub struct InterpState {
     /// unwinding completion and survives. `None` until `exit` runs.
     pending_exit: Option<i32>,
     /// Cache of compiled scripts for the runtime-`eval` / command-substitution
-    /// path (`eval_source`), keyed by source text. Compilation is a pure
-    /// function of the source and the currently selected profile, so a script
+    /// path (`eval_source`), keyed by constructed namespace and source text.
+    /// Compilation is a pure function of those values and the currently
+    /// selected profile, so a script
     /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
     /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
     /// time. This is the dominant cost in the tcltest workload.
-    eval_cache: HashMap<String, Rc<ModuleAsm>>,
-    /// Trace-visible counterpart of [`Self::eval_cache`] — the SAME source
-    /// text compiled with [`CompileService::compile_traced`] instead of
+    eval_cache: HashMap<(String, String), Rc<ModuleAsm>>,
+    /// Plain-dispatch counterpart of [`Self::eval_cache`] — the SAME source
+    /// text compiled with [`CompileService::compile_plain_dispatch_for_profile`]
+    /// instead of
     /// [`compile`](CompileService::compile), used whenever
-    /// [`Self::step_trace_active`] is true. A step-traced proc's `if`/`while`/
-    /// `foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
+    /// [`Self::requires_plain_command_dispatch`] is true. A step-traced proc's
+    /// `if`/`while`/`foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
     /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
     /// bodies that way), so gating the cache choice here — rather than at
     /// each call site — makes every one of them trace-visible with one change
@@ -1122,7 +1141,7 @@ pub struct InterpState {
     /// entry in `eval_cache`) so the two compiled forms of the same source
     /// never collide or get served to the wrong mode. Both maps are cleared
     /// when the profile changes.
-    eval_cache_traced: HashMap<String, Rc<ModuleAsm>>,
+    eval_cache_plain: HashMap<(String, String), Rc<ModuleAsm>>,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
     /// frames, built up as the error unwinds through commands. `None` until the
@@ -1256,7 +1275,7 @@ pub struct InterpState {
     /// [`Tick::PushScript`](crate::exec) (or run via a nested drive on the
     /// `invoke_command` fallback path), mirroring how `coro.pending` becomes a
     /// `Tick::Suspend`.
-    pub(crate) pending_eval: Option<(Rc<FunctionAsm>, Option<&'static str>, Option<String>)>,
+    pub(crate) pending_eval: Option<(CompiledUnit, Option<&'static str>, Option<String>)>,
     /// A `catch` body an about-to-run `catch` wants evaluated on the *explicit*
     /// stack (so a `yield` in it stays yieldable). Unlike `pending_eval`, the
     /// body's completion is **absorbed** (not propagated): a catch frame runs it
@@ -1291,6 +1310,48 @@ pub struct InterpState {
     pub(crate) thread: crate::cmd_thread::ThreadSystem,
 }
 
+/// A runtime script prepared according to the compiler's command-at-a-time
+/// parse plan. `prefix` contains every complete command before a malformed
+/// tail; `fatal_tail` is raised only if that prefix finishes normally.
+pub(crate) struct PreparedScript {
+    pub(crate) prefix: Option<CompiledUnit>,
+    pub(crate) fatal_tail: Option<String>,
+}
+
+/// Exact identity of one compiler-emitted procedure definition.
+///
+/// `ProcedureProvenance` carries the compiler's rooted constructed key; this
+/// VM-owned key removes that root exactly once to match the runtime command
+/// table's unrooted constructed-key convention.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ProcedureCacheKey {
+    name: String,
+    parameters: String,
+    body: String,
+}
+
+impl ProcedureCacheKey {
+    /// Build from the VM's already-constructed unrooted command key.
+    fn from_runtime_key(name: &str, parameters: &str, body: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            parameters: parameters.to_owned(),
+            body: body.to_owned(),
+        }
+    }
+
+    fn from_module_entry(qname: &str, provenance: &ProcedureProvenance) -> Option<Self> {
+        // Compiler module names are already-constructed rooted keys. Remove
+        // exactly their root marker; never feed a constructed key back through
+        // the written-name canonicalizer, which would collapse a literal `:`
+        // namespace segment (#934).
+        let entry_name = qname.strip_prefix("::")?;
+        let provenance_name = provenance.name.strip_prefix("::")?;
+        (entry_name == provenance_name)
+            .then(|| Self::from_runtime_key(entry_name, &provenance.parameters, &provenance.body))
+    }
+}
+
 /// A suspended coroutine's saved per-flow execution context: the call/namespace
 /// stack tails **above** the shared global entry, plus the scalar error/script
 /// state and the OO execution stacks. Exchanged with the live context by
@@ -1309,6 +1370,14 @@ pub(crate) struct ParkedFlow {
     invoked_name: Option<String>,
     script_stack: Vec<String>,
     oo: crate::cmd_oo::OoExec,
+}
+
+impl ParkedFlow {
+    /// Constructed namespace of the parked flow's current Tcl frame.  The
+    /// saved stack omits the shared global root, so an empty tail is global.
+    pub(crate) fn current_ns(&self) -> &str {
+        self.ns_stack.last().map_or("", String::as_str)
+    }
 }
 
 /// `interp limit` configuration for one interpreter — the `commands` and `time`
@@ -1521,7 +1590,7 @@ impl Vm {
             // Active frames carry this generation and fail closed at the
             // trampoline seam if a native callback changes profile mid-run.
             self.eval_cache.clear();
-            self.eval_cache_traced.clear();
+            self.eval_cache_plain.clear();
             self.module_procs.clear();
         }
         self.dialect_profile = profile;
@@ -1580,7 +1649,7 @@ impl Vm {
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
-        self.eval_cache_traced.clear();
+        self.eval_cache_plain.clear();
         self.module_procs.clear();
         self.command_surface_profile = profile;
         self.command_surface_point = Some(crate::environment::surface_point(profile));
@@ -1676,6 +1745,42 @@ impl Vm {
         self.profile_generation
     }
 
+    #[must_use]
+    pub(crate) fn compiler_generation(&self) -> u64 {
+        self.compiler_generation
+    }
+
+    pub(crate) fn compiled_unit(
+        &self,
+        asm: Rc<FunctionAsm>,
+        source_namespace: impl Into<String>,
+    ) -> CompiledUnit {
+        CompiledUnit::new(
+            asm,
+            source_namespace.into(),
+            self.profile_generation,
+            self.trace_deopt_epoch(),
+            CompilerProvenance::CurrentService(self.compiler_generation),
+        )
+    }
+
+    /// Admit embedder-owned assembly for this execution without claiming that
+    /// the current compile service produced it. Source-bearing children retain
+    /// this marker and are recompiled through the service before reuse.
+    pub(crate) fn admitted_foreign_unit(
+        &self,
+        asm: Rc<FunctionAsm>,
+        source_namespace: impl Into<String>,
+    ) -> CompiledUnit {
+        CompiledUnit::new(
+            asm,
+            source_namespace.into(),
+            self.profile_generation,
+            self.trace_deopt_epoch(),
+            CompilerProvenance::AdmittedForeign(self.compiler_generation),
+        )
+    }
+
     /// The backslash-escape grammar this VM decodes under — the pinned
     /// profile's, so a VM emulating 8.5 reads `\x4142` as `B` and one
     /// emulating 9.0 reads it as `A42` (issue #1479).
@@ -1702,6 +1807,7 @@ impl Vm {
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
+        vm.enable_command_semantics_tracking();
         vm
     }
 }
@@ -1794,23 +1900,32 @@ impl InterpState {
         guards
     }
 
+    /// The fail-closed guards, permissive dialect profile, and matching
+    /// command-surface point for an interpreter that has not pinned a dialect.
+    fn fresh_semantic_environment() -> (
+        GuardManager,
+        &'static tcl_dialect::DialectProfile,
+        SurfaceQuery<'static>,
+    ) {
+        let guards = Self::fail_closed_guards();
+        let profile = crate::environment::profile_for_dialect("");
+        let surface_point = crate::environment::surface_point(profile);
+        (guards, profile, surface_point)
+    }
+
     /// A fresh interpreter state writing `puts` output to `out` — no commands
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
     fn fresh(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
-        let guards = Self::fail_closed_guards();
-        // The "no dialect pinned" ingress: the lenient environment, whose
-        // unit profile is the permissive fallback that hides nothing. A
-        // pin (`set_runtime_version` / `set_dialect_profile`) replaces all
-        // three fields together.
-        let unpinned = crate::environment::profile_for_dialect("");
+        let (guards, unpinned, command_surface_point) = Self::fresh_semantic_environment();
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             dialect_profile: unpinned,
             command_surface_profile: unpinned,
-            command_surface_point: Some(crate::environment::surface_point(unpinned)),
+            command_surface_point: Some(command_surface_point),
             profile_registry: None,
             profile_generation: 0,
+            compiler_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
             command_generations: HashMap::new(),
@@ -1848,6 +1963,7 @@ impl InterpState {
             active_sidecar_handles: Vec::new(),
             exec_step_scopes: Vec::new(),
             trace_deopt_epoch: std::cell::Cell::new(0),
+            command_semantics: std::cell::Cell::new(CommandSemantics::Bootstrapping),
             trace_in_progress: std::cell::Cell::new(false),
             firing_cmd_traces: Vec::new(),
             pending_exec_leave: None,
@@ -1864,7 +1980,7 @@ impl InterpState {
             last_debug_key: None,
             pending_exit: None,
             eval_cache: HashMap::new(),
-            eval_cache_traced: HashMap::new(),
+            eval_cache_plain: HashMap::new(),
             error_info: None,
             error_logged: false,
             error_line: 1,
@@ -2406,9 +2522,14 @@ impl Vm {
         action == crate::debug::DebugAction::Stop
     }
 
-    /// Inject the compiler used for runtime `eval` / command substitution.
+    /// Inject the compiler used for runtime compilation, invalidating every
+    /// compiler-derived cache and lazily reusable source-bearing body.
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
         self.compiler = Some(Rc::from(compiler));
+        self.compiler_generation = self.compiler_generation.wrapping_add(1);
+        self.eval_cache.clear();
+        self.eval_cache_plain.clear();
+        self.module_procs.clear();
     }
 
     /// The host environment (capability seam) backing the platform commands.
@@ -2606,6 +2727,13 @@ impl Vm {
         // delete trace.  This also detaches any in-flight sidecar handle, so
         // overwriting a binding cannot let it follow the replacement.
         let replacing_command = self.commands.contains_key(name);
+        // Invalidate before delete callbacks can re-enter an already-running
+        // frame while the old binding is still installed. A second publication
+        // after insertion below prevents that frame from acknowledging this
+        // intermediate state and then retaining the replaced implementation.
+        if replacing_command {
+            self.invalidate_compiled_command_semantics_for_key(name);
+        }
         let replaced_token = replacing_command
             .then(|| self.command_token_identity(&CommandSidecarKey::visible(name)))
             .flatten();
@@ -2636,7 +2764,6 @@ impl Vm {
         if !self.alias_backrefs.is_empty() {
             self.drop_alias_backref(name);
         }
-        self.bump_cmd_epoch();
         self.imported_commands.remove(name);
         self.builtin_identities.remove(name);
         // The TclOO root marking is an identity, not a reservation on the
@@ -2668,6 +2795,13 @@ impl Vm {
             self.replace_import_implementations(&replaced_token, &installed_token, &installed);
         }
         self.absorb_retained_binding(name);
+        // Publish the fully-installed table state. Delete callbacks and import
+        // retargeting are re-entrant and may have populated resolution caches or
+        // acknowledged the pre-install deopt epoch. A retained binding has been
+        // moved into its token's table by this point, so the same publication
+        // covers both stores.
+        self.bump_cmd_epoch();
+        self.invalidate_compiled_command_semantics_for_key(name);
     }
 
     /// A command bound at a name the current frame reaches only through its
@@ -2699,7 +2833,6 @@ impl Vm {
         if let Some(identity) = identity {
             record.builtin_identities.insert(key.to_owned(), identity);
         }
-        self.bump_cmd_epoch();
     }
 
     /// Install a newly-created real ensemble and link its stable token at the
@@ -2731,6 +2864,9 @@ impl Vm {
     pub(crate) fn remove_registered_command(&mut self, name: &str) {
         let imported = self.imported_commands.contains_key(name);
         let token = self.command_token_identity(&CommandSidecarKey::visible(name));
+        if self.commands.contains_key(name) {
+            self.invalidate_compiled_command_semantics_for_key(name);
+        }
         if let Some(command) = self.commands.remove(name) {
             self.note_command_unbound(name);
             self.command_generations.remove(name);
@@ -3016,6 +3152,9 @@ impl Vm {
 
     /// Remove a command by its already-resolved table key.
     fn take_command_unchecked_key(&mut self, key: &str) -> Option<Command> {
+        if self.commands.contains_key(key) {
+            self.invalidate_compiled_command_semantics_for_key(key);
+        }
         self.bump_cmd_epoch();
         self.imported_commands.remove(key);
         self.command_generations.remove(key);
@@ -3261,6 +3400,7 @@ impl Vm {
         self.in_interp(id, |vm| {
             register_builtins(vm);
             vm.bootstrap_globals();
+            vm.enable_command_semantics_tracking();
             if safe {
                 vm.make_safe();
             }
@@ -3729,9 +3869,11 @@ impl Vm {
         });
     }
 
-    /// Stable registry identity for a visible builtin, if any.  A direct
-    /// registered builtin derives it from its key; a moved builtin carries it
-    /// in [`Self::builtin_identities`].
+    /// Stable registry identity for a visible builtin or embedder-native
+    /// command, if any. A direct command derives it from its key; a moved
+    /// command carries it in [`Self::builtin_identities`]. Compiler binding
+    /// validation separately accepts only [`Command::Builtin`], so a native
+    /// replacement at a registry name never inherits compiler trust.
     fn builtin_identity_for_key(&self, key: &str) -> Option<String> {
         matches!(
             self.commands.get(key),
@@ -3743,6 +3885,140 @@ impl Vm {
                 .cloned()
                 .unwrap_or_else(|| self.command_origin_key(key))
         })
+    }
+
+    /// Whether every executable namespace recorded by a bare function agrees
+    /// with the namespace in which an embedder wants to admit it.
+    ///
+    /// [`FunctionAsm`] has no top-level namespace field or source from which
+    /// the VM could rebuild it.  Its binding requirements and replayable source
+    /// boundaries are therefore the only safe provenance available at this
+    /// low-level entry point. Mixed-namespace inlined assembly is deliberately
+    /// rejected here; callers retaining the surrounding [`ModuleAsm`] or a
+    /// [`crate::embed::FunctionHandle`] have the typed provenance needed to run
+    /// it without this conservative restriction.
+    pub(crate) fn function_resolution_namespace_matches(asm: &FunctionAsm, expected: &str) -> bool {
+        asm.command_bindings
+            .iter()
+            .all(|binding| binding.resolution_namespace == expected)
+            && asm.instructions.iter().all(|instruction| {
+                let executable_boundary = instruction.source_command_boundary.is_start()
+                    || instruction.source_command_boundary.is_inline_replay();
+                !executable_boundary || instruction.source_command_namespace == expected
+            })
+    }
+
+    /// Whether `name`, resolved from its compiler-recorded source namespace,
+    /// still reaches the registry implementation named by `identity`.
+    /// Same-interpreter aliases are followed only when they prepend no
+    /// arguments: that is the binding shape the compiler may treat as the
+    /// target command itself.
+    pub(crate) fn command_binding_matches(
+        &self,
+        binding: &tcl_runtime_api::CommandBindingIdentity,
+    ) -> bool {
+        let Some(mut key) = self.resolve_command_fqn(&binding.resolution_namespace, &binding.name)
+        else {
+            return false;
+        };
+        let mut seen = std::collections::HashSet::new();
+        loop {
+            if !seen.insert(key.clone()) {
+                return false;
+            }
+            // C Tcl refuses command-specific compilation when the exact token
+            // has an execution trace. Apply that rule at every registry/alias
+            // hop so all compiled consumers share one specialization gate.
+            if self.command_has_execution_trace(&CommandSidecarKey::visible(key.clone())) {
+                return false;
+            }
+            match self.commands.get(&key) {
+                Some(Command::Builtin(_)) => {
+                    return self
+                        .builtin_identity_for_key(&key)
+                        .is_some_and(|found| found == binding.identity);
+                }
+                Some(Command::Object(_)) => {
+                    return self
+                        .registry_object_roots
+                        .get(&key)
+                        .is_some_and(|found| found == &binding.identity);
+                }
+                Some(Command::Alias(words)) if words.len() == 1 => {
+                    let target = words[0].to_str();
+                    let Some(next) = self.resolve_command_fqn("", &target) else {
+                        return false;
+                    };
+                    key = next;
+                }
+                _ => return false,
+            }
+        }
+    }
+
+    pub(crate) fn function_command_bindings_match(&self, asm: &FunctionAsm) -> bool {
+        let commands = asm
+            .command_bindings
+            .iter()
+            .all(|binding| self.command_binding_matches(binding));
+        commands
+            && asm
+                .procedure_bindings
+                .iter()
+                .all(|binding| self.procedure_binding_matches(binding))
+    }
+
+    /// Whether a compiler-inlined user-procedure body still belongs to the
+    /// exact source binding and live command token whose definition the
+    /// compiler copied.
+    ///
+    /// Resolving the source invocation again is essential: a newly-created
+    /// command in its namespace may shadow the previously-selected global or
+    /// namespace-path target without changing that old target's definition.
+    /// The compiler also supplies the selected target as an already-constructed
+    /// rooted key, so remove its root marker exactly once instead of resolving
+    /// it as a written name. The procedure's creation name rejects an unrelated
+    /// same-source proc renamed onto the binding; matching source permits a
+    /// behavior-equivalent same-source redefinition. An execution trace always
+    /// declines the optimisation because inlining erased the traced call
+    /// boundary.
+    fn procedure_binding_matches(
+        &self,
+        binding: &tcl_runtime_api::ProcedureBindingIdentity,
+    ) -> bool {
+        let Some(target_key) = binding.name.strip_prefix("::") else {
+            return false;
+        };
+        let Some(resolved_key) =
+            self.resolve_command_fqn(&binding.resolution_namespace, &binding.invocation_name)
+        else {
+            return false;
+        };
+        if resolved_key != target_key {
+            return false;
+        }
+        if self.command_has_execution_trace(&CommandSidecarKey::visible(resolved_key.clone())) {
+            return false;
+        }
+        let Some(Command::Proc(proc)) =
+            self.command_at_resolved_key(&binding.invocation_name, &resolved_key)
+        else {
+            return false;
+        };
+        if proc.name != resolved_key || proc.body_src.to_str().as_ref() != binding.body {
+            return false;
+        }
+        let Ok((expected, expected_has_args)) = crate::command::parse_params(&binding.parameters)
+        else {
+            return false;
+        };
+        expected_has_args == proc.has_args
+            && expected.len() == proc.params.len()
+            && expected.iter().zip(&proc.params).all(|(want, got)| {
+                want.name == got.name
+                    && want.default.as_ref().map(Value::to_str)
+                        == got.default.as_ref().map(Value::to_str)
+            })
     }
 
     /// `interp hide {} cmd` — move one visible command plus all of its
@@ -4546,12 +4822,27 @@ impl Vm {
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
-        let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        self.lookup_command_in_namespace(self.current_ns(), name)
+            .map(|(_, command)| command)
+    }
+
+    /// Resolve and retrieve a command in an explicit constructed namespace.
+    /// Returning the winning key alongside the callable keeps entered-command
+    /// sidecars attached to the same namespace lookup result.
+    pub(crate) fn lookup_command_in_namespace(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Option<(String, Command)> {
+        let key = self.resolve_command_fqn(namespace, name)?;
+        // A relative lookup from a retained namespace activation resolves in
+        // that token's own command table; an absolute spelling still reaches
+        // a same-named live recreation in the ordinary table.
         let command = self.command_at_resolved_key(name, &key)?;
         if !self.builtin_command_visible_for_surface(&key, &command) {
             return None;
         }
-        Some(command)
+        Some((key, command))
     }
 
     /// Whether the exact visible command-table owner exists on the active
@@ -4578,6 +4869,7 @@ impl Vm {
     /// names, no leading `::`).
     pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
         self.bump_cmd_epoch();
+        self.invalidate_compiled_command_semantics();
         let cur = self.current_ns().to_string();
         match self.retained_owner_of_namespace(&cur) {
             Some(root) => {
@@ -4685,7 +4977,39 @@ impl Vm {
             .any(|list| list.iter().any(|t| is_step_capable(&t.ops)))
     }
 
-    /// Bump the trace-deopt epoch (see [`Self::trace_deopt_epoch`]).
+    /// End the engine-owned command-registration phase. Every subsequent
+    /// command-table mutation participates in compiled-command invalidation.
+    fn enable_command_semantics_tracking(&self) {
+        debug_assert_eq!(
+            self.command_semantics.get(),
+            CommandSemantics::Bootstrapping
+        );
+        self.command_semantics.set(CommandSemantics::Tracking);
+    }
+
+    /// Whether new dynamic units must retain ordinary command dispatch.
+    fn requires_plain_command_dispatch(&self) -> bool {
+        self.step_trace_active()
+    }
+
+    /// Advance the command-binding generation after a live table mutation.
+    /// Artifacts carry the exact bindings they assume, so a later entry can
+    /// remain optimised when those identities still match (including after a
+    /// rename is reversed) and deoptimise only when they do not.
+    fn invalidate_compiled_command_semantics_for_key(&mut self, _key: &str) {
+        self.invalidate_compiled_command_semantics();
+    }
+
+    /// Advance the compilation generation after a non-table mutation changes
+    /// command resolution (for example, `namespace path`).
+    fn invalidate_compiled_command_semantics(&self) {
+        if self.command_semantics.get() != CommandSemantics::Tracking {
+            return;
+        }
+        self.bump_trace_deopt_epoch();
+    }
+
+    /// Bump the shared compilation-deopt epoch.
     pub(crate) fn bump_trace_deopt_epoch(&self) {
         self.trace_deopt_epoch
             .set(self.trace_deopt_epoch.get().wrapping_add(1));
@@ -4699,7 +5023,7 @@ impl Vm {
         self.guards.borrow_mut().invalidate(domain);
     }
 
-    /// The current trace-deopt epoch.
+    /// The current shared compilation-deopt epoch.
     pub(crate) fn trace_deopt_epoch(&self) -> u64 {
         self.trace_deopt_epoch.get()
     }
@@ -4920,14 +5244,26 @@ impl Vm {
         self.cmd_arena.borrow().fqns.get(id as usize).cloned()
     }
 
-    /// Push a namespace onto the resolution stack (created if new). The name is
-    /// normalised to canonical form first ([`canonical_ns_name`]), so
-    /// `namespace eval c::: {}` enters (and creates) `c`, matching tclsh.
+    /// Ensure an already-constructed namespace key has a live VM namespace
+    /// entry and return its stable token.
+    fn activate_namespace_key(&mut self, ns: &str) -> NsId {
+        if !ns.is_empty()
+            && !self.namespace_in_dying_subtree(ns)
+            && self.namespaces.insert(ns.to_owned())
+        {
+            self.note_namespace_created(ns);
+        }
+        self.intern_ns(ns)
+    }
+
+    /// Push a canonical, unrooted **constructed namespace key** onto the
+    /// resolution stack (created if new).
+    ///
+    /// Written-name canonicalisation belongs at the boundary that resolved the
+    /// name. Repeating it here would reinterpret a valid key such as
+    /// `outer:::` (namespace `:` below `outer`) as the written spelling
+    /// `outer:::` and collapse it back to `outer`.
     pub(crate) fn push_ns(&mut self, ns: String) {
-        let ns = match canonical_ns_name(&ns) {
-            std::borrow::Cow::Borrowed(_) => ns,
-            std::borrow::Cow::Owned(o) => o,
-        };
         // A body whose namespace is only reachable through the retained token
         // the caller holds enters *that* token, never a fresh one minted from
         // its spelling: C pushes `procPtr->cmdPtr->nsPtr`, a pointer.
@@ -4937,15 +5273,7 @@ impl Vm {
             self.push_ns_token(ns, id);
             return;
         }
-        if !ns.is_empty()
-            && !self.namespace_in_dying_subtree(&ns)
-            && self.namespaces.insert(ns.clone())
-        {
-            self.note_namespace_created(&ns);
-        }
-        // Ensure it has an `NsId` so `Namespaces::current` (a `&self` lookup) can
-        // resolve it without minting.
-        let id = self.intern_ns(&ns);
+        let id = self.activate_namespace_key(&ns);
         self.push_ns_token(ns, id);
     }
 
@@ -4979,6 +5307,51 @@ impl Vm {
         *self.ns_deferral.counts.entry(id).or_insert(0) += 1;
         self.ns_stack.push(name);
         self.ns_id_stack.push(id);
+    }
+
+    /// Enter a transparent stale-command replay's resolution namespace without
+    /// changing call-frame depth. The global stack entry is immutable: replacing
+    /// it would make `uplevel #0` cease to mean global and would leak the replay
+    /// namespace across [`Self::swap_flow`], which deliberately shares slot zero
+    /// between coroutine flows. A cross-namespace replay at global level
+    /// therefore fails closed until it can be represented without inventing a
+    /// Tcl frame (which would change variable and `info level` semantics).
+    pub(crate) fn enter_replay_namespace(
+        &mut self,
+        ns: String,
+    ) -> Result<Option<(String, NsId)>, &'static str> {
+        if self.current_ns() == ns {
+            return Ok(None);
+        }
+        if self.current_level() == 0 {
+            return Err("cannot replay bytecode from another namespace at global level");
+        }
+        let id = self.activate_namespace_key(&ns);
+        let previous_ns = std::mem::replace(
+            self.ns_stack
+                .last_mut()
+                .expect("global namespace frame exists"),
+            ns,
+        );
+        let previous_id = std::mem::replace(
+            self.ns_id_stack
+                .last_mut()
+                .expect("global namespace token exists"),
+            id,
+        );
+        Ok(Some((previous_ns, previous_id)))
+    }
+
+    /// Restore the namespace saved by [`Self::enter_replay_namespace`].
+    pub(crate) fn leave_replay_namespace(&mut self, previous: (String, NsId)) {
+        *self
+            .ns_stack
+            .last_mut()
+            .expect("global namespace frame exists") = previous.0;
+        *self
+            .ns_id_stack
+            .last_mut()
+            .expect("global namespace token exists") = previous.1;
     }
 
     /// Pop the current namespace (the global base is never popped). The
@@ -5101,11 +5474,25 @@ impl Vm {
     /// would collapse a lone-colon segment (#934), and the parent chain walks
     /// the construction-inverse split for the same reason.
     pub(crate) fn declare_namespace_key(&mut self, ns_key: &str) {
+        self.declare_namespace_key_with_origin(ns_key, false);
+    }
+
+    /// Declare an absolute namespace target from the global root. A retained
+    /// token with the same spelling is deliberately ignored: deletion has
+    /// unlinked that token, so an absolute `namespace eval ::N` may create a
+    /// distinct live `::N` while relative lookup from its old activation keeps
+    /// reaching the retained token.
+    pub(crate) fn declare_namespace_key_from_root(&mut self, ns_key: &str) {
+        self.declare_namespace_key_with_origin(ns_key, true);
+    }
+
+    fn declare_namespace_key_with_origin(&mut self, ns_key: &str, from_root: bool) {
         if ns_key.is_empty()
             || self.namespace_in_dying_subtree(ns_key)
             // A name the current frame reaches only through its retained token
-            // is that token's, and must not republish the spelling.
-            || self.retained_owner_of_namespace(ns_key).is_some()
+            // is that token's, and must not republish the spelling. An absolute
+            // lookup is rooted outside that activation and may recreate it.
+            || (!from_root && self.retained_owner_of_namespace(ns_key).is_some())
         {
             return;
         }
@@ -5116,7 +5503,7 @@ impl Vm {
         }
         let (parent, _tail) = key_holder_and_tail_unrooted(ns_key);
         if !parent.is_empty() {
-            self.declare_namespace_key(&parent);
+            self.declare_namespace_key_with_origin(&parent, from_root);
         }
     }
 
@@ -5691,6 +6078,8 @@ impl Vm {
             return;
         }
 
+        self.invalidate_compiled_command_semantics_for_key(live_key.name());
+
         if live_key != key {
             // Rename/hide/expose moved any remaining trace sidecars with the
             // token. The original delete trace already fired; suppress a
@@ -6057,10 +6446,15 @@ impl Vm {
 
         // Drop this token's path/unknown state and remove it from every other
         // live path before child teardown, mirroring `UnlinkNsPath`.
-        self.ns_paths.remove(canonical);
+        let mut path_mutated = self.ns_paths.remove(canonical).is_some();
         self.ns_unknowns.remove(canonical);
         for path in self.ns_paths.values_mut() {
+            let old_len = path.len();
             path.retain(|entry| entry != canonical);
+            path_mutated |= path.len() != old_len;
+        }
+        if path_mutated {
+            self.invalidate_compiled_command_semantics();
         }
 
         // Parent commands have finished while children were still live. Now
@@ -6595,17 +6989,18 @@ impl Vm {
         // The trace belongs to the token standing at this key now, not to the
         // name (C hangs it off `cmdPtr->tracePtr`) — and inside a rename's
         // callbacks the vacating name reaches the destination's list.
-        let sidecar = self.renamed_command_key(CommandSidecarKey::visible(key));
+        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let token = self
-            .command_token_identity(&sidecar)
+            .command_token_identity(&key)
             .map(|identity| identity.generation);
+        let first_execution_trace = execution && !self.command_has_execution_trace(&key);
         let table = if execution {
             &mut self.exec_traces
         } else {
             &mut self.cmd_traces
         };
         table
-            .entry(sidecar)
+            .entry(key)
             .or_default()
             .push(Rc::new(CmdTraceEntry::new(ops, callback, token)));
         self.invalidate_guard_domain(GuardDomain::CommandTrace);
@@ -6614,7 +7009,7 @@ impl Vm {
         // `DONT_COMPILE_CMDS_INLINE` (tclTrace.c). Bumped even if a step
         // trace was already active elsewhere: cheap, and simpler than
         // tracking the exact 0→1 transition.
-        if execution && is_step {
+        if execution && (is_step || first_execution_trace) {
             self.bump_trace_deopt_epoch();
         }
         ok(Value::empty())
@@ -6658,10 +7053,13 @@ impl Vm {
         if removed {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
+        let last_execution_trace_removed =
+            execution && removed && !self.command_has_execution_trace(&key);
         // Removing a step-capable trace may re-enable fast (inlined)
         // compilation for procs that no longer have one active anywhere;
-        // recompute lazily on next call, same as an add.
-        if execution && is_step {
+        // removing the last ordinary execution trace on this exact token does
+        // the same for bytecode specialized for that command.
+        if execution && (is_step || last_execution_trace_removed) {
             self.bump_trace_deopt_epoch();
         }
         ok(Value::empty())
@@ -6944,6 +7342,19 @@ impl Vm {
         }
     }
 
+    /// Whether this exact live command token has an execution trace.
+    ///
+    /// Command-specific traces are runtime state: source can install or remove
+    /// one after a module was compiled. Central binding validation and typed
+    /// command-head metadata consult this table, matching C Tcl's
+    /// `CMD_HAS_EXEC_TRACES` decision without leaking trace-table knowledge
+    /// into the compiler.
+    pub(crate) fn command_has_execution_trace(&self, key: &CommandSidecarKey) -> bool {
+        self.exec_traces
+            .get(key)
+            .is_some_and(|entries| !entries.is_empty())
+    }
+
     /// Move trace registrations with a command through the hidden table.  A
     /// hide/expose is not a Tcl rename, so no callback is fired.
     fn move_command_traces(&mut self, old_key: &CommandSidecarKey, new_key: CommandSidecarKey) {
@@ -7194,49 +7605,190 @@ impl Vm {
         Ok(())
     }
 
-    pub(crate) fn module_proc(&self, qname: &str) -> Option<Rc<FunctionAsm>> {
-        self.module_procs.get(qname).cloned()
+    fn module_proc(&self, qname: &str, parameters: &str, body: &str) -> Option<CompiledUnit> {
+        self.module_procs
+            .get(&ProcedureCacheKey::from_runtime_key(
+                qname, parameters, body,
+            ))
+            .cloned()
     }
 
-    /// Compile a **script** at runtime — a unit that is entered the way the
-    /// top level of a file is, not through a call frame of its own (the
-    /// `coroutine` wrapper). Any procs the script itself defines are merged
-    /// into the pre-compiled body cache.
-    pub(crate) fn compile_dynamic_script(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
-        self.compile_dynamic(src, |module| module.top_level)
+    /// Compile or admit exactly one procedure body. Every proc-like runtime
+    /// surface funnels through this owner so compilation always carries
+    /// procedure context (`is_proc`, formal LVT names, namespace, profile and
+    /// command-dispatch mode). `admission` enables exact-provenance AOT reuse
+    /// for a named Tcl `proc` definition.
+    pub(crate) fn prepare_procedure_body(
+        &mut self,
+        admission: Option<(&str, &str)>,
+        parameters: &[crate::command::Param],
+        namespace: &str,
+        src: &str,
+    ) -> Result<CompiledUnit, TclError> {
+        if let Some((name, parameter_source)) = admission
+            && let Some(unit) = self.module_proc(name, parameter_source, src)
+        {
+            return Ok(unit);
+        }
+        let parameter_names: Vec<String> = parameters.iter().map(|p| p.name.clone()).collect();
+        let force_plain = self.requires_plain_command_dispatch();
+        let mut requested_dispatch = if force_plain {
+            ProcedureDispatch::Plain
+        } else {
+            ProcedureDispatch::Optimised
+        };
+        let mut module = {
+            let compiler = self
+                .compiler
+                .as_ref()
+                .ok_or_else(|| TclError::new("procedure compilation requires a CompileService"))?;
+            compiler
+                .compile_procedure_for_profile(
+                    ProcedureCompileTarget {
+                        source: src,
+                        parameters: &parameter_names,
+                        namespace,
+                    },
+                    self.dialect_profile,
+                    requested_dispatch,
+                )
+                .map_err(|error| TclError::new(error.0))?
+        };
+        self.validate_module_profile(&module)?;
+        Self::validate_module_namespace(&module, namespace)?;
+        if !force_plain && !self.function_command_bindings_match(&module.top_level) {
+            requested_dispatch = ProcedureDispatch::Plain;
+            let compiler = self.compiler.as_ref().expect("compiler checked above");
+            module = compiler
+                .compile_procedure_for_profile(
+                    ProcedureCompileTarget {
+                        source: src,
+                        parameters: &parameter_names,
+                        namespace,
+                    },
+                    self.dialect_profile,
+                    ProcedureDispatch::Plain,
+                )
+                .map_err(|error| TclError::new(error.0))?;
+            self.validate_module_profile(&module)?;
+            Self::validate_module_namespace(&module, namespace)?;
+        }
+        if (requested_dispatch == ProcedureDispatch::Plain
+            || module.top_level.plain_command_dispatch)
+            && (!module.plain_command_dispatch
+                || !module.top_level.plain_command_dispatch
+                || !module.top_level.command_bindings.is_empty()
+                || !module.top_level.procedure_bindings.is_empty()
+                || module.procedures.values().any(|asm| {
+                    !asm.plain_command_dispatch
+                        || !asm.command_bindings.is_empty()
+                        || !asm.procedure_bindings.is_empty()
+                }))
+        {
+            return Err(TclError::new(
+                "CompileService procedure plain-dispatch capability returned optimised bytecode",
+            ));
+        }
+        self.merge_procs(&module);
+        Ok(self.compiled_unit(Rc::new(module.top_level), module.source_namespace))
     }
 
-    /// Compile a **body** at runtime — a `proc` body the compiler did not
-    /// pre-compile, an `apply` lambda, a `TclOO` method — as a *procedure*
-    /// rather than as a top-level script.
-    ///
-    /// The shape is not cosmetic. A script-shaped body reaches every variable
-    /// through the dispatched `*Stk` forms, so it never executes the
-    /// specialised arms (`STORE_SCALAR1`, `INCR_SCALAR1`,
-    /// `LAPPEND_{SCALAR,ARRAY}`, the compiled `unset`) an AOT-compiled proc
-    /// body runs — and those arms carry semantics of their own, so the same
-    /// source would observe different variable traces depending only on
-    /// whether the compiler happened to pre-compile it. See
-    /// [`ModuleAsm::top_level_body`](tcl_bytecode::ModuleAsm::top_level_body).
-    pub(crate) fn compile_dynamic_body(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
-        self.compile_dynamic(src, |module| module.top_level_body)
-    }
-
-    /// Compile `src` for the interpreter's current profile and take one of the
-    /// module's two top-level shapes, merging any procs it defines.
-    fn compile_dynamic(
+    /// Compile through the explicit plain-dispatch capability and verify the
+    /// returned artifact actually carries no specialised binding assumptions.
+    /// A missing or dishonest capability fails closed.
+    pub(crate) fn compile_plain_module(
         &mut self,
         src: &str,
-        shape: fn(ModuleAsm) -> FunctionAsm,
-    ) -> Option<Rc<FunctionAsm>> {
-        let module = self
-            .compiler
-            .as_ref()?
-            .compile_for_profile(src, self.dialect_profile)
-            .ok()?;
-        self.validate_module_profile(&module).ok()?;
-        self.merge_procs(&module.procedures);
-        Some(Rc::new(shape(module)))
+        namespace: &str,
+    ) -> Result<ModuleAsm, TclError> {
+        let Some(compiler) = self.compiler.as_ref() else {
+            return Err(TclError::new(
+                "command mutation recovery requires a plain-dispatch CompileService",
+            ));
+        };
+        let module = compiler
+            .compile_plain_script_for_profile(
+                ScriptCompileTarget {
+                    source: src,
+                    namespace,
+                },
+                self.dialect_profile,
+            )
+            .map_err(|error| TclError::new(error.0))?;
+        self.validate_module_profile(&module)?;
+        Self::validate_module_namespace(&module, namespace)?;
+        if !module.plain_command_dispatch
+            || !module.top_level.plain_command_dispatch
+            || !module.top_level.command_bindings.is_empty()
+            || !module.top_level.procedure_bindings.is_empty()
+            || module.procedures.values().any(|asm| {
+                !asm.plain_command_dispatch
+                    || !asm.command_bindings.is_empty()
+                    || !asm.procedure_bindings.is_empty()
+            })
+        {
+            return Err(TclError::new(
+                "CompileService plain-dispatch capability returned optimised bytecode",
+            ));
+        }
+        Ok(module)
+    }
+
+    /// Compile an optimised function candidate and accept it only when its
+    /// registry assumptions match the live command bindings in `namespace`.
+    /// A `None` result means the caller must keep or produce plain-dispatch
+    /// bytecode; running the candidate would bypass a replacement command.
+    pub(crate) fn compile_fast_function_for_namespace(
+        &mut self,
+        src: &str,
+        namespace: &str,
+    ) -> Result<Option<Rc<FunctionAsm>>, TclError> {
+        let Some(compiler) = self.compiler.clone() else {
+            return Err(TclError::new(
+                "procedure recompilation requires a CompileService",
+            ));
+        };
+        let module = compiler
+            .compile_script_for_profile(
+                ScriptCompileTarget {
+                    source: src,
+                    namespace,
+                },
+                self.dialect_profile,
+            )
+            .map_err(|error| TclError::new(error.0))?;
+        self.validate_module_profile(&module)?;
+        Self::validate_module_namespace(&module, namespace)?;
+        let asm = Rc::new(module.top_level.clone());
+        if self.function_command_bindings_match(&asm) {
+            self.merge_procs(&module);
+            Ok(Some(asm))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn compile_plain_function_cached(
+        &mut self,
+        target: ScriptCompileTarget<'_>,
+    ) -> Result<Rc<FunctionAsm>, TclError> {
+        let module = self.compile_plain_cached_module(target)?;
+        self.merge_procs(&module);
+        Ok(Rc::new(module.top_level.clone()))
+    }
+
+    fn compile_plain_cached_module(
+        &mut self,
+        target: ScriptCompileTarget<'_>,
+    ) -> Result<Rc<ModuleAsm>, TclError> {
+        let key = (target.namespace.to_owned(), target.source.to_owned());
+        if let Some(module) = self.eval_cache_plain.get(&key) {
+            Self::validate_module_namespace(module, target.namespace)?;
+            return Ok(Rc::clone(module));
+        }
+        let module = Rc::new(self.compile_plain_module(target.source, target.namespace)?);
+        self.eval_cache_plain.insert(key, Rc::clone(&module));
+        Ok(module)
     }
 
     /// Enforce the bytecode artifact's exact profile at every consumption
@@ -7255,58 +7807,121 @@ impl Vm {
         }
     }
 
-    /// Merge a module's pre-compiled proc bodies into the registry.
-    pub(crate) fn merge_procs(&mut self, procs: &HashMap<String, FunctionAsm>) {
-        for (qname, asm) in procs {
-            self.module_procs
-                .entry(qname.clone())
-                .or_insert_with(|| Rc::new(asm.clone()));
+    /// Enforce the command-resolution namespace captured by the compiler.
+    /// Namespace is an executable specialization axis just like dialect and
+    /// command bindings: an unqualified command in identical source can name
+    /// a different implementation in another namespace.
+    pub(crate) fn validate_module_namespace(
+        module: &ModuleAsm,
+        expected: &str,
+    ) -> Result<(), TclError> {
+        if module.source_namespace == expected {
+            Ok(())
+        } else {
+            Err(TclError::new(format!(
+                "bytecode compiled for namespace {} cannot run in {}",
+                display_namespace(&module.source_namespace),
+                display_namespace(expected)
+            )))
         }
     }
 
-    /// Ensure `proc`'s compiled body matches the interp's current trace-deopt
-    /// and dialect-profile generations, recompiling `body_src` — trace-visible
-    /// ([`CompileService::compile_traced`]) or fast
-    /// ([`CompileService::compile`]), per [`Self::step_trace_active`] —
+    /// Merge proc bodies produced by the VM's current compile service.
+    pub(crate) fn merge_procs(&mut self, module: &ModuleAsm) {
+        for (qname, asm) in &module.procedures {
+            let Some(provenance) = module.procedure_provenance.get(qname) else {
+                continue;
+            };
+            let Some(key) = ProcedureCacheKey::from_module_entry(qname, provenance) else {
+                continue;
+            };
+            let namespace = key_holder_and_tail_unrooted(&key.name).0;
+            let unit = self.compiled_unit(Rc::new(asm.clone()), namespace);
+            // This compiler invocation is the newest authoritative artifact
+            // for the exact source identity. A CompileService is allowed to
+            // change its lowering semantics between invocations, so retaining
+            // an older same-source artifact would make the cache outlive its
+            // compiler provenance.
+            self.module_procs.insert(key, unit);
+        }
+    }
+
+    /// Admit proc bodies from an embedder-owned module without attributing
+    /// them to the current compile service.
+    pub(crate) fn merge_foreign_procs(&mut self, module: &ModuleAsm) {
+        for (qname, asm) in &module.procedures {
+            let Some(provenance) = module.procedure_provenance.get(qname) else {
+                continue;
+            };
+            let Some(key) = ProcedureCacheKey::from_module_entry(qname, provenance) else {
+                continue;
+            };
+            let namespace = key_holder_and_tail_unrooted(&key.name).0;
+            let unit = self.admitted_foreign_unit(Rc::new(asm.clone()), namespace);
+            // `run_module` promises the supplied module's semantics. Two
+            // foreign modules may carry the same proc source while having
+            // been produced by different compilers, so the module currently
+            // being admitted must replace an older exact-source cache entry.
+            self.module_procs.insert(key, unit);
+        }
+    }
+
+    /// Ensure `proc`'s compiled body matches the interp's current command,
+    /// dialect-profile, and compile-service generations, recompiling `body_src` with plain
+    /// command dispatch ([`CompileService::compile_plain_dispatch_for_profile`])
+    /// or the fast compiler, per [`Self::requires_plain_command_dispatch`] —
     /// when it doesn't. This is the general recompile-on-demand mechanism
     /// behind issue #946 fault 3: C Tcl forces a step-traced proc "out of
     /// bytecode" (`DONT_COMPILE_CMDS_INLINE`) on its next entry after a
     /// step-capable trace is added anywhere, and reverts it the same way once
     /// the last one is removed. Returns `proc` unchanged when it is already
-    /// current, no compiler is available, or the recompile itself errors (the
-    /// existing body — which already compiled successfully once — keeps
-    /// running rather than failing the call over a trace-visibility nicety).
-    pub(crate) fn ensure_proc_traced(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
+    /// current. A required plain compile fails closed: running the old body
+    /// would bypass the replacement command that caused invalidation.
+    /// A current, binding-valid foreign admission may run unchanged only when
+    /// no compile service is installed; retaining the foreign marker ensures a
+    /// later `set_compiler` still refreshes it.
+    pub(crate) fn ensure_proc_traced(
+        &mut self,
+        proc: Rc<ProcDef>,
+    ) -> Result<Rc<ProcDef>, TclError> {
         let want_epoch = self.trace_deopt_epoch();
         let want_profile = self.profile_generation;
-        if proc.compiled_epoch == want_epoch && proc.compiled_profile_generation == want_profile {
-            return proc;
+        let want_compiler = self.compiler_generation;
+        let bindings_match = self.function_command_bindings_match(&proc.body.asm);
+        let foreign_without_compiler = self.compiler.is_none()
+            && proc
+                .body
+                .compiler
+                .is_current_foreign_admission(want_compiler);
+        let compiler_matches =
+            proc.body.compiler.is_current_service(want_compiler) || foreign_without_compiler;
+        let namespace_matches = proc.body.source_namespace == proc.namespace;
+        if (proc.body.command_epoch == want_epoch || foreign_without_compiler)
+            && proc.body.profile_generation == want_profile
+            && compiler_matches
+            && namespace_matches
+            && bindings_match
+            && !self.step_trace_active()
+        {
+            return Ok(proc);
         }
-        let Some(svc) = self.compiler.clone() else {
-            return proc;
-        };
-        let src = proc.body_src.to_str();
-        let recompiled = if self.step_trace_active() {
-            svc.compile_traced_for_profile(&src, self.dialect_profile)
-        } else {
-            svc.compile_for_profile(&src, self.dialect_profile)
-        };
-        let Ok(module) = recompiled else {
-            return proc;
-        };
-        if self.validate_module_profile(&module).is_err() {
-            return proc;
-        }
-        self.merge_procs(&module.procedures);
         let mut fresh = (*proc).clone();
-        // A proc body, not a script: keep the recompile on the same shape the
-        // definition-time compile produced (see [`Self::compile_dynamic_body`]),
-        // so crossing a trace-deopt or profile generation cannot silently
-        // demote a body out of its `is_proc` forms.
-        fresh.body = Rc::new(module.top_level_body);
-        fresh.compiled_epoch = want_epoch;
-        fresh.compiled_profile_generation = want_profile;
-        Rc::new(fresh)
+        let needs_compile = self.step_trace_active()
+            || proc.body.profile_generation != want_profile
+            || !compiler_matches
+            || !namespace_matches
+            || !bindings_match
+            || (proc.body.command_epoch != want_epoch && proc.body.asm.plain_command_dispatch);
+        if needs_compile {
+            fresh.body = self.prepare_procedure_body(
+                None,
+                &proc.params,
+                &proc.namespace,
+                &proc.body_src.to_str(),
+            )?;
+        }
+        fresh.body.command_epoch = want_epoch;
+        Ok(Rc::new(fresh))
     }
 
     /// Refresh a stored procedure and memoise it in the command domain from
@@ -7318,13 +7933,8 @@ impl Vm {
         proc: Rc<ProcDef>,
         sidecar: Option<&CommandSidecarKey>,
         sidecar_handle: Option<&CommandSidecarHandle>,
-    ) -> Rc<ProcDef> {
-        if proc.compiled_epoch == self.trace_deopt_epoch()
-            && proc.compiled_profile_generation == self.profile_generation
-        {
-            return proc;
-        }
-        let fresh = self.ensure_proc_traced(proc);
+    ) -> Result<Rc<ProcDef>, TclError> {
+        let fresh = self.ensure_proc_traced(proc)?;
         // A traced invocation's handle follows the command through hide/expose
         // and becomes detached when a callback deletes it.  Never fall back to
         // the pre-callback key in that case: doing so would resurrect the stale
@@ -7347,7 +7957,7 @@ impl Vm {
                 self.memoise_visible_proc(&name, &fresh);
             }
         }
-        fresh
+        Ok(fresh)
     }
 
     /// Store a refreshed procedure back in the table its binding lives in. The
@@ -7779,6 +8389,27 @@ impl Vm {
             other_base.to_owned()
         };
         let (owner_level, owner_base) = self.locate_from(&target_base, target_level);
+        // Link targets are internal keys after this boundary. Element aliases
+        // retain the already-split key while the base is resolved exactly once.
+        let target_name =
+            other_key.map_or(owner_base.clone(), |key| format!("{owner_base}({key})"));
+        self.link_upvar_key(owner_level, &target_name, local)
+    }
+
+    /// Install an `upvar`-family link to an already-resolved internal key.
+    ///
+    /// `upvar` reaches this after resolving a written target name, while the
+    /// `NSUPVAR` opcode and `namespace upvar` already carry a constructed
+    /// namespace-variable key. Keeping the latter on a key-form path avoids
+    /// reinterpreting literal-colon namespace identities as Tcl source while
+    /// still giving every link consumer the same alias validation and storage
+    /// semantics.
+    pub(crate) fn link_upvar_key(
+        &mut self,
+        owner_level: usize,
+        target_name: &str,
+        local: &str,
+    ) -> Result<(), UpvarLinkError> {
         let owner_is_proc = self
             .frames
             .get(owner_level)
@@ -7795,16 +8426,12 @@ impl Vm {
             return Err(UpvarLinkError::LocalNamespace);
         }
 
-        // Link targets are internal keys after this boundary. Element aliases
-        // retain the already-split key while the base is resolved exactly once.
-        let target_name =
-            other_key.map_or(owner_base.clone(), |key| format!("{owner_base}({key})"));
         if alias_is_namespace {
             let alias = tcl_syntax::naming::qualify(self.current_ns(), local);
             let alias = alias.strip_prefix("::").unwrap_or(&alias).to_owned();
-            self.add_global_link(&alias, owner_level, &target_name);
+            self.add_global_link(&alias, owner_level, target_name);
         } else {
-            self.add_link(local, owner_level, &target_name);
+            self.add_link(local, owner_level, target_name);
         }
         Ok(())
     }
@@ -8959,41 +9586,64 @@ impl Vm {
 
     /// Compile `src` via the injected [`CompileService`], from the cache when
     /// possible — the shared body of [`eval_source`](Self::eval_source) and
-    /// [`compile_source_cached`](Self::compile_source_cached). Picks
-    /// [`CompileService::compile_traced`] and [`Self::eval_cache_traced`]
-    /// instead of the fast pair whenever [`Self::step_trace_active`] is true,
+    /// [`compile_script_cached`](Self::compile_script_cached). Picks
+    /// [`CompileService::compile_plain_dispatch_for_profile`] and
+    /// [`Self::eval_cache_plain`] instead of the fast pair whenever
+    /// [`Self::requires_plain_command_dispatch`] is true,
     /// so a step-traced proc's `if`/`while`/`foreach`/`eval`/`uplevel`/
     /// `catch`/`try`/… bodies — every one of which funnels through this
     /// method via its runtime builtin — compile trace-visible too (issue
     /// #946 fault 3), without each call site needing to know that.
     fn compile_cached(&mut self, src: &str) -> Result<Rc<ModuleAsm>, TclError> {
-        let traced = self.step_trace_active();
-        let cache = if traced {
-            &self.eval_cache_traced
-        } else {
-            &self.eval_cache
+        let namespace = self.current_ns().to_owned();
+        self.compile_cached_in_namespace(src, &namespace)
+    }
+
+    /// Namespace-explicit core of [`Self::compile_cached`]. Most dynamic Tcl
+    /// scripts inherit the active frame; synthetic wrappers such as a
+    /// coroutine's already-resolved initial command execute at the global
+    /// frame and enter here with that explicit provenance instead.
+    fn compile_cached_in_namespace(
+        &mut self,
+        src: &str,
+        namespace: &str,
+    ) -> Result<Rc<ModuleAsm>, TclError> {
+        let plain = self.requires_plain_command_dispatch();
+        let target = ScriptCompileTarget {
+            source: src,
+            namespace,
         };
-        if let Some(m) = cache.get(src) {
-            return Ok(Rc::clone(m));
+        if plain {
+            return self.compile_plain_cached_module(target);
+        }
+        let key = (namespace.to_owned(), src.to_owned());
+        if let Some(m) = self.eval_cache.get(&key) {
+            let m = Rc::clone(m);
+            Self::validate_module_namespace(&m, namespace)?;
+            if !self.function_command_bindings_match(&m.top_level) {
+                return self.compile_plain_cached_module(target);
+            }
+            return Ok(m);
         }
         let Some(c) = self.compiler.as_ref() else {
             return Err(TclError::new(
                 "eval / command substitution requires a CompileService",
             ));
         };
-        let compiled = if traced {
-            c.compile_traced_for_profile(src, self.dialect_profile)
-        } else {
-            c.compile_for_profile(src, self.dialect_profile)
-        };
+        let compiled = c.compile_script_for_profile(
+            ScriptCompileTarget {
+                source: src,
+                namespace,
+            },
+            self.dialect_profile,
+        );
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
         self.validate_module_profile(&m)?;
-        let cache = if traced {
-            &mut self.eval_cache_traced
-        } else {
-            &mut self.eval_cache
-        };
-        cache.insert(src.to_string(), Rc::clone(&m));
+        Self::validate_module_namespace(&m, namespace)?;
+        if !self.function_command_bindings_match(&m.top_level) {
+            return self.compile_plain_cached_module(target);
+        }
+        self.eval_cache.insert(key, Rc::clone(&m));
         Ok(m)
     }
 
@@ -9002,7 +9652,7 @@ impl Vm {
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
         let module = self.compile_cached(src)?;
-        let comp = self.run_module(&module);
+        let comp = self.run_current_module(&module);
         // Crossing back out of a nested script is a frame boundary: clear
         // `ERR_ALREADY_LOGGED` so the enclosing command (the `eval`/`[subst]`/
         // proc call site) logs its own `invoked from within` frame.
@@ -9012,17 +9662,61 @@ impl Vm {
         Ok(comp)
     }
 
-    /// Compile `src` to its top-level activation (module cached exactly like
-    /// [`eval_source`](Self::eval_source)) and register the module's procs,
-    /// *without* running it. `EVAL_STK` pushes the returned activation onto the
-    /// explicit stack (a transparent [script frame](crate::exec::Frame)) so a
-    /// `yield` inside the evaluated script stays yieldable — the yieldable
-    /// counterpart of the nested drive `eval_source` performs.
-    pub(crate) fn compile_source_cached(&mut self, src: &str) -> Result<Rc<FunctionAsm>, TclError> {
-        let module = self.compile_cached(src)?;
+    /// Compile a deferred/reusable script and bind its assembly to the dialect-
+    /// profile generation, command-semantics epoch, and command-resolution
+    /// namespace at which the cache lookup validated its assumptions. Consumers
+    /// must carry this owner through to frame creation; using the VM's later
+    /// ambient state there can acknowledge changes the assembly has never seen.
+    pub(crate) fn compile_script_cached(&mut self, src: &str) -> Result<CompiledUnit, TclError> {
+        let namespace = self.current_ns().to_owned();
+        self.compile_script_cached_in_namespace(src, &namespace)
+    }
+
+    /// Compile a deferred script in an explicit constructed namespace, carrying
+    /// that provenance into the returned activation owner.
+    pub(crate) fn compile_script_cached_in_namespace(
+        &mut self,
+        src: &str,
+        namespace: &str,
+    ) -> Result<CompiledUnit, TclError> {
+        let module = self.compile_cached_in_namespace(src, namespace)?;
         self.validate_module_profile(&module)?;
-        self.merge_procs(&module.procedures);
-        Ok(Rc::new(module.top_level.clone()))
+        Self::validate_module_namespace(&module, namespace)?;
+        self.merge_procs(&module);
+        Ok(self.compiled_unit(
+            Rc::new(module.top_level.clone()),
+            module.source_namespace.clone(),
+        ))
+    }
+
+    /// Prepare a catchable/handleable script without rejecting a valid command
+    /// prefix merely because a later command is malformed. The compiler owns
+    /// the dialect-aware split; this runtime only compiles and executes the
+    /// returned prefix through its normal cache/deoptimisation path.
+    pub(crate) fn prepare_script_commands(
+        &mut self,
+        src: &str,
+    ) -> Result<PreparedScript, TclError> {
+        let Some(compiler) = self.compiler.as_ref() else {
+            return Err(TclError::new(
+                "eval / command substitution requires a CompileService",
+            ));
+        };
+        let plan = compiler.script_command_plan_for_profile(src, self.dialect_profile);
+        if plan.complete_prefix_len > src.len() || !src.is_char_boundary(plan.complete_prefix_len) {
+            return Err(TclError::new(
+                "CompileService returned an invalid script command boundary",
+            ));
+        }
+        let prefix = if plan.complete_prefix_len == 0 {
+            None
+        } else {
+            Some(self.compile_script_cached(&src[..plan.complete_prefix_len])?)
+        };
+        Ok(PreparedScript {
+            prefix,
+            fatal_tail: plan.fatal_tail.map(|error| error.0),
+        })
     }
 }
 
@@ -9329,7 +10023,12 @@ impl Namespaces for Vm {
             if cxt_name.is_empty() {
                 canonical_ns_name(name).into_owned()
             } else {
-                canonical_ns_name(&format!("{cxt_name}::{name}")).into_owned()
+                // `cxt_name` is an already-constructed key. Canonicalise only
+                // the written relative suffix, then join by one separator;
+                // canonicalising the concatenation would collapse a literal
+                // `:` segment in the context (`outer:::`) back to `outer`.
+                let suffix = canonical_ns_name(name);
+                format!("{cxt_name}::{suffix}")
             }
         };
         self.ns_intern.get(&canonical).copied()
@@ -9344,10 +10043,11 @@ impl Namespaces for Vm {
         if name.is_empty() {
             return None; // the global root has no parent
         }
-        // The shared separator-run-aware qualifier split (canonical names
-        // have single `::`s, but the shared op is the one source of truth).
-        let parent = str_slice(tcl_cmd_core::namespace::qualifiers(name.as_bytes()));
-        self.ns_intern.get(parent).copied()
+        // `name` is an already-constructed key. A literal-colon segment makes
+        // that key contain a `:::` run, so the written-name qualifier split
+        // would collapse a nested `:` namespace to its grandparent.
+        let (parent, _tail) = key_holder_and_tail_unrooted(&name);
+        self.ns_intern.get(&parent).copied()
     }
 
     fn children(&self, ns: NsId) -> Vec<NsId> {
@@ -9463,35 +10163,51 @@ fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
 mod family_b_tests {
     use super::*;
     use crate::command::NativeCommand;
-    use tcl_compiler::cfg_builder::build_cfg_codegen;
-    use tcl_compiler::codegen::codegen_module;
-    use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-    use tcl_dialect::DialectProfile;
-    use tcl_runtime_api::{CompileError, GLOBAL_FRAME};
+    use tcl_compiler::compile_service::BytecodeCompileService;
+    use tcl_runtime_api::GLOBAL_FRAME;
 
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
 
-    struct TestCompiler;
+    #[test]
+    fn procedure_cache_keys_preserve_constructed_literal_colon_namespaces() {
+        let global_provenance = ProcedureProvenance {
+            name: "::p".to_owned(),
+            parameters: String::new(),
+            body: "return SAME".to_owned(),
+        };
+        let colon_provenance = ProcedureProvenance {
+            // Root `::` + literal-colon namespace `:` + separator `::` + p.
+            name: ":::::p".to_owned(),
+            parameters: String::new(),
+            body: "return SAME".to_owned(),
+        };
+        let global = ProcedureCacheKey::from_module_entry("::p", &global_provenance)
+            .expect("global compiler key is valid");
+        let colon = ProcedureCacheKey::from_module_entry(":::::p", &colon_provenance)
+            .expect("literal-colon compiler key is valid");
 
-    impl CompileService for TestCompiler {
-        type Module = ModuleAsm;
+        assert_eq!(global.name, "p");
+        assert_eq!(colon.name, ":::p");
+        assert_ne!(global, colon);
+        assert_eq!(
+            colon,
+            ProcedureCacheKey::from_runtime_key(":::p", "", "return SAME")
+        );
 
-        fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
-            self.compile_for_profile(src, DialectProfile::plain_tcl())
-        }
+        let malformed = ProcedureProvenance {
+            name: "::other".to_owned(),
+            ..global_provenance
+        };
+        assert!(ProcedureCacheKey::from_module_entry("::p", &malformed).is_none());
+    }
 
-        fn compile_for_profile(
-            &self,
-            src: &str,
-            profile: &'static DialectProfile,
-        ) -> Result<Self::Module, CompileError> {
-            let registry =
-                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-            let ir = lower_to_ir(src, registry, config, Some(profile));
-            let cfg = build_cfg_codegen(&ir, false);
-            Ok(codegen_module(&cfg, &ir, registry))
-        }
+    #[test]
+    fn procedure_cache_keys_distinguish_raw_formal_lists_independently() {
+        let body = "return SAME";
+        assert_ne!(
+            ProcedureCacheKey::from_runtime_key("p", "x", body),
+            ProcedureCacheKey::from_runtime_key("p", "{x default}", body),
+        );
     }
 
     #[test]
@@ -9547,7 +10263,7 @@ mod family_b_tests {
     }
 
     fn prepare_stale_hidden_proc(vm: &mut Vm) {
-        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
         vm.set_dialect_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
         );
@@ -9560,7 +10276,7 @@ mod family_b_tests {
     }
 
     fn prepare_trace_deleted_hidden_proc(vm: &mut Vm) {
-        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
         vm.set_dialect_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
         );
@@ -9591,7 +10307,7 @@ mod family_b_tests {
         assert!(matches!(
             vm.hidden_commands.get("held"),
             Some(Command::Proc(proc))
-                if proc.compiled_profile_generation == vm.profile_generation
+                if proc.body.profile_generation == vm.profile_generation
         ));
 
         let child_name = vm.create_child(Some("child".to_owned()), false);
@@ -9622,7 +10338,7 @@ mod family_b_tests {
         assert!(matches!(
             state.hidden_commands.get("held"),
             Some(Command::Proc(proc))
-                if proc.compiled_profile_generation == state.profile_generation
+                if proc.body.profile_generation == state.profile_generation
         ));
     }
 
@@ -9669,7 +10385,7 @@ mod family_b_tests {
     #[test]
     fn relocated_hidden_refresh_persists_at_the_live_visible_key() {
         let mut vm = Vm::new();
-        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
         vm.set_dialect_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
         );
@@ -9701,7 +10417,7 @@ mod family_b_tests {
     #[test]
     fn imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name() {
         let mut vm = Vm::new();
-        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
         vm.set_dialect_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
         );
@@ -9724,7 +10440,7 @@ mod family_b_tests {
         assert!(matches!(
             vm.commands.get("dst::p"),
             Some(Command::Proc(proc))
-                if proc.compiled_profile_generation == vm.profile_generation
+                if proc.body.profile_generation == vm.profile_generation
         ));
     }
 

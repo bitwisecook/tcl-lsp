@@ -2248,6 +2248,7 @@ mod tests {
         let stmt = Statement::Return {
             value: None,
             expr: None,
+            command_binding: None,
             braced: false,
             span: Span::new(0, 0),
         };

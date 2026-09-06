@@ -2327,22 +2327,16 @@ mod tests {
     }
 
     #[test]
-    fn tk_gate_documented_limit_qualified_package_head_does_not_activate() {
+    fn tk_gate_rooted_package_head_activates() {
         // `::package require Tk` is the same command as `package require Tk`
-        // in real Tcl, but the analyser's hook dispatch deliberately refuses a
-        // `::`-qualified spelling of a *bareword* global command
-        // (`resolve_analyser_hook_call`, pinned by issue #923), so no
-        // `package_requires` entry is recorded and Tk never activates.
-        //
-        // This is a pre-existing limit of the whole-file walk, not something
-        // the #1188 gate introduced: `analyse` emits no TK diagnostic for this
-        // source either, so per-item and full analysis still agree byte for
-        // byte — the only change is that the document no longer pays a full
-        // re-analysis to reach the same answer. Lifting the `::`-bareword
-        // guard would fix a real false negative here, but it widens hook
-        // dispatch for *every* stamped command, so it belongs to its own
-        // change with its own differential run.
-        fast_path("::package require Tk\nframe .top.x\n");
+        // in Tcl. The shared registry's rooted fallback therefore records the
+        // package requirement and activates the same whole-file Tk handoff as
+        // the bare spelling.
+        falls_back(
+            "::package require Tk\nframe .top.x\n",
+            "tcl8.6",
+            PerItemFallback::TkActive,
+        );
     }
 
     #[test]

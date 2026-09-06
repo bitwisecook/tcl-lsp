@@ -44,10 +44,10 @@ $c
 
 # TP (issues #1143 / #1200): a handle returned by a `$var`-dispatched
 # method and captured into a variable is typed through the object-type
-# lattice - `$b bark` stays clean (no W307), and a bare `$b` is the same
-# zero-word failure.
+# lattice. Rooted method-body heads keep that fact independent of TclOO's
+# runtime-selected receiver namespace; `$b bark` stays clean and `$b` is E001.
 oo::class create Maker {
-    method make {} { return [Dog new] }
+    method make {} { ::return [::Dog new] }
 }
 set m [Maker new]
 set b [$m make]

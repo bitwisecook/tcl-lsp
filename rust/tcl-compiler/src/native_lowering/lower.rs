@@ -57,7 +57,7 @@ use super::{
     NativeBinding, NativeLoweringDecline, StatementOutcome, StatementRecord,
 };
 use crate::codegen::structured::command_text;
-use crate::command_binding::{ModuleCommandMutations, scan_module_command_mutations};
+use crate::command_binding::ModuleCommandMutations;
 use crate::dispatch_proof::{
     DispatchEntryAssumption, DispatchProofAnalysis, analyse_dispatch_stability,
 };
@@ -85,8 +85,10 @@ pub struct LoweringInput<'a> {
     pub function: &'a ExecutableFunction,
     /// The unit's source text (for the source-text rung only).
     pub source: &'a str,
-    /// The lowered module: trace targets, procedures, and command mutations.
+    /// The lowered module: trace targets and procedures.
     pub module: &'a Module,
+    /// The compilation unit's prepared whole-module command-mutation summary.
+    pub mutations: &'a ModuleCommandMutations,
     /// The enabled semantic optimisation passes.
     pub config: SemanticOptimisationConfig,
     /// The escape summary of a procedure body, when lowering one.
@@ -174,7 +176,7 @@ struct Lowerer<'a> {
     argvs: HashMap<ExecutableArgvId, Vec<NativeValueId>>,
     ledger: TraceLedger<'a>,
     demotion: CellDemotion<'a>,
-    mutations: ModuleCommandMutations,
+    mutations: &'a ModuleCommandMutations,
     proofs: DispatchProofAnalysis,
     numbers: Numbers,
     dialect: Option<&'static DialectProfile>,
@@ -234,7 +236,7 @@ impl<'a> Lowerer<'a> {
         // replaced one: no dynamic trace, no proc declaring one, and no
         // `rename` / `interp alias` touching the namespace (a dynamic
         // mutation could touch anything).
-        let mutations = scan_module_command_mutations(module, input.registry);
+        let mutations = input.mutations;
         let mathfunc_native = !module.has_dynamic_trace
             && !mutations.has_dynamic_mutation()
             && !mutations.changes_command_resolution()

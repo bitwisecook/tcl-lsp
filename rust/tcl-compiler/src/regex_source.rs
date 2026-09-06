@@ -285,15 +285,17 @@ fn is_literal_assignment(stmt: &Statement) -> bool {
     )
 }
 
-/// The absolute span of the *value word* of a `set VAR VALUE` command that
+/// The absolute span of the *value word* of a typed assignment command that
 /// begins at `stmt_span.start()`.
 ///
 /// The value word's **start** is recovered by re-segmenting the statement span
-/// (arg 2 of the `set`), but the segmenter's representative-token span clamps
+/// (arg 2 of the assignment), but the segmenter's representative-token span clamps
 /// off a quoted/braced word's closing delimiter (and the IR statement span can
 /// itself stop before it), so the word's **end** is recomputed by matching the
-/// opening delimiter in the source.  `None` when the statement is not a `set`
-/// with a value word.
+/// opening delimiter in the source. The caller has already proved that the
+/// registry selected assignment IR, so this helper reads that IR shape and
+/// never creates a second table of command spellings. `None` when the source
+/// command has no value word.
 fn value_word_span(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -309,7 +311,7 @@ fn value_word_span(
     )
     .into_iter()
     .next()?;
-    if seg.texts.first().map(String::as_str) != Some("set") || seg.argv.len() < 3 {
+    if seg.argv.len() < 3 {
         return None;
     }
     let word_start = seg.argv.get(2)?.span.start() as usize;
@@ -651,14 +653,14 @@ mod tests {
     fn pattern_inside_oo_method_body_tracked() {
         // TclOO method bodies are lowered to their own `FunctionUnit`
         // (`CompilationUnit::methods`), so the flow tracks inside a method too.
-        let src = "oo::class create C {\n  method m {s} {\n    set re \".*x\"\n    regexp $re $s\n  }\n}\n";
+        let src = "oo::class create C {\n  method m {s} {\n    ::set re \".*x\"\n    ::regexp $re $s\n  }\n}\n";
         let got = spans_text(src);
         assert_eq!(got, vec!["\".*x\"".to_owned()]);
     }
 
     #[test]
     fn pattern_inside_constructor_body_tracked() {
-        let src = "oo::class create C {\n  constructor {s} {\n    set re {a+}\n    regexp $re $s\n  }\n}\n";
+        let src = "oo::class create C {\n  constructor {s} {\n    ::set re {a+}\n    ::regexp $re $s\n  }\n}\n";
         let got = spans_text(src);
         assert_eq!(got, vec!["{a+}".to_owned()]);
     }

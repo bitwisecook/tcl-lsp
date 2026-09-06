@@ -664,6 +664,29 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "body_interpreter",
+        Example {
+            code: "interp eval $child {set remote 1}\nputs $remote",
+            focuses: &[
+                focus(
+                    0,
+                    "$child",
+                    "Argument(1) selects the interpreter that owns the body",
+                ),
+                focus(
+                    0,
+                    "{set remote 1}",
+                    "this body runs in the selected child interpreter",
+                ),
+                focus(
+                    1,
+                    "$remote",
+                    "the child interpreter's variable is not visible in the caller",
+                ),
+            ],
+        },
+    ),
+    (
         "taint_output_sink",
         Example {
             code: "set name [HTTP::header X-User]\nHTTP::respond 200 content \"<b>$name</b>\"",

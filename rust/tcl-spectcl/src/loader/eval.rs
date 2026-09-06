@@ -294,6 +294,7 @@ const ROW_WORDS: &[&str] = &[
     "analyser_hook",
     "semantic_operation",
     "arg_role_resolver",
+    "arg_role_resolver_roles",
     "command_prefix_resolver",
     "script_timing_resolver",
     "const_fold",

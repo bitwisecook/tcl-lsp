@@ -415,6 +415,37 @@ fn arity_windows_survive_the_round_trip() {
     assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
 }
 
+/// Native resolver declarations and their capability sets are one contract.
+///
+/// `binary scan` exercises a subcommand resolver with more than one possible
+/// role, so losing the capability row would make a faithfully rendered pack
+/// fail closed when it is loaded again.
+#[test]
+fn native_resolver_capabilities_survive_the_round_trip() {
+    let shipped = load_command("binary", "bpf").expect("binary is in the BPF registry");
+    let trip = round_trip(&shipped);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert_eq!(
+        trip.text.matches("arg_role_resolver -native").count(),
+        1,
+        "only binary scan owns a native role resolver:\n{}",
+        trip.text
+    );
+    let scan_roles = |draft: &Value| {
+        draft["subcommands"]
+            .as_array()
+            .and_then(|subcommands| subcommands.iter().find(|sub| sub["name"] == "scan"))
+            .map(|scan| scan["arg_role_resolver_roles"].clone())
+    };
+    assert_eq!(
+        scan_roles(&trip.reloaded),
+        scan_roles(&shipped),
+        "{}",
+        trip.text
+    );
+}
+
 /// **The gate.** Every command of every browsable dialect renders to `SpecTcl`,
 /// loads back, and drafts equal — except on the documented [`GAPS`].
 #[test]

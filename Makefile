@@ -972,7 +972,7 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 .PHONY: smoke smoke-p test-installer test-exhaustive fuzz test-spectcl-compat
 
 # One fail-closed compatibility lane for the complete SpecTcl contract: legacy
-# 1.x sources through TclVM (15), 2.0 golden upgrades (3), live 1.x/2.0 hook
+# 1.x sources through TclVM (20), 2.0 golden upgrades (3), live 1.x/2.0 hook
 # execution (4), shipped corpus/containment (2), and real-C-Tcl parse validity
 # (1). The installer selects release line 9.0, while tcl-dialect's manifest
 # supplies and validates its exact patchlevel.

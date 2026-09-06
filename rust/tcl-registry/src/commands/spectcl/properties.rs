@@ -236,6 +236,11 @@ const ROWS: &[Row] = &[
         "",
     ),
     one("self_receiver_words", "Words that dispatch on `self`.", ""),
+    one(
+        "arg_role_resolver_roles",
+        "Declare every role an argument-role resolver may emit.",
+        "SpecTcl 2.1. A non-empty closed set of `ArgRole` names; required whenever `arg_role_resolver` is present, at command and subcommand scope.",
+    ),
     // --- bodies -----------------------------------------------------------
     one(
         "body_kind",

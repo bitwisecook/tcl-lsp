@@ -217,6 +217,7 @@ pub fn spec() -> CommandSpec {
         // `dialects` below).
         arity: Arity::stepped(3, Arity::UNLIMITED, 2).with_also_exact(2),
         arg_role_resolver: Some(switch_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         return_type: Some(TclType::String),
         options: OPTIONS,

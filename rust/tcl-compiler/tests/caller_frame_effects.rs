@@ -226,14 +226,14 @@ proc Qfrac {n} {
 }
 
 #[test]
-fn idx38_scalar_param_target_resolves_to_the_exact_name() {
-    // The single-parameter variant (`controls2.tcl`'s
-    // `CaseComputedNoForeachHelper`): `$varName` *is* a parameter, so the
-    // caller-frame name resolves precisely rather than widening.
+fn idx38_absolute_constructed_set_resolves_to_the_exact_name() {
+    // An absolute command and literal target make the constructed caller-frame
+    // body exact. A substituted constructor operand remains intentionally
+    // opaque because its runtime Tcl value is not available to this summary.
     let src = "\
-proc MakeOne {varName} { uplevel 1 [list set $varName made] }
+proc MakeOne {} { uplevel 1 [list ::set wanted made] }
 proc host {} {
-    MakeOne wanted
+    MakeOne
     puts $wanted
     puts $notWritten
 }

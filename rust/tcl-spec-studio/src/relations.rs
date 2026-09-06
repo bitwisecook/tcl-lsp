@@ -44,6 +44,7 @@ pub const CLUSTERS: &[Cluster] = &[
         members: &[
             "arg_roles",
             "arg_role_resolver",
+            "arg_role_resolver_roles",
             "repeated_args",
             "arg_presentation",
             "assigns_variable_at",
@@ -70,6 +71,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "return_type_hook",
             "return_elements",
             "var_write_typing",
+            "variable_write_min_args",
             "var_elements_effect",
             "representation_effect",
             "inferred_storage_type",
@@ -205,6 +207,7 @@ pub const CLUSTERS: &[Cluster] = &[
               and whether they run at all.",
         members: &[
             "body_kind",
+            "body_interpreter",
             "body_arg_implicit_args",
             "body_scope",
             "frame_effect",

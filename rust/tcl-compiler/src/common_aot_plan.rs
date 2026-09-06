@@ -202,7 +202,8 @@ pub enum DirectProcDecline {
     },
     /// The name was redirected through an alias or rename.
     ReboundOrAliased,
-    /// A dynamic command-table mutation can invalidate every name.
+    /// A dynamic command-binding transition can invalidate every declared
+    /// procedure identity.
     DynamicCommandMutation,
     /// An execution trace with a dynamic target can observe any call.
     DynamicExecutionTrace,
@@ -541,21 +542,28 @@ impl CommonAotProofPlan {
         environment: CommonAotEnvironment,
     ) -> Self {
         let escape = analyse_var_escape_cu(unit, true);
-        let mutations =
-            crate::command_binding::scan_module_command_mutations(&unit.ir_module, registry);
-        let direct = collect_direct_calls(unit, registry, context, config, &escape, &mutations);
+        let mutations = &unit.command_mutations;
+        let direct = collect_direct_calls(
+            unit,
+            registry,
+            context,
+            config,
+            &escape,
+            mutations,
+            &unit.caller_scope.proc_binding_trust,
+        );
         let direct_calls = direct.decisions;
         let declined_direct_callees = direct.declined_callees;
         let propagated = direct.propagated;
 
         let semantic_calls =
-            collect_semantic_calls(unit, registry, context, config, &mutations, &direct_calls);
+            collect_semantic_calls(unit, registry, context, config, mutations, &direct_calls);
 
         let closed_program_coverage = prove_closed_program_coverage(
             unit,
             registry,
             environment,
-            &mutations,
+            mutations,
             &direct_calls,
             &semantic_calls,
         );
@@ -747,6 +755,7 @@ fn collect_direct_calls(
     config: SemanticOptimisationConfig,
     escape: &HashMap<String, ProcEscapeSummary>,
     mutations: &crate::command_binding::ModuleCommandMutations,
+    proc_binding_trust: &crate::command_binding::ProcBindingTrustProjection,
 ) -> DirectCollection {
     let known: HashSet<String> = unit.ir_module.procedures.keys().cloned().collect();
     let mut direct_calls = BTreeMap::new();
@@ -791,6 +800,7 @@ fn collect_direct_calls(
                 proc_def,
                 summary: escape.get(&callee_name),
                 mutations,
+                proc_binding_trust,
                 context,
                 enabled: config.is_enabled(SemanticOptimisationPassId::DirectProc),
                 frame_elision_enabled: config.is_enabled(SemanticOptimisationPassId::FrameElision),
@@ -1203,6 +1213,7 @@ struct DirectInputs<'a> {
     proc_def: &'a Procedure,
     summary: Option<&'a ProcEscapeSummary>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
+    proc_binding_trust: &'a crate::command_binding::ProcBindingTrustProjection,
     context: Option<SemanticContext>,
     enabled: bool,
     frame_elision_enabled: bool,
@@ -1217,10 +1228,13 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     if input.context.is_none() {
         return decline(DirectProcDecline::ContextUnavailable);
     }
-    if input.mutations.has_dynamic_mutation() {
+    if input.proc_binding_trust.has_dynamic_binding_transition() {
         return decline(DirectProcDecline::DynamicCommandMutation);
     }
-    if !input.mutations.trusts_proc_binding(input.callee_name) {
+    if !input
+        .proc_binding_trust
+        .trusts_proc_binding(input.callee_name)
+    {
         return decline(DirectProcDecline::ReboundOrAliased);
     }
     if input.binding_kind == BindingKind::Alias
@@ -1903,17 +1917,38 @@ mod tests {
 
     #[test]
     fn internal_operation_rebinding_and_tracing_decline_body_specialisation() {
-        for (source, expected_operation) in [
+        for (source, expected_operation, transitive_mutation_is_dynamic) in [
             (
                 "proc add {b c} {return [expr {$b+$c}]}\nrename expr saved_expr\nadd 2 4\n",
                 SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
+                true,
             ),
             (
                 "proc add {b c} {return [expr {$b+$c}]}\ntrace add execution expr enter cb\nadd 2 4\n",
                 SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
+                false,
             ),
         ] {
-            let plan = plan(source, enabled());
+            let registry = tcl_registry::CommandRegistry::build_default();
+            let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+            assert_eq!(
+                unit.command_mutations.has_dynamic_mutation(),
+                transitive_mutation_is_dynamic,
+                "the closed effect projection must retain unresolved/autoload opacity"
+            );
+            assert!(
+                unit.caller_scope
+                    .proc_binding_trust
+                    .trusts_proc_binding("::add"),
+                "body-dispatch opacity must not erase the separately proven proc identity"
+            );
+            let plan = CommonAotProofPlan::build(
+                &unit,
+                &registry,
+                unit.top_level.semantic_facts.context(),
+                enabled(),
+                CommonAotEnvironment::Hosted,
+            );
             assert!(
                 plan.direct_calls().any(|(_, decision)| match decision {
                     DirectProcDecision::Selected(evidence) => matches!(
@@ -1928,6 +1963,19 @@ mod tests {
                 "{source}: {plan:#?}"
             );
         }
+    }
+
+    #[test]
+    fn dynamic_binding_transition_still_declines_direct_call_identity() {
+        let plan = plan(
+            "proc add {b c} {return [expr {$b+$c}]}\n\
+             set command expr\nrename $command saved_expr\nadd 2 4\n",
+            enabled(),
+        );
+        assert!(plan.direct_calls().any(|(_, decision)| matches!(
+            decision,
+            DirectProcDecision::Declined(DirectProcDecline::DynamicCommandMutation)
+        )));
     }
 
     #[test]

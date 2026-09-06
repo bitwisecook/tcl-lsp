@@ -7495,7 +7495,7 @@
       "xilinx-eda-tcl"
     ],
     "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
+    "timing": "deferred",
     "appended_arity": null,
     "callback_taint_inputs": [],
     "forms": [

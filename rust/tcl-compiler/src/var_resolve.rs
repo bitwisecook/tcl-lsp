@@ -85,12 +85,15 @@ fn has_subst(text: &str) -> bool {
 /// Returns the bound read-places sorted by `(ns, name)` (deterministic).
 fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistry) -> Vec<Place> {
     // Read-roles + cmd-sub recursion so `a([idx])` and `a($ns::i)` are covered.
-    let mut scanner = VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: false,
-        element_qualified: false,
-    });
+    let mut scanner = VarReferenceScanner::for_registry(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: false,
+        },
+        registry,
+    );
     let names = scanner.scan_word(text, registry);
     let mut places: Vec<Place> = names.iter().map(|n| bind_scalar(n, ctx, None)).collect();
     places.sort_by(|a, b| (&a.ns, &a.name).cmp(&(&b.ns, &b.name)));

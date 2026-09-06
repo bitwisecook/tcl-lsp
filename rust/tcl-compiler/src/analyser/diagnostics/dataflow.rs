@@ -266,12 +266,15 @@ file; this call falls through to the 'unknown' handler."
         // the version-precise `used` set, so they keep every write alive. A
         // bare `$x` in `if {$x}` is already a version-precise condition use, so
         // it is not collected here.
-        let mut deep = VarReferenceScanner::new(VarScanOptions {
-            include_var_read_roles: true,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: true,
-            element_qualified: false,
-        });
+        let mut deep = VarReferenceScanner::for_registry(
+            VarScanOptions {
+                include_var_read_roles: true,
+                recurse_cmd_substitutions: true,
+                include_reads_before_write: true,
+                element_qualified: false,
+            },
+            registry,
+        );
         let mut cmd_texts: Vec<String> = Vec::new();
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
@@ -1124,7 +1127,8 @@ file; this call falls through to the 'unknown' handler."
         // block dominated by `guard_block` are guarded (X is known to
         // exist there).  Positive guards the true arm; `![info exists
         // X]` guards the false arm.
-        let exists_guards = collect_existence_guards(fu);
+        let exists_guards =
+            collect_existence_guards(fu, self.registry.as_deref(), self.lexer_config());
 
         // W210 fires **once per variable**, at the earliest read-before-set.
         // The def-use walk below
@@ -1266,6 +1270,7 @@ file; this call falls through to the 'unknown' handler."
     /// uses, skipping phi-incoming pseudo-uses, auto-creating read-modify-write
     /// targets, existence-guarded reads, and use sites that safely initialise
     /// the variable; survivors update `w210_min` with the earliest read span.
+    #[allow(clippy::too_many_lines)] // one pass keeps W210's ordered exemptions and evidence together
     fn record_chain_w210_uses(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -1334,12 +1339,25 @@ file; this call falls through to the 'unknown' handler."
             // so the version-0 chain shows a read with no visible def and
             // W210 false-fired (issue #923). This is the only place the
             // body-local write is visible.
-            if barrier_body_locally_sets(stmt_opt, var, self.registry.as_deref()) {
+            if barrier_body_locally_sets(
+                stmt_opt,
+                var,
+                self.registry.as_deref(),
+                self.lexer_config(),
+            ) {
                 continue;
             }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
-            if existence_exempt(stmt_opt, var, ctx.exists_guards, &fu.ssa, &use_site.block) {
+            if existence_exempt(
+                stmt_opt,
+                var,
+                ctx.exists_guards,
+                &fu.ssa,
+                &use_site.block,
+                self.registry.as_deref(),
+                self.lexer_config(),
+            ) {
                 continue;
             }
             // ``unset`` without ``-nocomplain`` → W213.
@@ -1444,12 +1462,15 @@ file; this call falls through to the 'unknown' handler."
             killed: &killed,
         };
 
-        let mut scanner = VarReferenceScanner::new(VarScanOptions {
-            include_var_read_roles: false,
-            recurse_cmd_substitutions: true,
-            include_reads_before_write: false,
-            element_qualified: false,
-        });
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: false,
+                recurse_cmd_substitutions: true,
+                include_reads_before_write: false,
+                element_qualified: false,
+            },
+            self.lexer_config(),
+        );
 
         let mut reported: FxHashSet<String> = FxHashSet::default();
         // Deterministic block order for stable diagnostics (by BlockId =
@@ -1958,7 +1979,13 @@ file; this call falls through to the 'unknown' handler."
                 },
                 |r| r,
             );
-            crate::sccp::existence_constant_branches(&fu.cfg, frame, registry, fu.dynamic_names)
+            crate::sccp::existence_constant_branches(
+                &fu.cfg,
+                frame,
+                registry,
+                fu.dynamic_names,
+                self.lexer_config(),
+            )
         };
         for cb in branches {
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
@@ -2642,6 +2669,7 @@ fn barrier_body_locally_sets(
     stmt: Option<&crate::ir::Statement>,
     var: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     use crate::ir::Statement;
     let (Some(Statement::Barrier { command, args, .. }), Some(registry)) = (stmt, registry) else {
@@ -2653,11 +2681,7 @@ fn barrier_body_locally_sets(
         .into_iter()
         .filter_map(|idx| args.get(idx))
         .flat_map(|body_text| {
-            crate::segmenter::segment_commands_with_offset_and_config(
-                body_text,
-                0,
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            )
+            crate::segmenter::segment_commands_with_offset_and_config(body_text, 0, config)
         })
         .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
         .filter_map(|seg| {
@@ -2672,17 +2696,33 @@ fn barrier_body_locally_sets(
 /// existence* (`info exists X` / `array exists X`, whether a bare call
 /// or a `[...]` command substitution inside an assignment / argument).
 /// Such a reference is not a value read, so it must not raise W210.
-fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
-    use crate::expr_ast::existence_query_in_text;
+fn existence_query_vars(
+    stmt: &crate::ir::Statement,
+    registry: Option<&tcl_registry::CommandRegistry>,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
     use crate::ir::Statement;
     let mut out = Vec::new();
-    // Bare-call form: `info exists X` / `array exists X`.
-    if let Statement::Call { command, args, .. } = stmt
-        && matches!(command.as_str(), "info" | "array")
-        && args.first().map(String::as_str) == Some("exists")
-        && let Some(v) = args.get(1)
-    {
-        out.push(v.clone());
+    let registry = match registry {
+        Some(registry) => registry,
+        None => tcl_registry::default_registry(),
+    };
+    // Bare-call form, resolved by the registry's typed operation rather than
+    // command spelling so rooted calls use the same path.
+    if let Statement::Call { command, args, .. } = stmt {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        if let Some(resolved) =
+            registry.resolve_invocation(command, &arg_refs, registry.own_surface_query())
+            && matches!(
+                resolved.semantics.operation,
+                tcl_registry::SemanticOperationId::Intrinsic(
+                    tcl_registry::IntrinsicId::InfoExists | tcl_registry::IntrinsicId::ArrayExists
+                )
+            )
+            && let Some(v) = args.get(1)
+        {
+            out.push(v.clone());
+        }
     }
     // Command-substitution form: `set y [info exists X]`,
     // `puts [array exists X]`, etc.
@@ -2692,7 +2732,7 @@ fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
         _ => &[],
     };
     for t in texts {
-        if let Some((v, _command)) = existence_query_in_text(t.trim()) {
+        if let Some((v, _kind)) = crate::existence_query::in_text(t, registry, config) {
             out.push(v);
         }
     }
@@ -2708,9 +2748,13 @@ fn existence_exempt(
     exists_guards: &[(String, crate::cfg::BlockId)],
     ssa: &crate::ssa::SsaFunction,
     use_block: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     if let Some(stmt) = stmt_opt
-        && existence_query_vars(stmt).iter().any(|q| q == var)
+        && existence_query_vars(stmt, registry, config)
+            .iter()
+            .any(|q| q == var)
     {
         return true;
     }
@@ -3072,5 +3116,35 @@ mod issue996_tests {
         }
         let mut out = Vec::new();
         collect_expr_command_texts(&node, &mut out);
+    }
+
+    #[test]
+    fn opaque_body_local_set_uses_the_analyser_lexer_config() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let stmt = crate::ir::Statement::Barrier {
+            span: tcl_lexer::Span::new(0, 0),
+            reason: "child interpreter".to_owned(),
+            command: "interp".to_owned(),
+            canonical_command: Some("::interp".to_owned()),
+            args: vec![
+                "eval".to_owned(),
+                "child".to_owned(),
+                "{set}x 1; puts $x".to_owned(),
+            ],
+            tokens: None,
+        };
+
+        assert!(barrier_body_locally_sets(
+            Some(&stmt),
+            "x",
+            Some(&registry),
+            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+        ));
+        assert!(!barrier_body_locally_sets(
+            Some(&stmt),
+            "x",
+            Some(&registry),
+            tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+        ));
     }
 }

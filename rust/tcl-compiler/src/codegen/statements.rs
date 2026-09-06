@@ -85,7 +85,7 @@ impl CodegenCtx<'_> {
         deferred_end_label: Option<&str>,
     ) {
         // The wrapping startCommand shares the statement's source span.
-        self.current_span = Some(stmt.span());
+        self.set_command_source_span(stmt.span());
         let count = count_override.unwrap_or(1);
         let emit_sc = self.cmd_index > 0;
         let mut end_label: Option<String> = None;
@@ -110,7 +110,18 @@ impl CodegenCtx<'_> {
         let mut used_generic_invoke = false;
         self.emit_stmt(stmt, &mut used_generic_invoke);
 
+        // A typed emitter may have consumed a binding from an inlined source
+        // site whose namespace differs from this function's. The wrapper was
+        // emitted before that binding was known, so finish the boundary from
+        // the same central namespace state the specialised instructions used.
+        if let Some(idx) = sc_idx {
+            self.instructions[idx]
+                .source_command_namespace
+                .clone_from(&self.current_command_namespace);
+        }
+
         if used_generic_invoke {
+            self.seen_generic_invoke = true;
             // Tag this startCommand as wrapping a generic invoke
             if let Some(idx) = sc_idx
                 && !self.is_proc
@@ -131,6 +142,25 @@ impl CodegenCtx<'_> {
             self.label_positions.insert(label.clone(), pos);
         }
 
+        self.cmd_index += 1;
+    }
+
+    /// Emit one source command whose bytecode position is already covered by
+    /// an enclosing structured command's `START_CMD`.
+    ///
+    /// A constant-true `if` and the first command in its selected body begin at
+    /// the same bytecode offset in Tcl 9.0. The enclosing marker therefore
+    /// carries count two and the nested command must not grow a second marker
+    /// at that position. Keep this beside the ordinary statement wrapper so
+    /// command indexing and generic-invoke bookkeeping cannot diverge between
+    /// the two paths.
+    pub fn emit_stmt_under_start_cmd(&mut self, stmt: &Statement) {
+        self.set_command_source_span(stmt.span());
+        let mut used_generic_invoke = false;
+        self.emit_stmt(stmt, &mut used_generic_invoke);
+        if used_generic_invoke {
+            self.seen_generic_invoke = true;
+        }
         self.cmd_index += 1;
     }
 
@@ -251,47 +281,23 @@ impl CodegenCtx<'_> {
                 value_needs_backsubst,
                 ..
             } => {
-                let value =
-                    if *value_needs_backsubst && !value.contains('[') && !value.contains("${") {
-                        tcl_lexer::backslash_subst_in(value, self.escapes).into_owned()
-                    } else {
-                        // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
-                        // a real substitution) is left raw: the runtime `subst_word`
-                        // does backslash decoding plus command / variable
-                        // substitution in a single left-to-right pass. Pre-decoding
-                        // here would turn `\[` / `\${` into a bare `[` / `${` that
-                        // `subst_word` then mis-reads as a substitution start, and
-                        // would double-decode the escapes (e.g. `"x\[y z\\]"` →
-                        // `x[y z]` instead of `x[y z\]`, and `"\${x}"` → the value of
-                        // `x` instead of the literal `${x}`).
-                        value.clone()
-                    };
-                let inline = Self::assign_value_inlines_cmd_subst(&value);
-                let target = self.store_target(name, *name_braced);
-                let name = target.name.as_str();
-                if needs_stk_var_ref(name, self.compiles_locals()) {
-                    self.push_var_ref(name, target.key_is_literal);
-                } else if inline && self.compiles_locals() && !is_qualified(name) {
-                    // Pre-intern the target so it gets a lower LVT slot than any
-                    // variable introduced inside the substitution (catch result
-                    // var, etc.) — matches tclsh slot order.
-                    self.lvt.intern(name);
-                }
-                if inline {
-                    self.emit_inline_cmd_subst(&value);
-                } else {
-                    self.emit_value_interpolated(&value);
-                }
-                self.store_var(name);
-                self.emit(Op::POP, vec![]);
+                self.emit_assign_value(name, *name_braced, value, *value_needs_backsubst);
                 true
             }
             Statement::AssignExpr {
                 name,
                 name_braced,
                 expr,
+                command_binding,
                 ..
             } => {
+                // The fused command retains the exact source binding it
+                // consumed. Runtime revalidation checks this dependency at the
+                // nested START_CMD boundary, so whole-unit mutation discovery
+                // must not prematurely discard a still-valid specialisation.
+                if let Some(command_binding) = command_binding {
+                    self.require_command_binding(command_binding);
+                }
                 let target = self.store_target(name, *name_braced);
                 let name = target.name.as_str();
                 if needs_stk_var_ref(name, self.compiles_locals()) {
@@ -323,7 +329,12 @@ impl CodegenCtx<'_> {
                 self.emit(Op::POP, vec![]);
                 true
             }
-            Statement::ExprEval { expr, .. } => {
+            Statement::ExprEval {
+                command_binding,
+                expr,
+                ..
+            } => {
+                self.require_command_binding(command_binding);
                 let guaranteed_numeric = self.emit_expr(expr);
                 if !guaranteed_numeric {
                     self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
@@ -333,6 +344,51 @@ impl CodegenCtx<'_> {
             }
             _ => false,
         }
+    }
+
+    /// Emit the shared `set name VALUE` storage path. `AssignExpr` uses this
+    /// too when its nested `expr` command was rebound after lowering fused it.
+    fn emit_assign_value(
+        &mut self,
+        name: &str,
+        name_braced: bool,
+        value: &str,
+        value_needs_backsubst: bool,
+    ) {
+        let value = if value_needs_backsubst && !value.contains('[') && !value.contains("${") {
+            tcl_lexer::backslash_subst_in(value, self.escapes).into_owned()
+        } else {
+            // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
+            // a real substitution) is left raw: the runtime `subst_word`
+            // does backslash decoding plus command / variable substitution in
+            // one left-to-right pass. Pre-decoding would turn escaped markers
+            // into live substitutions and would double-decode other escapes.
+            value.to_owned()
+        };
+        let inline = Self::assign_value_inlines_cmd_subst(&value);
+        let target = self.store_target(name, name_braced);
+        let name = target.name.as_str();
+        if needs_stk_var_ref(name, self.compiles_locals()) {
+            self.push_var_ref(name, target.key_is_literal);
+        } else if inline && self.compiles_locals() && !is_qualified(name) {
+            // Pre-intern the target so it gets a lower LVT slot than any
+            // variable introduced inside the substitution (catch result,
+            // etc.) — matches tclsh slot order.
+            self.lvt.intern(name);
+        }
+        // Let the registry-owned fold have first refusal. If the active
+        // command surface declines the fold, dispatch the same whole-word
+        // substitution through that surface's inline hook rather than a
+        // command-name allow/deny list in this consumer.
+        if self.try_emit_constant_fold(&value) {
+            // The shared fold emitted the value.
+        } else if inline {
+            self.emit_inline_cmd_subst(&value);
+        } else {
+            self.emit_value_interpolated(&value);
+        }
+        self.store_var(name);
+        self.emit(Op::POP, vec![]);
     }
 
     /// Emit `Statement::Call` — handles the CFG placeholder names
@@ -385,7 +441,7 @@ impl CodegenCtx<'_> {
     pub fn emit_stmt(&mut self, stmt: &Statement, used_generic_invoke: &mut bool) {
         // Stamp every instruction this statement lowers to with its source
         // span so the explorer can map each op back to source.
-        self.current_span = Some(stmt.span());
+        self.set_command_source_span(stmt.span());
         if self.emit_assign_or_incr(stmt) {
             return;
         }
@@ -624,25 +680,21 @@ impl CodegenCtx<'_> {
     /// Whether a `set x VALUE` value should inline-compile its command
     /// substitution (`set x [cmd arg …]`) instead of pushing the raw `[…]` text
     /// and leaning on the runtime `subst_word` fallback. The conditions:
-    /// a balanced `[…]` with inner whitespace (a bare
-    /// `[foo]` with no args stays a literal), no `{*}` expansion, and excluding
-    /// the commands the constant-fold / special branches in
-    /// [`Self::emit_value_interpolated`] own (`list` / `dict create` / `set` /
-    /// `format`). Only used in the assignment value position — command arguments
-    /// keep the literal + `subst_word` path, which the inline command-parser
-    /// cannot match on escaped brackets.
+    /// a balanced `[…]` with inner whitespace (a bare `[foo]` with no args
+    /// stays a literal). The caller first gives the registry-owned
+    /// constant-fold path a chance to consume the value, so this shape
+    /// predicate contains no per-command knowledge. The inline command emitter
+    /// also owns `{*}` argument expansion in this assignment position; keeping
+    /// that path live is what makes `set x [concat a {*}$args b]` invoke the
+    /// command rather than store its source text. Command arguments keep the
+    /// literal + `subst_word` path, which the inline command-parser cannot
+    /// match on escaped brackets.
     fn assign_value_inlines_cmd_subst(value: &str) -> bool {
         // `is_pure_cmd_subst`, not "starts and ends with a bracket": the inline
         // emitter strips the outer brackets and word-splits the rest, so
         // `set r [llength $a]:[join $a ,]` — three concatenated parts — would
         // be mangled into one bogus command.
-        is_pure_cmd_subst(value)
-            && value.len() > 2
-            && value[1..value.len() - 1].contains(' ')
-            && !value.starts_with("[list ")
-            && !value.starts_with("[dict create ")
-            && !value.starts_with("[set ")
-            && !value.starts_with("[format ")
+        is_pure_cmd_subst(value) && value.len() > 2 && value[1..value.len() - 1].contains(' ')
     }
 
     /// If `value` is a *single whole-word command substitution* (`[cmd …]` and
@@ -820,14 +872,16 @@ impl CodegenCtx<'_> {
         // bare forms take the fast path — `break foo` / `continue foo` carry
         // arguments and must reach the builtin to raise `wrong # args`
         // (for-2.1 / for-3.1).
-        if cmd == "continue"
+        if !self.plain_command_dispatch
+            && cmd == "continue"
             && args.is_empty()
             && let Some(cont_lbl) = self.continue_target.clone()
         {
             self.emit_comment(Op::JUMP4, vec![Operand::Label(cont_lbl)], "continue");
             return;
         }
-        if cmd == "break"
+        if !self.plain_command_dispatch
+            && cmd == "break"
             && args.is_empty()
             && let Some(brk_lbl) = self.break_target.clone()
         {
@@ -839,7 +893,7 @@ impl CodegenCtx<'_> {
         // barriers `::tcl::dict::for`/`::tcl::dict::map` cfg_builder produced):
         // emit C Tcl's inline dict-iteration bytecode when the shape is
         // compilable, else fall through to the runtime invoke.
-        if args.len() == 3 {
+        if !self.plain_command_dispatch && args.len() == 3 {
             let inlined = match cmd {
                 "::tcl::dict::for" => self.emit_dict_for(&args[0], &args[1], &args[2]),
                 "::tcl::dict::map" => self.emit_dict_map(&args[0], &args[1], &args[2]),
@@ -1010,6 +1064,65 @@ mod tests {
     }
 
     #[test]
+    fn plain_dispatch_keeps_loop_control_spellings_as_runtime_calls() {
+        let registry = CommandRegistry::build_default();
+        for command in ["break", "continue"] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.plain_command_dispatch = true;
+            ctx.break_target = Some("loop_end_0".into());
+            ctx.continue_target = Some("loop_next_0".into());
+            let stmt = Statement::Call {
+                span: sp(),
+                command: command.into(),
+                canonical_command: None,
+                args: vec![],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            };
+            let mut used_generic_invoke = false;
+            ctx.emit_stmt(&stmt, &mut used_generic_invoke);
+            let ops = opcodes(&ctx);
+            assert!(used_generic_invoke, "{command}: {ops:?}");
+            assert!(ops.contains(&Op::INVOKE_STK1), "{command}: {ops:?}");
+            assert!(!ops.contains(&Op::JUMP4), "{command}: {ops:?}");
+        }
+    }
+
+    #[test]
+    fn plain_dispatch_keeps_internal_dict_loops_as_runtime_calls() {
+        let registry = CommandRegistry::build_default();
+        for command in ["::tcl::dict::for", "::tcl::dict::map"] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.plain_command_dispatch = true;
+            let stmt = Statement::Call {
+                span: sp(),
+                command: command.into(),
+                canonical_command: None,
+                args: vec!["k v".into(), "a 1".into(), "set seen $k".into()],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            };
+            let mut used_generic_invoke = false;
+            ctx.emit_stmt(&stmt, &mut used_generic_invoke);
+            let ops = opcodes(&ctx);
+            assert!(used_generic_invoke, "{command}: {ops:?}");
+            assert!(ops.contains(&Op::INVOKE_STK1), "{command}: {ops:?}");
+            assert!(
+                !ops.contains(&Op::DICT_FIRST) && !ops.contains(&Op::DICT_NEXT),
+                "{command} must not use builtin dict-loop opcodes: {ops:?}"
+            );
+        }
+    }
+
+    #[test]
     fn emit_return_empty() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
@@ -1017,6 +1130,7 @@ mod tests {
             span: sp(),
             value: None,
             expr: None,
+            command_binding: None,
             braced: false,
         };
         let mut ugi = false;
@@ -1146,7 +1260,9 @@ mod tests {
                 start: 0,
                 end: 2,
             },
+            command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
             expr_base: None,
+            fallback_value: "[expr {42}]".into(),
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -1155,11 +1271,79 @@ mod tests {
     }
 
     #[test]
+    fn assign_expr_with_whole_unit_mutation_retains_the_runtime_binding() {
+        let registry = CommandRegistry::build_default();
+        let mutations = crate::command_binding::ModuleCommandMutations::distrust_all();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        ctx.command_bindings = Some(&mutations);
+        let stmt = Statement::AssignExpr {
+            span: sp(),
+            name: "x".into(),
+            name_braced: false,
+            expr: ExprNode::Literal {
+                text: "42".into(),
+                start: 0,
+                end: 2,
+            },
+            command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
+            expr_base: None,
+            fallback_value: "[expr {42}]".into(),
+        };
+
+        let mut used_generic_invoke = false;
+        ctx.emit_stmt(&stmt, &mut used_generic_invoke);
+        let ops = opcodes(&ctx);
+        assert!(
+            !ops.contains(&Op::INVOKE_STK1),
+            "the entered expression may stay specialised until its live boundary: {ops:?}"
+        );
+        assert!(
+            ctx.command_binding_requirements.contains(
+                &tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")
+            ),
+            "the fused expression must retain the binding that runtime revalidation protects"
+        );
+        assert!(ops.contains(&Op::STORE_SCALAR1));
+    }
+
+    #[test]
+    fn syntax_owned_assign_expr_ignores_command_mutation() {
+        let registry = CommandRegistry::build_default();
+        let mutations = crate::command_binding::ModuleCommandMutations::distrust_all();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        ctx.command_bindings = Some(&mutations);
+        let stmt = Statement::AssignExpr {
+            span: sp(),
+            name: "x".into(),
+            name_braced: false,
+            expr: ExprNode::Literal {
+                text: "42".into(),
+                start: 0,
+                end: 2,
+            },
+            command_binding: None,
+            expr_base: None,
+            fallback_value: "$(42)".into(),
+        };
+
+        let mut used_generic_invoke = false;
+        ctx.emit_stmt(&stmt, &mut used_generic_invoke);
+        let ops = opcodes(&ctx);
+        assert!(
+            !ops.contains(&Op::INVOKE_STK1),
+            "syntax-owned Jim expression must remain intrinsic: {ops:?}"
+        );
+        assert!(ctx.command_binding_requirements.is_empty());
+        assert!(ops.contains(&Op::STORE_SCALAR1));
+    }
+
+    #[test]
     fn emit_expr_eval() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::ExprEval {
             span: sp(),
+            command_binding: tcl_runtime_api::CommandBindingIdentity::new("expr", "expr"),
             expr: ExprNode::Literal {
                 text: "1".into(),
                 start: 0,
@@ -1170,6 +1354,12 @@ mod tests {
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
         assert!(opcodes(&ctx).contains(&Op::POP));
+        assert_eq!(
+            ctx.command_binding_requirements,
+            [tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")]
+                .into_iter()
+                .collect()
+        );
     }
 
     #[test]

@@ -40,75 +40,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{
-    first_fatal_parse_error, first_fatal_parse_error_with_config, lower_to_ir_for_bytecode,
-    lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced, lower_to_ir_traced_with_dialect,
-};
-use tcl_dialect::DialectProfile;
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_vm::Vm;
 
 /// The injected compile service: `lower → CFG → bytecode`, the same pipeline the
 /// native embedder (`tcl-vm-cli`) uses. It lowers with `lower_to_ir_for_bytecode`
 /// (not the analysis `lower_to_ir`) so the VM-faithful barriers fire — e.g. a
 /// branching `lmap` or a directly-nested `foreach` routes to its runtime builtin
 /// rather than an inline shape the bytecode path can't compile correctly.
-struct Svc(CommandRegistry);
-
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_for_bytecode(src, &self.0);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
-    }
-
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_traced(src, &self.0);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, Some(profile));
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-
-    fn compile_traced_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_traced_with_dialect(src, registry, config, Some(profile));
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
-
 /// A `Write` sink capturing the interpreter's `puts` output into a shared buffer.
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -129,7 +68,7 @@ impl std::io::Write for Capture {
 fn run(script: &str) -> Vec<u8> {
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // On a non-OK completion, append the message so the host sees the failure.
     let trailer = match vm.eval_source(script) {
         Ok(comp) if comp.code.is_ok() => None,

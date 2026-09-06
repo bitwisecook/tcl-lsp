@@ -191,6 +191,7 @@ pub fn spec() -> CommandSpec {
         // `oo::objdefine` has the same body-shape rules as
         // `oo::define`; share the resolver.
         arg_role_resolver: Some(oo_define_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
         // Same structural-body rule as `oo::define` — bodies
         // run in a per-object definition context, not the caller's

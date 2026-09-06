@@ -1,6 +1,6 @@
 # spectcl golden snapshot v1
 # regenerate with `cargo xtask pack-goldens`; do not edit by hand
-pack tcl dsl 1.1 display None load_error None
+pack tcl dsl 2.1 display None load_error None
 target_dependent false
 file_extensions []
 provides []
@@ -10,6 +10,6 @@ environments []
 dialects []
 registrations 1
 notices 1
-notice command if 39 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+notice command if 40 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command if line 10 overrides false degraded false spec fe32fe7e8631a812 hooks 47ad4b1a6bacb531 grammar 586dd5a294898ebe
+command if line 10 overrides false degraded false spec b07c8acfeec28f42 hooks 47ad4b1a6bacb531 grammar 586dd5a294898ebe

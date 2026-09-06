@@ -197,9 +197,10 @@ puts [add 2 4]
         0,
         "the rebound call must not take the direct channel-write path:\n{wat}"
     );
-    // `rename …`, `puts …`, and the nested `[add 2 4]` all dispatch through the
-    // runtime's own command resolution.
-    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 3, "{wat}");
+    // An opaque binding lattice selects ordinary dispatch for the whole unit:
+    // `proc …`, `rename …`, `puts …`, and the nested `[add 2 4]` all resolve
+    // through the runtime command table.
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 4, "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 

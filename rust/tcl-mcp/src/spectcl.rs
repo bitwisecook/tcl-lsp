@@ -715,7 +715,7 @@ mod tests {
     /// A pack whose every word the loader knows: no notices, the declared
     /// fields show up as set, and the hook is reported with its family.
     const VALID: &str = r"
-speclib mylib 1.0 {
+speclib mylib 2.1 {
     command mylib::with_var {
         arity 2..3
         arg 0 -role VarWrite
@@ -726,6 +726,7 @@ speclib mylib 1.0 {
                 role 1 Body
             }
         }
+        arg_role_resolver_roles Body
     }
 }
 ";
@@ -734,7 +735,7 @@ speclib mylib 1.0 {
     fn a_valid_pack_reports_its_commands_and_no_notices() {
         let result = check(VALID, "tcl9.0");
         assert_eq!(result["pack"], "mylib", "{result}");
-        assert_eq!(result["dsl_version"], "1.0");
+        assert_eq!(result["dsl_version"], "2.1");
         assert_eq!(result["dialect"], "tcl9.0");
         assert_eq!(result["notices"], json!([]), "{result}");
         assert_eq!(result["summary"]["commands"], 1);
@@ -743,7 +744,13 @@ speclib mylib 1.0 {
         let command = &result["commands"][0];
         assert_eq!(command["name"], "mylib::with_var");
         let set = strings(&command["fields_set"]);
-        for field in ["arity", "arg_roles", "return_type", "arg_role_resolver"] {
+        for field in [
+            "arity",
+            "arg_roles",
+            "return_type",
+            "arg_role_resolver",
+            "arg_role_resolver_roles",
+        ] {
             assert!(set.contains(&field), "{field} missing from {command}");
         }
         // A field the pack never mentioned stays at its default and is absent.

@@ -2155,7 +2155,7 @@ fn apply_domain_widening(
                 state.widen_all(site);
             }
         }
-        StateTransitionDomain::Namespaces => {
+        StateTransitionDomain::Namespaces | StateTransitionDomain::CommandResolution => {
             state.namespace_lookup_stable = false;
             state.namespace_unknown_stable = false;
             state.bump(WorldTrack::NamespaceLookup, site);

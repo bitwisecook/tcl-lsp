@@ -220,6 +220,10 @@ pub fn spec() -> CommandSpec {
         // so type it `String` — that keeps real string-in-arithmetic shimmer
         // diagnostics while avoiding the old bogus `Int` (issue #867).
         var_write_typing: VarWriteTyping::Fixed(TclType::String),
+        // A result target exists only after exp, string, and subSpec. Leading
+        // switches can consume more argv words but cannot make the optional
+        // varName appear before the fourth post-head word.
+        variable_write_min_args: Some(4),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
@@ -243,6 +247,7 @@ pub fn spec() -> CommandSpec {
         // pattern validation.
         pattern_type: Some(PatternType::Regex),
         arg_role_resolver: Some(regsub_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::FormatString, ArgRole::VarWrite],
         // The `subSpec` replacement template's own mini-language; the
         // `ArgRole::FormatString` the resolver puts on that word locates it.
         format_string_type: Some(FormatType::Regsub),

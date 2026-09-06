@@ -242,9 +242,9 @@ fn tn_plain_argument_word_does_not_resolve_to_a_sibling_class() {
     );
 }
 
-// TP (idx 44): `${ns}::setdef` inside a TclOO constructor, where `ns` comes
-// from `[namespace qualifiers [self class]]`, reaching a proc declared in a
-// **sibling document**.
+// TP (idx 44): an absolute command head inside a TclOO constructor reaches a
+// proc declared in a **sibling document**. Absolute spelling is essential:
+// Tcl 9 resolves relative method-body heads in the receiver namespace.
 //
 // The same mechanic is already pinned single-file (issue #1132), but idx 44's
 // real corpus (`ticklecharts`) splits it across files — the utility proc in
@@ -253,10 +253,10 @@ fn tn_plain_argument_word_does_not_resolve_to_a_sibling_class() {
 // tests at all.
 //
 // Oracle (tclsh 9.0.4 and 8.6.16, sourcing both files): prints
-// `resolved options dict = id {-default hello}`, proving `${ns}::setdef`
-// genuinely dispatches to `::ticklecharts::setdef`.
+// `resolved options dict = id {-default hello}`; this projection pins the
+// resulting absolute `::ticklecharts::setdef` identity across documents.
 #[test]
-fn tp_cross_file_folded_namespace_head_reaches_its_proc_923_idx44() {
+fn tp_cross_file_rooted_namespace_head_reaches_its_proc_923_idx44() {
     let mut lsp = Lsp::tcl();
     let utils = unique_uri("tcl");
     lsp.open_ready(
@@ -274,19 +274,17 @@ fn tp_cross_file_folded_namespace_head_reaches_its_proc_923_idx44() {
         "oo::class create ticklecharts::dataset {\n\
          \x20   variable options\n\
          \x20   constructor {value} {\n\
-         \x20       set ns [namespace qualifiers [self class]]\n\
-         \x20       ${ns}::setdef options id -default $value\n\
+         \x20       ::ticklecharts::setdef options id -default $value\n\
          \x20   }\n\
          }\n",
     );
 
-    // Go-to-definition from the constructor's `${ns}::setdef` head (line 4;
-    // `setdef` sits inside the `${ns}::setdef` word).
-    let def = lsp.definition(&dataset, 4, 17);
+    // Go-to-definition from the constructor's rooted `setdef` head (line 3).
+    let def = lsp.definition(&dataset, 3, 17);
     assert_eq!(
         lines_in(&def, &utils),
         vec![1],
-        "the `${{ns}}::setdef` head must reach the sibling document's proc: {:?}",
+        "the rooted `setdef` head must reach the sibling document's proc: {:?}",
         locations(&def),
     );
 

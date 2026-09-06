@@ -22,8 +22,10 @@
 //! substitutions and emitting specialised bytecode sequences for
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
+use tcl_bytecode::EnteredCommandSite;
 use tcl_registry::hooks::InlineCodegenHookId;
 
+use super::emitter::bytecoded::applicable_codegen_binding;
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
@@ -453,6 +455,17 @@ impl CodegenCtx<'_> {
     /// nested substitutions, braced args with `$`/`[`, interpolated
     /// strings, backslash escapes, and plain literals.
     pub fn emit_cmd_subst_arg(&mut self, arg: &str, braced: bool) {
+        // `parse_cmd_parts` has already removed a braced word's grouping
+        // braces, leaving its exact value here. Keep that value on the
+        // compiler-owned verbatim literal path: an ordinary PUSH asks the VM
+        // to perform word substitution and would reinterpret a value such as
+        // `{}` as fresh grouping syntax (and therefore push the empty string).
+        // The verbatim helper also owns Tcl's one permitted transformation in
+        // braces, backslash-newline collapse.
+        if braced {
+            self.push_lit_verbatim(arg);
+            return;
+        }
         // A composite unbraced arg with an embedded substitution (`$opt*`,
         // `x$y`, `${a}b`, `pre[cmd]post`) decomposes into more than one part:
         // build the string by concatenating the substituted parts rather than
@@ -531,10 +544,7 @@ impl CodegenCtx<'_> {
             } else {
                 self.emit_inline_cmd_subst(arg);
             }
-        } else if braced && (arg.contains('$') || arg.contains('[')) {
-            // Braced arg with substitution markers — re-wrap in braces
-            self.push_lit(&format!("{{{arg}}}"));
-        } else if !braced && (arg.contains('$') || arg.contains('[')) {
+        } else if arg.contains('$') || arg.contains('[') {
             // Interpolated string — delegate to emit_value with interpolation
             self.emit_value(arg, true);
         } else if !braced && arg.contains('\\') {
@@ -558,8 +568,82 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// Literal command whose registry-described bytecode specialisation this
+    /// generic value-position surrogate stands in for.
+    ///
+    /// Ordinary `invokeStk` commands resolve after argument substitution in C
+    /// Tcl, so a literal head alone is not enough. The entered-token sidecar is
+    /// reserved for the exact, arity-valid typed hook whose statement emitter
+    /// would otherwise consume the command. This keeps the
+    /// decision name-free and prevents a user proc or wrong-arity builtin from
+    /// accidentally acquiring specialised command-token timing.
+    fn entered_command_surrogate(
+        &mut self,
+        command: &str,
+        args: &[(String, bool)],
+    ) -> Option<tcl_runtime_api::CommandBindingIdentity> {
+        if command.contains('$') || command.contains('[') {
+            return None;
+        }
+        let args: Vec<String> = args.iter().map(|(arg, _)| arg.clone()).collect();
+        let binding = applicable_codegen_binding(self, command, &args)?;
+        self.require_command_binding(&binding);
+        Some(binding)
+    }
+
+    /// Attach one literal head to its own push and carry it through the
+    /// fixed-arity generic invoke just emitted. Capturing at the head push is
+    /// important: an earlier substitution in the first argument may mutate the
+    /// command table before any nested `START_CMD` is reached. Expanded calls
+    /// deliberately resolve after expansion, matching Tcl's distinct
+    /// command-token timing.
+    fn retain_entered_command(
+        &mut self,
+        body_start: usize,
+        entered_binding: Option<tcl_runtime_api::CommandBindingIdentity>,
+    ) {
+        // Tcl's DONT_COMPILE_CMDS_INLINE / execution-trace path deliberately
+        // resolves the command after substitution. Plain-dispatch bytecode is
+        // that path in this compiler, so it must not carry an entered token.
+        if self.plain_command_dispatch {
+            return;
+        }
+        let Some(binding) = entered_binding else {
+            return;
+        };
+        let end = self.fresh_label("entered_cmd_end");
+        let Some(head) = self.instructions.get_mut(body_start) else {
+            return;
+        };
+        debug_assert!(matches!(head.op, Op::PUSH1 | Op::PUSH4));
+        head.entered_command = Some(EnteredCommandSite {
+            binding,
+            end: end.clone(),
+        });
+        self.place_label(&end);
+    }
+
     /// Emit a generic command substitution as `push cmd; <args>; invokeStk`.
     pub fn emit_generic_cmd_subst(&mut self, cmd: &str, args: &[(String, bool)]) {
+        let entered_binding = self.entered_command_surrogate(cmd, args);
+        self.emit_generic_cmd_subst_with_binding(cmd, args, entered_binding);
+    }
+
+    /// Emit the generic-invoke body with an entered binding already selected
+    /// by the registry hook dispatcher.
+    ///
+    /// This is distinct from [`Self::emit_generic_cmd_subst`]: a specialised
+    /// emitter can discover that its precise argument shape needs the generic
+    /// path only after registry resolution. Re-resolving here can substitute a
+    /// stock command identity for the source command whose hook selected that
+    /// emitter.
+    fn emit_generic_cmd_subst_with_binding(
+        &mut self,
+        cmd: &str,
+        args: &[(String, bool)],
+        entered_binding: Option<tcl_runtime_api::CommandBindingIdentity>,
+    ) {
+        let body_start = self.instructions.len();
         // The command name itself may be a substitution (`$Verify($opt) ...`,
         // `[lookup] ...`), so it is emitted through the same per-word path as
         // the arguments rather than as a bare literal.
@@ -574,6 +658,9 @@ impl CodegenCtx<'_> {
             Op::INVOKE_STK4
         };
         self.emit(op, vec![Operand::Imm(arg_count)]);
+        // Resolve the literal head when it is pushed, before any argument word
+        // can substitute, and keep it until this generic invoke.
+        self.retain_entered_command(body_start, entered_binding);
     }
 
     /// Emit one word of a generic command invocation (the command name or an
@@ -662,6 +749,9 @@ impl CodegenCtx<'_> {
     /// Returns `true` if the pattern matched and the bytecode was
     /// emitted.
     pub fn try_list_expand_concat(&mut self, value: &str) -> bool {
+        if self.plain_command_dispatch {
+            return false;
+        }
         let Some(inner) = value
             .strip_prefix("[list")
             .and_then(|s| s.strip_suffix(']'))
@@ -669,6 +759,7 @@ impl CodegenCtx<'_> {
             return false;
         };
         let mut names: Vec<&str> = Vec::new();
+        let mut call_args: Vec<&str> = Vec::new();
         for tok in inner.split_whitespace() {
             let Some(name) = tok.strip_prefix("{*}$") else {
                 return false;
@@ -677,10 +768,17 @@ impl CodegenCtx<'_> {
                 return false;
             }
             names.push(name);
+            call_args.push(tok);
         }
         if names.len() != 2 {
             return false;
         }
+        let Some(binding) =
+            self.trusted_inline_codegen_binding("list", &call_args, InlineCodegenHookId::List)
+        else {
+            return false;
+        };
+        self.require_command_binding(&binding);
         self.load_var(names[0]);
         self.load_var(names[1]);
         self.emit(Op::LIST_CONCAT, vec![]);
@@ -700,7 +798,7 @@ impl CodegenCtx<'_> {
     ///
     /// Returns `true` if the pattern matched and was emitted.
     pub fn try_inline_list_with_break_continue(&mut self, value: &str) -> bool {
-        if !(value.starts_with("[list ") && value.ends_with(']')) {
+        if self.plain_command_dispatch || !(value.starts_with("[list ") && value.ends_with(']')) {
             return false;
         }
         let parts = parse_cmd_parts(value);
@@ -713,6 +811,43 @@ impl CodegenCtx<'_> {
             .any(|(a, _)| a == "[break]" || a == "[continue]");
         if !has_bc {
             return false;
+        }
+
+        let inline_break = self.break_target.is_some() && args.iter().any(|(a, _)| a == "[break]");
+        let inline_continue =
+            self.continue_target.is_some() && args.iter().any(|(a, _)| a == "[continue]");
+        let arg_refs: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
+        let Some(list_binding) =
+            self.trusted_inline_codegen_binding("list", &arg_refs, InlineCodegenHookId::List)
+        else {
+            return false;
+        };
+        let break_binding = if inline_break {
+            let Some(binding) =
+                self.trusted_inline_codegen_binding("break", &[], InlineCodegenHookId::Break)
+            else {
+                return false;
+            };
+            Some(binding)
+        } else {
+            None
+        };
+        let continue_binding = if inline_continue {
+            let Some(binding) =
+                self.trusted_inline_codegen_binding("continue", &[], InlineCodegenHookId::Continue)
+            else {
+                return false;
+            };
+            Some(binding)
+        } else {
+            None
+        };
+        self.require_command_binding(&list_binding);
+        if let Some(binding) = &break_binding {
+            self.require_command_binding(binding);
+        }
+        if let Some(binding) = &continue_binding {
+            self.require_command_binding(binding);
         }
 
         let mut n_pushed: usize = 0;
@@ -836,28 +971,142 @@ impl CodegenCtx<'_> {
     /// resolves a leading `::` to the bare spec, but the historical
     /// dispatch keyed on the raw head word and the emitted bytecode
     /// must not change under the registry-driven dispatch.
-    fn inline_cmd_subst_hook(
-        &self,
+    pub(crate) fn inline_cmd_subst_hook(
+        &mut self,
         cmd: &str,
         args: &[(String, bool)],
     ) -> Option<InlineCodegenHookId> {
-        // A name this unit renames, aliases, or shadows with a proc no longer
-        // denotes the builtin whose emitter the hook names, so there is
-        // nothing to specialise — fall through to the generic invoke and let
-        // the runtime dispatch on whatever the name holds (issue #1585).
-        if !self.trusts_builtin(cmd) {
+        self.inline_cmd_subst_resolution(cmd, args)
+            .map(|(hook, _binding)| hook)
+    }
+
+    /// Resolve and retain the hook together with the exact entered command
+    /// identity selected for this source invocation.
+    fn inline_cmd_subst_resolution(
+        &mut self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> Option<(InlineCodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+        let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
+        let (hook, binding) = self.inline_codegen_resolution(cmd, &arg_refs)?;
+        self.require_command_binding(&binding);
+        Some((hook, binding))
+    }
+
+    /// Resolve and retain one registry-described inline specialisation.
+    ///
+    /// All inline contexts use this owner: ordinary command substitutions,
+    /// catch/try bodies, and structured try emitters. A specialised emitter
+    /// therefore cannot consume a command head without also retaining the
+    /// source spelling and canonical implementation it assumed.
+    pub(crate) fn inline_codegen_hook(
+        &mut self,
+        cmd: &str,
+        args: &[&str],
+    ) -> Option<InlineCodegenHookId> {
+        let (hook, binding) = self.inline_codegen_resolution(cmd, args)?;
+        self.require_command_binding(&binding);
+        Some(hook)
+    }
+
+    /// Resolve the hook and live command identity assumed by an inline
+    /// specialisation. Emitters which retain an entered token use the same
+    /// registry decision as the ordinary hook dispatcher.
+    fn inline_codegen_resolution(
+        &self,
+        cmd: &str,
+        args: &[&str],
+    ) -> Option<(InlineCodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+        if self.plain_command_dispatch {
             return None;
         }
-        let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
+        // Whole-unit mutation discovery is deliberately not an admission
+        // decision here: a later proc body may mutate this name only after the
+        // current invocation has entered it. Retain the typed binding below;
+        // the VM validates it at each actual execution boundary and recompiles
+        // stale future invocations through plain dispatch (issues #1585/#1648).
         // The registry's own point — see
         // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
-        let resolved =
-            self.registry
-                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
+        let resolved = self
+            .registry
+            .resolve_call(cmd, args, self.registry.own_surface_query())?;
         if resolved.spec.name != cmd {
             return None;
         }
-        resolved.inline_codegen_hook
+        let hook = resolved.inline_codegen_hook?;
+        let binding = self.command_binding_identity(cmd, resolved.spec.name);
+        Some((hook, binding))
+    }
+
+    /// Resolve one fully-consuming inline specialisation whose source name
+    /// must also remain untouched throughout this compilation unit.
+    ///
+    /// Unlike entered-token emitters, the list-concat and inline loop-control
+    /// paths below have no ordinary invocation left to redispatch. They need
+    /// both the whole-unit trust fact and the active registry's typed hook;
+    /// the returned binding is the exact dependency their bytecode consumes.
+    fn trusted_inline_codegen_binding(
+        &self,
+        command: &str,
+        args: &[&str],
+        expected: InlineCodegenHookId,
+    ) -> Option<tcl_runtime_api::CommandBindingIdentity> {
+        if !self.trusts_builtin(command) {
+            return None;
+        }
+        let (hook, binding) = self.inline_codegen_resolution(command, args)?;
+        (hook == expected).then_some(binding)
+    }
+
+    /// Try an inline emitter whose registry hook is also valid for an ordinary
+    /// command statement.
+    ///
+    /// Inline hooks normally produce one stack value for a command
+    /// substitution. String's `INVOKE_REPLACE` forms have the same argument
+    /// substitution and command-entry semantics in statement position, so
+    /// reuse their single applicability guard without the nested-substitution
+    /// `START_CMD`, then discard the result just as the generic statement
+    /// invoke does. Hook selection and the retained command identity still
+    /// come from the active registry/profile; this bridge contains no command
+    /// identity lookup.
+    pub(crate) fn try_inline_statement_codegen(
+        &mut self,
+        cmd: &str,
+        args: &[String],
+        used_generic_invoke: &mut bool,
+    ) -> bool {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some((hook, binding)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
+            return false;
+        };
+        if hook != InlineCodegenHookId::String {
+            return false;
+        }
+
+        let inline_args: Vec<(String, bool)> = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                (
+                    arg.clone(),
+                    self.cmd_arg_braced.get(i).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let previous_inline = self.used_inline_cmd_subst;
+        if !self.try_emit_inline_string_invoke_replace(
+            previous_inline,
+            cmd,
+            &binding,
+            &inline_args,
+            false,
+        ) {
+            return false;
+        }
+        self.emit(Op::POP, vec![]);
+        *used_generic_invoke = true;
+        self.require_command_binding(&binding);
+        true
     }
 
     /// Inline-compile a `[cmd arg ...]` command substitution.
@@ -919,8 +1168,8 @@ impl CodegenCtx<'_> {
         // subcommand-keyed hook (`InfoExists`, `DictGet`) only resolves
         // when the subcommand word matched exactly, so those arms need
         // no re-check of the subcommand text.
-        match self.inline_cmd_subst_hook(cmd, args) {
-            Some(InlineCodegenHookId::Expr) if args.len() == 1 => {
+        match self.inline_cmd_subst_resolution(cmd, args) {
+            Some((InlineCodegenHookId::Expr, _)) if args.len() == 1 => {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
                 // lowering pass parses a statement-position `expr` — parsing
@@ -930,65 +1179,53 @@ impl CodegenCtx<'_> {
                 let node = self.parse_compile_expr(expr_body);
                 self.emit_expr(&node);
             }
-            Some(InlineCodegenHookId::Incr) if (1..=2).contains(&args.len()) => {
+            Some((InlineCodegenHookId::Incr, _)) if (1..=2).contains(&args.len()) => {
                 self.emit_inline_incr(args);
             }
-            Some(InlineCodegenHookId::InfoExists) if args.len() == 2 => {
+            Some((InlineCodegenHookId::InfoExists, _)) if args.len() == 2 => {
                 self.emit_inline_info_exists(args);
             }
-            Some(InlineCodegenHookId::String) if args.len() >= 2 => {
-                self.emit_inline_string(args);
+            Some((InlineCodegenHookId::String, binding)) if args.len() >= 2 => {
+                self.emit_inline_string(cmd, &binding, args);
             }
-            Some(InlineCodegenHookId::Lindex) if args.len() >= 2 => {
+            Some((InlineCodegenHookId::Lindex, _)) if args.len() >= 2 => {
                 self.emit_inline_lindex(args);
             }
-            Some(InlineCodegenHookId::Lrange) if args.len() == 3 => {
+            Some((InlineCodegenHookId::Lrange, _)) if args.len() == 3 => {
                 self.emit_inline_lrange(args);
             }
-            Some(InlineCodegenHookId::Lreplace) if args.len() >= 3 => {
+            Some((InlineCodegenHookId::Lreplace, _)) if args.len() >= 3 => {
                 self.emit_inline_lreplace(args);
             }
-            Some(InlineCodegenHookId::Linsert) if args.len() >= 2 => {
+            Some((InlineCodegenHookId::Linsert, _)) if args.len() >= 2 => {
                 self.emit_inline_linsert(args);
             }
-            Some(InlineCodegenHookId::Regexp) if args.len() >= 2 => {
+            Some((InlineCodegenHookId::Regexp, _)) if args.len() >= 2 => {
                 self.emit_inline_regexp(args);
             }
-            Some(InlineCodegenHookId::List) if !args.is_empty() && !text.contains("{*}") => {
+            Some((InlineCodegenHookId::List, _)) if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
                 for (a, b) in args {
                     self.emit_cmd_subst_arg(a, *b);
                 }
                 self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
             }
-            Some(InlineCodegenHookId::Array) if args.len() >= 2 => {
+            Some((InlineCodegenHookId::Array, _)) if args.len() >= 2 => {
                 self.emit_inline_array(args);
             }
-            Some(InlineCodegenHookId::DictGet) if args.len() >= 3 => {
+            Some((InlineCodegenHookId::DictGet, _)) if args.len() >= 3 => {
                 self.emit_inline_dict_get(args);
             }
-            // The inline form compiles the body as one command, so it is only
-            // reachable for a body that *is* one command (`is_single_command_body`).
-            // The inline form compiles the body as one command it can see, so it
-            // needs a *braced* body (an unbraced `catch $script` names a script
-            // whose commands are not known until run time) that is exactly one
-            // command.
-            Some(InlineCodegenHookId::Catch)
+            Some((InlineCodegenHookId::Catch, _))
                 if self.is_proc
                     && (1..=3).contains(&args.len())
-                    && args[0].1
-                    && is_single_command_body(&args[0].0, self.lexer_config()) =>
+                    && Self::catch_inline_args_are_static(args) =>
             {
+                self.used_inline_cmd_subst = true;
+                let body_text = &args[0].0;
                 let result_var = args.get(1).map(|(s, _)| s.as_str());
-                if result_var.is_some_and(|v| v.starts_with("::")) {
-                    self.used_inline_cmd_subst = false;
-                    self.emit_generic_cmd_subst(cmd, args);
-                } else {
-                    self.used_inline_cmd_subst = true;
-                    let body_text = &args[0].0;
-                    let options_var = args.get(2).map(|(s, _)| s.as_str());
-                    self.emit_catch_inline(body_text, result_var, options_var);
-                }
+                let options_var = args.get(2).map(|(s, _)| s.as_str());
+                self.emit_catch_inline(body_text, result_var, options_var);
             }
             _ => {
                 self.used_inline_cmd_subst = false;
@@ -1002,7 +1239,7 @@ impl CodegenCtx<'_> {
     /// where N is the running word count), then `invokeExpanded` — leaving the
     /// result on the stack. Mirrors [`Self::emit_expanded_call`] without the
     /// trailing `pop`.
-    fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
+    pub(super) fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
         let mut word_count: u32 = 0;
@@ -1134,18 +1371,25 @@ impl CodegenCtx<'_> {
     fn emit_inline_string_invoke_replace(
         &mut self,
         prev_inline: bool,
+        entered: (&str, &tcl_runtime_api::CommandBindingIdentity),
+        wrap_start_command: bool,
         target_subcmd: &str,
         flag_args: &[&str],
         operand_args: &[(String, bool)],
     ) {
+        let (entered_command, entered_binding) = entered;
         self.used_inline_cmd_subst = prev_inline;
-        let sc_end = self.fresh_label("subcmd_end");
-        self.emit_comment(
-            Op::START_CMD,
-            vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-            "",
-        );
-        self.push_lit("string");
+        let sc_end = wrap_start_command.then(|| {
+            let label = self.fresh_label("subcmd_end");
+            self.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(label.clone()), Operand::Imm(1)],
+                "",
+            );
+            label
+        });
+        let body_start = self.instructions.len();
+        self.push_lit(entered_command);
         self.push_lit(target_subcmd);
         for f in flag_args {
             self.push_lit(f);
@@ -1159,8 +1403,65 @@ impl CodegenCtx<'_> {
             Op::INVOKE_REPLACE,
             vec![Operand::Imm(argc), Operand::Imm(2)],
         );
-        self.place_label(&sc_end);
+        if let Some(sc_end) = sc_end {
+            self.place_label(&sc_end);
+        }
+        self.retain_entered_command(body_start, Some(entered_binding.clone()));
         self.seen_generic_invoke = true;
+    }
+
+    /// Emit one of String's option-bearing `INVOKE_REPLACE` shapes.
+    ///
+    /// Both value and statement position call this one guard. The registry
+    /// selects `InlineCodegenHookId::String`; this hook-owned dispatcher then
+    /// selects the exact subcommand/option shape the opcode can represent.
+    fn try_emit_inline_string_invoke_replace(
+        &mut self,
+        prev_inline: bool,
+        entered_command: &str,
+        entered_binding: &tcl_runtime_api::CommandBindingIdentity,
+        args: &[(String, bool)],
+        wrap_start_command: bool,
+    ) -> bool {
+        let Some(((subcmd, _), sargs)) = args.split_first() else {
+            return false;
+        };
+        match subcmd.as_str() {
+            "equal" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
+                self.emit_inline_string_invoke_replace(
+                    prev_inline,
+                    (entered_command, entered_binding),
+                    wrap_start_command,
+                    "equal",
+                    &["-nocase"],
+                    &sargs[1..],
+                );
+                true
+            }
+            "compare" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
+                self.emit_inline_string_invoke_replace(
+                    prev_inline,
+                    (entered_command, entered_binding),
+                    wrap_start_command,
+                    "compare",
+                    &["-nocase"],
+                    &sargs[1..],
+                );
+                true
+            }
+            "compare" if sargs.len() == 4 && sargs[0].0 == "-length" => {
+                self.emit_inline_string_invoke_replace(
+                    prev_inline,
+                    (entered_command, entered_binding),
+                    wrap_start_command,
+                    "compare",
+                    &["-length"],
+                    &sargs[1..],
+                );
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Emit a 2-arg `string equal a b` / `string compare a b` —
@@ -1218,11 +1519,26 @@ impl CodegenCtx<'_> {
         self.seen_generic_invoke = true;
     }
 
-    fn emit_inline_string(&mut self, args: &[(String, bool)]) {
+    fn emit_inline_string(
+        &mut self,
+        entered_command: &str,
+        entered_binding: &tcl_runtime_api::CommandBindingIdentity,
+        args: &[(String, bool)],
+    ) {
         let subcmd = &args[0].0;
         let sargs = &args[1..];
         let prev_inline = self.used_inline_cmd_subst;
         self.used_inline_cmd_subst = true;
+
+        if self.try_emit_inline_string_invoke_replace(
+            prev_inline,
+            entered_command,
+            entered_binding,
+            args,
+            true,
+        ) {
+            return;
+        }
 
         match subcmd.as_str() {
             "index" if sargs.len() == 2 => {
@@ -1248,32 +1564,8 @@ impl CodegenCtx<'_> {
             "equal" if sargs.len() == 2 => {
                 self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_EQ);
             }
-            "equal" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.emit_inline_string_invoke_replace(
-                    prev_inline,
-                    "equal",
-                    &["-nocase"],
-                    &sargs[1..],
-                );
-            }
             "compare" if sargs.len() == 2 => {
                 self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_CMP);
-            }
-            "compare" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.emit_inline_string_invoke_replace(
-                    prev_inline,
-                    "compare",
-                    &["-nocase"],
-                    &sargs[1..],
-                );
-            }
-            "compare" if sargs.len() == 4 && sargs[0].0 == "-length" => {
-                self.emit_inline_string_invoke_replace(
-                    prev_inline,
-                    "compare",
-                    &["-length"],
-                    &sargs[1..],
-                );
             }
             "replace" if sargs.len() == 4 => {
                 self.emit_inline_string_replace(sargs);
@@ -1283,7 +1575,7 @@ impl CodegenCtx<'_> {
                 self.emit(Op::STR_LEN, vec![]);
             }
             "is" if sargs.len() >= 2 => {
-                self.emit_inline_string_is(sargs);
+                self.emit_inline_string_is(entered_command, entered_binding, sargs);
             }
             _ => {
                 self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
@@ -1320,7 +1612,12 @@ impl CodegenCtx<'_> {
         self.emit(Op::STR_REPLACE, vec![]);
     }
 
-    fn emit_inline_string_is(&mut self, sargs: &[(String, bool)]) {
+    fn emit_inline_string_is(
+        &mut self,
+        entered_command: &str,
+        entered_binding: &tcl_runtime_api::CommandBindingIdentity,
+        sargs: &[(String, bool)],
+    ) {
         // Only two shapes can be specialised inline: `CLASS value` and
         // `CLASS -strict value`. Anything else carries an option this path does
         // not model — above all `-failindex var`, which has to *write a
@@ -1336,7 +1633,7 @@ impl CodegenCtx<'_> {
             _ => false,
         };
         if !specialisable {
-            self.emit_string_is_generic(sargs);
+            self.emit_string_is_generic(entered_command, entered_binding, sargs);
             return;
         }
         let class_name = &sargs[0].0;
@@ -1352,7 +1649,7 @@ impl CodegenCtx<'_> {
                 // `STR_CLASS` reports the empty string as a member, so it cannot
                 // honour `-strict` (under which the empty string is a non-member
                 // for character classes); defer to the generic command.
-                self.emit_string_is_generic(sargs);
+                self.emit_string_is_generic(entered_command, entered_binding, sargs);
             } else {
                 self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
                 self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
@@ -1429,7 +1726,7 @@ impl CodegenCtx<'_> {
             self.push_lit("1");
             self.place_label(&end_lbl);
         } else {
-            self.emit_string_is_generic(sargs);
+            self.emit_string_is_generic(entered_command, entered_binding, sargs);
         }
     }
 
@@ -1438,11 +1735,20 @@ impl CodegenCtx<'_> {
     /// inline (unknown class, `-strict` char class, extra options). The previous
     /// fallback dropped `is` (it prefixed `string` then sliced it back off),
     /// producing the invalid `string CLASS …`.
-    fn emit_string_is_generic(&mut self, sargs: &[(String, bool)]) {
+    fn emit_string_is_generic(
+        &mut self,
+        entered_command: &str,
+        entered_binding: &tcl_runtime_api::CommandBindingIdentity,
+        sargs: &[(String, bool)],
+    ) {
         self.used_inline_cmd_subst = false;
         let mut all_args = vec![("is".to_owned(), false)];
         all_args.extend_from_slice(sargs);
-        self.emit_generic_cmd_subst("string", &all_args);
+        self.emit_generic_cmd_subst_with_binding(
+            entered_command,
+            &all_args,
+            Some(entered_binding.clone()),
+        );
     }
 
     fn emit_inline_lindex(&mut self, args: &[(String, bool)]) {
@@ -1682,6 +1988,7 @@ mod tests {
     fn pure_cmd_subst_not() {
         assert!(!is_pure_cmd_subst("hello"));
         assert!(!is_pure_cmd_subst("[a] [b]"));
+        assert!(!is_pure_cmd_subst("[llength $args]:[join $args ,]"));
     }
 
     // -- has_command_separator --
@@ -1758,6 +2065,22 @@ mod tests {
     }
 
     #[test]
+    fn emit_braced_arg_as_exact_verbatim_literal() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_cmd_subst_arg("{}", true);
+        assert_eq!(ctx.instructions[0].op, Op::PUSH1);
+        assert!(ctx.instructions[0].push_verbatim);
+        assert_eq!(ctx.literals.entries(), &["{}".to_owned()]);
+
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_cmd_subst_arg("$x", true);
+        assert_eq!(ctx.instructions[0].op, Op::PUSH1);
+        assert!(ctx.instructions[0].push_verbatim);
+        assert_eq!(ctx.literals.entries(), &["$x".to_owned()]);
+    }
+
+    #[test]
     fn emit_arg_var_ref() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
@@ -1805,6 +2128,134 @@ mod tests {
         ctx.emit_inline_cmd_subst("[string length ${x}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::STR_LEN));
+    }
+
+    fn registry_with_custom_string_command() -> CommandRegistry {
+        let mut registry = CommandRegistry::build_default();
+        let mut text = registry.get("string").expect("string spec").clone();
+        text.name = "text";
+        text.surface = None;
+        registry.insert(text);
+        registry
+    }
+
+    fn assert_single_entered_binding(
+        ctx: &CodegenCtx<'_>,
+        expected: &tcl_runtime_api::CommandBindingIdentity,
+    ) {
+        let entered: Vec<_> = ctx
+            .instructions
+            .iter()
+            .filter_map(|instruction| instruction.entered_command.as_ref())
+            .collect();
+        assert_eq!(entered.len(), 1, "expected one retained command entry");
+        assert_eq!(&entered[0].binding, expected);
+    }
+
+    #[test]
+    fn registry_selected_string_generic_fallback_keeps_entered_identity() {
+        let registry = registry_with_custom_string_command();
+
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_inline_cmd_subst("[text is integer -failindex fi 1.5]");
+
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4))
+        );
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "text")
+        );
+        assert!(ctx.literals.entries().iter().any(|literal| literal == "is"));
+        assert!(
+            !ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "string"),
+            "the fallback must invoke the source command, not stock string",
+        );
+        let expected = tcl_runtime_api::CommandBindingIdentity::new("text", "text");
+        assert_single_entered_binding(&ctx, &expected);
+        assert!(ctx.command_binding_requirements.contains(&expected));
+        assert!(
+            !ctx.command_binding_requirements
+                .iter()
+                .any(|binding| binding.name == "string"),
+            "the fallback must not invent a dependency on the stock command",
+        );
+    }
+
+    #[test]
+    fn registry_selected_string_invoke_replace_value_keeps_entered_identity() {
+        let registry = registry_with_custom_string_command();
+
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit_inline_cmd_subst("[text equal -nocase a A]");
+
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_REPLACE),
+            "the custom registry hook must exercise the entered-token specialisation",
+        );
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "text")
+        );
+        assert!(
+            !ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "string")
+        );
+        let expected = tcl_runtime_api::CommandBindingIdentity::new("text", "text");
+        assert_single_entered_binding(&ctx, &expected);
+        assert!(ctx.command_binding_requirements.contains(&expected));
+        assert!(
+            !ctx.command_binding_requirements
+                .iter()
+                .any(|binding| binding.name == "string"),
+            "the helper must not invent a dependency on the stock command",
+        );
+    }
+
+    #[test]
+    fn registry_selected_string_invoke_replace_statement_keeps_entered_identity() {
+        let registry = registry_with_custom_string_command();
+        let args = vec!["equal", "-nocase", "a", "A"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used_generic_invoke = false;
+
+        assert!(ctx.try_inline_statement_codegen("text", &args, &mut used_generic_invoke));
+
+        assert!(used_generic_invoke);
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_REPLACE)
+        );
+        assert_eq!(
+            ctx.instructions.last().map(|instruction| instruction.op),
+            Some(Op::POP),
+        );
+        let expected = tcl_runtime_api::CommandBindingIdentity::new("text", "text");
+        assert_single_entered_binding(&ctx, &expected);
+        assert!(ctx.command_binding_requirements.contains(&expected));
+        assert!(
+            !ctx.command_binding_requirements
+                .iter()
+                .any(|binding| binding.name == "string"),
+            "the statement bridge must not invent a stock binding",
+        );
     }
 
     #[test]
@@ -1922,6 +2373,19 @@ mod tests {
     }
 
     #[test]
+    fn list_expand_concat_requires_the_owned_registry_list_hook() {
+        let mut registry = CommandRegistry::build_default();
+        let mut list = registry.get("list").expect("list spec").clone();
+        list.inline_codegen_hook = Some(InlineCodegenHookId::Expr);
+        registry.insert(list);
+
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        assert!(!ctx.try_list_expand_concat("[list {*}$a {*}$b]"));
+        assert!(ctx.instructions.is_empty());
+        assert!(ctx.command_binding_requirements.is_empty());
+    }
+
+    #[test]
     fn try_inline_list_without_target_emits_break_as_literal() {
         // When `[list ... [break] ...]` appears without
         // a loop target in scope, the pattern still claims the value
@@ -1951,6 +2415,42 @@ mod tests {
             "expected START_CMD, got {ops:?}"
         );
         assert!(ops.contains(&Op::LIST), "expected LIST, got {ops:?}");
+        for name in ["list", "break"] {
+            assert!(
+                ctx.command_binding_requirements
+                    .contains(&tcl_runtime_api::CommandBindingIdentity::new(name, name)),
+                "missing {name} dependency"
+            );
+        }
+    }
+
+    #[test]
+    fn inline_list_control_requires_owned_registry_control_hooks() {
+        for (command, source, target_break) in [
+            ("break", "[list a [break] c]", true),
+            ("continue", "[list a [continue] c]", false),
+        ] {
+            let mut registry = CommandRegistry::build_default();
+            let mut control = registry.get(command).expect("control spec").clone();
+            control.inline_codegen_hook = Some(InlineCodegenHookId::Error);
+            registry.insert(control);
+
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            if target_break {
+                ctx.break_target = Some("loop_break_1".into());
+            } else {
+                ctx.continue_target = Some("loop_continue_1".into());
+            }
+            assert!(
+                !ctx.try_inline_list_with_break_continue(source),
+                "owned {command} hook must control the jump specialisation"
+            );
+            assert!(
+                ctx.instructions.is_empty(),
+                "partial emission for {command}"
+            );
+            assert!(ctx.command_binding_requirements.is_empty());
+        }
     }
 
     #[test]

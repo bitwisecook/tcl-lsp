@@ -75,6 +75,7 @@ pub const fn spec() -> CommandSpec {
         event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         // The event name (argument 0) is the handler's outline entry: an
         // iRule's structure *is* its `when` blocks, so the outline, the
         // breadcrumb bar and workspace symbols list them the way they list a

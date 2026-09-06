@@ -50,86 +50,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::{
-    first_fatal_parse_error_with_config, lower_to_ir_for_bytecode,
-    lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced_with_dialect,
-};
-use tcl_dialect::DialectProfile;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_engine_api::{
     Budget, BudgetKind, CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value,
 };
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Vm};
-
-/// The command **store** a compile for `profile` reads — the resolved
-/// environment's registry generation, obtained through the one ingress
-/// seam (`tcl_registry::model::ingress`; centralisation rows C2/F2, the
-/// backend lane of P1-F wave 3).
-///
-/// A `DialectProfile`'s canonical name **is** a canonical environment id,
-/// so this is an id-keyed generation lookup rather than a re-parse of a
-/// user string, and the generation's store is the very `Arc` the old
-/// `registry_for_profile(profile)` handed back — same statics, so the
-/// bytecode a profile compiles to is unchanged.
-///
-/// Post-P1-G (which deleted the old cache doors): the
-/// `&'static DialectProfile` argument retires with ledger C1's re-type;
-/// `CompileService`'s signature then carries the environment.
-fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
-    tcl_registry::model::static_context_for_profile(profile).commands()
-}
-
-/// The compile service the VM injects for runtime `eval` and body
-/// compilation — `tcl-vm` itself never links `tcl-compiler`, so the engine
-/// supplies it.
-struct VmCompiler {
-    registry: CommandRegistry,
-}
-
-impl CompileService for VmCompiler {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, source: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(message) = tcl_compiler::lowering::first_fatal_parse_error(source) {
-            return Err(CompileError(message));
-        }
-        let ir = lower_to_ir_for_bytecode(source, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        source: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = store_for_profile(profile);
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(message) = first_fatal_parse_error_with_config(source, config) {
-            return Err(CompileError(message));
-        }
-        let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, Some(profile));
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-
-    fn compile_traced_for_profile(
-        &self,
-        source: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = store_for_profile(profile);
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(message) = first_fatal_parse_error_with_config(source, config) {
-            return Err(CompileError(message));
-        }
-        let ir = lower_to_ir_traced_with_dialect(source, registry, config, Some(profile));
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
+use tcl_vm::{Code, Completion, NativeCommand, Vm};
 
 /// A compiled unit: the VM procedure the body was defined as.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -302,7 +228,7 @@ impl TclVmEngine {
     #[must_use]
     pub fn with_registry(registry: CommandRegistry) -> Self {
         let mut vm = Vm::new();
-        vm.set_compiler(Box::new(VmCompiler { registry }));
+        vm.set_compiler(Box::new(BytecodeCompileService::new(registry)));
         Self {
             vm,
             budget: Budget::default(),
@@ -464,6 +390,15 @@ mod tests {
         }
     }
 
+    fn registry_with_custom_list_expr_hook() -> tcl_registry::CommandRegistry {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let mut custom = registry.get("list").expect("list spec").clone();
+        custom.lowering_hook = Some(tcl_registry::hooks::LoweringHookId::Expr);
+        custom.inline_codegen_hook = Some(tcl_registry::hooks::InlineCodegenHookId::Expr);
+        registry.insert(custom);
+        registry
+    }
+
     #[test]
     fn a_unit_compiles_once_and_invokes_with_structured_values() {
         let mut engine = TclVmEngine::new();
@@ -476,6 +411,21 @@ mod tests {
             .invoke(&handle, &[words, ctx])
             .expect("the body runs");
         assert_eq!(result.as_str(), Some("2"));
+    }
+
+    #[test]
+    fn an_owned_registry_hook_survives_vm_profile_compilation() {
+        let mut engine = TclVmEngine::with_registry(registry_with_custom_list_expr_hook());
+        let handle = engine
+            .compile(unit("list {1 + 2}"))
+            .expect("the custom Expr hook compiles");
+        let result = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect("the custom hook's bytecode runs");
+
+        // The normal `list` command returns the literal `1 + 2`; the owned
+        // registry deliberately assigns it the Expr hook, which returns 3.
+        assert_eq!(result.as_str(), Some("3"));
     }
 
     #[test]

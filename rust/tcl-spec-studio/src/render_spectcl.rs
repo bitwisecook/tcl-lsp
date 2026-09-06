@@ -113,6 +113,9 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 /// on — it has fields, not rows.
 pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
 
+const AVAILABILITY_VERSION: &str = "2.0";
+const RESOLVER_CAPABILITIES_VERSION: &str = "2.1";
+
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
 const WRAP_COLUMN: usize = 92;
@@ -279,6 +282,16 @@ pub const GAPS: &[Gap] = &[
     Gap {
         key: "remote_method",
         spelling: "",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "variable_write_min_args",
+        spelling: "variable_write_min_args N",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "body_interpreter",
+        spelling: "body_interpreter Current|{Argument INDEX}",
         kind: GapKind::LoaderGap,
     },
     // --- excluded by design -------------------------------------------------
@@ -1487,6 +1500,9 @@ struct Ctx<'a> {
     /// vocabulary. Moving such a document to 2.0 is `tcl spec upgrade`'s job,
     /// not a side effect of opening it in the studio.
     availability: bool,
+    /// Whether the declared vocabulary can carry the complete role set of an
+    /// argument-role resolver.
+    resolver_capabilities: bool,
 }
 
 impl Ctx<'_> {
@@ -1775,6 +1791,19 @@ fn expr_row(
 fn gap_todo(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key) || unrecovered(draft, key) {
         todo(out, key);
+    }
+}
+
+/// Record a field whose spelling postdates the explicitly requested output
+/// vocabulary.
+fn vocabulary_todo(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str, since: &str) {
+    if ctx.set(draft, key) || unrecovered(draft, key) {
+        let reason = format!("requires SpecTcl {since} vocabulary");
+        out.comment(&format!("TODO(spectcl): `{key}` {reason}."));
+        out.losses.push(Loss {
+            key: key.to_owned(),
+            reason,
+        });
     }
 }
 
@@ -2292,6 +2321,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             None => todo(out, "var_write_typing"),
         }
     }
+    gap_todo(out, ctx, draft, "variable_write_min_args");
     expr_word(out, ctx, draft, "return_elements", return_elements_word);
     expr_word(
         out,
@@ -2309,6 +2339,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     );
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
+    gap_todo(out, ctx, draft, "body_interpreter");
     expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
     enum_word(out, ctx, draft, "pattern_type");
     gap_todo(out, ctx, draft, "pattern_arg_resolver");
@@ -2375,6 +2406,11 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     // --- hooks -------------------------------------------------------------
     out.gap();
     native_hook(out, ctx, draft, "arg_role_resolver");
+    if ctx.resolver_capabilities {
+        set_word(out, ctx, draft, "arg_role_resolver_roles");
+    } else {
+        vocabulary_todo(out, ctx, draft, "arg_role_resolver_roles", "2.1");
+    }
     native_hook(out, ctx, draft, "command_prefix_resolver");
     native_hook(out, ctx, draft, "script_timing_resolver");
     native_hook(out, ctx, draft, "clause_shape_check");
@@ -2773,6 +2809,7 @@ fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         scope: format!("{}::{}", ctx.scope, str_of(&class["class_name"])),
         tables: ctx.tables,
         availability: ctx.availability,
+        resolver_capabilities: ctx.resolver_capabilities,
     };
     let mut body = Out::at(out.indent + 1);
     for method in methods {
@@ -2803,6 +2840,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         scope: format!("{}::{name}", parent.scope),
         tables: parent.tables,
         availability: parent.availability,
+        resolver_capabilities: parent.resolver_capabilities,
     };
     let ctx = &mut ctx;
 
@@ -2857,6 +2895,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     );
     enum_word(out_body, ctx, sub, "inferred_storage_type");
     enum_word(out_body, ctx, sub, "body_kind");
+    gap_todo(out_body, ctx, sub, "body_interpreter");
     expr_word(
         out_body,
         ctx,
@@ -2907,6 +2946,11 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     }
 
     native_hook(out_body, ctx, sub, "arg_role_resolver");
+    if ctx.resolver_capabilities {
+        set_word(out_body, ctx, sub, "arg_role_resolver_roles");
+    } else {
+        vocabulary_todo(out_body, ctx, sub, "arg_role_resolver_roles", "2.1");
+    }
     native_hook(out_body, ctx, sub, "command_prefix_resolver");
     native_hook(out_body, ctx, sub, "script_timing_resolver");
     native_hook(out_body, ctx, sub, "const_fold");
@@ -3074,9 +3118,9 @@ pub fn render_pack_reporting_with_version(
     // The header decides the vocabulary the body may use, never the other way
     // round: `available` is a 2.0 word, so a pack declaring less keeps the
     // legacy `dialects` spelling and stays internally consistent.
-    let availability =
-        !tcl_registry::version::compare(dsl_version, tcl_spectcl::NEWEST_VOCABULARY_VERSION)
-            .is_lt();
+    let availability = !tcl_registry::version::compare(dsl_version, AVAILABILITY_VERSION).is_lt();
+    let resolver_capabilities =
+        !tcl_registry::version::compare(dsl_version, RESOLVER_CAPABILITIES_VERSION).is_lt();
 
     for draft in drafts {
         let name = str_of(draft.get("name").unwrap_or(&Value::Null)).to_owned();
@@ -3090,6 +3134,7 @@ pub fn render_pack_reporting_with_version(
                 scope: name.clone(),
                 tables: &mut tables,
                 availability,
+                resolver_capabilities,
             };
             command_body(&mut body, &mut ctx, draft);
         }
@@ -3344,6 +3389,10 @@ mod tests {
             crate::spectcl::evaluate_pack(&newest).notices
         );
 
+        let two_zero = render_pack_with_version(std::slice::from_ref(&seeded), "probe", "2.0");
+        assert!(two_zero.contains("speclib probe 2.0 {"), "{two_zero}");
+        assert!(two_zero.contains("available {tcl 8.4-}"), "{two_zero}");
+
         let older = render_pack_with_version(&[seeded], "probe", "1.2");
         assert!(older.contains("speclib probe 1.2 {"), "{older}");
         assert!(older.contains("dialects {all-tcl f5-irules}"), "{older}");
@@ -3411,7 +3460,7 @@ mod tests {
             draft::UNRENDERABLE_KEY.into(),
             json!(["arg_role_resolver", "script_timing_resolver", "const_fold"]),
         );
-        let text = render_pack(&[d], "probe");
+        let text = render_pack(std::slice::from_ref(&d), "probe");
         assert!(text.contains("arg_role_resolver -native probe::arg_role_resolver"));
         assert!(
             text.contains("script_timing_resolver -native probe::script_timing_resolver"),
@@ -3424,12 +3473,54 @@ mod tests {
     fn a_field_the_dsl_cannot_carry_becomes_a_todo_naming_it() {
         let mut d = drafted("probe");
         d.insert(draft::UNRENDERABLE_KEY.into(), json!(["frame_effect"]));
-        let text = render_pack(&[d], "probe");
+        let text = render_pack(std::slice::from_ref(&d), "probe");
         assert!(
             text.contains("TODO(spectcl): `frame_effect`"),
             "the TODO must name the field:\n{text}"
         );
         assert!(text.contains("frame_effect -level-word W -layout L"));
+    }
+
+    #[test]
+    fn resolver_capabilities_render_while_remaining_loader_gaps_stay_explicit() {
+        let mut d = drafted("probe");
+        d.insert("arg_role_resolver_roles".into(), json!(["Body"]));
+        d.insert(draft::UNRENDERABLE_KEY.into(), json!(["arg_role_resolver"]));
+        d.insert("variable_write_min_args".into(), json!(3));
+        d.insert(
+            "body_interpreter".into(),
+            json!({ "kind": "Argument", "index": 1 }),
+        );
+
+        let text = render_pack(std::slice::from_ref(&d), "probe");
+        assert!(
+            text.contains("arg_role_resolver_roles Body"),
+            "the capability set is ordinary loadable data:\n{text}"
+        );
+        for key in ["variable_write_min_args", "body_interpreter"] {
+            assert!(
+                text.contains(&format!("TODO(spectcl): `{key}`")),
+                "the loader gap must remain explicit:\n{text}"
+            );
+        }
+        let (two_zero, losses) = render_pack_reporting_with_version(&[d], "probe", "2.0");
+        assert!(
+            !two_zero.contains("arg_role_resolver_roles Body"),
+            "2.0 must not emit a 2.1 statement:\n{two_zero}"
+        );
+        assert!(
+            two_zero.contains(
+                "TODO(spectcl): `arg_role_resolver_roles` requires SpecTcl 2.1 vocabulary"
+            ),
+            "{two_zero}"
+        );
+        assert!(
+            losses.iter().any(|loss| {
+                loss.key == "arg_role_resolver_roles"
+                    && loss.reason == "requires SpecTcl 2.1 vocabulary"
+            }),
+            "{losses:#?}"
+        );
     }
 
     #[test]

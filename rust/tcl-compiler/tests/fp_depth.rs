@@ -1118,7 +1118,7 @@ mod obj_depth {
         // TP control: a method-local `set cmd nope; $cmd arg` is a literal
         // non-command dispatch — `in_method` is not a blanket suppression, so
         // W307 fires.
-        let src = "oo::class create C {\n    method m {} { set cmd nope; $cmd arg }\n}\n";
+        let src = "oo::class create C {\n    method m {} { ::set cmd nope; $cmd arg }\n}\n";
         assert!(
             fires(src, D, "W307"),
             "a method-local literal non-command dispatch must fire W307; emitted {:?}",

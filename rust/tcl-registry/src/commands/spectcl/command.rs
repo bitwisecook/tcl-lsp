@@ -81,6 +81,7 @@ pub fn spec() -> CommandSpec {
         options: OPTIONS,
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         arg_role_resolver: Some(command_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Name, ArgRole::Body],
         body_kind: BodyKind::Structural,
         definition_body: Some(&crate::definer::SPECTCL_COMMAND_GRAMMAR),
         ..CommandSpec::DEFAULT

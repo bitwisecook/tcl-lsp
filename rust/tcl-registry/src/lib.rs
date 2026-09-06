@@ -128,7 +128,7 @@ pub mod prelude {
     pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
     pub use crate::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
     pub use crate::arity::Arity;
-    pub use crate::body_kind::BodyKind;
+    pub use crate::body_kind::{BodyInterpreter, BodyKind};
     pub use crate::bpf_op::{
         BpfDeclKind, BpfEffects, BpfOpKind, BpfOpSpec, BpfProgTypeSet, BpfScalarWidth,
         BpfVerdictKind,
@@ -141,8 +141,8 @@ pub mod prelude {
         CompletionPayloadObligations, CompletionValueSemantics,
     };
     pub use crate::definer::{
-        DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
-        MemberSpec, MemberVisibility, RetractionWords,
+        DefinerFamily, DefinitionBodyGrammar, MemberCurrentNamespace, MemberKind, MemberRefKind,
+        MemberRetraction, MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
     pub use crate::dispatch_stability::{
@@ -205,9 +205,9 @@ pub mod prelude {
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
-        CommandBindingTransition, InterpreterTransition, NamespaceTransition,
-        NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
-        ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
+        CommandBindingTransition, CommandResolutionImpact, InterpreterTransition,
+        NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer,
+        ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
         StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
         StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
         StateTransitionResolver, StateTransitionWideningRule, StateTransitions, TraceOperation,
@@ -234,7 +234,7 @@ pub mod prelude {
 pub use arg_role::{AppendedArity, AppendedAritySet, ArgRole};
 pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
-pub use body_kind::BodyKind;
+pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
@@ -264,8 +264,8 @@ pub use handle_binding::{
 pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
-    CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
-    InvocationWords,
+    CommandPrefixArguments, InvocationArgument, InvocationArguments, InvocationWord,
+    InvocationWordKind, InvocationWords, VariableWriteProjection,
 };
 pub use literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
@@ -276,7 +276,9 @@ pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;
 pub use registry::{
-    CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
+    CommandRegistry, EffectiveCommandSemantics, EffectiveRegistrySemantics, FormatStringArg,
+    MethodDispatchKind, ResolvedCall, ResolvedTerminator, TryClauseKind, TryCompletionSelector,
+    TryControlClause, TryControlInvocation,
 };
 pub use relation::{
     Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
@@ -306,9 +308,9 @@ pub use special_vars::{
 };
 pub use state_transition::{
     AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
-    CommandBindingDefinitionKind, CommandBindingTransition, InterpreterTransition,
-    NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer,
-    ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
+    CommandBindingDefinitionKind, CommandBindingTransition, CommandResolutionImpact,
+    InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
+    ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
     ResolvedStateTransitions, StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
     StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
     StateTransitionFact, StateTransitionKnowledge, StateTransitionOperandLayout,

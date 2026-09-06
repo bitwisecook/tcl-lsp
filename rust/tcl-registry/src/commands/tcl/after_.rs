@@ -91,6 +91,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // the only one present, abstaining rather than mis-recursing a
         // truncated fragment when several words concatenate together.
         arg_role_resolver: Some(after_idle_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         // The idle script runs later, at global level outside the context
         // of any Tcl procedure (Tcl man page after.n) — confirmed
         // empirically: a local variable set before `after idle {…; set x
@@ -144,6 +145,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         // The default form's deferred script runs later, at global level
         // outside the context of any Tcl procedure (Tcl man page after.n:
         // "The command will be executed at global level (outside the

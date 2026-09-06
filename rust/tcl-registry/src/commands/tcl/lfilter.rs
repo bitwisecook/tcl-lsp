@@ -128,6 +128,7 @@ pub fn spec() -> CommandSpec {
         // missed this odd/even parity.
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(lfilter_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {
             summary: "Select elements from a list based on an expression.",

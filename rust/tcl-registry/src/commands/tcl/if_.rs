@@ -222,6 +222,7 @@ pub fn spec() -> CommandSpec {
         // `elseif`/`else` chain shape a plain range can't express.
         arity: Arity::at_least(2),
         arg_role_resolver: Some(if_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Expr, ArgRole::Body, ArgRole::Keyword],
         clause_shape_check: Some(check_if_shape),
         lowering_hook: Some(crate::hooks::LoweringHookId::If),
         native_lowering: Some(NativeLowering::Structured(crate::hooks::LoweringHookId::If)),

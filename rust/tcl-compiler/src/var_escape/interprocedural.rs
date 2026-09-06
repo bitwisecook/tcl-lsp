@@ -40,56 +40,8 @@ use std::hash::BuildHasher;
 
 use crate::var_escape::types::{EscapeFlags, ProcEscapeSummary};
 
-fn caller_namespace(qname: &str) -> String {
-    if qname.is_empty() || qname == "::" {
-        return "::".to_string();
-    }
-    if !qname.starts_with("::") {
-        return "::".to_string();
-    }
-    let trimmed = &qname[2..];
-    match trimmed.rfind("::") {
-        Some(idx) => format!("::{}", &trimmed[..idx]),
-        None => "::".to_string(),
-    }
-}
-
-/// Return the candidate qualified names *command* might resolve
-/// to in the summary table when called from *`caller_qname`*.
-///
-/// Tcl name lookup for a bare call word searches the caller's
-/// namespace, walks up each enclosing namespace, then the global
-/// namespace, then the raw bare form. An already-qualified call
-/// (starts with `::`) skips the namespace walk.
-fn name_candidates(command: &str, caller_qname: &str) -> Vec<String> {
-    if command.starts_with("::") {
-        return vec![command.to_string()];
-    }
-    let mut candidates: Vec<String> = Vec::new();
-    let mut ns = caller_namespace(caller_qname);
-    loop {
-        let prefix = if ns == "::" { "" } else { ns.as_str() };
-        let candidate = if prefix.is_empty() {
-            format!("::{command}")
-        } else {
-            format!("{prefix}::{command}")
-        };
-        if !candidates.contains(&candidate) {
-            candidates.push(candidate);
-        }
-        if ns == "::" {
-            break;
-        }
-        ns = caller_namespace(&ns);
-    }
-    if !candidates.iter().any(|c| c == command) {
-        candidates.push(command.to_string());
-    }
-    candidates
-}
-
-/// Resolve a call's head word to the qname of a tracked proc, walking
-/// the namespace chain exactly as the interprocedural escape pass does.
+/// Resolve a call's head word to the qname of a tracked proc using the
+/// compiler's shared Tcl command-resolution rule.
 /// Returns `None` for builtins / unknown commands (absent from
 /// `summaries`). Exposed `pub(crate)` so the inliner (`crate::inlining`)
 /// resolves call sites with the same rules.
@@ -98,9 +50,9 @@ pub(crate) fn resolve_callee<S: BuildHasher>(
     caller_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary, S>,
 ) -> Option<String> {
-    name_candidates(command, caller_qname)
-        .into_iter()
-        .find(|c| summaries.contains_key(c))
+    crate::interprocedural::resolve_internal_call_with(command, caller_qname, |qname| {
+        summaries.contains_key(qname)
+    })
 }
 
 /// Return a new map of summaries with callee-induced escapes
@@ -280,31 +232,6 @@ mod tests {
             upvar_source_names: upvar_sources.iter().map(|s| (*s).to_string()).collect(),
             ..Default::default()
         }
-    }
-
-    #[test]
-    fn caller_namespace_handles_global() {
-        assert_eq!(caller_namespace("::"), "::");
-        assert_eq!(caller_namespace("::foo"), "::");
-        assert_eq!(caller_namespace("::ns::foo"), "::ns");
-        assert_eq!(caller_namespace("::a::b::c"), "::a::b");
-        assert_eq!(caller_namespace("bare"), "::");
-    }
-
-    #[test]
-    fn name_candidates_qualified_call_returns_self() {
-        let cands = name_candidates("::ns::leaf", "::caller");
-        assert_eq!(cands, vec!["::ns::leaf"]);
-    }
-
-    #[test]
-    fn name_candidates_walks_namespaces_for_bare_call() {
-        let cands = name_candidates("leaf", "::a::b::caller");
-        // First the immediate ns, then walk up, then global, then bare.
-        assert!(cands.contains(&"::a::b::leaf".to_string()));
-        assert!(cands.contains(&"::a::leaf".to_string()));
-        assert!(cands.contains(&"::leaf".to_string()));
-        assert!(cands.contains(&"leaf".to_string()));
     }
 
     #[test]

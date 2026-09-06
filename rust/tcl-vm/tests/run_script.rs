@@ -25,32 +25,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, Commands, CompileError, CompileService, Traces, Value, Vm};
-
-/// A `tcl-compiler`-backed compile service so the VM can resolve runtime
-/// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself
-/// never depends on the compiler).
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        // Mirror the real VM compile services (`tcl-vm-cli`, `run_test`): a
-        // hard parse error becomes a catchable runtime error with the exact
-        // C Tcl message.
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::{Code, Commands, CompileService, Traces, Value, Vm};
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -75,9 +53,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -103,9 +79,7 @@ fn commands_dispatch_runs_proc() {
     };
 
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // Running the module registers `add`.
     assert!(vm.run_module(&asm).code.is_ok());
 
@@ -127,9 +101,7 @@ fn commands_dispatch_runs_proc() {
 #[test]
 fn traces_fire_ok_error_and_unset() {
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // `;#` comments out the appended `name elem op` trace words.
     for add in [
         "trace add variable x read {list ok;#}",
@@ -359,9 +331,7 @@ fn loop_body_redefining_continue_is_honoured() {
 fn autoloader_installs_unknown_and_reports_miss() {
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.init_auto_load();
     // Decouple from any on-disk library so the test is environment-independent.
     let _ = vm.eval_source("set ::auto_path {}");
@@ -1239,12 +1209,19 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         body_base_line: 0,
         proc_body_src: None,
         error_regions: Vec::new(),
+        plain_command_dispatch: false,
+        command_bindings: Vec::new(),
+        procedure_bindings: Vec::new(),
     };
     let module = ModuleAsm {
         profile: tcl_dialect::DialectProfile::plain_tcl(),
+        source: String::new(),
+        source_namespace: String::new(),
+        plain_command_dispatch: false,
         top_level: top,
         top_level_body: FunctionAsm::default(),
         procedures: std::collections::HashMap::new(),
+        procedure_provenance: std::collections::HashMap::new(),
     };
     let mut vm = Vm::new();
     vm.run_module(&module).result.to_str().to_string()
@@ -1764,15 +1741,101 @@ fn inline_cmd_subst_review_fixes() {
         run("set x [set y 1; concat a {*}{b c}]; puts $x").2,
         "a b c\n"
     );
+    // A registry-foldable command on either side of a separator remains two
+    // commands. The substitution result is the final command's result.
+    assert_eq!(run("set x [string cat a; string cat b]; puts $x").2, "b\n");
+    // The expr fusion path uses the same single-command owner. `expr` has no
+    // argument here and errors before the following command can run.
+    assert_eq!(
+        run("set code [catch {set x [expr; {1+2}]} msg]; puts $code").2,
+        "1\n"
+    );
+    // A folded command's result is a finished Tcl value. Argument and
+    // assignment paths must not run a second round of command/variable
+    // substitution or strip braces from that result.
+    assert_eq!(
+        run("puts [string cat {[missing]}]; puts [string cat {{x}}]; set existing WRONG; puts [string cat {${existing}}]").2,
+        "[missing]\n{x}\n${existing}\n"
+    );
+    assert_eq!(
+        run("set x [string cat {[missing]}]; puts $x; set y [string cat {{x}}]; puts $y").2,
+        "[missing]\n{x}\n"
+    );
 }
 
 // -- the pre-compiled proc-body cache -------------------------------------
 
+/// Compiler wrapper that replaces one exact compiler-authored procedure body
+/// while preserving the compiler's profile, namespace, source provenance, and
+/// dispatch-mode metadata. This keeps the test artifact on the same admission
+/// path as production bytecode instead of presenting it as a foreign module.
+struct CachedBodyCompileService {
+    inner: BytecodeCompileService,
+    qname: String,
+    body_src: String,
+    body: tcl_bytecode::FunctionAsm,
+}
+
+impl CachedBodyCompileService {
+    fn inject(&self, mut module: tcl_bytecode::ModuleAsm) -> tcl_bytecode::ModuleAsm {
+        let matches = module
+            .procedure_provenance
+            .get(&self.qname)
+            .is_some_and(|provenance| {
+                provenance.name == self.qname && provenance.body == self.body_src
+            });
+        if matches && let Some(original) = module.procedures.get(&self.qname) {
+            let mut body = self.body.clone();
+            body.plain_command_dispatch = original.plain_command_dispatch;
+            module.procedures.insert(self.qname.clone(), body);
+        }
+        module
+    }
+}
+
+impl CompileService for CachedBodyCompileService {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner.compile(src).map(|module| self.inject(module))
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_for_profile(src, profile)
+            .map(|module| self.inject(module))
+    }
+
+    fn compile_script_for_profile(
+        &self,
+        target: tcl_vm::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_script_for_profile(target, profile)
+            .map(|module| self.inject(module))
+    }
+
+    fn compile_procedure_for_profile(
+        &self,
+        target: tcl_vm::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_vm::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_procedure_for_profile(target, profile, dispatch)
+    }
+}
+
 /// Build a VM whose pre-compiled body cache holds one entry: a hand-built
-/// assembly returning `marker`, filed under `qname` — the compiler's **rooted**
-/// spelling — and claiming `body_src` as the body word it was compiled from.
+/// assembly returning `marker`, filed under the compiler's rooted `qname` and
+/// admitted only alongside the exact compiler-authored `body_src` provenance.
 fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
-    use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, ModuleAsm, Op};
+    use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op};
 
     let mut literals = LiteralTable::new();
     literals.intern(marker);
@@ -1789,34 +1852,25 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
         body_base_line: 0,
         proc_body_src: Some(body_src.to_owned()),
         error_regions: Vec::new(),
-    };
-
-    let mut procedures = std::collections::HashMap::new();
-    procedures.insert(qname.to_owned(), cached);
-    let module = ModuleAsm {
-        profile: tcl_dialect::DialectProfile::plain_tcl(),
-        top_level: FunctionAsm::default(),
-        top_level_body: FunctionAsm::default(),
-        procedures,
+        ..FunctionAsm::default()
     };
 
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
+    vm.set_compiler(Box::new(CachedBodyCompileService {
+        inner: BytecodeCompileService::default(),
+        qname: qname.to_owned(),
+        body_src: body_src.to_owned(),
+        body: cached,
     }));
-    assert!(vm.run_module(&module).code.is_ok(), "seeding failed");
     vm
 }
 
 /// `proc` runs the body the compiler already emitted for it.
 ///
-/// `ModuleAsm::procedures` is keyed by the compiler's **rooted** qname (`::p`),
-/// while the VM's own command tables use the unrooted key `qualify_name`
-/// answers (`p`); the lookup roots itself to bridge the two. When it did not,
-/// every proc missed its pre-compiled entry and silently recompiled its body as
-/// a *top-level script*, so no proc body anywhere ran with the `is_proc`
-/// specialisation — an invisible failure, since a script-shaped body still
-/// computes the right answer.
+/// `ModuleAsm::procedures` and its exact source provenance are keyed by the
+/// compiler's **rooted** qname (`::p`), while the VM command table uses the
+/// unrooted constructed key (`p`). Admission removes that root exactly once and
+/// matches the raw parameters and body before using the emitted procedure unit.
 ///
 /// The qualified case takes the same route: the runtime key is `a::p`, the
 /// compiler's `::a::p`.

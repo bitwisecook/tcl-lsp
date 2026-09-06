@@ -32,53 +32,8 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_dialect::DialectProfile;
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-/// A `tcl-compiler`-backed compile service so the VM can resolve runtime
-/// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself never
-/// depends on the compiler).
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            config,
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_vm::{CompileService, Vm};
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -98,9 +53,7 @@ impl Write for Capture {
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    };
+    let service = BytecodeCompileService::for_profile(profile);
     let asm = service
         .compile_for_profile(src, profile)
         .expect("test script compiles for its selected profile");

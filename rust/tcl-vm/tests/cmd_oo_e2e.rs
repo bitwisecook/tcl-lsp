@@ -29,26 +29,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::{CompileService, Vm};
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -72,9 +56,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -82,6 +64,21 @@ fn run(src: &str) -> (bool, String, String) {
         completion.code.is_ok(),
         completion.result.to_str().to_string(),
         out,
+    )
+}
+
+/// Compile a self-contained module, then run it in a VM with no runtime
+/// `CompileService`. Used to prove bodyless OO forwards do not compile a fake
+/// procedure body during definition or invocation.
+fn run_without_compiler(src: &str) -> (bool, String) {
+    let module = BytecodeCompileService::default()
+        .compile(src)
+        .expect("self-contained module compiles");
+    let mut vm = Vm::new();
+    let completion = vm.run_module(&module);
+    (
+        completion.code.is_ok(),
+        completion.result.to_str().to_string(),
     )
 }
 
@@ -102,6 +99,30 @@ fn basic_class_and_method() {
             "oo::class create Animal { method speak {} { return generic } }; [Animal new] speak"
         ),
         "generic"
+    );
+}
+
+#[test]
+fn class_method_bodies_compile_per_object_private_namespace() {
+    // Tcl 9.0.4 resolves unqualified method commands in each object's private
+    // namespace. One class body therefore needs distinct admitted bytecode for
+    // objects whose local command tables differ; nested procs inherit the same
+    // exact namespace.
+    assert_eq!(
+        result(
+            "oo::class create C {\
+                 method mutate {value} {append value X};\
+                 method maker {} {proc nested {} {namespace current}; nested}\
+             };\
+             set a [C new]; set b [C new];\
+             set ans [info object namespace $a];\
+             set bns [info object namespace $b];\
+             namespace eval $ans {proc append args {return LOCAL}};\
+             list [$a mutate A] [$b mutate A] \
+                  [expr {[$a maker] eq $ans}] [expr {[$b maker] eq $bns}] \
+                  [expr {$ans ne $bns}]"
+        ),
+        "LOCAL AX 1 1 1"
     );
 }
 
@@ -924,6 +945,25 @@ fn forward_delegates_to_prefix() {
     assert_eq!(
         result("oo::class create C { forward len string length }; [C new] len hello"),
         "5"
+    );
+}
+
+#[test]
+fn bodyless_forward_needs_no_runtime_procedure_compiler() {
+    let (ok, value) = run_without_compiler(
+        "oo::class create C; oo::define C forward len string length; C create o; o len hello",
+    );
+    assert!(ok, "forward failed without compiler: {value}");
+    assert_eq!(value, "5");
+}
+
+#[test]
+fn forward_requires_a_target_command() {
+    let (ok, value, _) = run("oo::class create C {forward missing}");
+    assert!(!ok);
+    assert_eq!(
+        value,
+        "wrong # args: should be \"forward name cmdName ?arg ...?\""
     );
 }
 
