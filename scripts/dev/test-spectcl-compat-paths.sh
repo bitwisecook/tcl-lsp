@@ -75,11 +75,13 @@ esac
 
 echo "SpecTcl compatibility target contract tests passed"
 
-# The repository's existing required check is `pr-gate`, so the separate
-# compatibility job must feed a real failure into that check. A plain `needs`
+# The repository's existing required check is `pr-gate`, so a job that is not
+# itself required must feed a real failure into that check. A plain `needs`
 # edge is insufficient: Actions skips dependent jobs after a failed need.
-# Keep this small textual contract beside the classifier contract so changing
-# either half of the merge-blocking lane is caught by `make rust-check`.
+# Two jobs ride this lane — `spectcl-compat` and `web-frontends` — and both
+# are only merge-blocking for as long as the wiring below survives. Keep this
+# small textual contract beside the classifier contract so changing any part
+# of the merge-blocking lane is caught by `make rust-check`.
 pr_gate_block=$(awk '
     /^  pr-gate:/ { in_pr_gate = 1 }
     in_pr_gate && /^  [A-Za-z0-9_-]+:/ && $1 != "pr-gate:" { exit }
@@ -94,18 +96,32 @@ case "$pr_gate_block" in
         ;;
 esac
 case "$pr_gate_block" in
-    *'needs: [channel, spectcl-compat]'*) ;;
+    *'needs: [channel, spectcl-compat, web-frontends]'*) ;;
     *)
-        echo "pr-gate must depend on channel and spectcl-compat" >&2
-        exit 1
-        ;;
-esac
-case "$pr_gate_block" in
-    *'CHANNEL_RESULT: ${{ needs.channel.result }}'*'SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}'*'if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ]; then'*'exit 1'*) ;;
-    *)
-        echo "pr-gate must explicitly fail when a prerequisite gate fails" >&2
+        echo "pr-gate must depend on channel, spectcl-compat and web-frontends" >&2
         exit 1
         ;;
 esac
 
-echo "SpecTcl merge-blocking gate contract tests passed"
+# Checked piecewise rather than as one contiguous string: the condition spans
+# a line continuation, and pinning the exact joining would break on a purely
+# cosmetic rewrap while saying nothing about whether the gate still fails.
+for required in \
+    'CHANNEL_RESULT: ${{ needs.channel.result }}' \
+    'SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}' \
+    'WEB_FRONTENDS_RESULT: ${{ needs.web-frontends.result }}' \
+    '[ "$CHANNEL_RESULT" != success ]' \
+    '[ "$SPECTCL_COMPAT_RESULT" != success ]' \
+    '[ "$WEB_FRONTENDS_RESULT" != success ]' \
+    'exit 1'
+do
+    case "$pr_gate_block" in
+        *"$required"*) ;;
+        *)
+            echo "pr-gate must explicitly fail when a prerequisite gate fails (missing: $required)" >&2
+            exit 1
+            ;;
+    esac
+done
+
+echo "Merge-blocking gate contract tests passed"
