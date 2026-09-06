@@ -905,6 +905,62 @@ fn is_builtin_include_macro(path: &syn::Path) -> bool {
     segments.next().is_none() && first.ident.unraw() == "std" && second.ident.unraw() == "include"
 }
 
+fn lexed_ident_is(token: LexedToken, text: &str, expected: &str) -> bool {
+    matches!(token.kind, TokenKind::Ident | TokenKind::RawIdent)
+        && text[token.start..token.end]
+            .strip_prefix("r#")
+            .unwrap_or(&text[token.start..token.end])
+            == expected
+}
+
+fn is_builtin_include_invocation(tokens: &[LexedToken], text: &str, index: usize) -> bool {
+    let Some(token) = tokens.get(index) else {
+        return false;
+    };
+    if !lexed_ident_is(*token, text, "include")
+        || tokens
+            .get(index + 1)
+            .is_none_or(|next| next.kind != TokenKind::Not)
+    {
+        return false;
+    }
+    if index >= 2
+        && tokens[index - 1].kind == TokenKind::Colon
+        && tokens[index - 2].kind == TokenKind::Colon
+    {
+        let namespace = index - 3;
+        return tokens.get(namespace).is_some_and(|token| {
+            lexed_ident_is(*token, text, "std")
+                && (namespace == 0
+                    || (namespace >= 2
+                        && tokens[namespace - 1].kind == TokenKind::Colon
+                        && tokens[namespace - 2].kind == TokenKind::Colon
+                        && namespace.checked_sub(3).is_none_or(|prefix| {
+                            !matches!(
+                                tokens[prefix].kind,
+                                TokenKind::Ident | TokenKind::RawIdent | TokenKind::Dollar
+                            )
+                        })))
+        });
+    }
+    index
+        .checked_sub(1)
+        .is_none_or(|previous| tokens[previous].kind != TokenKind::Colon)
+}
+
+fn collect_literal_includes(
+    source: &Path,
+    text: &str,
+    inside_smoke_module: bool,
+    visited: &mut HashSet<(PathBuf, PathBuf, bool)>,
+    found: &mut BTreeSet<PathBuf>,
+) -> Result<()> {
+    for path in source_include_macros(text)?.literal_paths {
+        collect_literal_include(source, &path, inside_smoke_module, visited, found)?;
+    }
+    Ok(())
+}
+
 fn collect_smoke_test_sources(
     source: &Path,
     directory: &Path,
@@ -959,6 +1015,15 @@ fn collect_smoke_test_sources(
                         found,
                     )?;
                 }
+            }
+            syn::Item::Macro(item_macro) if item_macro.mac.path.is_ident("macro_rules") => {
+                collect_literal_includes(
+                    source,
+                    &item_macro.mac.tokens.to_string(),
+                    inside_smoke_module,
+                    visited,
+                    found,
+                )?;
             }
             _ => {}
         }
@@ -1120,16 +1185,11 @@ fn source_include_macros(text: &str) -> Result<SourceIncludes> {
     }
 
     let mut includes = SourceIncludes::default();
-    for (index, token) in tokens.iter().enumerate() {
-        let name = &text[token.start..token.end];
-        if !matches!(token.kind, TokenKind::Ident | TokenKind::RawIdent)
-            || !matches!(name, "include" | "r#include")
+    for (index, _token) in tokens.iter().enumerate() {
+        if !is_builtin_include_invocation(&tokens, text, index)
             || index
                 .checked_sub(1)
                 .is_some_and(|previous| matches!(tokens[previous].kind, TokenKind::Dollar))
-            || tokens
-                .get(index + 1)
-                .is_none_or(|next| next.kind != TokenKind::Not)
         {
             continue;
         }
@@ -3315,6 +3375,7 @@ fn smoke_module_scanner_self_test() -> Result<()> {
     nested_path_module_scanner_self_test()?;
     literal_include_scanner_self_test()?;
     inline_smoke_module_include_self_test()?;
+    macro_rules_smoke_module_include_self_test()?;
     Ok(())
 }
 
@@ -3336,6 +3397,28 @@ fn inline_smoke_module_include_self_test() -> Result<()> {
     )?;
     if found != BTreeSet::from([fixture.root.join("src/inside.rs")]) {
         bail!("inline smoke-module include context self-test failed: {found:?}");
+    }
+    Ok(())
+}
+
+fn macro_rules_smoke_module_include_self_test() -> Result<()> {
+    let fixture = Fixture::new()?;
+    fixture.write(
+        "src/lib.rs",
+        "macro_rules! top_level { () => { include!(\"top.rs\"); }; } top_level!(); mod smoke { macro_rules! generated { () => { include!(\"inside.rs\"); helper::include!(\"helper.rs\"); }; } generated!(); }\n",
+    )?;
+    fixture.write("src/top.rs", "#[test]\nfn ordinary() {}\n")?;
+    fixture.write("src/inside.rs", "#[test]\nfn ordinary() {}\n")?;
+    fixture.write("src/helper.rs", "#[test]\nfn ordinary() {}\n")?;
+    let mut found = BTreeSet::new();
+    collect_source_smoke_tests(
+        &fixture.root.join("src/lib.rs"),
+        false,
+        &mut HashSet::new(),
+        &mut found,
+    )?;
+    if found != BTreeSet::from([fixture.root.join("src/inside.rs")]) {
+        bail!("macro_rules smoke-module include context self-test failed: {found:?}");
     }
     Ok(())
 }
@@ -3560,6 +3643,7 @@ fn smoke_scanner_self_test() -> Result<()> {
         }
     }
     smoke_module_scanner_self_test()?;
+    namespaced_include_scanner_self_test()?;
     if !source_smoke_markers("// tcl-lsp-smoke-target")?.target
         || source_smoke_markers("fn tcl_lsp_smoke() {}")?.target
         || source_smoke_markers("const TEXT: &str = r#\"\n// tcl-lsp-smoke-target\n\"#;\n")?.target
@@ -3667,6 +3751,19 @@ fn include_macro_scanner_self_test() -> Result<()> {
     if collect_source_smoke_tests(&source, false, &mut HashSet::new(), &mut BTreeSet::new()).is_ok()
     {
         bail!("one no-smoke marker classified multiple missing literal includes");
+    }
+    Ok(())
+}
+
+fn namespaced_include_scanner_self_test() -> Result<()> {
+    let namespaced = source_include_macros(
+        "std::include!(\"std.rs\"); ::std::include!(\"absolute.rs\"); helper::include!(\"helper.rs\"); $crate::include!(\"crate.rs\"); helper::std::include!(\"nested.rs\");",
+    )?;
+    if namespaced.literal_paths != ["std.rs", "absolute.rs"] {
+        bail!(
+            "include scanner accepted the wrong namespace: {:?}",
+            namespaced.literal_paths
+        );
     }
     Ok(())
 }
@@ -3952,5 +4049,11 @@ mod tests {
     fn namespaced_include_preserves_smoke_module_context() {
         inline_smoke_module_include_self_test()
             .expect("namespaced include smoke-module context self-test");
+    }
+
+    #[test]
+    fn macro_rules_include_preserves_smoke_module_context() {
+        macro_rules_smoke_module_include_self_test()
+            .expect("macro_rules include smoke-module context self-test");
     }
 }
