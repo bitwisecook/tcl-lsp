@@ -836,3 +836,481 @@ fn a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return() {
         assert_eq!(got, "mangled\n|\nmangled\n|", "{version:?}");
     }
 }
+
+// -- The `rename` trace window: one command under two names ------------------
+//
+// C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
+// entry, fires the `rename` traces, and only *then* deletes the source one —
+// and the traces hang off the shared `Command` rather than off either entry.
+// So for the callbacks' duration the vacating name **is** the destination
+// command. The runtime used to fire before touching the table, so a callback
+// saw the old name but not yet the new one. Every sheet below is identical on
+// tclsh 8.6.16 and 9.0.4.
+
+/// Both names resolve, both are callable, and `trace info command` /
+/// `trace info execution` answer the same list through either of them.
+#[test]
+fn a_rename_callback_sees_the_command_under_both_names() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc E args {}\n\
+         proc R {old new op} {\n\
+         \x20   lappend ::log [list R $old $new $op]\n\
+         \x20   lappend ::log \"live: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]]\"\n\
+         \x20   lappend ::log \"call: [victim] [victim2]\"\n\
+         \x20   lappend ::log \"cmd: [trace info command victim] | \
+         [trace info command victim2]\"\n\
+         \x20   lappend ::log \"exec: [trace info execution victim] | \
+         [trace info execution victim2]\"\n\
+         }\n\
+         trace add command victim rename R\n\
+         trace add execution victim enter E\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R ::victim ::victim2 rename\n\
+         live: 1 1\n\
+         call: V V\n\
+         cmd: {rename R} | {rename R}\n\
+         exec: {enter E} | {enter E}\n\
+         after: 0 1"
+    );
+}
+
+/// There is one trace list, so a callback's `trace remove` through the
+/// vacating name edits the list the rest of the pass — and the surviving
+/// command — is reading.
+#[test]
+fn a_rename_callback_edits_one_trace_list_through_either_name() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc C1 {old new op} {\n\
+         \x20   trace remove command victim rename C1\n\
+         \x20   lappend ::log \"C1: [trace info command victim]\"\n\
+         }\n\
+         proc C2 {old new op} { lappend ::log \"C2: [trace info command victim2]\" }\n\
+         trace add command victim rename C2\n\
+         trace add command victim rename C1\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [trace info command victim2]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "C1: {rename C2}\nC2: {rename C2}\nafter: {rename C2}");
+}
+
+/// The other direction: a `trace add` through the vacating name lands on the
+/// one command, so it is still there under the new name afterwards.
+#[test]
+fn a_trace_added_through_the_vacating_name_follows_the_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc D {old new op} { lappend ::log [list D $old $new $op] }\n\
+         proc R {old new op} { trace add command victim delete D }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"info: [trace info command victim2]\"\n\
+         rename victim2 {}\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "info: {delete D} {rename R}\nD ::victim2 {} delete");
+}
+
+/// A callback that renames *through* the vacating name moves that one command
+/// on again — it does not leave a second copy behind — and C's
+/// `CMD_TRACE_ACTIVE` keeps the pass's remaining callbacks from re-firing when
+/// it does (`C2` runs once, with no nested `C1`/`C2` pass).
+#[test]
+fn a_rename_callback_renaming_the_vacating_name_moves_the_one_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc C1 {old new op} { lappend ::log C1; rename victim victim3 }\n\
+         proc C2 {old new op} { lappend ::log C2 }\n\
+         trace add command victim rename C2\n\
+         trace add command victim rename C1\n\
+         rename victim victim2\n\
+         lappend ::log \"live: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]] [llength [info commands ::victim3]]\"\n\
+         lappend ::log \"info: [trace info command victim3] | [victim3]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "C1\nC2\nlive: 0 0 1\ninfo: {rename C1} {rename C2} | V"
+    );
+}
+
+/// And a callback that *deletes* through the vacating name destroys the one
+/// command: neither name is left standing.
+#[test]
+fn a_rename_callback_deleting_the_vacating_name_destroys_the_one_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc R {old new op} { rename victim {} }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"live: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "live: 0 0");
+}
+
+/// A nested rename must retarget the enclosing window: after the callback
+/// moves the command to a third name, the outermost vacating name still
+/// reaches it, and a `trace add` through that name lands on the survivor.
+#[test]
+fn a_nested_rename_keeps_the_vacating_name_on_the_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} {}\n\
+         proc D {old new op} { lappend ::log [list D $old $new $op] }\n\
+         proc R {old new op} {\n\
+         \x20   rename victim2 victim3\n\
+         \x20   lappend ::log \"in: [trace info command victim] | \
+         [trace info command victim3]\"\n\
+         \x20   trace add command victim delete D\n\
+         }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [trace info command victim3]\"\n\
+         rename victim3 {}\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "in: {rename R} | {rename R}\n\
+         after: {delete D} {rename R}\n\
+         D ::victim3 {} delete"
+    );
+}
+
+/// C re-homes the one `Command` (`cmdPtr->nsPtr = newNsPtr`) before it fires,
+/// so a body invoked through the vacating name already reports the
+/// *destination's* namespace.
+#[test]
+fn the_vacating_name_reports_the_destinations_namespace() {
+    let got = transcript(
+        "set ::log {}\n\
+         namespace eval a { proc p {} { return [namespace current] } }\n\
+         namespace eval b {}\n\
+         proc R {old new op} {\n\
+         \x20   lappend ::log [list R $old $new $op]\n\
+         \x20   lappend ::log \"old: [a::p]\"\n\
+         \x20   lappend ::log \"new: [b::q]\"\n\
+         }\n\
+         trace add command a::p rename R\n\
+         rename a::p ::b::q\n\
+         lappend ::log \"after: [b::q]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R ::a::p ::b::q rename\nold: ::b\nnew: ::b\nafter: ::b"
+    );
+}
+
+/// Dispatching through the vacating name reaches the one command's execution
+/// traces too. They have already moved to the destination key by the time the
+/// callbacks run, so the lookup has to follow the window — C reads the one
+/// list off the shared `Command` from either hash entry. The callback's own
+/// words stay the spelling the caller invoked, which is why the first line
+/// says `victim` and the later ones `victim2`.
+#[test]
+fn the_vacating_name_still_fires_the_commands_execution_traces() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc E args { lappend ::log \"E:[join $args |]\" }\n\
+         proc L args { lappend ::log \"L:[lindex $args 0]\" }\n\
+         trace add execution victim enter E\n\
+         trace add execution victim leave L\n\
+         proc R args {\n\
+         \x20   lappend ::log \"old:[victim]\"\n\
+         \x20   lappend ::log \"new:[victim2]\"\n\
+         }\n\
+         trace add command victim rename R\n\
+         rename victim victim2\n\
+         lappend ::log \"out:[victim2]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "E:victim|enter\n\
+         L:victim\n\
+         old:V\n\
+         E:victim2|enter\n\
+         L:victim2\n\
+         new:V\n\
+         E:victim2|enter\n\
+         L:victim2\n\
+         out:V"
+    );
+}
+
+/// The window covers the redirect kinds that carry their own binding identity
+/// too: a TclOO object embeds the FQN its registry entry lives under, an
+/// ensemble token its name, and an import its source. C re-homes the one
+/// `Command` and lets both hash entries reach it, so each is callable under
+/// the vacating name *and* the destination for the callbacks' duration.
+#[test]
+fn the_rename_window_covers_objects_ensembles_and_imports() {
+    let got = transcript(
+        "set ::log {}\n\
+         oo::class create C { method m {} { return M } }\n\
+         C create obj\n\
+         namespace eval e { proc sub {} { return S }; namespace export sub; \
+         namespace ensemble create }\n\
+         namespace eval src { proc f {} { return F }; namespace export f }\n\
+         namespace eval dst { namespace import ::src::f }\n\
+         proc R {old new op} {\n\
+         \x20   lappend ::log [list R $old $new $op]\n\
+         \x20   lappend ::log \"oo: [obj m] [obj2 m]\"\n\
+         }\n\
+         proc RE {old new op} { lappend ::log \"ens: [e sub] [e2 sub]\" }\n\
+         proc RI {old new op} { lappend ::log \"imp: [dst::f] [src::f] [src::g]\" }\n\
+         trace add command obj rename R\n\
+         trace add command e rename RE\n\
+         trace add command src::f rename RI\n\
+         rename obj obj2\n\
+         rename e e2\n\
+         rename ::src::f ::src::g\n\
+         lappend ::log \"after: [obj2 m] [e2 sub] [dst::f]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R ::obj ::obj2 rename\n\
+         oo: M M\n\
+         ens: S S\n\
+         imp: F F F\n\
+         after: M S F"
+    );
+}
+
+/// Two nested renames inside one pass: the enclosing window and the
+/// `CMD_TRACE_ACTIVE` stand-in must both be retargeted each time, so the
+/// outermost vacating name keeps reaching the command wherever it has got to,
+/// and the pass's later callbacks neither re-fire nor lose it.
+#[test]
+fn a_twice_nested_rename_keeps_retargeting_the_enclosing_window() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc victim {} { return V }\n\
+         proc R1 {old new op} { lappend ::log R1; rename victim v3 }\n\
+         proc R2 {old new op} { lappend ::log \"R2: [trace info command victim] | \
+         [trace info command v3]\" }\n\
+         proc R3 {old new op} { lappend ::log \"R3: [catch {rename victim v4}] \
+         [llength [info commands ::v4]]\" }\n\
+         trace add command victim rename R3\n\
+         trace add command victim rename R2\n\
+         trace add command victim rename R1\n\
+         rename victim victim2\n\
+         lappend ::log \"after: [llength [info commands ::victim]] \
+         [llength [info commands ::victim2]] [llength [info commands ::v3]] \
+         [llength [info commands ::v4]] [v4]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R1\n\
+         R2: {rename R1} {rename R2} {rename R3} | {rename R1} {rename R2} {rename R3}\n\
+         R3: 0 1\n\
+         after: 0 0 0 1 V"
+    );
+}
+
+// -- `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone -----------
+//
+// C sets that flag in exactly one place — `TraceExecutionProc` (tclTrace.c
+// 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep` callback —
+// and reads it in exactly one place, `TclCheckInterpTraces` (:1426), the step
+// machinery. `CallCommandTraces` sets nothing. The runtime used to raise its
+// `exec_firing` stand-in for `rename`/`delete` callbacks too, which silently
+// untraced everything they dispatched.
+
+/// A command invoked from a `rename` or `delete` callback is traced like any
+/// other: its `enter` traces fire, exactly as they do outside one.
+#[test]
+fn a_command_trace_callback_does_not_untrace_what_it_dispatches() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc E args { lappend ::log \"E:[join $args |]\" }\n\
+         trace add execution a enter E\n\
+         proc victim {} {}\n\
+         proc D args { lappend ::log \"D:[a]\" }\n\
+         trace add command victim delete D\n\
+         rename victim {}\n\
+         proc victim2 {} {}\n\
+         proc R args { lappend ::log \"R:[a]\" }\n\
+         trace add command victim2 rename R\n\
+         rename victim2 victim3\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "E:a|enter\nD:A\nE:a|enter\nR:A\nE:a|enter\nout:A");
+}
+
+/// The step half of the same rule: an enclosing `enterstep` scope observes the
+/// callback's own invocation *and* the commands its body runs, because a
+/// command trace never raises the interp-wide gate.
+#[test]
+fn a_step_scope_steps_a_delete_callbacks_own_commands() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc st args { lappend ::log \"S:[lindex $args 0]\" }\n\
+         proc victim {} {}\n\
+         proc cb args { set q 1 }\n\
+         trace add command victim delete cb\n\
+         proc driver {} { rename victim {} }\n\
+         trace add execution driver enterstep st\n\
+         driver\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "S:rename victim {}\nS:cb ::victim {} delete\nS:set q 1"
+    );
+}
+
+/// The other side of the gate, which must keep holding: an *execution*
+/// callback does raise it, so the callback's own commands are never
+/// step-observed — while the traced command's body still is.
+#[test]
+fn an_execution_callbacks_own_commands_are_not_step_observed() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc st args { lappend ::log \"S:[lindex $args 0]\" }\n\
+         proc b {} { return B }\n\
+         proc eb args { set z 9; lappend ::log eb }\n\
+         trace add execution b enter eb\n\
+         proc driver {} { b }\n\
+         trace add execution driver enterstep st\n\
+         driver\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "S:b\neb\nS:return B");
+}
+
+/// The gate is read only by the step machinery. A command dispatched from
+/// inside an execution callback still fires its **own** `enter` and `leave`
+/// traces, because C's `TclCheckExecutionTraces` (tclTrace.c 9.0.4:1301) never
+/// consults `INTERP_TRACE_IN_PROGRESS` — only `TclCheckInterpTraces` (:1426)
+/// does. Both engines used to read their stand-in at the whole traced-dispatch
+/// fast path and so fired neither.
+#[test]
+fn an_execution_callback_does_not_untrace_what_it_dispatches() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc b {} { return B }\n\
+         proc EB args { lappend ::log EB }\n\
+         proc LB args { lappend ::log \"LB:[lindex $args 1]\" }\n\
+         trace add execution b enter EB\n\
+         trace add execution b leave LB\n\
+         proc a {} { return A }\n\
+         proc ea args { lappend ::log \"in:[b]\" }\n\
+         trace add execution a enter ea\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "EB\nLB:0\nin:B\nout:A");
+}
+
+/// What bounds that instead is C's **per-trace** flag, not a per-command one:
+/// a *second* `enter` trace on the same command does fire for the inner call
+/// its sibling's callback makes. `E1` (newest, so first) calls `a`; the inner
+/// pass skips `E1` and runs `E2`, and the outer pass then continues to `E2`.
+// The sheet guards the inner call with `if`, which only the tower build
+// registers.
+#[cfg(have_tommath)]
+#[test]
+fn suppression_during_a_callback_is_per_trace_not_per_command() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc E1 args {\n\
+         \x20   lappend ::log E1\n\
+         \x20   if {![info exists ::d]} { set ::d 1; lappend ::log \"in:[a]\" }\n\
+         }\n\
+         proc E2 args { lappend ::log E2 }\n\
+         trace add execution a enter E2\n\
+         trace add execution a enter E1\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "E1\nE2\nin:A\nE2\nout:A");
+}
+
+/// The same rule across ops: a `leave` trace on the command whose `enter`
+/// callback is running is a different registration, so it fires — once for the
+/// callback's inner call, then again for the outer one.
+// `if` again; tower build only.
+#[cfg(have_tommath)]
+#[test]
+fn a_leave_trace_fires_while_its_commands_enter_callback_runs() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc LA args { lappend ::log LA }\n\
+         trace add execution a leave LA\n\
+         proc EA args {\n\
+         \x20   lappend ::log EA\n\
+         \x20   if {![info exists ::d]} { set ::d 1; lappend ::log \"in:[a]\" }\n\
+         }\n\
+         trace add execution a enter EA\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "EA\nLA\nin:A\nLA\nout:A");
+}
+
+/// And the step half stays gated: a *step-traced* command invoked from inside
+/// an execution callback runs unstepped, because the flag is still set for the
+/// whole callback evaluation.
+#[test]
+fn a_step_traced_command_called_from_a_callback_is_not_stepped() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc st args { lappend ::log \"S:[lindex $args 0]\" }\n\
+         proc s {} { set q 1; return S }\n\
+         trace add execution s enterstep st\n\
+         proc a {} { return A }\n\
+         proc ea args { lappend ::log \"in:[s]\" }\n\
+         trace add execution a enter ea\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "in:S\nout:A");
+}
+
+/// And the re-entrancy rule the gate also has to keep: a trace whose callback
+/// invokes the traced command does not fire again for that inner call (C's
+/// per-trace `TCL_TRACE_EXEC_IN_PROGRESS`, tclTrace.c 9.0.4:1655).
+// The sheet guards the inner call with `if`, which only the tower build
+// registers.
+#[cfg(have_tommath)]
+#[test]
+fn an_execution_trace_does_not_re_fire_inside_its_own_callback() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc a {} { return A }\n\
+         proc ea args {\n\
+         \x20   lappend ::log ea\n\
+         \x20   if {![info exists ::d]} { set ::d 1; lappend ::log \"in:[a]\" }\n\
+         }\n\
+         trace add execution a enter ea\n\
+         lappend ::log \"out:[a]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "ea\nin:A\nout:A");
+}

@@ -100,7 +100,7 @@ Two consequences differ from a flags-and-payload layout:
 
 | Form                              | Behaviour                                                                                     |
 |-----------------------------------|-----------------------------------------------------------------------------------------------|
-| ``rename old new``                | Move the `Command` out of the namespace where ``old`` *resolves* and insert it under ``new`` (relative to the current namespace, absolute when ``::``-led). |
+| ``rename old new``                | Move the `Command` out of the namespace where ``old`` *resolves* and insert it under ``new`` (relative to the current namespace, absolute when ``::``-led). Everything keyed by the command's name follows it: its traces, the imports that redirect to it, its TclOO object, and a live coroutine (C hangs all of these off the command *token*, which the move carries). |
 | ``rename old ""``                 | Delete ``old``: drop the table entry, tear down a suspended coroutine of that name, remove the command's traces. |
 | ``rename foo foo``                | Refused — ``can't rename to "foo": command already exists`` (`TCL OPERATION RENAME TARGET_EXISTS`); the source still occupies the slot when the destination is checked, so a self-rename is *not* a no-op. |
 | ``rename a b`` with ``b`` bound   | Refused with the same message and errorcode; **both** commands survive intact.                |

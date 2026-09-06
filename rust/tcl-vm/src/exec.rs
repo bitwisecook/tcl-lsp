@@ -4146,17 +4146,44 @@ impl Vm {
         if let Some(exceeded) = self.charge_command() {
             return Err(exceeded);
         }
-        // M16.3 fast path: no execution traces registered and no step scope
-        // active — dispatch untraced (the common case pays one empty check).
-        // Also untraced while a trace callback is itself running (C's
-        // `INTERP_TRACE_IN_PROGRESS`) — a callback's own commands are never
-        // step-observed, so its `puts`/etc. dispatch here plainly.
-        if self.trace_in_progress.get()
-            || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
-        {
+        // M16.3 fast path: nothing registered that could fire — dispatch
+        // untraced (the common case pays one empty check).  Being inside a
+        // trace callback is *not* a reason to skip: only the step machinery is
+        // gated then, inside `exec_traces_can_fire`.
+        if !self.exec_traces_can_fire() {
             return self.dispatch_words_inner(f, words, None);
         }
         self.dispatch_words_traced(f, words)
+    }
+
+    /// Whether the `enterstep`/`leavestep` machinery may fire right now. This
+    /// is C's one read of `INTERP_TRACE_IN_PROGRESS` — `TclCheckInterpTraces`
+    /// (`tclTrace.c` 9.0.4:1426) returns immediately while an execution
+    /// callback is running, so the callback's own commands are never
+    /// step-observed. Scopes are still *pushed* while one runs, as C still
+    /// installs its interp trace; only the firing is gated.
+    fn step_scopes_can_fire(&self) -> bool {
+        !self.exec_step_scopes.is_empty() && !self.trace_in_progress.get()
+    }
+
+    /// The step scopes to fire for this command — empty while an execution
+    /// callback is running (see [`Self::step_scopes_can_fire`]).
+    fn step_scopes_to_fire(&self) -> Vec<ExecStepScope> {
+        if self.step_scopes_can_fire() {
+            self.exec_step_scopes.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Whether this dispatch needs the traced path at all. Being inside a trace
+    /// callback is *not* a reason to skip it: C's `TclCheckExecutionTraces`
+    /// (:1301) never consults the flag, so a command a callback dispatches
+    /// still fires its own `enter`/`leave` traces — only the step machinery is
+    /// gated. Re-entering the *same* trace is bounded per trace instead, by
+    /// `CmdTraceEntry::firing` in [`Vm::run_cmd_trace_callback`].
+    fn exec_traces_can_fire(&self) -> bool {
+        !self.exec_traces.is_empty() || self.step_scopes_can_fire()
     }
 
     /// The traced dispatch path (M16.3): fire `enterstep` for every active
@@ -4177,7 +4204,7 @@ impl Vm {
         // The complete current command, list-merged (tclsh-pinned shape:
         // `p one {t w o}`).
         let cmd_string = Value::list(words.to_vec()).to_str().to_string();
-        for scope in self.exec_step_scopes.clone() {
+        for scope in self.step_scopes_to_fire() {
             if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
             {
                 let r = self.run_cmd_trace_callback(
@@ -4192,7 +4219,13 @@ impl Vm {
                 }
             }
         }
-        let key = CommandSidecarKey::visible(key);
+        // Inside a rename's callbacks the vacating name still resolves, but the
+        // one command's trace list has already moved to the destination key —
+        // so look the traces up there, as C reaches them through the shared
+        // `Command` from either hash entry. Only the *key* is canonicalised:
+        // the callback's own words stay the spelling the caller invoked
+        // (`cmd_string` above).
+        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
@@ -4322,13 +4355,9 @@ impl Vm {
                 }
             }
         }
-        for scope in self
-            .exec_step_scopes
-            .iter()
-            .rev()
-            .cloned()
-            .collect::<Vec<_>>()
-        {
+        let mut leaving = self.step_scopes_to_fire();
+        leaving.reverse();
+        for scope in leaving {
             if scope.active_for("leavestep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
             {
                 let r = self
@@ -4542,12 +4571,8 @@ impl Vm {
         }
         // M16.3: mirror `dispatch_words`' trace wrapper on this native path —
         // enter/enterstep before, leave/leavestep after (synchronously: the
-        // completion is known when the inner call returns). Also untraced
-        // while a trace callback is itself running (C's
-        // `INTERP_TRACE_IN_PROGRESS`) — see `dispatch_words`.
-        if self.trace_in_progress.get()
-            || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
-        {
+        // completion is known when the inner call returns).
+        if !self.exec_traces_can_fire() {
             return self.invoke_command_inner(name, argv, None);
         }
         let key = self
@@ -4557,7 +4582,7 @@ impl Vm {
         words.push(Value::string(name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
-        for scope in self.exec_step_scopes.clone() {
+        for scope in self.step_scopes_to_fire() {
             if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
             {
                 let r = self.run_cmd_trace_callback(
@@ -4572,7 +4597,13 @@ impl Vm {
                 }
             }
         }
-        let key = CommandSidecarKey::visible(key);
+        // Inside a rename's callbacks the vacating name still resolves, but the
+        // one command's trace list has already moved to the destination key —
+        // so look the traces up there, as C reaches them through the shared
+        // `Command` from either hash entry. Only the *key* is canonicalised:
+        // the callback's own words stay the spelling the caller invoked
+        // (`cmd_string` above).
+        let key = self.renamed_command_key(CommandSidecarKey::visible(key));
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
@@ -4633,9 +4664,7 @@ impl Vm {
         if let Some(exceeded) = self.charge_command() {
             return exceeded;
         }
-        if self.trace_in_progress.get()
-            || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
-        {
+        if !self.exec_traces_can_fire() {
             return self.invoke_resolved_command_inner(
                 display_name,
                 command,
@@ -4648,7 +4677,10 @@ impl Vm {
         words.push(Value::string(display_name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
-        for scope in self.exec_step_scopes.clone() {
+        // As in `dispatch_words_traced`: a rename window moved the trace list
+        // to the destination key, and both names reach it.
+        let trace_key = self.renamed_command_key(trace_key);
+        for scope in self.step_scopes_to_fire() {
             if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
             {
                 let r = self.run_cmd_trace_callback(

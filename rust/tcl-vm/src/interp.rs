@@ -1025,12 +1025,15 @@ pub struct InterpState {
     /// entered — see [`Vm::ensure_proc_compiled_for_tracing`].
     trace_deopt_epoch: std::cell::Cell<u64>,
     /// Set for the duration of [`Vm::run_cmd_trace_callback`]'s evaluation:
-    /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c`) — while any command or
-    /// execution trace callback is running, no further interp-wide trace
-    /// firing happens for commands *inside* that callback (`TclCheckInterpTraces`
-    /// returns immediately). Without this, a step-traced proc's `enterstep`
-    /// callback (e.g. `puts "…"`) would itself be step-observed, and its own
-    /// `puts` dispatch would recurse into firing traces again. A `Cell`, not
+    /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c` 9.0.4:1765, set only by
+    /// `TraceExecutionProc`) — while an **execution** trace callback is
+    /// running, no further interp-wide trace firing happens for commands
+    /// *inside* that callback (`TclCheckInterpTraces` returns immediately).
+    /// Without this, a step-traced proc's `enterstep` callback (e.g. `puts
+    /// "…"`) would itself be step-observed, and its own `puts` dispatch would
+    /// recurse into firing traces again. A `rename`/`delete` callback does
+    /// **not** raise it — C's `CallCommandTraces` sets no flag — so
+    /// [`Vm::run_command_trace_callback`] leaves it alone. A `Cell`, not
     /// a plain `bool` field, so a read-only dispatch-site check
     /// (`self.trace_in_progress.get()`) doesn't need `&mut self` — and so it
     /// doesn't count toward `clippy::struct_excessive_bools` alongside the
@@ -6673,14 +6676,44 @@ impl Vm {
         ))
     }
 
-    /// Run one trace callback with `args` appended (list-quoted), in the
-    /// current frame — C evaluates trace callbacks in the context where the
-    /// traced operation occurred.  The entry is disabled while its own
-    /// callback runs (C's re-entrancy rule), a nested fire returning ok.
+    /// Run one **execution** trace callback (`enter`/`leave`/`enterstep`/
+    /// `leavestep`) with `args` appended (list-quoted), in the current frame —
+    /// C evaluates trace callbacks in the context where the traced operation
+    /// occurred.  The entry is disabled while its own callback runs (C's
+    /// re-entrancy rule), a nested fire returning ok.
+    ///
+    /// This is the one callback kind C wraps in `INTERP_TRACE_IN_PROGRESS`
+    /// (`TraceExecutionProc`, tclTrace.c 9.0.4:1765), so the callback's own
+    /// commands are not step-observed.
     pub(crate) fn run_cmd_trace_callback(
         &mut self,
         entry: &CmdTraceEntry,
         args: &[Value],
+    ) -> Completion<Value> {
+        self.run_trace_callback(entry, args, true)
+    }
+
+    /// Run one **command** (`rename`/`delete`) trace callback.  C's
+    /// `CallCommandTraces` sets no interpreter flag, so — unlike an execution
+    /// callback — a command this one dispatches is traced like any other: its
+    /// `enter`/`leave` traces fire, and an enclosing step scope steps it.
+    /// Re-entering *this* command's own rename/delete traces is suppressed per
+    /// command by [`Self::firing_cmd_traces`] instead.
+    pub(crate) fn run_command_trace_callback(
+        &mut self,
+        entry: &CmdTraceEntry,
+        args: &[Value],
+    ) -> Completion<Value> {
+        self.run_trace_callback(entry, args, false)
+    }
+
+    /// The shared body of the two above; `interp_trace_in_progress` says
+    /// whether this callback kind raises C's interpreter-wide gate.
+    fn run_trace_callback(
+        &mut self,
+        entry: &CmdTraceEntry,
+        args: &[Value],
+        interp_trace_in_progress: bool,
     ) -> Completion<Value> {
         if entry.firing.get() {
             return ok(Value::empty());
@@ -6691,13 +6724,14 @@ impl Vm {
             script.push(' ');
             script.push_str(&tcl_syntax::list::list_element(&a.to_str()));
         }
-        // C's `INTERP_TRACE_IN_PROGRESS`: no interp-wide trace fires for a
-        // command dispatched *by* this callback (saved/restored, not merely
-        // set — a callback can itself be dispatched from inside another
-        // callback's evaluation only if re-entrant nesting is legitimate, but
-        // the common case is one level; save-restore keeps either correct).
+        // Saved/restored, not merely set — a callback can itself be dispatched
+        // from inside another callback's evaluation only if re-entrant nesting
+        // is legitimate, but the common case is one level; save-restore keeps
+        // either correct, and keeps a command callback nested inside an
+        // execution one from clearing the gate that one raised.
         let saved = self.trace_in_progress.get();
-        self.trace_in_progress.set(true);
+        self.trace_in_progress
+            .set(saved || interp_trace_in_progress);
         let res = match self.eval_source(&script) {
             Ok(c) => c,
             Err(e) => err(e.message),
@@ -6749,7 +6783,7 @@ impl Vm {
             if entry.untraced() {
                 continue;
             }
-            let _ = self.run_cmd_trace_callback(
+            let _ = self.run_command_trace_callback(
                 &entry,
                 &[
                     Value::string(old_display),
@@ -6859,7 +6893,7 @@ impl Vm {
 
     /// The key a command's state lives under now, following any open rename
     /// window (see [`Self::rename_windows`]). Identity outside one.
-    fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
+    pub(crate) fn renamed_command_key(&self, key: CommandSidecarKey) -> CommandSidecarKey {
         match self.rename_windows.iter().find(|(from, _)| *from == key) {
             Some((_, to)) => to.clone(),
             None => key,

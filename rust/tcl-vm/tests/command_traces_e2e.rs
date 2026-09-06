@@ -283,6 +283,129 @@ const VECTORS: &[Vector] = &[
                after:{delete dd} {rename cb}\n\
                D:::victim3||delete",
     },
+    // `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone. C sets it
+    // in exactly one place — `TraceExecutionProc` (tclTrace.c 9.0.4:1765),
+    // around an `enter`/`leave`/`enterstep`/`leavestep` callback — and reads
+    // it in exactly one place, `TclCheckInterpTraces` (:1426), the step
+    // machinery. `CallCommandTraces` sets nothing, so a command a
+    // `rename`/`delete` callback dispatches is traced like any other.
+    Vector {
+        name: "a command-trace callback does not untrace what it dispatches",
+        script: "proc a {} { return A }\n\
+                 proc E args { puts \"E:[join $args |]\" }\n\
+                 trace add execution a enter E\n\
+                 proc victim {} {}\n\
+                 proc D args { puts \"D:[a]\" }\n\
+                 trace add command victim delete D\n\
+                 rename victim {}\n\
+                 proc victim2 {} {}\n\
+                 proc R args { puts \"R:[a]\" }\n\
+                 trace add command victim2 rename R\n\
+                 rename victim2 victim3\n",
+        want: "E:a|enter\nD:A\nE:a|enter\nR:A",
+    },
+    Vector {
+        name: "a step scope steps a delete callback's own commands",
+        script: "proc st args { puts \"S:[lindex $args 0]\" }\n\
+                 proc victim {} {}\n\
+                 proc cb args { set q 1 }\n\
+                 trace add command victim delete cb\n\
+                 proc driver {} { rename victim {} }\n\
+                 trace add execution driver enterstep st\n\
+                 driver\n",
+        want: "S:rename victim {}\nS:cb ::victim {} delete\nS:set q 1",
+    },
+    // The other side of the same gate, which must keep holding: an execution
+    // callback does raise it, so its own commands are never step-observed —
+    // while the traced command's body still is.
+    Vector {
+        name: "an execution callback's own commands are not step-observed",
+        script: "proc st args { puts \"S:[lindex $args 0]\" }\n\
+                 proc b {} { return B }\n\
+                 proc eb args { set z 9; puts eb }\n\
+                 trace add execution b enter eb\n\
+                 proc driver {} { b }\n\
+                 trace add execution driver enterstep st\n\
+                 driver\n",
+        want: "S:b\neb\nS:return B",
+    },
+    // The gate is read only by the step machinery: `TclCheckExecutionTraces`
+    // (tclTrace.c 9.0.4:1301) never consults `INTERP_TRACE_IN_PROGRESS`, only
+    // `TclCheckInterpTraces` (:1426) does. So a command dispatched from inside
+    // an execution callback still fires its own `enter`/`leave` traces, and
+    // what bounds the recursion is C's *per-trace* `TCL_TRACE_EXEC_IN_PROGRESS`
+    // (:1655) — the VM's `CmdTraceEntry::firing`.
+    Vector {
+        name: "an execution callback does not untrace what it dispatches",
+        script: "proc b {} { return B }\n\
+                 proc EB args { puts EB }\n\
+                 proc LB args { puts \"LB:[lindex $args 1]\" }\n\
+                 trace add execution b enter EB\n\
+                 trace add execution b leave LB\n\
+                 proc a {} { return A }\n\
+                 proc ea args { puts \"in:[b]\" }\n\
+                 trace add execution a enter ea\n\
+                 puts \"out:[a]\"\n",
+        want: "EB\nLB:0\nin:B\nout:A",
+    },
+    Vector {
+        name: "suppression during a callback is per trace, not per command",
+        script: "proc a {} { return A }\n\
+                 proc E1 args {\n\
+                     puts E1\n\
+                     if {![info exists ::d]} { set ::d 1; puts \"in:[a]\" }\n\
+                 }\n\
+                 proc E2 args { puts E2 }\n\
+                 trace add execution a enter E2\n\
+                 trace add execution a enter E1\n\
+                 puts \"out:[a]\"\n",
+        want: "E1\nE2\nin:A\nE2\nout:A",
+    },
+    Vector {
+        name: "a leave trace fires while its command's enter callback runs",
+        script: "proc a {} { return A }\n\
+                 proc LA args { puts LA }\n\
+                 trace add execution a leave LA\n\
+                 proc EA args {\n\
+                     puts EA\n\
+                     if {![info exists ::d]} { set ::d 1; puts \"in:[a]\" }\n\
+                 }\n\
+                 trace add execution a enter EA\n\
+                 puts \"out:[a]\"\n",
+        want: "EA\nLA\nin:A\nLA\nout:A",
+    },
+    // The step half stays gated for the whole callback evaluation.
+    Vector {
+        name: "a step-traced command called from a callback is not stepped",
+        script: "proc st args { puts \"S:[lindex $args 0]\" }\n\
+                 proc s {} { set q 1; return S }\n\
+                 trace add execution s enterstep st\n\
+                 proc a {} { return A }\n\
+                 proc ea args { puts \"in:[s]\" }\n\
+                 trace add execution a enter ea\n\
+                 puts \"out:[a]\"\n",
+        want: "in:S\nout:A",
+    },
+    // Dispatching through the vacating name reaches the one command's
+    // execution traces too: they have already moved to the destination key by
+    // the time the callbacks run, so the lookup follows the window. The
+    // callback's own words stay the spelling the caller invoked, which is why
+    // the first pair says `victim` and the later ones `victim2`.
+    Vector {
+        name: "the vacating name still fires the command's execution traces",
+        script: "proc victim {} { return V }\n\
+                 proc E args { puts \"E:[join $args |]\" }\n\
+                 proc L args { puts \"L:[lindex $args 0]\" }\n\
+                 trace add execution victim enter E\n\
+                 trace add execution victim leave L\n\
+                 proc R args { puts \"old:[victim]\"; puts \"new:[victim2]\" }\n\
+                 trace add command victim rename R\n\
+                 rename victim victim2\n\
+                 puts \"out:[victim2]\"\n",
+        want: "E:victim|enter\nL:victim\nold:V\n\
+               E:victim2|enter\nL:victim2\nnew:V\n\
+               E:victim2|enter\nL:victim2\nout:V",
+    },
     Vector {
         name: "namespace-qualified names arrive fully qualified",
         script: "proc tracer args { puts \"T:[join $args |]\" }\n\
