@@ -2844,15 +2844,11 @@ impl Vm {
         // both hash entries reference it, so a proc invoked through the
         // vacating name reports the *destination's* `namespace current` — and
         // resolves `variable` there — for the callbacks' duration.
-        self.rebind_rename_source(&transaction.old_key.clone(), command);
+        self.rebind_rename_source(&transaction.old_key.clone(), command.clone());
         self.command_generations
             .insert(new_key.to_owned(), transaction.source_generation);
         if transaction.source_import_binding.is_none()
-            && let Command::Ensemble(token) = self
-                .commands
-                .get(new_key)
-                .cloned()
-                .expect("the renamed command was just registered")
+            && let Command::Ensemble(token) = command
         {
             token.rename(display_namespace(new_key));
         }
