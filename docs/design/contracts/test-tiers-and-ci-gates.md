@@ -12,6 +12,16 @@ behind it.
 | **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
+The native `lsp-e2e` surface is produced once as a nextest 0.9.143 archive,
+then consumed by two hosted `hash:1/2` and `hash:2/2` jobs. Each consumer
+remaps the archive to its checkout and receives the relocated server through
+`NEXTEST_BIN_EXE_tcl-lsp-server`; ordinary Cargo tests retain the compile-time
+`CARGO_BIN_EXE_tcl-lsp-server` fallback. The `lsp-e2e` aggregate is the
+required status and fails unless both consumers and the archive producer pass.
+The producer verifies that the two selected listings are a disjoint,
+complete union before uploading artifacts; `scripts/dev/verify-nextest-partitions.py`
+also validates transferred digests and metadata.
+
 ## Decision rules / contracts
 
 1. **Fuzzing is always manual.** Campaigns (`make fuzz`, `tcl-fuzz`) and

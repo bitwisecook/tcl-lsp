@@ -41281,6 +41281,21 @@ proc p {} {
         // uniqueness is what makes it proof.
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let next_tag = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let snapshot_ready = Arc::new(tokio::sync::Notify::new());
+        let snapshot_release = Arc::new(tokio::sync::Notify::new());
+        let witness = {
+            let store = Arc::clone(&store);
+            let snapshot_ready = Arc::clone(&snapshot_ready);
+            let snapshot_release = Arc::clone(&snapshot_release);
+            tokio::spawn(async move {
+                let first = store.lock("hammer-witness-first").await;
+                drop(first);
+                let held = store.lock("hammer-witness-current").await;
+                snapshot_ready.notify_one();
+                snapshot_release.notified().await;
+                drop(held);
+            })
+        };
         let hammers: Vec<_> = (0..3)
             .map(|_| {
                 let store = Arc::clone(&store);
@@ -41303,6 +41318,11 @@ proc p {} {
             })
             .collect();
 
+        // Keep one unique-tagged hammer in the held state while the sampling
+        // loop starts. Without this hand-off, the synchronous loop can finish
+        // before any worker has released once and acquired again, making the
+        // proof depend on executor scheduling under a busy archive shard.
+        snapshot_ready.notified().await;
         let mut previous = store.contention().acquisitions;
         let mut seen_both = 0_u32;
         for _ in 0..100_000 {
@@ -41329,6 +41349,8 @@ proc p {} {
             }
         }
 
+        snapshot_release.notify_one();
+        witness.await.expect("the snapshot witness must finish");
         stop.store(true, std::sync::atomic::Ordering::Relaxed);
         for h in hammers {
             let _ = h.await;

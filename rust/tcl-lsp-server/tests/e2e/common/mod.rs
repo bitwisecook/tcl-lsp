@@ -591,7 +591,11 @@ impl Lsp {
     /// binary, and `std::env::set_var` here would leak into every other test
     /// sharing the runner process.
     pub fn spawn_with_env(config: Value, env: &[(&str, &str)]) -> Self {
-        let bin = env!("CARGO_BIN_EXE_tcl-lsp-server");
+        // Archived nextest runs relocate the executable beside the extracted
+        // test binaries. Prefer the runtime path there; ordinary Cargo test
+        // keeps using its compile-time path as the fallback.
+        let bin = std::env::var_os("NEXTEST_BIN_EXE_tcl-lsp-server")
+            .unwrap_or_else(|| env!("CARGO_BIN_EXE_tcl-lsp-server").into());
 
         // Isolate the server from the developer machine's config/cache so a
         // local `~/.../tcl-lsp/config.ini` can't poison the defaults. Fresh
