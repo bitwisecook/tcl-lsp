@@ -699,7 +699,10 @@ fn collect_expr_command_surface_refs<'a>(
                 collect_expr_command_surface_refs(arg, out, opaque, depth + 1);
             }
         }
-        ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Var { .. } => {}
     }
 }
 
@@ -1364,6 +1367,18 @@ mod tests {
         collect_expr_commands(&expr, &mut cmds);
         assert_eq!(cmds.len(), 1);
         assert_eq!(cmds[0], "[set x 1]");
+    }
+
+    #[test]
+    fn compiled_word_value_does_not_reparse_brackets_as_command_substitution() {
+        let registry = CommandRegistry::build_default();
+        let expr = ExprNode::CompiledWord {
+            text: "[set x 1]".into(),
+            braced: false,
+        };
+        let substitutions = expression_command_substitutions(&expr, &registry);
+        assert!(substitutions.commands.is_empty());
+        assert!(!substitutions.opaque);
     }
 
     #[test]
