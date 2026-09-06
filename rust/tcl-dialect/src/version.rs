@@ -23,6 +23,7 @@
 use crate::DialectProfile;
 
 mod reference_toolchains {
+    // tcl-lsp-no-smoke-include
     include!(concat!(env!("OUT_DIR"), "/reference_toolchains.rs"));
 }
 

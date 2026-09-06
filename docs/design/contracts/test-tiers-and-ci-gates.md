@@ -8,7 +8,7 @@ behind it.
 
 | Tier | Runs | What |
 |---|---|---|
-| **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the `smoke_*` / `*_smoke.rs` subset, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
+| **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the fail-closed smoke-named function/module and effective Cargo-target subset owned by `scripts/dev/smoke-targets.tsv`, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
 | **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
@@ -70,6 +70,62 @@ behind it.
 
    Keep the file until the PR merges so a CI ping can be re-investigated
    without re-running the gate.
+8. **Every smoke source/target pair has one manifest row.**
+   `scripts/dev/smoke-targets.tsv` maps smoke-bearing Rust sources to their
+   library, binary, integration-test, example, or benchmark target. The
+   `cargo xtask smoke-targets check` drift gate inventories ordinary
+   `#[test]` functions whose names or module paths start with `smoke`, plus
+   testable Cargo targets whose effective names are `smoke` or `*_smoke`, and
+   rejects missing, stale, or ambiguous rows. Inventory is independent of the
+   current platform's `required-features` availability so one manifest remains
+   valid on every supported target; execution skips targets unavailable in the
+   resolved host context. If distinct testable Cargo targets compile the same
+   source, each target requires its own row. Ownership follows
+   Cargo target/module traversal rather than package-directory ancestry because
+   Cargo target paths may refer to workspace sources outside their package
+   directory. Literal `include!` sources retain the Cargo target that reaches
+   them; modules and further includes declared there resolve beside the
+   included file, matching rustc. A direct literal include inside an inline
+   smoke-named module also inherits that module's smoke selection context. A
+   literal include inside an opaque macro body cannot inherit definition-site
+   context because the macro may be expanded in another namespace, so its
+   declaring source requires one of the explicit classifications below. A test
+   source filename is not a separate selection rule when the
+   manifest explicitly gives its Cargo target another name. Attribute macros
+   and unresolved `include!` expressions that generate
+   a smoke test cannot be inferred from tracked Rust syntax; this includes
+   non-literal paths and literal files that do not exist until `build.rs` runs.
+   Mark their declaring source with an exact standalone
+   `// tcl-lsp-smoke-target` line comment. Every lexically present invocation
+   is checked, including those in macro bodies and expression or statement
+   contexts. This includes existing literal files inside opaque macro bodies,
+   whose expansion context cannot be inferred. An outer declarative or
+   procedural macro that constructs an `include!` invocation during expansion
+   is arbitrary generated syntax, like an attribute-generated test, and its
+   declaring source carries the smoke-target marker. A source with exactly one
+   unresolved include that is known to generate no tests may instead use
+   `// tcl-lsp-no-smoke-include`; adding a second invocation requires an
+   explicit reclassification so one data include cannot mask generated tests.
+   The checker tokenises Rust, so marker and include text inside strings or
+   comments is ignored. `cargo
+   xtask smoke-targets run` is the
+   no-nextest fallback and must select the same tests as the nextest smoke
+   profile without changing workspace feature resolution;
+   `make smoke-p P=<crate>` keeps `--workspace` resolution in both branches,
+   intersecting nextest's `package(<crate>)` test filter with the smoke
+   profile's `default()` filter, or applying the fallback's validated
+   `smoke-targets run --package <crate>` manifest filter. Direct
+   harness execution preserves
+   an owning build script's explicit platform dynamic-library-path variable
+   verbatim, without appending the reconstructed profile/sysroot suffix;
+   only packages without that override receive reconstructed qualifying
+   `rustc-link-search` paths. Those paths include normal, development,
+   build-only, and procedural-macro dependency closures because Cargo exposes
+   their search paths to a test harness even under resolver v2. The harness also
+   preserves an inherited `CARGO_MANIFEST_LINKS`; an explicit value emitted by
+   the owning build script overrides it, matching Cargo. Ambient
+   `CARGO_BIN_EXE_*` values are likewise preserved, while executable paths
+   reconstructed for the owning package override same-named inherited values.
 
 ## CI redundancy contract
 
@@ -131,6 +187,10 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 - `Makefile` — `smoke`, `prep-pr`, `rust-check`, `check-all`, `test`,
   `test-exhaustive`, `fuzz`; `make help` lists everything.
 - `.config/nextest.toml` — the `smoke` and `exhaustive` profiles.
+- `scripts/dev/smoke-targets.tsv` — exact smoke-source to Cargo-target
+  ownership used by the no-nextest fallback.
+- `rust/xtask/src/smoke_targets.rs` — fail-closed smoke inventory validation
+  and exact Cargo fallback execution.
 - `.github/workflows/ci.yml` — the `channel` and `pr-gate` jobs.
 
 ## Discoverability

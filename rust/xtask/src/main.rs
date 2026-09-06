@@ -57,6 +57,8 @@
 //!   or a private `Sep`/`Eol` word-start state machine outside the command /
 //!   word boundary owners, and verify the owner/scanner corpus differential
 //!   is still wired (issue #1786).
+//! - `smoke-targets` — validate or execute the exact Cargo fallback for the
+//!   convention-named smoke tier.
 
 #![forbid(unsafe_code)]
 
@@ -69,6 +71,8 @@ mod audit_option_dialects;
 mod bigip_data_schema;
 mod callback_coverage;
 mod callback_inventory;
+#[path = "smoke_targets.rs"]
+mod cargo_smoke;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
@@ -115,6 +119,16 @@ struct Cli {
 enum Command {
     /// Validate markdown links + KCS/design index coverage under `docs/`.
     KcsIndexLinks,
+
+    /// Validate or execute the exact Cargo fallback for the smoke tier.
+    SmokeTargets {
+        /// Operation to perform: check, run, or list.
+        #[arg(default_value = "check")]
+        operation: String,
+        /// Restrict run/list execution to one Cargo package.
+        #[arg(long)]
+        package: Option<String>,
+    },
 
     /// Print the project version (`git describe` → setuptools-scm scheme).
     Version,
@@ -442,6 +456,9 @@ enum Command {
 fn main() -> anyhow::Result<ExitCode> {
     match Cli::parse().command {
         Command::KcsIndexLinks => kcs_index_links::run(),
+        Command::SmokeTargets { operation, package } => {
+            cargo_smoke::run(&operation, package.as_deref())
+        }
         Command::Version => Ok(version::run()),
         Command::TzdataBundle {
             zoneinfo,

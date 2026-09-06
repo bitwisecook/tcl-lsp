@@ -282,7 +282,7 @@ fn cst_matches_oracle_over_tcl_corpus() {
 /// known-commands recovery path still works once the local segmenter is
 /// CST-backed (only `segment_commands_local` is affected).
 #[test]
-fn recovery_known_commands_smoke() {
+fn smoke_recovery_known_commands() {
     use tcl_compiler::segmenter::segment_commands_with_recovery;
     let known: HashSet<&str> = ["puts", "set"].into_iter().collect();
     // An unclosed brace spanning several lines, then a recoverable `puts`.

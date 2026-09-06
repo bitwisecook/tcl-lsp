@@ -67,12 +67,18 @@ test-group = 'manual-corpus'
 # The fast, per-module sanity check developers and agents run locally right
 # after `cargo build`/`cargo check` — NOT a replacement for CI's deep suites.
 # A test is "smoke" by naming convention, not by crate: a unit-test fn named
-# `smoke_*` (or nested under `mod smoke`), or an integration-test file named
-# `*_smoke.rs` (tcl-lsp-server's existing convention).  The same convention
-# works under plain `cargo test smoke` for toolchains without nextest.
+# `smoke_*` (or nested under `mod smoke`), or an integration binary named
+# `smoke` / `*_smoke` (tcl-lsp-server's existing convention). Toolchains
+# without nextest use scripts/dev/smoke-targets.tsv to identify the required
+# Cargo target shapes while preserving the workspace feature graph;
+# `cargo xtask smoke-targets check` prevents that list drifting.
+# A macro-generated smoke test must put the exact marker
+# `// tcl-lsp-smoke-target` in its source and add that source's target row to
+# smoke-targets.tsv, because the fallback cannot inspect expanded test names.
 #
 # `default-filter` scopes what `--profile smoke` runs with no -E on the
-# command line; a caller's -E still narrows further.
+# command line; callers that add `-E` must intersect it with `default()` to
+# retain this tier.
 [profile.smoke]
 default-filter = 'test(/(::|^)smoke/) | binary(/(^|_)smoke$/)'
 # A smoke run is a quick green/red signal, not an exhaustive failure report.
