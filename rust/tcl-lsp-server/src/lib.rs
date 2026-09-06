@@ -540,12 +540,12 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 struct SnapshotCensus {
     live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
     next_id: std::sync::atomic::AtomicU64,
-    publication_intent: std::sync::atomic::AtomicBool,
+    publication_intent: std::sync::atomic::AtomicUsize,
     publication_advanced: tokio::sync::Notify,
 }
 
-/// Exclusive intent to drain one database's request snapshots before a live
-/// source setter runs.
+/// One publisher's ownership of the intent to drain request snapshots before
+/// a Salsa source setter runs.
 ///
 /// Snapshot creation checks the intent both before queueing for the database
 /// mutex and while holding it. A publisher can therefore establish intent
@@ -559,10 +559,14 @@ struct SnapshotDrainGuard {
 
 impl Drop for SnapshotDrainGuard {
     fn drop(&mut self) {
-        self.census
+        let previous = self
+            .census
             .publication_intent
-            .store(false, std::sync::atomic::Ordering::Release);
-        self.census.publication_advanced.notify_waiters();
+            .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        debug_assert!(previous > 0, "snapshot-drain ownership must be balanced");
+        if previous == 1 {
+            self.census.publication_advanced.notify_waiters();
+        }
     }
 }
 
@@ -576,12 +580,8 @@ struct SnapshotReport {
 
 impl SnapshotCensus {
     fn begin_publication(self: &Arc<Self>) -> SnapshotDrainGuard {
-        assert!(
-            !self
-                .publication_intent
-                .swap(true, std::sync::atomic::Ordering::AcqRel),
-            "one live-publication gate must serialise snapshot drains",
-        );
+        self.publication_intent
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         SnapshotDrainGuard {
             census: Arc::clone(self),
         }
@@ -591,6 +591,7 @@ impl SnapshotCensus {
         if self
             .publication_intent
             .load(std::sync::atomic::Ordering::Acquire)
+            != 0
         {
             return Err(value);
         }
@@ -788,6 +789,7 @@ impl<T> TrackedMutex<T> {
                 .snapshots
                 .publication_intent
                 .load(std::sync::atomic::Ordering::Acquire)
+                != 0
             {
                 publication_advanced.await;
                 continue;
@@ -6313,7 +6315,7 @@ struct ClosePublicationLocks<'a> {
 
 /// The exact dependency a deferred `didOpen` publication last failed to
 /// acquire. Kept typed so telemetry and tests use the same names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LivePublicationWait {
     Database,
     Files,
@@ -6322,30 +6324,12 @@ enum LivePublicationWait {
     Project,
     SalsaSnapshots,
     WorkspaceIndex,
-    RehomedSourceSeeds,
     DiagnosticsSlots,
     SemanticTokens,
     SemanticRefreshRequests,
     WorkspaceClassAnalyses,
+    RehomedSourceSeeds,
     Documents,
-}
-
-#[derive(Default)]
-struct DiskPublicationRetries {
-    per_dependency: HashMap<LivePublicationWait, u64>,
-}
-
-impl DiskPublicationRetries {
-    fn record(&mut self, wait: LivePublicationWait) -> u64 {
-        let retries = self.per_dependency.entry(wait).or_default();
-        *retries = retries.saturating_add(1);
-        *retries
-    }
-
-    #[cfg(test)]
-    fn count(&self, wait: LivePublicationWait) -> u64 {
-        self.per_dependency.get(&wait).copied().unwrap_or_default()
-    }
 }
 
 struct LivePublicationRetry {
@@ -6378,11 +6362,11 @@ impl LivePublicationWait {
             Self::Project => "db_project.try_lock",
             Self::SalsaSnapshots => "db.snapshot_census.zero",
             Self::WorkspaceIndex => "workspace_index.try_write",
-            Self::RehomedSourceSeeds => "rehomed_source_seeds.try_lock",
             Self::DiagnosticsSlots => "diag_slots.try_lock",
             Self::SemanticTokens => "last_semantic_tokens.try_lock",
             Self::SemanticRefreshRequests => "semantic_tokens_refresh_asked.try_lock",
             Self::WorkspaceClassAnalyses => "workspace_class_analyses.try_lock",
+            Self::RehomedSourceSeeds => "rehomed_source_seeds.try_lock",
             Self::Documents => "documents.try_lock",
         }
     }
@@ -6904,6 +6888,11 @@ pub struct Backend {
     /// concurrently, but an older delete must not retire a path after a later
     /// create has already revived and republished its open buffer.
     watched_file_change_gate: Arc<Mutex<()>>,
+    /// Serialises disk-backed commits while their rehoming/live gates may be
+    /// released around contention. A later disk read must not overtake and
+    /// publish before an older captured replacement resumes and overwrites it;
+    /// this gate is disk-only and never delays editor-buffer publication.
+    disk_publication_gate: Mutex<()>,
     /// Wakes requests waiting for either tier of the matching open document's
     /// deferred publication. `DocumentState::publication` is the condition;
     /// this notify supplies only the race-free wakeup edge.
@@ -8151,6 +8140,7 @@ impl Backend {
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
             watched_file_change_gate: Arc::new(Mutex::new(())),
+            disk_publication_gate: Mutex::new(()),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
             live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
             live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -8618,48 +8608,6 @@ impl Backend {
         })
     }
 
-    /// Bound optimistic disk-publication retries by periodically joining the
-    /// exact failed dependency's fair queue while holding no partial bundle.
-    async fn pause_disk_publication(
-        &self,
-        operation: &'static str,
-        wait: LivePublicationWait,
-        retries: &mut DiskPublicationRetries,
-    ) {
-        if retries.record(wait).is_multiple_of(1024) {
-            match wait {
-                LivePublicationWait::Database => drop(self.db.lock().await),
-                LivePublicationWait::Files => drop(self.db_files.lock().await),
-                LivePublicationWait::Tombstones => drop(self.db_tombstones.lock().await),
-                LivePublicationWait::ProjectMembers => {
-                    drop(self.db_project_members.lock().await);
-                }
-                LivePublicationWait::Project => drop(self.db_project.lock().await),
-                LivePublicationWait::SalsaSnapshots => {}
-                LivePublicationWait::WorkspaceIndex => {
-                    drop(self.workspace_index.write().await);
-                }
-                LivePublicationWait::RehomedSourceSeeds => {
-                    drop(self.rehomed_source_seeds.lock().await);
-                }
-                LivePublicationWait::DiagnosticsSlots => drop(self.diag_slots.lock().await),
-                LivePublicationWait::SemanticTokens => {
-                    drop(self.last_semantic_tokens.lock().await);
-                }
-                LivePublicationWait::SemanticRefreshRequests => {
-                    drop(self.semantic_tokens_refresh_asked.lock().await);
-                }
-                LivePublicationWait::WorkspaceClassAnalyses => {
-                    drop(self.workspace_class_analyses.lock().await);
-                }
-                LivePublicationWait::Documents => {
-                    drop(self.documents.lock(operation).await);
-                }
-            }
-        }
-        crate::rt::sleep(std::time::Duration::from_millis(1)).await;
-    }
-
     /// Yield after one failed deferred-open publication attempt and emit one
     /// bounded, exact diagnostic if contention persists.
     async fn pause_open_publication(
@@ -8775,6 +8723,64 @@ impl Backend {
         }
     }
 
+    /// Wait fairly on the exact dependency that defeated a disk publication's
+    /// optimistic bundle. Callers release every publication gate first, so a
+    /// continuously busy low-priority transaction cannot block live edits or
+    /// source rehoming while it waits for a quiet commit window.
+    async fn wait_for_disk_publication_dependency(
+        &self,
+        site: &'static str,
+        wait: LivePublicationWait,
+    ) {
+        match wait {
+            LivePublicationWait::Database => drop(self.db.lock().await),
+            LivePublicationWait::Files => drop(self.db_files.lock().await),
+            LivePublicationWait::Tombstones => drop(self.db_tombstones.lock().await),
+            LivePublicationWait::ProjectMembers => {
+                drop(self.db_project_members.lock().await);
+            }
+            LivePublicationWait::Project => drop(self.db_project.lock().await),
+            LivePublicationWait::SalsaSnapshots => {
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+            }
+            LivePublicationWait::WorkspaceIndex => drop(self.workspace_index.write().await),
+            LivePublicationWait::DiagnosticsSlots => drop(self.diag_slots.lock().await),
+            LivePublicationWait::SemanticTokens => {
+                drop(self.last_semantic_tokens.lock().await);
+            }
+            LivePublicationWait::SemanticRefreshRequests => {
+                drop(self.semantic_tokens_refresh_asked.lock().await);
+            }
+            LivePublicationWait::WorkspaceClassAnalyses => {
+                drop(self.workspace_class_analyses.lock().await);
+            }
+            LivePublicationWait::RehomedSourceSeeds => {
+                drop(self.rehomed_source_seeds.lock().await);
+            }
+            LivePublicationWait::Documents => drop(self.documents.lock(site).await),
+        }
+    }
+
+    async fn restart_disk_publication<'a>(
+        &'a self,
+        rehoming: tokio::sync::MutexGuard<'a, ()>,
+        live_publication: tokio::sync::MutexGuard<'a, ()>,
+        snapshot_drain: SnapshotDrainGuard,
+        site: &'static str,
+        wait: LivePublicationWait,
+    ) -> (
+        tokio::sync::MutexGuard<'a, ()>,
+        tokio::sync::MutexGuard<'a, ()>,
+        SnapshotDrainGuard,
+    ) {
+        drop(live_publication);
+        drop(rehoming);
+        self.wait_for_disk_publication_dependency(site, wait).await;
+        let rehoming = self.rehoming_gate.lock().await;
+        let live_publication = self.live_publication_gate.lock().await;
+        (rehoming, live_publication, snapshot_drain)
+    }
+
     async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>, generation: u64) {
         let invalidated = self.live_publication_invalidated.notified();
         tokio::pin!(invalidated);
@@ -8819,47 +8825,60 @@ impl Backend {
             return Vec::new();
         }
 
+        let disk_publication = self.disk_publication_gate.lock().await;
         let rehoming_guard = self.rehoming_gate.lock().await;
-        self.publish_disk_results_while_rehoming_locked(
-            &rehoming_guard,
-            replacements,
-            removals,
-            removal_policy,
-            site,
-        )
-        .await
+        let (changed, _) = self
+            .publish_disk_results_while_rehoming_locked(
+                &disk_publication,
+                rehoming_guard,
+                replacements,
+                removals,
+                removal_policy,
+                site,
+            )
+            .await;
+        changed
     }
 
     /// [`Self::publish_disk_results`] with the rehoming gate already held.
     ///
-    /// Taking the guard by reference makes the transactional precondition
-    /// explicit for folder removal, which must derive its removal set from the
-    /// protected index before publishing it through the same low-priority path.
-    async fn publish_disk_results_while_rehoming_locked(
-        &self,
-        _rehoming_guard: &tokio::sync::MutexGuard<'_, ()>,
+    /// The disk-only guard serialises captured inputs; the owned rehoming guard
+    /// preserves the caller's transaction and can be released around a fair
+    /// dependency wait, then returned for folder-removal cache cleanup.
+    async fn publish_disk_results_while_rehoming_locked<'a>(
+        &'a self,
+        _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
+        rehoming_guard: tokio::sync::MutexGuard<'a, ()>,
         replacements: &[(Uri, String, String, AnalysisResult)],
         removals: &[Uri],
         removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> Vec<Uri> {
+    ) -> (Vec<Uri>, tokio::sync::MutexGuard<'a, ()>) {
         // Serialise the final disk commit with live source publication. The
         // document-map check below can then be released before the bounded
         // Salsa setters without a didOpen/didChange source commit landing in
         // the check-to-mutation gap. A live mutation that becomes visible
         // while this waits either changes the removal classification below or
         // republishes after this transaction releases the gate.
-        let _live_publication = self.live_publication_gate.lock().await;
+        let mut rehoming_guard = rehoming_guard;
+        let mut live_publication = self.live_publication_gate.lock().await;
         // Claim writer intent before the first optimistic bundle attempt.
         // Otherwise sustained readers queued on Tokio's fair `db` mutex can
         // prevent `try_lock` from ever reaching the census check below.
-        let snapshot_drain = self.db.begin_snapshot_drain();
-        let mut retries = DiskPublicationRetries::default();
+        let mut snapshot_drain = self.db.begin_snapshot_drain();
         loop {
             let locks = match self.try_publication_locks() {
                 Ok(locks) => locks,
                 Err(wait) => {
-                    self.pause_disk_publication(site, wait, &mut retries).await;
+                    (rehoming_guard, live_publication, snapshot_drain) = self
+                        .restart_disk_publication(
+                            rehoming_guard,
+                            live_publication,
+                            snapshot_drain,
+                            site,
+                            wait,
+                        )
+                        .await;
                     continue;
                 }
             };
@@ -8869,18 +8888,28 @@ impl Backend {
             // background transaction. Holding `db` makes this zero stable.
             if self.db.snapshot_report().outstanding != 0 {
                 drop(locks);
-                self.pause_disk_publication(
-                    site,
-                    LivePublicationWait::SalsaSnapshots,
-                    &mut retries,
-                )
-                .await;
+                (rehoming_guard, live_publication, snapshot_drain) = self
+                    .restart_disk_publication(
+                        rehoming_guard,
+                        live_publication,
+                        snapshot_drain,
+                        site,
+                        LivePublicationWait::SalsaSnapshots,
+                    )
+                    .await;
                 continue;
             }
 
             let Some(docs) = self.documents.try_lock(site) else {
                 drop(locks);
-                self.pause_disk_publication(site, LivePublicationWait::Documents, &mut retries)
+                (rehoming_guard, live_publication, snapshot_drain) = self
+                    .restart_disk_publication(
+                        rehoming_guard,
+                        live_publication,
+                        snapshot_drain,
+                        site,
+                        LivePublicationWait::Documents,
+                    )
                     .await;
                 continue;
             };
@@ -8917,13 +8946,16 @@ impl Backend {
             drop(docs);
 
             if replacements.is_empty() && removals.is_empty() && index_only_removals.is_empty() {
-                return Vec::new();
+                return (Vec::new(), rehoming_guard);
             }
 
             Self::apply_disk_publication(locks, &removals, &index_only_removals, &replacements);
             drop(snapshot_drain);
 
-            return Self::changed_disk_uris(removals, index_only_removals, replacements);
+            return (
+                Self::changed_disk_uris(removals, index_only_removals, replacements),
+                rehoming_guard,
+            );
         }
     }
 
@@ -11295,34 +11327,47 @@ impl Backend {
         // removal. Derive candidates under the gate, then let the shared
         // publication transaction re-check the open set without ever waiting
         // while it owns that map (#1800).
-        let rehoming_guard = self.rehoming_gate.lock().await;
-        let candidates: Vec<Uri> = self
-            .workspace_index
-            .read()
-            .await
-            .document_uris()
-            .into_iter()
-            .filter(|uri| {
-                folder_strs
-                    .iter()
-                    .any(|folder| uri_under_folder(uri, folder))
-            })
-            .filter_map(|uri| Uri::from_str(&uri).ok())
-            .collect();
-        let removed_urls = self
-            .publish_disk_results_while_rehoming_locked(
-                &rehoming_guard,
-                &[],
-                &candidates,
-                DiskRemovalPolicy::ClosedOnly,
-                "drop_index_under_folders",
-            )
-            .await;
-        // Batched so each cache is locked once for the whole folder, not once
-        // per file.  Still inside the rehoming gate, so a reconciliation pass
-        // cannot observe the index entries gone while their seed records stand.
-        self.forget_uri_states(&removed_urls).await;
-        drop(rehoming_guard);
+        let disk_publication = self.disk_publication_gate.lock().await;
+        let mut removed_urls = Vec::new();
+        loop {
+            let rehoming_guard = self.rehoming_gate.lock().await;
+            let candidates: Vec<Uri> = self
+                .workspace_index
+                .read()
+                .await
+                .document_uris()
+                .into_iter()
+                .filter(|uri| {
+                    folder_strs
+                        .iter()
+                        .any(|folder| uri_under_folder(uri, folder))
+                })
+                .filter_map(|uri| Uri::from_str(&uri).ok())
+                .collect();
+            if candidates.is_empty() {
+                break;
+            }
+            let (removed, rehoming_guard) = self
+                .publish_disk_results_while_rehoming_locked(
+                    &disk_publication,
+                    rehoming_guard,
+                    &[],
+                    &candidates,
+                    DiskRemovalPolicy::ClosedOnly,
+                    "drop_index_under_folders",
+                )
+                .await;
+            // The publication may release and reacquire its outer gates while
+            // contended. Re-snapshot until no newly published closed entry
+            // remains under the removed folders. Open buffers are preserved;
+            // when only those remain, `removed` is empty and the loop settles.
+            self.forget_uri_states(&removed).await;
+            drop(rehoming_guard);
+            if removed.is_empty() {
+                break;
+            }
+            removed_urls.extend(removed);
+        }
         // Clear the Problems / File-Explorer badge of any removed-folder file
         // that still carried one (#865) — it is no longer part of the workspace,
         // so a retained closed-file badge would be stale.
@@ -11765,6 +11810,7 @@ impl Backend {
             warm_task: _,
             edit_order: _,
             watched_file_change_gate: _,
+            disk_publication_gate: _,
             live_publication_advanced: _,
             live_publication_invalidated: _,
             live_publication_generation: _,
@@ -33861,6 +33907,7 @@ mod tests {
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
             watched_file_change_gate: Arc::new(Mutex::new(())),
+            disk_publication_gate: Mutex::new(()),
             live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
             live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
             live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -43241,6 +43288,22 @@ proc p {} {
         );
     }
 
+    async fn wait_for_publication_intents_1854(backend: &Backend, expected: usize, failure: &str) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+                < expected
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect(failure);
+    }
+
     /// Exact-head review of #1854: a stream of overlapping request snapshots
     /// must not keep a live source publication short of Salsa forever. Once a
     /// publisher announces drain intent, later snapshot requests queue; the
@@ -43273,11 +43336,12 @@ proc p {} {
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
-            while !backend
+            while backend
                 .db
                 .snapshots
                 .publication_intent
                 .load(std::sync::atomic::Ordering::Acquire)
+                == 0
             {
                 crate::rt::yield_now().await;
             }
@@ -43294,7 +43358,8 @@ proc p {} {
                 .db
                 .snapshots
                 .publication_intent
-                .load(std::sync::atomic::Ordering::Acquire),
+                .load(std::sync::atomic::Ordering::Acquire)
+                != 0,
             "transient database contention must not reopen the snapshot stream",
         );
         drop(database);
@@ -43362,18 +43427,7 @@ proc p {} {
                     .await
             }
         });
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
-            while !backend
-                .db
-                .snapshots
-                .publication_intent
-                .load(std::sync::atomic::Ordering::Acquire)
-            {
-                crate::rt::yield_now().await;
-            }
-        })
-        .await
-        .expect("the disk publisher must establish drain intent");
+        wait_for_publication_intents_1854(&backend, 1, "disk publication must claim intent").await;
 
         let mut later_reader = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -43414,94 +43468,283 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: an optimistic disk publisher
-    /// must periodically join the exact dependency's fair queue while it owns
-    /// the rehoming and live-publication gates. A queued index writer then runs
-    /// before later readers instead of spinning behind them indefinitely.
+    /// A disk transaction must join each failed dependency fairly only after
+    /// releasing both outer gates. This drives one publication through a held
+    /// database and then a held seed store, while an unrelated live edit proves
+    /// the second wait does not monopolise foreground publication.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn disk_publication_joins_contended_index_queue_1854() {
+    async fn disk_publication_releases_gates_while_waiting_fairly_1854() {
         let backend = Arc::new(test_backend());
-        let _rehoming = backend.rehoming_gate.lock().await;
-        let _publication = backend.live_publication_gate.lock().await;
-        let existing_reader = backend.workspace_index.read().await;
-        let pausing = crate::rt::spawn({
+        let disk_uri = Uri::from_str("file:///disk-fair-queue-1854.tcl").unwrap();
+        let disk_text = "proc disk_fair_queue {} {}\n";
+        let analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
+        let live_uri = Uri::from_str("file:///live-during-disk-wait-1854.tcl").unwrap();
+        let live_text = "set live current\n";
+        backend
+            .db_set_source(&live_uri, "set live old\n", "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            live_uri.clone(),
+            DocumentState::new(live_text.to_owned(), "tcl8.6".to_owned())
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let seeds = backend.rehomed_source_seeds.lock().await;
+        let publishing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
+            let disk_uri = disk_uri.clone();
             async move {
-                let mut retries = DiskPublicationRetries::default();
-                for _ in 0..1023 {
-                    retries.record(LivePublicationWait::WorkspaceIndex);
-                }
                 backend
-                    .pause_disk_publication(
-                        "test_disk_index_queue",
-                        LivePublicationWait::WorkspaceIndex,
-                        &mut retries,
+                    .publish_disk_results(
+                        &[(
+                            disk_uri,
+                            disk_text.to_owned(),
+                            "tcl8.6".to_owned(),
+                            analysis,
+                        )],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_fair_queue",
                     )
-                    .await;
-                retries.count(LivePublicationWait::WorkspaceIndex)
+                    .await
             }
         });
+
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
             loop {
-                if backend.workspace_index.try_read().is_err() {
+                if backend.db.contention().contains("1 queued waiter") {
                     break;
                 }
                 crate::rt::yield_now().await;
             }
         })
         .await
-        .expect("the disk publisher must join the index writer queue");
+        .expect("the disk publisher must join the contended database queue");
+        drop(database);
 
-        let mut later_reader = crate::rt::spawn({
-            let backend = Arc::clone(&backend);
-            async move { drop(backend.workspace_index.read().await) }
-        });
         assert!(
-            crate::rt::timeout(std::time::Duration::from_millis(25), &mut later_reader)
-                .await
-                .is_err(),
-            "a reader arriving after the queued disk writer must wait",
-        );
-        drop(existing_reader);
-        assert_eq!(
-            crate::rt::timeout(std::time::Duration::from_secs(5), pausing)
-                .await
-                .expect("the disk publisher must finish after the old reader leaves")
-                .expect("the disk publisher must not panic"),
-            1024,
-        );
-        crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+            crate::rt::timeout(
+                std::time::Duration::from_millis(500),
+                backend.commit_live_source(
+                    "test_live_during_disk_wait",
+                    &live_uri,
+                    live_text,
+                    "tcl8.6",
+                    0,
+                    false,
+                ),
+            )
             .await
-            .expect("the later reader must resume after disk publication")
-            .expect("the later reader must not panic");
+            .expect("the live publisher must not wait for the disk-only seed store"),
+            "the unrelated current live source must publish",
+        );
+        assert!(
+            !publishing.is_finished(),
+            "the seed guard must still keep the disk transaction pending",
+        );
+
+        drop(seeds);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("disk publication must finish after its queued turn")
+                .expect("the disk publisher must not panic"),
+            vec![disk_uri],
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::disk_fair_queue"),
+            "the queued transaction must publish its complete index update",
+        );
     }
 
-    /// Exact-head automated review of #1854: alternating failures retain an
-    /// independent fair-queue budget for every contended dependency.
-    #[test]
-    fn disk_publication_retry_budget_is_per_dependency_1854() {
-        let mut retries = DiskPublicationRetries::default();
-        for _ in 0..1023 {
-            assert!(
-                !retries
-                    .record(LivePublicationWait::Database)
-                    .is_multiple_of(1024)
-            );
-            assert!(
-                !retries
-                    .record(LivePublicationWait::WorkspaceIndex)
-                    .is_multiple_of(1024)
-            );
-        }
+    /// Releasing the outer gates must not let a newer disk snapshot overtake a
+    /// blocked older one and then be overwritten when the older work resumes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_serialises_captured_replacements_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///disk-order-1854.tcl").unwrap();
+        let old_text = "proc older_disk_read {} {}\n";
+        let new_text = "proc newer_disk_read {} {}\n";
+        let seeds = backend.rehomed_source_seeds.lock().await;
+        let older = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let analysis = Analyser::new().analyse(old_text, "tcl8.6").clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(uri, old_text.to_owned(), "tcl8.6".to_owned(), analysis)],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_older_disk_read",
+                    )
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.disk_publication_gate.try_lock().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the older disk snapshot must own the serialisation gate");
+
+        let newer = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let analysis = Analyser::new().analyse(new_text, "tcl8.6").clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(uri, new_text.to_owned(), "tcl8.6".to_owned(), analysis)],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_newer_disk_read",
+                    )
+                    .await
+            }
+        });
         assert!(
-            retries
-                .record(LivePublicationWait::Database)
-                .is_multiple_of(1024)
+            crate::rt::timeout(std::time::Duration::from_millis(100), async {
+                while !newer.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "the newer disk snapshot must queue behind the older one",
+        );
+
+        drop(seeds);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), older)
+                .await
+                .expect("the older disk publication must finish")
+                .expect("the older disk publisher must not panic"),
+            vec![uri.clone()],
+        );
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), newer)
+                .await
+                .expect("the newer disk publication must finish second")
+                .expect("the newer disk publisher must not panic"),
+            vec![uri.clone()],
+        );
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(new_text),
+            "the later captured disk replacement must remain authoritative",
+        );
+    }
+
+    /// A live publisher entering while disk work retains drain ownership must
+    /// share the reader barrier rather than panic or release it prematurely.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_publication_shares_disk_snapshot_drain_intent_1854() {
+        let backend = Arc::new(test_backend());
+        let disk_uri = Uri::from_str("file:///disk-shared-drain-1854.tcl").unwrap();
+        let disk_text = "proc disk_shared_drain {} {}\n";
+        let disk_analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
+        let live_uri = Uri::from_str("file:///live-shared-drain-1854.tcl").unwrap();
+        let live_text = "set live current\n";
+        backend
+            .db_set_source(&live_uri, "set live old\n", "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            live_uri.clone(),
+            DocumentState::new(live_text.to_owned(), "tcl8.6".to_owned())
+                .with_publication_pending(),
+        );
+
+        let existing = backend.db.snapshot("issue-1854-shared-drain-reader").await;
+        let mut disk_publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let disk_uri = disk_uri.clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(
+                            disk_uri,
+                            disk_text.to_owned(),
+                            "tcl8.6".to_owned(),
+                            disk_analysis,
+                        )],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_shared_drain",
+                    )
+                    .await
+            }
+        });
+        wait_for_publication_intents_1854(&backend, 1, "disk publication must claim intent").await;
+
+        let mut live_publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let live_uri = live_uri.clone();
+            async move {
+                backend
+                    .commit_live_source(
+                        "test_live_shared_drain",
+                        &live_uri,
+                        live_text,
+                        "tcl8.6",
+                        0,
+                        false,
+                    )
+                    .await
+            }
+        });
+        wait_for_publication_intents_1854(
+            &backend,
+            2,
+            "both publishers must own the shared drain intent",
+        )
+        .await;
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut live_publishing)
+                .await
+                .is_err(),
+            "the live publisher must wait for the pre-existing snapshot",
         );
         assert!(
-            retries
-                .record(LivePublicationWait::WorkspaceIndex)
-                .is_multiple_of(1024)
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut disk_publishing)
+                .await
+                .is_err(),
+            "the disk publisher must retain its own drain ownership",
+        );
+
+        drop(existing);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), live_publishing)
+                .await
+                .expect("the live publication must finish after the reader retires")
+                .expect("the live publisher must not panic"),
+            "the current live source must publish",
+        );
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), disk_publishing)
+                .await
+                .expect("the disk publication must finish after the reader retires")
+                .expect("the disk publisher must not panic"),
+            vec![disk_uri.clone()],
+        );
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&live_uri).map(|file| file.text(&*db).as_str()),
+            Some(live_text),
+        );
+        assert_eq!(
+            files.get(&disk_uri).map(|file| file.text(&*db).as_str()),
+            Some(disk_text),
         );
     }
 
@@ -43531,11 +43774,12 @@ proc p {} {
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
-            while !backend
+            while backend
                 .db
                 .snapshots
                 .publication_intent
                 .load(std::sync::atomic::Ordering::Acquire)
+                == 0
             {
                 crate::rt::yield_now().await;
             }
