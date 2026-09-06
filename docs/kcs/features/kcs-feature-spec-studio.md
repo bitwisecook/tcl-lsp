@@ -5,7 +5,7 @@
 
 ## Summary
 
-A browser page for exploring the command registry: browse every command tcl-lsp knows, edit any field of its command specification, and render the result back out as a drop-in registry `.rs` file or a Tcl dialect stub.
+A browser page for exploring the command registry: browse every command tcl-lsp knows, edit any field of its command specification, and export the pack you build as drop-in registry `.rs` files and a Tcl dialect stub.
 
 ## Applies to
 
@@ -21,7 +21,7 @@ tcl-lsp CLI
 ## How to use
 
 The studio is a small directory of files: `index.html` (which carries the
-registry, the analyser, and both renderers inside it), the code editor, and the
+registry, the analyser, and the renderers inside it), the code editor, and the
 Tcl language server. Serve that directory and everything works — including
 offline once the page has loaded.
 
@@ -68,12 +68,71 @@ says so. Serve the directory to get the full editor.
    setting rather than Rust. The **Docs** panel beside the form shows the
    same explanation for whatever you last focused, without moving the form —
    see [the Docs panel](#the-docs-panel) below.
-4. **Read the output** on the **Rendered .rs** and **Tcl stub** tabs. Both
-   update as you type.
-5. **Copy** it, **Download** it, or **Add to files** to collect several
-   artefacts together.
-6. **Files & issue** downloads the collected files and opens a pre-filled
-   GitHub issue so you can propose the spec.
+4. **Read the output** on the **Export** tab: every file the pack produces,
+   not only the command you have open, recomputed as you type — see
+   [exporting the pack](#exporting-the-pack).
+5. **Copy** or **Download ↓** the file you are reading, **Download all ↓**
+   the set, or **Stage every file** to collect them in **Files & issue**.
+6. **Files & issue** downloads the staged files and opens a pre-filled
+   GitHub issue so you can propose the pack.
+
+### Several commands at once
+
+Every command you open gets a tab in a strip above the workbench tabs, up to
+twelve, so comparing two specifications or copying an option table from a
+shipped command into your own is a click rather than a trip back through
+the browser. A tab is a place to stand, not a copy: every edit goes straight
+into the pack document, so there is nothing to save before you switch and
+nothing to lose by closing. A dot on a tab marks a command you have edited
+since opening it. Come back to a tab and the form is as you left it — the
+same groups open, scrolled to the same place — and clicking the tab you are
+already on from another pane returns you to the editor.
+
+| Key or gesture | Does |
+|---|---|
+| Click, or `Enter` on a focused tab | Opens that command |
+| `←` `→` `Home` `End` | Move along the strip without opening anything |
+| ✕, middle-click, or `Delete` on a focused tab | Closes that tab — these always work |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab, where the browser lets a page have the key |
+| `Ctrl+W` or `Cmd+W` | Closes the tab you are on, likewise |
+
+Closing a tab brings its neighbour forward; closing the last leaves the form
+on an empty draft. Opening a thirteenth command closes the tab you have used
+least recently among those you have not edited — never the one you are on —
+and the status line says which. If every other tab has been edited, the
+least recently used of those goes instead. Either way the command is still
+in the pack, one click away in the browser.
+
+Tabs and history agree. Switching to a tab counts as opening that command,
+so ◀ ▶ and the browser's Back step through tabs like anything else you
+opened, and a link someone sends you opens its command as a tab. Closing a
+tab is not a move, so Back does not revisit it. Open tabs are part of live
+save: reload, and the strip comes back with the same tab in front.
+
+**New command** starts a draft that belongs to no tab until you press **Add
+to pack**; the strip shows nothing selected until then, so it is plain the
+edits are going into a fresh draft and not into an open command.
+
+### Finding a command from anywhere
+
+Press `/` when you are not typing in a box to search three places at once:
+the pack you are building, the shipped packs of the selected dialect, and
+the Reference vocabulary — the picker catalogues and their values, such as
+a trait or an argument role. Type to narrow, `↑` `↓` to move, `Enter` to
+open, `Esc` to close.
+
+Every result says where it came from — `pack mylib`, `shipped · Tcl 9.0`
+with the pack's chip, or `Reference` — and marks the part of the name or
+summary that matched, and the line above the list says what was searched
+and how much of each answered: `3 matches — 1 in pack mylib, 1 in the
+shipped Tcl 9.0 packs, 1 in the Reference vocabulary`. So "no match" is no
+match in all three, and you can place a hit before you open it. Results are
+ordered by how well the name matches — an exact name first, then a name
+starting with what you typed, then one containing it, then a match in the
+summary only — with your own pack ahead of shipped commands and those ahead
+of Reference entries. At most sixty are shown, and the count says if there
+were more. Specification fields are not in this search: the **?** buttons,
+the **Docs** panel, and the Reference tab already cover those.
 
 ### Several commands at once
 
@@ -227,7 +286,7 @@ their catalogue's one example.
 
 ### Nothing you type is uploaded
 
-The command registry, the Tcl compiler's analyser, both renderers, and the Tcl
+The command registry, the Tcl compiler's analyser, the renderers, and the Tcl
 language server are compiled to WebAssembly and served from the page's own
 directory. Its content security policy allows the page to reach exactly two
 outside hosts — `api.github.com` and `codeload.github.com` — and only one
@@ -303,9 +362,66 @@ when you hit it the panel says so and gives the time it resets. Any failure —
 rate limit, a repository that does not exist, a network that is not there —
 points you back at the upload path, which needs no network at all.
 
+### Exporting the pack
+
+The **Export** tab lists everything the pack produces, not just the command
+you have open: the `.tclspec` document, one registry `.rs` file per command
+with the `mod.rs` that declares and collects them, and the dialect stub. The
+list is grouped the way a contribution is read — **Spec pack**, **Registry
+sources**, **Dialect stub** — and the line above it says how much there is:
+`mylib: 3 commands, 6 files for Tcl 9.0.` It is recomputed as you edit, so
+what you read is what you would ship. Pick a file to read it, or move with
+`↑` `↓` `Home` `End`. A `.rs` opens in a Rust viewer; the `.tclspec` opens
+in the same editor as the **Pack DSL** tab, with the language server behind
+it.
+
+The directory the registry files land in is set in the pack's own section
+of the browser — **renders into** `rust/tcl-registry/src/commands/` — rather
+than on any one file, because it is a fact about the pack: it names where
+every command's `.rs` and the `mod.rs` go, and the `mod.rs` names its
+collector after it. It starts as your pack's own name, so a library called
+`mylib` proposes `commands/mylib/`, and it follows the name if you rename
+the library. Change it when your commands belong in a pack that already
+exists — `tcl`, `irules`, `tk` — and the export changes with it.
+
+Naming an existing pack changes what the `mod.rs` row is. That pack's
+`mod.rs` already declares every other command in it, and a file holding
+only yours would delete the lot, so the export renders the **lines to add**
+instead: the row is labelled *add to the pack's mod.rs*, the file is called
+`mod.rs.additions`, and it opens with a banner saying not to write it over
+anything. Merge its two lists — the `mod` declarations and the collector
+rows — into the file that is there. A directory the registry does not ship
+still gets a whole `mod.rs` you can drop straight in.
+
+If two of your commands would be filed at the same path — `a-b` and `a_b`
+both become `a_b.rs`, because a Rust module name cannot carry a hyphen — a
+warning above the list names them. Both files are still there to read, but
+Rust declares that module once, so a contribution holding both would ship
+one and lose the other. Rename one of them. Namespaced names do not
+collide with flat ones: `IP::ttl` is filed at `ip__ttl.rs` and `ip_ttl` at
+`ip_ttl.rs`, the way the registry itself files that pair.
+
+The exported `.tclspec` is the pack rendered canonically — the text
+**Re-render canonically** would produce — so your own comments and layout
+are not in it. The **Pack DSL** tab's own **Download ↓** is the text as you
+wrote it.
+
+The stub comes in both spellings, and the **stub** selector chooses which
+one the list offers, since the two say the same thing.
+
+**Copy** and **Download ↓** act on the file you are reading. **Download all
+↓** saves every listed file, one download each, a moment apart: the page
+works offline and straight off disk, so there is no server to bundle them
+into an archive, and your browser may ask once whether the page can download
+several files. **Stage every file** puts the same set — with the stub in
+the spelling showing — into **Files & issue**, replacing any file already
+there under the same name; that tab downloads the set the same way and
+opens a GitHub issue with the files embedded or, when they are too large for
+a link, copies the issue body for you to paste.
+
 ### The Pack DSL tab
 
-Beside the form, `.rs` module, and stub, the **Pack DSL** tab holds the
+Beside the form and the **Export** tab, the **Pack DSL** tab holds the
 [SpecTcl pack](../../design/spec-packs.md)'s `.tclspec` source directly —
 the studio's one authoritative document for a pack you are building.
 Edit a field in the form and the DSL text updates; edit the text and the
@@ -532,8 +648,8 @@ Loading `lsearch` from the Tcl 9.0 registry shows its declared dialects,
 
 ![The spec studio with lsearch loaded](../../screenshots/spec-studio-editor.png)
 
-The **Rendered .rs** tab produces a complete registry module, copyright banner
-included:
+A command's registry module on the **Export** tab is complete, copyright
+banner included:
 
 ![The rendered .rs output](../../screenshots/spec-studio-rendered-rs.png)
 

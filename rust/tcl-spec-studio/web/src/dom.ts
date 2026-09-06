@@ -124,3 +124,26 @@ export function download(name: string, text: string): void {
   document.body.removeChild(anchor);
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/**
+ * How far apart a set of saves is spread.
+ *
+ * Several `click()`s in one task look to a browser like one gesture and can be
+ * collapsed into a single save; a few frames apart they are separate ones.
+ */
+const DOWNLOAD_GAP_MS = 120;
+
+/**
+ * Save a set of files, one download each.
+ *
+ * A page that must keep working offline and from `file://` can neither reach
+ * for a server nor pull in a zip library it would have to ship, and the
+ * browser's own multi-file save dialog is not scriptable — so the loop is the
+ * honest option, and the browser's own "download several files?" prompt is the
+ * one confirmation it costs.
+ */
+export function downloadAll(files: { path: string; source: string }[]): void {
+  files.forEach((file, index) => {
+    window.setTimeout(() => download(file.path, file.source), index * DOWNLOAD_GAP_MS);
+  });
+}

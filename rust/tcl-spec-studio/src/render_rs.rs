@@ -27,6 +27,8 @@
 //! come from the trailing `..CommandSpec::DEFAULT`, matching how every
 //! hand-written spec in the registry is laid out.
 
+use std::fmt::Write as _;
+
 use serde_json::Value;
 
 use crate::draft::{self, Draft, UNRENDERABLE_KEY};
@@ -1212,6 +1214,149 @@ fn module_doc(name: &str, summary: &str) -> String {
     out
 }
 
+/// How the generated `commands/<pack>/mod.rs` is meant to be applied.
+///
+/// The directory is the author's to name, and naming a pack the registry
+/// already ships is the ordinary case — a contribution to `tcl` or `irules`
+/// is a few commands added to hundreds. A whole-file render offered for that
+/// directory is a drop-in that silently deletes the rest of the pack, so the
+/// two cases are rendered differently and labelled differently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModuleForm {
+    /// The directory is new to the registry: the render is the whole file.
+    Whole,
+    /// The directory is a pack the registry already ships: the render is the
+    /// lines to add to the `mod.rs` that is already there.
+    Addition,
+}
+
+/// Render the `commands/<pack>/mod.rs` that declares each command's module
+/// and collects their specs.
+///
+/// The one file in a pack contribution that is pure bookkeeping: a `mod` line
+/// per command and a `vec![…]` naming each `spec()`. `command-registry.md`
+/// tells a contributor to write both by hand, and the module stem has to match
+/// the path [`suggested_path`] chose — two places to get wrong for no
+/// judgement gained.
+///
+/// It carries `#![allow(non_snake_case)]` for the same reason every
+/// hand-written pack does: [`suggested_path`] spells a command's `::` as the
+/// registry's double underscore, so `HTTP::header` is `mod http__header` and
+/// rustc's lint rejects the consecutive underscores.
+///
+/// The import is `crate::spec::CommandSpec`: the file is written *into*
+/// `tcl-registry`, which does not alias itself, so naming the crate would not
+/// resolve.
+#[must_use]
+pub fn render_pack_module(commands: &[(String, Draft)], pack: &str, form: ModuleForm) -> String {
+    let stems: Vec<String> = commands.iter().map(|(name, _)| module_stem(name)).collect();
+    let mut sorted: Vec<&String> = stems.iter().collect();
+    sorted.sort_unstable();
+    // Two commands whose stems collide own one module line: Rust has no
+    // spelling for declaring the same module twice.  Which two they were is
+    // not lost — `pack_export` reports the collision beside the files.
+    sorted.dedup();
+
+    if form == ModuleForm::Addition {
+        return render_module_addition(&sorted, pack);
+    }
+
+    let mut out = String::from(COPYRIGHT_BANNER);
+    let _ = write!(
+        out,
+        "\n\n//! `{pack}` command specifications.\n\n#![allow(non_snake_case)]\n\n"
+    );
+    for stem in &sorted {
+        let _ = writeln!(out, "mod {stem};");
+    }
+    out.push_str("\nuse crate::spec::CommandSpec;\n");
+    let collector = collector_fn(pack);
+    let _ = write!(
+        out,
+        "\n/// Every command specification the `{pack}` pack declares.\n#[must_use]\npub fn {collector}() -> Vec<CommandSpec> {{\n    vec![\n"
+    );
+    for stem in &sorted {
+        let _ = writeln!(out, "        {stem}::spec(),");
+    }
+    out.push_str("    ]\n}\n");
+    out
+}
+
+/// The `mod.rs` rendered as an **addition** to a pack the registry already
+/// ships: the `mod` lines and collector entries to put into the file that is
+/// already there.
+///
+/// A whole-file render would be a drop-in that deletes every command the pack
+/// already has, so this one is not a file at all — no copyright banner, no
+/// collector body, and a banner comment that says which it is before anything
+/// else on the page.
+fn render_module_addition(stems: &[&String], pack: &str) -> String {
+    let dir = format!("rust/tcl-registry/src/commands/{pack}/mod.rs");
+    let collector = collector_fn(pack);
+    let mut out = String::new();
+    out.push_str("// ══════════════════════════════════════════════════════════════════\n");
+    out.push_str("// ADDITIONS — NOT A DROP-IN FILE. DO NOT REPLACE mod.rs WITH THIS.\n");
+    out.push_str("// ══════════════════════════════════════════════════════════════════\n");
+    out.push_str("//\n");
+    let _ = writeln!(out, "// `{pack}` is a pack tcl-registry already ships, and");
+    let _ = writeln!(out, "// {dir}");
+    out.push_str("// already declares every other command in it. Writing this file over\n");
+    out.push_str("// that one would delete every last one of them. Merge the two lists\n");
+    out.push_str("// below into the file instead, each in the order that file keeps.\n");
+    if stems.iter().any(|stem| stem.contains("__")) {
+        out.push_str("//\n");
+        out.push_str("// A stem below spells a `::` as a double underscore, so the file needs\n");
+        out.push_str("// `#![allow(non_snake_case)]` too if it does not carry one already.\n");
+    }
+    out.push_str("\n// Add beside the existing `mod` declarations:\n");
+    for stem in stems {
+        let _ = writeln!(out, "mod {stem};");
+    }
+    out.push('\n');
+    let _ = writeln!(
+        out,
+        "// Add to the list `{collector}()` returns — a shipped pack may build"
+    );
+    out.push_str("// that from sub-builders or a `const` table, so the rows go wherever\n");
+    out.push_str("// it keeps the rest of them:\n");
+    for stem in stems {
+        let _ = writeln!(out, "    {stem}::spec(),");
+    }
+    out
+}
+
+/// The name of the collector function a pack directory declares.
+///
+/// The directory is free text a user typed, and `commands/my-lib/` would give
+/// `my-lib_command_specs`, which is not an identifier. Every non-alphanumeric
+/// run becomes one underscore, exactly as a module stem does.
+fn collector_fn(pack: &str) -> String {
+    let mut ident = String::new();
+    for ch in pack.chars() {
+        if ch.is_alphanumeric() {
+            ident.extend(ch.to_lowercase());
+        } else if !ident.ends_with('_') {
+            ident.push('_');
+        }
+    }
+    let ident = ident.trim_matches('_');
+    match ident.chars().next() {
+        None => "pack_command_specs".to_owned(),
+        Some(first) if first.is_ascii_digit() => format!("pack_{ident}_command_specs"),
+        Some(_) => format!("{ident}_command_specs"),
+    }
+}
+
+/// The module name [`suggested_path`] files a command under.
+fn module_stem(name: &str) -> String {
+    suggested_path(name, "x")
+        .rsplit('/')
+        .next()
+        .and_then(|file| file.strip_suffix(".rs"))
+        .unwrap_or("command")
+        .to_owned()
+}
+
 /// Render `draft` as a complete `tcl-registry` command-spec source file.
 #[must_use]
 pub fn render(draft: &Draft) -> String {
@@ -1298,9 +1443,13 @@ fn lower_first(s: &str) -> String {
 /// The conventional file path for a command spec, relative to the repository
 /// root — e.g. `rust/tcl-registry/src/commands/tcl/lappend_.rs`.
 ///
-/// Names that collide with a Rust keyword get the registry's trailing
-/// underscore (`lappend_.rs`), and a namespaced iRules command flattens its
-/// `::` separators.
+/// The stem follows the convention the registry's 1000-odd command files
+/// already keep: a namespace `::` is a **double** underscore, every other run
+/// of punctuation is a single one. `IP::ttl` is `ip__ttl.rs` and `ip_ttl` is
+/// `ip_ttl.rs` — both are real iRules commands, and collapsing the `::` to one
+/// underscore filed them at the same path, where the second silently replaced
+/// the first. Names that collide with a Rust keyword get the registry's
+/// trailing underscore (`lappend_.rs`).
 #[must_use]
 pub fn suggested_path(name: &str, pack: &str) -> String {
     const KEYWORDS: &[&str] = &[
@@ -1311,12 +1460,19 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
         "macro", "override", "priv", "typeof", "unsized", "virtual", "yield", "try",
     ];
     // A fully-qualified name (`::tcl::dict::lappend`) would otherwise start with
-    // the separator's underscore, and repeated punctuation would double it up —
-    // neither reads like the module names already in the registry.
+    // the separator's underscores, and a run of other punctuation would double
+    // up into the `::` spelling — neither reads like the module names already
+    // in the registry.
     let mut stem = String::new();
-    for ch in name.chars() {
+    let mut chars = name.chars().peekable();
+    while let Some(ch) = chars.next() {
         if ch.is_alphanumeric() {
             stem.extend(ch.to_lowercase());
+        } else if ch == ':' && chars.peek() == Some(&':') {
+            chars.next();
+            if !stem.ends_with("__") {
+                stem.push_str("__");
+            }
         } else if !stem.ends_with('_') {
             stem.push('_');
         }
@@ -1337,8 +1493,17 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
     use super::*;
     use tcl_dialect::model::SpecSurface;
+
+    /// A draft that is nothing but a name — all these tests read is the stem.
+    fn named_draft(name: &str) -> (String, Draft) {
+        let mut draft = draft::default_command_draft();
+        draft.insert("name".to_owned(), serde_json::json!(name));
+        (name.to_owned(), draft)
+    }
 
     fn invalid_non_write_taint_draft() -> Draft {
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -1834,18 +1999,148 @@ mod tests {
         );
         assert_eq!(
             suggested_path("HTTP::header", "irules"),
-            "rust/tcl-registry/src/commands/irules/http_header.rs"
+            "rust/tcl-registry/src/commands/irules/http__header.rs"
         );
         // A leading `::` must not leave the module name starting with `_`, and
-        // a run of separators collapses to one.
+        // a run of punctuation that is not a namespace separator collapses to
+        // one.
         assert_eq!(
             suggested_path("::tcl::dict::lappend", "tcl"),
-            "rust/tcl-registry/src/commands/tcl/tcl_dict_lappend.rs"
+            "rust/tcl-registry/src/commands/tcl/tcl__dict__lappend.rs"
         );
         assert_eq!(
             suggested_path("tcl::mathop::+", "tcl"),
-            "rust/tcl-registry/src/commands/tcl/tcl_mathop.rs"
+            "rust/tcl-registry/src/commands/tcl/tcl__mathop.rs"
         );
+    }
+
+    /// The registry files `IP::ttl` at `ip__ttl.rs` and `ip_ttl` at
+    /// `ip_ttl.rs`, and ships both commands in `irules`. Collapsing the `::`
+    /// to a single underscore put them at one path, where `pack_export` wrote
+    /// one file over the other and the `mod.rs` declared the module once.
+    #[test]
+    fn a_namespace_separator_is_a_double_underscore_as_the_registry_spells_it() {
+        for (name, stem) in [
+            ("IP::ttl", "ip__ttl"),
+            ("ip_ttl", "ip_ttl"),
+            ("IP::addr", "ip__addr"),
+            ("ip_addr", "ip_addr"),
+            ("HTTP::header", "http__header"),
+            ("AAA::acct_result", "aaa__acct_result"),
+            ("access2::access2_proc", "access2__access2_proc"),
+        ] {
+            assert_eq!(
+                suggested_path(name, "irules"),
+                format!("rust/tcl-registry/src/commands/irules/{stem}.rs"),
+                "{name}"
+            );
+        }
+        assert_ne!(
+            suggested_path("IP::ttl", "irules"),
+            suggested_path("ip_ttl", "irules"),
+        );
+    }
+
+    /// The convention is not a table written here: it is what the registry's
+    /// thousand-odd command files already do, so the claim is checked against
+    /// every shipped command.
+    #[test]
+    fn every_shipped_namespaced_command_keeps_its_separator() {
+        let mut checked = 0_usize;
+        for pack in tcl_registry::commands::SPEC_PACKS {
+            for spec in (pack.specs)() {
+                if !spec.name.trim_start_matches("::").contains("::") {
+                    continue;
+                }
+                assert!(
+                    suggested_path(spec.name, pack.id).contains("__"),
+                    "{} lost its namespace separator: {}",
+                    spec.name,
+                    suggested_path(spec.name, pack.id)
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 500, "only {checked} namespaced commands checked");
+    }
+
+    /// `irules` ships four pairs that met at one path under the old rule —
+    /// `IP::addr`/`ip_addr`, `IP::protocol`/`ip_protocol`, `IP::tos`/`ip_tos`,
+    /// `IP::ttl`/`ip_ttl` — and the registry files each pair in two modules.
+    /// An export of that pack wrote one of each pair over the other, and the
+    /// `mod.rs` declared the module once.
+    ///
+    /// The pack as a whole is the assertion, not the four pairs: no two of its
+    /// commands may propose one file. (`tcl` and `tcllib` cannot make the same
+    /// claim — they ship the operator commands, whose names are punctuation
+    /// and carry no identifier to be distinct in. That residual is what
+    /// `pack_export` reports.)
+    #[test]
+    fn no_two_shipped_irules_commands_propose_the_same_file() {
+        let pack = tcl_registry::commands::SpecPack::by_id("irules").expect("the irules pack");
+        let mut seen: BTreeMap<String, String> = BTreeMap::new();
+        for spec in (pack.specs)() {
+            // One command may ship under both its bare and its fully-qualified
+            // spelling, and the registry files those in one module.
+            let command = spec.name.trim_start_matches("::").to_owned();
+            let path = suggested_path(spec.name, pack.id);
+            if let Some(other) = seen.insert(path.clone(), command.clone())
+                && other != command
+            {
+                panic!("{other} and {command} both render to {path}");
+            }
+        }
+        assert_eq!(
+            suggested_path("IP::ttl", "irules"),
+            "rust/tcl-registry/src/commands/irules/ip__ttl.rs"
+        );
+        assert_eq!(
+            suggested_path("ip_ttl", "irules"),
+            "rust/tcl-registry/src/commands/irules/ip_ttl.rs"
+        );
+    }
+
+    /// The generated file lands *inside* `tcl-registry`, which does not alias
+    /// itself: `use tcl_registry::CommandSpec;` there is `E0432`.
+    #[test]
+    fn the_pack_module_imports_the_spec_from_the_crate_it_is_written_into() {
+        let module = render_pack_module(&[named_draft("greet")], "mylib", ModuleForm::Whole);
+        assert!(
+            !module.contains("use tcl_registry::"),
+            "the module names the crate it is written into: {module}"
+        );
+        assert!(module.contains("use crate::spec::CommandSpec;"), "{module}");
+    }
+
+    /// A stem can now carry a `::`'s double underscore, which is exactly the
+    /// lint every hand-written pack suppresses.
+    #[test]
+    fn the_pack_module_allows_the_registry_module_naming() {
+        let module = render_pack_module(&[named_draft("HTTP::header")], "mylib", ModuleForm::Whole);
+        let allow = module.find("#![allow(non_snake_case)]").expect("the allow");
+        let first_mod = module.find("\nmod ").expect("a mod line");
+        assert!(allow < first_mod, "the inner attribute must lead: {module}");
+        assert!(module.contains("mod http__header;"), "{module}");
+    }
+
+    /// A shipped pack's `mod.rs` already declares hundreds of commands, so the
+    /// whole-file render is a drop-in that deletes them.
+    #[test]
+    fn a_shipped_pack_renders_as_an_addition_rather_than_a_whole_file() {
+        let module = render_pack_module(&[named_draft("greet")], "tcl", ModuleForm::Addition);
+        assert!(module.contains("NOT A DROP-IN FILE"), "{module}");
+        assert!(!module.contains("pub fn tcl_command_specs()"), "{module}");
+        assert!(module.contains("mod greet;"), "{module}");
+        assert!(module.contains("greet::spec(),"), "{module}");
+        assert!(module.contains("tcl_command_specs()"), "{module}");
+    }
+
+    /// A `speclib` name is free text, and the directory is seeded from it, so
+    /// `my-lib` must not reach the output as `my-lib_command_specs`.
+    #[test]
+    fn the_collector_is_an_identifier_whatever_the_directory_is_called() {
+        let module = render_pack_module(&[named_draft("greet")], "my-lib", ModuleForm::Whole);
+        assert!(module.contains("pub fn my_lib_command_specs()"), "{module}");
     }
 
     #[test]

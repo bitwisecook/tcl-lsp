@@ -432,6 +432,22 @@ pub fn pack_remove_command(source: &str, name: &str) -> String {
     }
 }
 
+/// Every artefact the pack produces: its `.tclspec`, one `.rs` per command,
+/// the `mod.rs` collecting them, and the dialect stub in both spellings.
+///
+/// Through [`with_store`] like every other entry point in this section, and
+/// for the reason they are: a form edit against a **programmed** document
+/// leaves `source` alone and stands as a patch in the cached store (E-R12).
+/// Re-parsing the text here exported the pack as it was *before* that edit,
+/// so the Export tab disagreed with the form the author was looking at.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_export(source: &str, pack: &str, dialect: &str) -> String {
+    with_store(source, |store| {
+        to_string(&tcl_spec_studio::pack_export_from(store, pack, dialect))
+    })
+}
+
 /// The patch pack standing over `source`, and the overrides it holds.
 ///
 /// The second half of the studio's state once a **programmed** pack has been

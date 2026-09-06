@@ -42,9 +42,10 @@ this for you). It loads the pack through the real parser and reports, per
 command, which fields your declaration set, every dropped or misspelled
 word, and any name clash with a shipped command.
 
-The [Spec Studio](features/kcs-feature-spec-studio.md) renders a drop-in
-`.rs` module or a stub from its form, which is what a **shipped**
-contribution needs; its Pack DSL tab also reads and writes a `.tclspec`
+The [Spec Studio](features/kcs-feature-spec-studio.md) exports the pack you
+build as drop-in `.rs` modules — one per command, with the `mod.rs` that
+collects them — or as a stub, which is what a **shipped** contribution
+needs; its Pack DSL tab also reads and writes a `.tclspec`
 pack directly, with syntax highlighting, hover, and loader-notice markers
 on the source text.
 

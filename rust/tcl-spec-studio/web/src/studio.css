@@ -304,6 +304,39 @@ summary .qbtn { margin-left: .45rem; }
 .out .actions { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-bottom: .6rem; }
 .out .path { font-family: var(--mono); font-size: .78rem; color: var(--muted); margin-left: auto; overflow-wrap: anywhere; }
 
+/* The Export pane: the pack's file list, and the one file it is showing.
+   Two columns where there is room, stacked where there is not — the list is
+   navigation, so on a narrow screen it comes first and the reader scrolls to
+   what it opened. */
+#exportSummary { margin-bottom: .6rem; }
+.exportsplit { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 1rem; align-items: start; }
+.exportsplit > * { min-width: 0; }
+.exportsplit[hidden] { display: none; }
+@media (max-width: 62rem) { .exportsplit { grid-template-columns: 1fr; } }
+.exportlist {
+  list-style: none; margin: 0; padding: 0; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--card); max-height: 32rem; overflow-y: auto;
+}
+.exportlist:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.exportlist ul { list-style: none; margin: 0; padding: 0; }
+.exportgroup + .exportgroup { border-top: 1px solid var(--border); }
+.exportgroup > .hd { padding: .55rem .6rem .25rem; }
+.exportgroup > .hd .title {
+  font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted);
+}
+.exportgroup > .hd .note { display: block; color: var(--muted); font-size: .74rem; margin-top: .1rem; }
+.exportfile { padding: .4rem .6rem; cursor: pointer; border-top: 1px solid var(--border); }
+.exportfile:first-child { border-top: 0; }
+.exportfile:hover { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.exportfile[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.exportfile .nm { display: block; font-family: var(--mono); font-size: .84rem; font-weight: 600; overflow-wrap: anywhere; }
+.exportfile .dir { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); overflow-wrap: anywhere; }
+.exportfile .state { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .15rem; }
+.exportfile .tag.cmd { border-color: var(--accent); color: var(--accent); font-family: var(--mono); }
+.exportfile .tag.clash { border-color: var(--warn-bd); color: var(--warn-fg); background: var(--warn-bg); }
+.exportsurface[hidden] { display: none; }
+
 /* The tray of files gathered for a GitHub issue. */
 .tray { margin-top: 1rem; }
 .tray ul { list-style: none; margin: .5rem 0 0; padding: 0; }
@@ -360,7 +393,7 @@ input[type=file] { display: none; }
 .packlist { max-height: 15rem; }
 .packlist .state { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .15rem; }
 /* The pill that names a pack or a command's state, wherever one is named. */
-.packlist .tag, .palette .tag, #editorSource .tag {
+.packlist .tag, .palette .tag, #editorSource .tag, .exportfile .tag {
   font-size: .66rem; line-height: 1.5; border: 1px solid var(--border); border-radius: 999px;
   padding: 0 .35rem; color: var(--muted); white-space: nowrap;
 }
@@ -383,6 +416,12 @@ input[type=file] { display: none; }
 .packlist li.packrow .rm:hover { color: var(--err-fg); }
 .packactions { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .5rem; }
 .packactions button { font-size: .78rem; padding: .3rem .5rem; }
+/* Which `commands/<dir>/` the pack renders into — a pack-level fact, so it
+   sits with the pack rather than beside one rendered file. */
+.packdir { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; margin-top: .5rem;
+  font-size: .74rem; color: var(--muted); }
+.packdir code { font-size: .7rem; overflow-wrap: anywhere; }
+.packdir input[type=text] { width: auto; min-width: 5rem; flex: 1 1 5rem; font-size: .78rem; padding: .25rem .4rem; }
 
 /* The DSL pane's report: loader notices and registry collisions. */
 .dslrow { display: flex; gap: .5rem; align-items: baseline; padding: .25rem 0; border-top: 1px solid var(--border); font-size: .82rem; }
@@ -495,6 +534,10 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
   .opentab > [role=tab] { max-width: 8.5rem; }
   .browser { max-height: 18rem; }
   .out pre { font-size: .74rem; max-height: 50vh; }
+  /* Stacked, the file list is a chooser above the file — capped so the file it
+     chose is on screen without scrolling past every other one. */
+  .exportlist { max-height: 14rem; }
+  .editorhost.output { height: 22rem; }
   .field .ctl select,
   .field .ctl input[type=text],
   .field .ctl input[type=number] { min-width: 0; flex: 1 1 8rem; }
@@ -588,6 +631,7 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
     min-height: 44px;
   }
   .cmdlist button { min-height: 44px; }
+  .exportfile { min-height: 44px; }
 }
 
 /* The live documentation dock.

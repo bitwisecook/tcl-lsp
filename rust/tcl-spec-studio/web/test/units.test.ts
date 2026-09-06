@@ -91,6 +91,21 @@ import {
   type TabState,
 } from "../src/openTabs.js";
 import {
+  collidingCommands,
+  collisionNotice,
+  emptyExportNotice,
+  exportGroups,
+  exportSummary,
+  fileBase,
+  fileDir,
+  kindLabel,
+  packDirectory,
+  reseedPackDir,
+  selectedPath,
+  surfaceOf,
+  visibleFiles,
+} from "../src/packExport.js";
+import {
   highlight,
   paletteSummary,
   searchPalette,
@@ -99,7 +114,15 @@ import {
   type PaletteNames,
 } from "../src/paletteSearch.js";
 import { mapSelectionThroughFormat } from "../src/textSelection.js";
-import type { CodeExample, FieldSchema, IndexEntry, PackRow, Schema } from "../src/types.js";
+import type {
+  CodeExample,
+  ExportFile,
+  FieldSchema,
+  IndexEntry,
+  PackExport,
+  PackRow,
+  Schema,
+} from "../src/types.js";
 
 describe("mapSelectionThroughFormat", () => {
   it("keeps a caret after its text when formatting inserts indentation", () => {
@@ -1434,5 +1457,204 @@ describe("paletteSummary and surfaceLabel", () => {
       paletteSummary("", searchPalette([], "", 10), anonymous),
       "Searching the pack under edit, the shipped Tcl 9.0 packs and the Reference vocabulary.",
     );
+  });
+});
+
+describe("the pack export", () => {
+  const files: ExportFile[] = [
+    { kind: "spectcl", path: "mylib.tclspec", source: "speclib mylib 1 {}" },
+    {
+      kind: "rs",
+      path: "rust/tcl-registry/src/commands/mylib/greet.rs",
+      source: "// greet",
+      command: "greet",
+    },
+    {
+      kind: "rs",
+      path: "rust/tcl-registry/src/commands/mylib/farewell.rs",
+      source: "// farewell",
+      command: "farewell",
+    },
+    { kind: "rs-mod", path: "rust/tcl-registry/src/commands/mylib/mod.rs", source: "mod greet;" },
+    { kind: "stub-file", path: "tcl9.0.tcl.stubs", source: "stub greet" },
+    { kind: "stub-inline", path: "stubs.tcl", source: "# tcl-lsp: stub" },
+  ];
+  const exported: PackExport = {
+    pack: "mylib",
+    dialect: "tcl9.0",
+    commands: 2,
+    files,
+    collisions: [],
+  };
+
+  it("files the artefacts as a contribution is read: document, sources, stub", () => {
+    const groups = exportGroups(visibleFiles(files, "inline"));
+    assert.deepEqual(
+      groups.map((group) => group.title),
+      ["Spec pack", "Registry sources", "Dialect stub"],
+    );
+    assert.deepEqual(
+      groups.map((group) => group.files.map((file) => file.path)),
+      [
+        ["mylib.tclspec"],
+        [
+          "rust/tcl-registry/src/commands/mylib/greet.rs",
+          "rust/tcl-registry/src/commands/mylib/farewell.rs",
+          "rust/tcl-registry/src/commands/mylib/mod.rs",
+        ],
+        ["stubs.tcl"],
+      ],
+    );
+  });
+
+  it("offers one stub spelling at a time, because they say the same thing", () => {
+    assert.deepEqual(
+      visibleFiles(files, "file").map((file) => file.kind),
+      ["spectcl", "rs", "rs", "rs-mod", "stub-file"],
+    );
+    assert.deepEqual(
+      visibleFiles(files, "inline").map((file) => file.kind),
+      ["spectcl", "rs", "rs", "rs-mod", "stub-inline"],
+    );
+  });
+
+  it("drops a section the export has nothing for rather than showing it empty", () => {
+    const bare: ExportFile[] = [{ kind: "spectcl", path: "mylib.tclspec", source: "" }];
+    assert.deepEqual(
+      exportGroups(bare).map((group) => group.title),
+      ["Spec pack"],
+    );
+  });
+
+  it("names every kind, and sends each to the surface that can render it", () => {
+    assert.equal(kindLabel("spectcl"), "pack document");
+    assert.equal(kindLabel("rs"), "registry command");
+    assert.equal(kindLabel("rs-mod"), "module collector");
+    assert.equal(kindLabel("rs-mod-add"), "add to the pack's mod.rs");
+    assert.equal(kindLabel("stub-file"), "stub file");
+    assert.equal(kindLabel("stub-inline"), "inline stub");
+    assert.equal(surfaceOf("rs"), "rust");
+    assert.equal(surfaceOf("rs-mod"), "rust");
+    assert.equal(surfaceOf("rs-mod-add"), "rust");
+    assert.equal(surfaceOf("spectcl"), "tcl");
+    assert.equal(surfaceOf("stub-file"), "tcl");
+    assert.equal(surfaceOf("stub-inline"), "tcl");
+  });
+
+  // A `mod.rs` for a pack the registry already ships is a set of lines to add
+  // to a populated file, not a drop-in — and a section that still called it
+  // "drop-in" would be the one sentence a reader trusted.
+  it("stops calling the registry sources drop-in when the collector is an addition", () => {
+    const addition: ExportFile[] = [
+      {
+        kind: "rs",
+        path: "rust/tcl-registry/src/commands/tcl/greet.rs",
+        source: "",
+        command: "greet",
+      },
+      {
+        kind: "rs-mod-add",
+        path: "rust/tcl-registry/src/commands/tcl/mod.rs.additions",
+        source: "",
+      },
+    ];
+    const [sources] = exportGroups(addition);
+    assert.equal(sources?.title, "Registry sources");
+    assert.doesNotMatch(sources?.note ?? "", /^Drop-in/);
+    assert.match(sources?.note ?? "", /already exists/);
+    assert.match(sources?.note ?? "", /not as a replacement/);
+    // A directory the registry does not ship keeps the drop-in promise.
+    assert.match(exportGroups(files)[1]?.note ?? "", /^Drop-in/);
+  });
+
+  // `#packDir` used to default to the literal `tcl` — a real, populated
+  // authoring directory — so an untouched export offered `commands/tcl/mod.rs`
+  // holding only this document, as a drop-in.
+  it("renders into the pack's own directory until the author names another", () => {
+    assert.equal(packDirectory("", "mylib"), "mylib");
+    assert.equal(packDirectory("   ", "mylib"), "mylib");
+    assert.equal(packDirectory("irules", "mylib"), "irules");
+    assert.equal(packDirectory(" tcl ", "mylib"), "tcl");
+    // Nothing to go on at all still names a directory, never someone's pack.
+    assert.equal(packDirectory("", ""), "pack");
+  });
+
+  it("follows the document's name, but never over a value the author typed", () => {
+    assert.equal(reseedPackDir("", null, "mylib"), "mylib");
+    // Renamed library, field still holding the last seed.
+    assert.equal(reseedPackDir("mylib", "mylib", "yourlib"), "yourlib");
+    // The author typed `irules`; a rename does not take it back.
+    assert.equal(reseedPackDir("irules", "mylib", "yourlib"), null);
+    // Already right, and nothing to seed from.
+    assert.equal(reseedPackDir("mylib", "mylib", "mylib"), null);
+    assert.equal(reseedPackDir("", null, ""), null);
+  });
+
+  it("says which commands met at one path, and what it costs", () => {
+    assert.equal(collisionNotice([]), "");
+    const notice = collisionNotice([
+      { path: "rust/tcl-registry/src/commands/mylib/a_b.rs", commands: ["a-b", "a_b"] },
+    ]);
+    assert.match(notice, /1 path carries more than one command/);
+    assert.match(
+      collisionNotice([
+        { path: "a/a_b.rs", commands: ["a-b", "a_b"] },
+        { path: "a/c_d.rs", commands: ["c-d", "c_d"] },
+      ]),
+      /2 paths carry more than one command/,
+    );
+    assert.match(notice, /a-b and a_b → a_b\.rs/);
+    assert.match(notice, /rename one of the commands/);
+    assert.deepEqual(
+      collidingCommands(
+        [{ path: "rust/tcl-registry/src/commands/mylib/a_b.rs", commands: ["a-b", "a_b"] }],
+        "rust/tcl-registry/src/commands/mylib/a_b.rs",
+      ),
+      ["a-b", "a_b"],
+    );
+    assert.deepEqual(collidingCommands([], "rust/tcl-registry/src/commands/mylib/a_b.rs"), []);
+  });
+
+  it("counts what the list shows, not what the export holds", () => {
+    const listed = visibleFiles(files, "inline").length;
+    assert.equal(listed, 5);
+    assert.equal(
+      exportSummary(exported, "Tcl 9.0", listed),
+      "mylib: 2 commands, 5 files for Tcl 9.0.",
+    );
+  });
+
+  it("says an empty pack is empty rather than counting nothing", () => {
+    const empty: PackExport = {
+      pack: "mylib",
+      dialect: "tcl9.0",
+      commands: 0,
+      files: [],
+      collisions: [],
+    };
+    assert.equal(exportSummary(empty, "Tcl 9.0", 0), "mylib: nothing to export yet.");
+    assert.match(emptyExportNotice(empty), /^mylib declares no commands yet\./);
+    assert.match(emptyExportNotice(empty), /Pack DSL/);
+  });
+
+  it("keeps the reader on the file they were reading across a recompute", () => {
+    assert.equal(selectedPath(files, "stubs.tcl"), "stubs.tcl");
+    // The file they had open is gone — a command deleted, the stub toggled.
+    assert.equal(
+      selectedPath(files, "rust/tcl-registry/src/commands/mylib/gone.rs"),
+      "mylib.tclspec",
+    );
+    assert.equal(selectedPath([], "mylib.tclspec"), null);
+    assert.equal(selectedPath(files, null), "mylib.tclspec");
+  });
+
+  it("splits a path into the name a row leads with and the directory under it", () => {
+    assert.equal(fileBase("rust/tcl-registry/src/commands/mylib/greet.rs"), "greet.rs");
+    assert.equal(
+      fileDir("rust/tcl-registry/src/commands/mylib/greet.rs"),
+      "rust/tcl-registry/src/commands/mylib",
+    );
+    assert.equal(fileBase("mylib.tclspec"), "mylib.tclspec");
+    assert.equal(fileDir("mylib.tclspec"), "");
   });
 });

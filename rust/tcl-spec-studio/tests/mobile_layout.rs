@@ -389,6 +389,84 @@ fn the_palette_says_what_it_searched_and_where_each_hit_came_from() {
     );
 }
 
+/* The pack export.
+ *
+ * The Export tab replaced two per-command output panes with one pack-level
+ * reader: a list of every file the pack produces beside the one it is showing.
+ * That is a second two-column split on a page that already has one, and the
+ * failure mode is the same — a long rendered path is min-content wide, and an
+ * unconstrained grid item sizes its track to it. */
+
+#[test]
+fn the_export_split_collapses_and_cannot_be_widened_by_a_rendered_path() {
+    let css = squashed(CSS);
+    assert!(
+        css.contains(".exportsplit{display:grid;grid-template-columns:17remminmax(0,1fr);"),
+        "the export pane must put the file list beside the file on a wide \
+         screen, with the file on a `minmax(0, 1fr)` so a long line cannot \
+         widen the track"
+    );
+    assert!(
+        css.contains(".exportsplit>*{min-width:0;}"),
+        "`.exportsplit > * {{ min-width: 0 }}` is missing — \
+         `rust/tcl-registry/src/commands/mylib/greet.rs` is one unbroken word, \
+         so without it the list sizes its track to that path and the pane \
+         scrolls sideways on a phone"
+    );
+    assert!(
+        css.contains("@media(max-width:62rem){.exportsplit{grid-template-columns:1fr;}}"),
+        "below the tablet breakpoint the export pane must stack, the way the \
+         browser/workbench split and the Test tab's own split already do"
+    );
+}
+
+#[test]
+fn the_export_file_list_stays_a_chooser_on_a_phone() {
+    let css = squashed(CSS);
+    assert!(
+        css.contains(".exportlist{max-height:14rem;}"),
+        "stacked, the file list sits above the file it chose — uncapped, a \
+         nine-file pack pushes the editor entirely off the screen"
+    );
+    assert!(
+        css.contains(".editorhost.output{height:22rem;}"),
+        "the phone breakpoint must shorten the output editor, or the list and \
+         the file together are three screens of scrolling"
+    );
+    assert!(
+        css.contains(".exportfile{min-height:44px;}"),
+        "a coarse pointer must get 44px on a file row, as it does on every \
+         other list row in the studio"
+    );
+}
+
+#[test]
+fn the_export_file_list_is_a_list_that_can_be_driven_from_the_keyboard() {
+    assert!(
+        HTML.contains(
+            r#"<ul class="exportlist" id="exportList" role="listbox" tabindex="0" aria-label="Files this pack produces">"#
+        ),
+        "the file list must be a focusable, labelled listbox rather than a pile \
+         of clickable rows"
+    );
+    for wiring in [
+        "moveExportSelection",
+        "\"ArrowDown\"",
+        "\"Home\"",
+        "aria-activedescendant",
+    ] {
+        assert!(
+            STUDIO_TS.contains(wiring),
+            "the file list must be navigable from the keyboard: {wiring} not found"
+        );
+    }
+    assert!(
+        STUDIO_TS.contains(r#"byId("exportView").setAttribute("aria-labelledby""#),
+        "the editor shows one file at a time, so it must be labelled by the row \
+         that chose it rather than by a heading that never changes"
+    );
+}
+
 #[test]
 fn the_inline_help_panels_remain_the_narrow_viewport_surface() {
     // The dock is an additional surface over the same schema text, not a
