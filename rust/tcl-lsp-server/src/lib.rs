@@ -4084,7 +4084,9 @@ async fn refresh_cross_file_evidence(
     // follows the factory publish immediately; the call-site tables computed
     // under the pre-sync oracle are corrected by the peers' own next refresh,
     // which the reschedule has already scheduled.
-    let mut changed = sync_cross_file_evidence(handles).await;
+    let evidence_changes = sync_cross_file_evidence(handles).await;
+    let evidence_requires_self_refresh = evidence_changes.requires_self_refresh.contains(uri);
+    let mut changed = evidence_changes.changed;
     let wake = RoundReschedule {
         slots,
         self_uri: uri,
@@ -4094,6 +4096,7 @@ async fn refresh_cross_file_evidence(
         affected_names,
     } = sync_workspace_class_factories(handles, Some(wake)).await;
     let oracle_moved = !factory_moved.is_empty();
+    let factory_requires_self_refresh = factory_moved.contains(uri);
     for uri in factory_moved {
         if !changed.contains(&uri) {
             changed.push(uri);
@@ -4107,18 +4110,17 @@ async fn refresh_cross_file_evidence(
     if oracle_moved {
         reindex_unopened_factory_consumers(handles, &affected_names).await;
     }
-    // Re-analyse *this* document only when the refresh gave it evidence
-    // that can actually change its result: a non-empty table means some
-    // other file calls into it, which is what retracts a fold. Going
-    // from "no view" to an *empty* view leaves the merged evidence
-    // identical, so re-running would publish a byte-identical second
-    // result — and one publish per version is a contract
-    // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
-    // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
-    // decline, which can *add* a fold; not republishing leaves that as
-    // a missing hint until the next edit, the safe direction.
+    // Re-analyse *this* document only when the refresh can change its result:
+    // a non-empty table retracts a fold, while losing a previously-covered
+    // `source` boundary must withdraw a fold the just-finished run could have
+    // made from stale evidence. Going from no view to an empty view can only
+    // add a hint, so leaving that until the next edit avoids a byte-identical
+    // duplicate publish in the common case. Any class-factory move can alter
+    // the document that drove the round, including removal of the last one.
     if changed.contains(uri)
-        && refresh_can_change_result(&handles.db, &handles.db_files, uri).await
+        && (evidence_requires_self_refresh
+            || factory_requires_self_refresh
+            || refresh_can_change_result(&handles.db, &handles.db_files, uri).await)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
         slot.mark_dirty();
@@ -4343,6 +4345,27 @@ struct EvidenceHandles {
     class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
 }
 
+struct CrossFileEvidenceSnapshot {
+    snapshot: DbSnapshot<tcl_lsp_db::TclDatabase>,
+    files: Vec<(Uri, tcl_lsp_db::SourceFile)>,
+    members: HashSet<Uri>,
+    project: tcl_lsp_db::Project,
+    revision: salsa::Revision,
+}
+
+type CrossFileEvidenceUpdate = (
+    Uri,
+    tcl_lsp_db::SourceFile,
+    Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+    bool,
+);
+
+#[derive(Default)]
+struct CrossFileEvidenceChanges {
+    changed: Vec<Uri>,
+    requires_self_refresh: HashSet<Uri>,
+}
+
 impl EvidenceHandles {
     fn from_inputs(inputs: &DiagInputs) -> Self {
         Self {
@@ -4357,6 +4380,81 @@ impl EvidenceHandles {
             class_factory_generation: Arc::clone(&inputs.class_factory_generation),
         }
     }
+}
+
+async fn capture_cross_file_evidence_snapshot(
+    handles: &EvidenceHandles,
+) -> Option<CrossFileEvidenceSnapshot> {
+    // Capture membership, project, and every input handle behind `db` in
+    // publication order. Retaining non-member handles lets the write phase
+    // clear an edited orphan's old project evidence. Coverage is derived from
+    // the admitted Salsa inputs later; the workspace index deliberately lags
+    // an ordinary edit until its diagnostics pass, so it cannot prove coverage
+    // for this snapshot.
+    loop {
+        let db = handles.db.lock().await;
+        let Ok(db_files) = handles.db_files.try_lock() else {
+            drop(db);
+            drop(handles.db_files.lock().await);
+            continue;
+        };
+        let Ok(members) = handles.db_project_members.try_lock() else {
+            drop(db_files);
+            drop(db);
+            drop(handles.db_project_members.lock().await);
+            continue;
+        };
+        let Ok(db_project) = handles.db_project.try_lock() else {
+            drop(members);
+            drop(db_files);
+            drop(db);
+            drop(handles.db_project.lock().await);
+            continue;
+        };
+        let &project = db_project.as_ref()?;
+        let files = db_files
+            .iter()
+            .map(|(uri, &file)| (uri.clone(), file))
+            .collect();
+        let members = members.clone();
+        let revision = tcl_lsp_db::database_revision(&db);
+        let snapshot = handles.db.snapshot_from(&db, "sync_cross_file_evidence")?;
+        return Some(CrossFileEvidenceSnapshot {
+            snapshot,
+            files,
+            members,
+            project,
+            revision,
+        });
+    }
+}
+
+async fn apply_cross_file_evidence_if_current(
+    handles: &EvidenceHandles,
+    revision: salsa::Revision,
+    pending: Vec<CrossFileEvidenceUpdate>,
+) -> CrossFileEvidenceChanges {
+    use salsa::Setter as _;
+
+    let mut db = handles.db.lock().await;
+    if tcl_lsp_db::database_revision(&db) != revision {
+        return CrossFileEvidenceChanges::default();
+    }
+    let mut changes = CrossFileEvidenceChanges {
+        changed: Vec::with_capacity(pending.len()),
+        requires_self_refresh: HashSet::new(),
+    };
+    for (uri, file, want, requires_self_refresh) in pending {
+        if call_site_evidence_matches(file.external_call_sites(&*db).as_ref(), want.as_ref()) {
+            continue;
+        }
+        file.set_external_call_sites(&mut *db).to(want);
+        if requires_self_refresh {
+            changes.requires_self_refresh.insert(uri.clone());
+        }
+        changes.changed.push(uri);
+    }
+    changes
 }
 
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]
@@ -4403,48 +4501,49 @@ impl EvidenceHandles {
 /// `caller_in_a_sourcing_file_with_a_differing_literal_clears_i230` in the e2e
 /// suite runs with `crossFileResolution` at its default (off) and fails
 /// immediately if this is gated on it.
-async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
-    use salsa::Setter as _;
-    // A removal changes file membership, the workspace index, and the Salsa
-    // project in one rehoming transaction. A live orphan edit changes admitted
-    // membership and the Salsa project under the live-publication gate. Keep
-    // both transactions excluded until the coverage view and its matching
-    // Salsa snapshot have been captured; otherwise a pre-removal URI set can
-    // be paired with the post-removal project and unsafely claim a closed
-    // world. The gates are released before the project-wide analysis begins.
-    let (covered, snapshot, files, project) = {
+async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> CrossFileEvidenceChanges {
+    // A removal changes membership and the Salsa project under the rehoming
+    // transaction; a live orphan edit does so under live publication. Exclude
+    // both until one matching Salsa snapshot has captured them. Coverage then
+    // comes from that snapshot's own source sites, not the independently-
+    // published workspace index. Both gates leave before the project-wide read.
+    let CrossFileEvidenceSnapshot {
+        snapshot,
+        files,
+        members,
+        project,
+        revision,
+    } = {
         let _rehoming = handles.rehoming_gate.lock().await;
         let _live_publication = handles.live_publication_gate.lock().await;
-        let covered = files_with_covered_load_targets(
-            &handles.db_files,
-            &handles.db_project_members,
-            &handles.workspace_index,
-        )
-        .await;
-        let db = handles.db.lock().await;
-        let db_files = handles.db_files.lock().await;
-        let db_project = handles.db_project.lock().await;
-        let Some(&project) = db_project.as_ref() else {
-            return Vec::new();
+        let Some(captured) = capture_cross_file_evidence_snapshot(handles).await else {
+            return CrossFileEvidenceChanges::default();
         };
-        let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
-            db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        let Some(snapshot) = handles.db.snapshot_from(&db, "sync_cross_file_evidence") else {
-            return Vec::new();
-        };
-        (covered, snapshot, files, project)
+        captured
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
     let pending = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+            let covered = files_with_covered_load_targets(&snapshot, &files, &members);
             files
                 .into_iter()
                 .filter_map(|(uri, file)| {
-                    let want = wanted_call_site_evidence(&snapshot, &uri, file, project, &covered);
+                    let want = if members.contains(&uri) {
+                        wanted_call_site_evidence(&snapshot, &uri, file, project, &covered)
+                    } else {
+                        None
+                    };
                     let have = file.external_call_sites(&*snapshot).as_ref();
-                    (!call_site_evidence_matches(have, want.as_ref())).then_some((uri, file, want))
+                    let requires_self_refresh =
+                        members.contains(&uri) && !covered.contains(&uri) && have.is_some();
+                    (!call_site_evidence_matches(have, want.as_ref())).then_some((
+                        uri,
+                        file,
+                        want,
+                        requires_self_refresh,
+                    ))
                 })
                 .collect::<Vec<_>>()
         }))
@@ -4452,23 +4551,14 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     })
     .await;
     let Ok(Some(pending)) = pending else {
-        return Vec::new();
+        return CrossFileEvidenceChanges::default();
     };
-    // Short write section. The read ran off-lock, so re-run the comparison
-    // against the live database before writing: a concurrent worker's sync may
-    // already have applied the same value, and re-checking keeps the
-    // compare-then-set contract (an input that does not move invalidates
-    // nothing) rather than trusting a snapshot's view of it.
-    let mut db = handles.db.lock().await;
-    let mut changed = Vec::with_capacity(pending.len());
-    for (uri, file, want) in pending {
-        if call_site_evidence_matches(file.external_call_sites(&*db).as_ref(), want.as_ref()) {
-            continue;
-        }
-        file.set_external_call_sites(&mut *db).to(want);
-        changed.push(uri);
-    }
-    changed
+    // Short write section. Any intervening Salsa write invalidates the whole
+    // result: applying one file at a time after a source retirement or newer
+    // sync could otherwise restore stale evidence. With the captured revision
+    // still current, re-run each comparison so a byte-identical value writes
+    // no input and invalidates nothing.
+    apply_cross_file_evidence_if_current(handles, revision, pending).await
 }
 
 /// How many publish rounds [`sync_workspace_class_factories`] will run before
@@ -4846,63 +4936,34 @@ fn call_site_evidence_matches(
 /// cannot name its procedures. The one way it *can* re-enter — a callback
 /// this file registers — is already recorded as an opaque caller by
 /// `tcl_compiler::unit_scope::record_indirect_callers`.
-async fn files_with_covered_load_targets(
-    db_files: &TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
-    db_project_members: &Mutex<HashSet<Uri>>,
-    workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
+fn files_with_covered_load_targets(
+    db: &tcl_lsp_db::TclDatabase,
+    files: &[(Uri, tcl_lsp_db::SourceFile)],
+    members: &HashSet<Uri>,
 ) -> HashSet<Uri> {
-    // Obtain one simultaneous view without ever awaiting while a guard is
-    // held. The first attempt joins db_files' fair queue, then tries the
-    // admitted project set and index in publication lock order. On contention
-    // it drops every partial guard, joins that dependency's queue while holding
-    // nothing, and retries. This preserves the #1849 no-outward-wait rule while
-    // preventing either a removed source or a local-only orphan handle from
-    // surviving in `known_paths` beside the post-removal index.
-    let (files, sources) = loop {
-        let files_guard = db_files.lock().await;
-        let Ok(members) = db_project_members.try_lock() else {
-            drop(files_guard);
-            drop(db_project_members.lock().await);
-            continue;
-        };
-        if let Ok(index) = workspace_index.try_read() {
-            let files = members.iter().cloned().collect::<Vec<_>>();
-            let sources = index.sources().cloned().collect::<Vec<_>>();
-            break (files, sources);
-        }
-        drop(members);
-        drop(files_guard);
-        // Join the dependency's ordered queue, but retain no other guard while
-        // waiting. A writer already ahead of us therefore completes instead
-        // of participating in the old db_files -> index lock chain.
-        drop(workspace_index.read().await);
-    };
     let known_paths: HashSet<std::path::PathBuf> = files
         .iter()
-        .filter_map(|u| u.to_file_path().map(|p| p.to_path_buf()))
+        .filter(|(uri, _)| members.contains(uri))
+        .filter_map(|(uri, _)| uri.to_file_path().map(|p| p.to_path_buf()))
         .collect();
-    let mut uncovered: HashSet<&str> = HashSet::new();
-    for site in &sources {
-        if uncovered.contains(site.uri.as_str()) {
-            continue;
-        }
-        let covered = site.is_literal
-            && Uri::from_str(&site.uri)
-                .ok()
-                .and_then(|u| u.to_file_path().map(|p| p.to_path_buf()))
-                .is_some_and(|parent| {
-                    known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
-                        &parent,
-                        &site.raw_path,
-                    ))
-                });
-        if !covered {
-            uncovered.insert(site.uri.as_str());
-        }
-    }
     files
-        .into_iter()
-        .filter(|u| !uncovered.contains(u.as_str()))
+        .iter()
+        .filter(|(uri, _)| members.contains(uri))
+        .filter(|(uri, file)| {
+            let Some(parent) = uri.to_file_path().map(|p| p.to_path_buf()) else {
+                return tcl_lsp_db::file_source_targets(db, *file).is_empty();
+            };
+            tcl_lsp_db::file_source_targets(db, *file)
+                .iter()
+                .all(|site| {
+                    site.is_literal
+                        && known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
+                            &parent,
+                            &site.raw_path,
+                        ))
+                })
+        })
+        .map(|(uri, _)| uri.clone())
         .collect()
 }
 
@@ -35040,14 +35101,16 @@ mod tests {
 
         let first = sync_cross_file_evidence(&handles).await;
         assert_eq!(
-            first.len(),
+            first.changed.len(),
             2,
-            "the cold pass gives both covered files a view: {first:?}"
+            "the cold pass gives both covered files a view: {:?}",
+            first.changed,
         );
         let second = sync_cross_file_evidence(&handles).await;
         assert!(
-            second.is_empty(),
-            "an unchanged project must write no input: {second:?}"
+            second.changed.is_empty(),
+            "an unchanged project must write no input: {:?}",
+            second.changed,
         );
 
         let db = backend.db.lock().await;
@@ -35063,83 +35126,257 @@ mod tests {
         );
     }
 
-    /// Automated review of #1854: coverage must never pair a URI set captured
-    /// before a removal with source sites read after it. Pin the index between
-    /// those two stages, wait until the helper has attempted the file-set
-    /// acquisition, remove the target, then release the index. The old
-    /// snapshot-then-await implementation incorrectly kept `main` covered.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn covered_load_snapshot_retries_after_source_removal_1854() {
-        let db = tcl_lsp_db::TclDatabase::default();
+    /// Exact-head review of #1854: coverage and cross-file evidence must read
+    /// the same Salsa revision. Ordinary edits intentionally retain the prior
+    /// workspace-index slot until diagnostics republishes it, so an old
+    /// literal target there must not hide a new external target in Salsa.
+    #[tokio::test]
+    async fn covered_load_targets_use_the_captured_salsa_revision_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
         let main = Uri::from_str("file:///w/main.tcl").unwrap();
         let target = Uri::from_str("file:///w/target.tcl").unwrap();
-        let main_file = tcl_lsp_db::SourceFile::new(
-            &db,
-            "source target.tcl\n".to_owned(),
-            "tcl8.6".to_owned(),
-            Some("/w/main.tcl".to_owned()),
-        );
-        let target_file = tcl_lsp_db::SourceFile::new(
-            &db,
-            String::new(),
-            "tcl8.6".to_owned(),
-            Some("/w/target.tcl".to_owned()),
-        );
-        let files = Arc::new(TrackedMutex::new(
-            "db_files",
-            HashMap::from([(main.clone(), main_file), (target.clone(), target_file)]),
-        ));
-        let project_members = Arc::new(Mutex::new(HashSet::from([main.clone(), target.clone()])));
-        let mut index = new_workspace_index();
+        backend
+            .db_set_source(&main, "source target.tcl\n", "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
+            .await;
         let analysis = Analyser::new()
             .analyse("source target.tcl\n", "tcl8.6")
             .clone();
-        index.add_document(main.as_str(), &analysis);
-        let index = Arc::new(RwLock::new(index));
-        let index_held = index.write().await;
-        let coverage = crate::rt::spawn({
-            let files = Arc::clone(&files);
-            let project_members = Arc::clone(&project_members);
-            let index = Arc::clone(&index);
-            async move { files_with_covered_load_targets(&files, &project_members, &index).await }
-        });
-
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
-            loop {
-                if files.contention().contains("free; last held") {
-                    break;
-                }
-                crate::rt::yield_now().await;
-            }
-        })
-        .await
-        .expect("the coverage helper must attempt its file-set snapshot");
-        files.lock().await.remove(&target);
-        project_members.lock().await.remove(&target);
-        drop(index_held);
-
-        let covered = crate::rt::timeout(std::time::Duration::from_secs(5), coverage)
+        backend
+            .workspace_index
+            .write()
             .await
-            .expect("coverage must finish after the index writer leaves")
-            .expect("coverage task must not panic");
+            .replace_document(main.as_str(), &analysis);
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            files[&main]
+                .set_text(&mut *db)
+                .to("source ../outside.tcl\n".to_owned());
+        }
+        assert_eq!(
+            backend.workspace_index.read().await.sources().count(),
+            1,
+            "the regression requires the previous covered index view",
+        );
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        let captured = capture_cross_file_evidence_snapshot(&handles)
+            .await
+            .expect("the project must remain initialised");
+        let covered =
+            files_with_covered_load_targets(&captured.snapshot, &captured.files, &captured.members);
         assert!(
             !covered.contains(&main),
-            "a source whose target left the project must not retain closed-world evidence",
+            "the current external target must defeat the stale covered index view",
+        );
+    }
+
+    /// Exact-head review of #1854: diagnostics for the driving document were
+    /// computed before evidence refresh. If its new text turns a covered
+    /// `source` into an external one, losing `Some(evidence)` must schedule the
+    /// second pass that withdraws any fold made from that stale closed world.
+    #[tokio::test]
+    async fn coverage_loss_marks_the_driving_diagnostics_dirty_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/coverage-loss-main-1854.tcl").unwrap();
+        let target = Uri::from_str("file:///w/coverage-loss-target-1854.tcl").unwrap();
+        backend
+            .db_set_source(
+                &main,
+                "source coverage-loss-target-1854.tcl\n",
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend
+            .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        let initial = sync_cross_file_evidence(&handles).await;
+        assert!(initial.changed.contains(&main));
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            assert!(files[&main].external_call_sites(&*db).is_some());
+            files[&main]
+                .set_text(&mut *db)
+                .to("source ../outside.tcl\n".to_owned());
+        }
+        let slots = Arc::new(Mutex::new(HashMap::from([(
+            main.clone(),
+            DiagSlot::default(),
+        )])));
+
+        refresh_cross_file_evidence(&handles, &slots, &main).await;
+
+        assert!(
+            slots.lock().await[&main].dirty,
+            "coverage loss must schedule the driving document's soundness pass",
         );
     }
 
     /// Fresh exact-head review of #1854: an edited orphan keeps a local Salsa
-    /// handle in `db_files`, but that handle cannot make a live source boundary
-    /// appear covered after the orphan left the admitted project set.
+    /// handle in `db_files`, but must lose the workspace evidence it carried
+    /// before leaving the admitted project set.
     #[tokio::test]
-    async fn covered_load_targets_exclude_local_only_orphans_1854() {
+    async fn cross_file_evidence_clears_local_only_orphans_1854() {
         let backend = test_backend();
         let main = Uri::from_str("file:///w/covered-main-1854.tcl").unwrap();
         let orphan = Uri::from_str("file:///w/covered-orphan-1854.tcl").unwrap();
         backend
+            .db_set_source(&main, "local\n", "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        assert!(
+            sync_cross_file_evidence(&handles)
+                .await
+                .changed
+                .contains(&orphan),
+            "the admitted file must first receive call-site evidence",
+        );
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let mut members = backend.db_project_members.lock().await;
+            assert!(members.remove(&orphan));
+            let mut project = backend.db_project.lock().await;
+            Backend::sync_db_project(&mut db, &files, &members, &mut project);
+        }
+        assert!(
+            backend.db_files.lock().await.contains_key(&orphan),
+            "the regression requires the orphan local handle to remain",
+        );
+        assert!(
+            sync_cross_file_evidence(&handles)
+                .await
+                .changed
+                .contains(&orphan),
+            "retiring the orphan's evidence must be reported as a change",
+        );
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert!(
+            files[&orphan].external_call_sites(&*db).is_none(),
+            "a local-only orphan must not retain project evidence",
+        );
+    }
+
+    /// Exact-head review of #1854: the off-lock project read may finish after
+    /// a newer publication has retired one of its handles. Its stale result
+    /// must not restore evidence onto that tombstone.
+    #[tokio::test]
+    async fn cross_file_evidence_rejects_a_stale_write_revision_1854() {
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/stale-evidence-main-1854.tcl").unwrap();
+        let lib = Uri::from_str("file:///w/stale-evidence-lib-1854.tcl").unwrap();
+        backend
+            .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(
+                &lib,
+                "proc helper {mode} { return $mode }\n",
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        assert!(
+            sync_cross_file_evidence(&handles)
+                .await
+                .changed
+                .contains(&lib),
+        );
+        let (captured_revision, lib_file, stale_want) = {
+            let db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = files[&lib];
+            (
+                tcl_lsp_db::database_revision(&db),
+                file,
+                file.external_call_sites(&*db).clone(),
+            )
+        };
+        assert!(stale_want.is_some(), "the control requires stale evidence");
+
+        backend.db_remove_source(&lib).await;
+        let changed = apply_cross_file_evidence_if_current(
+            &handles,
+            captured_revision,
+            vec![(lib.clone(), lib_file, stale_want, false)],
+        )
+        .await;
+        assert!(
+            changed.changed.is_empty(),
+            "a result from an older Salsa revision must be discarded",
+        );
+        let db = backend.db.lock().await;
+        let tombstones = backend.db_tombstones.lock().await;
+        assert!(
+            tombstones[&lib].external_call_sites(&*db).is_none(),
+            "the stale worker must not restore evidence onto the tombstone",
+        );
+    }
+
+    /// Exact-head review of #1854: membership, project, and source text must
+    /// come from one Salsa snapshot. A live orphan publication can change all
+    /// three while the evidence reader waits for `db`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn cross_file_evidence_snapshot_captures_queued_membership_change_1854() {
+        let backend = Arc::new(test_backend());
+        let main = Uri::from_str("file:///w/membership-main-1854.tcl").unwrap();
+        let orphan = Uri::from_str("file:///w/membership-orphan-1854.tcl").unwrap();
+        backend
             .db_set_source(
                 &main,
-                "source covered-orphan-1854.tcl\n",
+                "source membership-orphan-1854.tcl\n",
                 "tcl8.6".to_owned(),
             )
             .await;
@@ -35147,28 +35384,74 @@ mod tests {
             .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
             .await;
         let analysis = Analyser::new()
-            .analyse("source covered-orphan-1854.tcl\n", "tcl8.6")
+            .analyse("source membership-orphan-1854.tcl\n", "tcl8.6")
             .clone();
         backend
             .workspace_index
             .write()
             .await
             .replace_document(main.as_str(), &analysis);
-        assert!(backend.db_project_members.lock().await.remove(&orphan));
-        assert!(
-            backend.db_files.lock().await.contains_key(&orphan),
-            "the regression requires the orphan local handle to remain",
-        );
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
 
-        let covered = files_with_covered_load_targets(
-            &backend.db_files,
-            &backend.db_project_members,
-            &backend.workspace_index,
-        )
-        .await;
+        let database = backend.db.lock().await;
+        let retiring = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let orphan = orphan.clone();
+            async move {
+                let mut db = backend.db.lock().await;
+                let files = backend.db_files.lock().await;
+                let mut members = backend.db_project_members.lock().await;
+                assert!(members.remove(&orphan));
+                let mut project = backend.db_project.lock().await;
+                Backend::sync_db_project(&mut db, &files, &members, &mut project);
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend.db.contention().contains("1 queued waiter") {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the membership writer must queue first");
+        let capturing =
+            crate::rt::spawn(async move { capture_cross_file_evidence_snapshot(&handles).await });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend.db.contention().contains("2 queued waiter(s)") {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the evidence snapshot must queue behind the membership writer");
+
+        drop(database);
+        retiring
+            .await
+            .expect("the membership writer must not panic");
+        let captured = crate::rt::timeout(std::time::Duration::from_secs(5), capturing)
+            .await
+            .expect("the evidence snapshot must finish after the writer")
+            .expect("the evidence snapshot task must not panic")
+            .expect("the project must remain initialised");
+        let covered =
+            files_with_covered_load_targets(&captured.snapshot, &captured.files, &captured.members);
         assert!(
             !covered.contains(&main),
-            "a local-only orphan cannot close the live source boundary",
+            "pre-removal coverage must not survive beside the post-removal project",
+        );
+        assert_eq!(
+            captured.project.files(&*captured.snapshot).len(),
+            1,
+            "the captured Salsa project must contain only the admitted source",
         );
     }
 

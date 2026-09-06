@@ -295,6 +295,17 @@ impl TclDatabase {
     }
 }
 
+/// The database-wide revision used to reject results computed by an older
+/// snapshot before applying them to the live database.
+///
+/// Salsa exposes this through its plumbing API rather than [`salsa::Database`];
+/// keep that dependency inside the database owner instead of leaking it into
+/// the LSP's publication protocol.
+#[must_use]
+pub fn database_revision(db: &TclDatabase) -> salsa::Revision {
+    salsa::plumbing::current_revision(db)
+}
+
 #[salsa::db]
 impl TclDb for TclDatabase {
     fn registry(&self, dialect: &str) -> &'static CommandRegistry {
@@ -686,6 +697,40 @@ pub fn project_class_factories(
     Arc::new(merged)
 }
 
+/// The coverage-relevant projection of one `source` site.
+///
+/// Spans are intentionally absent: inserting text before an unchanged source
+/// command must not invalidate project topology or cross-file coverage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileSourceTarget {
+    /// Verbatim path text, including any substitution markers.
+    pub raw_path: String,
+    /// Whether the path is a plain literal known at analysis time.
+    pub is_literal: bool,
+}
+
+/// Every `source` target in the file's current Salsa revision.
+///
+/// Kept as a separate signature-level query so consumers that must distinguish
+/// a literal target from a computed one share the same scan as
+/// [`file_link_targets`] instead of consulting the independently-published
+/// workspace index.
+#[salsa::tracked(returns(clone))]
+pub fn file_source_targets(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<FileSourceTarget>> {
+    let dialect = file.dialect(db).clone();
+    let registry = db.registry(&dialect);
+    Arc::new(
+        tcl_compiler::signature_scan::extract_signatures(file.text(db), registry)
+            .source_targets
+            .into_iter()
+            .map(|target| FileSourceTarget {
+                raw_path: target.raw_path,
+                is_literal: target.is_literal,
+            })
+            .collect(),
+    )
+}
+
 /// The project files this file pulls into its own interpreter — its resolved
 /// literal `source` targets, as document-path strings keyed the same way
 /// [`SourceFile::path`] is.
@@ -703,13 +748,9 @@ pub fn file_link_targets(db: &dyn TclDb, file: SourceFile) -> Arc<BTreeSet<Strin
     let Some(path) = file.path(db).as_deref() else {
         return Arc::new(BTreeSet::new());
     };
-    let dialect = file.dialect(db).clone();
-    let registry = db.registry(&dialect);
-    let scanned = tcl_compiler::signature_scan::extract_signatures(file.text(db), registry);
     let parent = std::path::Path::new(path);
     Arc::new(
-        scanned
-            .source_targets
+        file_source_targets(db, file)
             .iter()
             .filter(|target| target.is_literal)
             .map(|target| {
