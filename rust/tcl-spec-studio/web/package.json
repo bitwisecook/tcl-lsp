@@ -22,7 +22,7 @@
     "eslint-config-prettier": "^10.1.8",
     "monaco-editor": "^0.56.0",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
+    "typescript": "~6.0.3",
     "vscode-jsonrpc": "^9.0.2",
     "vscode-languageserver-protocol": "^3.18.3",
     "vscode-oniguruma": "^2.0.1",
