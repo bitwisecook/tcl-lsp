@@ -1591,6 +1591,56 @@ impl Lsp {
             }),
         )
     }
+
+    /// Request viewport tokens until the server proves the returned stream is
+    /// the enriched one (or that the coarse stream compared equal). This is
+    /// the range counterpart of [`Self::semantic_tokens_settled`].
+    pub fn semantic_tokens_range_settled(
+        &mut self,
+        uri: &str,
+        start: (u32, u32),
+        end: (u32, u32),
+    ) -> Value {
+        let deadline = Instant::now() + scaled_timeout(DEFAULT_TIMEOUT);
+        loop {
+            let req_since = self.server_request_cursor();
+            let log_since = self.notification_cursor();
+            let response = self.semantic_tokens_range(uri, start, end);
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return response;
+            }
+            let Some(settled) = self.try_await_log(
+                &["semantic_tokens.range_convergence.settled", uri],
+                remaining,
+                log_since,
+            ) else {
+                return response;
+            };
+            if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if self
+                    .try_await_server_request(
+                        "workspace/semanticTokens/refresh",
+                        remaining,
+                        req_since,
+                    )
+                    .is_none()
+                {
+                    return response;
+                }
+            } else if settled.contains("outcome=served-enriched")
+                || settled.contains("outcome=compared-equal")
+            {
+                return response;
+            }
+            // A suppressed refresh, cancelled read, or coalesced continuation
+            // establishes no enriched answer for this response. Retry under the
+            // same overall deadline rather than blessing one as the cold oracle
+            // used by convergence tests.
+        }
+    }
+
     pub fn implementation(&mut self, uri: &str, line: u32, ch: u32) -> Value {
         self.request("textDocument/implementation", Self::doc_pos(uri, line, ch))
     }

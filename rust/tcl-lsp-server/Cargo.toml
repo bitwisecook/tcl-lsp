@@ -137,7 +137,7 @@ tokio = { version = "1", default-features = false, features = ["sync", "macros",
 
 [dev-dependencies]
 temp-env = "0.3"
-tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time", "sync"] }
+tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time", "sync", "test-util"] }
 
 [lints]
 workspace = true

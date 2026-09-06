@@ -262,6 +262,19 @@ struct DocumentState {
     /// go-to-definition to a path the editor cannot open.  Cleared when the
     /// path comes back (`didOpen`, a save, or a watched `CREATED`/`CHANGED`).
     backing_file_deleted: bool,
+    /// How far deferred publication has caught up with this exact live
+    /// revision. Semantic tokens need the Salsa boundary; cross-document
+    /// providers need the indexed boundary (#829, #1849, #1854 review).
+    publication: DocumentPublication,
+    /// Monotonic request to re-resolve `dialect` from the current language id,
+    /// text hints, folder settings, and session default. A later edit carries
+    /// an unresolved generation forward instead of losing the earlier change.
+    dialect_resolution_generation: u64,
+    /// Last [`Self::dialect_resolution_generation`] resolved against this
+    /// exact document revision. Inequality is the persistent dirty bit; using
+    /// a generation prevents two racing configuration changes from clearing
+    /// each other's work.
+    resolved_dialect_generation: u64,
 }
 
 impl DocumentState {
@@ -279,6 +292,9 @@ impl DocumentState {
             revision: 0,
             version: None,
             backing_file_deleted: false,
+            publication: DocumentPublication::Indexed,
+            dialect_resolution_generation: 0,
+            resolved_dialect_generation: 0,
         }
     }
 
@@ -296,6 +312,9 @@ impl DocumentState {
             revision: 0,
             version: Some(version),
             backing_file_deleted: false,
+            publication: DocumentPublication::Indexed,
+            dialect_resolution_generation: 0,
+            resolved_dialect_generation: 0,
         }
     }
 
@@ -303,6 +322,11 @@ impl DocumentState {
     /// form, so the existing constructors stay two-argument).
     fn with_language_id(mut self, language_id: String) -> Self {
         self.language_id = language_id;
+        self
+    }
+
+    fn with_publication_pending(mut self) -> Self {
+        self.publication = DocumentPublication::Pending;
         self
     }
 
@@ -328,7 +352,118 @@ impl DocumentState {
     fn bump_revision(&mut self, version: i32) {
         self.revision = self.revision.saturating_add(1);
         self.version = Some(version);
+        self.publication = DocumentPublication::Pending;
     }
+
+    /// Invalidate derived state without changing the editor's text version.
+    /// A dialect-only change is still a new analysis generation: diagnostics
+    /// and index workers captured under the previous dialect must fail their
+    /// revision currency check before they can publish.
+    fn bump_analysis_generation(&mut self) {
+        self.revision = self.revision.saturating_add(1);
+        self.publication = DocumentPublication::Pending;
+    }
+
+    fn matches_open_publication(&self, text: &str, dialect: &str, version: i32) -> bool {
+        self.version == Some(version)
+            && self.text.as_ref() == text
+            && self.dialect.as_str() == dialect
+            && !self.backing_file_deleted
+    }
+
+    fn matches_live_publication(&self, text: &str, dialect: &str, revision: u64) -> bool {
+        self.revision == revision
+            && self.text.as_ref() == text
+            && self.dialect.as_str() == dialect
+            && !self.backing_file_deleted
+    }
+
+    /// Whether these bytes still identify this live revision, including an
+    /// open buffer whose backing path has been deleted. Orphaned buffers keep
+    /// serving local providers even though they have no workspace-index view.
+    fn matches_live_source_publication(&self, text: &str, dialect: &str, revision: u64) -> bool {
+        self.revision == revision && self.text.as_ref() == text && self.dialect.as_str() == dialect
+    }
+
+    fn mark_dialect_resolution_dirty(&mut self) {
+        self.dialect_resolution_generation = self.dialect_resolution_generation.saturating_add(1);
+    }
+
+    fn dialect_resolution_pending(&self) -> bool {
+        self.dialect_resolution_generation != self.resolved_dialect_generation
+    }
+}
+
+/// Symbols captured from one workspace-index snapshot, together with the exact
+/// open-document snapshots their byte spans were analysed against. Keeping the
+/// snapshots beside both fallback and indexed hits avoids mapping an old span
+/// through newer live text after fallback analysis has awaited (#1854 review).
+struct WorkspaceSymbolCandidates {
+    fallback_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+    indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+    sources: HashMap<String, Option<DocumentState>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DocumentPublication {
+    /// The live buffer is authoritative, but Salsa still names an older source.
+    Pending,
+    /// Salsa names these live bytes; the workspace index is still catching up.
+    Salsa,
+    /// Salsa and the workspace-index view both name this live revision.
+    Indexed,
+}
+
+impl DocumentPublication {
+    fn salsa_ready(self) -> bool {
+        self != Self::Pending
+    }
+
+    fn indexed(self) -> bool {
+        self == Self::Indexed
+    }
+}
+
+#[derive(Clone, Copy)]
+enum DocumentReadiness {
+    /// The current live bytes have reached Salsa. This is sufficient for the
+    /// semantic-token bounded-enrichment/coarse-fallback pipeline.
+    Salsa,
+    /// Salsa and every derived cross-document index view are current.
+    Indexed,
+}
+
+impl DocumentReadiness {
+    fn is_ready(self, doc: &DocumentState) -> bool {
+        match self {
+            Self::Salsa => doc.publication.salsa_ready(),
+            Self::Indexed => doc.publication.indexed(),
+        }
+    }
+}
+
+struct FreshAnalysisSeed {
+    analysis: Arc<AnalysisResult>,
+    analyser_inputs_epoch: u64,
+    class_factory_generation: u64,
+}
+
+/// The no-await write set that publishes one live document's index seed.
+struct LiveIndexCommitLocks<'a> {
+    documents: DocumentsGuard<'a>,
+    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
+}
+
+/// A fair dependency turn retained into the next live-index bundle attempt.
+///
+/// Tokio hands a released writer to the readers queued behind it before a
+/// later `try_write` can barge in. Keeping the acquired turn here is what
+/// turns fair admission into an actual atomic commit opportunity.
+enum LiveIndexFairTurn<'a> {
+    Documents(DocumentsGuard<'a>),
+    WorkspaceIndex(tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>),
+    RehomedSourceSeeds(tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>),
 }
 
 /// A snapshot of what the editor holds for every open document, by path.
@@ -338,6 +473,18 @@ impl DocumentState {
 /// [`Backend::read_document`] would — the open buffer first, disk only for what
 /// is not open (issue #1707 review).
 struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
+
+/// A source-rehoming read that never waits for live publication while holding
+/// [`Backend::rehoming_gate`].
+enum RehomingDocumentSnapshot {
+    /// Published source bytes, plus the open revision to re-check before the
+    /// index write (`None` means the source was closed and came from Salsa).
+    Ready(DocumentState, Option<u64>),
+    /// An open revision is waiting to acquire the rehoming gate and publish.
+    Pending,
+    /// The URI has neither an open buffer nor a tracked Salsa source.
+    Missing,
+}
 
 impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
     fn text(&self, path: &Path) -> Option<Arc<str>> {
@@ -376,16 +523,18 @@ const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_s
 /// `VSCODE-WAIT-TIMEOUT`.
 const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
 
-/// Live salsa database snapshots, so a stalled barrier can name what it is
+/// Live salsa database snapshots, so a stalled publication can name what it is
 /// waiting for.
 ///
 /// # Why this exists
 ///
 /// Salsa grants `&mut` on the database through `Storage::cancel_others`, which
 /// parks on a condvar until every *other* `DatabaseImpl` clone has been
-/// dropped. [`Backend::db_set_source`] reaches that from `did_open` /
-/// `did_change` **while they hold the [`EditOrder`] turn**, so one slow-to-drop
-/// snapshot stops the whole server (issue #1657).
+/// dropped. The original `did_open` / `did_change` path reached that while it
+/// held the [`EditOrder`] turn, so one slow-to-drop snapshot stopped the whole
+/// server (issue #1657). Live publication is now deferred past that turn and
+/// additionally requires its database's census to be empty before entering a
+/// setter.
 ///
 /// The stall report could already say the barrier had stopped and which handler
 /// held it. It could not say *what the handler was waiting for*, because a
@@ -393,24 +542,50 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 /// This is that trace: every clone registers here with the site that made it and
 /// when, and retires on drop.
 ///
+/// The census belongs to the [`TrackedMutex`] that owns one Salsa database.
+/// That scope is a correctness property: a snapshot from an unrelated backend
+/// must not delay this backend's publication (#1854 review).
+///
 /// # Cost
 ///
 /// One `HashMap` insert and one remove per salsa query, under a
 /// `std::sync::Mutex` whose critical sections contain no `await` and no
 /// allocation beyond the entry itself. Against the query it accompanies — a
 /// file analysis, a semantic-token pass, a whole-project arity walk — that is
-/// not measurable. A process-global rather than a `Backend` field on purpose:
-/// several of the clone sites are free functions that are handed
-/// `Arc<Mutex<TclDatabase>>` and no `&self`, and threading a census through them
-/// would be a lot of plumbing for a diagnostic.
-static SNAPSHOT_CENSUS: std::sync::LazyLock<SnapshotCensus> =
-    std::sync::LazyLock::new(SnapshotCensus::default);
-
-/// See [`SNAPSHOT_CENSUS`].
+/// not measurable. Free functions already receive the tracked mutex, so they
+/// automatically register with the correct database's census.
 #[derive(Default)]
 struct SnapshotCensus {
     live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
     next_id: std::sync::atomic::AtomicU64,
+    publication_intent: std::sync::atomic::AtomicUsize,
+    publication_advanced: tokio::sync::Notify,
+}
+
+/// One publisher's ownership of the intent to drain request snapshots before
+/// a Salsa source setter runs.
+///
+/// Snapshot creation checks the intent both before queueing for the database
+/// mutex and while holding it. A publisher can therefore establish intent
+/// before its first optimistic lock attempt: existing database waiters drain,
+/// while new readers neither extend the snapshot census nor replenish the fair
+/// mutex queue ahead of the writer. Dropping the guard releases every reader
+/// queued behind the live publication.
+struct SnapshotDrainGuard {
+    census: Arc<SnapshotCensus>,
+}
+
+impl Drop for SnapshotDrainGuard {
+    fn drop(&mut self) {
+        let previous = self
+            .census
+            .publication_intent
+            .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        debug_assert!(previous > 0, "snapshot-drain ownership must be balanced");
+        if previous == 1 {
+            self.census.publication_advanced.notify_waiters();
+        }
+    }
 }
 
 /// What the census can say about the snapshots outstanding right now.
@@ -422,21 +597,31 @@ struct SnapshotReport {
 }
 
 impl SnapshotCensus {
-    /// Clone `db` into a tracked snapshot, tagged with the site that took it.
-    ///
-    /// Takes `&'static self` so the handle retires into *this* census rather
-    /// than a hard-coded global — which is what lets a test drive an isolated
-    /// one instead of asserting on a counter every other test in the binary is
-    /// also moving.
-    fn take(&'static self, db: &tcl_lsp_db::TclDatabase, site: &'static str) -> DbSnapshot {
-        self.track(db.clone(), site)
+    fn begin_publication(self: &Arc<Self>) -> SnapshotDrainGuard {
+        self.publication_intent
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        SnapshotDrainGuard {
+            census: Arc::clone(self),
+        }
+    }
+
+    fn try_track<T>(self: &Arc<Self>, value: T, site: &'static str) -> Result<DbSnapshot<T>, T> {
+        if self
+            .publication_intent
+            .load(std::sync::atomic::Ordering::Acquire)
+            != 0
+        {
+            return Err(value);
+        }
+        Ok(self.track(value, site))
     }
 
     /// Put an owned value behind the same census lifetime as a database clone.
     ///
     /// Generic only so the destructor ordering can be proved with a drop probe;
-    /// production calls this through [`Self::take`] with `TclDatabase`.
-    fn track<T>(&'static self, value: T, site: &'static str) -> DbSnapshot<T> {
+    /// production calls this through [`TrackedMutex::snapshot`] with
+    /// `TclDatabase`.
+    fn track<T>(self: &Arc<Self>, value: T, site: &'static str) -> DbSnapshot<T> {
         let id = self
             .next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -446,7 +631,7 @@ impl SnapshotCensus {
             .insert(id, (site, crate::rt::Instant::now()));
         DbSnapshot {
             db: Some(value),
-            census: self,
+            census: Arc::clone(self),
             id,
         }
     }
@@ -482,7 +667,7 @@ impl SnapshotCensus {
     }
 }
 
-/// A salsa database snapshot that retires itself from [`SNAPSHOT_CENSUS`].
+/// A salsa database snapshot that retires itself from its database's census.
 ///
 /// Derefs to the database, so a call site reads `&*snapshot` where it used to
 /// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
@@ -493,7 +678,7 @@ struct DbSnapshot<T = tcl_lsp_db::TclDatabase> {
     // census entry. Rust otherwise runs `Drop::drop` before dropping fields,
     // which left a small false-zero window while the Salsa clone still lived.
     db: Option<T>,
-    census: &'static SnapshotCensus,
+    census: Arc<SnapshotCensus>,
     id: u64,
 }
 
@@ -514,6 +699,250 @@ impl<T> Drop for DbSnapshot<T> {
         // Destroy the clone synchronously before making that assertion true.
         drop(self.db.take());
         self.census.retire(self.id);
+    }
+}
+
+/// A Tokio mutex with low-cost holder/waiter telemetry for the two Salsa
+/// stores on the live-publication path.
+///
+/// Unlike the document store's task-poll instrumentation below, this records
+/// call sites and ages only. That is the evidence #1849 lacked: when a live
+/// publication cannot acquire `db` or `db_files`, the stall line can name the
+/// current (or last) holder and the oldest queued waiter instead of merely
+/// reporting that `try_lock` failed.
+struct TrackedMutex<T> {
+    value: Mutex<T>,
+    name: &'static str,
+    tracking: std::sync::Mutex<TrackedMutexState>,
+    snapshots: Arc<SnapshotCensus>,
+}
+
+#[derive(Default)]
+struct TrackedMutexState {
+    next_id: u64,
+    holder: Option<TrackedMutexActor>,
+    last_holder: Option<TrackedMutexActor>,
+    waiters: HashMap<u64, TrackedMutexActor>,
+}
+
+#[derive(Clone, Copy)]
+struct TrackedMutexActor {
+    id: u64,
+    site: &'static std::panic::Location<'static>,
+    since: crate::rt::Instant,
+}
+
+struct TrackedMutexWaiter<'a> {
+    tracking: &'a std::sync::Mutex<TrackedMutexState>,
+    id: u64,
+}
+
+impl Drop for TrackedMutexWaiter<'_> {
+    fn drop(&mut self) {
+        self.tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .waiters
+            .remove(&self.id);
+    }
+}
+
+struct TrackedMutexGuard<'a, T> {
+    value: tokio::sync::MutexGuard<'a, T>,
+    tracking: &'a std::sync::Mutex<TrackedMutexState>,
+    holder_id: u64,
+}
+
+impl<T> std::ops::Deref for TrackedMutexGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> std::ops::DerefMut for TrackedMutexGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+
+impl<T> Drop for TrackedMutexGuard<'_, T> {
+    fn drop(&mut self) {
+        let mut tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if tracking
+            .holder
+            .is_some_and(|holder| holder.id == self.holder_id)
+        {
+            tracking.last_holder = tracking.holder.take();
+        }
+    }
+}
+
+impl<T> TrackedMutex<T> {
+    fn new(name: &'static str, value: T) -> Self {
+        Self {
+            value: Mutex::new(value),
+            name,
+            tracking: std::sync::Mutex::new(TrackedMutexState::default()),
+            snapshots: Arc::new(SnapshotCensus::default()),
+        }
+    }
+
+    /// Clone the protected value and register the clone before releasing the
+    /// mutex. A setter holding this mutex can therefore trust a zero census:
+    /// no new snapshot can appear until that setter releases it.
+    async fn snapshot(&self, site: &'static str) -> DbSnapshot<T>
+    where
+        T: Clone,
+    {
+        loop {
+            let publication_advanced = self.snapshots.publication_advanced.notified();
+            tokio::pin!(publication_advanced);
+            publication_advanced.as_mut().enable();
+            if self
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+                != 0
+            {
+                publication_advanced.await;
+                continue;
+            }
+            let value = self.lock().await;
+            if let Ok(snapshot) = self.snapshots.try_track(value.clone(), site) {
+                return snapshot;
+            }
+            drop(value);
+            publication_advanced.await;
+        }
+    }
+
+    /// Register a clone while the caller already holds this mutex, or decline
+    /// it when a live publisher is draining the finite pre-existing set.
+    fn snapshot_from(&self, value: &T, site: &'static str) -> Option<DbSnapshot<T>>
+    where
+        T: Clone,
+    {
+        self.snapshots.try_track(value.clone(), site).ok()
+    }
+
+    fn begin_snapshot_drain(&self) -> SnapshotDrainGuard {
+        self.snapshots.begin_publication()
+    }
+
+    fn snapshot_report(&self) -> SnapshotReport {
+        self.snapshots.report()
+    }
+
+    #[track_caller]
+    fn lock(&self) -> impl Future<Output = TrackedMutexGuard<'_, T>> {
+        let site = std::panic::Location::caller();
+        async move {
+            if let Ok(value) = self.value.try_lock() {
+                return self.record_holder(value, site);
+            }
+            let waiter = {
+                let mut tracking = self
+                    .tracking
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let id = tracking.next_id;
+                tracking.next_id = tracking.next_id.wrapping_add(1);
+                tracking.waiters.insert(
+                    id,
+                    TrackedMutexActor {
+                        id,
+                        site,
+                        since: crate::rt::Instant::now(),
+                    },
+                );
+                TrackedMutexWaiter {
+                    tracking: &self.tracking,
+                    id,
+                }
+            };
+            let value = self.value.lock().await;
+            drop(waiter);
+            self.record_holder(value, site)
+        }
+    }
+
+    #[track_caller]
+    fn try_lock(&self) -> Result<TrackedMutexGuard<'_, T>, tokio::sync::TryLockError> {
+        let site = std::panic::Location::caller();
+        self.value
+            .try_lock()
+            .map(|value| self.record_holder(value, site))
+    }
+
+    fn record_holder<'a>(
+        &'a self,
+        value: tokio::sync::MutexGuard<'a, T>,
+        site: &'static std::panic::Location<'static>,
+    ) -> TrackedMutexGuard<'a, T> {
+        let mut tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let id = tracking.next_id;
+        tracking.next_id = tracking.next_id.wrapping_add(1);
+        tracking.holder = Some(TrackedMutexActor {
+            id,
+            site,
+            since: crate::rt::Instant::now(),
+        });
+        TrackedMutexGuard {
+            value,
+            tracking: &self.tracking,
+            holder_id: id,
+        }
+    }
+
+    fn contention(&self) -> String {
+        let tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let holder = tracking.holder.or(tracking.last_holder);
+        let holder_kind = if tracking.holder.is_some() {
+            "held"
+        } else {
+            "free; last held"
+        };
+        let holder = holder.map_or_else(
+            || "never acquired".to_owned(),
+            |actor| {
+                format!(
+                    "{holder_kind} by {} for {:.1}s",
+                    actor.site,
+                    actor.since.elapsed().as_secs_f64(),
+                )
+            },
+        );
+        // The browser runtime uses an f64-backed monotonic clock, so its
+        // Instant is only partially ordered. Worker timestamps are finite in
+        // practice; keep telemetry robust if a host ever supplies NaN.
+        let oldest_waiter = tracking.waiters.values().min_by(|left, right| {
+            left.since
+                .partial_cmp(&right.since)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let waiters = oldest_waiter.map_or_else(
+            || "no queued waiters".to_owned(),
+            |actor| {
+                format!(
+                    "{} queued waiter(s); oldest at {} for {:.1}s",
+                    tracking.waiters.len(),
+                    actor.site,
+                    actor.since.elapsed().as_secs_f64(),
+                )
+            },
+        );
+        format!("{}: {holder}; {waiters}", self.name)
     }
 }
 
@@ -542,6 +971,12 @@ impl<T> Drop for DbSnapshot<T> {
 /// on guard drop.
 struct DocumentStore {
     docs: Mutex<HashMap<Uri, DocumentState>>,
+    /// Ordinary acquisitions take a shared admission only until they own
+    /// `docs`. A live-index commit takes the exclusive admission after two
+    /// different dependencies defeat its fair turns, giving that rare slow
+    /// path one quiet document-map hand-off. The ordinary optimistic path
+    /// holds only a shared admission until it acquires the map.
+    admission: tokio::sync::RwLock<()>,
     /// Who holds the map, who held it last, and how many times it has been
     /// taken — under **one** lock, deliberately.
     ///
@@ -712,6 +1147,7 @@ impl Default for DocumentStore {
     fn default() -> Self {
         Self {
             docs: Mutex::new(HashMap::new()),
+            admission: tokio::sync::RwLock::new(()),
             tracking: std::sync::Mutex::new(DocumentsTracking::default()),
         }
     }
@@ -724,6 +1160,14 @@ impl DocumentStore {
     /// `site` is a `&'static str` naming the caller — it ends up in a stall
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
+        let admission = self.admission.read().await;
+        let docs = self.lock_without_admission(site).await;
+        drop(admission);
+        docs
+    }
+
+    /// Take the map while the caller owns the exclusive admission.
+    async fn lock_without_admission(&self, site: &'static str) -> DocumentsGuard<'_> {
         // Uncontended fast path: no waiter, so nothing to instrument, and the
         // poll/wake shim's per-poll waker allocation is never paid. tokio's
         // mutex is fair, so `try_lock` cannot barge past a queued waiter — a
@@ -742,10 +1186,14 @@ impl DocumentStore {
     /// what prevents that low-priority work from inverting the foreground
     /// `documents -> db -> workspace_index` order used by document sync.
     fn try_lock(&self, site: &'static str) -> Option<DocumentsGuard<'_>> {
-        self.docs
+        let admission = self.admission.try_read().ok()?;
+        let documents = self
+            .docs
             .try_lock()
             .ok()
-            .map(|docs| self.record_acquisition(docs, site))
+            .map(|docs| self.record_acquisition(docs, site));
+        drop(admission);
+        documents
     }
 
     /// Attach holder telemetry to an already-acquired map guard.
@@ -2299,6 +2747,9 @@ struct DiagInputs {
     /// and the workspace-wide query snapshot that consumes it. See
     /// [`Backend::rehoming_gate`].
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Serialises the coverage/project snapshot with live source membership
+    /// publication. See [`Backend::live_publication_gate`].
+    live_publication_gate: Arc<Mutex<()>>,
     /// Package database for the W120 workspace-refinement post-filter (#723).
     package_resolver: Arc<RwLock<PackageResolver>>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
@@ -2315,11 +2766,15 @@ struct DiagInputs {
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
     /// exclusive-access write waits for all outstanding handles to drop).
-    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
-    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
+    db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    /// The admitted cross-document subset of `db_files`; local-only orphan
+    /// handles must not make a load target look covered.
+    db_project_members: Arc<Mutex<HashSet<Uri>>>,
     /// The salsa `Project` input handle (workspace file set), read by the worker
     /// for opt-in cross-file callback-arity validation.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Per-folder salsa `AnalyserConfig` handles (see
     /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
@@ -2362,6 +2817,17 @@ impl DiagInputs {
         let (text, decode_report, dialect, language_id, revision, version) = {
             let docs = self.documents.lock("capture_job").await;
             let doc = docs.get(uri)?;
+            // The edit handler makes the new buffer visible before its Salsa
+            // source so it can release EditOrder without wedging requests
+            // (#1849). A worker left over from the preceding revision can
+            // drain inside that gap; declining the capture makes it retire,
+            // and the successful source commit schedules a fresh worker.
+            // Combining this text/revision with the preceding SourceFile
+            // would pass the revision-only delivery guard and briefly publish
+            // stale diagnostics for the new edit.
+            if doc.publication != DocumentPublication::Indexed {
+                return None;
+            }
             (
                 doc.text.clone(),
                 doc.decode_report,
@@ -2939,7 +3405,7 @@ async fn run_diagnostics_f5_dialect(
 /// passes ([`compute_base_analysis`], [`compute_compiler_diags`]).  Borrows for
 /// the duration of one `run_diagnostics_core` call.
 struct SalsaAnalysisCtx<'a> {
-    db: &'a Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    db: &'a Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
     uri: &'a Uri,
     file: Option<tcl_lsp_db::SourceFile>,
     config: tcl_lsp_db::AnalyserConfig,
@@ -3073,7 +3539,7 @@ async fn compute_base_analysis(
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
-        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_base_analysis");
+        let snapshot = db.snapshot("compute_base_analysis").await;
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
@@ -3367,7 +3833,7 @@ async fn compute_project_diags(
     let (Some(project), Some(file)) = (project, file) else {
         return ControlFlow::Continue(None);
     };
-    let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_project_diags");
+    let snapshot = db.snapshot("compute_project_diags").await;
     match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
             (*tcl_lsp_db::project_callback_diagnostics(&*snapshot, file, config, project)).clone()
@@ -3412,7 +3878,7 @@ async fn compute_compiler_diags(
         dialect,
     } = ctx;
     if let Some(file) = file {
-        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_compiler_diags");
+        let snapshot = db.snapshot("compute_compiler_diags").await;
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
@@ -3657,7 +4123,9 @@ async fn refresh_cross_file_evidence(
     // follows the factory publish immediately; the call-site tables computed
     // under the pre-sync oracle are corrected by the peers' own next refresh,
     // which the reschedule has already scheduled.
-    let mut changed = sync_cross_file_evidence(handles).await;
+    let evidence_changes = sync_cross_file_evidence(handles).await;
+    let evidence_requires_self_refresh = evidence_changes.requires_self_refresh.contains(uri);
+    let mut changed = evidence_changes.changed;
     let wake = RoundReschedule {
         slots,
         self_uri: uri,
@@ -3667,6 +4135,7 @@ async fn refresh_cross_file_evidence(
         affected_names,
     } = sync_workspace_class_factories(handles, Some(wake)).await;
     let oracle_moved = !factory_moved.is_empty();
+    let factory_requires_self_refresh = factory_moved.contains(uri);
     for uri in factory_moved {
         if !changed.contains(&uri) {
             changed.push(uri);
@@ -3680,18 +4149,17 @@ async fn refresh_cross_file_evidence(
     if oracle_moved {
         reindex_unopened_factory_consumers(handles, &affected_names).await;
     }
-    // Re-analyse *this* document only when the refresh gave it evidence
-    // that can actually change its result: a non-empty table means some
-    // other file calls into it, which is what retracts a fold. Going
-    // from "no view" to an *empty* view leaves the merged evidence
-    // identical, so re-running would publish a byte-identical second
-    // result — and one publish per version is a contract
-    // (`diagnostics_delivery_smoke`, and the duplicate-diagnostics KCS
-    // note). Residual: an empty view also lifts a `LOADS_EXTERNAL_UNIT`
-    // decline, which can *add* a fold; not republishing leaves that as
-    // a missing hint until the next edit, the safe direction.
+    // Re-analyse *this* document only when the refresh can change its result:
+    // a non-empty table retracts a fold, while losing a previously-covered
+    // `source` boundary must withdraw a fold the just-finished run could have
+    // made from stale evidence. Going from no view to an empty view can only
+    // add a hint, so leaving that until the next edit avoids a byte-identical
+    // duplicate publish in the common case. Any class-factory move can alter
+    // the document that drove the round, including removal of the last one.
     if changed.contains(uri)
-        && refresh_can_change_result(&handles.db, &handles.db_files, uri).await
+        && (evidence_requires_self_refresh
+            || factory_requires_self_refresh
+            || refresh_can_change_result(&handles.db, &handles.db_files, uri).await)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
         slot.mark_dirty();
@@ -3880,8 +4348,8 @@ async fn reschedule_peers(
 ///
 /// Lock order is `db` → `db_files`.
 async fn refresh_can_change_result(
-    db: &Mutex<tcl_lsp_db::TclDatabase>,
-    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    db: &TrackedMutex<tcl_lsp_db::TclDatabase>,
+    db_files: &TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
     uri: &Uri,
 ) -> bool {
     let db = db.lock().await;
@@ -3897,8 +4365,9 @@ async fn refresh_can_change_result(
 /// The handles [`sync_cross_file_evidence`] needs, cloned off a [`DiagInputs`]
 /// before [`run_diagnostics_core`] consumes it.
 struct EvidenceHandles {
-    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
-    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
+    db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db_project_members: Arc<Mutex<HashSet<Uri>>>,
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// The open-document map, so the unopened-consumer re-index (issue #1304)
@@ -3908,6 +4377,32 @@ struct EvidenceHandles {
     /// Serialises that re-index with source-site reconciliation, exactly as
     /// [`Backend::merge_workspace_scan_results`] does.
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Keeps admitted membership and its Salsa `Project` input in the same
+    /// generation while cross-file evidence captures both.
+    live_publication_gate: Arc<Mutex<()>>,
+    /// Serialises class-factory oracle changes with standalone index seeds.
+    class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
+}
+
+struct CrossFileEvidenceSnapshot {
+    snapshot: DbSnapshot<tcl_lsp_db::TclDatabase>,
+    files: Vec<(Uri, tcl_lsp_db::SourceFile)>,
+    members: HashSet<Uri>,
+    project: tcl_lsp_db::Project,
+    revision: salsa::Revision,
+}
+
+type CrossFileEvidenceUpdate = (
+    Uri,
+    tcl_lsp_db::SourceFile,
+    Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
+    bool,
+);
+
+#[derive(Default)]
+struct CrossFileEvidenceChanges {
+    changed: Vec<Uri>,
+    requires_self_refresh: HashSet<Uri>,
 }
 
 impl EvidenceHandles {
@@ -3915,12 +4410,90 @@ impl EvidenceHandles {
         Self {
             db: Arc::clone(&inputs.db),
             db_files: Arc::clone(&inputs.db_files),
+            db_project_members: Arc::clone(&inputs.db_project_members),
             db_project: Arc::clone(&inputs.db_project),
             workspace_index: Arc::clone(&inputs.workspace_index),
             documents: Arc::clone(&inputs.documents),
             rehoming_gate: Arc::clone(&inputs.rehoming_gate),
+            live_publication_gate: Arc::clone(&inputs.live_publication_gate),
+            class_factory_generation: Arc::clone(&inputs.class_factory_generation),
         }
     }
+}
+
+async fn capture_cross_file_evidence_snapshot(
+    handles: &EvidenceHandles,
+) -> Option<CrossFileEvidenceSnapshot> {
+    // Capture membership, project, and every input handle behind `db` in
+    // publication order. Retaining non-member handles lets the write phase
+    // clear an edited orphan's old project evidence. Coverage is derived from
+    // the admitted Salsa inputs later; the workspace index deliberately lags
+    // an ordinary edit until its diagnostics pass, so it cannot prove coverage
+    // for this snapshot.
+    loop {
+        let db = handles.db.lock().await;
+        let Ok(db_files) = handles.db_files.try_lock() else {
+            drop(db);
+            drop(handles.db_files.lock().await);
+            continue;
+        };
+        let Ok(members) = handles.db_project_members.try_lock() else {
+            drop(db_files);
+            drop(db);
+            drop(handles.db_project_members.lock().await);
+            continue;
+        };
+        let Ok(db_project) = handles.db_project.try_lock() else {
+            drop(members);
+            drop(db_files);
+            drop(db);
+            drop(handles.db_project.lock().await);
+            continue;
+        };
+        let &project = db_project.as_ref()?;
+        let files = db_files
+            .iter()
+            .map(|(uri, &file)| (uri.clone(), file))
+            .collect();
+        let members = members.clone();
+        let revision = tcl_lsp_db::database_revision(&db);
+        let snapshot = handles.db.snapshot_from(&db, "sync_cross_file_evidence")?;
+        return Some(CrossFileEvidenceSnapshot {
+            snapshot,
+            files,
+            members,
+            project,
+            revision,
+        });
+    }
+}
+
+async fn apply_cross_file_evidence_if_current(
+    handles: &EvidenceHandles,
+    revision: salsa::Revision,
+    pending: Vec<CrossFileEvidenceUpdate>,
+) -> CrossFileEvidenceChanges {
+    use salsa::Setter as _;
+
+    let mut db = handles.db.lock().await;
+    if tcl_lsp_db::database_revision(&db) != revision {
+        return CrossFileEvidenceChanges::default();
+    }
+    let mut changes = CrossFileEvidenceChanges {
+        changed: Vec::with_capacity(pending.len()),
+        requires_self_refresh: HashSet::new(),
+    };
+    for (uri, file, want, requires_self_refresh) in pending {
+        if call_site_evidence_matches(file.external_call_sites(&*db).as_ref(), want.as_ref()) {
+            continue;
+        }
+        file.set_external_call_sites(&mut *db).to(want);
+        if requires_self_refresh {
+            changes.requires_self_refresh.insert(uri.clone());
+        }
+        changes.changed.push(uri);
+    }
+    changes
 }
 
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]
@@ -3967,38 +4540,49 @@ impl EvidenceHandles {
 /// `caller_in_a_sourcing_file_with_a_differing_literal_clears_i230` in the e2e
 /// suite runs with `crossFileResolution` at its default (off) and fails
 /// immediately if this is gated on it.
-async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
-    use salsa::Setter as _;
-    // Which files the host can honestly claim a closed world for, resolved
-    // before taking the db locks (the index has its own).
-    let covered =
-        files_with_covered_load_targets(&handles.db_files, &handles.workspace_index).await;
-    let (snapshot, files, project) = {
-        let db = handles.db.lock().await;
-        let db_files = handles.db_files.lock().await;
-        let db_project = handles.db_project.lock().await;
-        let Some(&project) = db_project.as_ref() else {
-            return Vec::new();
+async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> CrossFileEvidenceChanges {
+    // A removal changes membership and the Salsa project under the rehoming
+    // transaction; a live orphan edit does so under live publication. Exclude
+    // both until one matching Salsa snapshot has captured them. Coverage then
+    // comes from that snapshot's own source sites, not the independently-
+    // published workspace index. Both gates leave before the project-wide read.
+    let CrossFileEvidenceSnapshot {
+        snapshot,
+        files,
+        members,
+        project,
+        revision,
+    } = {
+        let _rehoming = handles.rehoming_gate.lock().await;
+        let _live_publication = handles.live_publication_gate.lock().await;
+        let Some(captured) = capture_cross_file_evidence_snapshot(handles).await else {
+            return CrossFileEvidenceChanges::default();
         };
-        let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
-            db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (
-            SNAPSHOT_CENSUS.take(&db, "sync_cross_file_evidence"),
-            files,
-            project,
-        )
+        captured
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
     let pending = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+            let covered = files_with_covered_load_targets(&snapshot, &files, &members);
             files
                 .into_iter()
                 .filter_map(|(uri, file)| {
-                    let want = wanted_call_site_evidence(&snapshot, &uri, file, project, &covered);
+                    let want = if members.contains(&uri) {
+                        wanted_call_site_evidence(&snapshot, &uri, file, project, &covered)
+                    } else {
+                        None
+                    };
                     let have = file.external_call_sites(&*snapshot).as_ref();
-                    (!call_site_evidence_matches(have, want.as_ref())).then_some((uri, file, want))
+                    let requires_self_refresh =
+                        members.contains(&uri) && !covered.contains(&uri) && have.is_some();
+                    (!call_site_evidence_matches(have, want.as_ref())).then_some((
+                        uri,
+                        file,
+                        want,
+                        requires_self_refresh,
+                    ))
                 })
                 .collect::<Vec<_>>()
         }))
@@ -4006,23 +4590,14 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     })
     .await;
     let Ok(Some(pending)) = pending else {
-        return Vec::new();
+        return CrossFileEvidenceChanges::default();
     };
-    // Short write section. The read ran off-lock, so re-run the comparison
-    // against the live database before writing: a concurrent worker's sync may
-    // already have applied the same value, and re-checking keeps the
-    // compare-then-set contract (an input that does not move invalidates
-    // nothing) rather than trusting a snapshot's view of it.
-    let mut db = handles.db.lock().await;
-    let mut changed = Vec::with_capacity(pending.len());
-    for (uri, file, want) in pending {
-        if call_site_evidence_matches(file.external_call_sites(&*db).as_ref(), want.as_ref()) {
-            continue;
-        }
-        file.set_external_call_sites(&mut *db).to(want);
-        changed.push(uri);
-    }
-    changed
+    // Short write section. Any intervening Salsa write invalidates the whole
+    // result: applying one file at a time after a source retirement or newer
+    // sync could otherwise restore stale evidence. With the captured revision
+    // still current, re-run each comparison so a byte-identical value writes
+    // no input and invalidates nothing.
+    apply_cross_file_evidence_if_current(handles, revision, pending).await
 }
 
 /// How many publish rounds [`sync_workspace_class_factories`] will run before
@@ -4210,11 +4785,13 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (
-            SNAPSHOT_CENSUS.take(&db, "sync_workspace_class_factories_round"),
-            files,
-            project,
-        )
+        let Some(snapshot) = handles
+            .db
+            .snapshot_from(&db, "sync_workspace_class_factories_round")
+        else {
+            return ClassFactoryRound::Cancelled;
+        };
+        (snapshot, files, project)
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
@@ -4237,6 +4814,11 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     let Ok(Some((want, pending))) = computed else {
         return ClassFactoryRound::Cancelled;
     };
+    // Take the oracle-generation writer before the database. Standalone
+    // analysis captures in that same order and holds a generation reader
+    // through index publication, so its oracle cannot change underneath the
+    // final replace.
+    let mut class_factory_generation = handles.class_factory_generation.write().await;
     let mut db = handles.db.lock().await;
     let mut changed = Vec::with_capacity(pending.len());
     for (uri, file) in pending {
@@ -4250,6 +4832,7 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     if changed.is_empty() {
         ClassFactoryRound::Settled
     } else {
+        *class_factory_generation = class_factory_generation.saturating_add(1);
         ClassFactoryRound::Moved(changed)
     }
 }
@@ -4392,39 +4975,34 @@ fn call_site_evidence_matches(
 /// cannot name its procedures. The one way it *can* re-enter — a callback
 /// this file registers — is already recorded as an opaque caller by
 /// `tcl_compiler::unit_scope::record_indirect_callers`.
-async fn files_with_covered_load_targets(
-    db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
-    workspace_index: &RwLock<core_workspace_index::WorkspaceIndex>,
+fn files_with_covered_load_targets(
+    db: &tcl_lsp_db::TclDatabase,
+    files: &[(Uri, tcl_lsp_db::SourceFile)],
+    members: &HashSet<Uri>,
 ) -> HashSet<Uri> {
-    let files = db_files.lock().await;
     let known_paths: HashSet<std::path::PathBuf> = files
-        .keys()
-        .filter_map(|u| u.to_file_path().map(|p| p.to_path_buf()))
+        .iter()
+        .filter(|(uri, _)| members.contains(uri))
+        .filter_map(|(uri, _)| uri.to_file_path().map(|p| p.to_path_buf()))
         .collect();
-    let mut uncovered: HashSet<&str> = HashSet::new();
-    let index = workspace_index.read().await;
-    for site in index.sources() {
-        if uncovered.contains(site.uri.as_str()) {
-            continue;
-        }
-        let covered = site.is_literal
-            && Uri::from_str(&site.uri)
-                .ok()
-                .and_then(|u| u.to_file_path().map(|p| p.to_path_buf()))
-                .is_some_and(|parent| {
-                    known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
-                        &parent,
-                        &site.raw_path,
-                    ))
-                });
-        if !covered {
-            uncovered.insert(site.uri.as_str());
-        }
-    }
     files
-        .keys()
-        .filter(|u| !uncovered.contains(u.as_str()))
-        .cloned()
+        .iter()
+        .filter(|(uri, _)| members.contains(uri))
+        .filter(|(uri, file)| {
+            let Some(parent) = uri.to_file_path().map(|p| p.to_path_buf()) else {
+                return tcl_lsp_db::file_source_targets(db, *file).is_empty();
+            };
+            tcl_lsp_db::file_source_targets(db, *file)
+                .iter()
+                .all(|site| {
+                    site.is_literal
+                        && known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
+                            &parent,
+                            &site.raw_path,
+                        ))
+                })
+        })
+        .map(|(uri, _)| uri.clone())
         .collect()
 }
 
@@ -5499,29 +6077,6 @@ async fn add_entry_point_diagnostic_consumers(
 /// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
 ///
-/// # Over the line limit, deliberately
-///
-/// The body is two lines past `clippy::too_many_lines`, and the overrun is the
-/// [`DocumentsGuard::retag`] markers — one before each `await` that runs while
-/// the open-document map is held (issue #1657).
-///
-/// They are all-or-nothing. A retag persists until the next one, so marking
-/// *some* awaits is worse than marking none: a hold at an unmarked await still
-/// reports the last marked one, which is a confident, wrong answer. Dropping
-/// two to satisfy the lint would have produced exactly that.
-///
-/// Splitting the function is the other way out and is the wrong one here. What
-/// makes this body long is a single deliberate critical section — the
-/// `documents` lock held across the currency re-check, index update and mailbox
-/// commit — and cutting it in half would put that lock's acquisition and its
-/// release in different functions. The lock scope being readable in one piece
-/// is the property this whole issue is about. Client delivery is deliberately
-/// outside this section.
-#[allow(
-    clippy::too_many_lines,
-    reason = "the overrun is #1657 lock-phase markers, which are only correct as a complete set; \
-              splitting the body would hide the documents-lock critical section"
-)]
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
@@ -5663,6 +6218,16 @@ async fn publish_diagnostics_result(
         }
     }
     reschedule_peers(delivery.diag_slots, delivery.uri, peers).await;
+    log_publish_timing(delivery, timing, diag_count).await;
+    true
+}
+
+/// Emit the two compatibility timing markers after diagnostic publication.
+async fn log_publish_timing(
+    delivery: &DeliveryCtx<'_>,
+    timing: PublishTiming<'_>,
+    diag_count: usize,
+) {
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
     // The analyser runs a single, full ("deep") pass per publish — there is
     // no separate fast/deep split.  Emit the
@@ -5693,7 +6258,6 @@ async fn publish_diagnostics_result(
             ),
         )
         .await;
-    true
 }
 
 /// Which event asked for a `SpecTcl` pack reload.
@@ -5730,29 +6294,129 @@ struct PublishedPackSet {
     packs: Arc<tcl_spectcl::PackSet>,
 }
 
-/// Every mutable store a background disk publication changes, acquired as one
+/// Every mutable store a source publication changes, acquired as one
 /// optimistic bundle before it inspects the open-document map.
 ///
-/// The bundle is deliberately built with `try_*` calls: background indexing
-/// never queues for one lock while retaining another.  That makes foreground
-/// document sync the priority path and keeps the final no-`await` commit small.
-struct DiskPublicationLocks<'a> {
-    db: tokio::sync::MutexGuard<'a, tcl_lsp_db::TclDatabase>,
-    files: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+/// The bundle is deliberately built with `try_*` calls: no publisher queues
+/// for one lock while retaining another. That makes foreground document sync
+/// the priority path and keeps each final no-`await` commit small.
+struct PublicationLocks<'a> {
+    db: TrackedMutexGuard<'a, tcl_lsp_db::TclDatabase>,
+    files: TrackedMutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
     tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    project_members: tokio::sync::MutexGuard<'a, HashSet<Uri>>,
     project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
     index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
     seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
 }
 
+/// The smaller write set an editor-opened buffer needs for its deferred Salsa
+/// and workspace-index publication.
+///
+/// `rehomed_source_seeds` is intentionally absent: opening a live buffer does
+/// not read or mutate that map, so retaining its guard would only widen the
+/// foreground contention surface (#1849 review).
+struct LiveSourceLocks<'a> {
+    db: TrackedMutexGuard<'a, tcl_lsp_db::TclDatabase>,
+    files: TrackedMutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    project_members: tokio::sync::MutexGuard<'a, HashSet<Uri>>,
+    project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
+}
+
+struct OpenPublicationLocks<'a> {
+    source: LiveSourceLocks<'a>,
+    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+}
+
+/// The source stores plus semantic-token lifecycle caches reset by a reopen.
+/// Acquiring them as one optimistic bundle makes the reset visible before the
+/// reopened document reaches Salsa readiness without awaiting under `EditOrder`.
+struct ReopenPublicationLocks<'a> {
+    source: LiveSourceLocks<'a>,
+    last_semantic_tokens: tokio::sync::MutexGuard<'a, HashMap<Uri, (String, Vec<u32>)>>,
+    semantic_tokens_refresh_asked: tokio::sync::MutexGuard<'a, HashMap<Uri, u64>>,
+    workspace_class_analyses: tokio::sync::MutexGuard<'a, HashMap<Uri, WorkspaceClassAnalysis>>,
+}
+
+/// Every derived live-buffer cache retired by `didClose`, acquired
+/// optimistically so the final closed-state check and cleanup are atomic with
+/// respect to a racing `didOpen`.
+struct ClosePublicationLocks<'a> {
+    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    diag_slots: tokio::sync::MutexGuard<'a, HashMap<Uri, DiagSlot>>,
+    last_semantic_tokens: tokio::sync::MutexGuard<'a, HashMap<Uri, (String, Vec<u32>)>>,
+    semantic_tokens_refresh_asked: tokio::sync::MutexGuard<'a, HashMap<Uri, u64>>,
+    workspace_class_analyses: tokio::sync::MutexGuard<'a, HashMap<Uri, WorkspaceClassAnalysis>>,
+}
+
+/// The exact dependency a deferred `didOpen` publication last failed to
+/// acquire. Kept typed so telemetry and tests use the same names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LivePublicationWait {
+    Database,
+    Files,
+    Tombstones,
+    ProjectMembers,
+    Project,
+    SalsaSnapshots,
+    WorkspaceIndex,
+    DiagnosticsSlots,
+    SemanticTokens,
+    SemanticRefreshRequests,
+    WorkspaceClassAnalyses,
+    RehomedSourceSeeds,
+    Documents,
+}
+
+struct LivePublicationRetry {
+    since: crate::rt::Instant,
+    retries: u64,
+    reported: bool,
+    generation: u64,
+    uri_generation: u64,
+}
+
+impl LivePublicationRetry {
+    fn new(generation: u64, uri_generation: u64) -> Self {
+        Self {
+            since: crate::rt::Instant::now(),
+            retries: 0,
+            reported: false,
+            generation,
+            uri_generation,
+        }
+    }
+}
+
+impl LivePublicationWait {
+    const fn dependency(self) -> &'static str {
+        match self {
+            Self::Database => "db.try_lock",
+            Self::Files => "db_files.try_lock",
+            Self::Tombstones => "db_tombstones.try_lock",
+            Self::ProjectMembers => "db_project_members.try_lock",
+            Self::Project => "db_project.try_lock",
+            Self::SalsaSnapshots => "db.snapshot_census.zero",
+            Self::WorkspaceIndex => "workspace_index.try_write",
+            Self::DiagnosticsSlots => "diag_slots.try_lock",
+            Self::SemanticTokens => "last_semantic_tokens.try_lock",
+            Self::SemanticRefreshRequests => "semantic_tokens_refresh_asked.try_lock",
+            Self::WorkspaceClassAnalyses => "workspace_class_analyses.try_lock",
+            Self::RehomedSourceSeeds => "rehomed_source_seeds.try_lock",
+            Self::Documents => "documents.try_lock",
+        }
+    }
+}
+
 /// Whether a disk-side removal is allowed to retire an editor-open URI.
 #[derive(Clone, Copy)]
-enum DiskRemovalPolicy {
+enum DiskRemovalPolicy<'a> {
     /// Folder removal and stale scans preserve live, possibly-unsaved buffers.
     ClosedOnly,
     /// A filesystem `DELETED` event retires the dead path even if its buffer is
     /// still open; the document remains usable but is marked orphaned.
-    IncludeOpen,
+    IncludeOpen(&'a HashMap<Uri, u64>),
 }
 
 /// LSP server backend.
@@ -6096,6 +6760,10 @@ pub struct Backend {
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
     diag_inputs_epoch: std::sync::atomic::AtomicU64,
+    /// Serialises analyser-input mutations with the final standalone-index
+    /// epoch check and replacement. Writers hold this across the mutation and
+    /// epoch bump; seed publishers hold a reader through their no-await commit.
+    analyser_inputs_gate: tokio::sync::RwLock<()>,
     /// The `now_serving` position the last document-sync barrier stall was
     /// reported at, so a wedge logs once rather than once per blocked request.
     /// See [`Backend::report_edit_barrier_stall`].
@@ -6127,10 +6795,10 @@ pub struct Backend {
     /// `db` handle is the write side (set inputs); reads clone it onto a
     /// worker thread and catch `salsa::Cancelled` when a newer edit supersedes
     /// the request.
-    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
-    db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+    db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     /// Retired `SourceFile` handles, keyed by the URI they belonged to (#1145).
     ///
     /// Salsa never reclaims an input: `SourceFile::new` only ever allocates, so
@@ -6147,9 +6815,12 @@ pub struct Backend {
     /// handles are never in `db_files`, so they never reach the salsa
     /// [`tcl_lsp_db::Project`] file set either.
     db_tombstones: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
-    /// The salsa `Project` input — the workspace file set, kept in lock-step with
-    /// `db_files` (re-set only when membership changes, on open/close), driving
-    /// the opt-in project callback-arity query.
+    /// URIs admitted to the Salsa project. An edited open orphan keeps its
+    /// local `db_files` handle but is deliberately absent here, so its dead
+    /// path cannot contribute cross-document facts.
+    db_project_members: Arc<Mutex<HashSet<Uri>>>,
+    /// The salsa `Project` input — the cross-document workspace file set,
+    /// re-set only when `db_project_members` changes.
     /// `None` until the first document is tracked.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
@@ -6215,6 +6886,11 @@ pub struct Backend {
     /// however the document or the index changed; the URI key just keeps the
     /// map small and evictable on `did_close`.
     workspace_class_analyses: Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
+    /// Oracle currency shared with every project-wide class-factory publisher.
+    /// A standalone analysis carries this generation and holds a read guard
+    /// through its index commit, so an older oracle can never overwrite facts
+    /// published after the analysis started.
+    class_factory_generation: Arc<tokio::sync::RwLock<u64>>,
     /// Set while a debounced `workspace/semanticTokens/refresh` fire is
     /// scheduled (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]).
     /// The refresh carries no data — a client that receives it simply
@@ -6245,6 +6921,34 @@ pub struct Backend {
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them. See [`EditOrder`].
     edit_order: EditOrder,
+    /// Serialises watched-file batches. Notification handlers run
+    /// concurrently, but an older delete must not retire a path after a later
+    /// create has already revived and republished its open buffer.
+    watched_file_change_gate: Arc<Mutex<()>>,
+    /// Serialises disk-backed commits while their rehoming/live gates may be
+    /// released around contention. A later disk read must not overtake and
+    /// publish before an older captured replacement resumes and overwrites it;
+    /// this gate is disk-only and never delays editor-buffer publication.
+    disk_publication_gate: Mutex<()>,
+    /// Wakes requests waiting for either tier of the matching open document's
+    /// deferred publication. `DocumentState::publication` is the condition;
+    /// this notify supplies only the race-free wakeup edge.
+    live_publication_advanced: Arc<tokio::sync::Notify>,
+    /// Cancels a deferred publisher's periodic wait in a contended lock queue
+    /// when any authoritative live-document identity changes. The generation
+    /// distinguishes a publisher's own preceding invalidation from a newer
+    /// one; the notify supplies the wakeup edge only.
+    live_publication_invalidated: Arc<tokio::sync::Notify>,
+    live_publication_generation: Arc<std::sync::atomic::AtomicU64>,
+    /// Per-URI invalidation generations let a publisher distinguish its own
+    /// obsolescence from an unrelated global wake without acquiring the
+    /// contended document map it may currently be queued behind.
+    live_publication_uri_generations: std::sync::Mutex<HashMap<Uri, u64>>,
+    /// Serialises the deferred source/index commits after document-sync turns
+    /// have been released. This preserves edit order without making the gate a
+    /// request barrier or retaining the document map while Salsa cancels old
+    /// snapshots.
+    live_publication_gate: Arc<Mutex<()>>,
     /// Where every *closed* file the server reads comes from — see
     /// [`crate::vfs`]. Natively this is [`vfs::NativeStore`], a direct
     /// delegation to `std::fs`; a browser worker supplies a
@@ -7447,15 +8151,17 @@ impl Backend {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            analyser_inputs_gate: tokio::sync::RwLock::new(()),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
-            db: Arc::new(Mutex::new(db)),
-            db_files: Arc::new(Mutex::new(HashMap::new())),
+            db: Arc::new(TrackedMutex::new("db", db)),
+            db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
+            db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -7465,36 +8171,20 @@ impl Backend {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
+            class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            watched_file_change_gate: Arc::new(Mutex::new(())),
+            disk_publication_gate: Mutex::new(()),
+            live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
+            live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
+            live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
+            live_publication_gate: Arc::new(Mutex::new(())),
             store,
         }
-    }
-
-    /// Whether the salsa db *already* holds exactly this `(text, dialect)` for
-    /// `uri` — i.e. nothing about the analysis inputs changes by setting them.
-    ///
-    /// Used by `did_open` (issue #1619) to tell an opened buffer that merely
-    /// mirrors what the workspace scan read from disk apart from one that
-    /// differs, so only the latter has to drop its workspace-index entry. The
-    /// db is the right thing to ask because the scan sets this input from the
-    /// same text it indexed, in the same pass — so agreement here *is*
-    /// agreement with the index entry, with no second disk read.
-    ///
-    /// Compared in the analysis form [`Self::db_set_source`] stores, so a lone
-    /// `\r` cannot make an identical document look changed.
-    ///
-    /// Lock order is the global one: `db` → `db_files`, both taken and
-    /// released here, and always under `documents` at the call site.
-    async fn db_source_matches(&self, uri: &Uri, text: &str, dialect: &str) -> bool {
-        let normalised = tcl_lexer::normalise_lone_cr(text);
-        let db = self.db.lock().await;
-        let files = self.db_files.lock().await;
-        files.get(uri).is_some_and(|file| {
-            file.text(&*db).as_str() == normalised.as_ref() && file.dialect(&*db) == dialect
-        })
     }
 
     /// Apply source replacements with all salsa maps already locked, returning
@@ -7555,9 +8245,10 @@ impl Backend {
         membership_changed
     }
 
-    /// Create or update the salsa `SourceFile` input for `uri`.  Called by
-    /// `did_open` / `did_change` so the query graph always reads current text.
-    /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
+    /// Create or update a salsa `SourceFile` input in tests that need to seed
+    /// the query graph directly.
+    /// Lock order is always `db` → `db_files` → `db_tombstones` →
+    /// `db_project_members` → `db_project`.
     ///
     /// Borrows the text rather than taking it by value: callers on the edit
     /// path hold the document snapshot's shared `Arc<str>` and must not have to
@@ -7575,9 +8266,9 @@ impl Backend {
     /// ```
     ///
     /// That is a **blocking** condvar wait, on a Tokio worker thread, for every
-    /// other `DatabaseImpl` clone in the process to be dropped. And this
-    /// function is called from `did_open` / `did_change` **while they hold the
-    /// [`EditOrder`] turn**, so for as long as it waits:
+    /// other `DatabaseImpl` clone in the process to be dropped. The original
+    /// `did_open` / `did_change` path called this while holding the
+    /// [`EditOrder`] turn, so for as long as it waited:
     ///
     /// * `now_serving` does not advance, so every later document-sync
     ///   notification blocks in `wait_turn`;
@@ -7586,13 +8277,15 @@ impl Backend {
     /// * the server answers nothing, writes nothing, and burns no CPU, while
     ///   its stdin reader goes on draining input.
     ///
-    /// That is issue #1657's signature exactly. So a `db.lock().await.clone()`
-    /// anywhere in this crate must be **moved straight into the worker it was
-    /// cloned for** and never held across an unrelated `.await`: a snapshot that
-    /// outlives its query does not slow one request down, it stops the server.
-    /// `scratchpad`-style audits will not catch it either — the mutex is
-    /// released the instant the clone is made, so it is invisible to a
-    /// lock-guard analysis; it is the *clone* salsa waits on.
+    /// That is issue #1657's signature exactly. Live setters now run after the
+    /// turn is released and only after the snapshot census reaches zero; the
+    /// same lifetime rule remains mandatory for every clone. A
+    /// `db.lock().await.clone()` anywhere in this crate must be **moved straight
+    /// into the worker it was cloned for** and never held across an unrelated
+    /// `.await`. `scratchpad`-style audits will not catch it either — the mutex
+    /// is released the instant the clone is made, so it is invisible to a
+    /// lock-guard analysis; it is the *clone* Salsa waits on.
+    #[cfg(test)]
     async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
@@ -7603,12 +8296,14 @@ impl Backend {
             &mut tombstones,
             std::iter::once((uri, text, dialect.as_str())),
         );
+        let mut members = self.db_project_members.lock().await;
+        let member_added = members.insert(uri.clone());
         drop(tombstones);
-        if membership_changed {
+        if membership_changed || member_added {
             // Membership changed — re-set the `Project` file set. A text-only
             // edit leaves it untouched (and does not backdate its aggregates).
             let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_db_project(&mut db, &files, &members, &mut project);
         }
     }
 
@@ -7642,8 +8337,8 @@ impl Backend {
     }
 
     /// Retire the salsa `SourceFile` input for `uri` (on `did_close`).  Lock
-    /// order is `db` → `db_files` → `db_tombstones` → `db_project`, matching
-    /// [`Self::db_set_source`].
+    /// order is `db` → `db_files` → `db_tombstones` →
+    /// `db_project_members` → `db_project`, matching [`Self::db_set_source`].
     async fn db_remove_source(&self, uri: &Uri) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
@@ -7651,9 +8346,11 @@ impl Backend {
             let mut tombstones = self.db_tombstones.lock().await;
             Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri)
         };
-        if retired {
+        let mut members = self.db_project_members.lock().await;
+        let member_removed = members.remove(uri);
+        if retired || member_removed {
             let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_db_project(&mut db, &files, &members, &mut project);
         }
     }
 
@@ -7738,20 +8435,408 @@ impl Backend {
             .max_by_key(|index| index.len())
     }
 
-    /// Optimistically acquire the complete background-publication write set.
+    /// Optimistically acquire the complete source-publication write set.
     ///
-    /// Returning `None` drops every partial acquisition.  In particular, disk
-    /// work never parks on `workspace_index` while retaining `db`, or parks on
-    /// `db` while retaining the open-document map (#1800).
-    fn try_disk_publication_locks(&self) -> Option<DiskPublicationLocks<'_>> {
-        Some(DiskPublicationLocks {
-            db: self.db.try_lock().ok()?,
-            files: self.db_files.try_lock().ok()?,
-            tombstones: self.db_tombstones.try_lock().ok()?,
-            project: self.db_project.try_lock().ok()?,
-            index: self.workspace_index.try_write().ok()?,
-            seeds: self.rehomed_source_seeds.try_lock().ok()?,
+    /// Returning the first unavailable dependency drops every partial
+    /// acquisition. In particular, disk work never parks on `workspace_index`
+    /// while retaining `db`, or parks on `db` while retaining the open-document
+    /// map (#1800).
+    fn try_publication_locks(&self) -> Result<PublicationLocks<'_>, LivePublicationWait> {
+        let db = self
+            .db
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Database)?;
+        let files = self
+            .db_files
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Files)?;
+        let tombstones = self
+            .db_tombstones
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Tombstones)?;
+        let project_members = self
+            .db_project_members
+            .try_lock()
+            .map_err(|_| LivePublicationWait::ProjectMembers)?;
+        let project = self
+            .db_project
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Project)?;
+        let index = self
+            .workspace_index
+            .try_write()
+            .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+        let seeds = self
+            .rehomed_source_seeds
+            .try_lock()
+            .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+        Ok(PublicationLocks {
+            db,
+            files,
+            tombstones,
+            project_members,
+            project,
+            index,
+            seeds,
         })
+    }
+
+    /// Try the exact write set needed to publish one editor-opened buffer.
+    ///
+    /// Every partial acquisition is dropped on the first failure, and the
+    /// typed error preserves which dependency was unavailable. Unlike the
+    /// background bundle this deliberately excludes `rehomed_source_seeds`.
+    fn try_live_source_locks(&self) -> Result<LiveSourceLocks<'_>, LivePublicationWait> {
+        let db = self
+            .db
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Database)?;
+        // Salsa setters synchronously wait in `cancel_others` while another
+        // database clone lives. Once `db` is held, this zero is stable: every
+        // tracked snapshot must acquire `db` before cloning it. Refuse the
+        // bundle here so every live setter drops `db` and retries
+        // asynchronously instead of retaining the remaining source stores.
+        if self.db.snapshot_report().outstanding != 0 {
+            return Err(LivePublicationWait::SalsaSnapshots);
+        }
+        let files = self
+            .db_files
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Files)?;
+        let tombstones = self
+            .db_tombstones
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Tombstones)?;
+        let project_members = self
+            .db_project_members
+            .try_lock()
+            .map_err(|_| LivePublicationWait::ProjectMembers)?;
+        let project = self
+            .db_project
+            .try_lock()
+            .map_err(|_| LivePublicationWait::Project)?;
+        Ok(LiveSourceLocks {
+            db,
+            files,
+            tombstones,
+            project_members,
+            project,
+        })
+    }
+
+    fn try_open_publication_locks(&self) -> Result<OpenPublicationLocks<'_>, LivePublicationWait> {
+        let source = self.try_live_source_locks()?;
+        let index = self
+            .workspace_index
+            .try_write()
+            .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+        Ok(OpenPublicationLocks { source, index })
+    }
+
+    fn try_reopen_publication_locks(
+        &self,
+    ) -> Result<ReopenPublicationLocks<'_>, LivePublicationWait> {
+        let source = self.try_live_source_locks()?;
+        let last_semantic_tokens = self
+            .last_semantic_tokens
+            .try_lock()
+            .map_err(|_| LivePublicationWait::SemanticTokens)?;
+        let semantic_tokens_refresh_asked = self
+            .semantic_tokens_refresh_asked
+            .try_lock()
+            .map_err(|_| LivePublicationWait::SemanticRefreshRequests)?;
+        let workspace_class_analyses = self
+            .workspace_class_analyses
+            .try_lock()
+            .map_err(|_| LivePublicationWait::WorkspaceClassAnalyses)?;
+        Ok(ReopenPublicationLocks {
+            source,
+            last_semantic_tokens,
+            semantic_tokens_refresh_asked,
+            workspace_class_analyses,
+        })
+    }
+
+    /// Establish snapshot writer intent on the first non-empty census and keep
+    /// it across transient `db` misses. A queued snapshot briefly owns `db`
+    /// before it can observe the intent and back out; dropping the guard for
+    /// that miss would wake the whole reader queue and replenish the census.
+    /// Other dependency misses cannot be caused by a snapshot, so release the
+    /// intent rather than blocking database readers behind unrelated stores.
+    fn update_snapshot_drain(
+        &self,
+        wait: LivePublicationWait,
+        drain: &mut Option<SnapshotDrainGuard>,
+    ) {
+        match wait {
+            LivePublicationWait::SalsaSnapshots => {
+                drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
+            }
+            LivePublicationWait::Database if drain.is_some() => {}
+            _ => drop(drain.take()),
+        }
+    }
+
+    fn invalidate_live_publication<'a>(&self, uris: impl IntoIterator<Item = &'a Uri>) {
+        let mut uri_generations = self
+            .live_publication_uri_generations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for uri in uris {
+            let generation = uri_generations.entry(uri.clone()).or_default();
+            *generation = generation.saturating_add(1);
+        }
+        drop(uri_generations);
+        self.live_publication_generation
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        self.live_publication_invalidated.notify_waiters();
+    }
+
+    fn live_publication_uri_generation(&self, uri: &Uri) -> u64 {
+        self.live_publication_uri_generations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(uri)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Adopt unrelated global invalidations without acquiring `documents`.
+    /// The separate per-URI generation remains readable while the document map
+    /// is contended, so a current publisher can still join that map's fair
+    /// queue and an obsolete publisher leaves promptly after its own URI moves.
+    fn refresh_live_publication_generation(&self, uri: &Uri, retry: &mut LivePublicationRetry) {
+        if self.live_publication_uri_generation(uri) == retry.uri_generation {
+            retry.generation = self
+                .live_publication_generation
+                .load(std::sync::atomic::Ordering::Acquire);
+        }
+    }
+
+    fn try_close_publication_locks(
+        &self,
+    ) -> Result<ClosePublicationLocks<'_>, LivePublicationWait> {
+        let index = self
+            .workspace_index
+            .try_write()
+            .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+        let diag_slots = self
+            .diag_slots
+            .try_lock()
+            .map_err(|_| LivePublicationWait::DiagnosticsSlots)?;
+        let last_semantic_tokens = self
+            .last_semantic_tokens
+            .try_lock()
+            .map_err(|_| LivePublicationWait::SemanticTokens)?;
+        let semantic_tokens_refresh_asked = self
+            .semantic_tokens_refresh_asked
+            .try_lock()
+            .map_err(|_| LivePublicationWait::SemanticRefreshRequests)?;
+        let workspace_class_analyses = self
+            .workspace_class_analyses
+            .try_lock()
+            .map_err(|_| LivePublicationWait::WorkspaceClassAnalyses)?;
+        Ok(ClosePublicationLocks {
+            index,
+            diag_slots,
+            last_semantic_tokens,
+            semantic_tokens_refresh_asked,
+            workspace_class_analyses,
+        })
+    }
+
+    /// Yield after one failed deferred-open publication attempt and emit one
+    /// bounded, exact diagnostic if contention persists.
+    async fn pause_open_publication<'a>(
+        &'a self,
+        publication: tokio::sync::MutexGuard<'a, ()>,
+        operation: &'static str,
+        uri: &Uri,
+        wait: LivePublicationWait,
+        retry: &mut LivePublicationRetry,
+    ) -> Option<tokio::sync::MutexGuard<'a, ()>> {
+        if self.live_publication_uri_generation(uri) != retry.uri_generation {
+            return None;
+        }
+        retry.retries = retry.retries.saturating_add(1);
+        if !retry.reported && retry.since.elapsed() >= EDIT_BARRIER_STALL_WARN {
+            retry.reported = true;
+            let db = self.db.contention();
+            let db_files = self.db_files.contention();
+            self.client
+                .log_message(
+                    MessageType::WARNING,
+                    format!(
+                        "[live-publication-stall] {operation} for {} has retried {retries} times \
+                         for {:.1}s; last unavailable dependency: `{operation}: {}`. The edit-order barrier and open-document \
+                         map are both free; requests for other documents remain serviceable. \
+                         Salsa store contention: [{db}] [{db_files}] (#1849).",
+                        uri.as_str(),
+                        retry.since.elapsed().as_secs_f64(),
+                        wait.dependency(),
+                        retries = retry.retries,
+                    ),
+                )
+                .await;
+        }
+        // `try_lock` correctly avoids retaining a partial bundle, but Tokio's
+        // fair mutexes do not let a try-lock barge past queued waiters. Join
+        // the exact dependency's fair queue periodically, but release the
+        // live-publication gate first. Readers admitted after that fair turn
+        // may defeat the next optimistic bundle again; keeping the global gate
+        // while repeating that cycle would starve every later live edit. A
+        // newer publisher can now proceed and its per-URI generation makes
+        // this older attempt retire after it reacquires the gate.
+        let publication = if retry.retries.is_multiple_of(1024) {
+            self.refresh_live_publication_generation(uri, retry);
+            drop(publication);
+            self.join_live_publication_dependency(operation, wait, retry.generation)
+                .await;
+            self.live_publication_gate.lock().await
+        } else {
+            publication
+        };
+        crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+        (self.live_publication_uri_generation(uri) == retry.uri_generation).then_some(publication)
+    }
+
+    async fn join_live_publication_dependency(
+        &self,
+        operation: &'static str,
+        wait: LivePublicationWait,
+        generation: u64,
+    ) {
+        match wait {
+            LivePublicationWait::Database => {
+                self.join_live_publication_queue(self.db.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Files => {
+                self.join_live_publication_queue(self.db_files.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Tombstones => {
+                self.join_live_publication_queue(self.db_tombstones.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::ProjectMembers => {
+                self.join_live_publication_queue(self.db_project_members.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Project => {
+                self.join_live_publication_queue(self.db_project.lock(), generation)
+                    .await;
+            }
+            // The census is not an async lock with a queue to join. The
+            // bounded sleep in the caller is its fair retry point.
+            LivePublicationWait::SalsaSnapshots => {}
+            LivePublicationWait::WorkspaceIndex => {
+                self.join_live_publication_queue(self.workspace_index.write(), generation)
+                    .await;
+            }
+            LivePublicationWait::RehomedSourceSeeds => {
+                self.join_live_publication_queue(self.rehomed_source_seeds.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::DiagnosticsSlots => {
+                self.join_live_publication_queue(self.diag_slots.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::SemanticTokens => {
+                self.join_live_publication_queue(self.last_semantic_tokens.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::SemanticRefreshRequests => {
+                self.join_live_publication_queue(
+                    self.semantic_tokens_refresh_asked.lock(),
+                    generation,
+                )
+                .await;
+            }
+            LivePublicationWait::WorkspaceClassAnalyses => {
+                self.join_live_publication_queue(self.workspace_class_analyses.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::Documents => {
+                self.join_live_publication_queue(self.documents.lock(operation), generation)
+                    .await;
+            }
+        }
+    }
+
+    /// Wait fairly on the exact dependency that defeated a disk publication's
+    /// optimistic bundle. Callers release every publication gate first, so a
+    /// continuously busy low-priority transaction cannot block live edits or
+    /// source rehoming while it waits for a quiet commit window.
+    async fn wait_for_disk_publication_dependency(
+        &self,
+        site: &'static str,
+        wait: LivePublicationWait,
+    ) {
+        match wait {
+            LivePublicationWait::Database => drop(self.db.lock().await),
+            LivePublicationWait::Files => drop(self.db_files.lock().await),
+            LivePublicationWait::Tombstones => drop(self.db_tombstones.lock().await),
+            LivePublicationWait::ProjectMembers => {
+                drop(self.db_project_members.lock().await);
+            }
+            LivePublicationWait::Project => drop(self.db_project.lock().await),
+            LivePublicationWait::SalsaSnapshots => {
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+            }
+            LivePublicationWait::WorkspaceIndex => drop(self.workspace_index.write().await),
+            LivePublicationWait::DiagnosticsSlots => drop(self.diag_slots.lock().await),
+            LivePublicationWait::SemanticTokens => {
+                drop(self.last_semantic_tokens.lock().await);
+            }
+            LivePublicationWait::SemanticRefreshRequests => {
+                drop(self.semantic_tokens_refresh_asked.lock().await);
+            }
+            LivePublicationWait::WorkspaceClassAnalyses => {
+                drop(self.workspace_class_analyses.lock().await);
+            }
+            LivePublicationWait::RehomedSourceSeeds => {
+                drop(self.rehomed_source_seeds.lock().await);
+            }
+            LivePublicationWait::Documents => drop(self.documents.lock(site).await),
+        }
+    }
+
+    async fn restart_disk_publication<'a>(
+        &'a self,
+        rehoming: tokio::sync::MutexGuard<'a, ()>,
+        live_publication: tokio::sync::MutexGuard<'a, ()>,
+        snapshot_drain: SnapshotDrainGuard,
+        site: &'static str,
+        wait: LivePublicationWait,
+    ) -> (
+        tokio::sync::MutexGuard<'a, ()>,
+        tokio::sync::MutexGuard<'a, ()>,
+        SnapshotDrainGuard,
+    ) {
+        drop(live_publication);
+        drop(rehoming);
+        self.wait_for_disk_publication_dependency(site, wait).await;
+        let rehoming = self.rehoming_gate.lock().await;
+        let live_publication = self.live_publication_gate.lock().await;
+        (rehoming, live_publication, snapshot_drain)
+    }
+
+    async fn join_live_publication_queue<T>(&self, lock: impl Future<Output = T>, generation: u64) {
+        let invalidated = self.live_publication_invalidated.notified();
+        tokio::pin!(invalidated);
+        invalidated.as_mut().enable();
+        if self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire)
+            != generation
+        {
+            return;
+        }
+        tokio::select! {
+            guard = lock => drop(guard),
+            () = invalidated => {}
+        }
     }
 
     /// Atomically publish disk-backed analyses to salsa and the workspace
@@ -7774,116 +8859,988 @@ impl Backend {
         &self,
         replacements: &[(Uri, String, String, AnalysisResult)],
         removals: &[Uri],
-        removal_policy: DiskRemovalPolicy,
+        removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
     ) -> Vec<Uri> {
         if replacements.is_empty() && removals.is_empty() {
             return Vec::new();
         }
 
+        let disk_publication = self.disk_publication_gate.lock().await;
         let rehoming_guard = self.rehoming_gate.lock().await;
-        self.publish_disk_results_while_rehoming_locked(
-            &rehoming_guard,
-            replacements,
-            removals,
-            removal_policy,
-            site,
-        )
-        .await
+        let (changed, _) = self
+            .publish_disk_results_while_rehoming_locked(
+                &disk_publication,
+                rehoming_guard,
+                replacements,
+                removals,
+                removal_policy,
+                site,
+            )
+            .await;
+        changed
     }
 
     /// [`Self::publish_disk_results`] with the rehoming gate already held.
     ///
-    /// Taking the guard by reference makes the transactional precondition
-    /// explicit for folder removal, which must derive its removal set from the
-    /// protected index before publishing it through the same low-priority path.
-    async fn publish_disk_results_while_rehoming_locked(
-        &self,
-        _rehoming_guard: &tokio::sync::MutexGuard<'_, ()>,
+    /// The disk-only guard serialises captured inputs; the owned rehoming guard
+    /// preserves the caller's transaction and can be released around a fair
+    /// dependency wait, then returned for folder-removal cache cleanup.
+    async fn publish_disk_results_while_rehoming_locked<'a>(
+        &'a self,
+        _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
+        rehoming_guard: tokio::sync::MutexGuard<'a, ()>,
         replacements: &[(Uri, String, String, AnalysisResult)],
         removals: &[Uri],
-        removal_policy: DiskRemovalPolicy,
+        removal_policy: DiskRemovalPolicy<'_>,
         site: &'static str,
-    ) -> Vec<Uri> {
+    ) -> (Vec<Uri>, tokio::sync::MutexGuard<'a, ()>) {
+        // Serialise the final disk commit with live source publication. The
+        // document-map check below can then be released before the bounded
+        // Salsa setters without a didOpen/didChange source commit landing in
+        // the check-to-mutation gap. A live mutation that becomes visible
+        // while this waits either changes the removal classification below or
+        // republishes after this transaction releases the gate.
+        let mut rehoming_guard = rehoming_guard;
+        let mut live_publication = self.live_publication_gate.lock().await;
+        // Claim writer intent before the first optimistic bundle attempt.
+        // Otherwise sustained readers queued on Tokio's fair `db` mutex can
+        // prevent `try_lock` from ever reaching the census check below.
+        let mut snapshot_drain = self.db.begin_snapshot_drain();
         loop {
-            let Some(locks) = self.try_disk_publication_locks() else {
-                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
-                continue;
+            let locks = match self.try_publication_locks() {
+                Ok(locks) => locks,
+                Err(wait) => {
+                    (rehoming_guard, live_publication, snapshot_drain) = self
+                        .restart_disk_publication(
+                            rehoming_guard,
+                            live_publication,
+                            snapshot_drain,
+                            site,
+                            wait,
+                        )
+                        .await;
+                    continue;
+                }
             };
 
             // A salsa setter blocks the worker thread inside `cancel_others`
             // while any clone lives. Do not enter that synchronous wait from a
             // background transaction. Holding `db` makes this zero stable.
-            if SNAPSHOT_CENSUS.report().outstanding != 0 {
+            if self.db.snapshot_report().outstanding != 0 {
                 drop(locks);
-                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                (rehoming_guard, live_publication, snapshot_drain) = self
+                    .restart_disk_publication(
+                        rehoming_guard,
+                        live_publication,
+                        snapshot_drain,
+                        site,
+                        LivePublicationWait::SalsaSnapshots,
+                    )
+                    .await;
                 continue;
             }
 
             let Some(docs) = self.documents.try_lock(site) else {
                 drop(locks);
-                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                (rehoming_guard, live_publication, snapshot_drain) = self
+                    .restart_disk_publication(
+                        rehoming_guard,
+                        live_publication,
+                        snapshot_drain,
+                        site,
+                        LivePublicationWait::Documents,
+                    )
+                    .await;
                 continue;
             };
             let replacements: Vec<_> = replacements
                 .iter()
                 .filter(|(uri, _, _, _)| !docs.contains_key(uri))
                 .collect();
+            let mut index_only_removals = Vec::new();
             let removals: Vec<_> = removals
                 .iter()
-                .filter(|uri| {
-                    matches!(removal_policy, DiskRemovalPolicy::IncludeOpen)
-                        || !docs.contains_key(*uri)
+                .filter(|uri| match removal_policy {
+                    DiskRemovalPolicy::ClosedOnly => !docs.contains_key(*uri),
+                    DiskRemovalPolicy::IncludeOpen(deleted_revisions) => {
+                        let Some(doc) = docs.get(*uri) else {
+                            return true;
+                        };
+                        if !doc.backing_file_deleted {
+                            return false;
+                        }
+                        if deleted_revisions.get(*uri) == Some(&doc.revision) {
+                            true
+                        } else {
+                            // A post-deletion edit owns the current Salsa
+                            // source, but the filesystem identity is still
+                            // dead and must leave the cross-document index.
+                            index_only_removals.push(*uri);
+                            false
+                        }
+                    }
                 })
                 .collect();
             // This is the crucial #1800 boundary: all potentially slow work is
             // below, after the global map is available to every handler again.
             drop(docs);
 
-            if replacements.is_empty() && removals.is_empty() {
-                return Vec::new();
+            if replacements.is_empty() && removals.is_empty() && index_only_removals.is_empty() {
+                return (Vec::new(), rehoming_guard);
             }
 
-            let DiskPublicationLocks {
-                mut db,
-                mut files,
-                mut tombstones,
-                mut project,
+            Self::apply_disk_publication(locks, &removals, &index_only_removals, &replacements);
+            drop(snapshot_drain);
+
+            return (
+                Self::changed_disk_uris(removals, index_only_removals, replacements),
+                rehoming_guard,
+            );
+        }
+    }
+
+    /// Apply a fully-acquired disk publication bundle without awaiting.
+    fn apply_disk_publication(
+        locks: PublicationLocks<'_>,
+        removals: &[&Uri],
+        index_only_removals: &[&Uri],
+        replacements: &[&(Uri, String, String, AnalysisResult)],
+    ) {
+        let PublicationLocks {
+            mut db,
+            mut files,
+            mut tombstones,
+            mut project_members,
+            mut project,
+            mut index,
+            mut seeds,
+        } = locks;
+        let removed_members = Self::remove_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            removals.iter().copied(),
+        );
+        let added_members = Self::set_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            replacements
+                .iter()
+                .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
+        );
+        Self::sync_db_project_membership(
+            &mut db,
+            &files,
+            &mut project_members,
+            &mut project,
+            removals
+                .iter()
+                .copied()
+                .chain(index_only_removals.iter().copied()),
+            replacements.iter().map(|entry| &entry.0),
+            removed_members || added_members,
+        );
+        Self::sync_disk_index(
+            &mut index,
+            &mut seeds,
+            removals
+                .iter()
+                .copied()
+                .chain(index_only_removals.iter().copied()),
+            replacements.iter().map(|entry| (&entry.0, &entry.3)),
+        );
+    }
+
+    fn try_live_index_commit_locks<'a>(
+        &'a self,
+        site: &'static str,
+        fair_turn: Option<LiveIndexFairTurn<'a>>,
+    ) -> Result<LiveIndexCommitLocks<'a>, LivePublicationWait> {
+        match fair_turn {
+            None => {
+                let documents = self
+                    .documents
+                    .try_lock(site)
+                    .ok_or(LivePublicationWait::Documents)?;
+                let index = self
+                    .workspace_index
+                    .try_write()
+                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+                let seeds = self
+                    .rehomed_source_seeds
+                    .try_lock()
+                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+            Some(LiveIndexFairTurn::Documents(documents)) => {
+                let index = self
+                    .workspace_index
+                    .try_write()
+                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+                let seeds = self
+                    .rehomed_source_seeds
+                    .try_lock()
+                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+            Some(LiveIndexFairTurn::WorkspaceIndex(index)) => {
+                let documents = self
+                    .documents
+                    .try_lock(site)
+                    .ok_or(LivePublicationWait::Documents)?;
+                let seeds = self
+                    .rehomed_source_seeds
+                    .try_lock()
+                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+            Some(LiveIndexFairTurn::RehomedSourceSeeds(seeds)) => {
+                let documents = self
+                    .documents
+                    .try_lock(site)
+                    .ok_or(LivePublicationWait::Documents)?;
+                let index = self
+                    .workspace_index
+                    .try_write()
+                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
+                Ok(LiveIndexCommitLocks {
+                    documents,
+                    index,
+                    seeds,
+                })
+            }
+        }
+    }
+
+    /// Acquire the live-index commit bundle without ever awaiting while a
+    /// partial bundle is held. The dependency awaited fairly is retained into
+    /// the next optimistic attempt, so sustained readers cannot take its turn
+    /// back before the no-await commit begins.
+    async fn live_index_commit_locks(&self, site: &'static str) -> LiveIndexCommitLocks<'_> {
+        let mut fair_turn = None;
+        loop {
+            let retained_turn = fair_turn.take();
+            let had_retained_turn = retained_turn.is_some();
+            match self.try_live_index_commit_locks(site, retained_turn) {
+                Ok(locks) => return locks,
+                Err(LivePublicationWait::Documents) => {
+                    if had_retained_turn {
+                        break;
+                    }
+                    fair_turn = Some(LiveIndexFairTurn::Documents(
+                        self.documents.lock(site).await,
+                    ));
+                }
+                Err(LivePublicationWait::WorkspaceIndex) => {
+                    if had_retained_turn {
+                        break;
+                    }
+                    fair_turn = Some(LiveIndexFairTurn::WorkspaceIndex(
+                        self.workspace_index.write().await,
+                    ));
+                }
+                Err(LivePublicationWait::RehomedSourceSeeds) => {
+                    if had_retained_turn {
+                        break;
+                    }
+                    fair_turn = Some(LiveIndexFairTurn::RehomedSourceSeeds(
+                        self.rehomed_source_seeds.lock().await,
+                    ));
+                }
+                Err(wait) => unreachable!(
+                    "live index publication cannot wait for {}",
+                    wait.dependency()
+                ),
+            }
+        }
+
+        self.live_index_commit_locks_after_alternating_contention(site)
+            .await
+    }
+
+    /// Close an alternating-contention cycle without holding `documents`
+    /// while an index reader drains.
+    ///
+    /// The exclusive admission starts only after two different fair turns
+    /// failed to form the bundle. It lets every already-admitted document-map
+    /// user finish, then stops a fresh one from taking the map between our
+    /// queued index writer and the final no-await commit. The index writer is
+    /// polled while the map is held, as in `did_open`, so a document holder
+    /// that follows the canonical `documents -> workspace_index` order is
+    /// already ahead of us rather than deadlocking behind us.
+    async fn live_index_commit_locks_after_alternating_contention(
+        &self,
+        site: &'static str,
+    ) -> LiveIndexCommitLocks<'_> {
+        let admission = self.documents.admission.write().await;
+        let documents = self.documents.lock_without_admission(site).await;
+        let mut index_write = std::pin::pin!(self.workspace_index.write());
+        let mut index = None;
+        std::future::poll_fn(|cx| {
+            if let Poll::Ready(guard) = index_write.as_mut().poll(cx) {
+                index = Some(guard);
+            }
+            Poll::Ready(())
+        })
+        .await;
+        drop(documents);
+        let index = match index {
+            Some(index) => index,
+            None => index_write.await,
+        };
+        let documents = self.documents.lock_without_admission(site).await;
+        let seeds = self.rehomed_source_seeds.lock().await;
+        drop(admission);
+        LiveIndexCommitLocks {
+            documents,
+            index,
+            seeds,
+        }
+    }
+
+    /// Mark the matching `didOpen` revision safe for Salsa-backed providers.
+    async fn mark_open_salsa_published_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+    ) -> bool {
+        let mut docs = self.documents.lock("did_open_salsa_published").await;
+        let Some(doc) = docs.get_mut(uri) else {
+            return false;
+        };
+        if !doc.matches_open_publication(text, dialect, version) {
+            return false;
+        }
+        doc.publication = DocumentPublication::Salsa;
+        drop(docs);
+        self.live_publication_advanced.notify_waiters();
+        true
+    }
+
+    /// Seed the live index and publish full readiness only if this remains the
+    /// `didOpen` revision that produced `analysis`.
+    async fn publish_open_index_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+        mut seed: FreshAnalysisSeed,
+    ) -> bool {
+        loop {
+            let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
+            let rehoming_guard = self.rehoming_gate.lock().await;
+            let class_factory_generation = self.class_factory_generation.read().await;
+            if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
+                || *class_factory_generation != seed.class_factory_generation
+            {
+                drop(class_factory_generation);
+                drop(rehoming_guard);
+                drop(analyser_inputs_guard);
+                seed = self
+                    .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
+                    .await;
+                continue;
+            }
+            let LiveIndexCommitLocks {
+                mut documents,
                 mut index,
                 mut seeds,
-            } = locks;
-            let removed_members = Self::remove_db_sources_locked(
-                &mut db,
-                &mut files,
-                &mut tombstones,
-                removals.iter().copied(),
-            );
-            let added_members = Self::set_db_sources_locked(
-                &mut db,
-                &mut files,
-                &mut tombstones,
-                replacements
-                    .iter()
-                    .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
-            );
-            if removed_members || added_members {
-                Self::sync_db_project(&mut db, &files, &mut project);
+            } = self
+                .live_index_commit_locks("did_open_publish_complete")
+                .await;
+            let current = documents
+                .get(uri)
+                .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
+            if !current {
+                return false;
             }
+            documents.retag("did_open_publish_complete: commit");
+            index.replace_document(uri.as_str(), &seed.analysis);
+            // This is a standalone replacement. Invalidate any source-site
+            // view marker in the same rehoming transaction so the next
+            // workspace query reapplies its qualified views.
+            seeds.remove(uri.as_str());
+            documents
+                .get_mut(uri)
+                .expect("the document cannot disappear while its map is locked")
+                .publication = DocumentPublication::Indexed;
+            drop(seeds);
+            drop(index);
+            drop(documents);
+            self.live_publication_advanced.notify_waiters();
+            return true;
+        }
+    }
 
-            for uri in &removals {
+    /// Publish an edited revision's replacement index view without retaining
+    /// the document map while an existing index reader drains.
+    async fn publish_live_index_if_current(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        revision: u64,
+        mut seed: FreshAnalysisSeed,
+    ) -> bool {
+        loop {
+            let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
+            let rehoming_guard = self.rehoming_gate.lock().await;
+            let class_factory_generation = self.class_factory_generation.read().await;
+            if self.diag_inputs_epoch() != seed.analyser_inputs_epoch
+                || *class_factory_generation != seed.class_factory_generation
+            {
+                drop(class_factory_generation);
+                drop(rehoming_guard);
+                drop(analyser_inputs_guard);
+                seed = self
+                    .fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned())
+                    .await;
+                continue;
+            }
+            let LiveIndexCommitLocks {
+                mut documents,
+                mut index,
+                mut seeds,
+            } = self
+                .live_index_commit_locks("did_change_publish_complete")
+                .await;
+            let current = documents
+                .get(uri)
+                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
+            if !current {
+                return false;
+            }
+            documents.retag("did_change_publish_complete: commit");
+            index.replace_document(uri.as_str(), &seed.analysis);
+            seeds.remove(uri.as_str());
+            documents
+                .get_mut(uri)
+                .expect("the document cannot disappear while its map is locked")
+                .publication = DocumentPublication::Indexed;
+            drop(seeds);
+            drop(index);
+            drop(documents);
+            self.live_publication_advanced.notify_waiters();
+            return true;
+        }
+    }
+
+    /// Restore the index slot removed by a cold open when an edit supersedes
+    /// that open's seed. Ordinary edits retain their preceding index view.
+    async fn restore_missing_live_index(
+        &self,
+        uri: &Uri,
+        text: &Arc<str>,
+        dialect: &str,
+        revision: u64,
+        index_needs_seed: bool,
+    ) -> bool {
+        if !index_needs_seed {
+            return true;
+        }
+        {
+            let docs = self.documents.lock("did_change_restore_index").await;
+            let Some(doc) = docs.get(uri) else {
+                return false;
+            };
+            if !doc.matches_live_source_publication(text, dialect, revision) {
+                return false;
+            }
+            if doc.backing_file_deleted {
+                return true;
+            }
+        }
+        let seed = self
+            .fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
+            .await;
+        self.publish_live_index_if_current(uri, text, dialect, revision, seed)
+            .await
+    }
+
+    /// Publish an edited source and, when it superseded a missing cold-open
+    /// seed, restore that index slot before declaring the edit complete.
+    async fn publish_changed_document(
+        &self,
+        uri: &Uri,
+        text: &Arc<str>,
+        dialect: &str,
+        revision: u64,
+        index_needs_seed: bool,
+    ) -> bool {
+        if !self
+            .commit_live_source("did_change", uri, text, dialect, revision, index_needs_seed)
+            .await
+        {
+            return false;
+        }
+        self.restore_missing_live_index(uri, text, dialect, revision, index_needs_seed)
+            .await
+    }
+
+    /// Publish one already-visible editor buffer to Salsa and then seed its
+    /// live workspace-index view if it is still the revision this `didOpen`
+    /// installed.
+    ///
+    /// The release `v2.2.2` extension suite caught `did_open` suspended on the
+    /// Salsa mutex while it already owned both the document-sync turn and the
+    /// open-document map (#1849). `did_open` now installs the authoritative
+    /// buffer and drops that global turn before entering this function. This
+    /// deferred transaction owns neither the turn nor any partial lock while
+    /// it retries, so a slow Salsa dependency cannot hold every request behind
+    /// `edits_settled()`.
+    ///
+    /// The Salsa setter runs with neither the edit turn nor the document map
+    /// held, and only after the tracked snapshot census is empty. Because the
+    /// acquired bundle already contains `db`, that zero remains stable through
+    /// the setter and it cannot block in `cancel_others` while owning db/files.
+    /// A per-publication gate preserves source edit order; currency checks
+    /// before and after the index seed make a newer edit/close authoritative.
+    /// The stale disk view was retired before the edit turn advanced;
+    /// replacing it with live analysis before marking publication `Indexed`
+    /// means a cross-document request drained behind `didOpen` cannot lose
+    /// the opened file's facts. Semantic tokens proceed earlier at the
+    /// `Salsa` state and retain their bounded coarse fallback; other documents
+    /// remain serviceable throughout.
+    async fn commit_open_document(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+    ) -> bool {
+        self.commit_open_document_with_seed(
+            uri,
+            text,
+            dialect,
+            version,
+            self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
+        )
+        .await
+    }
+
+    /// Commit the source tier, release its serialisation gate, then await the
+    /// supplied independent index analysis and publish it if still current.
+    ///
+    /// Taking the seed as a future makes the supersession boundary directly
+    /// testable: neither the publication gate nor a Salsa snapshot may live
+    /// while this future is pending (#1854 automated review).
+    async fn commit_open_document_with_seed<F>(
+        &self,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        version: i32,
+        seed: F,
+    ) -> bool
+    where
+        F: Future<Output = FreshAnalysisSeed>,
+    {
+        {
+            let mut publication = self.live_publication_gate.lock().await;
+            let generation = self
+                .live_publication_generation
+                .load(std::sync::atomic::Ordering::Acquire);
+            let mut snapshot_drain = None;
+            let mut retry =
+                LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
+            loop {
+                if let Some(docs) = self.documents.try_lock("did_open_currency") {
+                    if !docs
+                        .get(uri)
+                        .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
+                    {
+                        return false;
+                    }
+                    self.refresh_live_publication_generation(uri, &mut retry);
+                }
+                let locks = match self.try_reopen_publication_locks() {
+                    Ok(locks) => locks,
+                    Err(wait) => {
+                        self.update_snapshot_drain(wait, &mut snapshot_drain);
+                        publication = match self
+                            .pause_open_publication(publication, "did_open", uri, wait, &mut retry)
+                            .await
+                        {
+                            Some(publication) => publication,
+                            None => return false,
+                        };
+                        continue;
+                    }
+                };
+
+                let Some(docs) = self.documents.try_lock("did_open") else {
+                    drop(locks);
+                    publication = match self
+                        .pause_open_publication(
+                            publication,
+                            "did_open",
+                            uri,
+                            LivePublicationWait::Documents,
+                            &mut retry,
+                        )
+                        .await
+                    {
+                        Some(publication) => publication,
+                        None => return false,
+                    };
+                    continue;
+                };
+
+                let current = docs
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
+                if !current {
+                    return false;
+                }
+                drop(docs);
+
+                {
+                    let ReopenPublicationLocks {
+                        source,
+                        mut last_semantic_tokens,
+                        mut semantic_tokens_refresh_asked,
+                        mut workspace_class_analyses,
+                    } = locks;
+                    Self::set_live_db_source_locked(source, uri, text, dialect, true);
+                    last_semantic_tokens.remove(uri);
+                    semantic_tokens_refresh_asked.remove(uri);
+                    workspace_class_analyses.remove(uri);
+                }
+                drop(snapshot_drain.take());
+
+                // Semantic tokens need the current Salsa source, but deliberately
+                // do not need the workspace-index seed below: their enriched read
+                // is budgeted and their fallback tokenises these same live bytes.
+                // Publish that narrower readiness boundary now, so a cold large
+                // file can paint promptly while its cross-document facts finish.
+                if !self
+                    .mark_open_salsa_published_if_current(uri, text, dialect, version)
+                    .await
+                {
+                    return false;
+                }
+                break;
+            }
+        }
+
+        // The immediate post-turn retirement above deliberately leaves a
+        // short *missing* index slot rather than a stale one while Salsa is
+        // unavailable. Once the source is published, fill that slot from the
+        // authoritative live analysis before announcing completion. This
+        // future owns no Salsa snapshot and runs after the publication gate is
+        // released, so a newer edit can publish and make this seed obsolete.
+        // The diagnostics worker may later replace it with its refined view.
+        let seed = seed.await;
+        self.publish_open_index_if_current(uri, text, dialect, version, seed)
+            .await
+    }
+
+    /// Publish the Salsa source for one already-visible live revision.
+    ///
+    /// Used by `didChange` after it has committed the buffer splice and handed
+    /// on the edit-order turn. A later edit or close changes the currency check
+    /// and makes this older publication a no-op; the latest handler publishes
+    /// the authoritative source. No lock or snapshot wait occurs while the
+    /// global turn or document map is held (#1849 review).
+    async fn commit_live_source(
+        &self,
+        operation: &'static str,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        revision: u64,
+        index_needs_seed: bool,
+    ) -> bool {
+        let mut publication = self.live_publication_gate.lock().await;
+        let generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let mut snapshot_drain = None;
+        let mut retry =
+            LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
+        loop {
+            if self.live_publication_uri_generation(uri) != retry.uri_generation {
+                return false;
+            }
+            if let Some(docs) = self.documents.try_lock(operation) {
+                if !docs
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
+                {
+                    return false;
+                }
+                self.refresh_live_publication_generation(uri, &mut retry);
+            }
+            let locks = match self.try_live_source_locks() {
+                Ok(locks) => locks,
+                Err(wait) => {
+                    self.update_snapshot_drain(wait, &mut snapshot_drain);
+                    publication = match self
+                        .pause_open_publication(publication, operation, uri, wait, &mut retry)
+                        .await
+                    {
+                        Some(publication) => publication,
+                        None => return false,
+                    };
+                    continue;
+                }
+            };
+            let Some(docs) = self.documents.try_lock(operation) else {
+                drop(locks);
+                publication = match self
+                    .pause_open_publication(
+                        publication,
+                        operation,
+                        uri,
+                        LivePublicationWait::Documents,
+                        &mut retry,
+                    )
+                    .await
+                {
+                    Some(publication) => publication,
+                    None => return false,
+                };
+                continue;
+            };
+            let Some(current) = docs.get(uri).filter(|doc| {
+                doc.matches_live_source_publication(text, dialect, revision)
+                    && self.live_publication_uri_generation(uri) == retry.uri_generation
+            }) else {
+                return false;
+            };
+            let orphaned = current.backing_file_deleted;
+            drop(docs);
+
+            Self::set_live_db_source_locked(locks, uri, text, dialect, !orphaned);
+            drop(snapshot_drain.take());
+            let mut docs = self.documents.lock(operation).await;
+            let Some(doc) = docs.get_mut(uri) else {
+                return false;
+            };
+            if !doc.matches_live_source_publication(text, dialect, revision)
+                || self.live_publication_uri_generation(uri) != retry.uri_generation
+            {
+                return false;
+            }
+            doc.publication = if index_needs_seed && !doc.backing_file_deleted {
+                DocumentPublication::Salsa
+            } else {
+                DocumentPublication::Indexed
+            };
+            drop(docs);
+            self.live_publication_advanced.notify_waiters();
+            return true;
+        }
+    }
+
+    /// Publish a dialect change for one already-visible live revision and
+    /// retire the workspace-index facts built under its previous dialect.
+    ///
+    /// This is the indexed counterpart of [`Self::commit_live_source`]. It is
+    /// used after the document map has recorded a dialect change, never while
+    /// an edit-order turn or document-map guard is held. The revision/text/
+    /// dialect check makes a newer edit, close, or re-open authoritative. The
+    /// old index slot is removed at the Salsa boundary, then independently
+    /// rebuilt before ordinary workspace-aware readers are released.
+    async fn commit_live_dialect(
+        &self,
+        operation: &'static str,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        revision: u64,
+    ) -> bool {
+        let mut publication = self.live_publication_gate.lock().await;
+        let generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let mut snapshot_drain = None;
+        let mut retry =
+            LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
+        loop {
+            if self.live_publication_uri_generation(uri) != retry.uri_generation {
+                return false;
+            }
+            if let Some(docs) = self.documents.try_lock(operation) {
+                if !docs
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
+                {
+                    return false;
+                }
+                self.refresh_live_publication_generation(uri, &mut retry);
+            }
+            let locks = match self.try_open_publication_locks() {
+                Ok(locks) => locks,
+                Err(wait) => {
+                    self.update_snapshot_drain(wait, &mut snapshot_drain);
+                    publication = match self
+                        .pause_open_publication(publication, operation, uri, wait, &mut retry)
+                        .await
+                    {
+                        Some(publication) => publication,
+                        None => return false,
+                    };
+                    continue;
+                }
+            };
+            let Some(docs) = self.documents.try_lock(operation) else {
+                drop(locks);
+                publication = match self
+                    .pause_open_publication(
+                        publication,
+                        operation,
+                        uri,
+                        LivePublicationWait::Documents,
+                        &mut retry,
+                    )
+                    .await
+                {
+                    Some(publication) => publication,
+                    None => return false,
+                };
+                continue;
+            };
+            let Some(current) = docs
+                .get(uri)
+                .filter(|doc| doc.matches_live_source_publication(text, dialect, revision))
+            else {
+                return false;
+            };
+            let orphaned = current.backing_file_deleted;
+            drop(docs);
+
+            {
+                let OpenPublicationLocks { source, mut index } = locks;
+                Self::set_live_db_source_locked(source, uri, text, dialect, !orphaned);
                 index.remove_document(uri.as_str());
-                seeds.remove(uri.as_str());
             }
-            for entry in &replacements {
-                index.replace_document(entry.0.as_str(), &entry.3);
-                seeds.remove(entry.0.as_str());
+            drop(snapshot_drain.take());
+            let mut docs = self.documents.lock(operation).await;
+            let Some(doc) = docs.get_mut(uri) else {
+                return false;
+            };
+            if !doc.matches_live_source_publication(text, dialect, revision)
+                || self.live_publication_uri_generation(uri) != retry.uri_generation
+            {
+                return false;
             }
+            doc.publication = if doc.backing_file_deleted {
+                DocumentPublication::Indexed
+            } else {
+                DocumentPublication::Salsa
+            };
+            let orphaned = doc.backing_file_deleted;
+            drop(docs);
+            self.live_publication_advanced.notify_waiters();
+            if orphaned {
+                drop(snapshot_drain);
+                drop(publication);
+                return true;
+            }
+            // Fresh analysis must not retain the live-publication gate: a
+            // newer edit is authoritative and must be able to supersede this
+            // seed while it runs, exactly as on the cold-open path.
+            drop(snapshot_drain);
+            drop(publication);
+            let text: Arc<str> = Arc::from(text);
+            let seed = self
+                .fresh_analysis_seed(uri, Arc::clone(&text), dialect.to_owned())
+                .await;
+            return self
+                .publish_live_index_if_current(uri, &text, dialect, revision, seed)
+                .await;
+        }
+    }
 
-            return removals
-                .into_iter()
-                .chain(replacements.into_iter().map(|entry| &entry.0))
-                .cloned()
-                .collect();
+    /// Retire a closed URI's live derived state without waiting while holding
+    /// either the edit-order turn or a partial lock bundle. A racing re-open
+    /// wins the final currency check and keeps all of its newly-armed caches.
+    async fn commit_closed_live_state(&self, uri: &Uri) -> bool {
+        let mut publication = self.live_publication_gate.lock().await;
+        let generation = self
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let mut retry =
+            LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
+        loop {
+            if let Some(docs) = self.documents.try_lock("did_close_currency") {
+                if docs.contains_key(uri) {
+                    return false;
+                }
+                self.refresh_live_publication_generation(uri, &mut retry);
+            }
+            let locks = match self.try_close_publication_locks() {
+                Ok(locks) => locks,
+                Err(wait) => {
+                    publication = match self
+                        .pause_open_publication(publication, "did_close", uri, wait, &mut retry)
+                        .await
+                    {
+                        Some(publication) => publication,
+                        None => return false,
+                    };
+                    continue;
+                }
+            };
+            let Some(docs) = self.documents.try_lock("did_close") else {
+                drop(locks);
+                publication = match self
+                    .pause_open_publication(
+                        publication,
+                        "did_close",
+                        uri,
+                        LivePublicationWait::Documents,
+                        &mut retry,
+                    )
+                    .await
+                {
+                    Some(publication) => publication,
+                    None => return false,
+                };
+                continue;
+            };
+            if docs.contains_key(uri) {
+                return false;
+            }
+            let ClosePublicationLocks {
+                mut index,
+                mut diag_slots,
+                mut last_semantic_tokens,
+                mut semantic_tokens_refresh_asked,
+                mut workspace_class_analyses,
+            } = locks;
+            index.remove_document(uri.as_str());
+            if let Some(slot) = diag_slots.get_mut(uri) {
+                if slot.running {
+                    slot.latest_inputs = None;
+                    slot.dirty = false;
+                } else {
+                    diag_slots.remove(uri);
+                }
+            }
+            last_semantic_tokens.remove(uri);
+            semantic_tokens_refresh_asked.remove(uri);
+            workspace_class_analyses.remove(uri);
+            drop(docs);
+            return true;
         }
     }
 
@@ -7901,6 +9858,23 @@ impl Backend {
         let db = self.db.lock().await;
         let files = self.db_files.lock().await;
         files.get(uri)?.workspace_class_factories(&*db).clone()
+    }
+
+    /// The widest class-factory oracle currently published anywhere in the
+    /// project, for standalone analysis that may run before `uri` has its
+    /// first Salsa handle.
+    ///
+    /// Unlike [`Self::class_factories_for`], this deliberately is not keyed by
+    /// the consumer URI: the oracle is a project-wide fact, and a brand-new or
+    /// untitled pending buffer is entitled to the same view as existing files
+    /// even though it cannot carry that view on a `SourceFile` yet.
+    async fn published_class_factories_for_fresh_analysis(
+        &self,
+    ) -> (u64, Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>) {
+        let generation = self.class_factory_generation.read().await;
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        (*generation, Self::published_class_factories(&db, &files))
     }
 
     /// This document's cross-file call-site evidence, cloned out of the salsa
@@ -7925,19 +9899,21 @@ impl Backend {
         files.get(uri)?.external_call_sites(&*db).clone()
     }
 
-    /// Re-set the salsa [`tcl_lsp_db::Project`] input to the current `db_files`
-    /// set (sorted by URI for a stable, iteration-order-independent `Vec` so the
-    /// input only changes when membership does — not on `HashMap` reshuffles).
-    /// Called when membership changes (open/close/scan), so a text edit never
-    /// re-derives the project aggregates.  The `Project` handle is stable across
-    /// re-sets, so workers holding it keep reading the current value.
+    /// Re-set the salsa [`tcl_lsp_db::Project`] input to the admitted member
+    /// set, sorted by URI for stable iteration. `db_files` may additionally
+    /// contain an edited open orphan whose local providers still need a Salsa
+    /// handle; only `members` defines its cross-document identity.
     fn sync_db_project(
         db: &mut tcl_lsp_db::TclDatabase,
         files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        members: &HashSet<Uri>,
         project: &mut Option<tcl_lsp_db::Project>,
     ) {
         use salsa::Setter as _;
-        let mut entries: Vec<(&Uri, &tcl_lsp_db::SourceFile)> = files.iter().collect();
+        let mut entries: Vec<(&Uri, &tcl_lsp_db::SourceFile)> = files
+            .iter()
+            .filter(|(uri, _)| members.contains(*uri))
+            .collect();
         entries.sort_by(|a, b| a.0.cmp(b.0));
         let sources: Vec<tcl_lsp_db::SourceFile> = entries.into_iter().map(|(_, &f)| f).collect();
         match *project {
@@ -7948,57 +9924,175 @@ impl Backend {
         }
     }
 
-    /// Re-resolve every open document's dialect after a session-default
-    /// change and reschedule diagnostics for those whose dialect actually
-    /// moved. An explicit `languageId` / BIG-IP basename / per-folder
-    /// override still wins (it did at `didOpen`), so only documents that
-    /// fell back to the session default change.
+    /// Apply admitted project membership changes and re-set the Salsa project
+    /// exactly when either its handle set or admitted subset changed.
+    fn sync_db_project_membership<'a>(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        members: &mut HashSet<Uri>,
+        project: &mut Option<tcl_lsp_db::Project>,
+        removals: impl IntoIterator<Item = &'a Uri>,
+        additions: impl IntoIterator<Item = &'a Uri>,
+        source_membership_changed: bool,
+    ) {
+        let mut membership_changed = false;
+        for uri in removals {
+            membership_changed = members.remove(uri) || membership_changed;
+        }
+        for uri in additions {
+            membership_changed = members.insert(uri.clone()) || membership_changed;
+        }
+        if source_membership_changed || membership_changed {
+            Self::sync_db_project(db, files, members, project);
+        }
+    }
+
+    /// Publish one live source while keeping local Salsa handles distinct from
+    /// cross-document project membership for edited open orphans.
+    fn set_live_db_source_locked(
+        locks: LiveSourceLocks<'_>,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        project_member: bool,
+    ) {
+        let LiveSourceLocks {
+            mut db,
+            mut files,
+            mut tombstones,
+            mut project_members,
+            mut project,
+        } = locks;
+        let source_membership_changed = Self::set_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            std::iter::once((uri, text, dialect)),
+        );
+        let (removals, additions) = if project_member {
+            (None, Some(uri))
+        } else {
+            (Some(uri), None)
+        };
+        Self::sync_db_project_membership(
+            &mut db,
+            &files,
+            &mut project_members,
+            &mut project,
+            removals,
+            additions,
+            source_membership_changed,
+        );
+    }
+
+    /// Apply one closed-file transaction to the workspace index and retire
+    /// any source-site seeds that were built from its previous contents.
+    fn sync_disk_index<'a>(
+        index: &mut core_workspace_index::WorkspaceIndex,
+        seeds: &mut HashMap<String, Vec<String>>,
+        removals: impl IntoIterator<Item = &'a Uri>,
+        replacements: impl IntoIterator<Item = (&'a Uri, &'a AnalysisResult)>,
+    ) {
+        for uri in removals {
+            index.remove_document(uri.as_str());
+            seeds.remove(uri.as_str());
+        }
+        for (uri, analysis) in replacements {
+            index.replace_document(uri.as_str(), analysis);
+            seeds.remove(uri.as_str());
+        }
+    }
+
+    fn changed_disk_uris(
+        removals: Vec<&Uri>,
+        index_only_removals: Vec<&Uri>,
+        replacements: Vec<&(Uri, String, String, AnalysisResult)>,
+    ) -> Vec<Uri> {
+        removals
+            .into_iter()
+            .chain(index_only_removals)
+            .chain(replacements.into_iter().map(|entry| &entry.0))
+            .cloned()
+            .collect()
+    }
+
+    /// Resolve one dirty open document against its **current** identity.
+    ///
+    /// Both the dialect resolver and live publication await other stores, so
+    /// an edit or a second configuration change can overtake either phase. The
+    /// per-document generation makes that visible: a mismatched snapshot is
+    /// retried, and resolving generation N cannot clear generation N+1.
+    async fn resolve_dirty_open_document_dialect(&self, uri: &Uri, operation: &'static str) {
+        loop {
+            let (language_id, old_dialect, text, revision, generation) = {
+                let docs = self.documents.lock(operation).await;
+                let Some(doc) = docs.get(uri) else {
+                    return;
+                };
+                if !doc.dialect_resolution_pending() {
+                    return;
+                }
+                (
+                    doc.language_id.clone(),
+                    doc.dialect.clone(),
+                    doc.text.clone(),
+                    doc.revision,
+                    doc.dialect_resolution_generation,
+                )
+            };
+            let new_dialect = self.dialect_for_open(uri, &language_id, &text).await;
+            let changed = {
+                let mut docs = self.documents.lock(operation).await;
+                let Some(doc) = docs.get_mut(uri) else {
+                    return;
+                };
+                if doc.revision != revision
+                    || doc.text.as_ref() != text.as_ref()
+                    || doc.dialect != old_dialect
+                    || doc.dialect_resolution_generation != generation
+                {
+                    continue;
+                }
+                doc.resolved_dialect_generation = generation;
+                if new_dialect == old_dialect {
+                    return;
+                }
+                doc.dialect.clone_from(&new_dialect);
+                doc.bump_analysis_generation();
+                (doc.text.clone(), doc.revision)
+            };
+            self.invalidate_live_publication(std::iter::once(uri));
+            if self
+                .commit_live_dialect(operation, uri, &changed.0, &new_dialect, changed.1)
+                .await
+            {
+                self.reschedule_diagnostics(uri.clone(), new_dialect).await;
+                return;
+            }
+            // A newer edit that overtook publication inherited the resolved
+            // dialect above. A newer configuration change advances the dirty
+            // generation and this loop resolves it; a close exits next round.
+        }
+    }
+
+    /// Re-resolve every open document's dialect after a session/folder-default
+    /// change. Mark all documents first so a concurrent edit carries the work
+    /// forward; each resolver then retries until it consumes the exact current
+    /// generation or the document closes.
     async fn reresolve_open_document_dialects(&self) {
-        // Snapshot `(uri, language_id, current dialect)` first — the async
-        // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
-        // so they must not run while the `documents` lock is held.
-        let snapshot: Vec<(Uri, String, String, Arc<str>)> = {
-            let docs = self
+        let uris = {
+            let mut docs = self
                 .documents
                 .lock("reresolve_open_document_dialects")
                 .await;
-            docs.iter()
-                .map(|(uri, doc)| {
-                    (
-                        uri.clone(),
-                        doc.language_id.clone(),
-                        doc.dialect.clone(),
-                        doc.text.clone(),
-                    )
-                })
-                .collect()
+            for doc in docs.values_mut() {
+                doc.mark_dialect_resolution_dirty();
+            }
+            docs.keys().cloned().collect::<Vec<Uri>>()
         };
-        for (uri, language_id, old_dialect, text) in snapshot {
-            let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
-            if new_dialect == old_dialect {
-                continue;
-            }
-            // Commit the new dialect to the live document + salsa input while
-            // holding `documents` (the same `documents` → `db` /
-            // `workspace_index` ordering `did_open` uses; `db_set_source`
-            // never locks `documents`, so the nesting is cycle-free).
-            {
-                let mut docs = self
-                    .documents
-                    .lock("reresolve_open_document_dialects")
-                    .await;
-                let Some(doc) = docs.get_mut(&uri) else {
-                    continue; // closed between snapshot and commit
-                };
-                doc.dialect.clone_from(&new_dialect);
-                let text = doc.text.clone();
-                self.db_set_source(&uri, &text, new_dialect.clone()).await;
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(uri.as_str());
-            }
-            self.reschedule_diagnostics(uri, new_dialect).await;
+        for uri in uris {
+            self.resolve_dirty_open_document_dialect(&uri, "reresolve_open_document_dialects")
+                .await;
         }
     }
 
@@ -8058,7 +10152,7 @@ impl Backend {
     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
-        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_document_symbols");
+        let snapshot = self.db.snapshot("db_document_symbols").await;
         crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&*snapshot, file, config)).ok()
         })
@@ -8081,7 +10175,7 @@ impl Backend {
         uri: &Uri,
     ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_folding_ranges");
+        let snapshot = self.db.snapshot("db_folding_ranges").await;
         crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&*snapshot, file)).ok()
         })
@@ -8146,8 +10240,7 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
-        let snapshot =
-            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_file_analysis_handle");
+        let snapshot = self.db.snapshot("db_file_analysis_handle").await;
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
                 tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
@@ -8165,8 +10258,7 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot =
-            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_compilation_unit_handle");
+        let snapshot = self.db.snapshot("db_compilation_unit_handle").await;
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&*snapshot, file)).ok()
         }))
@@ -8211,7 +10303,7 @@ impl Backend {
         // a class defined in another file highlights; otherwise fall back to the
         // local (single-file) hierarchy.
         let project = *self.db_project.lock().await;
-        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_semantic_tokens");
+        let snapshot = self.db.snapshot("db_semantic_tokens").await;
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
                 Some(project) => {
@@ -8256,27 +10348,89 @@ impl Backend {
         if let Some(cached) = self.cached_analysis(uri).await {
             return cached;
         }
-        // No salsa input for this document (e.g. an unindexed buffer): analyse
-        // fresh with the same per-folder config the cached path would have used,
-        // so the on-demand result still honours folder-scoped suppression.
-        let config = self.resolved_db_config(uri).await;
-        let (disabled, na_mode, extra, pack_key, resource) = {
-            let db = self.db.lock().await;
-            (
-                config.disabled_diagnostics(&*db).iter().cloned().collect(),
-                config.non_ascii_mode(&*db),
-                config.extra_commands(&*db).iter().cloned().collect(),
-                config.spec_pack_key(&*db),
-                ResourceAnalyserInputs::from_db_config(config, &*db),
-            )
+        self.fresh_analysis_for(uri, text, dialect).await
+    }
+
+    /// Analyse `text` without taking a Salsa snapshot.
+    ///
+    /// Most request paths should use [`Self::analysis_for`] so they share the
+    /// memoised query. The cold `didOpen` index seed deliberately uses this
+    /// path: a newer edit must be able to publish to Salsa and supersede that
+    /// seed instead of waiting for its old-revision snapshot to retire.
+    async fn fresh_analysis_for(
+        &self,
+        uri: &Uri,
+        text: Arc<str>,
+        dialect: String,
+    ) -> Arc<tcl_compiler::analyser::AnalysisResult> {
+        self.fresh_analysis_seed(uri, text, dialect).await.analysis
+    }
+
+    async fn fresh_analysis_seed(
+        &self,
+        uri: &Uri,
+        text: Arc<str>,
+        dialect: String,
+    ) -> FreshAnalysisSeed {
+        // Analyse outside Salsa with the same per-folder config the cached path
+        // would have used, so the result still honours folder-scoped
+        // suppression and cross-file factory oracle without retaining a
+        // database snapshot. Resolve the independent config stores under one
+        // stable epoch: a pack/config apply can otherwise split this snapshot
+        // across two generations before the analysis even starts.
+        let (
+            analyser_inputs_epoch,
+            class_factory_generation,
+            workspace_class_factories,
+            disabled,
+            na_mode,
+            extra,
+            pack_key,
+            resource,
+        ) = loop {
+            let analyser_inputs_epoch = self.diag_inputs_epoch();
+            let config = self.resolved_db_config(uri).await;
+            let (class_factory_generation, workspace_class_factories) =
+                self.published_class_factories_for_fresh_analysis().await;
+            let (disabled, na_mode, extra, pack_key, resource) = {
+                let db = self.db.lock().await;
+                (
+                    config.disabled_diagnostics(&*db).iter().cloned().collect(),
+                    config.non_ascii_mode(&*db),
+                    config.extra_commands(&*db).iter().cloned().collect(),
+                    config.spec_pack_key(&*db),
+                    ResourceAnalyserInputs::from_db_config(config, &*db),
+                )
+            };
+            if self.diag_inputs_epoch() == analyser_inputs_epoch {
+                break (
+                    analyser_inputs_epoch,
+                    class_factory_generation,
+                    workspace_class_factories,
+                    disabled,
+                    na_mode,
+                    extra,
+                    pack_key,
+                    resource,
+                );
+            }
         };
-        crate::rt::spawn_blocking(move || {
+        let file_path = uri.to_file_path().map(|path| path.display().to_string());
+        let analysis = crate::rt::spawn_blocking(move || {
+            let analysis_text = tcl_lexer::normalise_lone_cr(&text);
             let mut analyser =
-                Self::configured_analyser(disabled, na_mode, extra, pack_key, resource);
-            Arc::new(analyser.analyse(&text, &dialect))
+                Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
+                    .with_workspace_class_factories(workspace_class_factories)
+                    .with_file_path(file_path);
+            Arc::new(analyser.analyse(&analysis_text, &dialect))
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_default();
+        FreshAnalysisSeed {
+            analysis,
+            analyser_inputs_epoch,
+            class_factory_generation,
+        }
     }
 
     /// Return a snapshot of the current workspace folder
@@ -8722,7 +10876,7 @@ impl Backend {
         // together precisely so a reader can check them against each other. A
         // stale-looking snapshot next to a phase that never reached
         // `db_set_source` means the snapshot is a bystander (issue #1657).
-        let census = SNAPSHOT_CENSUS.report();
+        let census = self.db.snapshot_report();
         let waiting_on = match census.oldest {
             Some((site, age)) => format!(
                 "{} salsa snapshot(s) are outstanding; the oldest was taken by {site} {:.1}s ago",
@@ -8773,6 +10927,8 @@ impl Backend {
         let documents_holder = describe_documents_contention(&before, &after);
         let waiters =
             describe_documents_waiters(&self.documents.waiters(), after.held_by.is_some());
+        let db = self.db.contention();
+        let db_files = self.db_files.contention();
         self.client
             .log_message(
                 MessageType::WARNING,
@@ -8780,6 +10936,7 @@ impl Backend {
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
                      The turn is {culprit}. {documents_holder}. {waiters} {waiting_on}. \
+                     Salsa store contention: [{db}] [{db_files}]. \
                      Every request handler is blocked on this barrier and the server will \
                      answer nothing until it moves (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
@@ -8802,10 +10959,34 @@ impl Backend {
     /// `-translation auto` channel makes a lone `\r` a command terminator.
     /// Only the formatter and the W118 line-ending lint read
     /// [`DocumentState::raw`] instead.
-    async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
+    async fn read_document_at(
+        &self,
+        url: &Uri,
+        readiness: DocumentReadiness,
+    ) -> Option<DocumentState> {
         self.edits_settled().await;
-        if let Some(doc) = self.documents.lock("read_document").await.get(url).cloned() {
-            return Some(doc.normalised_for_analysis());
+        // A document-sync notification publishes the shadow buffer first and
+        // shared derived stores second so it can release the global request
+        // barrier before a contended store (#1849). Preserve revision
+        // consistency by waiting only requests for this URI until the store
+        // tier their provider needs has caught up.
+        loop {
+            let advanced = self.live_publication_advanced.notified();
+            tokio::pin!(advanced);
+            advanced.as_mut().enable();
+            let doc = {
+                let docs = self.documents.lock("read_document").await;
+                docs.get(url).cloned()
+            };
+            match doc {
+                Some(doc) if readiness.is_ready(&doc) => {
+                    return Some(doc.normalised_for_analysis());
+                }
+                Some(_) => {
+                    crate::transport_liveness::await_outside_request_admission(advanced).await;
+                }
+                None => break,
+            }
         }
         // On-disk fallback: files the folder scan indexed but the
         // editor hasn't opened aren't in the open-document map.
@@ -8828,6 +11009,35 @@ impl Backend {
             None => self.session_dialect().await,
         };
         Some(DocumentState::new(text, dialect).normalised_for_analysis())
+    }
+
+    /// Read a document only after its Salsa source **and** workspace-index view
+    /// are current. This is the ordinary provider boundary: navigation and
+    /// workspace-aware analysis must not observe the deliberately empty index
+    /// slot between `didOpen` retirement and live re-indexing (#1854 review).
+    async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
+        self.read_document_at(url, DocumentReadiness::Indexed).await
+    }
+
+    /// Read the current live bytes once their matching Salsa source exists.
+    ///
+    /// Formatting, folding, outlines, linked editing, and selection ranges are
+    /// document-local operations. They must not inherit the independent
+    /// workspace-index barrier, which can remain pending while a cold large
+    /// file's first index analysis runs.
+    async fn read_local_document(&self, url: &Uri) -> Option<DocumentState> {
+        self.read_document_at(url, DocumentReadiness::Salsa).await
+    }
+
+    /// Read the current document as soon as its matching Salsa source exists.
+    ///
+    /// Semantic tokens do not consume the workspace index. Their enriched
+    /// Salsa read is explicitly raced against a small budget and falls back to
+    /// lexical tokens over this returned text. Making them wait for the
+    /// independent whole-file index seed defeats that fast path on cold large
+    /// files (the two prompt regressions caught by CI on #1854).
+    async fn read_document_for_semantic_tokens(&self, url: &Uri) -> Option<DocumentState> {
+        self.read_document_at(url, DocumentReadiness::Salsa).await
     }
 
     /// Return byte-level decoding evidence only when `text` is exactly the
@@ -9319,34 +11529,47 @@ impl Backend {
         // removal. Derive candidates under the gate, then let the shared
         // publication transaction re-check the open set without ever waiting
         // while it owns that map (#1800).
-        let rehoming_guard = self.rehoming_gate.lock().await;
-        let candidates: Vec<Uri> = self
-            .workspace_index
-            .read()
-            .await
-            .document_uris()
-            .into_iter()
-            .filter(|uri| {
-                folder_strs
-                    .iter()
-                    .any(|folder| uri_under_folder(uri, folder))
-            })
-            .filter_map(|uri| Uri::from_str(&uri).ok())
-            .collect();
-        let removed_urls = self
-            .publish_disk_results_while_rehoming_locked(
-                &rehoming_guard,
-                &[],
-                &candidates,
-                DiskRemovalPolicy::ClosedOnly,
-                "drop_index_under_folders",
-            )
-            .await;
-        // Batched so each cache is locked once for the whole folder, not once
-        // per file.  Still inside the rehoming gate, so a reconciliation pass
-        // cannot observe the index entries gone while their seed records stand.
-        self.forget_uri_states(&removed_urls).await;
-        drop(rehoming_guard);
+        let disk_publication = self.disk_publication_gate.lock().await;
+        let mut removed_urls = Vec::new();
+        loop {
+            let rehoming_guard = self.rehoming_gate.lock().await;
+            let candidates: Vec<Uri> = self
+                .workspace_index
+                .read()
+                .await
+                .document_uris()
+                .into_iter()
+                .filter(|uri| {
+                    folder_strs
+                        .iter()
+                        .any(|folder| uri_under_folder(uri, folder))
+                })
+                .filter_map(|uri| Uri::from_str(&uri).ok())
+                .collect();
+            if candidates.is_empty() {
+                break;
+            }
+            let (removed, rehoming_guard) = self
+                .publish_disk_results_while_rehoming_locked(
+                    &disk_publication,
+                    rehoming_guard,
+                    &[],
+                    &candidates,
+                    DiskRemovalPolicy::ClosedOnly,
+                    "drop_index_under_folders",
+                )
+                .await;
+            // The publication may release and reacquire its outer gates while
+            // contended. Re-snapshot until no newly published closed entry
+            // remains under the removed folders. Open buffers are preserved;
+            // when only those remain, `removed` is empty and the loop settles.
+            self.forget_uri_states(&removed).await;
+            drop(rehoming_guard);
+            if removed.is_empty() {
+                break;
+            }
+            removed_urls.extend(removed);
+        }
         // Clear the Problems / File-Explorer badge of any removed-folder file
         // that still carried one (#865) — it is no longer part of the workspace,
         // so a retained closed-file badge would be stale.
@@ -9697,7 +11920,7 @@ impl Backend {
     ///   removal deliberately leaves open documents alone), `diag_slots`
     ///   ([`Self::evict_diag_slot`] — a slot a worker is draining is that
     ///   worker's liveness record and must survive), `db_files` /
-    ///   `db_tombstones` ([`Self::db_remove_source`] retires the salsa handle
+    ///   `db_tombstones` / `db_project_members` ([`Self::db_remove_source`] retires the salsa handle
     ///   rather than dropping it, #1145), `pull_diag_cache` / `closed_diag_gen` /
     ///   `closed_diag_order` ([`Self::clear_closed_diagnostics`], which must also
     ///   publish the empty diagnostic set), `semantic_tokens_convergence` (a
@@ -9723,6 +11946,7 @@ impl Backend {
             workspace_index: _,
             db_files: _,
             db_tombstones: _,
+            db_project_members: _,
             pull_diag_cache: _,
             closed_diag_gen: _,
             closed_diag_order: _,
@@ -9772,6 +11996,7 @@ impl Backend {
             feature_toggles: _,
             optimiser_enabled: _,
             diag_inputs_epoch: _,
+            analyser_inputs_gate: _,
             edit_barrier_stall_reported: _,
             shimmer_enabled: _,
             optimiser_profile: _,
@@ -9782,9 +12007,17 @@ impl Backend {
             db_project: _,
             db_config: _,
             client_supports_pull_diagnostics: _,
+            class_factory_generation: _,
             semantic_tokens_refresh_pending: _,
             warm_task: _,
             edit_order: _,
+            watched_file_change_gate: _,
+            disk_publication_gate: _,
+            live_publication_advanced: _,
+            live_publication_invalidated: _,
+            live_publication_generation: _,
+            live_publication_uri_generations: _,
+            live_publication_gate: _,
             store: _,
         } = self;
         PerUriCaches {
@@ -13640,7 +15873,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let compact = args
@@ -13768,7 +16001,7 @@ impl Backend {
                 Some(hash.to_ascii_lowercase())
             }
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         if requested_version.is_some() && requested_version != doc.version {
@@ -13839,7 +16072,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         // The `"full"` profile iterates to a fixpoint; anything else is a
@@ -14075,7 +16308,7 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let (disabled, na_mode) = self.analyser_config().await;
@@ -14820,10 +17053,11 @@ impl Backend {
         if !cfg.is_object() {
             return;
         }
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
         }
-        self.apply_global_library_paths(cfg).await;
+        let rescan_workspace = self.apply_global_library_paths(cfg).await;
         self.apply_global_toggles(cfg, signature_fallback_cfg).await;
         self.apply_global_formatting(cfg).await;
         self.apply_global_analyser_knobs(cfg).await;
@@ -14835,12 +17069,17 @@ impl Backend {
         // an edit schedules between here and the reload's own reschedule
         // (issue #1651).
         self.invalidate_diag_inputs();
+        drop(analyser_inputs_guard);
+        if rescan_workspace {
+            self.scan_workspace_folders().await;
+        }
     }
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
     /// `auto_path` (the user's picked installation / hand-entered paths).
     /// A change rebuilds the database so the new paths take effect immediately.
-    async fn apply_global_library_paths(&self, cfg: &serde_json::Value) {
+    async fn apply_global_library_paths(&self, cfg: &serde_json::Value) -> bool {
+        let mut rescan_workspace = false;
         if let Some(paths) = cfg
             .get("libraryPaths")
             .and_then(serde_json::Value::as_array)
@@ -14861,7 +17100,7 @@ impl Backend {
                 }
             };
             if changed {
-                self.scan_workspace_folders().await;
+                rescan_workspace = true;
             }
         }
         // `tclLsp.packages.preferLatest` — the interpreter's starting
@@ -14897,9 +17136,10 @@ impl Backend {
             // index entry, so a change to them has to re-scan — the same
             // treatment `libraryPaths` gets above (issue #1813 review).
             if changed {
-                self.scan_workspace_folders().await;
+                rescan_workspace = true;
             }
         }
+        rescan_workspace
     }
 
     /// The interpreter's **starting** `package prefer` mode — the base
@@ -15133,6 +17373,7 @@ impl Backend {
     /// save for a folder toggling an override.
     async fn apply_folder_configs(&self, parsed: Vec<(Uri, FolderConfig)>) {
         use salsa::Setter as _;
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         {
             let mut global_disabled: Vec<String> = self
                 .disabled_diagnostics
@@ -15244,6 +17485,7 @@ impl Backend {
         // through, so a replaced chain retires the scheduler's cached copies for
         // the same reason `apply_global_config` does.
         self.invalidate_diag_inputs();
+        drop(analyser_inputs_guard);
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with
@@ -16046,13 +18288,16 @@ impl Backend {
             workspace_index: Arc::clone(&self.workspace_index),
             rehomed_source_seeds: Arc::clone(&self.rehomed_source_seeds),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
+            live_publication_gate: Arc::clone(&self.live_publication_gate),
             package_resolver: Arc::clone(&self.package_resolver),
             recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
             folder_root,
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
+            db_project_members: Arc::clone(&self.db_project_members),
             db_project: Arc::clone(&self.db_project),
+            class_factory_generation: Arc::clone(&self.class_factory_generation),
             db_config: Arc::clone(&self.db_config),
             folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
@@ -16285,9 +18530,10 @@ impl Backend {
         // A salsa snapshot is not an ordinary handle. `set_text` (and creating a
         // `SourceFile`) goes through `Storage::cancel_others`, which parks on a
         // condvar until every **other** clone has been dropped — a blocking
-        // wait, taken on a Tokio worker, from inside the `EditOrder` turn that
-        // `did_open` / `did_change` hold. So a live snapshot does not merely
-        // delay one query: it stalls the document-sync barrier, and with it
+        // wait, taken on a Tokio worker. The original edit path entered it from
+        // inside the `EditOrder` turn; the current deferred publication path
+        // waits for the tracked census to become empty first. A clone retained
+        // past its query would still hold publication back and used to stall
         // every request handler in the server (issue #1657).
         //
         // Holding one across an unrelated `.await` — as this did across the
@@ -16296,7 +18542,7 @@ impl Backend {
         // snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
         let p = project?;
-        let db = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "project_callback_arities_if");
+        let db = self.db.snapshot("project_callback_arities_if").await;
         crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&*db, p))
             .await
             .ok()
@@ -17091,6 +19337,10 @@ impl Backend {
             return false;
         };
 
+        // Keep the pack registry and its Salsa key one analyser-input
+        // generation. A standalone index seed either commits before this
+        // writer or observes the bumped epoch after the complete transition.
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         // What publishing the set did to the live environment registry, when
         // it was published — `None` when this reload changed nothing.
         let mut registration: Option<tcl_spectcl::PackSetRegistration> = None;
@@ -17130,11 +19380,6 @@ impl Backend {
                 // the *current* set came from, so a reload that read the disk
                 // earlier than that can never take its place.
                 *guard = PublishedPackSet { seq, packs: loaded };
-                // The new set decides `registry_for_dialect`, and every cached
-                // `DiagInputs` holds a registry handle resolved from the old
-                // one.  Retired here, with the swap, so the next scheduled run
-                // resolves against what is now published.
-                self.invalidate_diag_inputs();
             }
             changed
         };
@@ -17168,6 +19413,13 @@ impl Backend {
             // before anything re-analyses.
             self.sync_db_config().await;
         }
+        if changed {
+            // The new set decides `registry_for_dialect`, and every cached
+            // `DiagInputs` holds a registry handle resolved from the old one.
+            // Bump only after the registry and Salsa config key are both live.
+            self.invalidate_diag_inputs();
+        }
+        drop(analyser_inputs_guard);
         self.report_pack_reload(&packs, registration.as_ref(), changed)
             .await;
         self.settle_pack_reload(changed, trigger).await;
@@ -17734,6 +19986,80 @@ impl Backend {
     /// convention.
     const STANDALONE_SEED: &'static str = "::";
 
+    /// Capture a source for rehoming without calling [`Self::read_document`].
+    /// The latter waits for indexed publication, which would deadlock here: the
+    /// pending publisher needs the rehoming gate its caller already owns.
+    async fn rehoming_document_snapshot(&self, uri: &Uri) -> RehomingDocumentSnapshot {
+        let docs = self.documents.lock("refresh_source_rehoming").await;
+        let live = match docs.get(uri) {
+            Some(doc) if doc.publication != DocumentPublication::Indexed => {
+                return RehomingDocumentSnapshot::Pending;
+            }
+            Some(doc) => Some((doc.clone().normalised_for_analysis(), doc.revision)),
+            None => None,
+        };
+        drop(docs);
+        if let Some((doc, revision)) = live {
+            return RehomingDocumentSnapshot::Ready(doc, Some(revision));
+        }
+
+        let snapshot = {
+            let db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            files.get(uri).copied().map(|file| {
+                DocumentState::new(file.text(&*db).clone(), file.dialect(&*db).clone())
+                    .normalised_for_analysis()
+            })
+        };
+        if self
+            .documents
+            .lock("refresh_source_rehoming_currency")
+            .await
+            .contains_key(uri)
+        {
+            RehomingDocumentSnapshot::Pending
+        } else if let Some(snapshot) = snapshot {
+            RehomingDocumentSnapshot::Ready(snapshot, None)
+        } else {
+            RehomingDocumentSnapshot::Missing
+        }
+    }
+
+    /// Replace one rehomed index view only if the source snapshot is still the
+    /// authoritative published revision. On index contention, join its fair
+    /// queue while holding no document-map guard, then re-check currency.
+    async fn publish_rehomed_if_current(
+        &self,
+        uri: &Uri,
+        open_revision: Option<u64>,
+        analyses: &[AnalysisResult],
+    ) -> bool {
+        loop {
+            let docs = self.documents.lock("refresh_source_rehoming_publish").await;
+            let current = match open_revision {
+                Some(revision) => docs.get(uri).is_some_and(|current| {
+                    current.publication == DocumentPublication::Indexed
+                        && current.revision == revision
+                }),
+                None => !docs.contains_key(uri),
+            };
+            if !current {
+                return false;
+            }
+            docs.retag("refresh_source_rehoming_publish: workspace_index.try_write");
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(docs);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            index.remove_document(uri.as_str());
+            for analysis in analyses {
+                index.add_document(uri.as_str(), analysis);
+            }
+            return true;
+        }
+    }
+
     /// Whether a seed set is exactly the standalone view — i.e. the document is
     /// **not** re-homed and [`Self::rehomed_source_seeds`] must hold no entry
     /// for it.
@@ -17802,8 +20128,17 @@ impl Backend {
                 let Ok(uri) = Uri::from_str(&uri_s) else {
                     continue;
                 };
-                let Some(doc) = self.read_document(&uri).await else {
-                    continue;
+                // Never call `read_document` while holding `rehoming_gate`:
+                // that reader waits for a publication-pending open document,
+                // while live publication needs this same gate to finish. Read
+                // a published open snapshot directly, or the tracked Salsa
+                // source for a closed document. A pending live revision makes
+                // this pass retire immediately so its publisher can take the
+                // gate; the next query reconciles the newly published view.
+                let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await {
+                    RehomingDocumentSnapshot::Ready(doc, revision) => (doc, revision),
+                    RehomingDocumentSnapshot::Pending => return,
+                    RehomingDocumentSnapshot::Missing => continue,
                 };
                 let text = doc.text.clone();
                 let dialect = doc.dialect.clone();
@@ -17829,12 +20164,11 @@ impl Backend {
                 else {
                     continue;
                 };
+                if !self
+                    .publish_rehomed_if_current(&uri, open_revision, &analyses)
+                    .await
                 {
-                    let mut index = self.workspace_index.write().await;
-                    index.remove_document(&uri_s);
-                    for analysis in &analyses {
-                        index.add_document(&uri_s, analysis);
-                    }
+                    return;
                 }
                 if Self::is_standalone_view(&seeds) {
                     self.rehomed_source_seeds.lock().await.remove(&uri_s);
@@ -17912,6 +20246,22 @@ impl Backend {
         .await;
     }
 
+    /// Load a closed document solely for workspace-symbol span mapping.
+    ///
+    /// No dialect/configuration lookup is needed: only the decoded analysis
+    /// bytes and their line index are consumed. Keeping that unrelated work
+    /// out also makes the index-revision revalidation below cover one bounded
+    /// source read rather than an arbitrary configuration wait.
+    async fn closed_workspace_symbol_source(&self, uri: &Uri) -> Option<DocumentState> {
+        let path = uri.to_file_path()?.into_owned();
+        let store = Arc::clone(&self.store);
+        let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
+            .await
+            .ok()?
+            .ok()?;
+        Some(DocumentState::new(text, String::new()).normalised_for_analysis())
+    }
+
     /// The `workspace/symbol` matches contributed by **open** documents the
     /// workspace index does not currently hold.
     ///
@@ -17922,9 +20272,10 @@ impl Backend {
     /// (or a test) searches for something they just opened (#1179).  A new
     /// untitled buffer has the same gap until its first publish.
     ///
-    /// Bounded by the open-document set and empty in steady state; the
-    /// analysis is normally read from the salsa memo the pending publish
-    /// computes anyway, so nothing is analysed twice.
+    /// Bounded by the open-document set and empty in steady state. Once Salsa
+    /// names the live revision, analysis normally comes from its memo. A
+    /// publication-pending open deliberately analyses its captured buffer
+    /// afresh because Salsa may still memoise the pre-open disk source.
     ///
     /// A **cancelled** memo read must not be read as "this document has no
     /// symbols".  [`Self::cached_analysis`] answers `None` for two unrelated
@@ -17938,45 +20289,149 @@ impl Backend {
     /// salsa write unwinds every in-flight read.  Lose that race and the
     /// picker answered *nothing* for the file the user had just opened —
     /// intermittently, and precisely the #1179 symptom this path was added to
-    /// remove.  So a URI that **has** an input falls back to an off-database
-    /// analysis of its own buffer ([`Self::analysis_for`]), which no
-    /// concurrent write can cancel.
+    /// remove.  So a URI that **has** an input falls back to analysis of its
+    /// own buffer, which no concurrent write can cancel. Before live Salsa
+    /// publication it uses [`Self::fresh_analysis_for`] directly; afterwards
+    /// [`Self::analysis_for`] provides the same off-database fallback on a
+    /// cancelled memo read.
     ///
-    /// A URI with **no** input keeps contributing nothing, deliberately: an
-    /// open buffer whose file was deleted out from under it has its input
-    /// retired ([`Self::retire_db_source`]) precisely so it stops answering
-    /// workspace queries under a path that no longer exists, while the buffer
-    /// itself keeps working.  Resurrecting it from `documents` here would
-    /// re-ghost every proc in the picker under the dead URI.
+    /// An orphan contributes nothing, deliberately, even after a later edit
+    /// restores the Salsa handle its local providers need. Resurrecting it
+    /// from `documents` here would re-ghost every proc in the picker under the
+    /// dead URI. A pending non-orphan is different: a brand-new or untitled
+    /// buffer may simply not have reached its first Salsa publication, so its
+    /// captured live text remains authoritative even without an input handle.
     async fn open_but_unindexed_symbols(
         &self,
         query: &str,
         limit: usize,
-    ) -> Vec<core_workspace_symbols::IndexedWorkspaceSymbol> {
-        let unindexed: Vec<(Uri, Arc<str>, String)> = {
-            // `documents` → `workspace_index`, the lock order `did_open`
-            // establishes.
-            let docs = self.documents.lock("open_but_unindexed_symbols").await;
-            let index = self.workspace_index.read().await;
-            docs.iter()
-                .filter(|(uri, _)| !index.contains_document(uri.as_str()))
-                .map(|(uri, doc)| (uri.clone(), Arc::clone(&doc.text), doc.dialect.clone()))
-                .collect()
-        };
-        if unindexed.is_empty() {
-            return Vec::new();
-        }
-        let mut pending = new_workspace_index();
-        for (uri, text, dialect) in unindexed {
-            // Retired / never-registered input: see the doc comment — this
-            // document is meant to be absent, not rescued.
-            if !self.db_files.lock().await.contains_key(&uri) {
+    ) -> WorkspaceSymbolCandidates {
+        const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
+        for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
+            let (unindexed, mut indexed_hits, mut sources, mut closed_revisions) = {
+                // `documents` → `workspace_index`, the lock order `did_open`
+                // establishes.
+                let docs = self.documents.lock("open_but_unindexed_symbols").await;
+                let index = self.workspace_index.read().await;
+                let unindexed: Vec<(Uri, DocumentState)> = docs
+                    .iter()
+                    .filter(|(uri, doc)| {
+                        !doc.backing_file_deleted && !index.contains_document(uri.as_str())
+                    })
+                    .map(|(uri, doc)| (uri.clone(), doc.clone()))
+                    .collect();
+                // Snapshot ordinary index hits under the same read lock that
+                // classified fallback URIs. Fresh analysis below may await
+                // long enough for one of those URIs to publish; consulting
+                // the index a second time would mix two revisions.
+                let indexed_hits = index.symbols_matching_excluding(
+                    query,
+                    limit,
+                    docs.iter()
+                        .filter_map(|(uri, doc)| doc.backing_file_deleted.then_some(uri.as_str())),
+                );
+                // An indexed hit names the bytes current at this index
+                // snapshot. Open sources can be captured atomically under the
+                // documents lock; closed sources need the per-document index
+                // revision below to validate their out-of-lock disk read.
+                let sources: HashMap<String, Option<DocumentState>> = indexed_hits
+                    .iter()
+                    .filter_map(|hit| {
+                        let uri = Uri::from_str(&hit.uri).ok()?;
+                        docs.get(&uri)
+                            .cloned()
+                            .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
+                    })
+                    .collect();
+                let closed_revisions: HashMap<String, u64> = indexed_hits
+                    .iter()
+                    .filter(|hit| !sources.contains_key(&hit.uri))
+                    .filter_map(|hit| {
+                        index
+                            .document_revision(&hit.uri)
+                            .map(|revision| (hit.uri.clone(), revision))
+                    })
+                    .collect();
+                (unindexed, indexed_hits, sources, closed_revisions)
+            };
+
+            let mut pending = new_workspace_index();
+            let mut fallback_sources = HashMap::new();
+            for (uri, doc) in unindexed {
+                // A published document with no input is a deliberately retired
+                // orphan (see the doc comment), but a pending brand-new/untitled
+                // buffer has not created its first Salsa handle yet and is still
+                // authoritative for its own live symbols.
+                if doc.publication != DocumentPublication::Pending
+                    && !self.db_files.lock().await.contains_key(&uri)
+                {
+                    continue;
+                }
+                // Before the Salsa boundary, a cache hit still describes the
+                // pre-open disk source. Analyse the captured authoritative buffer
+                // directly; once Salsa is ready, the memoised path is current and
+                // remains the cheaper fallback for a cancelled read.
+                let analysis = if doc.publication == DocumentPublication::Pending {
+                    self.fresh_analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                        .await
+                } else {
+                    self.analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+                        .await
+                };
+                pending.add_document(uri.as_str(), &analysis);
+                fallback_sources
+                    .insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
+            }
+            let fallback_hits = pending.symbols_matching(query, limit);
+
+            // Fallback hits have priority in the final response. Do not read
+            // closed sources for indexed candidates that cannot fit after
+            // them: broad queries can otherwise turn one pending open buffer
+            // into hundreds of serial disk reads that are immediately thrown
+            // away by the caller.
+            indexed_hits.truncate(limit.saturating_sub(fallback_hits.len()));
+            let selected_indexed_uris: HashSet<String> =
+                indexed_hits.iter().map(|hit| hit.uri.clone()).collect();
+            sources.retain(|uri, _| selected_indexed_uris.contains(uri));
+            closed_revisions.retain(|uri, _| selected_indexed_uris.contains(uri));
+
+            for uri_s in closed_revisions.keys() {
+                let loaded = match Uri::from_str(uri_s) {
+                    Ok(uri) => self.closed_workspace_symbol_source(&uri).await,
+                    Err(_) => None,
+                };
+                sources.insert(uri_s.clone(), loaded);
+            }
+            // A watcher may reindex a closed file while its bytes are being
+            // read. Retry only when one of the documents whose hits we
+            // captured changed; unrelated index churn must not starve the
+            // picker. After the small bound, omit unstable closed documents
+            // rather than ever map a stale byte span through mismatched text.
+            let unstable: HashSet<String> = {
+                let index = self.workspace_index.read().await;
+                closed_revisions
+                    .iter()
+                    .filter(|(uri, revision)| index.document_revision(uri) != Some(**revision))
+                    .map(|(uri, _)| uri.clone())
+                    .collect()
+            };
+            if !unstable.is_empty() && attempt + 1 < MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
                 continue;
             }
-            let analysis = self.analysis_for(&uri, text, dialect).await;
-            pending.add_document(uri.as_str(), &analysis);
+            if !unstable.is_empty() {
+                indexed_hits.retain(|hit| !unstable.contains(&hit.uri));
+                for uri in unstable {
+                    sources.remove(&uri);
+                }
+            }
+            sources.extend(fallback_sources);
+            return WorkspaceSymbolCandidates {
+                fallback_hits,
+                indexed_hits,
+                sources,
+            };
         }
-        pending.symbols_matching(query, limit)
+        unreachable!("the bounded source-snapshot loop always returns")
     }
 
     async fn scan_workspace_folders(&self) {
@@ -18067,10 +20522,13 @@ impl Backend {
         let scan_handles = EvidenceHandles {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
+            db_project_members: Arc::clone(&self.db_project_members),
             db_project: Arc::clone(&self.db_project),
             workspace_index: Arc::clone(&self.workspace_index),
             documents: Arc::clone(&self.documents),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
+            live_publication_gate: Arc::clone(&self.live_publication_gate),
+            class_factory_generation: Arc::clone(&self.class_factory_generation),
         };
         let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
         // …then re-index the unopened documents that oracle can change
@@ -18362,8 +20820,8 @@ impl Backend {
     /// queries it executes (`TclDatabase::with_event_logger`) instead of racing
     /// a fire-and-forget `tokio::spawn`.
     async fn warm_open_documents(
-        db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
-        db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
+        db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
+        db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
         documents: Arc<DocumentStore>,
         db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
         folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
@@ -18413,8 +20871,7 @@ impl Backend {
                 // Clone the snapshot only after the permit is held, so
                 // `set_text` never waits on more than `concurrency` in-flight
                 // reads.
-                let snapshot =
-                    SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "warm_open_documents");
+                let snapshot = db.snapshot("warm_open_documents").await;
                 let _ = crate::rt::spawn_blocking(move || {
                     let _ = salsa::Cancelled::catch(|| {
                         tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
@@ -18448,6 +20905,7 @@ impl Backend {
         Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>,
         Option<Arc<tcl_compiler::analyser::AnalysisResult>>,
         Option<RangeConvergencePending>,
+        bool,
     ) {
         // Normally both handles are `Some` (indexed document) or `None` (unindexed
         // buffer → coarse only, nothing to converge to). They are read under
@@ -18510,7 +20968,7 @@ impl Backend {
                 };
                 if both_ready {
                     // Both landed inside the budget — serve the enriched viewport.
-                    (cu_slot.flatten(), analysis_slot.flatten(), None)
+                    (cu_slot.flatten(), analysis_slot.flatten(), None, true)
                 } else {
                     // Budget won: serve coarse, handing whatever partial result
                     // landed plus the still-running (un-consumed) reads to the
@@ -18519,10 +20977,11 @@ impl Backend {
                         None,
                         None,
                         Some((cu_slot, analysis_slot, cu_handle, analysis_handle)),
+                        true,
                     )
                 }
             }
-            None => (None, None, None),
+            None => (None, None, None, false),
         }
     }
 
@@ -18575,12 +21034,15 @@ impl Backend {
                 Some(analysis) => analysis,
                 None => analysis_handle.await.ok().flatten(),
             };
-            // Both `None` ⇒ the reads were cancelled by a concurrent edit, which
-            // schedules its own token refresh — nothing to converge. Every other
-            // path makes the coarse-vs-enriched decision below.
-            let cancelled = cu.is_none() && analysis.is_none();
-            let refreshed = if cancelled {
-                false
+            // Both results are required for an enriched viewport. A concurrent
+            // setter can cancel either read after its sibling finishes; treating
+            // that partial tier as enriched can compare equal to coarse tokens
+            // and strand the viewport. Schedule a coalesced client re-pull so
+            // cancellation is retryable rather than merely observable (#1854).
+            let cancelled = cu.is_none() || analysis.is_none();
+            let (refreshed, outcome) = if cancelled {
+                refresh_ctx.request_refresh_coalesced();
+                (true, RangeSettleOutcome::Cancelled)
             } else {
                 let enriched = crate::rt::spawn_blocking(move || {
                     core_semantic_tokens::range_with_cu_and_analysis(
@@ -18595,16 +21057,28 @@ impl Backend {
                 })
                 .await;
                 match enriched {
+                    Ok(enriched) if enriched == served => {
+                        (false, RangeSettleOutcome::ComparedEqual)
+                    }
                     // Same repeat-ask bound as the `full` path
                     // ([`EnrichedRefreshAsked`]): a viewport whose enriched
                     // recompute keeps landing identical must not keep asking
                     // the client to re-pull the tokens it already asked for.
-                    Ok(enriched) if enriched != served => {
-                        refresh_ctx
+                    Ok(enriched) => {
+                        let refreshed = refresh_ctx
                             .request_refresh_for_enriched(&claim_uri, &enriched)
-                            .await
+                            .await;
+                        let outcome = if refreshed {
+                            RangeSettleOutcome::RefreshRequested
+                        } else {
+                            RangeSettleOutcome::RefreshSuppressed
+                        };
+                        (refreshed, outcome)
                     }
-                    _ => false,
+                    Err(_) => {
+                        refresh_ctx.request_refresh_coalesced();
+                        (true, RangeSettleOutcome::Cancelled)
+                    }
                 }
             };
             // The convergence decision is now made (a refresh was asked for, or the
@@ -18614,12 +21088,7 @@ impl Backend {
             // signal that lets a test assert on the *absence* of a
             // `workspace/semanticTokens/refresh` deterministically instead of racing
             // a fixed sleep. `refresh=` records the outcome for observability.
-            let outcome = if cancelled {
-                RangeSettleOutcome::Cancelled
-            } else {
-                RangeSettleOutcome::Compared
-            };
-            if cancelled {
+            if matches!(outcome, RangeSettleOutcome::Cancelled) {
                 rearm_semantic_tokens_test_seam();
             }
             // Release the per-URI claim only now the decision is made, so every
@@ -18633,15 +21102,53 @@ impl Backend {
             log_range_convergence_settled(&refresh_ctx.client, &uri, refreshed, outcome).await;
         });
     }
+
+    fn request_semantic_tokens_retry(&self) {
+        SemanticTokensRefreshCtx {
+            client: self.client.clone(),
+            last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
+            refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
+            refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
+        }
+        .request_refresh_coalesced();
+    }
+
+    fn retry_cancelled_range(&self, outcome: RangeSettleOutcome) -> bool {
+        if !matches!(outcome, RangeSettleOutcome::Cancelled) {
+            return false;
+        }
+        self.request_semantic_tokens_retry();
+        true
+    }
+
+    fn inline_range_settlement(
+        &self,
+        served_enriched: bool,
+        had_analysis_handles: bool,
+    ) -> (bool, RangeSettleOutcome) {
+        let outcome = if served_enriched {
+            RangeSettleOutcome::ServedEnriched
+        } else if had_analysis_handles {
+            // Both handles existed, but a concurrent Salsa write cancelled
+            // their reads. This is retryable, not the terminal unindexed case.
+            RangeSettleOutcome::Cancelled
+        } else {
+            RangeSettleOutcome::NoAnalysis
+        };
+        (self.retry_cancelled_range(outcome), outcome)
+    }
 }
 
 /// What a `semanticTokens/range` request's convergence decision amounted to,
 /// recorded in the settled marker (see [`log_range_convergence_settled`]).
 #[derive(Clone, Copy)]
 enum RangeSettleOutcome {
-    /// The coarse tier was served and the detached continuation compared it
-    /// against the recomputed enriched viewport — the #844 Gap 4 path proper.
-    Compared,
+    /// A coarse response's recomputed enriched viewport matched the bytes served.
+    ComparedEqual,
+    /// A coarse response's differing enriched viewport scheduled a re-request.
+    RefreshRequested,
+    /// A coarse response's differing enriched viewport had already asked once.
+    RefreshSuppressed,
     /// The coarse tier was served but the enriched reads were cancelled (a
     /// concurrent edit, or another document mutating the salsa `Project`), so
     /// nothing was compared.
@@ -18662,7 +21169,9 @@ enum RangeSettleOutcome {
 impl RangeSettleOutcome {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Compared => "compared",
+            Self::ComparedEqual => "compared-equal",
+            Self::RefreshRequested => "refresh-requested",
+            Self::RefreshSuppressed => "refresh-suppressed",
             Self::Cancelled => "cancelled",
             Self::ServedEnriched => "served-enriched",
             Self::NoAnalysis => "no-analysis",
@@ -18800,6 +21309,97 @@ fn push_check_code_actions(
     ));
 }
 
+impl Backend {
+    /// Apply watched delete/revive state to buffers that remain open and
+    /// return the revived snapshots that need live Salsa/index publication and
+    /// the exact orphan revisions a deletion transaction may fully retire.
+    async fn update_watched_open_paths(
+        &self,
+        deleted: &HashSet<Uri>,
+        revived: &[Uri],
+    ) -> (Vec<(Uri, Arc<str>, String, u64)>, HashMap<Uri, u64>) {
+        if deleted.is_empty() && revived.is_empty() {
+            return (Vec::new(), HashMap::new());
+        }
+        let mut docs = self.documents.lock("did_change_watched_files").await;
+        let mut publications = Vec::new();
+        let mut deleted_revisions = HashMap::new();
+        for uri in deleted {
+            if let Some(doc) = docs.get_mut(uri) {
+                doc.backing_file_deleted = true;
+                // For an orphan the current cross-document index view is
+                // deliberately absent. A revision that already reached Salsa
+                // can become fully settled immediately; a pending revision
+                // must remain pending until the deletion transaction retires
+                // the preceding Salsa handle, otherwise local providers can
+                // combine these live bytes with stale memoised analysis.
+                if doc.publication != DocumentPublication::Pending {
+                    doc.publication = DocumentPublication::Indexed;
+                }
+                deleted_revisions.insert(uri.clone(), doc.revision);
+            }
+        }
+        for uri in revived {
+            if let Some(doc) = docs.get_mut(uri)
+                && doc.backing_file_deleted
+            {
+                doc.backing_file_deleted = false;
+                // Retire every deferred publication captured before the
+                // deletion, then republish this unchanged editor buffer as a
+                // new analysis generation. Merely clearing the orphan flag
+                // would leave the deliberately absent index view marked
+                // settled when diagnostics are disabled/excluded.
+                doc.bump_analysis_generation();
+                publications.push((
+                    uri.clone(),
+                    Arc::clone(&doc.text),
+                    doc.dialect.clone(),
+                    doc.revision,
+                ));
+            }
+        }
+        // A normal CREATED/CHANGED notification for an already-live open
+        // buffer changes no authoritative state and starts no replacement
+        // publisher. Invalidating it here would retire a contended didOpen or
+        // didChange forever. Only actual orphan-to-live transitions appear in
+        // `publications`; pair those with the genuine deletions.
+        if !deleted.is_empty() || !publications.is_empty() {
+            self.invalidate_live_publication(
+                deleted
+                    .iter()
+                    .chain(publications.iter().map(|(uri, ..)| uri)),
+            );
+            self.live_publication_advanced.notify_waiters();
+        }
+        drop(docs);
+        (publications, deleted_revisions)
+    }
+
+    /// Release pending local readers only after the watched-delete transaction
+    /// has retired the stale Salsa handle for the same orphan revision.
+    async fn settle_deleted_open_paths(&self, deleted_revisions: &HashMap<Uri, u64>) {
+        let mut docs = self
+            .documents
+            .lock("did_change_watched_files: settle deleted")
+            .await;
+        let mut advanced = false;
+        for (uri, revision) in deleted_revisions {
+            if let Some(doc) = docs.get_mut(uri)
+                && doc.backing_file_deleted
+                && doc.revision == *revision
+                && doc.publication == DocumentPublication::Pending
+            {
+                doc.publication = DocumentPublication::Indexed;
+                advanced = true;
+            }
+        }
+        drop(docs);
+        if advanced {
+            self.live_publication_advanced.notify_waiters();
+        }
+    }
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
@@ -18930,62 +21530,62 @@ impl LanguageServer for Backend {
         let text = params.text_document.text.clone();
         let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
-        {
-            // Hold `documents` across the salsa input set + the index removal
-            // (the `documents` → `workspace_index` order that replaced the
-            // global gate): a reader must never see the new `doc.text` with a
-            // stale query result for the old text, and no diagnostics run may
-            // re-add a stale index entry between them.
-            turn.at("did_open: documents.lock");
-            let mut docs = self.documents.lock("did_open").await;
-            docs.insert(
-                uri.clone(),
-                DocumentState::with_version(params.text_document.text, dialect, version)
-                    .with_language_id(params.text_document.language_id.clone()),
-            );
-            // Dropping the index entry is what makes a freshly opened
-            // definition invisible to every *other* open document until this
-            // one's debounced publish puts it back — the window issue #1619
-            // wedges in: a sibling analysed inside it settles `W123` on a call
-            // this workspace does define, and the publish that restores the
-            // entry wakes only documents the index already records as invoking
-            // the name, which the sibling — also just opened, also just
-            // removed — is not yet one of.
-            //
-            // The entry is stale only if the buffer differs from what it was
-            // built from. Asked of the salsa db rather than of the disk,
-            // because the db already holds the very text the scan (or a
-            // watched-file reindex) read: this is an in-memory comparison, not
-            // a second read, and it cannot disagree with the index entry that
-            // was built alongside it. The dialect is part of the question —
-            // the same bytes analysed under a different dialect are a
-            // different analysis.
-            //
-            // Residual, deliberately accepted: the scan analyses with a bare
-            // `Analyser::new()`, so a kept entry can lack the class-factory
-            // oracle until this document's own publish replaces it a debounce
-            // later. That is strictly better than the entry being *absent* for
-            // that same window, which is what it was before.
-            turn.at("did_open: db_source_matches");
-            let matches_indexed_source = self
-                .db_source_matches(&uri, &text, &dialect_for_diags)
-                .await;
-            turn.at("did_open: db_set_source");
-            self.db_set_source(&uri, &text, dialect_for_diags.clone())
-                .await;
-            if !matches_indexed_source {
-                turn.at("did_open: workspace_index.write");
-                self.workspace_index
-                    .write()
-                    .await
-                    .remove_document(uri.as_str());
+        // Make the authoritative live buffer visible in arrival order, then
+        // release the *global* request barrier before waiting on either shared
+        // store. The v2.2.2 release wedge retained this turn while
+        // suspended on `db_source_matches`, so every request blocked in
+        // `edits_settled()` even though the transport remained alive (#1849).
+        let state = DocumentState::with_version(params.text_document.text, dialect, version)
+            .with_language_id(params.text_document.language_id.clone())
+            .with_publication_pending();
+        turn.at("did_open: documents.lock");
+        let mut documents = self.documents.lock("did_open").await;
+        documents.insert(uri.clone(), state);
+        drop(documents);
+        self.invalidate_live_publication(std::iter::once(&uri));
+
+        // Poll the index writer once while the edit turn still excludes new
+        // requests. If the lock is busy this registers our writer in Tokio's
+        // fair queue without waiting for it; if it is free, retain the guard.
+        // Either way, no request released by `drop(turn)` can acquire an index
+        // read ahead of this stale-slot retirement, including when different
+        // executor workers run concurrently.
+        let mut index_write = std::pin::pin!(self.workspace_index.write());
+        let mut index_guard = None;
+        std::future::poll_fn(|cx| {
+            if let Poll::Ready(guard) = index_write.as_mut().poll(cx) {
+                index_guard = Some(guard);
             }
-            drop(docs);
-        }
-        // Do not keep the global document-sync turn across disk I/O. If a
-        // change lands while this runs, the version/text check below refuses
-        // to attach facts about the file that was opened to the edited buffer.
+            Poll::Ready(())
+        })
+        .await;
         drop(turn);
+
+        // Await only after releasing the global barrier. This wait holds no
+        // other store or edit turn, so a pre-existing index reader/writer
+        // cannot recreate the whole-server wedge (#1800, #1854 review).
+        let mut index = match index_guard {
+            Some(guard) => guard,
+            None => index_write.await,
+        };
+        index.remove_document(uri.as_str());
+        drop(index);
+
+        // Publish the matching Salsa source after the turn is free. The
+        // deferred commit re-checks text/dialect/version under the
+        // document map before its no-await mutation, so a later edit or close
+        // wins rather than being overwritten by this open. The ordinary
+        // unindexed-open-document fallback covers the short gap until live
+        // analysis republishes the buffer (#1619).
+        if !self
+            .commit_open_document(&uri, &text, &dialect_for_diags, version)
+            .await
+        {
+            return;
+        }
+        // If a change lands while the disk read below runs, the version/text
+        // check refuses to attach facts about the opened file to the edited
+        // buffer.
         let decode_report =
             Self::decode_report_for_matching_disk_text(&self.store, &uri, &text).await;
         if let Some(decode_report) = decode_report {
@@ -19029,7 +21629,7 @@ impl LanguageServer for Backend {
             return;
         }
         let change_version = params.text_document.version;
-        let (dialect, language_id, dialect_hint_may_have_changed) = {
+        let (text, dialect, language_id, revision, index_needs_seed) = {
             // Phase marker — see `EditTurn::at`.
             turn.at("did_change: documents.lock");
             let mut docs = self.documents.lock("did_change").await;
@@ -19080,6 +21680,7 @@ impl LanguageServer for Backend {
             // `text` and `line_index` are installed together — the snapshot
             // invariant on `DocumentState`: no reader may ever pair text from
             // this revision with an index from the previous one.
+            let index_needs_seed = entry.publication != DocumentPublication::Indexed;
             entry.text = Arc::clone(&text);
             entry.line_index = index;
             entry.has_bare_cr = has_bare_cr;
@@ -19087,85 +21688,45 @@ impl LanguageServer for Backend {
             // bytes that established the old report. Do not carry an encoding
             // verdict across even a no-op-looking edit.
             entry.decode_report = None;
+            if dialect_hint_may_have_changed {
+                // Persist this across deferred publication. If a later edit
+                // supersedes this handler, that authoritative handler must
+                // still resolve the combined buffer's hint.
+                entry.mark_dialect_resolution_dirty();
+            }
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             let language_id = entry.language_id.clone();
-            // Update the salsa `SourceFile` input WHILE still holding the
-            // `documents` lock, so no concurrent request can observe the new
-            // `doc.text` (from `read_document`) with a stale query result for
-            // the old text.  (db_set_source locks db→db_files, never documents,
-            // so this nesting introduces no lock-order cycle.)
-            //
-            // The workspace index is deliberately *not* touched here (#1149).
-            // Dropping the edited document's entries per keystroke bought
-            // nothing — `publish_diagnostics_result` re-indexes the document
-            // (remove + add) under the same `documents` lock behind an
-            // `is_current` re-check, so it can only ever install the analysis of
-            // the revision the buffer actually holds, and nothing between the
-            // edit and that publish requires the entries to be absent: every
-            // index consumer in the interim reads a *previous* published
-            // revision of this document, which is the same staleness the rest of
-            // the workspace already carries between publishes, and strictly less
-            // misleading than the alternative (a mid-keystroke window where the
-            // file contributes no procs, classes or call sites at all).
-            turn.at("did_change: db_set_source");
-            self.db_set_source(&uri, &text, dialect.clone()).await;
-            drop(docs);
-            (dialect, language_id, dialect_hint_may_have_changed)
+            let revision = entry.revision;
+            (text, dialect, language_id, revision, index_needs_seed)
         };
-        // The splice and the salsa source are committed, so
-        // hand the ordering turn on before the tail below (#1150).  Everything
-        // after this point is order-insensitive — marking the diagnostics slot
-        // dirty (the worker reads the document's *current* state at drain time),
-        // and the dialect re-resolve, which re-reads the buffer under the
-        // `documents` lock before it commits anything.  Held across the tail,
-        // the ticket kept a whole-source `detect_dialect` scan and a full-text
-        // clone in front of every request handler's `edits_settled` and in front
-        // of the next keystroke.
+        self.invalidate_live_publication(std::iter::once(&uri));
+        // The ordered operation is the buffer splice. Hand the global turn on
+        // before Salsa publication: a setter can wait for a snapshot, and the
+        // v2.2.2 incident demonstrated that retaining this turn across such a
+        // wait wedges every request at `edits_settled` (#1849). The deferred
+        // publication checks revision/text/dialect under the document map, so
+        // a newer edit or close wins without being overwritten.
         drop(turn);
+        if !self
+            .publish_changed_document(&uri, &text, &dialect, revision, index_needs_seed)
+            .await
+        {
+            return;
+        }
+        // An ordinarily indexed document deliberately keeps its previous
+        // workspace facts until diagnostics republishes this revision (#1149):
+        // that is less misleading than a per-keystroke absence. The exception
+        // above is an edit that superseded a cold-open seed after its disk slot
+        // was removed; there are no previous facts to retain, so it restores a
+        // current view before advertising indexed readiness.
         self.schedule_diagnostics(uri.clone(), dialect).await;
-        // Re-resolve in-source dialect hints (a `# tcl-dialect:` directive, a
-        // `#!…tclshX.Y` shebang, or `package require Tcl X.Y`) after the edit —
-        // adding or changing one in an already-open buffer must take effect
-        // without reopening.  Only a generically-opened `tcl` buffer consults
-        // the source (an explicit versioned / non-Tcl languageId is fixed), and
-        // only the source hint is edit-sensitive, so this is the sole case that
-        // can change.  When it does, commit the new dialect and re-analyse.
-        //
-        // `dialect_hint_may_have_changed` (computed above, alongside the
-        // splice) gates the whole-source `detect_dialect` re-scan and its
-        // text clone: the overwhelming majority of keystrokes land well past
-        // the directive/shebang lines and contain none of the content-signature
-        // marker words, so they cannot have changed what `detect_dialect`
-        // would return — re-running it on every such edit was pure waste.
-        if language_id == "tcl" && dialect_hint_may_have_changed {
-            // Read the open buffer directly rather than through
-            // `read_document`, which would wait for edits this one no longer
-            // holds up and answer from a buffer this handler has already
-            // superseded.  The *current* dialect comes from the same read: with
-            // the turn handed on, a newer edit may have re-resolved it already,
-            // and comparing against this handler's own captured value would
-            // re-commit a dialect that is no longer news.
-            let (text, current_dialect) = match self.documents.lock("did_change").await.get(&uri) {
-                Some(entry) => (entry.text.clone(), entry.dialect.clone()),
-                None => return,
-            };
-            let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
-            if new_dialect != current_dialect {
-                {
-                    let mut docs = self.documents.lock("did_change").await;
-                    let Some(entry) = docs.get_mut(&uri) else {
-                        return;
-                    };
-                    entry.dialect.clone_from(&new_dialect);
-                    let text = entry.text.clone();
-                    // As above (#1149): the reschedule below republishes, and
-                    // the publish re-indexes the document under its own
-                    // currency check.
-                    self.db_set_source(&uri, &text, new_dialect.clone()).await;
-                }
-                self.reschedule_diagnostics(uri, new_dialect).await;
-            }
+        // Resolve a hint dirtied by this edit **or any superseded predecessor**.
+        // The helper is a no-op when no generation is pending, so the ordinary
+        // no-hint keystroke path still avoids a whole-document detector pass.
+        if language_id == "tcl" {
+            self.resolve_dirty_open_document_dialect(&uri, "did_change_dialect")
+                .await;
         }
     }
 
@@ -19189,6 +21750,7 @@ impl LanguageServer for Backend {
             .or_else(|| params.settings.get("dialect"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
+        let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         if let Some(d) = dialect {
             *self.default_dialect.lock().await = d;
             *self.default_dialect_explicit.lock().await = true;
@@ -19215,6 +21777,7 @@ impl LanguageServer for Backend {
         // and it must not need a second notification to take effect on the next
         // keystroke.
         self.invalidate_diag_inputs();
+        drop(analyser_inputs_guard);
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -19236,54 +21799,38 @@ impl LanguageServer for Backend {
         let turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
         {
-            // Remove the live document + its index entry while holding
-            // `documents` (the `documents` → `workspace_index` order that
-            // replaced the global gate): an in-flight diagnostics run re-checks
-            // currency under `documents` and, finding the doc gone, will not
-            // re-add a stale index entry or publish for it.
-            // Phase markers — see `EditTurn::at`.
+            // The ordered mutation is removal of the authoritative live
+            // buffer. Index/caches are derived publications and happen only
+            // after the turn is free (#1849).
             turn.at("did_close: documents.lock");
             let mut docs = self.documents.lock("did_close").await;
             docs.remove(uri);
-            turn.at("did_close: workspace_index.write");
-            self.workspace_index
-                .write()
-                .await
-                .remove_document(uri.as_str());
-            drop(docs);
         }
-        // Release the per-URI diagnostics slot (#1144).  The slot used to be
-        // kept deliberately, but the reason no longer holds: `did_open` re-
-        // resolves the inputs unconditionally (`reschedule_diagnostics`, #104),
-        // so a reopened document never reads the retained ones — while every
-        // browsed-and-closed file left its `DiagInputs` behind for good.
-        turn.at("did_close: evict_diag_slot");
-        self.evict_diag_slot(uri).await;
-        // Drop the cached semantic-token baseline so a reopened document starts
-        // from a fresh `full` rather than diffing against a stale stream.
-        turn.at("did_close: last_semantic_tokens.lock");
-        self.last_semantic_tokens.lock().await.remove(uri);
-        turn.at("did_close: semantic_tokens_refresh_asked.lock");
-        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
-        // The workspace-class analysis memo is keyed by URI; a closed
-        // document's entry would otherwise linger for the process's life.
-        turn.at("did_close: workspace_class_analyses.lock");
-        self.workspace_class_analyses.lock().await.remove(uri);
-        // Everything the ordering ticket exists to protect is now applied, so
-        // hand the turn on before the heavy tail below (#1150).  `EditOrder` is
+        self.invalidate_live_publication(std::iter::once(uri));
+        drop(turn);
+        self.live_publication_advanced.notify_waiters();
+
+        // Optimistically acquire the index and then currency-check the closed
+        // state without ever waiting while holding either lock. A racing open
+        // is authoritative and cancels this stale close tail.
+        if !self.commit_closed_live_state(uri).await {
+            return;
+        }
+        // The transaction above also releases the diagnostics slot (#1144),
+        // semantic-token baseline/refresh marker, and workspace-class memo.
+        // Keeping those removals in the same final closed-state check prevents
+        // a close superseded by `didOpen` from clearing the reopened buffer's
+        // newly-armed state.
+        // The ordering turn is already free before every derived cleanup and
+        // the heavy tail below (#1150). `EditOrder` is
         // a *global* barrier — every request handler awaits `edits_settled`, and
         // the next `did_change` waits for this ticket — so holding it across a
         // disk read, a full uncached `Analyser::analyse`, an index rebuild and
         // the closed-file diagnostics pipeline froze hover / completion /
         // semantic tokens in *every* open document for the length of a close.
-        // None of that tail is an ordered buffer mutation: the document map,
-        // the index entry and the salsa source are already updated above, which
-        // is exactly what stops a close being reordered ahead of an in-flight
-        // edit.  Observable ordering is unchanged — the republish still happens
-        // after the mutations, on this same handler task — and both steps below
-        // re-check that the document is still closed under the `documents` lock,
-        // so a `did_open` that now wins the race still wins it.
-        drop(turn);
+        // None of that tail is an ordered buffer mutation. The live document
+        // removal is already visible; each derived publication checks that the
+        // URI remains closed, so a `did_open` that now wins the race keeps it.
         // Re-index the file from disk rather than dropping it: the file still
         // exists on disk and was (or would be) part of the on-disk index, so
         // cross-document definition / references / rename / call-hierarchy — and
@@ -19384,6 +21931,11 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        // tower-lsp-server dispatches notification handlers concurrently.
+        // Preserve watched-event transaction order so an older deletion cannot
+        // finish its index/Salsa removal after a newer create has revived the
+        // same still-open path.
+        let _watched_change = self.watched_file_change_gate.lock().await;
         // External (non-editor) file changes — `git checkout`, a generated
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
@@ -19458,21 +22010,11 @@ impl LanguageServer for Backend {
         // Apply the orphan marks before any re-analysis is scheduled, so the
         // publish path (which consults the flag under the `documents` lock)
         // cannot re-add a just-retired path.
-        if !deleted_while_open.is_empty() || !revived_while_open.is_empty() {
-            let mut docs = self.documents.lock("did_change_watched_files").await;
-            for uri in &deleted_while_open {
-                if let Some(doc) = docs.get_mut(uri) {
-                    doc.backing_file_deleted = true;
-                }
-            }
-            for uri in &revived_while_open {
-                if let Some(doc) = docs.get_mut(uri) {
-                    doc.backing_file_deleted = false;
-                }
-            }
-        }
+        let (revived_publications, deleted_revisions) = self
+            .update_watched_open_paths(&deleted_while_open, &revived_while_open)
+            .await;
         let domain_changed =
-            !deleted.is_empty() || !changed.is_empty() || !revived_while_open.is_empty();
+            !deleted.is_empty() || !changed.is_empty() || !revived_publications.is_empty();
 
         // Closed files that already carry a badge (a pull-cache entry) and whose
         // on-disk change must refresh (#865) or clear that badge — computed once
@@ -19505,14 +22047,23 @@ impl LanguageServer for Backend {
             self.publish_disk_results(
                 &[],
                 &deleted,
-                DiskRemovalPolicy::IncludeOpen,
+                DiskRemovalPolicy::IncludeOpen(&deleted_revisions),
                 "did_change_watched_files: deleted",
             )
             .await;
+            self.settle_deleted_open_paths(&deleted_revisions).await;
         }
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
         self.batch_reindex_from_disk(&changed).await;
+        // An open buffer whose path was previously orphaned remains the source
+        // of truth when that path reappears. Restore both its live Salsa input
+        // and standalone index view; a racing edit/close/delete wins through
+        // the ordinary revision and orphan currency checks.
+        for (uri, text, dialect, revision) in revived_publications {
+            self.publish_changed_document(&uri, &text, &dialect, revision, true)
+                .await;
+        }
 
         // Refresh/clear the badges of the closed files that changed on disk, now
         // the resolution domain has settled (#865).
@@ -19566,7 +22117,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
@@ -19634,7 +22185,7 @@ impl LanguageServer for Backend {
             // lets sticky scroll fall through to its indentation model.
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         // BIG-IP config documents fold on their stanza tree rather than the
@@ -19693,7 +22244,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         // BIG-IP config documents get a `module → kind → object` outline
@@ -20475,7 +23026,7 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
@@ -20671,7 +23222,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await else {
             return Ok(None);
         };
         // `S-semantic-tokens-rich`: real classification, served from the
@@ -20702,7 +23253,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_document_for_semantic_tokens(&uri).await else {
             return Ok(None);
         };
         let new_data = self.semantic_tokens_core_data(&uri, &doc).await?;
@@ -20763,7 +23314,10 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self
+            .read_document_for_semantic_tokens(&params.text_document.uri)
+            .await
+        else {
             return Ok(None);
         };
         // `S-semantic-tokens-rich`: filter tokens to those that
@@ -20800,12 +23354,17 @@ impl LanguageServer for Backend {
         // Race the memoised unit + analysis against the fast-path budget; on
         // timeout `pending` carries the still-running reads to the #844 Gap 4
         // convergence continuation below (see `race_range_enriched_reads`).
-        let (cached_cu, cached_analysis, pending) = self.race_range_enriched_reads(uri).await;
+        let (cached_cu, cached_analysis, pending, had_analysis_handles) =
+            self.race_range_enriched_reads(uri).await;
         // Distinguishes the two no-continuation cases for the settled marker
         // below: the enriched reads landed inside the budget (so this response
         // *is* the enriched viewport), versus the document having no analysis
         // handles at all.
-        let served_enriched = cached_cu.is_some() || cached_analysis.is_some();
+        // Both inputs are required for the complete enriched tier. A Salsa
+        // write can cancel one read after its sibling completed; that partial
+        // result is useful for this response but remains retryable rather than
+        // being mislabeled final (#1854 automated review).
+        let served_enriched = cached_cu.is_some() && cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.  The text goes in behind an `Arc` so the
         // convergence continuation below shares this buffer instead of taking a
@@ -20874,12 +23433,9 @@ impl LanguageServer for Backend {
             // the marker must not be left waiting for a continuation that will
             // never run. Which of the two no-continuation cases it was is
             // recorded in `outcome`.
-            let outcome = if served_enriched {
-                RangeSettleOutcome::ServedEnriched
-            } else {
-                RangeSettleOutcome::NoAnalysis
-            };
-            log_range_convergence_settled(&self.client, uri.as_str(), false, outcome).await;
+            let (refreshed, outcome) =
+                self.inline_range_settlement(served_enriched, had_analysis_handles);
+            log_range_convergence_settled(&self.client, uri.as_str(), refreshed, outcome).await;
         }
 
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
@@ -20930,11 +23486,14 @@ impl LanguageServer for Backend {
         // Bounded by the open-document set, empty in steady state, and the
         // analysis read here is the memoised one the pending publish is
         // already computing.
-        let mut hits = self.open_but_unindexed_symbols(&params.query, limit).await;
+        let WorkspaceSymbolCandidates {
+            fallback_hits: mut hits,
+            indexed_hits,
+            mut sources,
+        } = self.open_but_unindexed_symbols(&params.query, limit).await;
         if hits.len() < limit {
             let remaining = limit - hits.len();
-            let index = self.workspace_index.read().await;
-            hits.extend(index.symbols_matching(&params.query, remaining));
+            hits.extend(indexed_hits.into_iter().take(remaining));
         }
         if hits.is_empty() {
             return Ok(None);
@@ -20943,7 +23502,6 @@ impl LanguageServer for Backend {
         // source, which the index deliberately does not hold.  `hits` arrives
         // grouped by URI, so each document is resolved once — from the open
         // buffer when there is one, else from disk.
-        let mut sources: HashMap<String, Option<DocumentState>> = HashMap::new();
         let mut all: Vec<SymbolInformation> = Vec::with_capacity(hits.len());
         for hit in hits {
             if !sources.contains_key(&hit.uri) {
@@ -21534,7 +24092,7 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
@@ -21580,7 +24138,7 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentRangeFormattingParams,
     ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
-        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+        let Some(doc) = self.read_local_document(&params.text_document.uri).await else {
             return Ok(None);
         };
         let range = CoreLspRange {
@@ -21634,7 +24192,7 @@ impl LanguageServer for Backend {
         }
         let uri = params.text_document.uri.clone();
         let positions = params.positions;
-        let Some(doc) = self.read_document(&uri).await else {
+        let Some(doc) = self.read_local_document(&uri).await else {
             return Ok(None);
         };
         let analysis = self
@@ -26560,7 +29118,7 @@ mod tests {
     /// The old fixed-from-first-edit delay launched fresh salsa reads throughout
     /// the burst, so `set_text` repeatedly waited for their cancellation and the
     /// request-side edit barrier could exceed its 30-second budget.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test(start_paused = true)]
     async fn diagnostics_debounce_waits_for_a_quiet_window() {
         let uri = Uri::from_str("file:///debounce.tcl").unwrap();
         let slots = Arc::new(Mutex::new(HashMap::new()));
@@ -26570,27 +29128,30 @@ mod tests {
             slot.mark_dirty();
         }
 
-        let mut waiter = crate::rt::spawn({
+        let waiter = crate::rt::spawn({
             let slots = Arc::clone(&slots);
             let uri = uri.clone();
             async move { stable_diagnostics_generation(&slots, &uri).await }
         });
 
+        // Virtual time makes the producer cadence exact. With wall-clock
+        // sleeps a loaded suite can delay this task past the 50 ms deadline,
+        // correctly letting the waiter settle before the next nominal 30 ms
+        // edit and making the test report a false early-return failure.
+        crate::rt::yield_now().await;
         for _ in 0..2 {
-            crate::rt::sleep(std::time::Duration::from_millis(30)).await;
+            tokio::time::advance(std::time::Duration::from_millis(30)).await;
             slots.lock().await.get_mut(&uri).unwrap().mark_dirty();
         }
 
+        tokio::time::advance(std::time::Duration::from_millis(49)).await;
+        crate::rt::yield_now().await;
         assert!(
-            crate::rt::timeout(std::time::Duration::from_millis(30), &mut waiter)
-                .await
-                .is_err(),
+            !waiter.is_finished(),
             "the waiter resolved before a full quiet debounce window elapsed"
         );
-        let generation = crate::rt::timeout(std::time::Duration::from_millis(250), waiter)
-            .await
-            .expect("debounce waiter should settle after the burst")
-            .expect("debounce waiter task panicked");
+        tokio::time::advance(DIAGNOSTICS_DEBOUNCE * 2).await;
+        let generation = waiter.await.expect("debounce waiter task panicked");
         assert_eq!(generation, Some(3));
     }
 
@@ -31551,15 +34112,17 @@ mod tests {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            analyser_inputs_gate: tokio::sync::RwLock::new(()),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
-            db: Arc::new(Mutex::new(db)),
-            db_files: Arc::new(Mutex::new(HashMap::new())),
+            db: Arc::new(TrackedMutex::new("db", db)),
+            db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
+            db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -31569,10 +34132,18 @@ mod tests {
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
+            class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            watched_file_change_gate: Arc::new(Mutex::new(())),
+            disk_publication_gate: Mutex::new(()),
+            live_publication_advanced: Arc::new(tokio::sync::Notify::new()),
+            live_publication_invalidated: Arc::new(tokio::sync::Notify::new()),
+            live_publication_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
+            live_publication_gate: Arc::new(Mutex::new(())),
             store: Arc::new(vfs::NativeStore),
         }
     }
@@ -32891,22 +35462,27 @@ mod tests {
         let handles = EvidenceHandles {
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
             db_project: Arc::clone(&backend.db_project),
             workspace_index: Arc::clone(&backend.workspace_index),
             documents: Arc::clone(&backend.documents),
             rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
         };
 
         let first = sync_cross_file_evidence(&handles).await;
         assert_eq!(
-            first.len(),
+            first.changed.len(),
             2,
-            "the cold pass gives both covered files a view: {first:?}"
+            "the cold pass gives both covered files a view: {:?}",
+            first.changed,
         );
         let second = sync_cross_file_evidence(&handles).await;
         assert!(
-            second.is_empty(),
-            "an unchanged project must write no input: {second:?}"
+            second.changed.is_empty(),
+            "an unchanged project must write no input: {:?}",
+            second.changed,
         );
 
         let db = backend.db.lock().await;
@@ -32919,6 +35495,419 @@ mod tests {
             evidence.callees().collect::<Vec<_>>(),
             vec!["::helper"],
             "main.tcl's call reaches lib.tcl's proc"
+        );
+    }
+
+    /// Exact-head review of #1854: coverage and cross-file evidence must read
+    /// the same Salsa revision. Ordinary edits intentionally retain the prior
+    /// workspace-index slot until diagnostics republishes it, so an old
+    /// literal target there must not hide a new external target in Salsa.
+    #[tokio::test]
+    async fn covered_load_targets_use_the_captured_salsa_revision_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/main.tcl").unwrap();
+        let target = Uri::from_str("file:///w/target.tcl").unwrap();
+        backend
+            .db_set_source(&main, "source target.tcl\n", "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let analysis = Analyser::new()
+            .analyse("source target.tcl\n", "tcl8.6")
+            .clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(main.as_str(), &analysis);
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            files[&main]
+                .set_text(&mut *db)
+                .to("source ../outside.tcl\n".to_owned());
+        }
+        assert_eq!(
+            backend.workspace_index.read().await.sources().count(),
+            1,
+            "the regression requires the previous covered index view",
+        );
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        let captured = capture_cross_file_evidence_snapshot(&handles)
+            .await
+            .expect("the project must remain initialised");
+        let covered =
+            files_with_covered_load_targets(&captured.snapshot, &captured.files, &captured.members);
+        assert!(
+            !covered.contains(&main),
+            "the current external target must defeat the stale covered index view",
+        );
+    }
+
+    /// Exact-head review of #1854: diagnostics for the driving document were
+    /// computed before evidence refresh. If its new text turns a covered
+    /// `source` into an external one, losing `Some(evidence)` must schedule the
+    /// second pass that withdraws any fold made from that stale closed world.
+    #[tokio::test]
+    async fn coverage_loss_marks_the_driving_diagnostics_dirty_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/coverage-loss-main-1854.tcl").unwrap();
+        let target = Uri::from_str("file:///w/coverage-loss-target-1854.tcl").unwrap();
+        backend
+            .db_set_source(
+                &main,
+                "source coverage-loss-target-1854.tcl\n",
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend
+            .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        let initial = sync_cross_file_evidence(&handles).await;
+        assert!(initial.changed.contains(&main));
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            assert!(files[&main].external_call_sites(&*db).is_some());
+            files[&main]
+                .set_text(&mut *db)
+                .to("source ../outside.tcl\n".to_owned());
+        }
+        let slots = Arc::new(Mutex::new(HashMap::from([(
+            main.clone(),
+            DiagSlot::default(),
+        )])));
+
+        refresh_cross_file_evidence(&handles, &slots, &main).await;
+
+        assert!(
+            slots.lock().await[&main].dirty,
+            "coverage loss must schedule the driving document's soundness pass",
+        );
+    }
+
+    /// Fresh exact-head review of #1854: an edited orphan keeps a local Salsa
+    /// handle in `db_files`, but must lose the workspace evidence it carried
+    /// before leaving the admitted project set.
+    #[tokio::test]
+    async fn cross_file_evidence_clears_local_only_orphans_1854() {
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/covered-main-1854.tcl").unwrap();
+        let orphan = Uri::from_str("file:///w/covered-orphan-1854.tcl").unwrap();
+        backend
+            .db_set_source(&main, "local\n", "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        assert!(
+            sync_cross_file_evidence(&handles)
+                .await
+                .changed
+                .contains(&orphan),
+            "the admitted file must first receive call-site evidence",
+        );
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let mut members = backend.db_project_members.lock().await;
+            assert!(members.remove(&orphan));
+            let mut project = backend.db_project.lock().await;
+            Backend::sync_db_project(&mut db, &files, &members, &mut project);
+        }
+        assert!(
+            backend.db_files.lock().await.contains_key(&orphan),
+            "the regression requires the orphan local handle to remain",
+        );
+        assert!(
+            sync_cross_file_evidence(&handles)
+                .await
+                .changed
+                .contains(&orphan),
+            "retiring the orphan's evidence must be reported as a change",
+        );
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert!(
+            files[&orphan].external_call_sites(&*db).is_none(),
+            "a local-only orphan must not retain project evidence",
+        );
+    }
+
+    /// Exact-head review of #1854: the off-lock project read may finish after
+    /// a newer publication has retired one of its handles. Its stale result
+    /// must not restore evidence onto that tombstone.
+    #[tokio::test]
+    async fn cross_file_evidence_rejects_a_stale_write_revision_1854() {
+        let backend = test_backend();
+        let main = Uri::from_str("file:///w/stale-evidence-main-1854.tcl").unwrap();
+        let lib = Uri::from_str("file:///w/stale-evidence-lib-1854.tcl").unwrap();
+        backend
+            .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(
+                &lib,
+                "proc helper {mode} { return $mode }\n",
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        assert!(
+            sync_cross_file_evidence(&handles)
+                .await
+                .changed
+                .contains(&lib),
+        );
+        let (captured_revision, lib_file, stale_want) = {
+            let db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = files[&lib];
+            (
+                tcl_lsp_db::database_revision(&db),
+                file,
+                file.external_call_sites(&*db).clone(),
+            )
+        };
+        assert!(stale_want.is_some(), "the control requires stale evidence");
+
+        backend.db_remove_source(&lib).await;
+        let changed = apply_cross_file_evidence_if_current(
+            &handles,
+            captured_revision,
+            vec![(lib.clone(), lib_file, stale_want, false)],
+        )
+        .await;
+        assert!(
+            changed.changed.is_empty(),
+            "a result from an older Salsa revision must be discarded",
+        );
+        let db = backend.db.lock().await;
+        let tombstones = backend.db_tombstones.lock().await;
+        assert!(
+            tombstones[&lib].external_call_sites(&*db).is_none(),
+            "the stale worker must not restore evidence onto the tombstone",
+        );
+    }
+
+    /// Exact-head review of #1854: membership, project, and source text must
+    /// come from one Salsa snapshot. A live orphan publication can change all
+    /// three while the evidence reader waits for `db`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn cross_file_evidence_snapshot_captures_queued_membership_change_1854() {
+        let backend = Arc::new(test_backend());
+        let main = Uri::from_str("file:///w/membership-main-1854.tcl").unwrap();
+        let orphan = Uri::from_str("file:///w/membership-orphan-1854.tcl").unwrap();
+        backend
+            .db_set_source(
+                &main,
+                "source membership-orphan-1854.tcl\n",
+                "tcl8.6".to_owned(),
+            )
+            .await;
+        backend
+            .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let analysis = Analyser::new()
+            .analyse("source membership-orphan-1854.tcl\n", "tcl8.6")
+            .clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(main.as_str(), &analysis);
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+
+        let database = backend.db.lock().await;
+        let retiring = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let orphan = orphan.clone();
+            async move {
+                let mut db = backend.db.lock().await;
+                let files = backend.db_files.lock().await;
+                let mut members = backend.db_project_members.lock().await;
+                assert!(members.remove(&orphan));
+                let mut project = backend.db_project.lock().await;
+                Backend::sync_db_project(&mut db, &files, &members, &mut project);
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend.db.contention().contains("1 queued waiter") {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the membership writer must queue first");
+        let capturing =
+            crate::rt::spawn(async move { capture_cross_file_evidence_snapshot(&handles).await });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend.db.contention().contains("2 queued waiter(s)") {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the evidence snapshot must queue behind the membership writer");
+
+        drop(database);
+        retiring
+            .await
+            .expect("the membership writer must not panic");
+        let captured = crate::rt::timeout(std::time::Duration::from_secs(5), capturing)
+            .await
+            .expect("the evidence snapshot must finish after the writer")
+            .expect("the evidence snapshot task must not panic")
+            .expect("the project must remain initialised");
+        let covered =
+            files_with_covered_load_targets(&captured.snapshot, &captured.files, &captured.members);
+        assert!(
+            !covered.contains(&main),
+            "pre-removal coverage must not survive beside the post-removal project",
+        );
+        assert_eq!(
+            captured.project.files(&*captured.snapshot).len(),
+            1,
+            "the captured Salsa project must contain only the admitted source",
+        );
+    }
+
+    /// Exact-head automated review of #1854: coverage membership and the
+    /// Salsa project must come from one live-publication generation. An orphan
+    /// edit removes its URI from both, so the evidence snapshot cannot retain
+    /// the old covered set while observing the new project.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn cross_file_evidence_snapshot_waits_for_live_membership_commit_1854() {
+        let backend = Arc::new(test_backend());
+        let main = Uri::from_str("file:///w/evidence-main-1854.tcl").unwrap();
+        let orphan = Uri::from_str("file:///w/evidence-orphan-1854.tcl").unwrap();
+        let main_text = "source evidence-orphan-1854.tcl\nproc main_proc {} {}\n";
+        backend
+            .db_set_source(&main, main_text, "tcl8.6".to_owned())
+            .await;
+        backend
+            .db_set_source(&orphan, "proc orphan_proc {} {}\n", "tcl8.6".to_owned())
+            .await;
+        let analysis = Analyser::new().analyse(main_text, "tcl8.6").clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(main.as_str(), &analysis);
+        let handles = EvidenceHandles {
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+
+        let publication = backend.live_publication_gate.lock().await;
+        let mut db = backend.db.lock().await;
+        let syncing = crate::rt::spawn(async move { sync_cross_file_evidence(&handles).await });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.rehoming_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the evidence sync must reach the live-publication boundary");
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), async {
+                loop {
+                    if backend.db.contention().contains("1 queued waiter") {
+                        break;
+                    }
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "evidence sync must not capture coverage before the live membership commit",
+        );
+
+        let files = backend.db_files.lock().await;
+        let mut members = backend.db_project_members.lock().await;
+        assert!(members.remove(&orphan));
+        let mut project = backend.db_project.lock().await;
+        Backend::sync_db_project(&mut db, &files, &members, &mut project);
+        drop(project);
+        drop(members);
+        drop(files);
+        drop(db);
+        drop(publication);
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), syncing)
+            .await
+            .expect("evidence sync must finish after the live commit")
+            .expect("evidence sync must not panic");
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert!(
+            files[&main].external_call_sites(&*db).is_none(),
+            "a source of the removed member must remain conservatively uncovered",
         );
     }
 
@@ -34790,6 +37779,10 @@ proc p {} {
             let doc = docs.get_mut(&uri).unwrap();
             doc.text = Arc::from("set x 2\n");
             doc.bump_revision(1);
+            // This test deliberately bypasses `did_change` and its deferred
+            // Salsa publication; it is testing pull-cache revision currency,
+            // so mark the synthetic state as already published.
+            doc.publication = DocumentPublication::Indexed;
         }
 
         let second = backend
@@ -35562,16 +38555,640 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// #1849: a `didOpen` waiting for Salsa must release both global choke
+    /// points: the open-document map *and* the edit-order barrier every request
+    /// crosses. The v2.2.2 release run caught the open holding both while
+    /// suspended at `db_source_matches`.
+    ///
+    /// Construct the `db` edge directly. The live buffer must become visible
+    /// and the turn must settle while the deferred Salsa/index publication is
+    /// still blocked; releasing `db` then lets that currency-checked commit
+    /// finish. The parent implementation fails both liveness probes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_open_waiting_for_db_leaves_requests_serviceable_1849() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-db-1849.tcl").unwrap();
+        let other = Uri::from_str("file:///w/unrelated-1849.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            other.clone(),
+            DocumentState::new("set unrelated 1\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        let db_held = backend.db.lock().await;
+        let mut opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: "set release_ready 1\n".to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("issue-1849-wait-visible")
+                    .await
+                    .contains_key(&uri)
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didOpen must publish the authoritative live buffer before waiting for Salsa");
+
+        let docs = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.documents.lock("issue-1849-unrelated-reader"),
+        )
+        .await
+        .expect("didOpen waiting for Salsa must leave the open-document map available (#1849)");
+        assert!(
+            docs.contains_key(&uri),
+            "the ordered live-buffer stage must already be visible",
+        );
+        drop(docs);
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.edits_settled(),
+        )
+        .await
+        .expect("didOpen waiting for Salsa must not retain the request barrier (#1849)");
+        let unrelated = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(&other),
+        )
+        .await
+        .expect("a request for another document must remain serviceable (#1849)")
+        .expect("the unrelated live document must remain readable");
+        assert_eq!(unrelated.text.as_ref(), "set unrelated 1\n");
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut opening)
+                .await
+                .is_err(),
+            "the liveness probes must run while the deferred db publication is still blocked",
+        );
+
+        drop(db_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), opening)
+            .await
+            .expect("didOpen must finish once Salsa is available")
+            .expect("didOpen must not panic");
+        assert!(
+            backend
+                .documents
+                .lock("issue-1849-assertion")
+                .await
+                .contains_key(&uri),
+            "the final transaction must publish the open document",
+        );
+    }
+
+    /// #1849 review: a future recurrence must identify both the Salsa store
+    /// owner and its queued demand, not stop at "`try_lock` failed".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn salsa_store_contention_names_holder_and_waiter_1849() {
+        let store = Arc::new(TrackedMutex::new("db", ()));
+        let held = store.lock().await;
+        let waiting = crate::rt::spawn({
+            let store = Arc::clone(&store);
+            async move { drop(store.lock().await) }
+        });
+
+        let report = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let report = store.contention();
+                if report.contains("1 queued waiter(s)") {
+                    break report;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the tracked waiter must become visible");
+        assert!(report.contains("db: held by"), "holder missing: {report}");
+        assert!(
+            report.contains("oldest at"),
+            "waiter site missing: {report}"
+        );
+
+        drop(held);
+        waiting.await.expect("tracked waiter must finish");
+    }
+
+    /// The incident's more likely edge: `files_with_covered_load_targets` held
+    /// `db_files` while queued on the fair workspace-index reader. Pin that
+    /// mutex directly and prove the same map + request-barrier liveness as the
+    /// `db` variant above. The helper now snapshots the URI set before awaiting
+    /// the index, removing that background lock inversion as well.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_open_waiting_for_db_files_leaves_requests_serviceable_1849() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-db-files-1849.tcl").unwrap();
+        let files_held = backend.db_files.lock().await;
+        let mut opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: "set release_ready 1\n".to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("issue-1849-files-wait-visible")
+                    .await
+                    .contains_key(&uri)
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didOpen must publish the live buffer before waiting for db_files");
+
+        let docs = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.documents.lock("issue-1849-files-unrelated-reader"),
+        )
+        .await
+        .expect("didOpen waiting for db_files must leave the document map available (#1849)");
+        assert!(docs.contains_key(&uri));
+        drop(docs);
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.edits_settled(),
+        )
+        .await
+        .expect("didOpen waiting for db_files must not retain the request barrier (#1849)");
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut opening)
+                .await
+                .is_err(),
+            "the liveness probes must run while deferred db_files publication is still blocked",
+        );
+
+        drop(files_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), opening)
+            .await
+            .expect("didOpen must finish once db_files is available")
+            .expect("didOpen must not panic");
+    }
+
+    /// Automated review of #1854: once the live buffer is visible, no request
+    /// may still observe facts indexed from the disk copy it superseded. Hold
+    /// a real Salsa snapshot so deferred publication cannot finish, then prove
+    /// `didOpen` queues stale-slot retirement ahead of a later index reader.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_open_queues_stale_index_retirement_before_later_readers_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/stale-open-index-1854.tcl").unwrap();
+        let disk_text = "proc old_disk_name {} {}\n";
+        let live_text = "proc live_buffer_name {} {}\n";
+        let disk_analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
+        backend
+            .db_set_source(&uri, disk_text, "tcl8.6".into())
+            .await;
+        let snapshot = backend
+            .db
+            .snapshot_from(&*backend.db.lock().await, "held-index")
+            .expect("no publisher is draining snapshots");
+        let mut index_held = backend.workspace_index.write().await;
+        index_held.add_document(uri.as_str(), &disk_analysis);
+        let mut opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: live_text.to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let pending = backend
+                    .documents
+                    .lock("issue-1854-stale-index-visible")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| !doc.publication.indexed());
+                if pending {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the live buffer must become visible while Salsa publication is held");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.edits_settled(),
+        )
+        .await
+        .expect("didOpen must release its turn without waiting for Salsa");
+
+        let mut reading_index = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                let index = backend.workspace_index.read().await;
+                (
+                    index.contains_document(uri.as_str()),
+                    index.proc_definitions("old_disk_name", "other").len(),
+                )
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut reading_index,)
+                .await
+                .is_err(),
+            "the post-barrier reader must queue while the old index writer is held"
+        );
+        drop(index_held);
+        let indexed = crate::rt::timeout(std::time::Duration::from_secs(5), reading_index)
+            .await
+            .expect("the post-barrier index reader must resume")
+            .expect("the post-barrier index reader must not panic");
+        assert_eq!(
+            indexed,
+            (false, 0),
+            "a post-barrier reader must see neither the disk slot nor its definition"
+        );
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut opening)
+                .await
+                .is_err(),
+            "the stale-index assertion must run while Salsa publication is still blocked"
+        );
+
+        drop(snapshot);
+        crate::rt::timeout(std::time::Duration::from_secs(30), opening)
+            .await
+            .expect("didOpen must finish when its own database snapshot retires")
+            .expect("didOpen must not panic");
+        let index = backend.workspace_index.read().await;
+        assert_eq!(
+            (
+                index.proc_definitions("live_buffer_name", "other").len(),
+                index.proc_definitions("old_disk_name", "other").len(),
+            ),
+            (1, 0),
+            "the completed open must seed only the live cross-document view"
+        );
+    }
+
+    /// Snapshot safety is scoped to one Salsa database. A query in one client
+    /// session must never stall live publication in another session merely
+    /// because both backends happen to live in the same server process.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn unrelated_backend_snapshot_does_not_block_live_publication_1854() {
+        let holding_backend = Arc::new(test_backend());
+        let publishing_backend = Arc::new(test_backend());
+        let snapshot = {
+            let db = holding_backend.db.lock().await;
+            holding_backend
+                .db
+                .snapshot_from(&db, "issue-1854-unrelated-backend-snapshot")
+                .expect("no publisher is draining the holding backend")
+        };
+        let uri = Uri::from_str("file:///w/isolated-census-1854.tcl").unwrap();
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            publishing_backend.did_open(DidOpenTextDocumentParams {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: "tcl".to_owned(),
+                    version: 1,
+                    text: "proc independently_published {} {}\n".to_owned(),
+                },
+            }),
+        )
+        .await
+        .expect("an unrelated backend's snapshot must not delay didOpen");
+
+        let db = publishing_backend.db.lock().await;
+        let files = publishing_backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some("proc independently_published {} {}\n"),
+            "the publishing backend must install its live source"
+        );
+        drop(files);
+        drop(db);
+        drop(snapshot);
+    }
+
+    /// #1849 review: the no-wait-under-turn rule applies to edits too. The
+    /// authoritative splice must become visible and release `edits_settled`
+    /// while its deferred Salsa publication is pinned on `db`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_waiting_for_db_leaves_requests_serviceable_1849() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-change-1849.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version("set release_ready 1\n".to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, "set release_ready 1\n", "tcl8.6".to_owned())
+            .await;
+        let diag_inputs = backend
+            .diag_inputs(&uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+
+        let db_held = backend.db.lock().await;
+        let mut editing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "set release_ready 2\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("issue-1849-change-wait-visible")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.text.as_ref() == "set release_ready 2\n")
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didChange must publish its authoritative splice before waiting for Salsa");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.edits_settled(),
+        )
+        .await
+        .expect("didChange waiting for Salsa must not retain the request barrier (#1849)");
+        assert!(
+            diag_inputs.capture_job(&uri).await.is_none(),
+            "diagnostics must not pair the pending live revision with the preceding Salsa source",
+        );
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut editing)
+                .await
+                .is_err(),
+            "the liveness probe must run while the Salsa publication remains blocked",
+        );
+
+        let mut reading_current = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.read_document(&uri).await }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut reading_current,)
+                .await
+                .is_err(),
+            "a same-document request must not observe text ahead of Salsa publication",
+        );
+
+        drop(db_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("didChange must finish once Salsa is available")
+            .expect("didChange must not panic");
+        let current = crate::rt::timeout(std::time::Duration::from_secs(30), reading_current)
+            .await
+            .expect("the same-document request must resume after publication")
+            .expect("the same-document request task must not panic")
+            .expect("the edited document must remain open");
+        assert_eq!(current.text.as_ref(), "set release_ready 2\n");
+        let published_job = diag_inputs
+            .capture_job(&uri)
+            .await
+            .expect("diagnostics capture resumes after matching source publication");
+        assert_eq!(published_job.text.as_ref(), "set release_ready 2\n");
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some("set release_ready 2\n"),
+            "the deferred publication must install the edited revision",
+        );
+    }
+
+    /// Automated review of #1854: releasing the edit turn is insufficient if
+    /// a deferred Salsa setter enters `cancel_others` while it owns db/files.
+    /// Hold a real tracked snapshot, start an edit, and prove the publication
+    /// waits with the entire bundle released. The pre-fix path blocks inside
+    /// the setter and deterministically times out acquiring both stores here.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_waiting_for_snapshot_releases_salsa_stores_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-snapshot-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version("set release_ready 1\n".to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, "set release_ready 1\n", "tcl8.6".to_owned())
+            .await;
+        // Production snapshots are handed directly to a worker. Retaining one
+        // here is deliberate: it makes Salsa's setter precondition false until
+        // this test says otherwise.
+        let snapshot = {
+            let db = backend.db.lock().await;
+            backend
+                .db
+                .snapshot_from(&db, "issue-1854-held-test-snapshot")
+                .expect("the test creates its snapshot before publication")
+        };
+        let mut editing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: "set release_ready 2\n".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let pending = backend
+                    .documents
+                    .lock("issue-1854-snapshot-wait-visible")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| {
+                        doc.text.as_ref() == "set release_ready 2\n"
+                            && doc.publication != DocumentPublication::Indexed
+                    });
+                if pending && backend.live_publication_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didChange must reach deferred publication with its live revision pending");
+
+        let db = crate::rt::timeout(std::time::Duration::from_millis(250), backend.db.lock())
+            .await
+            .expect("a live setter waiting for snapshots must release db (#1854)");
+        drop(db);
+        let files = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.db_files.lock(),
+        )
+        .await
+        .expect("a live setter waiting for snapshots must release db_files (#1854)");
+        drop(files);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut editing)
+                .await
+                .is_err(),
+            "the edit must remain pending until its snapshot retires",
+        );
+
+        drop(snapshot);
+        crate::rt::timeout(std::time::Duration::from_secs(30), editing)
+            .await
+            .expect("didChange must finish once every Salsa snapshot retires")
+            .expect("didChange must not panic");
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some("set release_ready 2\n"),
+            "the deferred setter must publish after the census reaches zero",
+        );
+    }
+
+    /// #1849 review: a close blocked on the workspace index must likewise
+    /// remove the live buffer and release the request barrier first.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_close_waiting_for_index_leaves_requests_serviceable_1849() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/release-wedge-close-1849.tcl").unwrap();
+        register(&backend, &uri, "set release_ready 1\n").await;
+
+        let index_held = backend.workspace_index.write().await;
+        let mut closing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri },
+                    })
+                    .await;
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if !backend
+                    .documents
+                    .lock("issue-1849-close-wait-removed")
+                    .await
+                    .contains_key(&uri)
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didClose must remove the live buffer before waiting for the index");
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.edits_settled(),
+        )
+        .await
+        .expect("didClose waiting for the index must not retain the request barrier (#1849)");
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut closing)
+                .await
+                .is_err(),
+            "the liveness probe must run while index removal remains blocked",
+        );
+
+        drop(index_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), closing)
+            .await
+            .expect("didClose must finish once the index is available")
+            .expect("didClose must not panic");
+    }
+
     /// #1800: a closed-file disk refresh is background work.  If its
     /// workspace-index publication is delayed, it must not retain the global
     /// open-document map and stop every diagnostics worker / document-sync
     /// handler behind it.
     ///
     /// The interleaving is constructed rather than timed by load: hold the
-    /// exact downstream writer the reindex needs, wait until it has taken the
-    /// preceding rehoming gate, then prove an unrelated document-map reader can
-    /// still enter.  The pre-fix implementation deterministically times out
-    /// here because it takes `documents` before waiting for this writer.
+    /// exact downstream writer the reindex needs, wait until it has entered the
+    /// disk-publication transaction, then prove an unrelated document-map
+    /// reader can still enter. The disk-only gate remains held across fair
+    /// dependency waits, unlike the deliberately released rehoming gate, so it
+    /// is the stable observation point. The pre-fix implementation
+    /// deterministically times out here because it takes `documents` before
+    /// waiting for this writer.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn disk_reindex_waiting_for_the_index_never_holds_documents_1800() {
         let root = unique_scratch_dir("reindex-lock-scope-1800");
@@ -35587,9 +39204,13 @@ proc p {} {
             async move { backend.reindex_index_from_disk(&uri).await }
         });
 
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+        // Reaching the transaction includes blocking-pool admission plus the
+        // full disk read and analysis. Under the complete nextest suite that
+        // setup can be delayed by unrelated CPU work; it is not the lock-scope
+        // assertion, whose deliberately tight deadline remains below.
+        crate::rt::timeout(std::time::Duration::from_secs(30), async {
             loop {
-                if backend.rehoming_gate.try_lock().is_err() {
+                if backend.disk_publication_gate.try_lock().is_err() {
                     break;
                 }
                 crate::rt::yield_now().await;
@@ -35638,7 +39259,10 @@ proc p {} {
         // stable for the duration of the experiment.
         let snapshot = {
             let db = backend.db.lock().await;
-            SNAPSHOT_CENSUS.take(&db, "issue-1800-held-test-snapshot")
+            backend
+                .db
+                .snapshot_from(&db, "issue-1800-held-test-snapshot")
+                .expect("the test creates its snapshot before publication")
         };
         let reindexing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
@@ -35646,9 +39270,12 @@ proc p {} {
             async move { backend.reindex_index_from_disk(&uri).await }
         });
 
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+        // Match the disk-analysis admission allowance in the index-contention
+        // experiment above. The document-map assertion still has its own
+        // deliberately tight deadline below.
+        crate::rt::timeout(std::time::Duration::from_secs(30), async {
             loop {
-                if backend.rehoming_gate.try_lock().is_err() {
+                if backend.disk_publication_gate.try_lock().is_err() {
                     break;
                 }
                 crate::rt::yield_now().await;
@@ -35703,9 +39330,11 @@ proc p {} {
             let uri = uri.clone();
             async move { backend.reindex_index_from_disk(&uri).await }
         });
-        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+        // This waits through blocking-pool admission and disk analysis before
+        // constructing the ordering below; it is not a performance assertion.
+        crate::rt::timeout(std::time::Duration::from_secs(30), async {
             loop {
-                if backend.rehoming_gate.try_lock().is_err() {
+                if backend.disk_publication_gate.try_lock().is_err() {
                     break;
                 }
                 crate::rt::yield_now().await;
@@ -35732,21 +39361,23 @@ proc p {} {
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
             loop {
-                let phase = backend
-                    .edit_order
-                    .holder
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .as_ref()
-                    .map(|holder| holder.phase);
-                if phase == Some("did_open: workspace_index.write") {
+                let live_is_visible = backend
+                    .documents
+                    .lock("issue-1800-race-wait-visible")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.text.as_ref() == "proc fresh {} {}\n");
+                if live_is_visible && backend.edit_order.holder.lock().unwrap().is_none() {
                     break;
                 }
                 crate::rt::yield_now().await;
             }
         })
         .await
-        .expect("foreground didOpen must pass the background publisher and reach the held index");
+        .expect(
+            "foreground didOpen must publish its live buffer and release the turn while retrying \
+             the held index",
+        );
 
         drop(index_held);
         crate::rt::timeout(std::time::Duration::from_secs(30), opening)
@@ -35764,10 +39395,16 @@ proc p {} {
             assert_eq!(live.text.as_ref(), "proc fresh {} {}\n");
             live.dialect.clone()
         };
+        let live_source_matches = {
+            let db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            files.get(&uri).is_some_and(|file| {
+                file.text(&*db) == "proc fresh {} {}\n"
+                    && file.dialect(&*db).as_str() == live_dialect
+            })
+        };
         assert!(
-            backend
-                .db_source_matches(&uri, "proc fresh {} {}\n", &live_dialect)
-                .await,
+            live_source_matches,
             "the live buffer must remain the salsa source of truth",
         );
         assert!(
@@ -37223,21 +40860,17 @@ proc p {} {
     /// that under-counts would report "nothing outstanding" and send the next
     /// reader looking somewhere else entirely (issue #1657).
     ///
-    /// Driven against an isolated census rather than the process-global one:
-    /// the whole test binary shares that global, so asserting on its counts
-    /// would be asserting on whatever every other test happened to be doing.
+    /// Driven against an isolated census so its counts are exact.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_snapshot_census_tracks_live_clones_and_retires_dropped_ones() {
         let db = tcl_lsp_db::TclDatabase::default();
-        // `&'static` because a snapshot retires into the census that made it,
-        // and production's is a `LazyLock` static.
-        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        let census = Arc::new(SnapshotCensus::default());
         assert_eq!(census.report().outstanding, 0, "a fresh census is empty");
 
-        let first = census.take(&db, "test-first");
+        let first = census.track(db.clone(), "test-first");
         // Distinguishable ages, so "oldest" means something to assert on.
         crate::rt::sleep(std::time::Duration::from_millis(20)).await;
-        let second = census.take(&db, "test-second");
+        let second = census.track(db.clone(), "test-second");
 
         let report = census.report();
         assert_eq!(report.outstanding, 2, "both live snapshots must be counted");
@@ -37275,7 +40908,7 @@ proc p {} {
 
         // And the handle really is the database: the deref is what lets every
         // call site pass `&*snapshot` where it passed `&snapshot` before.
-        let third = census.take(&db, "test-deref");
+        let third = census.track(db.clone(), "test-deref");
         let _: &tcl_lsp_db::TclDatabase = &third;
         drop(third);
     }
@@ -37287,7 +40920,7 @@ proc p {} {
     #[test]
     fn snapshot_census_retires_only_after_the_wrapped_clone_drops_1800() {
         struct DropProbe {
-            census: &'static SnapshotCensus,
+            census: Arc<SnapshotCensus>,
             saw_itself_registered: Arc<std::sync::atomic::AtomicBool>,
         }
 
@@ -37300,11 +40933,11 @@ proc p {} {
             }
         }
 
-        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        let census = Arc::new(SnapshotCensus::default());
         let saw_itself_registered = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let snapshot = census.track(
             DropProbe {
-                census,
+                census: Arc::clone(&census),
                 saw_itself_registered: Arc::clone(&saw_itself_registered),
             },
             "drop-order-proof-1800",
@@ -37334,9 +40967,9 @@ proc p {} {
     /// it is telling the truth rather than reporting a stale or default value.
     ///
     /// Constructed, not raced: the test itself holds the `documents` lock that
-    /// `did_open` must take *inside* its turn, so the handler is granted the
-    /// turn, suspends at exactly one known point, and stays there for as long
-    /// as the assertion needs. Nothing but this test can release it.
+    /// `did_open` takes for its short ordered stage, so the handler is granted
+    /// the turn, suspends at exactly one known point, and stays there for as
+    /// long as the assertion needs. Nothing but this test can release it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_stalled_turn_names_the_await_it_is_suspended_at() {
         let backend = Arc::new(test_backend());
@@ -39643,6 +43276,3619 @@ proc p {} {
         );
     }
 
+    /// Automated review of #1854: reconciliation owns `rehoming_gate`, while
+    /// a pending live publication needs that gate to mark its document ready.
+    /// Waiting through `read_document` here therefore formed a direct cycle.
+    /// A pass that encounters the pending sourced document must retire, release
+    /// the gate, and let the next pass reconcile the published revision.
+    #[tokio::test]
+    async fn rehoming_never_waits_for_live_publication_that_needs_its_gate_1854() {
+        let backend = test_backend();
+        let parent = Uri::from_str("file:///rehoming-publication/a.tcl").unwrap();
+        let sourced = Uri::from_str("file:///rehoming-publication/b.tcl").unwrap();
+        register(&backend, &sourced, "proc helper {} {}\n").await;
+        register(
+            &backend,
+            &parent,
+            "namespace eval ::live { source b.tcl }\n",
+        )
+        .await;
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&sourced)
+            .expect("the sourced document is open")
+            .publication = DocumentPublication::Pending;
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(1),
+            backend.refresh_source_rehoming(),
+        )
+        .await
+        .expect("rehoming must release its gate instead of waiting for publication");
+        assert!(
+            backend.rehoming_gate.try_lock().is_ok(),
+            "the pending publisher must be able to acquire the released gate",
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::live::helper"),
+            "a pending revision must not publish a stale re-homed view",
+        );
+
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&sourced)
+            .expect("the sourced document remains open")
+            .publication = DocumentPublication::Indexed;
+        backend.live_publication_advanced.notify_waiters();
+        backend.refresh_source_rehoming().await;
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::live::helper"),
+            "the next pass must reconcile the published live revision",
+        );
+    }
+
+    /// The first #1854 exact-head CI run exposed a second publication boundary:
+    /// a cold large file's Salsa source was already current, but `didOpen` kept
+    /// publication short of `Indexed` while building its workspace-index seed.
+    /// Making semantic tokens wait for that unrelated whole-file analysis bypassed
+    /// their bounded enriched/coarse fast path and turned a first paint into a
+    /// two-minute response. They may proceed at Salsa readiness; providers that
+    /// consume cross-document facts must still wait for indexed readiness.
+    #[tokio::test]
+    async fn semantic_tokens_do_not_wait_for_did_open_index_seed_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///semantic-paint-before-index.tcl").unwrap();
+        register(&backend, &uri, "proc ready {} {}\n").await;
+        {
+            let mut docs = backend.documents.lock("test").await;
+            let doc = docs.get_mut(&uri).expect("the document is open");
+            doc.publication = DocumentPublication::Salsa;
+        }
+
+        let token_doc = crate::rt::timeout(
+            std::time::Duration::from_millis(100),
+            backend.read_document_for_semantic_tokens(&uri),
+        )
+        .await
+        .expect("semantic tokens only wait for the current Salsa source")
+        .expect("the live token document exists");
+        assert_eq!(token_doc.text.as_ref(), "proc ready {} {}\n");
+
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(25),
+                backend.read_document(&uri),
+            )
+            .await
+            .is_err(),
+            "workspace-aware providers must wait for the live index seed",
+        );
+
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the document remains open")
+            .publication = DocumentPublication::Indexed;
+        backend.live_publication_advanced.notify_waiters();
+        crate::rt::timeout(
+            std::time::Duration::from_millis(100),
+            backend.read_document(&uri),
+        )
+        .await
+        .expect("indexed readiness releases ordinary providers")
+        .expect("the live indexed document exists");
+    }
+
+    async fn assert_local_commands_use_salsa_readiness(backend: &Backend, uri: &Uri) {
+        let uri_arg = serde_json::Value::String(uri.to_string());
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.minify_document_command(std::slice::from_ref(&uri_arg)),
+        )
+        .await
+        .expect("minify must not wait for the workspace-index seed")
+        .expect("minify must succeed")
+        .expect("minify must return a result");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.tk_preview_command(&[serde_json::json!({ "uri": uri.as_str() })]),
+        )
+        .await
+        .expect("Tk preview must not wait for the workspace-index seed")
+        .expect("Tk preview must succeed")
+        .expect("Tk preview must return a result");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.optimise_document_command(std::slice::from_ref(&uri_arg)),
+        )
+        .await
+        .expect("optimise must not wait for the workspace-index seed")
+        .expect("optimise must succeed")
+        .expect("optimise must return a result");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.fix_all_safe_issues_command(std::slice::from_ref(&uri_arg)),
+        )
+        .await
+        .expect("fix-all must not wait for the workspace-index seed")
+        .expect("fix-all must succeed")
+        .expect("fix-all must return a result");
+    }
+
+    /// Exact-head review of #1854: document-local providers read the live Salsa
+    /// source, not the independently seeded workspace index. A cold file can
+    /// remain at `Salsa` while its whole-file index analysis runs; formatting,
+    /// folding, outlines, linked editing, and selection ranges remain prompt.
+    #[tokio::test]
+    async fn local_providers_do_not_wait_for_did_open_index_seed_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///format-before-index-1854.tcl").unwrap();
+        let source = "proc ready {} { ready }\n";
+        register(&backend, &uri, source).await;
+        {
+            let mut docs = backend.documents.lock("test").await;
+            docs.get_mut(&uri)
+                .expect("the document is open")
+                .publication = DocumentPublication::Salsa;
+        }
+
+        let local = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.read_local_document(&uri),
+        )
+        .await
+        .expect("a local provider only waits for the matching Salsa source")
+        .expect("the live local document exists");
+        assert_eq!(local.text.as_ref(), source);
+
+        let params: DocumentFormattingParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "options": { "tabSize": 4, "insertSpaces": true }
+        }))
+        .expect("valid formatting request");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.formatting(params),
+        )
+        .await
+        .expect("formatting must not wait for the workspace-index seed")
+        .expect("formatting must succeed");
+
+        let folding: FoldingRangeParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() }
+        }))
+        .expect("valid folding request");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.folding_range(folding),
+        )
+        .await
+        .expect("folding must not wait for the workspace-index seed")
+        .expect("folding must succeed");
+
+        let symbols: DocumentSymbolParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() }
+        }))
+        .expect("valid document-symbol request");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.document_symbol(symbols),
+        )
+        .await
+        .expect("document symbols must not wait for the workspace-index seed")
+        .expect("document symbols must succeed");
+
+        let linked: LinkedEditingRangeParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "position": { "line": 0, "character": 5 }
+        }))
+        .expect("valid linked-editing request");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.linked_editing_range(linked),
+        )
+        .await
+        .expect("linked editing must not wait for the workspace-index seed")
+        .expect("linked editing must succeed");
+
+        let selection: SelectionRangeParams = serde_json::from_value(serde_json::json!({
+            "textDocument": { "uri": uri.as_str() },
+            "positions": [{ "line": 0, "character": 5 }]
+        }))
+        .expect("valid selection-range request");
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.selection_range(selection),
+        )
+        .await
+        .expect("selection ranges must not wait for the workspace-index seed")
+        .expect("selection ranges must succeed");
+
+        assert_local_commands_use_salsa_readiness(&backend, &uri).await;
+
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(25),
+                backend.read_document(&uri),
+            )
+            .await
+            .is_err(),
+            "the test must hold the independent workspace-index boundary pending",
+        );
+    }
+
+    async fn wait_for_publication_intents_1854(backend: &Backend, expected: usize, failure: &str) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+                < expected
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect(failure);
+    }
+
+    /// Exact-head review of #1854: a stream of overlapping request snapshots
+    /// must not keep a live source publication short of Salsa forever. Once a
+    /// publisher announces drain intent, later snapshot requests queue; the
+    /// finite pre-existing set retires and the writer runs before readers are
+    /// admitted again.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_publication_intent_stops_new_snapshots_until_drain_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///snapshot-drain-1854.tcl").unwrap();
+        let old_text = "set value old\n";
+        let live_text = "set value current\n";
+        backend
+            .db_set_source(&uri, old_text, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(live_text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+
+        let existing = backend.db.snapshot("issue-1854-pre-drain-reader").await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .commit_live_source("test_snapshot_drain", &uri, live_text, "tcl8.6", 0, false)
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+                == 0
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the live publisher must establish drain intent");
+
+        let database = crate::rt::timeout(std::time::Duration::from_secs(5), backend.db.lock())
+            .await
+            .expect("the test must briefly win transient database contention");
+        crate::rt::sleep(std::time::Duration::from_millis(25)).await;
+        assert!(
+            backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+                != 0,
+            "transient database contention must not reopen the snapshot stream",
+        );
+        drop(database);
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { backend.db.snapshot("issue-1854-post-drain-reader").await }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut later_reader)
+                .await
+                .is_err(),
+            "a later reader must queue instead of extending the snapshot stream",
+        );
+
+        drop(existing);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("publication must finish as soon as the old reader retires")
+                .expect("the publication task must not panic"),
+            "the current live source must publish",
+        );
+        let later = crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+            .await
+            .expect("queued readers must resume after publication")
+            .expect("the reader task must not panic");
+        drop(later);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(live_text),
+            "the writer must run between the old and later snapshots",
+        );
+    }
+
+    /// Exact-head automated review of #1854: disk publication shares the live
+    /// source gate, so it must also establish writer intent while snapshots
+    /// drain. Otherwise an overlapping request stream can keep its census
+    /// non-empty forever and strand every later didOpen/didChange behind it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_intent_stops_new_snapshots_until_drain_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///disk-snapshot-drain-1854.tcl").unwrap();
+        let text = "proc disk_current {} {}\n";
+        let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
+        let existing = backend
+            .db
+            .snapshot("issue-1854-pre-disk-drain-reader")
+            .await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                let replacements = vec![(uri, text.to_owned(), "tcl8.6".to_owned(), analysis)];
+                backend
+                    .publish_disk_results(
+                        &replacements,
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_snapshot_drain",
+                    )
+                    .await
+            }
+        });
+        wait_for_publication_intents_1854(&backend, 1, "disk publication must claim intent").await;
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .db
+                    .snapshot("issue-1854-post-disk-drain-reader")
+                    .await
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut later_reader)
+                .await
+                .is_err(),
+            "a later reader must queue instead of replenishing the disk census",
+        );
+
+        drop(existing);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("disk publication must finish when the old reader retires")
+                .expect("the disk publication task must not panic"),
+            vec![uri.clone()],
+        );
+        let later = crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+            .await
+            .expect("queued readers must resume after disk publication")
+            .expect("the reader task must not panic");
+        drop(later);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(text),
+            "disk publication must run between the old and later snapshots",
+        );
+    }
+
+    /// A disk transaction must join each failed dependency fairly only after
+    /// releasing both outer gates. This drives one publication through a held
+    /// database and then a held seed store, while an unrelated live edit proves
+    /// the second wait does not monopolise foreground publication.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_releases_gates_while_waiting_fairly_1854() {
+        let backend = Arc::new(test_backend());
+        let disk_uri = Uri::from_str("file:///disk-fair-queue-1854.tcl").unwrap();
+        let disk_text = "proc disk_fair_queue {} {}\n";
+        let analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
+        let live_uri = Uri::from_str("file:///live-during-disk-wait-1854.tcl").unwrap();
+        let live_text = "set live current\n";
+        backend
+            .db_set_source(&live_uri, "set live old\n", "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            live_uri.clone(),
+            DocumentState::new(live_text.to_owned(), "tcl8.6".to_owned())
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let seeds = backend.rehomed_source_seeds.lock().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let disk_uri = disk_uri.clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(
+                            disk_uri,
+                            disk_text.to_owned(),
+                            "tcl8.6".to_owned(),
+                            analysis,
+                        )],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_fair_queue",
+                    )
+                    .await
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.db.contention().contains("1 queued waiter") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the disk publisher must join the contended database queue");
+        drop(database);
+
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(500),
+                backend.commit_live_source(
+                    "test_live_during_disk_wait",
+                    &live_uri,
+                    live_text,
+                    "tcl8.6",
+                    0,
+                    false,
+                ),
+            )
+            .await
+            .expect("the live publisher must not wait for the disk-only seed store"),
+            "the unrelated current live source must publish",
+        );
+        assert!(
+            !publishing.is_finished(),
+            "the seed guard must still keep the disk transaction pending",
+        );
+
+        drop(seeds);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("disk publication must finish after its queued turn")
+                .expect("the disk publisher must not panic"),
+            vec![disk_uri],
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::disk_fair_queue"),
+            "the queued transaction must publish its complete index update",
+        );
+    }
+
+    /// Releasing the outer gates must not let a newer disk snapshot overtake a
+    /// blocked older one and then be overwritten when the older work resumes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_serialises_captured_replacements_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///disk-order-1854.tcl").unwrap();
+        let old_text = "proc older_disk_read {} {}\n";
+        let new_text = "proc newer_disk_read {} {}\n";
+        let seeds = backend.rehomed_source_seeds.lock().await;
+        let older = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let analysis = Analyser::new().analyse(old_text, "tcl8.6").clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(uri, old_text.to_owned(), "tcl8.6".to_owned(), analysis)],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_older_disk_read",
+                    )
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.disk_publication_gate.try_lock().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the older disk snapshot must own the serialisation gate");
+
+        let newer = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let analysis = Analyser::new().analyse(new_text, "tcl8.6").clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(uri, new_text.to_owned(), "tcl8.6".to_owned(), analysis)],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_newer_disk_read",
+                    )
+                    .await
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), async {
+                while !newer.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "the newer disk snapshot must queue behind the older one",
+        );
+
+        drop(seeds);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), older)
+                .await
+                .expect("the older disk publication must finish")
+                .expect("the older disk publisher must not panic"),
+            vec![uri.clone()],
+        );
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), newer)
+                .await
+                .expect("the newer disk publication must finish second")
+                .expect("the newer disk publisher must not panic"),
+            vec![uri.clone()],
+        );
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(new_text),
+            "the later captured disk replacement must remain authoritative",
+        );
+    }
+
+    /// A live publisher entering while disk work retains drain ownership must
+    /// share the reader barrier rather than panic or release it prematurely.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_publication_shares_disk_snapshot_drain_intent_1854() {
+        let backend = Arc::new(test_backend());
+        let disk_uri = Uri::from_str("file:///disk-shared-drain-1854.tcl").unwrap();
+        let disk_text = "proc disk_shared_drain {} {}\n";
+        let disk_analysis = Analyser::new().analyse(disk_text, "tcl8.6").clone();
+        let live_uri = Uri::from_str("file:///live-shared-drain-1854.tcl").unwrap();
+        let live_text = "set live current\n";
+        backend
+            .db_set_source(&live_uri, "set live old\n", "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            live_uri.clone(),
+            DocumentState::new(live_text.to_owned(), "tcl8.6".to_owned())
+                .with_publication_pending(),
+        );
+
+        let existing = backend.db.snapshot("issue-1854-shared-drain-reader").await;
+        let mut disk_publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let disk_uri = disk_uri.clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(
+                            disk_uri,
+                            disk_text.to_owned(),
+                            "tcl8.6".to_owned(),
+                            disk_analysis,
+                        )],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_shared_drain",
+                    )
+                    .await
+            }
+        });
+        wait_for_publication_intents_1854(&backend, 1, "disk publication must claim intent").await;
+
+        let mut live_publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let live_uri = live_uri.clone();
+            async move {
+                backend
+                    .commit_live_source(
+                        "test_live_shared_drain",
+                        &live_uri,
+                        live_text,
+                        "tcl8.6",
+                        0,
+                        false,
+                    )
+                    .await
+            }
+        });
+        wait_for_publication_intents_1854(
+            &backend,
+            2,
+            "both publishers must own the shared drain intent",
+        )
+        .await;
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut live_publishing)
+                .await
+                .is_err(),
+            "the live publisher must wait for the pre-existing snapshot",
+        );
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut disk_publishing)
+                .await
+                .is_err(),
+            "the disk publisher must retain its own drain ownership",
+        );
+
+        drop(existing);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), live_publishing)
+                .await
+                .expect("the live publication must finish after the reader retires")
+                .expect("the live publisher must not panic"),
+            "the current live source must publish",
+        );
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), disk_publishing)
+                .await
+                .expect("the disk publication must finish after the reader retires")
+                .expect("the disk publisher must not panic"),
+            vec![disk_uri.clone()],
+        );
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&live_uri).map(|file| file.text(&*db).as_str()),
+            Some(live_text),
+        );
+        assert_eq!(
+            files.get(&disk_uri).map(|file| file.text(&*db).as_str()),
+            Some(disk_text),
+        );
+    }
+
+    /// Fresh exact-head review of #1854: disk publication must establish
+    /// writer intent before it can acquire `db`. Otherwise a sustained fair
+    /// mutex queue can prevent the optimistic publisher from ever reaching
+    /// the census check that used to create the drain guard.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_establishes_intent_before_db_bundle_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///disk-pre-intent-1854.tcl").unwrap();
+        let text = "proc disk_pre_intent {} {}\n";
+        let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
+        let database = backend.db.lock().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_disk_results(
+                        &[(uri, text.to_owned(), "tcl8.6".to_owned(), analysis)],
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_pre_intent",
+                    )
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+                == 0
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("disk publication must claim intent before acquiring db");
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { backend.db.snapshot("issue-1854-pre-intent-reader").await }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut later_reader)
+                .await
+                .is_err(),
+            "new readers must not join the fair db queue ahead of the publisher",
+        );
+
+        drop(database);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the disk publisher must finish after db is released")
+                .expect("the disk publication task must not panic"),
+            vec![uri],
+        );
+        drop(
+            crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+                .await
+                .expect("the queued reader must resume after publication")
+                .expect("the reader task must not panic"),
+        );
+    }
+
+    /// Exact-head review of #1854: publishing the completed open seed may wait
+    /// behind a slow workspace-index reader, but must do so without retaining
+    /// the global document map. Otherwise the next edit holds its ordered turn
+    /// while waiting for that map and restores the whole-server barrier wedge.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn open_index_publish_releases_documents_while_an_index_reader_drains_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///open-index-reader-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let analysis = {
+            let mut analyser = Analyser::new();
+            Arc::new(analyser.analyse(text, "tcl8.6").clone())
+        };
+        let seed = FreshAnalysisSeed {
+            analysis,
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
+            class_factory_generation: 0,
+        };
+        let index_reader = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.workspace_index.try_read().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the open publisher must queue behind the held index reader");
+        let documents = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("test_index_publish_liveness"),
+        )
+        .await
+        .expect("an index wait must not retain the document map");
+        drop(documents);
+
+        // Queue a reader behind the publisher's fair writer turn, then keep it
+        // held. Dropping the writer before the currency-checked commit would
+        // admit this reader and leave the seed pending indefinitely.
+        let (late_reader_queued, queued) = tokio::sync::oneshot::channel();
+        let (release_late_reader, release) = tokio::sync::oneshot::channel();
+        let late_reader = crate::rt::spawn({
+            let workspace_index = Arc::clone(&backend.workspace_index);
+            async move {
+                let _ = late_reader_queued.send(());
+                let _guard = workspace_index.read().await;
+                let _ = release.await;
+            }
+        });
+        queued
+            .await
+            .expect("the late reader must start queueing behind the writer");
+        crate::rt::yield_now().await;
+
+        drop(index_reader);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(2), publishing)
+                .await
+                .expect("the queued writer must commit before the later reader")
+                .expect("the open index publisher must not panic"),
+            "the still-current open seed must publish",
+        );
+        let _ = release_late_reader.send(());
+        crate::rt::timeout(std::time::Duration::from_secs(5), late_reader)
+            .await
+            .expect("the later reader must finish after release")
+            .expect("the later reader must not panic");
+    }
+
+    /// Fresh automated review of #1854: a publisher that fairly drains the
+    /// document map and then the index must not surrender each turn to traffic
+    /// queued on the other dependency forever.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_index_commit_closes_alternating_dependency_contention_1854() {
+        let backend = Arc::new(test_backend());
+        let documents = backend.documents.lock("test_alternating_initial").await;
+        let index = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                drop(
+                    backend
+                        .live_index_commit_locks("test_alternating_publisher")
+                        .await,
+                );
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend
+                .documents
+                .waiters()
+                .iter()
+                .any(|waiter| waiter.site == "test_alternating_publisher")
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the publisher must first join the document-map queue");
+        drop(documents);
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.workspace_index.try_read().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the publisher must retain admission while queueing for the index");
+
+        let (documents_polled, documents_were_polled) = tokio::sync::oneshot::channel();
+        let (release_documents, documents_release) = tokio::sync::oneshot::channel();
+        let late_documents = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                let mut acquisition =
+                    std::pin::pin!(backend.documents.lock("test_alternating_late"));
+                let mut guard = None;
+                std::future::poll_fn(|cx| {
+                    if let Poll::Ready(acquired) = acquisition.as_mut().poll(cx) {
+                        guard = Some(acquired);
+                    }
+                    Poll::Ready(())
+                })
+                .await;
+                let _ = documents_polled.send(());
+                let _guard = match guard {
+                    Some(guard) => guard,
+                    None => acquisition.await,
+                };
+                let _ = documents_release.await;
+            }
+        });
+        documents_were_polled
+            .await
+            .expect("the later document acquisition must be polled");
+        let (index_polled, index_was_polled) = tokio::sync::oneshot::channel();
+        let (release_index, index_release) = tokio::sync::oneshot::channel();
+        let late_index = crate::rt::spawn({
+            let workspace_index = Arc::clone(&backend.workspace_index);
+            async move {
+                let mut acquisition = std::pin::pin!(workspace_index.read());
+                let mut guard = None;
+                std::future::poll_fn(|cx| {
+                    if let Poll::Ready(acquired) = acquisition.as_mut().poll(cx) {
+                        guard = Some(acquired);
+                    }
+                    Poll::Ready(())
+                })
+                .await;
+                let _ = index_polled.send(());
+                let _guard = match guard {
+                    Some(guard) => guard,
+                    None => acquisition.await,
+                };
+                let _ = index_release.await;
+            }
+        });
+        index_was_polled
+            .await
+            .expect("the later index acquisition must be polled");
+
+        drop(index);
+        crate::rt::timeout(std::time::Duration::from_secs(2), publishing)
+            .await
+            .expect("the publisher must commit ahead of both later contenders")
+            .expect("the publisher task must not panic");
+        let _ = release_documents.send(());
+        let _ = release_index.send(());
+        crate::rt::timeout(std::time::Duration::from_secs(5), late_documents)
+            .await
+            .expect("the later document holder must finish after release")
+            .expect("the later document task must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(5), late_index)
+            .await
+            .expect("the later index reader must finish after release")
+            .expect("the later index task must not panic");
+    }
+
+    async fn mark_open_buffer_deleted_while_publication_waits_1854(
+        backend: &Arc<Backend>,
+        uri: &Uri,
+    ) -> crate::rt::JoinHandle<()> {
+        let deleting = crate::rt::spawn({
+            let backend = Arc::clone(backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(uri)
+                    .is_some_and(|doc| doc.backing_file_deleted);
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the watcher must mark the open buffer as an orphan");
+        deleting
+    }
+
+    async fn wait_for_salsa_source_text_1854(backend: &Backend, uri: &Uri, expected: &str) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let current = {
+                    let db = backend.db.lock().await;
+                    let files = backend.db_files.lock().await;
+                    files
+                        .get(uri)
+                        .is_some_and(|file| file.text(&*db).as_str() == expected)
+                };
+                if current {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the expected text must reach Salsa");
+    }
+
+    async fn assert_orphaned_publication_stays_retired_1854(
+        backend: &Backend,
+        uri: &Uri,
+        text: &str,
+        label: &str,
+        publishing: crate::rt::JoinHandle<bool>,
+        deleting: crate::rt::JoinHandle<()>,
+    ) {
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the obsolete source publisher must finish")
+                .expect("the obsolete source publisher must not panic"),
+            "the {label} publisher must reject the orphan",
+        );
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the watched deletion must finish")
+            .expect("the watched deletion must not panic");
+
+        let current = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(uri),
+        )
+        .await
+        .expect("an orphaned open buffer must not wait for a rejected index seed")
+        .expect("the orphaned open buffer remains locally readable");
+        assert_eq!(current.text.as_ref(), text);
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+        assert!(current.backing_file_deleted);
+        assert!(!backend.db_files.lock().await.contains_key(uri));
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the {label} publisher must not resurrect the deleted index slot",
+        );
+    }
+
+    #[derive(Clone, Copy)]
+    enum OrphanedPublicationKind {
+        Open,
+        Change,
+        Dialect,
+    }
+
+    /// Exact-head automated review of #1854: watched deletion must not wake a
+    /// pending live buffer at Salsa readiness while the database still names
+    /// the preceding revision. It becomes locally readable only after the
+    /// deletion transaction retires that stale handle.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_keeps_pending_buffer_below_salsa_readiness_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///deleted-pending-source-1854.tcl").unwrap();
+        let stale = "proc stale {} {}\n";
+        let current = "proc current {} {}\n";
+        backend
+            .db_set_source(&uri, stale, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(current.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let deleting = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.backing_file_deleted);
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the watched delete must mark the buffer orphaned");
+        assert_eq!(
+            backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("the open buffer remains present")
+                .publication,
+            DocumentPublication::Pending,
+            "the stale Salsa handle must not be labelled ready",
+        );
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_millis(100),
+                backend.read_local_document(&uri),
+            )
+            .await
+            .is_err(),
+            "local providers must wait while the stale handle remains",
+        );
+
+        drop(database);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the deletion transaction must finish after db is released")
+            .expect("the deletion task must not panic");
+        assert!(!backend.db_files.lock().await.contains_key(&uri));
+        let readable = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.read_local_document(&uri),
+        )
+        .await
+        .expect("the orphan must become readable after stale Salsa retirement")
+        .expect("the orphaned live buffer remains present");
+        assert_eq!(readable.text.as_ref(), current);
+        assert_eq!(readable.publication, DocumentPublication::Indexed);
+    }
+
+    /// Exact-head automated review of #1854: a watched deletion can overtake
+    /// any deferred live-source publisher before its Salsa setter. didOpen,
+    /// didChange, and dialect publication must all reject the orphan rather
+    /// than recreate its source and move settled readiness back to Salsa.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_cancels_queued_live_source_publications_1854() {
+        for (label, kind) in [
+            ("open", OrphanedPublicationKind::Open),
+            ("change", OrphanedPublicationKind::Change),
+            ("dialect", OrphanedPublicationKind::Dialect),
+        ] {
+            let backend = Arc::new(test_backend());
+            let uri = Uri::from_str(&format!("file:///deleted-{label}-source-1854.tcl")).unwrap();
+            let text = "proc ghost {} {}\n";
+            backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+            let analysis = {
+                let mut analyser = Analyser::new();
+                Arc::new(analyser.analyse(text, "tcl8.6").clone())
+            };
+            backend
+                .workspace_index
+                .write()
+                .await
+                .add_document(uri.as_str(), &analysis);
+            backend.documents.lock("test").await.insert(
+                uri.clone(),
+                DocumentState::with_version(text.to_owned(), "tcl9.0".to_owned(), 1)
+                    .with_language_id("tcl".to_owned())
+                    .with_publication_pending(),
+            );
+
+            let db_held = backend.db.lock().await;
+            let publishing = crate::rt::spawn({
+                let backend = Arc::clone(&backend);
+                let uri = uri.clone();
+                let analyser_inputs_epoch = backend.diag_inputs_epoch();
+                let seed = FreshAnalysisSeed {
+                    analysis,
+                    analyser_inputs_epoch,
+                    class_factory_generation: 0,
+                };
+                async move {
+                    match kind {
+                        OrphanedPublicationKind::Open => {
+                            backend
+                                .commit_open_document_with_seed(
+                                    &uri,
+                                    text,
+                                    "tcl9.0",
+                                    1,
+                                    async move { seed },
+                                )
+                                .await
+                        }
+                        OrphanedPublicationKind::Change => {
+                            backend
+                                .commit_live_source("test_change", &uri, text, "tcl9.0", 0, true)
+                                .await
+                        }
+                        OrphanedPublicationKind::Dialect => {
+                            backend
+                                .commit_live_dialect("test_dialect", &uri, text, "tcl9.0", 0)
+                                .await
+                        }
+                    }
+                }
+            });
+            crate::rt::timeout(std::time::Duration::from_secs(5), async {
+                loop {
+                    if backend.live_publication_gate.try_lock().is_err() {
+                        break;
+                    }
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .expect("the source publisher must wait behind the held database");
+
+            let deleting =
+                mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+            drop(db_held);
+            assert_orphaned_publication_stays_retired_1854(
+                &backend, &uri, text, label, publishing, deleting,
+            )
+            .await;
+        }
+    }
+
+    /// Exact-head automated review of #1854: a watched deletion can overtake
+    /// the off-Salsa cold-open seed. Its orphan mark must make the queued seed
+    /// fail currency instead of resurrecting the dead path in the index.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_cancels_a_queued_open_index_seed_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///deleted-open-seed-1854.tcl").unwrap();
+        let text = "proc ghost {} {}\n";
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let seed = backend
+            .fresh_analysis_seed(&uri, Arc::from(text), "tcl8.6".to_owned())
+            .await;
+
+        let index_reader = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.workspace_index.try_read().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the cold-open seed must queue behind the held index reader");
+
+        let deleting = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| {
+                        doc.backing_file_deleted && doc.publication == DocumentPublication::Indexed
+                    });
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the watcher must settle the deleted open buffer as an orphan");
+        drop(index_reader);
+
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the obsolete seed must finish after the index reader drains")
+                .expect("the obsolete seed must not panic"),
+            "the orphan mark must reject the cold-open seed",
+        );
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the watched deletion must finish")
+            .expect("the watched deletion must not panic");
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the deleted path must remain absent from the workspace index",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a watched deletion deliberately
+    /// settles an open orphan with no cross-document view. If that path is
+    /// created again, the authoritative editor buffer must republish both its
+    /// Salsa source and index even when diagnostics cannot repair them later.
+    #[tokio::test]
+    async fn watched_create_republishes_a_revived_open_buffer_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///revived-open-buffer-1854.tcl").unwrap();
+        let text = "proc revived {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+        let orphan_revision = {
+            let docs = backend.documents.lock("test").await;
+            let doc = docs.get(&uri).expect("the open orphan remains tracked");
+            assert!(doc.backing_file_deleted);
+            assert_eq!(doc.publication, DocumentPublication::Indexed);
+            doc.revision
+        };
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the watched deletion retires the orphan's index view",
+        );
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CREATED,
+                }],
+            })
+            .await;
+        let docs = backend.documents.lock("test").await;
+        let revived = docs
+            .get(&uri)
+            .expect("the revived open buffer remains tracked");
+        assert!(!revived.backing_file_deleted);
+        assert_eq!(revived.publication, DocumentPublication::Indexed);
+        assert!(
+            revived.revision > orphan_revision,
+            "revival must invalidate every pre-deletion publisher",
+        );
+        drop(docs);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(text),
+            "the revived editor buffer must be restored to Salsa",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::revived"),
+            "the revived editor buffer must regain its workspace-index facts",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a disk notification for an
+    /// already-live open buffer is a no-op because the editor buffer remains
+    /// authoritative. It must not retire a contended publisher without
+    /// starting a replacement, especially when diagnostics cannot repair it.
+    #[tokio::test]
+    async fn watched_change_preserves_live_open_publication_currency_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///live-watched-change-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(
+                "proc still_pending {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        let global_before = backend
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let uri_before = backend.live_publication_uri_generation(&uri);
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::CHANGED,
+                }],
+            })
+            .await;
+
+        assert_eq!(
+            backend
+                .live_publication_generation
+                .load(std::sync::atomic::Ordering::Acquire),
+            global_before,
+            "a no-op open-buffer disk event must not wake every publisher",
+        );
+        assert_eq!(
+            backend.live_publication_uri_generation(&uri),
+            uri_before,
+            "a no-op open-buffer disk event must not obsolete its publisher",
+        );
+        let docs = backend.documents.lock("test").await;
+        let doc = docs.get(&uri).expect("the open buffer remains tracked");
+        assert!(!doc.backing_file_deleted);
+        assert_eq!(doc.publication, DocumentPublication::Pending);
+    }
+
+    /// Fresh exact-head review of #1854: orphan filtering must cover indexed
+    /// hits during the interval after the watcher marks the buffer deleted but
+    /// before its transactional index removal can acquire the rehoming gate.
+    #[tokio::test]
+    async fn workspace_symbols_exclude_orphan_during_disk_removal_wait_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///orphan-index-window-1854.tcl").unwrap();
+        let text = "proc obsolete_disk_symbol {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the regression must query inside the pre-removal index window",
+        );
+        let symbols = backend
+            .open_but_unindexed_symbols("obsolete_disk_symbol", 10)
+            .await;
+        assert!(
+            symbols.fallback_hits.is_empty() && symbols.indexed_hits.is_empty(),
+            "neither symbol channel may expose the orphan while removal waits",
+        );
+
+        drop(rehoming);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the watched deletion must finish after the gate is released")
+            .expect("the watched deletion task must not panic");
+    }
+
+    /// Exact-head automated review of #1854: deleting an open path retires its
+    /// cross-document identity, not its editor buffer. A subsequent didChange
+    /// must publish the new bytes to Salsa and settle local-provider readiness
+    /// while leaving the orphan absent from the workspace index.
+    #[tokio::test]
+    async fn post_deletion_edit_remains_locally_publishable_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///post-deletion-edit-1854.tcl").unwrap();
+        let initial = "proc before_delete {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+        let analysis = Arc::new(Analyser::new().analyse(initial, "tcl8.6").clone());
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+
+        let edited = "# tcl-dialect: tcl9.0\nproc after_delete {} {}\n";
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: edited.to_owned(),
+                }],
+            })
+            .await;
+
+        drop(rehoming);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deleting)
+            .await
+            .expect("the deletion must finish after its disk commit is released")
+            .expect("the deletion task must not panic");
+
+        let current = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(&uri),
+        )
+        .await
+        .expect("local providers must not wedge after editing an orphan")
+        .expect("the orphaned buffer remains open");
+        assert_eq!(current.text.as_ref(), edited);
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(current.backing_file_deleted);
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let orphan_file = files.get(&uri).copied();
+        assert_eq!(
+            orphan_file.map(|file| file.text(&*db).as_str()),
+            Some(edited),
+            "the post-deletion revision must be the Salsa source",
+        );
+        assert_eq!(
+            orphan_file.map(|file| file.dialect(&*db).as_str()),
+            Some("tcl9.0"),
+            "the post-deletion dialect revision must be current in Salsa",
+        );
+        let project = *backend.db_project.lock().await;
+        assert!(
+            orphan_file.is_some_and(|file| {
+                project.is_some_and(|project| !project.files(&*db).contains(&file))
+            }),
+            "the local orphan handle must remain outside Salsa project membership",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            !backend.db_project_members.lock().await.contains(&uri),
+            "the dead path must not be admitted to the cross-document project",
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the edited orphan must not regain a cross-document identity",
+        );
+        let symbols = backend.open_but_unindexed_symbols("after_delete", 10).await;
+        assert!(
+            symbols.fallback_hits.is_empty() && symbols.indexed_hits.is_empty(),
+            "workspace/symbol fallback must not resurrect an edited orphan",
+        );
+    }
+
+    /// Exact-head automated review of #1854: an orphan remains locally live
+    /// when an in-source or configuration change re-resolves its dialect. The
+    /// new dialect must reach Salsa readiness without restoring any project or
+    /// workspace-index identity for the missing path.
+    #[tokio::test]
+    async fn orphan_dialect_change_republishes_only_local_salsa_state_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///orphan-dialect-change-1854.tcl").unwrap();
+        let text = "proc orphan_local {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        *backend.default_dialect.lock().await = "tcl9.0".to_owned();
+        *backend.default_dialect_explicit.lock().await = true;
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the orphan remains open")
+            .mark_dialect_resolution_dirty();
+        backend
+            .resolve_dirty_open_document_dialect(&uri, "test_orphan_dialect")
+            .await;
+
+        let current = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(&uri),
+        )
+        .await
+        .expect("local readiness must settle after an orphan dialect change")
+        .expect("the orphan remains readable");
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(current.backing_file_deleted);
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let file = *files
+            .get(&uri)
+            .expect("the dialect publisher restores a local Salsa handle");
+        assert_eq!(file.dialect(&*db), "tcl9.0");
+        assert!(
+            backend
+                .db_project
+                .lock()
+                .await
+                .is_some_and(|project| !project.files(&*db).contains(&file)),
+            "an orphan dialect change must remain outside project membership",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "an orphan dialect change must not restore workspace-index facts",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a watched delete can mark an old
+    /// open revision, stall at the disk-publication gate, and then be overtaken
+    /// by didClose plus a new didOpen. Its final removal must currency-check the
+    /// open identity rather than deleting the reopened Salsa source.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn stale_watched_delete_preserves_reopened_source_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///reopened-during-delete-1854.tcl").unwrap();
+        let initial = "proc stale_open {} {}\n";
+        let reopened = "proc authoritative_reopen {} {}\n";
+        register(&backend, &uri, initial).await;
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deleting = mark_open_buffer_deleted_while_publication_waits_1854(&backend, &uri).await;
+
+        let closing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri },
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if !backend.documents.lock("test").await.contains_key(&uri) {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("didClose must retire the old open identity");
+
+        let opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 2,
+                            text: reopened.to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let reopened_is_visible = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| !doc.backing_file_deleted && doc.text.as_ref() == reopened);
+                if reopened_is_visible {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the new didOpen identity must become authoritative");
+
+        wait_for_salsa_source_text_1854(&backend, &uri, reopened).await;
+
+        drop(rehoming);
+        for (label, task) in [
+            ("deletion", deleting),
+            ("close", closing),
+            ("reopen", opening),
+        ] {
+            crate::rt::timeout(std::time::Duration::from_secs(30), task)
+                .await
+                .unwrap_or_else(|_| panic!("the {label} task must finish"))
+                .unwrap_or_else(|err| panic!("the {label} task must not panic: {err}"));
+        }
+
+        let current = backend
+            .read_document(&uri)
+            .await
+            .expect("the reopened document remains readable");
+        assert_eq!(current.text.as_ref(), reopened);
+        assert!(!current.backing_file_deleted);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(reopened),
+            "the stale watched deletion must not remove the reopened Salsa source",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::authoritative_reopen"),
+            "the reopened document must retain its current index view",
+        );
+    }
+
+    /// Exact-head automated review of #1854: watched handlers are concurrent,
+    /// so an older delete must finish its Salsa/index removal before a later
+    /// create republishes the same still-open buffer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_delete_transaction_precedes_later_revive_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///ordered-watched-revive-1854.tcl").unwrap();
+        let text = "proc ordered_revive {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+        backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(uri.as_str(), &analysis);
+
+        let rehoming = backend.rehoming_gate.lock().await;
+        let deletion = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::DELETED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let orphaned = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.backing_file_deleted);
+                if orphaned {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the deletion must mark the open buffer before its removal blocks");
+        assert!(
+            backend.watched_file_change_gate.try_lock().is_err(),
+            "the deletion must retain the watched transaction gate",
+        );
+
+        let revival = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change_watched_files(DidChangeWatchedFilesParams {
+                        changes: vec![tower_lsp_server::ls_types::FileEvent {
+                            uri,
+                            typ: FileChangeType::CREATED,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), async {
+                while !revival.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "the later create must wait for the older deletion transaction",
+        );
+
+        drop(rehoming);
+        crate::rt::timeout(std::time::Duration::from_secs(5), deletion)
+            .await
+            .expect("the deletion must finish after rehoming is released")
+            .expect("the deletion task must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(5), revival)
+            .await
+            .expect("the later create must finish after the deletion")
+            .expect("the revival task must not panic");
+
+        let docs = backend.documents.lock("test").await;
+        let revived = docs.get(&uri).expect("the open buffer remains tracked");
+        assert!(!revived.backing_file_deleted);
+        assert_eq!(revived.publication, DocumentPublication::Indexed);
+        drop(docs);
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::ordered_revive"),
+            "the older deletion must not remove the later revived index view",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a cold seed analysed under an old
+    /// class-factory oracle must be recomputed if the project publishes a new
+    /// oracle before its standalone index commit.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn open_index_seed_retries_after_factory_oracle_change_1854() {
+        use salsa::Setter as _;
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///factory-oracle-race-1854.tcl").unwrap();
+        let consumer = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(consumer.to_owned(), "tcl9.0".to_owned(), 1)
+                .with_language_id("tcl9.0".to_owned())
+                .with_publication_pending(),
+        );
+        let stale_analysis = {
+            let mut analyser = Analyser::new();
+            Arc::new(analyser.analyse(consumer, "tcl9.0").clone())
+        };
+        assert!(
+            !stale_analysis.all_classes.contains_key("::IconList"),
+            "the stale seed must not know the cross-file factory",
+        );
+        let oracle = {
+            let mut analyser = Analyser::new();
+            Arc::new(
+                analyser
+                    .analyse(
+                        concat!(
+                            "oo::class create ::tk::MegawidgetClass {}\n",
+                            "oo::class create ::tk::Megawidget {\n",
+                            "    superclass oo::class\n",
+                            "    self method create {name superclasses body} {\n",
+                            "        next $name [list superclass ::tk::MegawidgetClass",
+                            " {*}$superclasses]\\;$body\n",
+                            "    }\n",
+                            "}\n",
+                        ),
+                        "tcl9.0",
+                    )
+                    .class_factories(),
+            )
+        };
+
+        let seed_started = Arc::new(tokio::sync::Notify::new());
+        let seed_release = Arc::new(tokio::sync::Notify::new());
+        let started = seed_started.notified();
+        tokio::pin!(started);
+        started.as_mut().enable();
+        let analyser_inputs_epoch = backend.diag_inputs_epoch();
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let seed_started = Arc::clone(&seed_started);
+            let seed_release = Arc::clone(&seed_release);
+            async move {
+                backend
+                    .commit_open_document_with_seed(&uri, consumer, "tcl9.0", 1, async move {
+                        seed_started.notify_one();
+                        seed_release.notified().await;
+                        FreshAnalysisSeed {
+                            analysis: stale_analysis,
+                            analyser_inputs_epoch,
+                            class_factory_generation: 0,
+                        }
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), &mut started)
+            .await
+            .expect("the source tier must publish before the stale seed is released");
+
+        {
+            let mut generation = backend.class_factory_generation.write().await;
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = *files.get(&uri).expect("the live Salsa source exists");
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(Arc::clone(&oracle)));
+            *generation = generation.saturating_add(1);
+        }
+        seed_release.notify_one();
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the seed publisher must finish")
+                .expect("the seed publisher must not panic"),
+            "the current open seed must publish after recomputation",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            index.workspace_command_exists("::IconList"),
+            "the revalidated seed must carry the newly published factory oracle",
+        );
+    }
+
+    /// Exact-head automated review of #1854: the class-factory generation is
+    /// only one analyser input. A config or SpecTcl-pack change while a cold
+    /// open is being analysed must also reject its seed, even when diagnostics
+    /// are disabled or excluded and therefore cannot repair the index later.
+    #[tokio::test]
+    async fn open_index_seed_retries_after_analyser_input_change_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///analyser-input-race-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let stale_analysis = Arc::new(
+            Analyser::new()
+                .analyse("proc stale {} {}\n", "tcl8.6")
+                .clone(),
+        );
+        let seed = FreshAnalysisSeed {
+            analysis: stale_analysis,
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
+            class_factory_generation: 0,
+        };
+
+        let update = backend.analyser_inputs_gate.write().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), async {
+                while !publishing.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "index publication must wait for the analyser-input writer",
+        );
+        backend.invalidate_diag_inputs();
+        drop(update);
+        let published = crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+            .await
+            .expect("the seed publisher must finish after the input transaction")
+            .expect("the seed publisher must not panic");
+        assert!(
+            published,
+            "the current open must publish its recomputed seed",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            index.workspace_command_exists("::current"),
+            "the analyser-input epoch change must force current facts",
+        );
+        assert!(
+            !index.workspace_command_exists("::stale"),
+            "facts captured before the analyser-input change must be rejected",
+        );
+    }
+
+    /// Exact-head automated review of #1854: a live publisher that joins a
+    /// contended dependency must release the global publication gate first.
+    /// Otherwise sustained readers can repeatedly take the acquired fair turn
+    /// back and one URI prevents every later live edit from publishing.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn live_publication_releases_gate_while_waiting_fairly_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///live-fair-gate-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .commit_live_source("test_live_fair_gate", &uri, text, "tcl8.6", 0, false)
+                    .await
+            }
+        });
+
+        let publication = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.live_publication_gate.lock(),
+        )
+        .await
+        .expect("the contended live publisher must release its global gate");
+        drop(database);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), async {
+                while !publishing.is_finished() {
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .is_err(),
+            "the publisher must reacquire the publication gate before committing",
+        );
+        drop(publication);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the live publisher must finish after both locks are released")
+                .expect("the live publisher must not panic"),
+            "the still-current live source must publish",
+        );
+    }
+
+    /// Final automated review of #1854: the periodic fair-queue join must not
+    /// retain `live_publication_gate` after a newer edit invalidates the
+    /// publisher. The authoritative edit must be able to take the gate while
+    /// the stale publisher remains queued on `db`, then both retire in order
+    /// once that dependency becomes available.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn stale_fair_queue_wait_yields_to_newer_edit_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///stale-fair-queue-1854.tcl").unwrap();
+        let initial = "set value old\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+
+        let database = backend.db.lock().await;
+        let stale_publisher = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                // Match production: the operation invalidates older publishers
+                // before entering its own publication loop.
+                backend.invalidate_live_publication(std::iter::once(&uri));
+                let generation = backend
+                    .live_publication_generation
+                    .load(std::sync::atomic::Ordering::Acquire);
+                let uri_generation = backend.live_publication_uri_generation(&uri);
+                let publication = backend.live_publication_gate.lock().await;
+                let mut retry = LivePublicationRetry::new(generation, uri_generation);
+                retry.retries = 1023;
+                assert!(
+                    backend
+                        .pause_open_publication(
+                            publication,
+                            "did_open",
+                            &uri,
+                            LivePublicationWait::Database,
+                            &mut retry,
+                        )
+                        .await
+                        .is_none(),
+                    "the stale publisher must observe its URI invalidation",
+                );
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.db.contention().contains("1 queued waiter") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the stale publisher must join the held database's fair queue");
+
+        let changed_text = "set value current\n";
+        let current_publisher = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: changed_text.to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let changed = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.version == Some(2) && doc.text.as_ref() == changed_text);
+                if changed {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the newer edit must publish its authoritative buffer");
+        drop(database);
+        crate::rt::timeout(std::time::Duration::from_secs(5), current_publisher)
+            .await
+            .expect("the current publisher must finish once db is released")
+            .expect("the current publisher must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(5), stale_publisher)
+            .await
+            .expect("the invalidated publisher must retire after the current edit")
+            .expect("the stale publisher must not panic");
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the edited document remains open");
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+    }
+
+    /// Exact-head automated review of #1854: the invalidation generation is
+    /// global, so an edit to another URI may wake a current publisher's fair
+    /// queue wait. It must adopt the new generation and join even when the
+    /// document map itself is the contended dependency it cannot inspect.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn unrelated_invalidation_refreshes_fair_queue_generation_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///fair-queue-a-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_publication_pending(),
+        );
+        let generation = backend
+            .live_publication_generation
+            .load(std::sync::atomic::Ordering::Acquire);
+        let mut retry =
+            LivePublicationRetry::new(generation, backend.live_publication_uri_generation(&uri));
+
+        // This represents an edit to document B: A's identity remains current,
+        // but its captured global generation is now old.
+        let unrelated = Uri::from_str("file:///fair-queue-b-1854.tcl").unwrap();
+        backend.invalidate_live_publication(std::iter::once(&unrelated));
+        {
+            let docs = backend.documents.lock("test").await;
+            assert!(
+                docs.get(&uri)
+                    .is_some_and(|doc| doc.matches_open_publication(text, "tcl8.6", 1)),
+                "the unrelated invalidation must not obsolete document A",
+            );
+        }
+        retry.retries = 1023;
+
+        let documents = backend.documents.lock("test-held-map").await;
+        let joining = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                let publication = backend.live_publication_gate.lock().await;
+                assert!(
+                    backend
+                        .pause_open_publication(
+                            publication,
+                            "did_open",
+                            &uri,
+                            LivePublicationWait::Documents,
+                            &mut retry,
+                        )
+                        .await
+                        .is_some(),
+                    "an unrelated invalidation must preserve the publisher",
+                );
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let (_, waiters) = backend.documents.watchdog_snapshot();
+                if waiters.iter().any(|waiter| waiter.site == "did_open") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the current publisher must rejoin the document map's fair queue");
+        drop(documents);
+        crate::rt::timeout(std::time::Duration::from_secs(5), joining)
+            .await
+            .expect("the refreshed fair-queue join must finish")
+            .expect("the refreshed fair-queue join must not panic");
+    }
+
+    /// Exact-head review of #1854: the independent index seed must consume the
+    /// same analysis text as Salsa. A raw old-Mac buffer leaves the proc inside
+    /// the preceding comment; normalising lone CRs makes it a real command.
+    #[tokio::test]
+    async fn fresh_open_index_seed_normalises_lone_cr_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///fresh-old-mac-1854.tcl").unwrap();
+        let analysis = backend
+            .fresh_analysis_for(
+                &uri,
+                Arc::from("# note\rproc current {} {}\r"),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        assert!(
+            analysis.all_procs.contains_key("::current"),
+            "the fresh index seed must parse the same normalised source as Salsa",
+        );
+    }
+
+    /// The standalone seed must receive the source path just like the Salsa
+    /// analyser. `pkgIndex.tcl` gives `$dir` an implicit initial value, so a
+    /// pathless seed incorrectly reports its first assignment as dead.
+    #[tokio::test]
+    async fn fresh_open_index_seed_carries_file_path_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///packages/demo/pkgIndex.tcl").unwrap();
+        let analysis = backend
+            .fresh_analysis_for(
+                &uri,
+                Arc::from("set dir first\nset dir second\nputs $dir\n"),
+                "tcl8.6".to_owned(),
+            )
+            .await;
+
+        assert!(
+            analysis
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::W220),
+            "the fresh pkgIndex seed must honour its loader-provided $dir: {:?}",
+            analysis.diagnostics,
+        );
+    }
+
+    /// Exact-head review of #1854: a closed-file rehoming snapshot must release
+    /// the global document map before waiting for Salsa and must reject the
+    /// captured disk source if the editor opens the URI in that interval.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn rehoming_snapshot_releases_documents_and_rechecks_open_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///rehoming-snapshot-1854.tcl").unwrap();
+        backend
+            .db_set_source(&uri, "proc disk {} {}\n", "tcl8.6".to_owned())
+            .await;
+
+        let database = backend.db.lock().await;
+        let snapshot = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.rehoming_document_snapshot(&uri).await }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.db.contention().contains("1 queued waiter") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the rehoming snapshot must reach the held Salsa database");
+        let mut documents = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("rehoming-review"),
+        )
+        .await
+        .expect("a rehoming Salsa wait retained the global document map");
+        documents.insert(
+            uri.clone(),
+            DocumentState::with_version("proc live {} {}\n".to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        drop(documents);
+        drop(database);
+
+        assert!(matches!(
+            snapshot.await.expect("snapshot task panicked"),
+            RehomingDocumentSnapshot::Pending
+        ));
+    }
+
+    /// A close tail superseded by a reopen cannot clear the old lifecycle's
+    /// token caches itself. The reopen clears them before advertising Salsa
+    /// readiness, so its first coarse/enriched comparison starts clean.
+    #[tokio::test]
+    async fn reopen_clears_prior_semantic_token_lifecycle_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///reopen-token-cache-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), ("old".to_owned(), vec![1, 2, 3]));
+        backend
+            .semantic_tokens_refresh_asked
+            .lock()
+            .await
+            .insert(uri.clone(), 42);
+        let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+        let analyser_inputs_epoch = backend.diag_inputs_epoch();
+
+        assert!(
+            backend
+                .commit_open_document_with_seed(&uri, text, "tcl8.6", 2, async move {
+                    FreshAnalysisSeed {
+                        analysis,
+                        analyser_inputs_epoch,
+                        class_factory_generation: 0,
+                    }
+                })
+                .await
+        );
+        assert!(!backend.last_semantic_tokens.lock().await.contains_key(&uri));
+        assert!(
+            !backend
+                .semantic_tokens_refresh_asked
+                .lock()
+                .await
+                .contains_key(&uri)
+        );
+    }
+
+    /// Exact-head review of #1854: an index seed is independent of Salsa's
+    /// snapshot lifetime, not independent of the source's cross-file inputs.
+    /// Carry the current factory oracle so a class made by another file's
+    /// metaclass exists in the first published live index.
+    #[tokio::test]
+    async fn fresh_open_index_seed_carries_workspace_class_factories_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///fresh-metaclass-consumer-1854.tcl").unwrap();
+        let consumer = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let oracle = {
+            let mut analyser = Analyser::new();
+            Arc::new(
+                analyser
+                    .analyse(
+                        concat!(
+                            "oo::class create ::tk::MegawidgetClass {}\n",
+                            "oo::class create ::tk::Megawidget {\n",
+                            "    superclass oo::class\n",
+                            "    self method create {name superclasses body} {\n",
+                            "        next $name [list superclass ::tk::MegawidgetClass",
+                            " {*}$superclasses]\\;$body\n",
+                            "    }\n",
+                            "}\n",
+                        ),
+                        "tcl9.0",
+                    )
+                    .class_factories(),
+            )
+        };
+        assert!(
+            oracle.contains_key("::tk::Megawidget"),
+            "the test oracle must contain the cross-file metaclass",
+        );
+        backend
+            .db_set_source(&uri, consumer, "tcl9.0".to_owned())
+            .await;
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = *files.get(&uri).expect("the consumer is a Salsa input");
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(Arc::clone(&oracle)));
+        }
+
+        let analysis = backend
+            .fresh_analysis_for(&uri, Arc::from(consumer), "tcl9.0".to_owned())
+            .await;
+        let class = analysis
+            .all_classes
+            .get("::IconList")
+            .unwrap_or_else(|| panic!("the factory-made class must be indexed: {analysis:?}"));
+        assert!(class.methods.contains_key("GetSpecs"), "{class:?}");
+    }
+
+    /// Exact-head review of #1854: while a cold open is pending, Salsa still
+    /// contains the scanned disk source. The workspace-symbol fallback must
+    /// analyse the authoritative live bytes instead of accepting that stale
+    /// cache hit.
+    #[tokio::test]
+    async fn pending_open_workspace_symbols_use_live_text_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///pending-symbols-1854.tcl").unwrap();
+        let disk_text = "proc obsolete_disk_symbol {} {}\n";
+        let live_text = "proc current_live_symbol {} {}\n";
+        backend
+            .db_set_source(&uri, disk_text, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(live_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+        backend
+            .workspace_index
+            .write()
+            .await
+            .remove_document(uri.as_str());
+
+        let current = backend
+            .open_but_unindexed_symbols("current_live", 10)
+            .await
+            .fallback_hits;
+        assert_eq!(current.len(), 1, "the live-only proc must be searchable");
+        assert_eq!(current[0].name, "current_live_symbol");
+        assert!(
+            backend
+                .open_but_unindexed_symbols("obsolete_disk", 10)
+                .await
+                .fallback_hits
+                .is_empty(),
+            "the pre-open disk proc must not survive through a Salsa cache hit",
+        );
+    }
+
+    /// Exact-head review of #1854: a brand-new or untitled pending buffer has
+    /// no scanned disk input and may not have created its first Salsa handle.
+    /// Its authoritative live declarations must still reach workspace/symbol.
+    #[tokio::test]
+    async fn pending_new_workspace_symbols_need_no_salsa_handle_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("untitled:pending-symbols-1854").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(
+                "proc brand_new_live_symbol {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        assert!(
+            !backend.db_files.lock().await.contains_key(&uri),
+            "precondition: no Salsa handle exists",
+        );
+
+        let found = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.symbol(WorkspaceSymbolParams {
+                query: "brand_new".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            }),
+        )
+        .await
+        .expect("workspace/symbol must not wait for Indexed publication")
+        .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected the pending live symbol, got {found:?}");
+        };
+        assert_eq!(found.len(), 1, "the pending live proc must be searchable");
+        assert_eq!(found[0].name, "brand_new_live_symbol");
+        assert_eq!(found[0].location.uri, uri);
+        assert_eq!(found[0].location.range.start.character, 5);
+    }
+
+    /// Exact-head review of #1854: a pending no-handle buffer still belongs to
+    /// the project and must consume its published class-factory oracle. Looking
+    /// up the oracle through the missing consumer handle would silently omit
+    /// the class manufactured by this cross-file metaclass.
+    #[tokio::test]
+    async fn pending_new_workspace_symbols_use_project_factory_oracle_1854() {
+        use salsa::Setter as _;
+
+        let backend = test_backend();
+        let factory_uri = Uri::from_str("file:///published-factory-1854.tcl").unwrap();
+        let consumer_uri = Uri::from_str("untitled:pending-factory-consumer-1854").unwrap();
+        let consumer = concat!(
+            "::tk::Megawidget create IconList FocusableWidget {\n",
+            "    method GetSpecs {} { return iconlist }\n",
+            "}\n",
+        );
+        let oracle = {
+            let mut analyser = Analyser::new();
+            Arc::new(
+                analyser
+                    .analyse(
+                        concat!(
+                            "oo::class create ::tk::MegawidgetClass {}\n",
+                            "oo::class create ::tk::Megawidget {\n",
+                            "    superclass oo::class\n",
+                            "    self method create {name superclasses body} {\n",
+                            "        next $name [list superclass ::tk::MegawidgetClass",
+                            " {*}$superclasses]\\;$body\n",
+                            "    }\n",
+                            "}\n",
+                        ),
+                        "tcl9.0",
+                    )
+                    .class_factories(),
+            )
+        };
+        backend
+            .db_set_source(
+                &factory_uri,
+                "# published oracle carrier\n",
+                "tcl9.0".to_owned(),
+            )
+            .await;
+        {
+            let mut db = backend.db.lock().await;
+            let files = backend.db_files.lock().await;
+            let file = *files
+                .get(&factory_uri)
+                .expect("the existing project file is a Salsa input");
+            file.set_workspace_class_factories(&mut *db)
+                .to(Some(oracle));
+        }
+        backend.documents.lock("test").await.insert(
+            consumer_uri.clone(),
+            DocumentState::with_version(consumer.to_owned(), "tcl9.0".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+        assert!(
+            !backend.db_files.lock().await.contains_key(&consumer_uri),
+            "precondition: the pending consumer has no Salsa handle",
+        );
+
+        let found = crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.symbol(WorkspaceSymbolParams {
+                query: "IconList".to_owned(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            }),
+        )
+        .await
+        .expect("factory symbol mapping must not wait for Indexed publication")
+        .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected the manufactured pending class, got {found:?}");
+        };
+        assert_eq!(found.len(), 1, "the manufactured class must be searchable");
+        assert_eq!(found[0].name, "IconList");
+        assert_eq!(found[0].kind, SymbolKind::CLASS);
+        assert_eq!(found[0].location.uri, consumer_uri);
+    }
+
+    /// Exact-head review of #1854: fallback classification and ordinary index
+    /// hits must describe one snapshot. If the pending URI publishes while its
+    /// fresh analysis awaits configuration, a second index read would append
+    /// the new hit and map both revisions through the old captured source.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_symbols_do_not_mix_fallback_and_later_index_hits_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("untitled:workspace-symbol-snapshot-1854").unwrap();
+        let old_text = "proc race_symbol {} {}\n";
+        let new_text = "set pad 1\nproc race_symbol {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(old_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned())
+                .with_publication_pending(),
+        );
+
+        // Stall fresh analysis just after the atomic documents/index snapshot.
+        let config = backend.db_config.lock().await;
+        let acquisitions = backend.documents.contention().acquisitions;
+        let request = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .symbol(WorkspaceSymbolParams {
+                        query: "race_symbol".to_owned(),
+                        work_done_progress_params: WorkDoneProgressParams::default(),
+                        partial_result_params: PartialResultParams::default(),
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.documents.contention().acquisitions > acquisitions {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("workspace/symbol must capture its document/index snapshot");
+
+        // Publish a newer revision and index entry while the old fresh analysis
+        // is still blocked. The in-flight request must retain only its old
+        // fallback hit, not append this later index hit for the same URI.
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(new_text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned()),
+        );
+        let new_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(new_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &new_analysis);
+        drop(config);
+
+        let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("workspace/symbol must finish")
+            .expect("workspace/symbol task must not panic")
+            .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected the captured fallback symbol, got {found:?}");
+        };
+        assert_eq!(
+            found.len(),
+            1,
+            "later index publication must not duplicate the hit"
+        );
+        assert_eq!(found[0].name, "race_symbol");
+        assert_eq!(found[0].location.range.start.line, 0);
+        assert_eq!(found[0].location.range.start.character, 5);
+    }
+
+    /// Exact-head review of #1854: an indexed hit and its open source must be
+    /// captured together. An unrelated pending document can make fallback
+    /// analysis await while the indexed document publishes a newer revision;
+    /// the old byte span must still be mapped through the old source.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_symbols_map_indexed_hits_through_captured_sources_1854() {
+        let backend = Arc::new(test_backend());
+        let pending_uri = Uri::from_str("untitled:pending-snapshot-1854").unwrap();
+        let indexed_uri = Uri::from_str("file:///indexed-snapshot-1854.tcl").unwrap();
+        let old_indexed_text = "set pad 1\nproc indexed_snapshot_symbol {} {}\n";
+        let new_indexed_text = "proc indexed_snapshot_symbol {} {}\n";
+        backend.documents.lock("test").await.insert(
+            pending_uri,
+            DocumentState::with_version(
+                "proc pending_snapshot_symbol {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        backend.documents.lock("test").await.insert(
+            indexed_uri.clone(),
+            DocumentState::with_version(old_indexed_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        let old_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(old_indexed_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(indexed_uri.as_str(), &old_analysis);
+
+        // Hold configuration so the pending document's fresh analysis pauses
+        // after the documents/index/source snapshot has been taken.
+        let config = backend.db_config.lock().await;
+        let acquisitions = backend.documents.contention().acquisitions;
+        let request = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .symbol(WorkspaceSymbolParams {
+                        query: "snapshot_symbol".to_owned(),
+                        work_done_progress_params: WorkDoneProgressParams::default(),
+                        partial_result_params: PartialResultParams::default(),
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.documents.contention().acquisitions > acquisitions {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("workspace/symbol must capture its document/index snapshot");
+
+        // Publish a shorter revision for the already-indexed document while
+        // the unrelated fallback analysis is blocked. The request still owns
+        // the old index hit, whose name starts on line one in its old source.
+        backend.documents.lock("test").await.insert(
+            indexed_uri.clone(),
+            DocumentState::with_version(new_indexed_text.to_owned(), "tcl8.6".to_owned(), 2)
+                .with_language_id("tcl".to_owned()),
+        );
+        let new_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(new_indexed_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(indexed_uri.as_str(), &new_analysis);
+        drop(config);
+
+        let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("workspace/symbol must finish")
+            .expect("workspace/symbol task must not panic")
+            .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected captured workspace symbols, got {found:?}");
+        };
+        let indexed = found
+            .iter()
+            .find(|symbol| symbol.location.uri == indexed_uri)
+            .expect("the indexed document must contribute its captured hit");
+        assert_eq!(indexed.name, "indexed_snapshot_symbol");
+        assert_eq!(indexed.location.range.start.line, 1);
+        assert_eq!(indexed.location.range.start.character, 5);
+    }
+
+    #[derive(Debug)]
+    struct ClosedSymbolRaceStore {
+        contents: std::sync::Mutex<Vec<u8>>,
+        reads: std::sync::atomic::AtomicUsize,
+        first_read_entered: std::sync::atomic::AtomicBool,
+        first_read_release: (std::sync::Mutex<bool>, std::sync::Condvar),
+    }
+
+    impl ClosedSymbolRaceStore {
+        fn new(contents: &str) -> Self {
+            Self {
+                contents: std::sync::Mutex::new(contents.as_bytes().to_vec()),
+                reads: std::sync::atomic::AtomicUsize::new(0),
+                first_read_entered: std::sync::atomic::AtomicBool::new(false),
+                first_read_release: (std::sync::Mutex::new(false), std::sync::Condvar::new()),
+            }
+        }
+
+        fn replace(&self, contents: &str) {
+            *self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = contents.as_bytes().to_vec();
+        }
+
+        fn release_first_read(&self) {
+            let (released, wake) = &self.first_read_release;
+            *released
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+            wake.notify_all();
+        }
+    }
+
+    impl vfs::SourceStore for ClosedSymbolRaceStore {
+        fn read(&self, _path: &Path) -> std::io::Result<Vec<u8>> {
+            use std::sync::atomic::Ordering;
+
+            if self.reads.fetch_add(1, Ordering::SeqCst) == 0 {
+                self.first_read_entered.store(true, Ordering::SeqCst);
+                let (released, wake) = &self.first_read_release;
+                let mut released = released
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                while !*released {
+                    released = wake
+                        .wait(released)
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                }
+            }
+            Ok(self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone())
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            String::from_utf8(self.read(path)?)
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<vfs::DirEntry>> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "test store has no directories",
+            ))
+        }
+
+        fn metadata(&self, _path: &Path) -> std::io::Result<vfs::Metadata> {
+            let len = self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len();
+            Ok(vfs::Metadata {
+                is_dir: false,
+                len: u64::try_from(len).unwrap_or(u64::MAX),
+            })
+        }
+
+        fn write(&self, _path: &Path, contents: &[u8]) -> std::io::Result<()> {
+            *self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = contents.to_vec();
+            Ok(())
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Exact-head review of #1854: fallback matches take response priority, so
+    /// a full fallback result must not read closed indexed sources whose hits
+    /// cannot be returned.
+    #[tokio::test]
+    async fn workspace_symbols_skip_closed_reads_after_fallback_limit_1854() {
+        use std::sync::atomic::Ordering;
+
+        let closed_text = "proc capacity_symbol_closed {} {}\n";
+        let store = Arc::new(ClosedSymbolRaceStore::new(closed_text));
+        // Avoid wedging the regression if the unwanted read returns: the
+        // assertion below, rather than a timeout, diagnoses that behaviour.
+        store.release_first_read();
+        let mut backend = test_backend();
+        backend.store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
+        let pending_uri = Uri::from_str("untitled:capacity-limit-1854").unwrap();
+        let closed_uri = Uri::from_str("file:///capacity-limit-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            pending_uri,
+            DocumentState::with_version(
+                "proc capacity_symbol_pending {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        let closed_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(closed_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(closed_uri.as_str(), &closed_analysis);
+
+        let candidates = backend
+            .open_but_unindexed_symbols("capacity_symbol", 1)
+            .await;
+        assert_eq!(candidates.fallback_hits.len(), 1);
+        assert!(candidates.indexed_hits.is_empty());
+        assert_eq!(
+            store.reads.load(Ordering::SeqCst),
+            0,
+            "an indexed hit beyond the remaining result capacity must not load its source",
+        );
+    }
+
+    /// Exact-head review of #1854: a closed source read must be revalidated
+    /// against the per-document index revision. Otherwise a watcher can
+    /// replace both the file and its index entry after the old hit was
+    /// captured, and the old byte span is mapped through the new bytes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_symbols_revalidate_closed_source_snapshot_1854() {
+        use std::sync::atomic::Ordering;
+
+        let old_text = "set pad 1\nproc closed_snapshot_symbol {} {}\n";
+        let new_text = "proc closed_snapshot_symbol {} {}\n";
+        let store = Arc::new(ClosedSymbolRaceStore::new(old_text));
+        let mut backend = test_backend();
+        backend.store = Arc::clone(&store) as Arc<dyn vfs::SourceStore>;
+        let backend = Arc::new(backend);
+        let pending_uri = Uri::from_str("untitled:closed-source-race-1854").unwrap();
+        let closed_uri = Uri::from_str("file:///closed-source-race-1854.tcl").unwrap();
+        backend.documents.lock("test").await.insert(
+            pending_uri,
+            DocumentState::with_version(
+                "proc pending_snapshot_symbol {} {}\n".to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+            )
+            .with_language_id("tcl".to_owned())
+            .with_publication_pending(),
+        );
+        let old_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(old_text, "tcl8.6").clone()
+        };
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(closed_uri.as_str(), &old_analysis);
+
+        let request = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .symbol(WorkspaceSymbolParams {
+                        query: "snapshot_symbol".to_owned(),
+                        work_done_progress_params: WorkDoneProgressParams::default(),
+                        partial_result_params: PartialResultParams::default(),
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !store.first_read_entered.load(Ordering::SeqCst) {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the closed source read must begin");
+
+        // The first read has not copied its bytes yet. Replace both source and
+        // index through the slot-reuse ABA sequence from review: remove this
+        // URI, give its slot to another URI, then re-add it in a fresh slot.
+        // Let the read return the new bytes to the request that still owns the
+        // old hit. Revision revalidation must retry that snapshot.
+        store.replace(new_text);
+        let new_analysis = {
+            let mut analyser = Analyser::new();
+            analyser.analyse(new_text, "tcl8.6").clone()
+        };
+        let slot_consumer = {
+            let mut analyser = Analyser::new();
+            analyser
+                .analyse("proc unrelated_slot_consumer {} {}\n", "tcl8.6")
+                .clone()
+        };
+        {
+            let mut index = backend.workspace_index.write().await;
+            index.remove_document(closed_uri.as_str());
+            index.add_document("file:///slot-consumer-1854.tcl", &slot_consumer);
+            index.add_document(closed_uri.as_str(), &new_analysis);
+        }
+        store.release_first_read();
+
+        let found = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("workspace/symbol must finish")
+            .expect("workspace/symbol task must not panic")
+            .expect("workspace/symbol request must succeed");
+        let Some(WorkspaceSymbolResponse::Flat(found)) = found else {
+            panic!("expected captured workspace symbols, got {found:?}");
+        };
+        let closed = found
+            .iter()
+            .find(|symbol| symbol.location.uri == closed_uri)
+            .expect("the stable closed-file retry must contribute its hit");
+        assert_eq!(closed.name, "closed_snapshot_symbol");
+        assert_eq!(closed.location.range.start.line, 0);
+        assert_eq!(closed.location.range.start.character, 5);
+        assert!(
+            store.reads.load(Ordering::SeqCst) >= 2,
+            "a changed index revision must force a second source read",
+        );
+    }
+
+    /// Exact-head review of #1854: a session-default change that snapshots a
+    /// document just before an edit must retry against that edit's current
+    /// text/revision instead of silently abandoning the configuration change.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn default_dialect_change_retries_after_concurrent_edit_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///default-dialect-edit-race-1854.tcl").unwrap();
+        let initial = "set x 1\n";
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("plaintext".to_owned()),
+        );
+
+        let mut default = backend.default_dialect.lock().await;
+        *default = "tcl9.0".to_owned();
+        let resolving = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move { backend.reresolve_open_document_dialects().await }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(DocumentState::dialect_resolution_pending)
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("configuration re-resolution must mark the document dirty");
+
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "set x 2\n".to_owned(),
+                }],
+            })
+            .await;
+        drop(default);
+        crate::rt::timeout(std::time::Duration::from_secs(5), resolving)
+            .await
+            .expect("dialect resolution must retry after the edit")
+            .expect("dialect resolver panicked");
+
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the document remains open");
+        assert_eq!(current.version, Some(2));
+        assert_eq!(current.text.as_ref(), "set x 2\n");
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(!current.dialect_resolution_pending());
+    }
+
+    /// Exact-head review of #1854: if a hint-changing edit loses deferred
+    /// publication to a later unrelated edit, the later revision must inherit
+    /// and resolve the dirty hint rather than leaving the combined buffer on
+    /// the old dialect.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn superseding_edit_carries_dialect_hint_dirtiness_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///hint-edit-race-1854.tcl").unwrap();
+        let initial = "set x 1\n";
+        backend
+            .db_set_source(&uri, initial, "tcl8.6".to_owned())
+            .await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(initial.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        let publication = backend.live_publication_gate.lock().await;
+        let hinted = format!("# tcl-dialect: tcl9.0\n{}set x 1\n", "\n".repeat(24));
+        let first = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let hinted = hinted.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: hinted,
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let ready = backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.version == Some(2) && doc.dialect_resolution_pending());
+                if ready {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the hint edit must become visible and dirty before publication");
+
+        let second = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_change(DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier { uri, version: 3 },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: Some(Range::new(Position::new(25, 7), Position::new(25, 7))),
+                            range_length: Some(0),
+                            text: "\nset y 2".to_owned(),
+                        }],
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .documents
+                    .lock("test")
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.version == Some(3))
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the unrelated edit must supersede the stalled hint edit");
+        drop(publication);
+        crate::rt::timeout(std::time::Duration::from_secs(5), first)
+            .await
+            .expect("the superseded hint handler must finish")
+            .expect("the hint handler panicked");
+        crate::rt::timeout(std::time::Duration::from_secs(5), second)
+            .await
+            .expect("the authoritative edit must finish")
+            .expect("the authoritative edit panicked");
+
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the document remains open");
+        assert_eq!(current.version, Some(3));
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(current.text.contains("set y 2"));
+        assert!(!current.dialect_resolution_pending());
+    }
+
+    /// Exact-head review of #1854: a diagnostics worker that captured the
+    /// current text under the old dialect must lose publication authority when
+    /// a configuration-only dialect change starts a new analysis generation.
+    #[tokio::test]
+    async fn dialect_change_invalidates_in_flight_diagnostics_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dialect-diag-generation-1854.tcl").unwrap();
+        let text = "proc helper {} {}\n";
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        let old_revision = backend
+            .documents
+            .lock("test")
+            .await
+            .get(&uri)
+            .expect("the document is open")
+            .revision;
+        let old_delivery = DeliveryCtx {
+            client: &backend.client,
+            diagnostic_publisher: &backend.diagnostic_publisher,
+            documents: &backend.documents,
+            store: &backend.store,
+            diag_slots: &backend.diag_slots,
+            pull_diag_cache: &backend.pull_diag_cache,
+            closed_diag_gen: &backend.closed_diag_gen,
+            uri: &uri,
+            currency: DiagCurrency::Open(old_revision),
+            version: Some(1),
+            client_supports_pull: false,
+        };
+
+        *backend.default_dialect.lock().await = "tcl9.0".to_owned();
+        backend.reresolve_open_document_dialects().await;
+
+        let docs = backend.documents.lock("test").await;
+        let current = docs.get(&uri).expect("the document remains open");
+        assert_eq!(current.dialect, "tcl9.0");
+        assert_eq!(current.version, Some(1), "the editor version is unchanged");
+        assert!(
+            current.revision > old_revision,
+            "a dialect-only change must advance analysis currency",
+        );
+        assert!(
+            !old_delivery.is_current(&docs).await,
+            "old-dialect diagnostics must not publish after the change",
+        );
+    }
+
+    /// Exact-head review of #1854: changing dialect retires facts analysed
+    /// under the old grammar. The document may become Salsa-ready immediately,
+    /// but it is not Indexed until replacement facts for that same live
+    /// revision have been published.
+    #[tokio::test]
+    async fn dialect_change_rebuilds_index_before_indexed_readiness_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dialect-reindex-1854.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl9.0".to_owned(), 2)
+                .with_publication_pending(),
+        );
+
+        assert!(
+            backend
+                .commit_live_dialect("test_dialect_reindex", &uri, text, "tcl9.0", 0)
+                .await,
+            "the current dialect revision must publish",
+        );
+        assert_eq!(
+            backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("the document remains live")
+                .publication,
+            DocumentPublication::Indexed,
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::current"),
+            "Indexed readiness must include replacement facts under the new dialect",
+        );
+    }
+
+    /// Exact-head review of #1854: a dialect rebuild first publishes a
+    /// standalone index view. Its old source-site seed marker must disappear
+    /// atomically with that replacement, or reconciliation mistakes the old
+    /// qualified view for the one still present and never reapplies it.
+    #[tokio::test]
+    async fn dialect_change_invalidates_rehoming_seed_before_reconciliation_1854() {
+        let backend = test_backend();
+        let caller = Uri::from_str("file:///dialect-rehome/a.tcl").unwrap();
+        let sourced = Uri::from_str("file:///dialect-rehome/b.tcl").unwrap();
+        let sourced_text = "proc helper {} {}\n";
+        register(&backend, &sourced, sourced_text).await;
+        register(&backend, &caller, "namespace eval ::ns { source b.tcl }\n").await;
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .get(sourced.as_str())
+                .cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "precondition: the sourced file carries its applied namespace seed",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::ns::helper"),
+            "precondition: the qualified source-site view is published",
+        );
+
+        {
+            let mut docs = backend.documents.lock("test").await;
+            let doc = docs.get_mut(&sourced).expect("the sourced buffer is open");
+            doc.dialect = "tcl9.0".to_owned();
+            doc.publication = DocumentPublication::Pending;
+        }
+        assert!(
+            backend
+                .commit_live_dialect("test_dialect_rehome", &sourced, sourced_text, "tcl9.0", 0,)
+                .await,
+            "the current dialect revision must publish",
+        );
+        assert!(
+            !backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .contains_key(sourced.as_str()),
+            "standalone replacement and seed invalidation are one transaction",
+        );
+
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .get(sourced.as_str())
+                .cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "the next reconciliation must reapply the namespace seed",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::ns::helper"),
+            "qualified definitions survive the dialect change",
+        );
+    }
+
+    /// Fresh review of #1854: a cold `didOpen` index seed must not own either
+    /// the live-publication gate or a Salsa snapshot. Otherwise a newer edit
+    /// cannot publish until obsolete whole-file analysis finishes. Hold the
+    /// exact seed future pending, deliver a real `didChange`, and prove the
+    /// newer revision supersedes it immediately.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn did_change_supersedes_a_pending_did_open_index_seed_1854() {
+        use tower_lsp_server::ls_types::{
+            TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier,
+        };
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///open-seed-superseded-1854.tcl").unwrap();
+        let opened_text = "proc obsolete {} {}\n";
+        let edited_text = "proc current {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(opened_text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl8.6".to_owned())
+                .with_publication_pending(),
+        );
+
+        let seed_started = Arc::new(tokio::sync::Notify::new());
+        let seed_release = Arc::new(tokio::sync::Notify::new());
+        let started = seed_started.notified();
+        tokio::pin!(started);
+        started.as_mut().enable();
+        let obsolete_analysis = {
+            let mut analyser = Analyser::new();
+            Arc::new(analyser.analyse(opened_text, "tcl8.6").clone())
+        };
+        let analyser_inputs_epoch = backend.diag_inputs_epoch();
+        let opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            let seed_started = Arc::clone(&seed_started);
+            let seed_release = Arc::clone(&seed_release);
+            async move {
+                backend
+                    .commit_open_document_with_seed(&uri, opened_text, "tcl8.6", 1, async move {
+                        seed_started.notify_one();
+                        seed_release.notified().await;
+                        FreshAnalysisSeed {
+                            analysis: obsolete_analysis,
+                            analyser_inputs_epoch,
+                            class_factory_generation: 0,
+                        }
+                    })
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), &mut started)
+            .await
+            .expect("the open source tier must publish before its index seed starts");
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: uri.clone(),
+                    version: 2,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: edited_text.to_owned(),
+                }],
+            }),
+        )
+        .await
+        .expect("the newer edit must not wait for the obsolete open index seed");
+
+        let current = backend
+            .documents
+            .lock("test")
+            .await
+            .get(&uri)
+            .cloned()
+            .expect("the edited document remains open");
+        assert_eq!(current.text.as_ref(), edited_text);
+        assert_eq!(current.version, Some(2));
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(edited_text),
+            "Salsa must contain the superseding edit while the old seed is pending",
+        );
+        drop(files);
+        drop(db);
+        {
+            let index = backend.workspace_index.read().await;
+            assert!(
+                index.workspace_command_exists("::current"),
+                "indexed readiness must include the superseding revision's facts",
+            );
+            assert!(
+                !index.workspace_command_exists("::obsolete"),
+                "the rejected open seed must not leave obsolete facts",
+            );
+        }
+
+        seed_release.notify_waiters();
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), opening)
+                .await
+                .expect("the obsolete seed task must finish")
+                .expect("the obsolete seed task must not panic"),
+            "the old seed must lose its final revision check",
+        );
+    }
+
     /// A diagnostics run publishes a standalone analysis before the next M9
     /// reconciliation. It must not do that while a navigation request is
     /// consuming the freshly re-homed index snapshot: otherwise the query can
@@ -41624,6 +48870,45 @@ proc p {} {
         );
         assert_eq!(FullSettleOutcome::Cancelled.as_str(), "cancelled");
         assert_eq!(FullSettleOutcome::Coalesced.as_str(), "coalesced");
+    }
+
+    /// Range convergence must expose the same distinction as the full-token
+    /// path. In particular, `refresh-suppressed` is not `compared-equal`: the
+    /// bytes still differ even though the bounded repeat ask correctly did not
+    /// schedule another workspace refresh.
+    #[test]
+    fn range_settle_outcomes_keep_equal_and_suppressed_states_distinct() {
+        assert_eq!(
+            RangeSettleOutcome::ServedEnriched.as_str(),
+            "served-enriched"
+        );
+        assert_eq!(RangeSettleOutcome::ComparedEqual.as_str(), "compared-equal");
+        assert_eq!(
+            RangeSettleOutcome::RefreshRequested.as_str(),
+            "refresh-requested"
+        );
+        assert_eq!(
+            RangeSettleOutcome::RefreshSuppressed.as_str(),
+            "refresh-suppressed"
+        );
+        assert_eq!(RangeSettleOutcome::Cancelled.as_str(), "cancelled");
+        assert_eq!(RangeSettleOutcome::NoAnalysis.as_str(), "no-analysis");
+        assert_eq!(RangeSettleOutcome::Coalesced.as_str(), "coalesced");
+    }
+
+    /// Exact-head review of #1854: a cancelled pair of Salsa enrichment reads
+    /// is not a terminal coarse result. It schedules the same bounded,
+    /// workspace-wide re-pull used by detached convergence.
+    #[tokio::test]
+    async fn cancelled_range_enrichment_schedules_retry_1854() {
+        let backend = test_backend();
+        assert!(backend.retry_cancelled_range(RangeSettleOutcome::Cancelled));
+        assert!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            "cancelled range enrichment must schedule a client re-pull",
+        );
     }
 
     /// A fire already scheduled must absorb a second request rather than

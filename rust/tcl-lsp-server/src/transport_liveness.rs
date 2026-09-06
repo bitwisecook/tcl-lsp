@@ -35,6 +35,88 @@ use tokio::sync::Semaphore;
 use tower::Service;
 use tower_lsp_server::jsonrpc::Request;
 
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+tokio::task_local! {
+    static REQUEST_ADMISSION: std::cell::RefCell<Option<RequestAdmission>>;
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+struct RequestAdmission {
+    permits: Arc<Semaphore>,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+}
+
+/// Await a dependency that does not consume request work capacity.
+///
+/// A same-document publication wait can otherwise occupy every ordinary
+/// request permit and stop an unrelated request from starting. The caller
+/// gives its permit back while parked and reacquires one before resuming its
+/// handler. Calls outside the production admission scope behave like a plain
+/// await, which keeps direct backend tests and notification handlers simple.
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+pub(crate) async fn await_outside_request_admission<F: Future>(future: F) -> F::Output {
+    let admission = REQUEST_ADMISSION
+        .try_with(|state| {
+            let mut state = state.borrow_mut();
+            state.as_mut().and_then(|state| {
+                let permit = state.permit.take()?;
+                let permits = Arc::clone(&state.permits);
+                drop(permit);
+                Some(permits)
+            })
+        })
+        .ok()
+        .flatten();
+    let output = future.await;
+    if let Some(permits) = admission {
+        let permit = permits
+            .acquire_owned()
+            .await
+            .expect("handler semaphore is owned by the queued futures");
+        REQUEST_ADMISSION.with(|state| {
+            state
+                .borrow_mut()
+                .as_mut()
+                .expect("request admission remains scoped to the handler")
+                .permit = Some(permit);
+        });
+    }
+    output
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+pub(crate) async fn await_outside_request_admission<F: Future>(future: F) -> F::Output {
+    future.await
+}
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+async fn run_with_request_admission<F: Future>(
+    permits: Arc<Semaphore>,
+    permit: tokio::sync::OwnedSemaphorePermit,
+    future: F,
+) -> F::Output {
+    REQUEST_ADMISSION
+        .scope(
+            std::cell::RefCell::new(Some(RequestAdmission {
+                permits,
+                permit: Some(permit),
+            })),
+            future,
+        )
+        .await
+}
+
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+async fn run_with_request_admission<F: Future>(
+    _permits: Arc<Semaphore>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    future: F,
+) -> F::Output {
+    // The browser driver owns its request queue and does not use this native
+    // transport wrapper. Keep the shared server library runtime-free here.
+    future.await
+}
+
 /// Makes `buffer_unordered` absorb every queued future rather than waiting for
 /// a handler to complete before it reads another item from the input queue.
 ///
@@ -123,15 +205,17 @@ where
                 None
             } else {
                 Some(
-                    permits
+                    Arc::clone(&permits)
                         .acquire_owned()
                         .await
                         .expect("handler semaphore is owned by the queued futures"),
                 )
             };
-            let result = future.await;
-            drop(permit);
-            result
+            if let Some(permit) = permit {
+                run_with_request_admission(permits, permit, future).await
+            } else {
+                future.await
+            }
         })
     }
 }
@@ -169,6 +253,36 @@ mod tests {
         reads_observed_change: Arc<AtomicBool>,
     }
 
+    #[derive(Clone)]
+    struct PublicationWaitService {
+        calls: Arc<AtomicUsize>,
+        first_started: Arc<tokio::sync::Notify>,
+        release_first: Arc<tokio::sync::Notify>,
+    }
+
+    impl Service<Request> for PublicationWaitService {
+        type Response = ();
+        type Error = Infallible;
+        type Future = Pin<Box<dyn Future<Output = Result<(), Infallible>> + Send>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _request: Request) -> Self::Future {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            let first_started = Arc::clone(&self.first_started);
+            let release_first = Arc::clone(&self.release_first);
+            Box::pin(async move {
+                if call == 0 {
+                    first_started.notify_one();
+                    await_outside_request_admission(release_first.notified()).await;
+                }
+                Ok(())
+            })
+        }
+    }
+
     impl LanguageServer for PendingHoverServer {
         fn initialize(
             &self,
@@ -204,6 +318,41 @@ mod tests {
 
     fn notification(method: &'static str) -> Request {
         Request::build(method).finish()
+    }
+
+    /// Exact-head review of #1854: a request waiting for the matching live
+    /// publication must return its admission permit, or four providers for one
+    /// cold document can stop an unrelated request from starting.
+    #[tokio::test]
+    async fn publication_wait_does_not_occupy_request_admission_1854() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let first_started = Arc::new(tokio::sync::Notify::new());
+        let release_first = Arc::new(tokio::sync::Notify::new());
+        let started = first_started.notified();
+        tokio::pin!(started);
+        started.as_mut().enable();
+        let mut service = DeferredConcurrency::new(
+            PublicationWaitService {
+                calls: Arc::clone(&calls),
+                first_started: Arc::clone(&first_started),
+                release_first: Arc::clone(&release_first),
+            },
+            1,
+        );
+
+        let waiting = tokio::spawn(service.call(request("waiting")));
+        started.await;
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            service.call(request("unrelated")),
+        )
+        .await
+        .expect("an unrelated request was stranded behind a publication waiter")
+        .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+        release_first.notify_one();
+        waiting.await.expect("waiting request panicked").unwrap();
     }
 
     impl Service<Request> for InitiallyPendingService {

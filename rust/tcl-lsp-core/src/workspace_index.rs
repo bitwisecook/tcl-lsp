@@ -1086,6 +1086,10 @@ fn resolved_user_definition(
 /// order the previous flat vectors held them in.
 #[derive(Debug, Clone, Default)]
 struct DocumentRecords {
+    /// Index-wide mutation token for the indexed revision. The server uses it
+    /// to prove that a closed file did not reindex while its source was being
+    /// loaded for byte-span to LSP-range conversion.
+    revision: u64,
     /// The dialect this document was analysed under — carried straight from
     /// [`AnalysisResult::dialect`], so the registry consulted for a decision
     /// about this document is the one it was actually analysed with.
@@ -1210,6 +1214,7 @@ impl DocumentRecords {
     /// removals.
     fn clear(&mut self) {
         let Self {
+            revision: _,
             dialect,
             procs,
             classes,
@@ -1783,6 +1788,10 @@ pub struct WorkspaceIndex {
     slots: std::collections::HashMap<String, usize>,
     free_slots: Vec<usize>,
     generation: u64,
+    /// Last index-wide document revision allocated. Tokens must not live on a
+    /// recyclable slot: remove A, reuse its slot for B, then re-add A in a new
+    /// slot would otherwise let A's old and new records share a token.
+    document_revision_clock: u64,
     /// Every command name the workspace defines, in each spelling a call site
     /// may write — see [`WorkspaceIndex::command_names`].
     command_names: Derived<HashSet<String>>,
@@ -2745,12 +2754,14 @@ impl WorkspaceIndex {
     /// several runtime identities of one physical file, not a replacement of
     /// each other.
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        let revision = self.allocate_document_revision();
         let slot = self.slot_for(uri);
         // `add_document` intentionally accumulates multiple source-site views
         // for one URI.  That is a resolution-input change unless this is an
         // empty analysis, so favour the conservative full invalidation here;
         // editor replacements use [`Self::replace_document`] below.
         self.docs[slot].index_document(uri, analysis);
+        self.docs[slot].revision = revision;
         self.invalidate(true, slot);
     }
 
@@ -2761,10 +2772,12 @@ impl WorkspaceIndex {
     /// latter creates a transient missing-definition state and loses the fact
     /// that a body-only edit left command-resolution inputs untouched.
     pub fn replace_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        let revision = self.allocate_document_revision();
         let slot = self.slot_for(uri);
         let old = self.docs[slot].settlement_dependencies();
         self.docs[slot].clear();
         self.docs[slot].index_document(uri, analysis);
+        self.docs[slot].revision = revision;
         let changed = old != self.docs[slot].settlement_dependencies();
         self.invalidate(changed, slot);
     }
@@ -2789,6 +2802,16 @@ impl WorkspaceIndex {
         slot
     }
 
+    /// Allocate a token which no earlier document revision in this index has
+    /// used, independently of slot ownership or reuse.
+    fn allocate_document_revision(&mut self) -> u64 {
+        self.document_revision_clock = self
+            .document_revision_clock
+            .checked_add(1)
+            .expect("workspace document revision counter exhausted");
+        self.document_revision_clock
+    }
+
     /// Whether `uri` currently has a slot in the index.
     ///
     /// Lets the server spot an **open** document whose entry is momentarily
@@ -2798,6 +2821,17 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn contains_document(&self, uri: &str) -> bool {
         self.slots.contains_key(uri)
+    }
+
+    /// Revision token for `uri`'s current records.
+    ///
+    /// Unlike [`Self::generation`], a mutation of an unrelated document does
+    /// not change this value. A consumer can therefore load `uri`'s source
+    /// outside the index lock and revalidate that the byte spans it captured
+    /// still describe the same indexed revision.
+    #[must_use]
+    pub fn document_revision(&self, uri: &str) -> Option<u64> {
+        self.slots.get(uri).map(|&slot| self.docs[slot].revision)
     }
 
     /// Drop every entry that came from `uri` (used before
@@ -3029,15 +3063,39 @@ impl WorkspaceIndex {
     /// URI, which lets the caller resolve each document's source once.
     #[must_use]
     pub fn symbols_matching(&self, query: &str, limit: usize) -> Vec<IndexedWorkspaceSymbol> {
+        self.symbols_matching_excluding(query, limit, std::iter::empty::<&str>())
+    }
+
+    /// The workspace's symbols matching `query`, excluding every document URI
+    /// in `excluded_uris` before applying `limit`.
+    ///
+    /// Filtering at the document scan keeps the result bounded without letting
+    /// excluded documents consume the caller's capacity. The server uses this
+    /// while a watched deletion has marked an open buffer orphaned but its
+    /// atomic index-removal transaction is still waiting.
+    #[must_use]
+    pub fn symbols_matching_excluding<'a>(
+        &self,
+        query: &str,
+        limit: usize,
+        excluded_uris: impl IntoIterator<Item = &'a str>,
+    ) -> Vec<IndexedWorkspaceSymbol> {
         let lower_query = query.to_lowercase();
         let mut out: Vec<IndexedWorkspaceSymbol> = Vec::new();
+        let excluded_slots: HashSet<usize> = excluded_uris
+            .into_iter()
+            .filter_map(|uri| self.slots.get(uri).copied())
+            .collect();
         // Built once for the whole scan — the class-member walk needs the
         // workspace's cross-document retractions, which no single document's
         // records can answer for themselves (issue #1263).
-        let retractions = self.retraction_index();
-        for doc in &self.docs {
+        let retractions = self.retraction_index_excluding(&excluded_slots);
+        for (slot, doc) in self.docs.iter().enumerate() {
             if out.len() >= limit {
                 break;
+            }
+            if excluded_slots.contains(&slot) {
+                continue;
             }
             doc.collect_symbols_matching(&lower_query, limit, &retractions, &mut out);
         }
@@ -3790,8 +3848,20 @@ impl WorkspaceIndex {
     /// ([`Self::class_records`]), so which stub an arrival is attributed to
     /// does not depend on indexing order.
     fn retraction_index(&self) -> RetractionIndex<'_> {
+        self.retraction_index_excluding(&HashSet::new())
+    }
+
+    /// Build the cross-document member fold without records contributed by
+    /// excluded document slots. Filtering after the map is folded is unsound:
+    /// a stable first retraction from an excluded document may have displaced
+    /// a later live retraction for the same member.
+    fn retraction_index_excluding(&self, excluded_slots: &HashSet<usize>) -> RetractionIndex<'_> {
         let mut records: Vec<&WorkspaceClass> = self
-            .classes()
+            .docs
+            .iter()
+            .enumerate()
+            .filter(|(slot, _)| !excluded_slots.contains(slot))
+            .flat_map(|(_, doc)| doc.classes.iter())
             .filter(|c| !c.retracted_members.is_empty())
             .collect();
         if records.is_empty() {
@@ -6549,6 +6619,60 @@ mod tests {
             names,
             ["new"],
             "the picker must not show the pre-rename name"
+        );
+    }
+
+    #[test]
+    fn symbol_exclusions_apply_before_the_limit_and_member_fold() {
+        let orphan =
+            analyse("proc orphan_first {} {}\noo::define ::C { renamemethod old arrived }\n");
+        let live = analyse("proc live_second {} {}\noo::class create ::C { method old {} {} }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///orphan.tcl", &orphan),
+            ("file:///live.tcl", &live),
+        ]);
+
+        let capped = index.symbols_matching_excluding("", 1, ["file:///orphan.tcl"]);
+        assert_eq!(
+            capped.first().map(|symbol| symbol.name.as_str()),
+            Some("live_second"),
+            "an excluded document must not consume the result capacity",
+        );
+        let methods = index.symbols_matching_excluding("old", 10, ["file:///orphan.tcl"]);
+        assert!(methods.iter().any(|symbol| {
+            symbol.kind == WorkspaceSymbolKind::Method
+                && symbol.name == "old"
+                && symbol.uri == "file:///live.tcl"
+        }));
+        assert!(
+            methods
+                .iter()
+                .all(|symbol| symbol.uri != "file:///orphan.tcl"),
+            "an excluded arrival must neither re-key nor locate a live member",
+        );
+    }
+
+    #[test]
+    fn symbol_exclusions_rebuild_duplicate_retractions_from_live_documents() {
+        let class = analyse("oo::class create ::C { method old {} {} }\n");
+        let orphan = analyse("oo::define ::C { renamemethod old orphan_arrival }\n");
+        let live = analyse("oo::define ::C { renamemethod old live_arrival }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &class),
+            ("file:///a-orphan.tcl", &orphan),
+            ("file:///b-live.tcl", &live),
+        ]);
+
+        let symbols = index.symbols_matching_excluding("arrival", 10, ["file:///a-orphan.tcl"]);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "live_arrival");
+        assert_eq!(symbols[0].uri, "file:///b-live.tcl");
+        assert!(
+            index
+                .symbols_matching_excluding("old", 10, ["file:///a-orphan.tcl"])
+                .iter()
+                .all(|symbol| symbol.kind != WorkspaceSymbolKind::Method),
+            "the remaining live retraction must still retire the old member name",
         );
     }
 
@@ -10014,6 +10138,49 @@ mod tests {
             after_add,
             index.generation(),
             "remove_document must bump the generation",
+        );
+    }
+
+    #[test]
+    fn document_revision_changes_only_with_that_document() {
+        let a = analyse("proc alpha {} {}\n");
+        let b = analyse("proc beta {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let a_revision = index.document_revision("file:///a.tcl").unwrap();
+
+        index.add_document("file:///b.tcl", &b);
+        assert_eq!(
+            index.document_revision("file:///a.tcl"),
+            Some(a_revision),
+            "an unrelated mutation must not invalidate a source snapshot",
+        );
+        index.replace_document("file:///a.tcl", &a);
+        assert_ne!(
+            index.document_revision("file:///a.tcl"),
+            Some(a_revision),
+            "replacing the document must invalidate its source snapshot",
+        );
+        index.remove_document("file:///a.tcl");
+        assert_eq!(index.document_revision("file:///a.tcl"), None);
+    }
+
+    #[test]
+    fn document_revision_survives_slot_reuse_aba_1854() {
+        let a = analyse("proc alpha {} {}\n");
+        let b = analyse("proc beta {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        let old_revision = index.document_revision("file:///a.tcl").unwrap();
+
+        index.remove_document("file:///a.tcl");
+        index.add_document("file:///b.tcl", &b);
+        index.add_document("file:///a.tcl", &a);
+
+        assert_ne!(
+            index.document_revision("file:///a.tcl"),
+            Some(old_revision),
+            "re-adding a URI must not recycle its old token after slot churn",
         );
     }
 
