@@ -699,6 +699,17 @@ fn collect_expr_command_surface_refs<'a>(
                 collect_expr_command_surface_refs(arg, out, opaque, depth + 1);
             }
         }
+        // A word already reduced to its value. Braced, its brackets are data
+        // and provably never run, so it is inert — the one case this may skip
+        // without guessing. Unbraced, whatever substitution the word still owes
+        // *is* executed at run time, and omitting an executed substitution is
+        // the failure this inventory exists to avoid, so its text is collected
+        // like any other surface.
+        ExprNode::CompiledWord { text, braced } => {
+            if !*braced {
+                push_text(text, out);
+            }
+        }
         ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Var { .. } => {}
     }
 }
