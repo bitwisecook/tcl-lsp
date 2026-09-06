@@ -1775,17 +1775,24 @@ impl InterpState {
                 .is_some()
     }
 
+    /// The guard set a fresh interpreter starts from.
+    ///
+    /// Interpreter-policy and `TclOO` dispatch mutations do not yet have one
+    /// central invalidation owner in this runtime. Fail closed until every
+    /// mutation site routes through such an owner; an epoch that is never
+    /// advanced must not authorise a speculative path.
+    fn fail_closed_guards() -> GuardManager {
+        let mut guards = GuardManager::default();
+        guards.poison(GuardDomain::Interpreter);
+        guards.poison(GuardDomain::ObjectDispatch);
+        guards
+    }
+
     /// A fresh interpreter state writing `puts` output to `out` — no commands
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
     fn fresh(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
-        let mut guards = GuardManager::default();
-        // Interpreter-policy and TclOO dispatch mutations do not yet have one
-        // central invalidation owner in this runtime. Fail closed until every
-        // mutation site routes through such an owner; an epoch that is never
-        // advanced must not authorise a speculative path.
-        guards.poison(GuardDomain::Interpreter);
-        guards.poison(GuardDomain::ObjectDispatch);
+        let guards = Self::fail_closed_guards();
         // The "no dialect pinned" ingress: the lenient environment, whose
         // unit profile is the permissive fallback that hides nothing. A
         // pin (`set_runtime_version` / `set_dialect_profile`) replaces all
