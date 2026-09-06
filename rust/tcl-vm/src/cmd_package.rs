@@ -62,11 +62,79 @@ pub(crate) fn provide_core_packages(vm: &mut Vm) {
     }
 }
 
+/// `package`'s subcommand words, in C table order (`pkgOptions[]`,
+/// `tclPkg.c`). C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`,
+/// so `n` resolves to `names` while `v` and `pr` are ambiguous, and the empty
+/// word — a prefix of every entry — is `ambiguous option ""`. 9.0 added
+/// `files` at the head of the table.
+const PACKAGE_OPTIONS_8X: &[&str] = &[
+    "forget",
+    "ifneeded",
+    "names",
+    "prefer",
+    "present",
+    "provide",
+    "require",
+    "unknown",
+    "vcompare",
+    "versions",
+    "vsatisfies",
+];
+
+/// [`PACKAGE_OPTIONS_8X`] as 8.4 spells it: `prefer` is TIP 268, which 8.5
+/// brought in (tclsh8.4.20: `bad option "prefer": must be forget, ifneeded,
+/// names, present, provide, …`).
+const PACKAGE_OPTIONS_8_4: &[&str] = &[
+    "forget",
+    "ifneeded",
+    "names",
+    "present",
+    "provide",
+    "require",
+    "unknown",
+    "vcompare",
+    "versions",
+    "vsatisfies",
+];
+
+/// [`PACKAGE_OPTIONS_8X`] as 9.0 spells it.
+const PACKAGE_OPTIONS_9X: &[&str] = &[
+    "files",
+    "forget",
+    "ifneeded",
+    "names",
+    "prefer",
+    "present",
+    "provide",
+    "require",
+    "unknown",
+    "vcompare",
+    "versions",
+    "vsatisfies",
+];
+
 fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"package option ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let options = match vm.runtime_version() {
+        tcl_dialect::TclVersion::V8_4 => PACKAGE_OPTIONS_8_4,
+        tcl_dialect::TclVersion::V8_5 | tcl_dialect::TclVersion::V8_6 => PACKAGE_OPTIONS_8X,
+        _ => PACKAGE_OPTIONS_9X,
+    };
+    let word = sub.to_str();
+    let sub = match tcl_cmd_core::prefix::OptionTable::abbreviating("option", options)
+        .index_of(word.as_bytes())
+    {
+        Ok(i) => options[i],
+        Err(message) => {
+            return err_with_code(
+                String::from_utf8_lossy(&message).into_owned(),
+                &tcl_syntax::list::join_list(["TCL", "LOOKUP", "INDEX", "option", &word]),
+            );
+        }
+    };
+    match sub {
         "provide" => match rest {
             [name] => ok(vm
                 .package_version(&name.to_str())
@@ -130,7 +198,19 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         "prefer" => pkg_prefer(vm, rest),
-        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+        // `package files package` (9.0). C reports the files a *loader*
+        // recorded for the package; nothing here loads through one, so the
+        // answer is the empty list — as it is in tclsh for a package provided
+        // by script (`package provide foo 1.0; package files foo` → {}).
+        "files" => match rest {
+            [_name] => ok(Value::empty()),
+            _ => err("wrong # args: should be \"package files package\""),
+        },
+        // Unreachable: every name in the release's table has an arm above.
+        other => err(format!(
+            "bad option \"{other}\": must be {}",
+            tcl_cmd_core::prefix::choice_list(options)
+        )),
     }
 }
 
@@ -161,22 +241,31 @@ fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `package prefer`'s preference word (`tclPkg.c`): C resolves it with
+/// `Tcl_GetIndexFromObj(…, "preference", 0)`, so `l`/`s` abbreviate and the
+/// empty word — a prefix of both entries — is `ambiguous preference ""`.
+const PACKAGE_PREFERENCES: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("preference", &["latest", "stable"]);
+
 fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match rest {
         [] => ok(Value::string(preference_name(vm.package_prefer()))),
-        [preference] => match &*preference.to_str() {
-            "latest" => {
-                vm.prefer_latest_packages();
-                ok(Value::string(preference_name(vm.package_prefer())))
+        [preference] => {
+            let word = preference.to_str();
+            match PACKAGE_PREFERENCES.index_of(word.as_bytes()) {
+                Ok(0) => {
+                    vm.prefer_latest_packages();
+                    ok(Value::string(preference_name(vm.package_prefer())))
+                }
+                // The preference is a monotone Tcl latch: once raised to
+                // latest, asking for stable succeeds but leaves it at latest.
+                Ok(_) => ok(Value::string(preference_name(vm.package_prefer()))),
+                Err(message) => err_with_code(
+                    String::from_utf8_lossy(&message).into_owned(),
+                    &tcl_syntax::list::join_list(["TCL", "LOOKUP", "INDEX", "preference", &word]),
+                ),
             }
-            // The preference is a monotone Tcl latch: once raised to latest,
-            // asking for stable succeeds but leaves it at latest.
-            "stable" => ok(Value::string(preference_name(vm.package_prefer()))),
-            other => err_with_code(
-                format!("bad preference \"{other}\": must be latest or stable"),
-                &format!("TCL LOOKUP INDEX preference {other}"),
-            ),
-        },
+        }
         _ => err("wrong # args: should be \"package prefer ?preference?\""),
     }
 }

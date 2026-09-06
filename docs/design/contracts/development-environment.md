@@ -35,11 +35,11 @@ idempotent; a warm container re-runs it in seconds.
 
 | Provided | Version | Where |
 |---|---|---|
-| Wasmtime | 47.0.3 | `/opt/wasmtime-47.0.3/`, on `PATH` as `wasmtime` |
+| Wasmtime | 48.0.1 | `/opt/wasmtime-48.0.1/`, on `PATH` as `wasmtime` |
 | Binaryen | 132 | `/opt/binaryen-132/`, `wasm-opt` / `wasm-merge` on `PATH` |
-| wasi-sdk | 33.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
+| wasi-sdk | 34.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
 | Rust | floating `stable` | `/root/.rustup`, `/root/.cargo` |
-| Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.16, 9.0.4, 9.1b0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
+| Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1b0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
 | tcllib | 2.0 | `tmp/tcllib-2.0/` |
 | host test tools | distro | via `ensure-test-deps.sh` |
 

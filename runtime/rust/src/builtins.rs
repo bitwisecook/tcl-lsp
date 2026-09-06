@@ -1289,6 +1289,74 @@ mod tests {
         });
     }
 
+    /// Issue #1607: `interp debug`'s option word is a `Tcl_GetIndexFromObj`
+    /// table whose noun is `debug option` (`debugTypes[]`, `tclInterp.c`), so
+    /// `-f`/`-fr` abbreviate and the one-entry table never says `ambiguous`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   interp debug i {}     -> bad debug option "": must be -frame
+    ///   interp debug i -x     -> bad debug option "-x": must be -frame
+    ///   interp debug i -f     -> 0
+    ///   interp debug i -fr 1  -> 1
+    ///   i debug -f            -> 1   (after the latch)
+    ///   i debug -x 1 2        -> wrong # args: should be "i debug ?-frame ?bool??"
+    #[test]
+    fn interp_debug_option_uses_c_noun_and_abbreviates() {
+        leak_free(|i| {
+            ok(i, b"interp create i");
+            assert_eq!(i.eval_str(b"interp debug i {}"), Code::Error);
+            assert_eq!(i.result_bytes(), b"bad debug option \"\": must be -frame");
+            assert_eq!(i.eval_str(b"interp debug i -x"), Code::Error);
+            assert_eq!(i.result_bytes(), b"bad debug option \"-x\": must be -frame");
+            assert_eq!(ok(i, b"interp debug i -f"), b"0");
+            assert_eq!(ok(i, b"interp debug i -fr 1"), b"1");
+            assert_eq!(ok(i, b"i debug -f"), b"1");
+            assert_eq!(i.eval_str(b"i debug -x 1 2"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"wrong # args: should be \"i debug ?-frame ?bool??\""
+            );
+        });
+    }
+
+    /// Issue #1607: `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
+    /// "limit type", 0)` (`limitTypes[]`, `tclInterp.c`), so `c`/`t`
+    /// abbreviate and the empty word — a prefix of both entries — is
+    /// `ambiguous`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   interp limit i {} -> ambiguous limit type "": must be commands or time
+    ///   interp limit i x  -> bad limit type "x": must be commands or time
+    ///   interp limit i c  -> -command {} -granularity 1 -value {}
+    ///   i limit {}        -> ambiguous limit type "": must be commands or time
+    #[test]
+    fn interp_limit_type_word_resolves_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be commands or time";
+        leak_free(|i| {
+            ok(i, b"interp create i");
+            assert_eq!(i.eval_str(b"interp limit i {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous limit type \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"interp limit i x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("bad limit type \"x\": {MUST}").as_bytes()
+            );
+            assert_eq!(
+                ok(i, b"interp limit i c"),
+                b"-command {} -granularity 1 -value {}"
+            );
+            assert_eq!(i.eval_str(b"i limit {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous limit type \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(ok(i, b"i limit c"), b"-command {} -granularity 1 -value {}");
+        });
+    }
+
     #[test]
     fn unset_nocomplain_and_dashdash() {
         leak_free(|i| {

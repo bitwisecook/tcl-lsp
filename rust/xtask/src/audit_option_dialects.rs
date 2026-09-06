@@ -79,7 +79,7 @@ use crate::util::repo_root;
 const TCL_VERSIONS: &[(&str, &str)] = &[
     ("tcl8.4", "tmp/tcl8.4.20/unix"),
     ("tcl8.5", "tmp/tcl8.5.19/unix"),
-    ("tcl8.6", "tmp/tcl8.6.16/unix"),
+    ("tcl8.6", "tmp/tcl8.6.18/unix"),
     ("tcl9.0", "tmp/tcl9.0.4/unix"),
 ];
 

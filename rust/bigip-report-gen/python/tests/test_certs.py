@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import os
 
-from f5report import load_paths
+from f5report import QueryError, load_paths
 from f5report.report import build_report, collect_model
 
 SCF = """
@@ -136,7 +136,7 @@ def test_master_key_decrypts_passphrase():
 def test_wrong_master_key_raises():
     import pytest
 
-    with pytest.raises(Exception):
+    with pytest.raises(QueryError):
         collect_model(
             [("inline.scf", SCF_ENC)],
             title="TLS",

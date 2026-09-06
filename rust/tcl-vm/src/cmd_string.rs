@@ -114,31 +114,22 @@ const STRING_SUBS: &[&str] = &[
     "wordstart",
 ];
 
-/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name,
-/// honouring Tcl's unique-prefix matching. Returns the standard error message on
-/// no/ambiguous match.
-fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
-    if let Some(&s) = STRING_SUBS.iter().find(|&&s| s == input) {
-        return Ok(s);
-    }
-    let mut hits = STRING_SUBS.iter().filter(|&&s| s.starts_with(input));
-    match (hits.next(), hits.next()) {
-        (Some(&s), None) if !input.is_empty() => Ok(s),
-        _ => {
-            let mut list = String::new();
-            for (i, s) in STRING_SUBS.iter().enumerate() {
-                if i > 0 {
-                    list.push_str(", ");
-                }
-                if i == STRING_SUBS.len() - 1 {
-                    list.push_str("or ");
-                }
-                list.push_str(s);
-            }
-            Err(format!(
-                "unknown or ambiguous subcommand \"{input}\": must be {list}"
+/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name
+/// through the shared ensemble owner (`string` is a `TclMakeEnsemble` command),
+/// or the ensemble's own miss sentence — including its comma before `or`, which
+/// `prefix::choice_list` words differently.
+fn resolve_string_sub<'a>(subs: &[&'a str], input: &str) -> Result<&'a str, String> {
+    match tcl_cmd_core::ensemble::resolve_subcommand(subs, input.as_bytes(), true) {
+        Some(index) => Ok(subs[index]),
+        None => Err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                input.as_bytes(),
+                true,
+                b"::tcl::string",
             ))
-        }
+            .into_owned(),
+        ),
     }
 }
 
@@ -146,7 +137,15 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err_wrong_args("string subcommand ?arg ...?");
     };
-    let canon = match resolve_string_sub(&sub.to_str()) {
+    // `insert` arrives in Tcl 9 and `bytelength` leaves with it, so the table
+    // is the emulated release's: on 8.6 `string in` is `index`, on 9.0 it is
+    // ambiguous with `insert`.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "string",
+        STRING_SUBS,
+    );
+    let canon = match resolve_string_sub(subs, &sub.to_str()) {
         Ok(c) => c,
         Err(e) => return err(e),
     };
@@ -533,7 +532,14 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_nocase, resolve_string_sub};
+    use super::{STRING_SUBS, is_nocase};
+
+    /// The unit tests below exercise the resolver over the engine's full
+    /// (Tcl 9) table; the release filter that narrows it per pin is covered
+    /// end-to-end in `tests/cmd_info_prefix_e2e.rs`.
+    fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
+        super::resolve_string_sub(STRING_SUBS, input)
+    }
 
     #[test]
     fn resolve_string_sub_prefers_exact_over_prefix() {

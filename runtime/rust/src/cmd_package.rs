@@ -97,11 +97,46 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"package", package_cmd);
 }
 
+/// `package`'s subcommand words, in C table order (`pkgOptions[]`,
+/// `tclPkg.c`). C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`,
+/// so `n` resolves to `names` while `v` and `pr` are ambiguous, and the empty
+/// word — a prefix of every entry — is `ambiguous option ""`.
+///
+/// As with `interp` (#1412 item 3), the table names only what this runtime
+/// dispatches: C also carries `files` (9.0), `forget`, and `prefer`, which
+/// need a package loader and a preference latch this runtime has none of.
+/// tclsh 9.0.4, for contrast:
+///   package x -> bad option "x": must be files, forget, ifneeded, names,
+///                prefer, present, provide, require, unknown, vcompare,
+///                versions, or vsatisfies
+const PACKAGE_OPTIONS: &[&[u8]] = &[
+    b"ifneeded",
+    b"names",
+    b"present",
+    b"provide",
+    b"require",
+    b"unknown",
+    b"vcompare",
+    b"versions",
+    b"vsatisfies",
+];
+
 fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"package subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    let word = obj_bytes(argv[1]);
+    let sub = match tcl_cmd_core::prefix::OptionTable::abbreviating("option", PACKAGE_OPTIONS)
+        .index_of(&word)
+    {
+        Ok(i) => PACKAGE_OPTIONS[i],
+        Err(message) => {
+            let code =
+                crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"INDEX", b"option", &word]);
+            return interp.error_with_code(&message, &code);
+        }
+    };
+    match sub {
         b"provide" => provide(interp, argv),
         b"require" => require(interp, argv),
         b"present" => present(interp, argv),
@@ -111,10 +146,12 @@ fn package_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"versions" => versions(interp, argv),
         b"vsatisfies" => vsatisfies_cmd(interp, argv),
         b"vcompare" => vcompare_cmd(interp, argv),
+        // Unreachable: every name in `PACKAGE_OPTIONS` has an arm above.
         other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            let mut m = b"bad option \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be ifneeded, names, present, provide, require, unknown, vcompare, versions, or vsatisfies");
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(PACKAGE_OPTIONS));
             interp.set_error(&m)
         }
     }
@@ -466,6 +503,50 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    /// Issue #1607: `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
+    /// "option", 0)` table (`pkgOptions[]`, `tclPkg.c`), not an ensemble —
+    /// this said `unknown or ambiguous subcommand "x"`, which is the ensemble
+    /// wording, and matched exactly so nothing abbreviated. The list still
+    /// names only what this runtime dispatches (`files`, `forget`, and
+    /// `prefer` need a loader and a preference latch it has none of).
+    ///
+    /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened list):
+    ///   package x  -> bad option "x": must be …    [TCL LOOKUP INDEX option x]
+    ///   package {} -> ambiguous option "": must be …
+    ///   package v  -> ambiguous option "v": must be …  (vcompare/versions/vsatisfies)
+    ///   package n  -> the names list
+    #[test]
+    fn package_option_word_resolves_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be ifneeded, names, present, provide, require, unknown, \
+                            vcompare, versions, or vsatisfies";
+        leak_free(|i| {
+            let err = |i: &mut Interp, script: &[u8]| {
+                assert_eq!(i.eval_str(script), Code::Error, "expected an error");
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            assert_eq!(err(i, b"package x"), format!("bad option \"x\": {MUST}"));
+            assert_eq!(
+                err(i, b"package {}"),
+                format!("ambiguous option \"\": {MUST}")
+            );
+            assert_eq!(
+                err(i, b"package v"),
+                format!("ambiguous option \"v\": {MUST}")
+            );
+            // A unique prefix resolves.
+            assert_eq!(run(i, b"package provide foo 1.0"), b"");
+            assert_eq!(
+                run(i, b"llength [lsearch -all -exact [package n] foo]"),
+                b"1"
+            );
+            // C's lookup error code travels with the message.
+            assert_eq!(
+                run(i, b"catch {package x} e opts; dict get $opts -errorcode"),
+                b"TCL LOOKUP INDEX option x"
+            );
+        });
     }
 
     #[test]

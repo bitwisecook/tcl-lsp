@@ -149,7 +149,7 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     let dialect = "tcl8.6";
     let mut paths = Vec::new();
     for v in [
-        "tcl8.6.16/library",
+        "tcl8.6.18/library",
         "tcllib-2.0/modules",
         "tcl9.0.4/library",
     ] {

@@ -35,7 +35,7 @@ use flate2::read::{DeflateDecoder, GzDecoder, ZlibDecoder};
 use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use std::io::{Read, Write};
-use tcl_cmd_core::ensemble::{resolve_subcommand, subcommand_choices};
+use tcl_cmd_core::ensemble::resolve_subcommand;
 
 /// Register the `zlib` ensemble.
 pub fn install(interp: &mut Interp) {
@@ -175,11 +175,16 @@ fn zlib_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let sub = obj_bytes(argv[1]);
     let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
     let Some(idx) = resolve_subcommand(&names, &sub, true) else {
-        let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-        m.extend_from_slice(&sub);
-        m.extend_from_slice(b"\": must be ");
-        m.extend_from_slice(&subcommand_choices(&names));
-        return interp.set_error(&m);
+        // The whole sentence, not just its enumeration, is the owner's. 9.0
+        // made `zlib` a real ensemble; 8.6 resolved it with
+        // `Tcl_GetIndexFromObj(…, "command", 0)` and worded its miss
+        // `bad command "x"` / `ambiguous command ""` instead.
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            &names,
+            &sub,
+            true,
+            b"::tcl::zlib",
+        ));
     };
     match SUBS[idx] {
         b"crc32" => checksum(interp, argv, false),
@@ -313,8 +318,8 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut i = 3;
     while i < argv.len() {
         let opt = obj_bytes(argv[i]);
-        match opt.as_slice() {
-            b"-level" => {
+        match GZIP_OPTIONS.index_of(&opt) {
+            Ok(1) => {
                 let Some(&val) = argv.get(i + 1) else {
                     return interp.wrong_args(b"zlib gzip data ?-level level? ?-header header?");
                 };
@@ -324,23 +329,30 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 };
                 i += 2;
             }
-            b"-header" => {
+            Ok(_) => {
                 return interp.set_error(
                     b"the -header option to zlib gzip is not supported under the WASM runtime",
                 );
             }
-            _ => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(&opt);
-                m.extend_from_slice(b"\": must be -level or -header");
-                return interp.set_error(&m);
-            }
+            Err(m) => return interp.set_error(&m),
         }
     }
     let out = compress_gzip(&data, level);
     interp.set_result_byte_array(&out);
     Code::Ok
 }
+
+/// `zlib gzip`'s option words, in C table order (`tclZlib.c`), resolved with
+/// `Tcl_GetIndexFromObj(…, "option", 0)`: `-l` abbreviates `-level` and the
+/// empty word — a prefix of both — is `ambiguous option ""`. The order matters:
+/// C lists `-header` first, so its enumeration reads `-header or -level`.
+const GZIP_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-header", b"-level"]);
+
+/// `zlib gunzip`'s option words, in C table order (`tclZlib.c`). This
+/// advertised only `-headerVar`; C also takes `-buffersize`.
+const GUNZIP_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-buffersize", b"-headerVar"]);
 
 /// `zlib gunzip data ?-headerVar varName?` — the header-var readback is not
 /// modelled here.
@@ -350,15 +362,19 @@ fn gunzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     if argv.len() > 3 {
         let opt = obj_bytes(argv[3]);
-        if opt == b"-headerVar" {
-            return interp.set_error(
-                b"the -headerVar option to zlib gunzip is not supported under the WASM runtime",
-            );
+        match GUNZIP_OPTIONS.index_of(&opt) {
+            Ok(0) => {
+                return interp.set_error(
+                    b"the -buffersize option to zlib gunzip is not supported under the WASM runtime",
+                );
+            }
+            Ok(_) => {
+                return interp.set_error(
+                    b"the -headerVar option to zlib gunzip is not supported under the WASM runtime",
+                );
+            }
+            Err(m) => return interp.set_error(&m),
         }
-        let mut m = b"bad option \"".to_vec();
-        m.extend_from_slice(&opt);
-        m.extend_from_slice(b"\": must be -headerVar");
-        return interp.set_error(&m);
     }
     let data = match interp.binary_bytes(argv[2]) {
         Ok(data) => data,
@@ -400,6 +416,49 @@ mod tests {
         assert_eq!(adler32(1, b"hello, world"), 492_045_449);
         // Continued (non-default start value).
         assert_eq!(crc32(5, b"abc"), 871_334_697);
+    }
+
+    /// Issue #1607: `zlib gzip`'s and `zlib gunzip`'s option words are
+    /// `Tcl_GetIndexFromObj(…, "option", 0)` tables. Both were matched exactly,
+    /// `gzip`'s enumeration was in the wrong order (C lists `-header` first),
+    /// and `gunzip`'s omitted `-buffersize` entirely. `zlib`'s own dispatch
+    /// borrows the full ensemble sentence now, not just its enumeration.
+    ///
+    /// tclsh 9.0.4:
+    ///   zlib gzip abc -x 1  -> bad option "-x": must be -header or -level
+    ///   zlib gzip abc {} 1  -> ambiguous option "": must be -header or -level
+    ///   zlib gunzip <gz> -x y -> bad option "-x": must be -buffersize or -headerVar
+    ///   zlib co abc         -> compressed bytes  ;  zlib c abc -> ambiguous
+    #[test]
+    fn zlib_option_words_resolve_like_tcl_get_index_from_obj() {
+        let mut i = Interp::new();
+        let err_of = |i: &mut Interp, src: &[u8]| {
+            assert_eq!(i.eval_str(src), Code::Error, "expected an error");
+            String::from_utf8_lossy(&i.result_bytes()).into_owned()
+        };
+        assert_eq!(
+            err_of(&mut i, b"zlib gzip abc -x 1"),
+            "bad option \"-x\": must be -header or -level"
+        );
+        assert_eq!(
+            err_of(&mut i, b"zlib gzip abc {} 1"),
+            "ambiguous option \"\": must be -header or -level"
+        );
+        assert_eq!(
+            err_of(&mut i, b"zlib gunzip abc -x y"),
+            "bad option \"-x\": must be -buffersize or -headerVar"
+        );
+        // `-l` uniquely abbreviates `-level`, so the option is consumed.
+        assert_eq!(i.eval_str(b"zlib gzip abc -l 1"), Code::Ok);
+        // `-b` uniquely abbreviates `-buffersize`, so it resolves and the
+        // error names the *option*, not a bad word.
+        assert_eq!(
+            err_of(&mut i, b"zlib gunzip abc -b 4096"),
+            "the -buffersize option to zlib gunzip is not supported under the WASM runtime"
+        );
+        // The dispatch keeps tclsh 9.0's ensemble wording.
+        assert!(err_of(&mut i, b"zlib c abc")
+            .starts_with("unknown or ambiguous subcommand \"c\": must be adler32, "));
     }
 
     #[test]

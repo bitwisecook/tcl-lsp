@@ -63,6 +63,27 @@ impl CompileService for CompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            config,
+            Some(profile),
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
 }
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
@@ -80,6 +101,49 @@ impl Write for Capture {
 }
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
+/// tclsh9.0.4's `info` ensemble enumeration (`info {}` → `unknown or ambiguous
+/// subcommand "": must be …`).
+const INFO_MUST: &str = "must be args, body, class, cmdcount, cmdtype, commands, complete, \
+                         constant, consts, coroutine, default, errorstack, exists, frame, \
+                         functions, globals, hostname, level, library, loaded, locals, \
+                         nameofexecutable, object, patchlevel, procs, script, \
+                         sharedlibextension, tclversion, or vars";
+
+/// tclsh9.0.4's `file` ensemble enumeration.
+const FILE_MUST: &str = "must be atime, attributes, channels, copy, delete, dirname, \
+                         executable, exists, extension, home, isdirectory, isfile, join, \
+                         link, lstat, mkdir, mtime, nativename, normalize, owned, pathtype, \
+                         readable, readlink, rename, rootname, separator, size, split, stat, \
+                         system, tail, tempdir, tempfile, tildeexpand, type, volumes, or \
+                         writable";
+
+/// [`run`] under an explicit release pin — one resolved profile drives both
+/// the compile service and the VM's runtime version, as `tclvm --tcl-version`
+/// does.
+fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        .analyser_profile();
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    let asm = service
+        .compile_for_profile(src, profile)
+        .expect("test script compiles for its selected profile");
+
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_runtime_version(version);
+    vm.set_compiler(Box::new(service));
+    let completion = vm.run_module(&asm);
+
+    let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
+    (
+        completion.code.is_ok(),
+        completion.result.to_str().to_string(),
+        out,
+    )
+}
+
 fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
@@ -206,6 +270,50 @@ fn prefix_match_ambiguous_and_bad() {
     let (ok, msg, _) = run("tcl::prefix match {} z");
     assert!(!ok);
     assert_eq!(msg, r#"bad option "z": no valid options"#);
+}
+
+/// Issue #1607: `tcl::prefix` is itself a `TclMakeEnsemble` command, and
+/// `tcl::prefix match`'s own options are a `Tcl_GetIndexFromObj(…, "option", 0)`
+/// table (`matchOptions[]`, `tclIndexObj.c`) — both were matched exactly here.
+///
+/// tclsh 8.6.16 / 9.0.4:
+/// ```text
+/// tcl::prefix {} {a} a         -> unknown or ambiguous subcommand "":
+///                                 must be all, longest, or match
+/// tcl::prefix m {a} a          -> a
+/// tcl::prefix match -e {a} a   -> ambiguous option "-e": must be -error,
+///                                 -exact, or -message
+/// tcl::prefix match -x {a} a   -> bad option "-x": must be -error, -exact,
+///                                 or -message
+/// tcl::prefix match -m noun {a} b -> bad noun "b": must be a
+/// ```
+#[test]
+fn prefix_ensemble_and_match_options_resolve_like_tclsh() {
+    const OPT_MUST: &str = "must be -error, -exact, or -message";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("tcl::prefix {} {a} a"),
+        "unknown or ambiguous subcommand \"\": must be all, longest, or match"
+    );
+    assert_eq!(run("tcl::prefix m {a} a").1, "a");
+    assert_eq!(run("tcl::prefix l {apple applet} ap").1, "apple");
+    assert_eq!(
+        msg("tcl::prefix match -e {a} a"),
+        format!("ambiguous option \"-e\": {OPT_MUST}")
+    );
+    assert_eq!(
+        msg("tcl::prefix match -x {a} a"),
+        format!("bad option \"-x\": {OPT_MUST}")
+    );
+    // `-m` uniquely abbreviates `-message`, whose value becomes the noun.
+    assert_eq!(
+        msg("tcl::prefix match -m noun {a} b"),
+        "bad noun \"b\": must be a"
+    );
 }
 
 /// The empty word never abbreviation-matches: one entry reports `bad`, two or
@@ -519,6 +627,11 @@ fn info_dispatch_and_abbreviation() {
 /// The list is exactly the `info` subcommands the VM's dispatch table lacks;
 /// every other subcommand this suite exercises is implemented and covered
 /// above.
+///
+/// Since #1607 the miss is composed by `tcl_cmd_core::ensemble`, so it carries
+/// tclsh9.0.4's full `must be` clause — the name itself still appears there,
+/// because the word *resolved* against the ensemble table and only then found
+/// no implementation.
 #[test]
 fn info_unimplemented_subcommands_error() {
     for sub in ["cmdcount", "hostname", "frame"] {
@@ -526,7 +639,7 @@ fn info_unimplemented_subcommands_error() {
         assert!(!ok, "VM unexpectedly implemented `info {sub}`: {msg}");
         assert_eq!(
             msg,
-            format!("unknown or ambiguous subcommand \"{sub}\""),
+            format!("unknown or ambiguous subcommand \"{sub}\": {INFO_MUST}"),
             "`info {sub}` should report the VM's unknown-subcommand error",
         );
     }
@@ -1301,15 +1414,237 @@ fn namespace_inscope_zero_args() {
     );
 }
 
-/// An empty `info` subcommand is rejected (the `canonical_info_sub` empty-input
-/// guard, then the unknown-subcommand arm). The VM's message is shorter than
-/// tclsh9.0's, which appends the full option list.
-/// Divergence (error text only):
-///   tclsh9.0: `unknown or ambiguous subcommand "": must be args, body, ...`
-///   VM:       `unknown or ambiguous subcommand ""`
+/// Issue #1607: `info` and `file` are `TclMakeEnsemble` commands, so both the
+/// prefix scan and the miss message belong to `tcl_cmd_core::ensemble`. The VM
+/// used to emit the sentence without its `must be` clause.
+///
+/// tclsh 9.0.4:
+///   info {}   -> unknown or ambiguous subcommand "": must be args, body,
+///                class, cmdcount, cmdtype, commands, complete, constant,
+///                consts, coroutine, default, errorstack, exists, frame,
+///                functions, globals, hostname, level, library, loaded,
+///                locals, nameofexecutable, object, patchlevel, procs, script,
+///                sharedlibextension, tclversion, or vars
+///   info e /  -> unknown or ambiguous subcommand "e": must be <same>
+///   info ex x -> 0        (a unique prefix still resolves)
+///   file {}   -> unknown or ambiguous subcommand "": must be atime,
+///                attributes, channels, copy, delete, dirname, executable,
+///                exists, extension, home, isdirectory, isfile, join, link,
+///                lstat, mkdir, mtime, nativename, normalize, owned, pathtype,
+///                readable, readlink, rename, rootname, separator, size,
+///                split, stat, system, tail, tempdir, tempfile, tildeexpand,
+///                type, volumes, or writable
+///   file e /  -> unknown or ambiguous subcommand "e": must be <same>
+///   file ex / -> unknown or ambiguous subcommand "ex": must be <same>
+///                (exists/executable/extension all start with `ex`)
 #[test]
-fn info_empty_subcommand() {
-    let (ok, msg, _) = run("info \"\"");
+fn info_and_file_ensemble_misses_carry_the_full_option_list() {
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("info \"\""),
+        format!("unknown or ambiguous subcommand \"\": {INFO_MUST}")
+    );
+    assert_eq!(
+        msg("info e x"),
+        format!("unknown or ambiguous subcommand \"e\": {INFO_MUST}")
+    );
+    assert_eq!(run("set x 1; info ex x").1, "1");
+    assert_eq!(
+        msg("file \"\""),
+        format!("unknown or ambiguous subcommand \"\": {FILE_MUST}")
+    );
+    assert_eq!(
+        msg("file e /"),
+        format!("unknown or ambiguous subcommand \"e\": {FILE_MUST}")
+    );
+    assert_eq!(
+        msg("file ex /"),
+        format!("unknown or ambiguous subcommand \"ex\": {FILE_MUST}")
+    );
+}
+
+/// Issue #1607 follow-up: `file`'s table is the *selected release's* surface,
+/// not a pinned Tcl 9 list. `home`, `tempdir` and `tildeexpand` arrive in 9.0,
+/// and their presence changes the verdict for words that have nothing to do
+/// with them — `file te` is a unique prefix of `tempfile` under 8.6 and
+/// ambiguous under 9.0. The names and their gates come from the registry
+/// through the one environment ingress seam, as the WASM runtime's `file`
+/// already did.
+///
+/// tclsh8.6.16:
+///   catch {file te x} m -> 0, a channel   (tempfile)
+///   catch {file h} m    -> 1 unknown or ambiguous subcommand "h": must be
+///                          … tail, tempfile, type, volumes, or writable
+/// tclsh9.0.4:
+///   catch {file te x} m -> 1 unknown or ambiguous subcommand "te": must be
+///                          … tempdir, tempfile, tildeexpand, …
+///   catch {file h} m    -> 0 /root        (home)
+///
+/// UNIMPLEMENTED: the VM implements neither `tempfile` nor `home`, so a word
+/// that resolves to one still lands on the unknown-subcommand arm — under the
+/// *canonical* name, which is exactly what shows the resolution happened, and
+/// with the release's own enumeration.
+#[test]
+fn file_subcommand_table_follows_the_emulated_release() {
+    const FILE_MUST_86: &str = "must be atime, attributes, channels, copy, delete, dirname, \
+                                executable, exists, extension, isdirectory, isfile, join, \
+                                link, lstat, mkdir, mtime, nativename, normalize, owned, \
+                                pathtype, readable, readlink, rename, rootname, separator, \
+                                size, split, stat, system, tail, tempfile, type, volumes, \
+                                or writable";
+
+    // 8.6: `te` is unique (no `tempdir`), so it resolves to `tempfile`; `h`
+    // matches nothing, and the enumeration has no 9.0 names in it.
+    let (ok, msg, _) = run_for_version("file te x", tcl_dialect::TclVersion::V8_6);
     assert!(!ok);
-    assert_eq!(msg, r#"unknown or ambiguous subcommand """#);
+    assert_eq!(
+        msg,
+        format!("unknown or ambiguous subcommand \"tempfile\": {FILE_MUST_86}")
+    );
+    let (ok, msg, _) = run_for_version("file h", tcl_dialect::TclVersion::V8_6);
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        format!("unknown or ambiguous subcommand \"h\": {FILE_MUST_86}")
+    );
+
+    // 9.0: `tempdir` makes `te` ambiguous, and `h` now resolves to `home`.
+    let (ok, msg, _) = run_for_version("file te x", tcl_dialect::TclVersion::V9_0);
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        format!("unknown or ambiguous subcommand \"te\": {FILE_MUST}")
+    );
+    let (ok, msg, _) = run_for_version("file h", tcl_dialect::TclVersion::V9_0);
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        format!("unknown or ambiguous subcommand \"home\": {FILE_MUST}")
+    );
+
+    // A prefix that is unique in both releases still resolves in both.
+    assert_eq!(
+        run_for_version("file ext /a.b", tcl_dialect::TclVersion::V8_6).1,
+        ".b"
+    );
+    assert_eq!(
+        run_for_version("file ext /a.b", tcl_dialect::TclVersion::V9_0).1,
+        ".b"
+    );
+}
+
+/// Issue #1607 follow-up, the rest of the class: every `TclMakeEnsemble`
+/// table this engine resolves against is a *release* fact, and the VM is
+/// release-selectable. A 9-only name must not dispatch under an earlier pin,
+/// and — the half that hides — must not change the prefix verdict for a word
+/// that has nothing to do with it.
+///
+/// tclsh8.6.16 / tclsh9.0.4:
+///   dict g {a 1} a     -> 1                    / ambiguous (getdef, getwithdefault)
+///   string in abc 1    -> b                    / ambiguous (index, insert)
+///   info cm            -> the cmdcount         / ambiguous (cmdcount, cmdtype)
+///   info cmdtype set   -> unknown "cmdtype"    / native
+///   array f x          -> unknown "f"          / `array for`'s own arity error
+#[test]
+fn ensemble_tables_follow_the_emulated_release() {
+    let v86 = tcl_dialect::TclVersion::V8_6;
+    let v90 = tcl_dialect::TclVersion::V9_0;
+
+    // dict: `getdef`/`getwithdefault` are TIP 342 (Tcl 9).
+    assert_eq!(run_for_version("dict g {a 1} a", v86).1, "1");
+    let (ok, msg, _) = run_for_version("dict g {a 1} a", v90);
+    assert!(!ok);
+    assert!(
+        msg.contains("get, getdef, getwithdefault,"),
+        "9.0 must advertise both spellings: {msg}"
+    );
+
+    // string: `insert` is Tcl 9.
+    assert_eq!(run_for_version("string in abc 1", v86).1, "b");
+    let (ok, msg, _) = run_for_version("string in abc 1", v90);
+    assert!(!ok);
+    assert!(msg.contains("index, insert, is,"), "{msg}");
+
+    // info: `cmdtype` is Tcl 9. The exact-name row shows that a resolution
+    // miss must report rather than fall through — the dispatch arms match on
+    // the canonical name, so `info cmdtype` would otherwise still run.
+    // UNIMPLEMENTED: the VM has no `info cmdcount`, so the *resolved* word is
+    // what the miss quotes — which is exactly the evidence that `cm` resolved
+    // uniquely under 8.6 and did not under 9.0.
+    let (ok, msg, _) = run_for_version("info cm", v86);
+    assert!(!ok);
+    assert!(
+        msg.starts_with("unknown or ambiguous subcommand \"cmdcount\""),
+        "8.6 must resolve `cm` to cmdcount: {msg}"
+    );
+    let (ok, msg, _) = run_for_version("info cmdtype set", v86);
+    assert!(!ok);
+    assert!(
+        msg.starts_with("unknown or ambiguous subcommand \"cmdtype\": must be args, body, class,"),
+        "{msg}"
+    );
+    let (ok, msg, _) = run_for_version("info cm", v90);
+    assert!(!ok);
+    assert!(
+        msg.starts_with("unknown or ambiguous subcommand \"cm\""),
+        "9.0 must leave `cm` ambiguous: {msg}"
+    );
+    assert!(msg.contains("cmdcount, cmdtype,"), "{msg}");
+
+    // array: `for` is Tcl 9 (so is `default`, which this engine does not
+    // dispatch). UNIMPLEMENTED: the enumeration is this engine's own
+    // dispatched set, shorter than tclsh's, on both releases.
+    let (ok, msg, _) = run_for_version("array f x", v86);
+    assert!(!ok);
+    assert!(
+        msg.starts_with("unknown or ambiguous subcommand \"f\""),
+        "{msg}"
+    );
+    assert!(!msg.contains("for"), "8.6 must not advertise for: {msg}");
+    let (ok, msg, _) = run_for_version("array f x", v90);
+    assert!(!ok);
+    assert!(msg.contains("wrong # args"), "9.0 resolves `for`: {msg}");
+}
+
+/// The same rule below 8.6: `binary encode`/`decode` (TIP 317) arrive in 8.6
+/// and `encoding dirs` in 8.5.
+///
+/// tclsh8.5.19: binary d base64 QQ== -> bad option "d": must be format or scan
+/// tclsh8.6.16: binary d base64 QQ== -> A
+/// tclsh8.4.20: encoding d           -> bad option "d": must be convertfrom,
+///                                      convertto, names, or system
+/// tclsh8.5.19: encoding d           -> the encoding directory list
+///
+/// The *sentence* below 8.6 is C's pre-ensemble `bad option` wording, which
+/// this engine does not model — it speaks the ensemble sentence at every
+/// release. The rows pin the resolution and the enumeration, not that wording.
+#[test]
+fn binary_and_encoding_tables_follow_the_emulated_release() {
+    let v84 = tcl_dialect::TclVersion::V8_4;
+    let v85 = tcl_dialect::TclVersion::V8_5;
+    let v86 = tcl_dialect::TclVersion::V8_6;
+
+    let (ok, msg, _) = run_for_version("binary d base64 QQ==", v85);
+    assert!(!ok);
+    // Two entries still take the ensemble owner's comma before `or`.
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"d\": must be format, or scan"
+    );
+    assert_eq!(run_for_version("binary d base64 QQ==", v86).1, "A");
+
+    let (ok, msg, _) = run_for_version("encoding d", v84);
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"d\": must be convertfrom, convertto, names, or system"
+    );
+    assert!(
+        run_for_version("encoding d", v85).0,
+        "`dirs` exists from 8.5"
+    );
 }

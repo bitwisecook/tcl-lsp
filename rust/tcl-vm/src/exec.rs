@@ -1777,9 +1777,10 @@ impl Vm {
             self.pop_call_frame();
             return Err(err(proc_usage(proc)));
         }
-        // The body resolves names in the proc's defining namespace. Pushed only
-        // on success; `unwind` pops it together with the call-frame.
-        self.push_ns(proc.namespace.clone());
+        // The body resolves names in the proc's defining namespace — the exact
+        // token it was bound in, not whatever currently answers to that name.
+        // Pushed only on success; `unwind` pops it together with the call-frame.
+        self.push_proc_ns(&proc.namespace, proc.ns_id);
         Ok(())
     }
 

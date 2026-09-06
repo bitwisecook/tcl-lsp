@@ -163,18 +163,26 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"chan subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
-    let names: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
-    let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&names, &sub, true) else {
-        let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-        m.extend_from_slice(&sub);
-        m.extend_from_slice(b"\": must be ");
-        m.extend_from_slice(&tcl_cmd_core::ensemble::subcommand_choices(&names));
-        return interp.set_error(&m);
+    // `isbinary` is Tcl 9 and `pipe`/`pop`/`push` 8.6, so the table follows the
+    // emulated release rather than pinning 9.0's for every pin.
+    let names = crate::environment::release_subcommands(
+        interp.runtime_version().dialect_profile_name(),
+        "chan",
+        SUBS,
+    );
+    let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(names, &sub, true) else {
+        // The whole sentence, not just its enumeration, is the owner's.
+        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+            names,
+            &sub,
+            true,
+            b"::tcl::chan",
+        ));
     };
     // `argv[1..]` is `subcommand args…`; each target reads its arguments from
     // `argv[1..]` and uses `argv[0]` (the subcommand word) only for error text.
     let rest = &argv[1..];
-    match SUBS[idx] {
+    match names[idx] {
         b"blocked" => fblocked_cmd(interp, rest),
         b"close" => close_cmd(interp, rest),
         b"configure" => fconfigure_cmd(interp, rest),
@@ -557,6 +565,13 @@ fn fblocked_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `seek`'s origin word, in C table order (`originOptions[]`, `tclIOCmd.c`):
+/// `Tcl_GetIndexFromObj(…, "origin", 0)`, so `s`/`c`/`e` abbreviate, the empty
+/// word — a prefix of all three — is `ambiguous origin ""`, and the offending
+/// word is quoted in the message.
+const SEEK_ORIGINS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("origin", &[b"start", b"current", b"end"]);
+
 fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use std::io::SeekFrom;
     if argv.len() < 3 || argv.len() > 4 {
@@ -567,15 +582,17 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .ok()
         .and_then(|s| s.trim().parse().ok())
         .unwrap_or(0);
-    let origin = argv
-        .get(3)
-        .map(|&a| obj_bytes(a))
-        .unwrap_or_else(|| b"start".to_vec());
-    let from = match origin.as_slice() {
-        b"start" => SeekFrom::Start(offset.max(0) as u64),
-        b"current" => SeekFrom::Current(offset),
-        b"end" => SeekFrom::End(offset),
-        _ => return interp.set_error(b"bad origin: must be start, current, or end"),
+    let origin = match argv.get(3) {
+        None => 0,
+        Some(&a) => match SEEK_ORIGINS.index_of(&obj_bytes(a)) {
+            Ok(i) => i,
+            Err(m) => return interp.set_error(&m),
+        },
+    };
+    let from = match origin {
+        1 => SeekFrom::Current(offset),
+        2 => SeekFrom::End(offset),
+        _ => SeekFrom::Start(offset.max(0) as u64),
     };
     let op = {
         let mut channels = interp.channels.borrow_mut();
@@ -677,6 +694,53 @@ mod tests {
             b"chan pipe is not supported under the WASM runtime"
         );
         assert_eq!(i.eval_str(b"chan"), Code::Error);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Issue #1607: `seek`'s origin word is a `Tcl_GetIndexFromObj(…,
+    /// "origin", 0)` table (`originOptions[]`, `tclIOCmd.c`). This matched
+    /// exactly and left the offending word out of the message entirely
+    /// (`bad origin: must be …`); C quotes it, abbreviates `s`/`c`/`e`, and
+    /// words the empty origin — a prefix of all three — `ambiguous`.
+    ///
+    /// tclsh 8.6.16 / 9.0.4:
+    ///   seek $f 0 x  -> bad origin "x": must be start, current, or end
+    ///   seek $f 0 {} -> ambiguous origin "": must be start, current, or end
+    ///   seek $f 0 e; tell $f -> the file size
+    ///   chan seek $f 0 x -> bad origin "x": must be start, current, or end
+    #[test]
+    fn seek_origin_resolves_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be start, current, or end";
+        let mut i = Interp::new();
+        let path = std::env::temp_dir().join(format!("tclrt_seek_{}.txt", std::process::id()));
+        let p = path.display();
+        ok(&mut i, format!("set f [open {p} w]").as_bytes());
+        ok(&mut i, b"puts -nonewline $f abcdef");
+        ok(&mut i, b"close $f");
+        ok(&mut i, format!("set f [open {p} r]").as_bytes());
+        assert_eq!(i.eval_str(b"seek $f 0 x"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("bad origin \"x\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"seek $f 0 {}"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("ambiguous origin \"\": {MUST}").as_bytes()
+        );
+        assert_eq!(i.eval_str(b"chan seek $f 0 x"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            format!("bad origin \"x\": {MUST}").as_bytes()
+        );
+        // Abbreviations resolve.
+        ok(&mut i, b"seek $f 0 e");
+        assert_eq!(ok(&mut i, b"tell $f"), b"6");
+        ok(&mut i, b"seek $f 2 s");
+        assert_eq!(ok(&mut i, b"tell $f"), b"2");
+        ok(&mut i, b"seek $f 1 c");
+        assert_eq!(ok(&mut i, b"tell $f"), b"3");
+        ok(&mut i, b"close $f");
         let _ = std::fs::remove_file(&path);
     }
 

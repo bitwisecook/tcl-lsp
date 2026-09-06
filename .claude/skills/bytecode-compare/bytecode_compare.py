@@ -386,9 +386,7 @@ def _print_diff(result: dict) -> None:
     )
     if diff:
         for line in diff:
-            if line.startswith("---"):
-                print(f"  {DIM}{line}{RESET}")
-            elif line.startswith("+++"):
+            if line.startswith(("---", "+++")):
                 print(f"  {DIM}{line}{RESET}")
             elif line.startswith("@@"):
                 print(f"  {CYAN}{line}{RESET}")

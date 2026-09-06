@@ -62,8 +62,8 @@ says so. Serve the directory to get the full editor.
    marked **set**, and each group heading counts how many of its fields are
    set, so what a command actually declares is visible at a glance. Every
    group and every field carries a **?** button that opens a plain-language
-   explanation, written for Tcl developers, with Tcl examples rather than
-   Rust ones.
+   explanation, written for Tcl developers, with a short Tcl example of that
+   setting rather than Rust.
 4. **Read the output** on the **Rendered .rs** and **Tcl stub** tabs. Both
    update as you type.
 5. **Copy** it, **Download** it, or **Add to files** to collect several
@@ -91,6 +91,27 @@ each with what it means and what it drives. Searching "taint" finds the
 taint fields and every taint colour; searching "upvar" finds the traits
 and fields about scope aliasing. The same text sits behind the form's
 **?** buttons, so nothing has to be learned in two places.
+
+Every entry comes with a worked example: a few lines of Tcl with an arrow
+under each word that matters, numbered in the order Tcl runs them. The
+example is of that setting, not of its group. `arity` shows `incr` taking
+one word, then two, then one too many:
+
+```text
+incr count
+     └────→ 1. Arity — one argument after the name meets the minimum of 1
+incr count 5
+           └─→ 2. Arity — a second reaches the maximum of 2
+incr count 5 extra
+             └────→ 3. Arity — a third draws the wrong # args diagnostic
+```
+
+Dropdown values get the same treatment. Each trait, argument role, taint
+colour, side-effect target, and type shows its own Tcl program, so choosing
+between two similar values is a matter of reading two examples rather than
+two definitions. A few smaller
+pickers — body kind, script timing, the compiler hook names — still share
+their catalogue's one example.
 
 ### Nothing you type is uploaded
 

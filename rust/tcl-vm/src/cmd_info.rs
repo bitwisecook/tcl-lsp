@@ -32,60 +32,52 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
 }
 
-/// Resolve an `info` subcommand word to its canonical Tcl 9 name with Tcl's
-/// unambiguous-prefix rule (`Tcl_GetIndexFromObj`): an exact match wins,
-/// otherwise a unique prefix — so `info command` resolves to `commands`
-/// (cmdAH.test). Returns `None` when the word matches nothing or is an
-/// ambiguous prefix of several; the caller then reports the error. The table is
-/// the full Tcl 9 `info` option set so ambiguity matches C even for
-/// subcommands the VM does not yet implement (those resolve then fall through
-/// to the unknown-subcommand arm).
-fn canonical_info_sub(sub: &str) -> Option<&'static str> {
-    const SUBS: &[&str] = &[
-        "args",
-        "body",
-        "cmdcount",
-        "cmdtype",
-        "commands",
-        "complete",
-        "constant",
-        "consts",
-        "coroutine",
-        "default",
-        "errorstack",
-        "exists",
-        "frame",
-        "functions",
-        "globals",
-        "hostname",
-        "level",
-        "library",
-        "loaded",
-        "locals",
-        "nameofexecutable",
-        "object",
-        "patchlevel",
-        "procs",
-        "script",
-        "sharedlibextension",
-        "tclversion",
-        "vars",
-    ];
-    if sub.is_empty() {
-        return None;
-    }
-    if let Some(&exact) = SUBS.iter().find(|&&s| s == sub) {
-        return Some(exact);
-    }
-    let mut found = None;
-    let mut count = 0u32;
-    for &s in SUBS {
-        if s.starts_with(sub) {
-            found = Some(s);
-            count += 1;
-        }
-    }
-    if count == 1 { found } else { None }
+/// `info`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
+/// full Tcl 9 table, so ambiguity matches C even for subcommands the VM does
+/// not yet implement (those resolve, then fall through to the
+/// unknown-subcommand arm).
+const INFO_SUBS: &[&str] = &[
+    "args",
+    "body",
+    "class",
+    "cmdcount",
+    "cmdtype",
+    "commands",
+    "complete",
+    "constant",
+    "consts",
+    "coroutine",
+    "default",
+    "errorstack",
+    "exists",
+    "frame",
+    "functions",
+    "globals",
+    "hostname",
+    "level",
+    "library",
+    "loaded",
+    "locals",
+    "nameofexecutable",
+    "object",
+    "patchlevel",
+    "procs",
+    "script",
+    "sharedlibextension",
+    "tclversion",
+    "vars",
+];
+
+/// `info`'s implementation namespace — the `ns_fqn` an empty ensemble's miss
+/// message would name (`TclMakeEnsemble`, `tclBasic.c`).
+const INFO_NS: &[u8] = b"::tcl::info";
+
+/// Resolve an `info` subcommand word to its canonical Tcl 9 name through the
+/// shared ensemble owner: an exact match wins, otherwise a unique prefix — so
+/// `info command` resolves to `commands` (cmdAH.test). `None` when the word
+/// matches nothing or prefixes several; the caller then reports the miss.
+fn canonical_info_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
+    tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_bytes(), true).map(|index| subs[index])
 }
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
@@ -94,9 +86,28 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"info subcommand ?arg ...?\"");
     };
     let sub_str = sub.to_str();
-    let canon: &str = match canonical_info_sub(&sub_str) {
-        Some(c) => c,
-        None => &sub_str,
+    // `cmdtype`, `constant` and `consts` are Tcl 9 (`class`, `coroutine`,
+    // `errorstack` and `object` 8.6, `frame` 8.5), so the table is filtered to
+    // the emulated release before the scan: on 8.6 `info cm` is `cmdcount`,
+    // on 9.0 it is ambiguous with `cmdtype`.
+    let subs = crate::environment::release_subcommands(
+        vm.runtime_version().dialect_profile_name(),
+        "info",
+        INFO_SUBS,
+    );
+    // A miss reports here rather than falling through with the raw word: the
+    // arms below match on the canonical name, so a word the *pinned release*
+    // does not have (`info cmdtype` under 8.6) would otherwise still dispatch.
+    let Some(canon) = canonical_info_sub(subs, &sub_str) else {
+        return err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                sub_str.as_bytes(),
+                true,
+                INFO_NS,
+            ))
+            .into_owned(),
+        );
     };
     match canon {
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
@@ -256,7 +267,17 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [] => ok(crate::cmd_coro::current_coroutine(vm)),
             _ => err("wrong # args: should be \"info coroutine\""),
         },
-        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+        // Reached by a word that matched nothing, prefixed several entries, or
+        // resolved to a subcommand this engine does not implement.
+        other => err(
+            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                other.as_bytes(),
+                true,
+                INFO_NS,
+            ))
+            .into_owned(),
+        ),
     }
 }
 
@@ -287,7 +308,7 @@ mod tests {
         for (version, expected_version, expected_patchlevel) in [
             (TclVersion::V8_4, "8.4", "8.4.20"),
             (TclVersion::V8_5, "8.5", "8.5.19"),
-            (TclVersion::V8_6, "8.6", "8.6.16"),
+            (TclVersion::V8_6, "8.6", "8.6.18"),
             (TclVersion::V9_0, "9.0", "9.0.4"),
             // `tclsh9.1` (the 9.1b0 reference build): `info tclversion` →
             // `9.1`, `info patchlevel` → `9.1b0`.

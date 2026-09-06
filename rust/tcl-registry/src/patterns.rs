@@ -25,7 +25,20 @@
 //! literal) and run pattern-specific validation.
 
 use crate::abbrev::PrefixMatching;
+use crate::documentation::{DocumentationAnnotation, DocumentationCarrier, DocumentationExample};
 use crate::hover::OptionSpec;
+
+/// One worked example whose carrier is the command that owns the embedded
+/// mini-language argument.
+macro_rules! templated {
+    ($code:literal; carrier ($cline:literal, $cneedle:literal); $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {
+        {
+            const ANNOTATIONS: &[DocumentationAnnotation] =
+                &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+            DocumentationExample::with_carrier($code, DocumentationCarrier::new($cline, $cneedle), ANNOTATIONS)
+        }
+    };
+}
 
 /// Kind of pattern language an argument uses, for semantic tokens and
 /// validation.
@@ -127,6 +140,9 @@ pub(crate) fn resolve_available_option_prefix_with<'a>(
 }
 
 impl PatternType {
+    /// Every pattern language, in declaration order.
+    pub const ALL: &'static [Self] = &[Self::Glob, Self::Regex];
+
     /// Stable lowercase tag (`"glob"` / `"regex"`) — used by the audit
     /// dumper so both sides normalise identically.
     #[must_use]
@@ -134,6 +150,23 @@ impl PatternType {
         match self {
             Self::Glob => "glob",
             Self::Regex => "regex",
+        }
+    }
+
+    /// Registry-owned program showing a shipped command whose `pattern_type`
+    /// is this language, the pattern word it reads, and how the LSP then
+    /// tokenises and checks that word. The carrier is the pattern-taking
+    /// command. This exhaustive match is the compile gate for pattern-language
+    /// documentation.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        match self {
+            Self::Glob => {
+                templated!("set name [file tail $path]\nset is_script [string match *.tcl $name]\nif {$is_script} { source $path }"; carrier (1, "string match"); (1, "string match", "takes the pattern as its first argument"), (1, "*.tcl", "is tokenised as wildcards, never as regex syntax"), (2, "$is_script", "carries the match result"))
+            }
+            Self::Regex => {
+                templated!("set version 8.6.14\nregexp {^(\\d+)\\.(\\d+)} $version -> major minor\nputs $major.$minor"; carrier (1, "regexp"); (1, "regexp", "takes the pattern as its first non-option argument"), (1, "{^(\\d+)\\.(\\d+)}", "is highlighted as regex syntax and checked for ReDoS (W303) and quoting pitfalls (W306)"), (2, "$major.$minor", "uses the captured groups"))
+            }
         }
     }
 }
@@ -153,6 +186,9 @@ pub enum FormatType {
 }
 
 impl FormatType {
+    /// Every format-string family, in declaration order.
+    pub const ALL: &'static [Self] = &[Self::Sprintf, Self::Clock, Self::Binary, Self::Regsub];
+
     /// Stable lowercase tag
     /// (`"sprintf"` / `"clock"` / `"binary"` / `"regsub"`).
     #[must_use]
@@ -164,12 +200,54 @@ impl FormatType {
             Self::Regsub => "regsub",
         }
     }
+
+    /// Registry-owned program showing a shipped command whose
+    /// `format_string_type` is this family, the template word it reads, and
+    /// how the LSP then tokenises, hints, or version-gates that word. The
+    /// carrier is the template-taking command. This exhaustive match is the
+    /// compile gate for format-family documentation.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        match self {
+            Self::Sprintf => {
+                templated!("set line [format {%-10s %5d} $name $count]\nputs $line"; carrier (0, "format"); (0, "format", "takes the template as its first argument"), (0, "%-10s %5d", "each conversion is highlighted and hinted (str, int); one newer than the target Tcl raises W138"), (1, "$line", "holds the rendered text"))
+            }
+            Self::Clock => {
+                templated!("set stamp [clock format [clock seconds] -format {%Y-%m-%d %b}]\nputs $stamp"; carrier (0, "clock format"); (0, "clock format", "takes the template after -format"), (0, "%Y-%m-%d %b", "fields are highlighted as clock conversions: %b is a month name here, not format's %b, so W138 stays quiet"), (1, "$stamp", "holds the rendered timestamp"))
+            }
+            Self::Binary => {
+                templated!("set packet [binary format Sa4 $port $tag]\nbinary scan $packet Sa4 port tag"; carrier (0, "binary format"); (0, "binary format", "takes the template as its first argument"), (0, "Sa4", "is tokenised as cursor fields, one per packed value, never as printf conversions"), (1, "binary scan", "reads the same field language to unpack the bytes"))
+            }
+            Self::Regsub => {
+                templated!("regsub -all {(\\w+)@(\\w+)} $text {\\2 at \\1} swapped\nputs $swapped"; carrier (0, "regsub"); (0, "regsub", "takes the replacement template after its pattern"), (0, "{\\2 at \\1}", "is read as a replacement: \\1 and \\2 are backreferences, not printf conversions"), (1, "$swapped", "holds the rewritten text"))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::registry::CommandRegistry;
+    use crate::types::example_checks::assert_examples_valid;
+
+    #[test]
+    fn every_pattern_type_has_a_distinct_source_aligned_example() {
+        let examples: Vec<_> = PatternType::ALL
+            .iter()
+            .map(|&kind| (format!("{kind:?}"), kind.example()))
+            .collect();
+        assert_examples_valid("PatternType", &examples);
+    }
+
+    #[test]
+    fn every_format_type_has_a_distinct_source_aligned_example() {
+        let examples: Vec<_> = FormatType::ALL
+            .iter()
+            .map(|&kind| (format!("{kind:?}"), kind.example()))
+            .collect();
+        assert_examples_valid("FormatType", &examples);
+    }
 
     #[test]
     fn enum_tags_have_expected_str_values() {

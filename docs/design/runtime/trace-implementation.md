@@ -90,6 +90,51 @@ leave-trace error replaces its result, `rename`/`delete` callback errors are
 ignored, traces follow a `rename`, and a redefinition fires the `delete`
 trace.
 
+### The `rename` trace window
+
+C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
+entry, fires the `rename` traces, and only *then* deletes the source entry.
+Both entries reference the one `Command`, and the traces hang off that, not
+off either entry. So for the callbacks' duration the vacating name **is** the
+destination command:
+
+- both names resolve and are callable;
+- `trace info command <old>` and `… <new>` answer the same list, and a
+  `trace add` or `trace remove` through either name edits it;
+- a `rename` or a delete through *either* name moves or destroys that one
+  command — and C's `CMD_TRACE_ACTIVE` keeps the pass's remaining callbacks
+  from re-firing when it does.
+
+The VM reproduces that window rather than the naive "mutate, then fire":
+`cmd_rename` registers the destination, `on_command_renamed_traces` moves the
+sidecars to the destination key and fires from there (passing the old
+fully-qualified name for the callback's first word), and only afterwards does
+`retire_renamed_command_source` drop the source entry — the VM's spelling of
+`Tcl_DeleteHashEntry(oldHPtr)`, a plain table removal that fires no `delete`
+trace.
+
+The VM has no shared command object to hang that equivalence on, so an open
+window records it as a source→destination pair (`rename_windows`, a stack, one
+frame per nested rename). `renamed_command_key` resolves a key through it —
+used by `trace add`/`remove`/`info` and by `prepare_command_rename`, which is
+what makes a callback's `rename <old> <third>` and `rename <old> {}` act on
+the destination. A nested rename would otherwise strand that state on the key
+it just vacated, so `relocate_rename_state` retargets every enclosing window
+*and* every `firing_cmd_traces` record — the key-addressed stand-in for
+`CMD_TRACE_ACTIVE`, which C gets for free from the `Command` being one object.
+
+Two residues of that same missing shared identity are not emulated, both
+because C's own behaviour there is a torn-state artefact rather than a
+contract: re-*creating* the vacating name from a callback (`proc <old> {} …`)
+kills the destination in C but not in the VM, and 8.6 and 9.0 disagree with
+each other on what `info commands <old>` reports after a callback deletes the
+command.
+
+**Known gap:** `runtime/rust` fires the `rename` traces *before* any table
+mutation, so a callback there sees the old name but not yet the new one — the
+mirror image of the divergence the VM used to have. Its window has not been
+brought onto C's ordering yet.
+
 ## Callback shape and firing order
 
 A callback is evaluated as a script: the verbatim command prefix with the
@@ -137,6 +182,15 @@ its imports retire depth-first, then the loop moves to the next entry; the
 table is re-snapshotted while it is non-empty, so a command a callback creates
 is torn down in a later pass.
 
+A namespace deleted while a call frame was still running in it fires none of
+this at delete time: the token is retained and the whole loop runs from the pop
+that drops its last activation instead (issue #1751,
+[namespace-tree.md](namespace-tree.md) §4). Traces registered against the
+retained tokens are addressed by the exact `(namespace, tail)` slot rather than
+by re-resolving the name, because a retained `::N::q` and the `::N::q` of a
+namespace recreated under the same spelling are two tokens with one spelling,
+each firing only its own list.
+
 A deletion drops exactly the traces the **dying token** carried, which is what
 C's `Tcl_DeleteCommandFromToken` frees when it releases `cmdPtr->tracePtr`.
 Both registries are keyed by command *name*, so each registration is stamped
@@ -148,7 +202,11 @@ only the stamps that are later than the dying one:
   (`CallCommandTraces` follows `active.nextTracePtr`), and not for a later
   command that takes the vacated name;
 - a trace it registers on a **replacement** it bound at that name belongs to
-  the new token and survives, list intact.
+  the new token and survives, list intact;
+- a trace on a command in a namespace recreated at a **retained** token's
+  spelling belongs to that recreation, and the retained token's own teardown
+  neither fires nor drops it (generations are minted interpreter-wide, so the
+  two never compare equal).
 
 A hide, expose or rename moves the list with its token and re-stamps it,
 because C moves the `Command` itself rather than creating a new one.

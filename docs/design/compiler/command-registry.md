@@ -642,6 +642,22 @@ role fails to compile until someone decides which side it falls on:
 *list* of names, not one name, so a consumer must split it before it holds a
 variable name at all.
 
+### Worked examples -- owned by the vocabulary
+
+A closed vocabulary's worked example lives beside its declaration, behind an
+exhaustive `match` of the same kind as the predicates above: `ArgRole::example`,
+`AppendedArity::example`, `Trait::example` (via `declare_trait_examples!`),
+and the same shape on `TclType`, `StorageType`, `ConnectionSide`,
+`ByteArrayEffect`, `PatternType`, `FormatType`, `TaintColourAtom`, and
+`SideEffectTarget`. Each returns a `DocumentationExample` — a Tcl program plus
+the source spans that carry the fact — and the Spec Studio and Compiler
+Explorer serialise that value rather than keeping a table of their own. Adding
+a variant therefore does not compile until it has an example; `#[non_exhaustive]`
+binds only downstream crates, so the gate holds for `AppendedArity` too. Why
+the example stays here rather than in a keyed catalogue or a doctest is
+recorded in [the studio
+contract](../contracts/command-spec-studio.md#where-a-vocabularys-example-lives).
+
 ### Repeated argument layouts -- unbounded regular tails
 
 `arg_roles` is a fixed index table and an `arg_role_resolver` is an opaque
@@ -1743,9 +1759,9 @@ The [Command Spec Studio](../contracts/command-spec-studio.md) is the other
 non-Rust route today: a browser front-end over this registry that browses
 the live command surface, edits every field described above, and renders
 the result back out as a drop-in `.rs` module or a stub. Each field carries
-a plain-language explanation written for Tcl developers, and a Reference
-tab searches the whole vocabulary — every field, trait, argument role, and
-taint colour.
+a plain-language explanation written for Tcl developers with a worked Tcl
+example of that field, and a Reference tab searches the whole vocabulary —
+every field, trait, argument role, and taint colour, each with its own.
 
 See the KCS how-tos: [creating a command spec without knowing
 Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md) and [writing

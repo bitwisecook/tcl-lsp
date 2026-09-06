@@ -27,7 +27,7 @@ the audit worktree and the primary checkout:
 ```text
 tmp/tcl8.4.20/
 tmp/tcl8.5.19/
-tmp/tcl8.6.16/
+tmp/tcl8.6.18/
 tmp/tcl9.0.4/
 tmp/tcl9.1b0/
 ```
