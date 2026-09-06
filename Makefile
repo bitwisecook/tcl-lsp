@@ -10,8 +10,8 @@
 #
 # Prerequisites:
 #   - Rust stable with cargo (via rustup).  The workspace tracks the floating
-#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.98.0,
-#     released 2026-08-18.  `Cargo.toml` `rust-version` is authoritative.
+#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.98.1,
+#     released 2026-09-03.  `Cargo.toml` `rust-version` is authoritative.
 #   - Node.js 24+ with npm
 #   - macOS WASM builds: `make ensure-rust-deps` installs the pinned wasi-sdk;
 #     stock Apple clang has no wasm32 backend.

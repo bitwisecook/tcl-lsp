@@ -354,12 +354,6 @@ against, and how it stays fast under an editor's keystroke load.
   single-threaded runtime, the `poll_oneoff` + yield loop that does not — the
   host contract (preopens, stdout drain, exit codes), and how the WASI module
   ships (the universal VSIX's fallback rung and the signed release asset).
-- [notes/tokio-task-resumption-wedge-repro.md](notes/tokio-task-resumption-wedge-repro.md)
-  — the #1657 whole-server wedge: the instrumented evidence chain (a task
-  woken twice and never polled again), what is excluded and by what, measured
-  repro rates per tokio version, and a self-contained distillation sample
-  with its honestly-reported results.
-
 ## Optional WASM extensions
 
 - [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
