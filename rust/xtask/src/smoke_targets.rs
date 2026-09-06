@@ -894,6 +894,17 @@ fn inline_module_directories(module: &syn::ItemMod, directory: &Path) -> Vec<Pat
     directories
 }
 
+fn is_builtin_include_macro(path: &syn::Path) -> bool {
+    let mut segments = path.segments.iter();
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    let Some(second) = segments.next() else {
+        return first.ident.unraw() == "include";
+    };
+    segments.next().is_none() && first.ident.unraw() == "std" && second.ident.unraw() == "include"
+}
+
 fn collect_smoke_test_sources(
     source: &Path,
     directory: &Path,
@@ -938,10 +949,7 @@ fn collect_smoke_test_sources(
                     }
                 }
             }
-            syn::Item::Macro(item_macro)
-                if item_macro.mac.path.segments.len() == 1
-                    && item_macro.mac.path.segments[0].ident.unraw() == "include" =>
-            {
+            syn::Item::Macro(item_macro) if is_builtin_include_macro(&item_macro.mac.path) => {
                 if let Ok(literal) = syn::parse2::<syn::LitStr>(item_macro.mac.tokens.clone()) {
                     collect_literal_include(
                         source,
@@ -3314,9 +3322,10 @@ fn inline_smoke_module_include_self_test() -> Result<()> {
     let fixture = Fixture::new()?;
     fixture.write(
         "src/lib.rs",
-        "include!(\"outside.rs\");\nmod smoke { include!(\"inside.rs\"); }\n",
+        "std::include!(\"outside.rs\");\nmod smoke { helper::include!(\"helper.rs\"); std::include!(\"inside.rs\"); }\n",
     )?;
     fixture.write("src/outside.rs", "#[test]\nfn ordinary() {}\n")?;
+    fixture.write("src/helper.rs", "#[test]\nfn ordinary() {}\n")?;
     fixture.write("src/inside.rs", "#[test]\nfn ordinary() {}\n")?;
     let mut found = BTreeSet::new();
     collect_source_smoke_tests(
@@ -3937,5 +3946,11 @@ mod tests {
     #[test]
     fn target_helpers_cover_static_edge_cases() {
         self_test().expect("smoke target helper self-test");
+    }
+
+    #[test]
+    fn namespaced_include_preserves_smoke_module_context() {
+        inline_smoke_module_include_self_test()
+            .expect("namespaced include smoke-module context self-test");
     }
 }
