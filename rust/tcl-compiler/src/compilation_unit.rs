@@ -35,6 +35,9 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
+use crate::cfg_builder::{
+    PreparedCfgContext, build_cfg_with_registry_and_context, prepare_cfg_context_bundle,
+};
 use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
@@ -42,7 +45,7 @@ use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::{SccpResult, sccp_with_extra_escaping};
 use crate::semantic_analysis::SemanticAnalysisBundle;
-use crate::ssa::{SsaFunction, ValueKey, build_ssa};
+use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_config};
 use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
@@ -79,7 +82,8 @@ pub struct LatticeRequest<'a> {
     /// The procedure's declared parameters.
     pub params: &'a [String],
     /// Module-wide `proc -> upvar summary` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    /// [`crate::cfg_builder::prepare_cfg_context`]), the resolved command surface,
+    /// and whether command dispatch is trace-visible.
     pub upvar_procs: &'a HashMap<String, crate::cfg_builder::upvar_info::UpvarInfo>,
     /// Module-wide `proc -> params` context (from
     /// [`crate::cfg_builder::prepare_cfg_context`]).
@@ -88,9 +92,19 @@ pub struct LatticeRequest<'a> {
     /// [`crate::cfg_builder::prepare_cfg_context`]).
     pub global_write_procs:
         &'a HashMap<String, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
+    /// Closed module command state used to resolve effective direct-call
+    /// targets and `interp alias` argument prefixes.
+    pub command_bindings: &'a crate::command_binding::ModuleCommandBindings,
+    /// Exact offset-zero lexer configuration used to lower and rebuild this
+    /// body. This is carried independently of `dialect`: callers may layer
+    /// grammar overrides without changing the registry profile.
+    pub lexer_config: tcl_lexer::LexerConfig,
     /// Analysis dialect — selects the registry the lattice pipeline runs under.
     /// `None` when the build named no dialect (plain Tcl).
     pub dialect: Option<&'static tcl_dialect::DialectProfile>,
+    /// Whether command spellings must retain ordinary runtime dispatch rather
+    /// than acquiring registry-declared builtin control-flow edges.
+    pub plain_command_dispatch: bool,
     /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
     /// (from [`params_constants_from_call_sites`]), encoded in the
     /// deterministic, hashable `(param, version, string)` form the memo key
@@ -625,14 +639,8 @@ impl FunctionUnit {
         if crate::ssa::is_complexity_guarded(&cfg) {
             return Self::trivial_guarded(name, cfg);
         }
-        let ssa = build_ssa(&cfg, registry);
-        let def_use = build_def_use_chains(
-            &ssa,
-            Some(&cfg),
-            registry
-                .profile()
-                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-        );
+        let ssa = build_ssa_with_config(&cfg, registry, config);
+        let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
         // read when SCCP folds `==`/`!=` — octal in the 8.x runtimes (tcl8.x /
@@ -693,6 +701,7 @@ impl FunctionUnit {
                 },
                 registry,
                 dynamic_names,
+                config,
             ));
         let types = propagate_types(
             &cfg,
@@ -926,6 +935,9 @@ pub struct CompilationUnit {
     pub ir_module: IrModule,
     /// Module-level CFG.
     pub cfg_module: CfgModule,
+    /// Whole-module command trust projected from the binding summary already
+    /// prepared for CFG construction.
+    pub command_mutations: crate::command_binding::ModuleCommandMutations,
     /// Top-level script analysis.
     pub top_level: FunctionUnit,
     /// Per-procedure analyses keyed by qualified name.
@@ -984,6 +996,12 @@ pub struct UnitCallerScope {
     /// triples the lattice memo key interns.  Only procedures that received
     /// a seed appear.  Sorted so the explorer's rendering is deterministic.
     pub param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
+    /// Narrow declared-procedure identity trust projected from the prepared
+    /// command-binding summary. Unlike the unit's `command_mutations`, this
+    /// excludes transitive opacity introduced by an unresolved/autoloaded
+    /// command in a retained body. Consumers must combine it with an exact
+    /// flow-sensitive call-site binding.
+    pub(crate) proc_binding_trust: crate::command_binding::ProcBindingTrustProjection,
 }
 
 /// Whole-module facts every per-function build in a [`CompilationUnit`] build
@@ -1030,7 +1048,12 @@ fn lower_and_build_cfg(
     source: &str,
     options: UnitBuildOptions<'_>,
     body_cache: Option<&BodyLoweringCache<'_>>,
-) -> (IrModule, CfgModule, HashMap<String, HashSet<String>>) {
+) -> (
+    IrModule,
+    CfgModule,
+    HashMap<String, HashSet<String>>,
+    PreparedCfgContext,
+) {
     let registry = options.registry;
     let mut ir_module = match body_cache {
         Some(bc) => crate::lowering::lower_to_ir_with_body_cache(
@@ -1056,34 +1079,32 @@ fn lower_and_build_cfg(
     // every passthrough callsite is replaced with a Statement::Block
     // that splices the body inline.
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let mut cfg_module = crate::cfg_builder::build_cfg_with_config(
+    let cfg_context = prepare_cfg_context_bundle(&ir_module, registry);
+    let mut cfg_module = build_cfg_with_registry_and_context(
         &ir_module,
         options.defer_top_level,
+        registry,
+        &cfg_context,
         options.config,
     );
     let tainted_global_writes =
         crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
-    (ir_module, cfg_module, tainted_global_writes)
+    (ir_module, cfg_module, tainted_global_writes, cfg_context)
 }
 
 /// Resolve everything the interprocedural constant seed needs to know about
 /// *who can call this unit's procedures* (see [`crate::unit_scope`]):
-/// the merged call-site evidence, the whole-module command-binding trust
-/// lattice, and the registry-declared unit boundaries the file crosses.
-///
-/// Returned as a tuple rather than a ready-made
-/// [`crate::unit_scope::UnitCallerView`] because that view *borrows* the
-/// mutations lattice, which is produced here — the caller owns both and pairs
-/// them up.
+/// the merged call-site evidence, the registry-declared unit boundaries the
+/// file crosses, and the extra caller CFGs reused by later method/body builds.
 fn resolve_unit_scope(
     ir_module: &IrModule,
     cfg_module: &CfgModule,
-    cfg_context: Option<&CfgContext>,
+    cfg_context: Option<&PreparedCfgContext>,
     options: UnitBuildOptions<'_>,
 ) -> (
     crate::unit_scope::CallSiteEvidence,
-    crate::command_binding::ModuleCommandMutations,
     tcl_registry::Traits,
+    Vec<crate::unit_scope::ExtraCallSiteScanContext>,
 ) {
     let registry = options.registry;
     // Bare CFGs for every TclOO method and synthetic body unit (`apply`
@@ -1093,7 +1114,8 @@ fn resolve_unit_scope(
     // `None`): a call from inside one of these bodies to an ordinary user proc
     // is a real call site whose argument can vary between call sites, exactly
     // like a bare top-level/proc-body call.
-    let extra_callers = build_extra_call_site_scan_contexts(ir_module, cfg_context, options.config);
+    let extra_callers =
+        build_extra_call_site_scan_contexts(ir_module, cfg_context, registry, options.config);
     // Collect call-site literal arg values per user proc so each callee's SCCP
     // can fold a param every caller passes the same literal for
     // (interprocedural constant propagation).
@@ -1114,16 +1136,30 @@ fn resolve_unit_scope(
     if let Some(external) = options.external_call_sites {
         call_sites.merge_from(external);
     }
-    // Whole-module `rename` / `interp alias` / dynamic-redefinition trust
-    // fact — reused (not duplicated) from the optimiser's identical O103
-    // proc-call-fold trust gate, so the interprocedural param-constant seed
-    // never trusts a callee whose binding could have moved.
-    let command_mutations =
-        crate::command_binding::scan_module_command_mutations(ir_module, registry);
     // Which registry-declared unit boundaries this file crosses — the generic
     // replacement for the old hardcoded `package provide` check.
     let linkage = crate::unit_scope::scan_unit_linkage(ir_module, registry, options.dialect);
-    (call_sites, command_mutations, linkage)
+    (call_sites, linkage, extra_callers)
+}
+
+/// Derive both whole-module command-trust views from the command lattice that
+/// CFG preparation already closed. This is the single compilation-unit seam;
+/// consumers never rebuild or reinterpret the binding analysis independently.
+fn prepared_command_trust(
+    ir_module: &IrModule,
+    registry: &CommandRegistry,
+    prepared: &PreparedCfgContext,
+) -> (
+    crate::command_binding::ModuleCommandMutations,
+    crate::command_binding::ProcBindingTrustProjection,
+) {
+    let bindings = &prepared.context.3;
+    (
+        crate::command_binding::scan_module_command_mutations_with_bindings(
+            ir_module, registry, bindings,
+        ),
+        bindings.proc_binding_trust_projection(),
+    )
 }
 
 /// The semantic context a unit's executable IR is resolved under: the
@@ -1183,6 +1219,10 @@ fn build_procedure_units(
     mut cache: Option<&mut ProcLatticeCache<'_>>,
     config: tcl_lexer::LexerConfig,
 ) -> BuiltProcedureUnits {
+    // Procedure memo bodies are relocated to offset zero. Preserve the exact
+    // lexical policy while stripping only source-coordinate bookkeeping so a
+    // moved but unchanged body keeps the same cache identity.
+    let memo_config = config.nested().normalized();
     let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
     let mut param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>> = BTreeMap::new();
     for (qname, cfg) in &ctx.cfg_module.procedures {
@@ -1245,7 +1285,7 @@ fn build_procedure_units(
             (
                 Some(memo),
                 Some(proc),
-                Some((upvar_procs, proc_params, global_write_procs)),
+                Some((upvar_procs, proc_params, global_write_procs, command_bindings)),
                 Some(encoded_pc),
                 false,
             ) => {
@@ -1260,7 +1300,10 @@ fn build_procedure_units(
                     upvar_procs,
                     proc_params,
                     global_write_procs,
+                    command_bindings,
+                    lexer_config: memo_config,
                     dialect: ctx.dialect,
+                    plain_command_dispatch: ctx.ir_module.plain_command_dispatch,
                     param_constants: &encoded_pc,
                     known_classes: ctx.known_classes,
                     traced_variables: ctx.traced_variable_names,
@@ -1515,8 +1558,10 @@ impl CompilationUnit {
             external_call_sites,
             ..
         } = options;
-        let (ir_module, cfg_module, tainted_global_writes) =
+        let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
             lower_and_build_cfg(source, options, body_cache);
+        let (command_mutations, proc_binding_trust) =
+            prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site
@@ -1526,14 +1571,10 @@ impl CompilationUnit {
         // to build (methods, body units, `uplevel #0` bodies).
         let cfg_context = (cache.is_some()
             || crate::unit_scope::needs_extra_call_site_scan_contexts(&ir_module))
-        .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
-        let (call_site_constants, command_mutations, linkage) =
+        .then_some(prepared_cfg_context);
+        let (call_site_constants, linkage, extra_callers) =
             resolve_unit_scope(&ir_module, &cfg_module, cfg_context.as_ref(), options);
-        let caller_view = crate::unit_scope::UnitCallerView {
-            linkage,
-            has_cross_file_evidence: external_call_sites.is_some(),
-            command_mutations: &command_mutations,
-        };
+        let has_cross_file_evidence = external_call_sites.is_some();
         let ModuleWideFacts {
             known_class_set,
             known_classes,
@@ -1557,11 +1598,16 @@ impl CompilationUnit {
             options.config,
         )
         .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
+        let caller_view = crate::unit_scope::UnitCallerView {
+            linkage,
+            has_cross_file_evidence,
+            proc_binding_trust: &proc_binding_trust,
+        };
         let built = build_procedure_units(
             &ProcedureBuildContext {
                 ir_module: &ir_module,
                 cfg_module: &cfg_module,
-                cfg_context: cfg_context.as_ref(),
+                cfg_context: cfg_context.as_ref().map(|prepared| &prepared.context),
                 registry,
                 dialect,
                 call_sites: &call_site_constants,
@@ -1578,7 +1624,7 @@ impl CompilationUnit {
         let mut procedures = built.procedures;
         let methods = Self::build_method_units(
             &ir_module,
-            cfg_context.as_ref(),
+            &extra_callers,
             &known_class_set,
             registry,
             trace_facts,
@@ -1587,7 +1633,7 @@ impl CompilationUnit {
         );
         let body_units = Self::build_body_units(
             &ir_module,
-            cfg_context.as_ref(),
+            &extra_callers,
             &known_class_set,
             registry,
             trace_facts,
@@ -1600,6 +1646,7 @@ impl CompilationUnit {
             source: source.to_owned(),
             ir_module,
             cfg_module,
+            command_mutations,
             top_level,
             procedures,
             methods,
@@ -1607,10 +1654,11 @@ impl CompilationUnit {
             interproc: None,
             connection_scope,
             caller_scope: UnitCallerScope {
-                linkage: caller_view.linkage,
-                has_cross_file_evidence: caller_view.has_cross_file_evidence,
+                linkage,
+                has_cross_file_evidence,
                 call_sites: call_site_constants,
                 param_constants_by_proc: built.param_constants_by_proc,
+                proc_binding_trust,
             },
         }
     }
@@ -1623,7 +1671,7 @@ impl CompilationUnit {
     /// Returns an empty map for non-OO sources (skipping the upvar-context scan).
     fn build_method_units(
         ir_module: &IrModule,
-        cfg_context: Option<&CfgContext>,
+        extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
@@ -1633,8 +1681,6 @@ impl CompilationUnit {
         if ir_module.methods.is_empty() {
             return HashMap::new();
         }
-        let (upvar_procs, proc_params, global_write_procs) =
-            cfg_context.expect("cfg_context computed when methods are present");
         // Issue #1177: a callee reached via `my` / `next` is a method, never
         // in the upvar-procs table (the dispatch does not name its target),
         // so its `upvar 1 $refvar …` caller-frame definition was invisible
@@ -1645,40 +1691,38 @@ impl CompilationUnit {
         // dispatch sites of exactly the methods whose reachable dispatch
         // surface meets a caller-frame-reaching (or unanalysable) class —
         // the same per-method barrier the optimiser's propagation gate
-        // consumes, so the two stay one evidence rule — through synthetic
-        // frame-effect entries fed to the per-call-site machinery procs
-        // already use.
-        let dispatch_barrier = crate::optimiser::method_barrier::compute(ir_module, registry);
-        let widened_upvar_procs = {
-            let mut map = upvar_procs.clone();
-            map.extend(crate::cfg_builder::upvar_info::oo_dispatch_widening_entries(registry));
-            map
-        };
+        // consumes, so the two stay one evidence rule. The CFG builder takes
+        // this as a typed capability; the user-procedure summary map remains
+        // free of synthetic command-name entries.
         ir_module
             .methods
             .iter()
             .map(|(mqname, method)| {
-                let method_upvar_procs = if dispatch_barrier.allows_locals(mqname) {
-                    upvar_procs
-                } else {
-                    &widened_upvar_procs
-                };
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
-                    mqname,
-                    &method.body,
-                    true,
-                    method_upvar_procs.clone(),
-                    proc_params.clone(),
-                    global_write_procs.clone(),
-                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
-                );
+                let cfg = extra_callers
+                    .iter()
+                    .find_map(|caller| caller.analysis_cfg(mqname))
+                    .expect("call-site scan prepares every method CFG")
+                    .clone();
+                let command_resolution_guarded = matches!(
+                    method.execution_namespace,
+                    crate::ir::ExecutionNamespace::RuntimeSelected
+                )
+                    && crate::ir_helpers::requires_runtime_command_namespace(
+                        &method.body,
+                        registry,
+                    );
                 // Body-byte half of the complexity guard (the block-count
-                // half is applied inside `build`); skip an oversized
-                // generated method body the same way as a procedure.
+                // half is applied inside `build`). A TclOO receiver-selected
+                // method with relative command dependencies is guarded too:
+                // its lexical fallback IR is useful for indexing, but cannot
+                // soundly drive CFG topology, SCCP, diagnostics, or rewrites
+                // when an object-local command may shadow that dependency.
                 let body_bytes = method
                     .span
                     .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
-                let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+                let fu = if command_resolution_guarded
+                    || body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
+                {
                     // The guarded unit still carries its method facts: the
                     // deep lattices are skipped, but every consumer of "which
                     // names are bound in this method's frame" must read the
@@ -1737,7 +1781,7 @@ impl CompilationUnit {
     /// case), skipping all work.
     fn build_body_units(
         ir_module: &IrModule,
-        cfg_context: Option<&CfgContext>,
+        extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
@@ -1747,21 +1791,15 @@ impl CompilationUnit {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
-        let (upvar_procs, proc_params, global_write_procs) =
-            cfg_context.expect("cfg_context computed when body units are present");
         ir_module
             .body_units
             .iter()
             .map(|(qname, proc)| {
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
-                    qname,
-                    &proc.body,
-                    true,
-                    upvar_procs.clone(),
-                    proc_params.clone(),
-                    global_write_procs.clone(),
-                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
-                );
+                let cfg = extra_callers
+                    .iter()
+                    .find_map(|caller| caller.analysis_cfg(qname))
+                    .expect("call-site scan prepares every body-unit CFG")
+                    .clone();
                 // Same body-byte complexity guard as procs/methods: a huge
                 // generated lambda body contributes trivial lattices instead of
                 // a deep (and slow) analysis.
@@ -1852,12 +1890,13 @@ impl CompilationUnit {
             tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
-        let interproc = crate::interprocedural::build_interprocedural_analysis(
+        let interproc = crate::interprocedural::build_interprocedural_analysis_with_cfg(
             &self.ir_module,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
+            &self.cfg_module,
         );
 
         // Re-run taint with the new summary + dialect. We borrow
@@ -1927,12 +1966,13 @@ impl CompilationUnit {
             tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
-        let interproc = crate::interprocedural::build_interprocedural_analysis(
+        let interproc = crate::interprocedural::build_interprocedural_analysis_with_cfg(
             &self.ir_module,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
+            &self.cfg_module,
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint
@@ -2307,7 +2347,7 @@ mod tests {
 ";
         let m =
             crate::lowering::lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
-        let (_, proc_params, _) = crate::cfg_builder::prepare_cfg_context(&m);
+        let (_, proc_params, _, _) = crate::cfg_builder::prepare_cfg_context(&m);
         // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
         // resolves to `::b::x`'s parameters on every run.
         assert_eq!(
@@ -2324,6 +2364,20 @@ mod tests {
         assert!(cu.procedures.is_empty());
     }
 
+    #[test]
+    fn prepared_binding_mutation_projection_matches_compatibility_scan() {
+        let reg = registry();
+        let cu = CompilationUnit::build_for(
+            "rename string saved-string\nrename saved-string string\n",
+            &reg,
+            false,
+        );
+        assert_eq!(
+            cu.command_mutations,
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg),
+        );
+    }
+
     /// Issue #1174: every method unit carries exactly one instance-state
     /// carrier (`method_facts`), and its content matches the typed IR — the
     /// invariant that keeps the existence fold (I230/O100/O101), the
@@ -2333,7 +2387,7 @@ mod tests {
     fn method_units_carry_the_single_method_facts_carrier() {
         let src = "oo::class create C {\n\
                        variable state\n\
-                       method m {arg} { return $arg }\n\
+                       method m {arg} { ::return $arg }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.methods.get("::C::m").expect("method unit built");
@@ -2521,8 +2575,8 @@ mod tests {
         // iterate them. `procedures` stays free of method qnames.
         let src = "oo::class create Counter {\n\
                    \x20   variable n\n\
-                   \x20   method bump {} { incr n }\n\
-                   \x20   method get {} { return $n }\n\
+                   \x20   method bump {} { ::incr n }\n\
+                   \x20   method get {} { ::return $n }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let mut keys: Vec<&String> = cu.methods.keys().collect();
@@ -2542,6 +2596,51 @@ mod tests {
         assert!(!get.cfg.blocks.is_empty());
         // Methods are NOT mixed into the per-proc map.
         assert!(!cu.procedures.contains_key("::Counter::get"));
+    }
+
+    #[test]
+    fn runtime_selected_method_commands_guard_deep_cfg_analysis() {
+        let cu = CompilationUnit::build_for(
+            "interp alias {} e {} expr\n\
+             oo::class create C {\n\
+                 method relative {} {set x 1}\n\
+                 method absolute {} {::set x 1}\n\
+                 method absolute_dispatch {} {::set x [my absolute]}\n\
+                 method absolute_expr {p} {::return [::expr {$p + 1}]}\n\
+                 method absolute_info {p} {::if {[::info exists p]} {::puts yes}}\n\
+                 method absolute_regex {s} {::set re {a+}; ::regexp $re $s}\n\
+                 method nested_alias {p} {::set x [e {$p + 1}]}\n\
+             }",
+            &registry(),
+            false,
+        );
+        assert!(
+            cu.methods["::C::relative"].complexity_guarded,
+            "a receiver-local command may shadow the lexical builtin"
+        );
+        assert!(
+            !cu.methods["::C::absolute"].complexity_guarded,
+            "an absolute-only method is independent of the receiver namespace"
+        );
+        assert!(
+            cu.methods["::C::absolute_dispatch"].complexity_guarded,
+            "the receiver namespace can shadow TclOO's injected dispatch commands"
+        );
+        for name in [
+            "::C::absolute_expr",
+            "::C::absolute_info",
+            "::C::absolute_regex",
+        ] {
+            assert!(
+                !cu.methods[name].complexity_guarded,
+                "absolute-only method {name} must retain deep analysis: {:#?}",
+                cu.methods[name]
+            );
+        }
+        assert!(
+            cu.methods["::C::nested_alias"].complexity_guarded,
+            "a relative nested binding consumed by typed lowering remains runtime-selected"
+        );
     }
 
     #[test]

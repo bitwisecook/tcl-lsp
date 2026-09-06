@@ -87,8 +87,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -98,44 +97,11 @@ fn compile_exact_profile(
     src: &str,
     profile: &'static DialectProfile,
 ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-    let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-    if let Some(message) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
-    {
-        return Err(CompileError(message));
-    }
-    let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-        src,
-        registry,
-        config,
-        Some(profile),
-    );
-    let cfg = build_cfg_codegen(&ir, false);
-    Ok(codegen_module(&cfg, &ir, registry))
+    BytecodeCompileService::for_profile(profile).compile_for_profile(src, profile)
 }
 
 fn profile_of(version: TclVersion) -> &'static DialectProfile {
     tcl_registry::model::ingress::resolve_environment(version.dialect_name()).analyser_profile()
-}
-
-/// Compiles at the release the VM is running, so a `[…]` the VM hands back for
-/// compilation is not silently lowered under a different grammar.
-struct CompilerSvc(TclVersion);
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        compile_exact_profile(src, profile_of(self.0))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        compile_exact_profile(src, profile)
-    }
 }
 
 #[derive(Clone, Default)]
@@ -158,7 +124,9 @@ fn vm_output(src: &str, version: TclVersion) -> String {
         .expect("test script compiles for its selected profile");
     let capture = Capture::default();
     let mut vm = Vm::with_output(Box::new(capture.clone()));
-    vm.set_compiler(Box::new(CompilerSvc(version)));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile_of(
+        version,
+    ))));
     vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&capture.0.borrow())

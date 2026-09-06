@@ -5,7 +5,7 @@
 # inline case_list descriptor.  (`if`'s clause chain — the other shape of
 # "clause grammar" — is in if.tclspec.)
 
-speclib tcl 1.1 {
+speclib tcl 2.1 {
 
 command switch {
     # Present and unrestricted in every dialect including iRules; the legal
@@ -44,6 +44,7 @@ command switch {
             incr i 2
         }
     }
+    arg_role_resolver_roles {Body}
 
     lowering_hook -native Switch
     analyser_hook -native Switch

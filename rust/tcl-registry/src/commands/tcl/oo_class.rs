@@ -263,6 +263,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
         subcommands: CLASS_FACTORY_SUBCOMMANDS,
         allow_unknown_subcommands: true,

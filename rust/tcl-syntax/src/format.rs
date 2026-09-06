@@ -53,6 +53,79 @@ bitflags::bitflags! {
     }
 }
 
+/// A C size modifier on a `format` conversion.
+///
+/// The spelling is preserved even where Tcl gives multiple modifiers the same
+/// effective width. Consumers that do not model the modifier's coercion must
+/// therefore decline the conversion rather than accidentally treating it as
+/// an unmodified one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SizeModifier {
+    /// `h` — truncate an integer conversion to C `short` width.
+    Short,
+    /// `l` — use Tcl's wide-integer path.
+    Long,
+    /// `ll` — use Tcl's bignum path.
+    LongLong,
+    /// `j` — use Tcl's wide-integer path.
+    IntMax,
+    /// `z` — use pointer-sized integer width.
+    Size,
+    /// `q` — use Tcl's wide-integer path.
+    Quad,
+    /// `t` — use pointer-sized integer width.
+    PtrDiff,
+    /// `L` — use Tcl's bignum path.
+    Big,
+}
+
+impl SizeModifier {
+    /// Whether this modifier selects Tcl's bignum formatting path.
+    #[must_use]
+    pub fn is_big(self) -> bool {
+        matches!(self, Self::LongLong | Self::Big)
+    }
+
+    /// Tcl release surface that first accepts this spelling.
+    ///
+    /// Tcl 8.4 accepts `h` and a single `l`. Tcl 8.5 adds `ll`; Tcl 9.0
+    /// adds the C99/POSIX spellings `j`, `z`, `q`, `t`, and `L`.
+    const fn surface(self) -> &'static [SpecSurface] {
+        match self {
+            Self::Short | Self::Long => &[],
+            Self::LongLong => SpecSurface::TCL85_PLUS,
+            Self::IntMax | Self::Size | Self::Quad | Self::PtrDiff | Self::Big => {
+                SpecSurface::TCL90_PLUS
+            }
+        }
+    }
+
+    /// Lowest Tcl release that accepts this spelling, when gated.
+    const fn minimum_version(self) -> Option<tcl_dialect::TclVersion> {
+        match self {
+            Self::Short | Self::Long => None,
+            Self::LongLong => Some(tcl_dialect::TclVersion::V8_5),
+            Self::IntMax | Self::Size | Self::Quad | Self::PtrDiff | Self::Big => {
+                Some(tcl_dialect::TclVersion::V9_0)
+            }
+        }
+    }
+
+    /// Stable diagnostic spelling for this modifier lifecycle.
+    const fn feature(self) -> &'static str {
+        match self {
+            Self::Short => "%h size modifier",
+            Self::Long => "%l size modifier",
+            Self::LongLong => "%ll size modifier",
+            Self::IntMax => "%j size modifier",
+            Self::Size => "%z size modifier",
+            Self::Quad => "%q size modifier",
+            Self::PtrDiff => "%t size modifier",
+            Self::Big => "%L size modifier",
+        }
+    }
+}
+
 /// A single parsed `%…` conversion (the modelled subset).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spec {
@@ -74,11 +147,11 @@ pub struct Spec {
     /// sequential argument (`format {%2$d-%1$d} 10 20` → `20-10`). `None` for
     /// the ordinary sequential form.
     pub arg_index: Option<usize>,
-    /// A `ll` / `L` bignum size modifier was present. Version-relevant:
-    /// the `ll`+`u` combination ("unsigned bignum") raises before Tcl 9.0
-    /// (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum
+    /// The C size modifier, if present. A `ll` / `L` modifier selects Tcl's
+    /// bignum path; in particular, its combination with `u` raises before Tcl
+    /// 9.0 (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum
     /// format is invalid"; tclsh9.0.4 → `5`).
-    pub big: bool,
+    pub size: Option<SizeModifier>,
 }
 
 /// Conversion verbs implemented by the shared `format` renderer.
@@ -109,18 +182,25 @@ use tcl_dialect::model::{SpecSurface, surface_admits};
 /// profile.  Unknown-release profiles abstain rather than guessing.
 #[must_use]
 pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool {
-    let required: &[SpecSurface] = if spec.verb == b'b' {
+    let admits = |required: &'static [SpecSurface]| {
+        required.is_empty()
+            || (profile.runtime_base.is_some()
+                && surface_admits(required, Some(&profile.surface_query())))
+    };
+    let verb_surface = if spec.verb == b'b' {
         SpecSurface::TCL86_PLUS
-    } else if spec.big && spec.verb == b'u' {
+    } else {
+        &[]
+    };
+    let size_surface = spec.size.map_or(&[][..], SizeModifier::surface);
+    let unsigned_big_surface = if spec.size.is_some_and(SizeModifier::is_big) && spec.verb == b'u' {
         SpecSurface::TCL90_PLUS
     } else {
         &[]
     };
     // Release-invariant verbs remain recognisable for the permissive
     // profile; a version-gated verb must abstain until a release is resolved.
-    required.is_empty()
-        || (profile.runtime_base.is_some()
-            && surface_admits(required, Some(&profile.surface_query())))
+    admits(verb_surface) && admits(size_surface) && admits(unsigned_big_surface)
 }
 
 /// The outcome of parsing a width / `.precision` field.
@@ -187,26 +267,46 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
     } else {
         None
     };
-    // C size modifiers: Tcl treats every integer as a wide, so these are parsed
-    // and discarded (`format %ld 5` → `5`). `l`/`ll`, or a single
-    // `h`/`j`/`z`/`q`/`t`/`L`. `hh` is *not* accepted — the second `h` is left to
-    // fail as the verb (`format %hhd` → `bad field specifier "h"`, matching C).
-    let mut big = false;
-    match fmt.get(*i) {
+    // C size modifiers: `l`/`ll`, or a single `h`/`j`/`z`/`q`/`t`/`L`. Keep
+    // the exact spelling because the integer coercion width differs. `hh` is
+    // *not* accepted — the second `h` is left to fail as the verb (`format
+    // %hhd` → `bad field specifier "h"`, matching C).
+    let size = match fmt.get(*i) {
         Some(b'l') => {
             *i += 1;
             if fmt.get(*i) == Some(&b'l') {
                 *i += 1;
-                big = true;
+                Some(SizeModifier::LongLong)
+            } else {
+                Some(SizeModifier::Long)
             }
         }
         Some(b'L') => {
             *i += 1;
-            big = true;
+            Some(SizeModifier::Big)
         }
-        Some(b'h' | b'j' | b'z' | b'q' | b't') => *i += 1,
-        _ => {}
-    }
+        Some(b'h') => {
+            *i += 1;
+            Some(SizeModifier::Short)
+        }
+        Some(b'j') => {
+            *i += 1;
+            Some(SizeModifier::IntMax)
+        }
+        Some(b'z') => {
+            *i += 1;
+            Some(SizeModifier::Size)
+        }
+        Some(b'q') => {
+            *i += 1;
+            Some(SizeModifier::Quad)
+        }
+        Some(b't') => {
+            *i += 1;
+            Some(SizeModifier::PtrDiff)
+        }
+        _ => None,
+    };
     let verb = *fmt.get(*i)?;
     *i += 1;
     let spec = Spec {
@@ -217,7 +317,7 @@ pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Opt
         width_star,
         precision_star,
         arg_index,
-        big,
+        size,
     };
     if spec.width.is_some_and(|n| n > max_field) || spec.precision.is_some_and(|n| n > max_field) {
         None
@@ -286,6 +386,7 @@ pub struct VersionGatedUse {
 /// Modelled (evidence-bounded):
 /// - `%b` (binary) — added in Tcl 8.6 (raises "bad field specifier" on
 ///   8.4/8.5).
+/// - `ll` — added in Tcl 8.5; `j`/`z`/`q`/`t`/`L` — Tcl 9.0+.
 /// - the `ll`/`L` + `u` combination — unsigned bignum, Tcl 9.0+
 ///   (oracle-verified: tclsh8.6 `format %llu 5` → "unsigned bignum format
 ///   is invalid"; tclsh9.0.4 → `5`).
@@ -321,7 +422,16 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
                 min: TclVersion::V8_6,
             });
         }
-        if spec.big && spec.verb == b'u' {
+        if let Some(size) = spec.size
+            && let Some(min) = size.minimum_version()
+        {
+            uses.push(VersionGatedUse {
+                offset: start,
+                feature: size.feature(),
+                min,
+            });
+        }
+        if spec.size.is_some_and(SizeModifier::is_big) && spec.verb == b'u' {
             uses.push(VersionGatedUse {
                 offset: start,
                 feature: "%llu unsigned bignum conversion",
@@ -334,7 +444,11 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_verb, parse_spec, parse_spec_with_limit};
+    use super::{
+        SizeModifier, Spec, is_available, is_verb, parse_spec, parse_spec_with_limit,
+        version_gated_uses,
+    };
+    use tcl_dialect::DialectProfile;
 
     #[test]
     fn verb_owner_matches_runtime_surface() {
@@ -375,6 +489,83 @@ mod tests {
             .unwrap()
             .verb,
             b'd'
+        );
+    }
+
+    #[test]
+    fn size_modifier_spelling_is_preserved() {
+        for (text, expected) in [
+            (b"hd".as_slice(), SizeModifier::Short),
+            (b"ld".as_slice(), SizeModifier::Long),
+            (b"lld".as_slice(), SizeModifier::LongLong),
+            (b"jd".as_slice(), SizeModifier::IntMax),
+            (b"zd".as_slice(), SizeModifier::Size),
+            (b"qd".as_slice(), SizeModifier::Quad),
+            (b"td".as_slice(), SizeModifier::PtrDiff),
+            (b"Ld".as_slice(), SizeModifier::Big),
+        ] {
+            let mut i = 0;
+            let spec = parse_spec(text, &mut i).expect("size-modified spec parses");
+            assert_eq!(
+                spec.size,
+                Some(expected),
+                "{}",
+                String::from_utf8_lossy(text)
+            );
+            assert_eq!(spec.verb, b'd');
+            assert_eq!(i, text.len());
+        }
+        assert!(SizeModifier::LongLong.is_big());
+        assert!(SizeModifier::Big.is_big());
+        assert!(!SizeModifier::Short.is_big());
+    }
+
+    fn parsed(text: &[u8]) -> Spec {
+        let mut i = 0;
+        parse_spec(text, &mut i).expect("format spec parses")
+    }
+
+    #[test]
+    fn size_modifier_availability_tracks_tcl_release() {
+        let v84 = DialectProfile::find("tcl8.4").expect("Tcl 8.4 profile");
+        let v85 = DialectProfile::find("tcl8.5").expect("Tcl 8.5 profile");
+        let v86 = DialectProfile::find("tcl8.6").expect("Tcl 8.6 profile");
+        let v90 = DialectProfile::find("tcl9.0").expect("Tcl 9.0 profile");
+
+        for text in [b"hd".as_slice(), b"ld".as_slice()] {
+            assert!(is_available(&parsed(text), v84));
+        }
+        assert!(!is_available(&parsed(b"lld"), v84));
+        assert!(is_available(&parsed(b"lld"), v85));
+        for text in [
+            b"jd".as_slice(),
+            b"zd".as_slice(),
+            b"qd".as_slice(),
+            b"td".as_slice(),
+            b"Ld".as_slice(),
+        ] {
+            assert!(!is_available(&parsed(text), v86), "{text:?}");
+            assert!(is_available(&parsed(text), v90), "{text:?}");
+        }
+        assert!(!is_available(&parsed(b"llu"), v86));
+        assert!(is_available(&parsed(b"llu"), v90));
+    }
+
+    #[test]
+    fn size_modifier_diagnostics_report_their_own_lifecycle() {
+        let uses = version_gated_uses("%hd %ld %lld %jd %zd %qd %td %Ld");
+        assert_eq!(
+            uses.iter()
+                .map(|use_| (use_.feature, use_.min))
+                .collect::<Vec<_>>(),
+            vec![
+                ("%ll size modifier", tcl_dialect::TclVersion::V8_5),
+                ("%j size modifier", tcl_dialect::TclVersion::V9_0),
+                ("%z size modifier", tcl_dialect::TclVersion::V9_0),
+                ("%q size modifier", tcl_dialect::TclVersion::V9_0),
+                ("%t size modifier", tcl_dialect::TclVersion::V9_0),
+                ("%L size modifier", tcl_dialect::TclVersion::V9_0),
+            ]
         );
     }
 }

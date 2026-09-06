@@ -537,12 +537,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
 
     // Glob: generic `switch` invoke, never a jump table (glob patterns
     // are not exact string equality).
-    let glob = build_cfg_function(
-        "::top",
-        &make(SwitchMode::Glob),
-        true,
-        tcl_lexer::LexerConfig::default(),
-    );
+    let glob = build_cfg_function("::top", &make(SwitchMode::Glob), true, &registry, false);
     let ops: Vec<Op> = codegen_function(&glob, &[], false, &registry)
         .instructions
         .iter()
@@ -558,12 +553,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
     );
 
     // Exact still compiles to a real jump table.
-    let exact = build_cfg_function(
-        "::top",
-        &make(SwitchMode::Exact),
-        true,
-        tcl_lexer::LexerConfig::default(),
-    );
+    let exact = build_cfg_function("::top", &make(SwitchMode::Exact), true, &registry, false);
     let exact_ops: Vec<Op> = codegen_function(&exact, &[], false, &registry)
         .instructions
         .iter()
@@ -871,7 +861,9 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
     };
     let ir_mod = IrModule {
+        plain_command_dispatch: false,
         source: String::new(),
+        top_level_namespace: "::".to_owned(),
         dialect: None,
         top_level: Script::new(),
         procedures: HashMap::new(),

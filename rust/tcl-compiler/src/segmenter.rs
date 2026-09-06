@@ -134,6 +134,27 @@ impl SegmentedCommand {
         self.texts.first().map_or("", String::as_str)
     }
 
+    /// Full written span to compile or replay as this command.
+    ///
+    /// [`Self::span`] preserves the analyser's historical `cmd.range`
+    /// convention, which deliberately leaves the final `"` of a quoted last
+    /// word outside the range. Executable consumers need the whole written
+    /// command instead. Build the last word's complete fragment span, then
+    /// widen it through the lexer's canonical delimiter-range owner so quotes,
+    /// braces, brackets, empty words, and nested closers stay consistent.
+    #[must_use]
+    pub fn execution_span(&self, source: &str) -> Span {
+        let Some(fragments) = self.word_fragments.last() else {
+            return self.span;
+        };
+        let (Some(first), Some(last)) = (fragments.first(), fragments.last()) else {
+            return self.span;
+        };
+        let last_word = Span::new(first.token.span.start(), last.token.span.end());
+        let last_word = tcl_lexer::word_span_at(source, last_word);
+        Span::new(self.span.start(), self.span.end().max(last_word.end()))
+    }
+
     /// Arguments (words after the command name).
     #[must_use]
     pub fn args(&self) -> &[String] {
@@ -381,6 +402,18 @@ pub fn segment_commands_with_offset_and_config(
         .into_iter()
         .map(|c| c.shifted_by(base_offset))
         .collect()
+}
+
+/// Whether `source` contains exactly one Tcl command under `config`.
+///
+/// This is the conservative shape gate for consumers that re-lex a command's
+/// words for an optional optimisation. It delegates command boundaries to the
+/// canonical CST-backed segmenter, so semicolons, newlines, comments, and
+/// dialect-specific continuation rules cannot be mistaken for word separators
+/// by a consumer-local token walk.
+#[must_use]
+pub fn has_exactly_one_command_with_config(source: &str, config: LexerConfig) -> bool {
+    segment_commands_with_offset_and_config(source, 0, config).len() == 1
 }
 
 /// The longest prefix of `text` that is byte-identical to `source` starting at
@@ -1386,6 +1419,26 @@ mod tests {
     }
 
     #[test]
+    fn exact_one_command_uses_segmenter_boundaries() {
+        let config = LexerConfig::default();
+        assert!(has_exactly_one_command_with_config("puts hello", config));
+        assert!(has_exactly_one_command_with_config("puts hello;", config));
+        assert!(has_exactly_one_command_with_config(
+            "puts hello\n# trailing comment",
+            config,
+        ));
+        assert!(!has_exactly_one_command_with_config(
+            "puts hello; puts goodbye",
+            config,
+        ));
+
+        let f5 = LexerConfig::for_dialect("f5-irules");
+        let if_else = "if {1} {puts yes}\nelse {puts no}";
+        assert!(!has_exactly_one_command_with_config(if_else, config));
+        assert!(has_exactly_one_command_with_config(if_else, f5));
+    }
+
+    #[test]
     fn two_commands() {
         let cmds = segment_commands("set x 1\nputs $x");
         assert_eq!(cmds.len(), 2);
@@ -1538,6 +1591,19 @@ mod tests {
         let cmds = segment_commands(src);
         assert_eq!(cmds.len(), 1);
         assert_eq!(&src[cmds[0].span.as_range()], "set x [expr 1+2]");
+    }
+
+    #[test]
+    fn execution_span_includes_a_quoted_last_word_for_replay() {
+        for src in ["error \"boom\"", "error \"boom-$x\""] {
+            let cmds = segment_commands(src);
+            assert_eq!(cmds.len(), 1);
+            assert_eq!(
+                &src[cmds[0].execution_span(src).as_range()],
+                src,
+                "execution text must retain the final quote"
+            );
+        }
     }
 
     #[test]

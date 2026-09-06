@@ -1126,6 +1126,46 @@ pub enum Operand {
 
 // Instruction
 
+/// Whether an instruction begins an executable source command.
+///
+/// This is a typed execution fact rather than a diagnostic-text transition:
+/// nested inline commands can retain an enclosing command's source metadata
+/// without becoming a replay boundary for that enclosing command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SourceCommandBoundary {
+    /// The instruction does not begin a new source command.
+    #[default]
+    None,
+    /// The instruction begins a source command and may be replayed from here.
+    Start,
+    /// A nested `START_CMD` consumes an inline command and may replay it after
+    /// command-table mutation, without becoming the owner of the enclosing
+    /// source command's diagnostic span or continuation.
+    InlineReplay,
+}
+
+impl SourceCommandBoundary {
+    /// Whether this instruction starts a source command.
+    #[must_use]
+    pub const fn is_start(self) -> bool {
+        matches!(self, Self::Start)
+    }
+
+    /// Whether this is a nested replay boundary that peephole passes must
+    /// preserve even when the surrounding top-level function has no generic
+    /// invoke.
+    #[must_use]
+    pub const fn is_inline_replay(self) -> bool {
+        matches!(self, Self::InlineReplay)
+    }
+}
+
+impl From<bool> for SourceCommandBoundary {
+    fn from(is_start: bool) -> Self {
+        if is_start { Self::Start } else { Self::None }
+    }
+}
+
 /// A single bytecode instruction (labels unresolved until layout).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instruction {
@@ -1145,6 +1185,22 @@ pub struct Instruction {
     pub source_line: u32,
     /// Original command text for `errorInfo`.
     pub source_cmd_text: String,
+    /// Canonical unrooted constructed namespace in which
+    /// [`Self::source_cmd_text`] resolves when this instruction is an
+    /// executable command boundary. Empty denotes the global namespace.
+    ///
+    /// This is compiler provenance, not the VM activation's current
+    /// namespace: executable inlining may copy a namespaced command into a
+    /// caller whose frame resolves commands somewhere else.
+    pub source_command_namespace: String,
+    /// This instruction begins an executable IR/source command. The VM uses
+    /// this explicit compiler fact to find deoptimisation continuations;
+    /// diagnostic span/text transitions are not execution boundaries because
+    /// inline catch/try machinery may retain an enclosing command's metadata.
+    /// A nested inline `START_CMD` uses [`SourceCommandBoundary::InlineReplay`]
+    /// and its own opcode continuation; an outer source command's `START_CMD`
+    /// carries [`SourceCommandBoundary::Start`].
+    pub source_command_boundary: SourceCommandBoundary,
     /// Byte span of the source construct this instruction was lowered
     /// from, when known. `None` for synthetic instructions with no
     /// direct source (loop-result pushes, fallthrough jumps, padding
@@ -1177,6 +1233,9 @@ pub struct Instruction {
     /// so the literal pool and disassembly stay byte-stable (keeps identity
     /// stable).
     pub push_verbatim: bool,
+    /// Literal command-head `PUSH1`/`PUSH4` only: token provenance carried
+    /// through argument substitution to its consuming invoke.
+    pub entered_command: Option<EnteredCommandSite>,
     /// `BEGIN_CATCH4` only: the label of the range's handler — where the VM
     /// resumes (stack trimmed, caught completion recorded) when an exceptional
     /// completion unwinds into the range. This is the analogue of C Tcl's
@@ -1201,14 +1260,30 @@ impl Instruction {
             no_fold: false,
             source_line: 0,
             source_cmd_text: String::new(),
+            source_command_namespace: String::new(),
+            source_command_boundary: SourceCommandBoundary::None,
             source_span: None,
             foreach_vars: None,
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
+            entered_command: None,
             catch_target: None,
         }
     }
+}
+
+/// A statically literal command entered before its remaining words perform
+/// substitutions. The VM validates and resolves `binding` at the command-head
+/// push and carries the entry through `end`, which labels the instruction
+/// immediately after the consuming invoke. Generic invokes dispatch that
+/// retained token; specialised `INVOKE_REPLACE` uses it only to guard the
+/// outer substitution range, then resolves the rewritten implementation word
+/// at the invoke itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnteredCommandSite {
+    pub binding: tcl_runtime_api::CommandBindingIdentity,
+    pub end: String,
 }
 
 // Interning tables
@@ -1365,6 +1440,17 @@ pub struct FunctionAsm {
     /// within "eval {…}"`), so an inlined body matches C's `CmdFrame` trace
     /// without de-inlining. Empty when the function holds no inlined bodies.
     pub error_regions: Vec<ErrorRegion>,
+    /// Whether this function was compiled with every command invocation kept
+    /// on the ordinary runtime-dispatch path. This explicit stamp lets a
+    /// runtime distinguish a deliberately de-optimised function from an
+    /// optimised function that merely happens to have no binding requirements.
+    pub plain_command_dispatch: bool,
+    /// Runtime command bindings whose registry implementations this function's
+    /// specialised operations assume. Empty for plain-dispatch bytecode.
+    pub command_bindings: Vec<tcl_runtime_api::CommandBindingIdentity>,
+    /// Exact user-procedure bindings whose bodies were copied into this
+    /// function by an executable inlining transform.
+    pub procedure_bindings: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the
@@ -1404,6 +1490,18 @@ pub struct ModuleAsm {
     /// must reject an AOT module compiled for another profile rather than
     /// treating its specialised opcodes as belonging to its current surface.
     pub profile: &'static tcl_dialect::DialectProfile,
+    /// Original module source, retained so a reusable optimised artifact can
+    /// be recompiled through the plain-dispatch capability after invalidation.
+    pub source: String,
+    /// Canonical unrooted constructed namespace in which the top-level
+    /// assembly was specialised.  This is part of the artifact's executable
+    /// provenance: an unqualified command may resolve to a different binding
+    /// when the same source is entered from another namespace.
+    pub source_namespace: String,
+    /// Whether lowering suppressed every registry-driven specialised command
+    /// path. Runtimes validate this explicit capability stamp instead of
+    /// inferring plain dispatch from an accidentally-empty dependency list.
+    pub plain_command_dispatch: bool,
     /// Top-level script assembly — the unit entered as a *script*.
     pub top_level: FunctionAsm,
     /// The same top level emitted as a **procedure body**: LVT variable forms
@@ -1426,8 +1524,28 @@ pub struct ModuleAsm {
     /// can differ from the AOT form. Slots resolve by name at run time, so this
     /// is a disassembly difference only.
     pub top_level_body: FunctionAsm,
-    /// Procedure assemblies keyed by qualified name.
+    /// Procedure assemblies keyed by canonical rooted constructed name.
+    /// These keys are identities, not written Tcl names; consumers remove the
+    /// root marker exactly once and never re-canonicalise the remainder.
     pub procedures: HashMap<String, FunctionAsm>,
+    /// Source identity for each statically emitted procedure body. Runtimes
+    /// use this to admit a fast precompiled body only for the exact `proc`
+    /// definition that produced it, never by command name alone.
+    pub procedure_provenance: HashMap<String, ProcedureProvenance>,
+}
+
+/// Exact source provenance for a compiler-emitted procedure body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcedureProvenance {
+    /// Canonical rooted constructed procedure key. This is not a written Tcl
+    /// name: consumers remove exactly the leading root marker and must never
+    /// feed the remainder back through written-name canonicalisation (a `:`
+    /// namespace segment would become ambiguous).
+    pub name: String,
+    /// Raw formal-parameter list value, including defaults.
+    pub parameters: String,
+    /// Raw procedure body value.
+    pub body: String,
 }
 
 #[cfg(test)]

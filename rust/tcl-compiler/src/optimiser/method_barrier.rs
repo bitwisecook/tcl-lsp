@@ -42,17 +42,18 @@
 //!   relating class is visible in `class_relations` (the same
 //!   closed-world convention every other whole-module OO fact here
 //!   already uses).
-//! * A method's dispatches are classified from its statements: a
-//!   registry head carrying the `TclOO` self-dispatch / next-chain traits
-//!   targets the method's **own component**; a head naming a module
-//!   class (`D new`, `D create …`) targets **that class's component**; a
-//!   dynamic head (`$obj m`), an unresolvable literal head (an object
-//!   command created at runtime, a `link`ed bareword), or a registry
-//!   call that hands a command prefix to something else (`lsort
-//!   -command …`) may dispatch **anywhere**. Plain calls to module procs
-//!   inherit the callee proc's dispatch facts transitively — a proc that
-//!   dispatches `$obj m` on the method's behalf reaches wherever the
-//!   method itself could.
+//! * A method's dispatches are classified from its statements. A relative
+//!   head in a runtime-selected receiver namespace may dispatch **anywhere**:
+//!   even `my` / `next` can be shadowed by an object-namespace command. Once
+//!   the execution namespace resolves a head exactly, a registry head carrying
+//!   the `TclOO` self-dispatch / next-chain traits targets the method's **own
+//!   component**; a head naming a module class (`D new`, `D create …`) targets
+//!   **that class's component**; a dynamic head (`$obj m`), an unresolvable
+//!   literal head (an object command created at runtime, a `link`ed bareword),
+//!   or a registry call that hands a command prefix to something else (`lsort
+//!   -command …`) may dispatch **anywhere**. Plain calls to module procs inherit
+//!   the callee proc's dispatch facts transitively — a proc that dispatches
+//!   `$obj m` on the method's behalf reaches wherever the method itself could.
 //! * Reachability closes over components: dispatching into a component
 //!   also reaches everything that component's methods dispatch to.
 //!
@@ -76,9 +77,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::ir::{Module as IrModule, Script, Statement};
+use crate::ir::{ExecutionNamespace, Module as IrModule, Script, Statement};
 
 /// The computed barrier: which methods may propagate their private locals.
 pub(crate) struct MethodDispatchBarrier {
@@ -216,17 +217,16 @@ fn method_dispatch_facts<'a>(
         ) {
             collect_dispatches(
                 &body_def.body,
+                &body_def.execution_namespace,
                 &ScanEnv {
                     registry,
                     comp_of,
                     proc_facts,
                     procedures: &ir.procedures,
-                    // TclOO method bodies resolve bare commands globally
-                    // (object-namespace semantics).
-                    namespace: "::",
                     own_comp,
                 },
                 &mut facts,
+                0,
             );
         }
         method_facts.insert(qname.as_str(), facts);
@@ -385,22 +385,69 @@ struct ScanEnv<'a> {
     comp_of: &'a HashMap<String, usize>,
     proc_facts: &'a HashMap<&'a str, DispatchFacts>,
     procedures: &'a HashMap<String, crate::ir::Procedure>,
-    namespace: &'a str,
     own_comp: Option<usize>,
 }
 
-/// Walk a method body's statements, classifying every `Call` head — see
-/// the module doc for the classification. `Barrier` / `UpFrame`
-/// statements are deliberately NOT dispatch sites here: SCCP widens every
-/// tracked value at them already, so a dispatch hidden inside one cannot
-/// invalidate a constant that survives it.
-fn collect_dispatches(script: &Script, env: &ScanEnv<'_>, facts: &mut DispatchFacts) {
-    walk_statements(script, &mut |stmt| {
-        let Statement::Call { command, args, .. } = stmt else {
+/// Walk a method body's direct `Call` heads and evaluated command
+/// substitutions — see the module doc for the classification. `Barrier` /
+/// `UpFrame` statements are deliberately not direct dispatch sites here: SCCP
+/// widens every tracked value at them already. Their ordinary evaluated
+/// substitutions and nested executable bodies are still scanned below.
+fn collect_dispatches(
+    script: &Script,
+    execution_namespace: &ExecutionNamespace,
+    env: &ScanEnv<'_>,
+    facts: &mut DispatchFacts,
+    depth: u32,
+) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        facts.anywhere = true;
+        return;
+    }
+    for stmt in &script.statements {
+        if let Statement::Call { command, args, .. } = stmt {
+            let Some(namespace) = execution_namespace.for_head(command) else {
+                // Every relative head in a TclOO method resolves first in the
+                // runtime-selected receiver namespace. Even `my` / `next` can
+                // be shadowed there, so registry fallback identity is not a
+                // proof of dispatch.
+                facts.anywhere = true;
+                return;
+            };
+            classify_head(command, args, namespace, env, facts);
+        }
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, env.registry);
+        if embedded.opaque {
+            facts.anywhere = true;
             return;
-        };
-        classify_head(command, args, env, facts);
-    });
+        }
+        for words in embedded.commands {
+            let Some(command) = words
+                .first()
+                .and_then(crate::ir_helpers::CommandWord::literal)
+            else {
+                facts.anywhere = true;
+                return;
+            };
+            let Some(namespace) = execution_namespace.for_head(command) else {
+                facts.anywhere = true;
+                return;
+            };
+            let args: Vec<String> = words.iter().skip(1).map(|word| word.text.clone()).collect();
+            classify_head(command, &args, namespace, env, facts);
+            if facts.anywhere {
+                return;
+            }
+        }
+        for (body, body_namespace) in
+            crate::ir_helpers::nested_execution_bodies(stmt, execution_namespace)
+        {
+            collect_dispatches(body, &body_namespace, env, facts, depth + 1);
+            if facts.anywhere {
+                return;
+            }
+        }
+    }
 }
 
 /// The proc-body variant of [`collect_dispatches`]: same head
@@ -441,7 +488,13 @@ fn collect_proc_dispatches(
 }
 
 /// Classify one method-body call head into `facts`.
-fn classify_head(command: &str, args: &[String], env: &ScanEnv<'_>, facts: &mut DispatchFacts) {
+fn classify_head(
+    command: &str,
+    args: &[String],
+    namespace: &str,
+    env: &ScanEnv<'_>,
+    facts: &mut DispatchFacts,
+) {
     if facts.anywhere {
         return; // already saturated
     }
@@ -450,13 +503,13 @@ fn classify_head(command: &str, args: &[String], env: &ScanEnv<'_>, facts: &mut 
         facts.anywhere = true;
         return;
     }
-    if let Some(comp) = class_head_component(command, env.namespace, env.comp_of) {
+    if let Some(comp) = class_head_component(command, namespace, env.comp_of) {
         // `D new` / `D create …` — dispatches into D's hierarchy
         // component (its constructor, and methods on the object made).
         facts.comps.insert(comp);
         return;
     }
-    if let Some(qname) = resolve_proc(command, env.namespace, env.procedures) {
+    if let Some(qname) = resolve_proc(command, namespace, env.procedures) {
         // A module proc: inherit whatever it can dispatch to.
         if let Some(pf) = env.proc_facts.get(qname.as_str()) {
             facts.absorb(pf);
@@ -478,28 +531,30 @@ fn classify_registry_or_unknown(
     own_comp: Option<usize>,
     facts: &mut DispatchFacts,
 ) {
-    let bare = command.strip_prefix("::").unwrap_or(command);
-    if let Some(spec) = registry.get(bare) {
-        if spec
-            .traits
-            .intersects(Traits::TCLOO_SELF_DISPATCH | Traits::TCLOO_NEXT_CHAIN)
-        {
-            match own_comp {
-                Some(c) => {
-                    facts.comps.insert(c);
-                }
-                // `my` outside a known method frame — unbounded.
-                None => facts.anywhere = true,
+    if let Some(kind) = registry.method_dispatch_keyword(command)
+        && matches!(
+            kind,
+            tcl_registry::MethodDispatchKind::SelfDispatch
+                | tcl_registry::MethodDispatchKind::NextChain
+        )
+    {
+        match own_comp {
+            Some(c) => {
+                facts.comps.insert(c);
             }
-            return;
+            // `my` outside a known method frame — unbounded.
+            None => facts.anywhere = true,
         }
+        return;
+    }
+    if registry.declares_command_at(command) {
         // A callback the command will invoke later runs with unknown frame
         // relationships (`lsort -command cb …` invokes `cb` while the
         // enclosing frame is live) — the callback word may name any object
         // command, so widen.
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         if !registry
-            .arg_indices_for_role(bare, &arg_refs, ArgRole::CommandPrefix)
+            .arg_indices_for_role(command, &arg_refs, ArgRole::CommandPrefix)
             .is_empty()
         {
             facts.anywhere = true;
@@ -615,4 +670,32 @@ fn walk_statements(script: &Script, visit: &mut dyn FnMut(&Statement)) {
         }
     }
     walk(script, visit, 0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute;
+
+    /// Tcl 9.0.4: a procedure installed as `${object_namespace}::my` shadows
+    /// the object's normal self-dispatch command. A receiver-selected bare
+    /// `my` therefore cannot confine dispatch to its lexical class component.
+    #[test]
+    fn runtime_selected_embedded_my_cannot_prove_own_component_dispatch() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let module = crate::lowering::lower_to_ir(
+            "oo::class create Bad {\n\
+             \x20 method mutate {name} { upvar 1 $name local; set local 1 }\n\
+             }\n\
+             oo::class create C {\n\
+             \x20 method helper {} { return ok }\n\
+             \x20 method caller {} { ::set ignored [my helper]; ::return ok }\n\
+             }",
+            registry,
+        );
+        let barrier = compute(&module, registry);
+        assert!(
+            !barrier.allows_locals("::C::caller"),
+            "receiver-namespace shadowing can redirect bare `my` to the bad class"
+        );
+    }
 }

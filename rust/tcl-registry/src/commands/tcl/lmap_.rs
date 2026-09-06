@@ -94,6 +94,7 @@ pub fn spec() -> CommandSpec {
         // `at_least(3)`, which missed the odd/even parity `foreach` enforces.
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(lmap_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         repeated_args: REPEATED,
         // See `foreach`'s identical comment — index 0 is a fixed key read by
         // `shimmer::use_site::foreach_header_expected_type`, not a real

@@ -5,7 +5,7 @@
 # field is to make it unnecessary.  One `clause_grammar` declaration replaces
 # BOTH `if_arg_roles` and `check_if_shape` with no hook body at all.
 
-speclib tcl 1.1 {
+speclib tcl 2.1 {
 
 command if {
     dialects {all-tcl f5-irules}
@@ -35,6 +35,7 @@ command if {
         repeated elseif {Expr ?then? Body}
         tail     ?else? {Body}
     }
+    arg_role_resolver_roles {Expr Body Keyword}
 
     lowering_hook -native If
     return_type String

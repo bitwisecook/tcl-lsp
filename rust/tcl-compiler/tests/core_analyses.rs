@@ -972,17 +972,16 @@ mod no_read_before_set {
     }
 
     #[test]
-    fn cmd_sub_set_in_return_value_diverges() {
-        // The read-before-set pass does not scan cmd-sub writes inside a
-        // `return`'s value words, so it flags `$x` (W210) in the
-        // `[set x [open $f r]]` … `[close $x]` idiom (tcllib installer.tcl). In
-        // Tcl the `set x` definitely creates x, so the read is safe — a sound
-        // over-warn (it never suppresses a real read); asserted at the actual
-        // verdict.
+    fn cmd_sub_set_in_return_value_is_a_definition() {
+        // The shared evaluated-command-substitution walk includes a
+        // `return`'s value words, so `[set x ...]` defines `$x` before the
+        // following `[close $x]` substitution (the tcllib installer.tcl
+        // idiom). This must agree with Tcl rather than retaining the former
+        // read-before-set false positive.
         let src = "proc p {f} { return [read [set x [open $f r]]][close $x] }\n";
         assert!(
-            fires(src, "W210"),
-            "Rust flags the cmd-sub-defined $x in a return value"
+            !fires(src, "W210"),
+            "the earlier command substitution defines $x before it is read"
         );
     }
 

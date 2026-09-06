@@ -860,27 +860,25 @@ oo::class create C {
     );
 }
 
-/// FP-SH-15 TP control: an *unaliased* plain local in the same method, with
-/// the identical oscillation, must still fire — proves the `my variable`
-/// recognition is keyed on the declared instance-variable name, not a blanket
-/// suppression of S102 inside method bodies.
+/// FP-SH-15 TP control: an unaliased plain local in an absolute-command-only
+/// method remains analysable and still fires. The separate `my variable`
+/// fixture exercises the runtime-selected alias spelling and must abstain.
 #[test]
-fn fp_sh_15_my_variable_unaliased_sibling_local_still_fires() {
+fn fp_sh_15_unaliased_method_local_still_fires() {
     let src = "\
 oo::class create C {
     method run {} {
-        my variable x
-        set local 0
-        while {1} {
-            set local [expr {$local + 1}]
-            set local [string range $local 0 end]
+        ::set local 0
+        ::while {1} {
+            ::set local [::expr {$local + 1}]
+            ::set local [::string range $local 0 end]
         }
     }
 }
 ";
     assert!(
         fires(src, D, "S102"),
-        "FP-SH-15 TP: an unaliased sibling local in the method must still fire S102; got {:?}",
+        "FP-SH-15: an unaliased method local must still fire S102; got {:?}",
         codes(src, D)
     );
 }

@@ -109,6 +109,17 @@ pub enum InvocationArguments<'w> {
     Structured(&'w [InvocationWord<'w>]),
 }
 
+/// Knowledge about one post-expansion argv position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InvocationArgument<'w> {
+    /// The position maps to one source word with the stated value knowledge.
+    Word(InvocationWord<'w>),
+    /// The source is known to contribute fewer argv entries than this index.
+    Missing,
+    /// An earlier expansion or opaque region makes this position unknowable.
+    Indeterminate,
+}
+
 impl<'w> InvocationArguments<'w> {
     /// Construct an all-literal, zero-copy argument view.
     #[must_use]
@@ -146,6 +157,41 @@ impl<'w> InvocationArguments<'w> {
         match self {
             Self::Literals(words) => words.get(index).copied().map(InvocationWord::Literal),
             Self::Structured(words) => words.get(index).copied(),
+        }
+    }
+
+    /// Project one final argv position while retaining precise source prefixes.
+    ///
+    /// A `{*}` or opaque word makes its own position and every following
+    /// position indeterminate, but it does not erase exact words before it.
+    #[must_use]
+    pub fn argv_at(self, index: usize) -> InvocationArgument<'w> {
+        match self {
+            Self::Literals(words) => words
+                .get(index)
+                .copied()
+                .map_or(InvocationArgument::Missing, |word| {
+                    InvocationArgument::Word(InvocationWord::Literal(word))
+                }),
+            Self::Structured(words) => {
+                let mut argv_index = 0;
+                for word in words {
+                    match word {
+                        InvocationWord::Expanded | InvocationWord::Opaque => {
+                            return InvocationArgument::Indeterminate;
+                        }
+                        InvocationWord::Literal(_)
+                        | InvocationWord::Dynamic
+                        | InvocationWord::DynamicNonOption => {
+                            if argv_index == index {
+                                return InvocationArgument::Word(*word);
+                            }
+                            argv_index += 1;
+                        }
+                    }
+                }
+                InvocationArgument::Missing
+            }
         }
     }
 
@@ -309,6 +355,22 @@ pub struct InvocationWords<'w> {
     arguments: InvocationArguments<'w>,
 }
 
+/// Registry-owned projection of the variable cells an invocation may write.
+///
+/// Literal names are effective Tcl cell names: an unqualified option value
+/// whose registry descriptor declares [`VariableScope::Global`](crate::VariableScope)
+/// is rooted with `::`. They remain useful even when another write target is
+/// source-opaque. [`Self::opaque_variable_frame`] means substitution,
+/// expansion, or a computed command head prevents the registry from
+/// enumerating every possible target.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct VariableWriteProjection {
+    /// Statically known literal variable names written by the invocation.
+    pub literal_names: Vec<String>,
+    /// Whether the invocation may write another, unnameable variable cell.
+    pub opaque_variable_frame: bool,
+}
+
 impl<'w> InvocationWords<'w> {
     /// Construct an all-literal invocation without allocating.
     #[must_use]
@@ -393,5 +455,22 @@ mod tests {
             arguments.get(0).map(InvocationWord::kind),
             Some(InvocationWordKind::Dynamic)
         );
+    }
+
+    #[test]
+    fn argv_projection_preserves_prefix_before_expansion() {
+        let arguments = [
+            InvocationWord::Literal("known"),
+            InvocationWord::Expanded,
+            InvocationWord::Literal("shifted"),
+        ];
+        let arguments = InvocationArguments::structured(&arguments);
+
+        assert_eq!(
+            arguments.argv_at(0),
+            InvocationArgument::Word(InvocationWord::Literal("known"))
+        );
+        assert_eq!(arguments.argv_at(1), InvocationArgument::Indeterminate);
+        assert_eq!(arguments.argv_at(2), InvocationArgument::Indeterminate);
     }
 }

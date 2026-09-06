@@ -64,6 +64,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         arg_role_resolver: Some(call_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Name],
         ..CommandSpec::DEFAULT
     }
 }

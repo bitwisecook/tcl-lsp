@@ -34,12 +34,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// live `tclsh9.0` reference.
 /// `%b` (binary) *raises* before Tcl 8.6, so it is version-gated: the registry
 /// passes the dialect's `version`, and `%b` folds only on 8.6+ (else bail).
-/// A `ll`/`L` size modifier always bails too — it is unmodelled (its
-/// "take without truncation" width isn't handled by any `render_*` helper,
-/// and `%llu` specifically *raises* below Tcl 9.0: `tclsh8.6 format %llu 5`
-/// → "unsigned bignum format is invalid", empirically verified), so folding
-/// it as a plain verb would be unsound.
-/// Only other size modifiers and `*`/positional specs remain unfolded.
+/// Every size modifier bails: the `render_*` helpers do not model their integer
+/// coercion widths. In particular, `h` truncates to C `short`, while `ll`/`L`
+/// takes the bignum path and `%llu` raises below Tcl 9.0. Folding any of them as
+/// a plain verb would be unsound. `*` and positional specs remain unfolded too.
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
@@ -73,21 +71,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///   [`MAX_FIELD`] all bail.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
-///
-/// KNOWN GAP (not fixed here — needs a `tcl-syntax` change, out of this
-/// file's scope): a single-letter size modifier (`h`, `l`, `z`, `t`, `j`,
-/// `q`) is parsed and silently discarded by [`parse_spec`] rather than
-/// exposed on [`Spec`], so it is *not* modelled or bailed on here — `%hd`
-/// folds as plain `%d`.  This is unsound in general: `h` truncates to a
-/// 16-bit value before conversion regardless of platform or dialect
-/// (empirically verified: `tclsh8.6 format %hd 5000000000` → `-3584`, but
-/// `tclsh8.6 format %d 5000000000` → `5000000000` on a wordSize-8 build —
-/// this file's `fold_format` would currently (wrongly) fold `%hd
-/// 5000000000` to `"5000000000"`).  `l`/`z`/`t`/`j`/`q` often coincide with
-/// the no-modifier width on common platforms/dialects but are not
-/// guaranteed to.  Fixing this soundly requires `tcl-syntax::format::Spec`
-/// to report *which* (if any) single-letter modifier was present, not just
-/// the `ll`/`L` case it currently exposes via `big`.
 fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     let (fmt, vals) = args.split_first()?;
     if !fmt.is_ascii() {
@@ -173,24 +156,19 @@ impl Conversion {
             width_star,
             precision_star,
             arg_index,
-            // A `ll`/`L` size modifier ("take without truncation"): unmodelled
-            // by every `render_*` helper below, and version-relevant on its
-            // own — `%llu` *raises* before Tcl 9.0 (empirically verified:
-            // `tclsh8.6 format %llu 5` → "unsigned bignum format is
-            // invalid"; 9.0 accepts it) while `%lld`/`%llx`/... skip the
-            // dialect's normal wrap width on 9.0+. Bailed on below, alongside
-            // the other unmodelled forms.
-            big,
+            // Size modifiers select integer coercion widths that the local
+            // renderers do not model. Preserve and bail on all of them below.
+            size,
         } = parse_spec(fmt, i)?;
         // Decline to fold the unmodelled specifier forms: arg-driven `*` width /
-        // `.*` precision, positional `%n$` selectors, and a `ll`/`L` size
-        // modifier. `fold_format` consumes the value list left-to-right, so a
+        // `.*` precision, positional `%n$` selectors, and every size modifier.
+        // `fold_format` consumes the value list left-to-right, so a
         // positional spec would fold to the wrong argument (`format {%2$d}
         // 10 20` is Tcl `20`, but sequentially `10`) — and a *mixed*
         // positional/sequential format is a Tcl error. Bailing keeps the
         // constant folder from rewriting either to a wrong value; the runtime
         // `format` handles them.
-        if width_star || precision_star || arg_index.is_some() || big {
+        if width_star || precision_star || arg_index.is_some() || size.is_some() {
             return None;
         }
         Some(Self {
@@ -733,15 +711,14 @@ mod tests {
         // (empirically verified: `tclsh8.6 format %F 3.14` → `bad field
         // specifier "F"`).
         assert_eq!(f(&["%F", "3.14"]), None);
-        // A `ll`/`L` size modifier bails unconditionally: it is unmodelled
-        // (its "no truncation" width isn't handled by any render_* helper),
-        // and `%llu` specifically *raises* below Tcl 9.0 (empirically
-        // verified: `tclsh8.6 format %llu 5` → "unsigned bignum format is
-        // invalid"; 9.0 accepts it as `5`) while `%lld` skips the dialect's
-        // normal 32-bit wrap on 9.0+ — neither is sound to fold as a plain
-        // verb.
+        // Every size modifier bails. `%hd 5000000000` is `-3584` on Tcl 9.0,
+        // not the unmodified conversion's `705032704`; the other modifiers
+        // likewise select widths the folder does not model. `ll`/`L` take the
+        // bignum path, and `%llu` additionally raises below Tcl 9.0.
+        for format in ["%hd", "%ld", "%lld", "%jd", "%zd", "%qd", "%td", "%Ld"] {
+            assert_eq!(f(&[format, "5000000000"]), None, "{format}");
+        }
         assert_eq!(f(&["%llu", "5"]), None);
-        assert_eq!(f(&["%lld", "5"]), None);
         assert_eq!(f(&["%Lf", "3.14"]), None);
     }
 

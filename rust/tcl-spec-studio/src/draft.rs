@@ -49,6 +49,7 @@
 //! seeded as a JSON object whose methods are ordinary subcommand drafts.
 
 use serde_json::{Map, Value, json};
+use tcl_registry::BodyInterpreter;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
 use tcl_registry::definer::ManufacturerMethod;
@@ -217,6 +218,22 @@ fn role_map(entries: &[(u8, ArgRole)]) -> Value {
             .map(|(i, role)| json!({ "index": i, "role": catalogue::variant_name(role) }))
             .collect(),
     )
+}
+
+fn role_list(entries: &[ArgRole]) -> Value {
+    Value::Array(
+        entries
+            .iter()
+            .map(|role| json!(catalogue::variant_name(role)))
+            .collect(),
+    )
+}
+
+fn body_interpreter(value: BodyInterpreter) -> Value {
+    match value {
+        BodyInterpreter::Current => json!({ "kind": "Current" }),
+        BodyInterpreter::Argument(index) => json!({ "kind": "Argument", "index": index }),
+    }
 }
 
 fn presentation_map(entries: &[(u8, ArgPresentation)]) -> Value {
@@ -531,7 +548,7 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
 /// is drafted with the same [`subcommand_body`] the command's own subcommands
 /// use, which is what lets the `SpecTcl` renderer write `method NAME { … }`
 /// rows in the `subcommand` body grammar the DSL reuses for them.
-fn object_class(class: Option<&'static ObjectClassSpec>, lost: &mut Unrecovered) -> Value {
+fn object_class(class: Option<&'static ObjectClassSpec>) -> Value {
     let Some(class) = class else {
         return Value::Null;
     };
@@ -541,9 +558,6 @@ fn object_class(class: Option<&'static ObjectClassSpec>, lost: &mut Unrecovered)
         .map(|method| {
             let mut method_lost = Unrecovered::default();
             let mut body = subcommand_body(method, &mut method_lost);
-            for key in &method_lost.0 {
-                lost.note(key);
-            }
             body.insert(UNRENDERABLE_KEY.to_owned(), method_lost.into_value());
             Value::Object(body)
         })
@@ -1003,6 +1017,10 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
         "arg_role_resolver".into(),
         lost.expr("arg_role_resolver", sub.arg_role_resolver.is_some()),
     );
+    d.insert(
+        "arg_role_resolver_roles".into(),
+        role_list(sub.arg_role_resolver_roles),
+    );
     d.insert("command_prefixes".into(), prefix_map(sub.command_prefixes));
     d.insert(
         "callback_taint_inputs".into(),
@@ -1290,6 +1308,10 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         json!(catalogue::variant_name(&sub.body_kind)),
     );
     d.insert(
+        "body_interpreter".into(),
+        body_interpreter(sub.body_interpreter),
+    );
+    d.insert(
         "byte_array_effect".into(),
         json!(catalogue::variant_name(&sub.byte_array_effect)),
     );
@@ -1388,6 +1410,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("arg_role_resolver", spec.arg_role_resolver.is_some()),
     );
     d.insert(
+        "arg_role_resolver_roles".into(),
+        role_list(spec.arg_role_resolver_roles),
+    );
+    d.insert(
         "frame_effect".into(),
         lost.expr("frame_effect", spec.frame_effect.is_some()),
     );
@@ -1433,6 +1459,11 @@ fn command_types(d: &mut Draft, spec: &CommandSpec, _lost: &mut Unrecovered) {
         json!(var_write_typing_expr(spec.var_write_typing)),
     );
     d.insert(
+        "variable_write_min_args".into(),
+        spec.variable_write_min_args
+            .map_or(Value::Null, |n| json!(n)),
+    );
+    d.insert(
         "return_type_hook".into(),
         spec.return_type_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -1463,9 +1494,6 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         .map(|sub| {
             let mut sub_lost = Unrecovered::default();
             let mut body = subcommand_body(sub, &mut sub_lost);
-            for key in &sub_lost.0 {
-                lost.note(key);
-            }
             body.insert(UNRENDERABLE_KEY.to_owned(), sub_lost.into_value());
             Value::Object(body)
         })
@@ -1674,6 +1702,10 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         json!(catalogue::variant_name(&spec.body_kind)),
     );
     d.insert(
+        "body_interpreter".into(),
+        body_interpreter(spec.body_interpreter),
+    );
+    d.insert(
         "body_arg_implicit_args".into(),
         json!(spec.body_arg_implicit_args),
     );
@@ -1819,7 +1851,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 /// Split out of [`command_advanced`] only to keep each within the hundred-line
 /// budget; the two are one pass over one group.
 fn command_object_facts(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
-    d.insert("object_class".into(), object_class(spec.object_class, lost));
+    d.insert("object_class".into(), object_class(spec.object_class));
     d.insert(
         "defines_symbol".into(),
         spec.defines_symbol
@@ -1970,6 +2002,49 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_role_and_body_interpreter_metadata_round_trip_to_rust() {
+        const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
+            name: "eval",
+            arg_role_resolver_roles: &[ArgRole::Body],
+            body_interpreter: BodyInterpreter::Argument(1),
+            ..SubCommand::DEFAULT
+        }];
+        let spec = CommandSpec {
+            name: "probe",
+            arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::Body],
+            variable_write_min_args: Some(4),
+            body_interpreter: BodyInterpreter::Argument(0),
+            subcommands: SUBCOMMANDS,
+            ..CommandSpec::DEFAULT
+        };
+
+        let draft = from_command_spec(&spec);
+        assert_eq!(
+            draft["arg_role_resolver_roles"],
+            json!(["VarWrite", "Body"])
+        );
+        assert_eq!(draft["variable_write_min_args"], json!(4));
+        assert_eq!(
+            draft["body_interpreter"],
+            json!({ "kind": "Argument", "index": 0 })
+        );
+        assert_eq!(
+            draft["subcommands"][0]["arg_role_resolver_roles"],
+            json!(["Body"])
+        );
+        assert_eq!(
+            draft["subcommands"][0]["body_interpreter"],
+            json!({ "kind": "Argument", "index": 1 })
+        );
+
+        let rendered = crate::render_rs::render(&draft);
+        assert!(rendered.contains("arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::Body],"));
+        assert!(rendered.contains("variable_write_min_args: Some(4),"));
+        assert!(rendered.contains("body_interpreter: BodyInterpreter::Argument(0),"));
+        assert!(rendered.contains("body_interpreter: BodyInterpreter::Argument(1),"));
+    }
+
+    #[test]
     fn a_nested_enum_payload_keeps_its_own_type_path() {
         // `Debug` alone renders this as `Fixed(String)`, which does not compile.
         let spec = CommandSpec {
@@ -2016,6 +2091,43 @@ mod tests {
         let draft = from_command_spec(&spec);
         assert_eq!(draft["arg_role_resolver"], Value::Null);
         assert_eq!(draft[UNRENDERABLE_KEY], json!(["arg_role_resolver"]));
+    }
+
+    #[test]
+    fn nested_unrecoverable_fields_stay_with_their_owner() {
+        fn resolver(_args: &[&str]) -> Vec<(u8, ArgRole)> {
+            Vec::new()
+        }
+
+        const NESTED: SubCommand = SubCommand {
+            name: "nested",
+            arg_role_resolver: Some(resolver),
+            arg_role_resolver_roles: &[ArgRole::Body],
+            ..SubCommand::DEFAULT
+        };
+        const CLASS: ObjectClassSpec = ObjectClassSpec {
+            class_name: "Probe",
+            instance_methods: &[NESTED],
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        let draft = from_command_spec(&CommandSpec {
+            name: "probe",
+            subcommands: &[NESTED],
+            object_class: Some(&CLASS),
+            ..CommandSpec::DEFAULT
+        });
+
+        assert_eq!(draft[UNRENDERABLE_KEY], json!([]));
+        assert_eq!(
+            draft["subcommands"][0][UNRENDERABLE_KEY],
+            json!(["arg_role_resolver"])
+        );
+        assert_eq!(
+            draft["object_class"]["instance_methods"][0][UNRENDERABLE_KEY],
+            json!(["arg_role_resolver"])
+        );
     }
 
     #[test]

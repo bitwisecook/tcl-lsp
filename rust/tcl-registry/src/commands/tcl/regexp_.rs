@@ -184,6 +184,12 @@ pub fn spec() -> CommandSpec {
         // returning the match *count* (or 0/1).  The captures are strings, not
         // the count, so they must not be typed `Int` (issue #867).
         var_write_typing: VarWriteTyping::Destructured,
+        // Whatever the leading switch layout, a capture target requires the
+        // pattern, string, and at least one matchVar.  In particular,
+        // `regexp $pattern $string` has no variable write even though the
+        // dynamic pattern could begin with `-` and make option selection
+        // source-opaque.
+        variable_write_min_args: Some(3),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
@@ -197,6 +203,7 @@ pub fn spec() -> CommandSpec {
         inline_codegen_hook: Some(InlineCodegenHookId::Regexp),
         forms: FORMS,
         arg_role_resolver: Some(regexp_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::VarWrite],
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         ..CommandSpec::DEFAULT
     }

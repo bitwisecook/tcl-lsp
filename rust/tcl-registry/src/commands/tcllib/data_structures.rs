@@ -358,6 +358,7 @@ const STRUCT_TREE_METHODS: &[SubCommand] = &[
         // in the invocation as written (`$t walk root -order in …`).
         option_placement: OptionPlacement::Anywhere,
         arg_role_resolver: Some(struct_tree_walk_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::Body],
         ..SubCommand::DEFAULT
     },
     SubCommand {

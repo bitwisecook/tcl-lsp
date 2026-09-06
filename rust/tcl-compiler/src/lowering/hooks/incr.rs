@@ -273,12 +273,14 @@ mod tests {
         LoweringCommand {
             span: Span::new(0, 8),
             name: "incr",
+            resolution_namespace: "::",
             args,
             single_token_word: single,
             expand_word: expand,
             tokens: None,
             arg_kinds: kinds,
             dialect: None,
+            lexer_config: tcl_lexer::LexerConfig::default(),
         }
     }
 

@@ -75,7 +75,7 @@ is what the `speclib` version word already does. A pack containing
 `pragma` therefore hits the ordinary unknown-property rule below: dropped
 with a logged notice.
 
-The current vocabulary is **2.0**. `1`, `1.0`, `1.1`, `1.2` and `2.0` all
+The current vocabulary is **2.1**. `1`, `1.0`, `1.1`, `1.2`, `2.0` and `2.1` all
 name a vocabulary the loader reads in full. A pack declaring a newer
 *minor* of a major the loader knows still loads, with a notice saying
 which vocabulary the loader knows — it only loses the words that server
@@ -92,6 +92,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
 | **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (with `help_terms` and `version_ceiling` rows since the EDA shells moved into their packs) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
+| **2.1** | `arg_role_resolver_roles {ROLE …}` at command and subcommand scope; the non-empty closed set is required whenever `arg_role_resolver` is present so every consumer can conservatively cache the roles a dynamic resolver may emit |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -1203,6 +1204,7 @@ schema order. "excluded" rows carry the reason.
 | `arity_windows` | `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` | since 1.2; the same row with a lifecycle. Repeatable, must not overlap; the ungated `arity` row stays the fallback |
 | `arg_roles` | `arg N -role ROLE` |  |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
+| `arg_role_resolver_roles` | `arg_role_resolver_roles {ROLE …}` | since 2.1; the required, non-empty complete set the dynamic resolver can emit |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
 | `frame_effect` | `frame_effect -level-word W -layout L` | both payloads are closed enums, so fully declarative |
@@ -1316,6 +1318,7 @@ schema order. "excluded" rows carry the reason.
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `arg_roles` | `arg N -role ROLE` |  |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
+| `arg_role_resolver_roles` | `arg_role_resolver_roles {ROLE …}` | since 2.1; the required, non-empty complete set the dynamic resolver can emit |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
 | `command_prefixes` | `arg N -appends {Exactly 2}` | implies `-role CommandPrefix` |

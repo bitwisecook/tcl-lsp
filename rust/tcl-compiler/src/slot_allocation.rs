@@ -67,13 +67,16 @@ pub type SlotMapping = HashMap<String, usize>;
 /// builder's — variable-read roles included, command substitutions recursed,
 /// reads-before-write excluded — so terminator-condition reads recovered here
 /// match the names SSA recorded in statement `uses`.
-fn make_scanner() -> VarReferenceScanner {
-    VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: false,
-        element_qualified: false,
-    })
+fn make_scanner(registry: &CommandRegistry) -> VarReferenceScanner {
+    VarReferenceScanner::for_registry(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: false,
+        },
+        registry,
+    )
 }
 
 /// Names read by a block's terminator (branch condition / return value).
@@ -149,7 +152,7 @@ fn block_use_def(
         def_map.insert(*id, HashSet::new());
     }
 
-    let mut scanner = make_scanner();
+    let mut scanner = make_scanner(registry);
 
     for (id, sblock) in &ssa.blocks {
         let uses = use_map.get_mut(id).expect("block in use map");
@@ -301,7 +304,7 @@ pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     registry: &CommandRegistry,
 ) -> Interference {
     let mut graph: Interference = HashMap::new();
-    let mut scanner = make_scanner();
+    let mut scanner = make_scanner(registry);
 
     for (id, sblock) in &ssa.blocks {
         // Collect into a fresh default-hashed set so the inner set's hasher

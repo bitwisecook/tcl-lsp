@@ -905,6 +905,47 @@ pub enum DefinerFamily {
     SslicTcl,
 }
 
+/// How a definer family selects the current namespace for an executable
+/// member body.
+///
+/// This is distinct from [`DefinitionBodyGrammar::member_body_namespace_path`]:
+/// the current namespace is searched first, while that path supplies ordered
+/// fallbacks. `TclOO` selects the runtime receiver object's private namespace;
+/// snit, itcl, `SpecTcl`, and `SslicTcl` bodies use the statically named
+/// definition target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MemberCurrentNamespace {
+    /// The class, type, or declaration target names the member namespace.
+    DefinedEntity,
+    /// The invoked receiver selects an object namespace at runtime.
+    RuntimeReceiver,
+}
+
+impl DefinerFamily {
+    /// Whether this grammar defines commands/objects that can be invoked by
+    /// the Tcl runtime after the declaration completes.
+    ///
+    /// `SpecTcl` and `SslicTcl` reuse the definition-body grammar for structured
+    /// declaration documents; their named blocks are data, not runtime class
+    /// or command manufacturers. Compiler consumers use this owner-level
+    /// predicate instead of maintaining their own family lists.
+    #[must_use]
+    pub const fn manufactures_runtime_commands(self) -> bool {
+        matches!(self, Self::TclOo | Self::Snit | Self::Itcl)
+    }
+
+    /// Registry-owned current-namespace policy for executable member bodies.
+    #[must_use]
+    pub const fn member_current_namespace(self) -> MemberCurrentNamespace {
+        match self {
+            Self::TclOo => MemberCurrentNamespace::RuntimeReceiver,
+            Self::Snit | Self::Itcl | Self::SpecTcl | Self::SslicTcl => {
+                MemberCurrentNamespace::DefinedEntity
+            }
+        }
+    }
+}
+
 /// The grammar of a definer command's definition body: its recognised member
 /// sub-keywords plus the variables implicitly in scope inside every member
 /// body.
@@ -1164,6 +1205,12 @@ pub struct MemberBodyCommand {
 }
 
 impl DefinitionBodyGrammar {
+    /// Current-namespace policy for executable members of this grammar.
+    #[must_use]
+    pub const fn member_current_namespace(&self) -> MemberCurrentNamespace {
+        self.family.member_current_namespace()
+    }
+
     /// The member grammar for `keyword`, if it is a recognised member.
     #[must_use]
     pub fn member(&self, keyword: &str) -> Option<&'static MemberSpec> {
@@ -2648,13 +2695,27 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use super::{
-        DeclaredMemberVisibility, MemberRetraction, MemberVisibility, SlotOp, SlotSpec,
-        TCLOO_GRAMMAR,
+        DeclaredMemberVisibility, DefinerFamily, MemberRetraction, MemberVisibility, SlotOp,
+        SlotSpec, TCLOO_GRAMMAR,
     };
     use crate::arg_role::ArgRole;
 
     fn strs(words: &[&str]) -> Vec<String> {
         words.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn declaration_grammars_do_not_manufacture_runtime_commands() {
+        for family in [
+            DefinerFamily::TclOo,
+            DefinerFamily::Snit,
+            DefinerFamily::Itcl,
+        ] {
+            assert!(family.manufactures_runtime_commands());
+        }
+        for family in [DefinerFamily::SpecTcl, DefinerFamily::SslicTcl] {
+            assert!(!family.manufactures_runtime_commands());
+        }
     }
 
     /// Issue #1169: the four `TclOO` slot members carry their C-pinned

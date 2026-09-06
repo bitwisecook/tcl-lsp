@@ -30,69 +30,13 @@
 
 use std::io::Write;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir_profile;
-use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_vm::{CompileService, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution:
 /// the real Rust compiler pipeline (lower → CFG → bytecode).
-struct Svc {
-    registry: &'static CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    dialect: Option<&'static DialectProfile>,
-}
-
-impl Svc {
-    fn for_profile(profile: &'static DialectProfile) -> Self {
-        Self {
-            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: Some(profile),
-        }
-    }
-}
-
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) =
-            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_profile(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile(src)
-    }
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) =
-            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-    fn compile_traced_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile_traced(src)
-    }
-}
+type Svc = BytecodeCompileService;
 
 /// Pass the VM's `puts` output straight through to the process stdout.
 struct Stdout;

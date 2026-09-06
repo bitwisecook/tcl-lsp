@@ -30,28 +30,12 @@ use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::{CompileService, Vm};
 
 /// A `Write` sink over a shared byte buffer — used for both the main
 /// interpreter's output and (as the `Send` sink) every worker's, so a test can
@@ -70,35 +54,7 @@ impl std::io::Write for SharedBuf {
 }
 
 fn compiler() -> Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>> {
-    Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    })
-}
-
-struct ProfileCompilerSvc;
-
-impl CompileService for ProfileCompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
-        self.compile_for_profile(src, DialectProfile::plain_tcl())
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<Self::Module, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, Some(profile));
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
+    Box::new(BytecodeCompileService::default())
 }
 
 /// Compile and run `src` on a thread-enabled VM; return `(ok, result, stdout)`.
@@ -143,11 +99,11 @@ fn assert_workers_inherit_a_separate_host_command_surface() {
     let asm = codegen_module(&cfg, &ir, registry);
 
     let mut vm = Vm::with_output(Box::new(std::io::sink()));
-    vm.set_compiler(Box::new(ProfileCompilerSvc));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(dialect)));
     vm.set_dialect_profile(dialect);
     assert!(vm.set_command_surface_profile(host));
     vm.enable_threads(
-        Arc::new(|| Box::new(ProfileCompilerSvc)),
+        Arc::new(|| Box::new(BytecodeCompileService::for_profile(DialectProfile::irules()))),
         Arc::new(Mutex::new(Box::new(std::io::sink()))),
     );
 

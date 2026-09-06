@@ -231,6 +231,7 @@ pub fn spec() -> CommandSpec {
             | Traits::NEEDS_START_CMD,
         arity: Arity::any(),
         arg_role_resolver: Some(return_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Result],
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {

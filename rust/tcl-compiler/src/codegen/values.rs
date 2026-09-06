@@ -48,37 +48,71 @@ pub(crate) fn is_bare_var_name(name: &str) -> bool {
 // -- Literal emission --
 
 impl CodegenCtx<'_> {
-    /// The `[list …]` / `[format …]` / `[dict create …]` constant folds and
-    /// the two `list` inlinings that sit between them — one copy, shared by
-    /// both value emitters.
+    /// Registry-owned constant command-substitution folds and the two `list`
+    /// inlinings that sit beside them — one copy, shared by both value emitters,
+    /// which previously carried it independently.
     ///
     /// **A folded result is a value, so it is always pushed verbatim.** Folding
-    /// *is* running the command at compile time; its result has no word rule
-    /// left to apply, and handing it back to the VM's `subst_word` runs the
-    /// substitution a second time. The two emitters used to differ here — a
-    /// `kind` parameter picked the verbatim entry point for the assignment
-    /// emitter and the substituting one for `emit_value`, and the `dict create`
-    /// arm ignored `kind` and substituted in *both* — so a fold whose result
-    /// carried a marker or looked braced came back wrong: `set d [dict create k
-    /// {a${b}}]` read `b` and `set v [dict get [dict create k \{\}] k]` measured
-    /// 0 where both oracles say 5 characters and 2. That asymmetry was never a
-    /// decision, only two emitters keeping the entry point each already had.
+    /// runs the command at compile time; its result has no word rule left to
+    /// apply, and handing it back to the VM's `subst_word` would substitute it
+    /// a second time.
     ///
     /// Every fold is gated on its own builtin still *being* the builtin
     /// anywhere in this unit (issue #1585): a fold **is** that command's
     /// semantics, so after `rename list mylist` or a shadowing `proc format …`
-    /// it would answer for a command that is no longer there. `dict` carries
-    /// the release gate as well (issue #1427) — folding bypasses the runtime's
-    /// availability check, so an ungated fold would make `dict create` *work*
-    /// under `--tcl-version 8.4`.
+    /// it would answer for a command that is no longer there. The active
+    /// registry selects the exact command/subcommand callback and release
+    /// surface (issue #1427), so an owned registry can replace a fold and an
+    /// unavailable command cannot be manufactured by codegen.
     ///
     /// Returns `true` when it emitted the value and the caller must stop.
     pub(crate) fn try_emit_constant_fold(&mut self, value: &str) -> bool {
-        // Constant-fold [list arg1 arg2 ...].
-        if self.trusts_builtin("list")
-            && let Some(folded) = super::helpers::fold_list_cmd(value, self.word_rules)
-        {
-            self.push_lit_no_dedup_verbatim(&folded);
+        if self.plain_command_dispatch {
+            return false;
+        }
+        let fold = value
+            .strip_prefix('[')
+            .and_then(|inner| inner.strip_suffix(']'))
+            .and_then(|inner| {
+                let trusts = |name: &str| self.trusts_builtin(name);
+                let lookup = |_name: &str| None;
+                crate::const_subst::ConstSubstCtx {
+                    registry: self.registry,
+                    resolution_namespace: self.resolution_namespace(),
+                    version: self
+                        .dialect
+                        .and_then(tcl_dialect::DialectProfile::const_fold_version),
+                    defining_class: None,
+                    trusts: &trusts,
+                    lookup_var: &lookup,
+                }
+                .fold_cmd_subst_resolved(inner)
+            });
+        if let Some(fold) = fold {
+            for binding in &fold.command_bindings {
+                self.require_command_binding(binding);
+            }
+            // The fold consumes a real command invocation. Retain its own
+            // replay boundary so a command-table mutation in an earlier
+            // argument of the enclosing active command cannot make these
+            // literal pushes execute stale builtin semantics.
+            let end = self.begin_consumed_inline_command(
+                value
+                    .strip_prefix('[')
+                    .and_then(|inner| inner.strip_suffix(']'))
+                    .expect("successful command fold has brackets"),
+            );
+            if fold.return_type == Some(tcl_registry::TclType::Dict) {
+                self.push_lit_no_dedup_verbatim(&fold.value);
+                self.emit(Op::DUP, vec![]);
+                self.emit(Op::VERIFY_DICT, vec![]);
+            } else {
+                // A command result is already a final Tcl value. It must not
+                // be parsed as another word: `$`, `[…]`, braces, and backslash
+                // bytes in the result are data, not a second substitution.
+                self.push_lit_no_dedup_verbatim(&fold.value);
+            }
+            self.place_label(&end);
             return true;
         }
         // Inline [list {*}$a {*}$b] → load a, load b, listConcat. tclsh 9.0
@@ -91,23 +125,6 @@ impl CodegenCtx<'_> {
         // tclsh 9.0 compiles break/continue inside `list` command
         // substitutions as inline jumps with stack cleanup.
         if self.try_inline_list_with_break_continue(value) {
-            return true;
-        }
-        // Constant-fold [format "..." arg ...] with literal args (%s/%d/%%).
-        if self.trusts_builtin("format")
-            && let Some(folded) = super::helpers::try_format_fold(value, self.escapes)
-        {
-            self.push_lit_no_dedup_verbatim(&folded);
-            return true;
-        }
-        // Constant-fold [dict create k v ...].
-        if self.registry.has_command_in_this_dialect("dict")
-            && self.trusts_builtin("dict")
-            && let Some(folded) = super::helpers::fold_dict_create_cmd(value, self.word_rules)
-        {
-            self.push_lit_no_dedup_verbatim(&folded);
-            self.emit(Op::DUP, vec![]);
-            self.emit(Op::VERIFY_DICT, vec![]);
             return true;
         }
         false
@@ -783,6 +800,128 @@ mod tests {
     use super::*;
     use crate::codegen::{CodegenCtx, Op};
     use tcl_registry::CommandRegistry;
+
+    #[allow(clippy::unnecessary_wraps)] // test callback follows ConstFoldFn
+    fn owned_list_fold(args: &[&str]) -> Option<String> {
+        Some(format!("owned:{}", args.join(",")))
+    }
+
+    #[test]
+    fn value_fold_uses_the_owned_registry_callback_and_binding() {
+        let mut registry = CommandRegistry::build_default();
+        let mut list = registry.get("list").expect("list spec").clone();
+        list.const_fold = Some(owned_list_fold);
+        registry.insert(list);
+
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        assert!(ctx.try_emit_constant_fold("[list a b]"));
+        assert!(ctx.literals.entries().iter().any(|lit| lit == "owned:a,b"));
+        assert_eq!(
+            ctx.command_binding_requirements,
+            [tcl_runtime_api::CommandBindingIdentity::new("list", "list")]
+                .into_iter()
+                .collect()
+        );
+    }
+
+    #[test]
+    fn value_fold_obeys_owned_registry_removal_for_every_old_fast_path() {
+        let mut registry = CommandRegistry::build_default();
+
+        let mut list = registry.get("list").expect("list spec").clone();
+        list.const_fold = None;
+        registry.insert(list);
+
+        let mut format = registry.get("format").expect("format spec").clone();
+        format.const_fold_versioned = None;
+        registry.insert(format);
+
+        let mut dict = registry.get("dict").expect("dict spec").clone();
+        let mut subcommands = dict.subcommands.to_vec();
+        subcommands
+            .iter_mut()
+            .find(|sub| sub.name == "create")
+            .expect("dict create spec")
+            .const_fold = None;
+        dict.subcommands = Box::leak(subcommands.into_boxed_slice());
+        registry.insert(dict);
+
+        for value in [
+            "[list a b]",
+            "[format {%s} value]",
+            "[dict create key value]",
+        ] {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            assert!(
+                !ctx.try_emit_constant_fold(value),
+                "owned registry disabled the fold for {value}"
+            );
+            assert!(ctx.instructions.is_empty(), "partial emission for {value}");
+        }
+    }
+
+    #[test]
+    fn nested_value_fold_retains_every_resolved_command_binding() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        assert!(ctx.try_emit_constant_fold("[llength [list a b]]"));
+        for name in ["list", "llength"] {
+            assert!(
+                ctx.command_binding_requirements
+                    .contains(&tcl_runtime_api::CommandBindingIdentity::new(name, name)),
+                "missing {name} dependency: {:?}",
+                ctx.command_binding_requirements
+            );
+        }
+    }
+
+    #[test]
+    fn consumed_value_fold_retains_an_executable_replay_boundary() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        assert!(ctx.try_emit_constant_fold("[list a b]"));
+
+        let start = &ctx.instructions[0];
+        assert_eq!(start.op, Op::START_CMD);
+        assert_eq!(start.source_cmd_text, "list a b");
+        assert_eq!(
+            start.source_command_boundary,
+            super::super::SourceCommandBoundary::InlineReplay,
+            "an inline replay point is not a new outer source-command owner",
+        );
+        let end = match start.operands.first() {
+            Some(Operand::Label(label)) => label,
+            other => panic!("fold boundary has no continuation: {other:?}"),
+        };
+        assert_eq!(ctx.label_positions.get(end), Some(&ctx.instructions.len()));
+        assert!(
+            ctx.instructions
+                .iter()
+                .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
+                .expect("folded literal push")
+                .push_verbatim,
+            "a folded command result is already a final Tcl value",
+        );
+    }
+
+    #[test]
+    fn folded_dict_payload_is_verbatim_before_verification() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        assert!(ctx.try_emit_constant_fold("[dict create {[missing]} {${value}}]"));
+
+        let push = ctx
+            .instructions
+            .iter()
+            .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
+            .expect("dict payload push");
+        assert!(push.push_verbatim);
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::VERIFY_DICT)
+        );
+    }
 
     // -- split_array_ref --
 

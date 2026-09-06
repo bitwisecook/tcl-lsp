@@ -290,8 +290,8 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     // deferred to the explicit stack below), so it does not need
     // `enter_control_fallback`'s native-stack recursion guard — matching
     // `eval`/`uplevel`'s own `pending_eval` deferral, which likewise has none.
-    let asm = match vm.compile_source_cached(&body.to_str()) {
-        Ok(asm) => asm,
+    let script = match vm.compile_script_cached(&body.to_str()) {
+        Ok(script) => script,
         Err(e) => return err(e.message),
     };
     vm.pending_each_loop = Some(crate::exec::EachLoopReq {
@@ -299,7 +299,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
         collect,
         groups,
         iterations,
-        body: asm,
+        body: script,
     });
     ok(Value::empty())
 }

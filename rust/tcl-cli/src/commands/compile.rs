@@ -36,7 +36,7 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
     registry_for_dialect, write_binary_output, write_text_output,
 };
-use tcl_compiler::cfg_builder::build_cfg_codegen;
+use tcl_compiler::cfg_builder::build_cfg_codegen_with_registry;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::format::format_module_asm;
 use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
@@ -86,7 +86,7 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
         tcl_lexer::LexerConfig::for_profile(Some(dialect)),
         Some(dialect),
     );
-    let cfg = build_cfg_codegen(&ir, false);
+    let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
     let module = codegen_module(&cfg, &ir, &registry);
     let disassembly = format_module_asm(&module);
 

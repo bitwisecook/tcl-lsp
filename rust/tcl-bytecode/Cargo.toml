@@ -46,6 +46,7 @@ description = "Tcl 9 bytecode artifact types (opcodes, instructions, FunctionAsm
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-syntax = { path = "../tcl-syntax" }
 
 [lints]

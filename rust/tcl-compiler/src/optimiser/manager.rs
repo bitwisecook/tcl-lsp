@@ -36,7 +36,6 @@ use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::CompilationUnit;
-use crate::interprocedural::build_interprocedural_analysis;
 
 use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
@@ -137,8 +136,7 @@ fn build_pass_context<'a>(
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
     ctx.ir_module = Some(&cu.ir_module);
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    ctx.command_mutations.clone_from(&cu.command_mutations);
     // This is a conservative whole-unit safety fact. Several source-walking
     // passes run before elimination and cannot recover the current handler
     // from a nested script, so protecting the union is sound; handler-local
@@ -866,12 +864,13 @@ pub fn optimise_raw_for_profile(
         tcl_lexer::LexerConfig::for_profile(dialect),
         registry,
     );
-    let ia = build_interprocedural_analysis(
+    let ia = crate::interprocedural::build_interprocedural_analysis_with_cfg(
         &cu.ir_module,
         registry,
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
         &identities,
+        &cu.cfg_module,
     );
     cu.interproc = Some(ia);
     let mut ctx = build_pass_context(&cu, registry, dialect);

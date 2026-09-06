@@ -29,8 +29,7 @@
 //! where tclsh does real work) are marked `// UNIMPLEMENTED:` and asserted
 //! against the VM's actual (documented) behaviour, not tclsh's.
 
-// Harness — copied verbatim from `run_script.rs` (the `run` helper plus every
-// struct/import it needs: `CompilerSvc`, `Capture`, and the `use` lines).
+// Harness — the `tcl-compiler` compile service plus a captured-output VM.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -38,53 +37,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-/// A `tcl-compiler`-backed compile service so the VM can resolve runtime
-/// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself
-/// never depends on the compiler).
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        // Mirror the real VM compile services (`tcl-vm-cli`, `run_test`): a
-        // hard parse error becomes a catchable runtime error with the exact
-        // C Tcl message.
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static tcl_dialect::DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            config,
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
+use tcl_vm::{CompileService, Vm};
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -100,7 +56,6 @@ impl Write for Capture {
     }
 }
 
-/// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 /// tclsh9.0.4's `info` ensemble enumeration (`info {}` → `unknown or ambiguous
 /// subcommand "": must be …`).
 const INFO_MUST: &str = "must be args, body, class, cmdcount, cmdtype, commands, complete, \
@@ -123,9 +78,7 @@ const FILE_MUST: &str = "must be atime, attributes, channels, copy, delete, dirn
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    };
+    let service = BytecodeCompileService::for_profile(profile);
     let asm = service
         .compile_for_profile(src, profile)
         .expect("test script compiles for its selected profile");
@@ -152,9 +105,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");

@@ -47,6 +47,7 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 // `lower_to_ir_for_bytecode`, not the analysis-oriented `lower_to_ir` (which
 // e.g. emits `beginCatch`-shaped IR for `try` instead of the runtime-call
 // shape `tcl-vm-cli` actually compiles) — this file's harness used the wrong
@@ -59,24 +60,7 @@ use tcl_compiler::codegen::codegen_module;
 // import for the precedent.
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::Vm;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -100,9 +84,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -233,6 +215,34 @@ fn catch_captures_a_post_resume_error_across_yield() {
              coroutine c g; list [c] [c Z]"
         ),
         "1/boom- Z"
+    );
+}
+
+#[test]
+fn nested_catch_try_multicommand_phases_survive_yields() {
+    // tclsh 9.0.4: the try body resumes, errors into its handler, and the
+    // multi-command handler itself suspends/resumes before returning through
+    // the still-live outer catch.
+    assert_eq!(
+        result(
+            "proc g {} { set c [catch {try {set x [yield a]; error \"boom-$x\"} on error m {set y [yield handled]; set m \"$m/$y\"}} r]; yield \"$c/$r\" }; \
+             list [coroutine c g] [c Z] [c Y]"
+        ),
+        "a handled 0/boom-Z/Y"
+    );
+}
+
+#[test]
+fn dynamic_catch_try_phase_words_survive_yields_on_runtime_path() {
+    // tclsh 9.0.4: dynamic phase words decline literal inline emission, while
+    // catch and try's explicit-stack runtime paths preserve both suspensions
+    // and the two-element handler variable-list binding.
+    assert_eq!(
+        result(
+            "proc g {} { set body {set x [yield a]; error \"boom-$x\"}; set handler {set y [yield handled]; list \"$m/$y\" [dict get $o -code]}; set c [catch {try $body on error {m o} $handler} r]; yield [list $c $r] }; \
+             list [coroutine c g] [c Z] [c Y]"
+        ),
+        "a handled {0 {boom-Z/Y 1}}"
     );
 }
 
@@ -578,6 +588,40 @@ fn completed_coroutine_command_is_removed() {
 }
 
 #[test]
+fn coroutine_replaces_a_proc_and_removes_its_command_on_completion() {
+    // Tcl 9.0.4: creation replaces the proc before running the coroutine; a
+    // coroutine that immediately completes returns its result and removes its
+    // own command rather than restoring the replaced proc.
+    assert_eq!(
+        result("proc foo {} {return OLD}; list [coroutine foo list OK] [info commands foo]"),
+        "OK {}"
+    );
+}
+
+#[test]
+fn coroutine_replacing_its_initial_command_detects_self_resume() {
+    // Tcl 9.0.4: the newly-published coroutine command is what its body resolves
+    // `foo` to, so the initial call attempts to resume itself while running.
+    let (ok, msg, _) = run("coroutine foo foo");
+    assert!(!ok);
+    assert_eq!(msg, "coroutine \"foo\" is already running");
+}
+
+#[test]
+fn coroutine_replacing_a_specialised_builtin_deopts_before_self_resume() {
+    // Tcl 9.0.4: the initial body may have compiled `llength` to a specialised
+    // opcode before the resume command replaced it. Its first tick must observe
+    // that replacement, redispatch to the coroutine, and report re-entry.
+    assert_eq!(
+        result(
+            "set code [catch {coroutine llength llength {a b}} msg]; \
+             list $code $msg [info commands llength]"
+        ),
+        "1 {coroutine \"llength\" is already running} {}"
+    );
+}
+
+#[test]
 fn completed_hidden_coroutine_is_retired_from_hidden_state() {
     // Tcl 9.0.4: completing through invokehidden consumes the hidden token;
     // neither a second resume nor a later expose can resurrect it. Exposing a
@@ -756,6 +800,20 @@ fn initial_command_resolves_in_the_creation_namespace() {
              namespace eval b {coroutine foo a}"
         ),
         "local"
+    );
+}
+
+#[test]
+fn resume_validates_a_coroutine_against_its_parked_namespace() {
+    // Tcl 9.0.4: the global resume command restores the suspended ::a frame;
+    // freshness validation must inspect that parked flow, not the resumer's
+    // ambient global namespace.
+    assert_eq!(
+        result(
+            "namespace eval ::a {proc gen {} {yield READY; return [namespace current]}}; \
+             coroutine c ::a::gen; c"
+        ),
+        "::a"
     );
 }
 

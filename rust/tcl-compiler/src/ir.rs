@@ -630,14 +630,114 @@ impl CommandTokens {
 // Each variant carries a `Span` for position tracking, plus
 // variant-specific fields.
 
+/// Command-resolution context for an executable script root or nested body.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ExecutionNamespace {
+    /// The selected frame's defining namespace is statically known.
+    Exact(String),
+    /// A receiver- or caller-selected namespace is known only at runtime.
+    RuntimeSelected,
+}
+
+impl ExecutionNamespace {
+    /// Construct an exact command-resolution namespace.
+    #[must_use]
+    pub fn exact(namespace: impl Into<String>) -> Self {
+        Self::Exact(namespace.into())
+    }
+
+    /// Resolve one command head. Absolute names remain exact even in a
+    /// runtime-selected frame; relative names do not.
+    #[must_use]
+    pub fn for_head(&self, head: &str) -> Option<&str> {
+        if head.starts_with("::") {
+            Some("::")
+        } else {
+            match self {
+                Self::Exact(namespace) => Some(namespace),
+                Self::RuntimeSelected => None,
+            }
+        }
+    }
+
+    pub(crate) fn selected_frame(&self, absolute: bool, frame_shift: i32) -> Self {
+        match (absolute, frame_shift) {
+            (true, 0) => Self::exact("::"),
+            (false, 0) => self.clone(),
+            _ => Self::RuntimeSelected,
+        }
+    }
+}
+
 /// A script: a sequence of IR statements.
 ///
-/// Using `Vec` rather than a tuple
-/// because scripts are built incrementally during lowering.
+/// Using `Vec` rather than a tuple because scripts are built incrementally
+/// during lowering.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Script {
     /// Statements in execution order.
     pub statements: Vec<Statement>,
+    /// Registry-resolved command heads consumed by typed lowering.
+    ///
+    /// Keeping these sites beside the script makes the dependency explicit in
+    /// IR and lets CFG/codegen preserve it without re-parsing source fragments.
+    pub command_binding_sites: CommandBindingSites,
+    /// Exact user-procedure definitions whose bodies were copied into this
+    /// script by an executable inlining transform.
+    pub procedure_binding_requirements: ProcedureBindingRequirements,
+}
+
+/// Compact storage for the uncommon typed-lowering dependency sidecar.
+///
+/// Most scripts contain no command whose head disappears during structured
+/// lowering. A boxed slice omits `Vec`'s unused capacity word and avoids
+/// inflating every recursively nested [`Script`] (and the [`Statement`]
+/// variants which contain several of them).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct CommandBindingSites(Box<[CommandBindingSite]>);
+
+impl CommandBindingSites {
+    /// Iterate over the retained typed-lowering dependencies.
+    pub fn iter(&self) -> impl Iterator<Item = &CommandBindingSite> {
+        self.0.iter()
+    }
+
+    /// Mutably iterate over the retained typed-lowering dependencies.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CommandBindingSite> {
+        self.0.iter_mut()
+    }
+}
+
+/// Compact storage for user-procedure dependencies introduced by inlining.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct ProcedureBindingRequirements(Box<[tcl_runtime_api::ProcedureBindingIdentity]>);
+
+impl ProcedureBindingRequirements {
+    /// Iterate over the exact user-procedure dependencies.
+    pub fn iter(&self) -> impl Iterator<Item = &tcl_runtime_api::ProcedureBindingIdentity> {
+        self.0.iter()
+    }
+}
+
+impl From<Vec<tcl_runtime_api::ProcedureBindingIdentity>> for ProcedureBindingRequirements {
+    fn from(requirements: Vec<tcl_runtime_api::ProcedureBindingIdentity>) -> Self {
+        Self(requirements.into_boxed_slice())
+    }
+}
+
+impl From<Vec<CommandBindingSite>> for CommandBindingSites {
+    fn from(sites: Vec<CommandBindingSite>) -> Self {
+        Self(sites.into_boxed_slice())
+    }
+}
+
+/// One command dependency retained after typed lowering consumes its head.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CommandBindingSite {
+    /// Exact source span of the complete owning Tcl command.
+    pub span: Span,
+    /// Source spelling and registry-resolved implementation identity.
+    pub binding: tcl_runtime_api::CommandBindingIdentity,
 }
 
 impl Script {
@@ -646,13 +746,47 @@ impl Script {
     pub fn new() -> Self {
         Self {
             statements: Vec::new(),
+            command_binding_sites: CommandBindingSites::default(),
+            procedure_binding_requirements: ProcedureBindingRequirements::default(),
         }
     }
 
     /// Create a script from a list of statements.
     #[must_use]
     pub fn from_statements(statements: Vec<Statement>) -> Self {
-        Self { statements }
+        Self {
+            statements,
+            command_binding_sites: CommandBindingSites::default(),
+            procedure_binding_requirements: ProcedureBindingRequirements::default(),
+        }
+    }
+
+    /// Create a lowered script with explicit typed-lowering dependencies.
+    #[must_use]
+    pub fn from_lowered_parts(
+        statements: Vec<Statement>,
+        command_binding_sites: Vec<CommandBindingSite>,
+    ) -> Self {
+        Self {
+            statements,
+            command_binding_sites: command_binding_sites.into(),
+            procedure_binding_requirements: ProcedureBindingRequirements::default(),
+        }
+    }
+
+    /// Create transformed executable IR with both registry and user-procedure
+    /// binding dependencies retained explicitly.
+    #[must_use]
+    pub fn from_transformed_parts(
+        statements: Vec<Statement>,
+        command_binding_sites: Vec<CommandBindingSite>,
+        procedure_binding_requirements: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+    ) -> Self {
+        Self {
+            statements,
+            command_binding_sites: command_binding_sites.into(),
+            procedure_binding_requirements: procedure_binding_requirements.into(),
+        }
     }
 }
 
@@ -889,6 +1023,18 @@ pub enum Statement {
         name_braced: bool,
         /// Parsed expression AST.
         expr: ExprNode,
+        /// Live command binding whose registry identity justified fusing the
+        /// nested command. This is generic binding metadata (source spelling
+        /// plus canonical implementation), not an `expr`-name flag: aliases
+        /// therefore carry their own binding identity into bytecode.
+        command_binding: Option<tcl_runtime_api::CommandBindingIdentity>,
+        /// Original value word (`[expr ...]`) before this statement was
+        /// fused. Codegen replays this through the ordinary `set` value path
+        /// when the whole-module command-binding summary says `expr` no
+        /// longer denotes its registry builtin. Keeping the exact word here
+        /// preserves quoting, substitutions, and an overridden command's
+        /// argv instead of trying to reconstruct Tcl source from the AST.
+        fallback_value: String,
         /// Absolute source offset of the expression text's first byte —
         /// see [`IfClause::condition_base`].  `None` when the expression
         /// text is not a verbatim source slice.
@@ -932,6 +1078,9 @@ pub enum Statement {
     ExprEval {
         /// Source span.
         span: Span,
+        /// Source binding whose registry implementation this specialised
+        /// expression evaluation assumes.
+        command_binding: tcl_runtime_api::CommandBindingIdentity,
         /// Parsed expression AST.
         expr: ExprNode,
         /// Absolute source offset of the expression text's first byte —
@@ -990,6 +1139,14 @@ pub enum Statement {
         value: Option<String>,
         /// Return expression, if any (for `return [expr ...]`).
         expr: Option<ExprNode>,
+        /// Live command binding whose registry identity justified compiling a
+        /// nested command substitution directly into [`expr`](Self::Return::expr).
+        ///
+        /// This is separate from the outer `return` command's binding: the
+        /// latter remains owned by the statement source boundary, while this
+        /// dependency belongs to the consumed nested command (`expr`, or a
+        /// registry-proved alias for it).
+        command_binding: Option<tcl_runtime_api::CommandBindingIdentity>,
         /// Whether the value was braced.
         braced: bool,
     },
@@ -1388,6 +1545,10 @@ pub struct MethodDef {
     pub params: Vec<String>,
     /// Method body.
     pub body: Script,
+    /// Current namespace used to resolve command heads in the method body.
+    /// `TclOO` selects the receiver's object namespace at runtime; other
+    /// registry definer families can name their definition target exactly.
+    pub execution_namespace: ExecutionNamespace,
     /// Method kind.
     pub kind: MethodKind,
     /// Source span (may be absent for synthetic methods).
@@ -1451,6 +1612,14 @@ pub struct OoDefinitionEvidence {
     /// that class's ancestry is unknown, so hierarchy-scoped analysis
     /// must fall back to whole-module widening.
     pub dynamic_class_relations: bool,
+    /// At least one executable definition/member body could not be published
+    /// through [`Module::executable_script_roots`]. This includes dynamic or
+    /// otherwise unsupported definer bodies, accessor/configuration scripts,
+    /// and definitions nested in a method frame that the source-root post-pass
+    /// does not revisit. Whole-module command-effect consumers must fail closed
+    /// when this is set: absence from `methods` is not evidence that the runtime
+    /// body cannot mutate the command table.
+    pub unretained_executable_roots: bool,
 }
 
 /// A top-level module: procedures + top-level script.
@@ -1464,6 +1633,10 @@ pub struct Module {
     /// surface text for `errorInfo` (`while executing "…"`). Empty when not
     /// supplied (older construction paths / hand-built test modules).
     pub source: String,
+    /// Rooted constructed namespace in which [`Self::top_level`] resolves
+    /// command names. This is `"::"` for an ordinary source module and the
+    /// procedure's defining namespace for a runtime procedure-body compile.
+    pub top_level_namespace: String,
     /// The dialect this module was lowered for (`"tcl8.6"`, `"f5-irules"`, …),
     /// `None` for an unnamed/permissive compile.
     ///
@@ -1473,6 +1646,9 @@ pub struct Module {
     /// numeric literal is a case in point: `0755` is 493 under 8.6 and 755
     /// under 9.0, and which one it is settled here.
     pub dialect: Option<String>,
+    /// Whether lowering deliberately preserved ordinary command dispatch for
+    /// every invocation (trace/invalidation recovery compilation).
+    pub plain_command_dispatch: bool,
     /// Top-level script (code outside any procedure).
     pub top_level: Script,
     /// Named procedures.
@@ -1590,6 +1766,94 @@ pub struct Module {
     /// Forces the propagation optimiser to treat *every* variable as
     /// potentially traced.
     pub has_dynamic_variable_trace: bool,
+}
+
+fn execution_namespace_for_qname(qname: &str) -> String {
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+    if holder.is_empty() {
+        "::".to_owned()
+    } else {
+        holder.to_owned()
+    }
+}
+
+impl Module {
+    /// Executable roots whose invocation is independent of an enclosing
+    /// statement: the module load script, retained procedures and methods,
+    /// and retained replacement methods.
+    ///
+    /// Synthetic [`Self::body_units`] are deliberately absent. An `apply` or
+    /// `namespace eval` body executes only through its owning invocation, in
+    /// that invocation's program-order position; treating the same body as an
+    /// independently callable fixpoint root both invents an execution path and
+    /// repeatedly replays nested body suffixes. Whole-module static analyses
+    /// that need every body in isolation should use
+    /// [`Self::executable_script_roots`] instead.
+    #[must_use]
+    pub(crate) fn independent_executable_script_roots(&self) -> Vec<(&Script, ExecutionNamespace)> {
+        let mut roots = vec![(
+            &self.top_level,
+            ExecutionNamespace::exact(if self.top_level_namespace.is_empty() {
+                "::".to_owned()
+            } else {
+                self.top_level_namespace.clone()
+            }),
+        )];
+
+        let mut procedures: Vec<_> = self.procedures.iter().collect();
+        procedures.sort_by(|a, b| a.0.cmp(b.0));
+        roots.extend(procedures.into_iter().map(|(qname, procedure)| {
+            (
+                &procedure.body,
+                ExecutionNamespace::exact(execution_namespace_for_qname(qname)),
+            )
+        }));
+
+        let mut methods: Vec<_> = self.methods.iter().collect();
+        methods.sort_by(|a, b| a.0.cmp(b.0));
+        roots.extend(
+            methods
+                .into_iter()
+                .map(|(_, method)| (&method.body, method.execution_namespace.clone())),
+        );
+
+        let mut redefined_methods: Vec<_> = self.redefined_methods.iter().collect();
+        redefined_methods.sort_by(|a, b| a.0.cmp(b.0));
+        for (_, replacements) in redefined_methods {
+            roots.extend(
+                replacements
+                    .iter()
+                    .map(|method| (&method.body, method.execution_namespace.clone())),
+            );
+        }
+
+        roots
+    }
+
+    /// Every retained executable script root and the namespace in which its
+    /// command heads resolve.
+    ///
+    /// Whole-module semantic scans use this inventory instead of each keeping
+    /// a partial copy of the procedure/method/body-unit map traversal. The
+    /// ordering is deterministic so monotone state replays and memo inputs do
+    /// not depend on `HashMap` seeds. Earlier bodies of a redefined procedure
+    /// are not retained; consumers that need them must widen when
+    /// [`Self::redefined_procedures`] is non-empty.
+    #[must_use]
+    pub fn executable_script_roots(&self) -> Vec<(&Script, ExecutionNamespace)> {
+        let mut roots = self.independent_executable_script_roots();
+
+        let mut body_units: Vec<_> = self.body_units.iter().collect();
+        body_units.sort_by(|a, b| a.0.cmp(b.0));
+        roots.extend(body_units.into_iter().map(|(qname, unit)| {
+            (
+                &unit.body,
+                ExecutionNamespace::exact(execution_namespace_for_qname(qname)),
+            )
+        }));
+
+        roots
+    }
 }
 
 /// Extract the event name from a `::when::` qualified name.
@@ -2149,6 +2413,7 @@ mod tests {
                     end: 6,
                 }),
             }),
+            command_binding: None,
             braced: false,
         };
         if let Statement::Return { expr: Some(e), .. } = &stmt {

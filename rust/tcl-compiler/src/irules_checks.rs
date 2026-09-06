@@ -45,7 +45,7 @@ use tcl_registry::events::{
 use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg_builder::build_cfg_with_config;
+use crate::cfg_builder::build_cfg_with_registry_and_config;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
@@ -855,7 +855,7 @@ fn scan_side_switch_body(
     let irules_config =
         tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar);
     let module = lower_to_ir_with_config(body_text, registry, irules_config);
-    let cfg_module = build_cfg_with_config(&module, false, irules_config);
+    let cfg_module = build_cfg_with_registry_and_config(&module, false, registry, irules_config);
     for bn in cfg_order(&cfg_module.top_level) {
         let Some(block) = cfg_module.top_level.blocks.get(&bn) else {
             continue;

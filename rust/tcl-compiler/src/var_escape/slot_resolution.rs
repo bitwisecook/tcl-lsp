@@ -444,9 +444,7 @@ mod tests {
     use tcl_lexer::Span;
 
     fn empty_script() -> Script {
-        Script {
-            statements: Vec::new(),
-        }
+        Script::new()
     }
 
     fn assign_const(name: &str, value: &str) -> Statement {
@@ -475,7 +473,7 @@ mod tests {
     }
 
     fn script_with(stmts: Vec<Statement>) -> Script {
-        Script { statements: stmts }
+        Script::from_statements(stmts)
     }
 
     /// Regression coverage for issue #996: `walk_statements` recurses once

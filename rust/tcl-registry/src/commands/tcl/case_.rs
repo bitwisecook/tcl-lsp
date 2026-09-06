@@ -120,6 +120,7 @@ pub fn spec() -> CommandSpec {
         // every pair into a single trailing word.
         arity: Arity::new(2, Arity::UNLIMITED),
         arg_role_resolver: Some(case_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         // The braced `{patList body …}` form is a clause list, not a script:
         // without the descriptor + lowering hook the whole braced word would
         // be lowered as one body and every pattern read as a command name.

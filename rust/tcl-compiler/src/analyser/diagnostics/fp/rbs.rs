@@ -52,6 +52,16 @@ fn fp_rbs_01_info_exists_guard_silent() {
 }
 
 #[test]
+fn fp_rbs_01_rooted_info_exists_guard_silent() {
+    let src = "proc maybe_get {} { if {[::info exists v]} { return $v }; return {} }";
+    assert!(
+        !fires(src, D, "W210"),
+        "rooted info-exists guard must suppress W210; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
 fn fp_rbs_01_bare_unguarded_read_still_fires() {
     // TP control: stripping the info-exists guard restores the W210.
     let src = "\

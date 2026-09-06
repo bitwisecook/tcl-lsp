@@ -217,6 +217,7 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         arg_role_resolver: Some(test_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         // The test name (arg 0) and its description (arg 1) name a test case the
         // outline lists.  Every symbol consumer discovers it from this
         // descriptor — the argument index and category are data here, not a

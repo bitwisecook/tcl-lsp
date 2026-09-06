@@ -127,6 +127,12 @@ What each argument position *is*, for commands whose layout never changes. Index
 
 Roles are what make the editor light up a body argument as real code, treat `varName` arguments as variable reads and writes (so rename and "unused variable" work through them), and know a word is a pattern or a channel. See the Reference tab for every role. If the layout depends on the argument count or on option words, you need the argument-role resolver instead — say so in the issue you open, because resolvers are code.
 
+### `arg_role_resolver_roles` — Resolver role capabilities
+
+*command and subcommand* — Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.
+
+The complete set of roles the dynamic argument-role resolver can ever return. This is declarative even though the resolver itself is code. Consumers use it when substitutions or expansions hide the exact argument values, so omitting a possible role can suppress analysis while adding an impossible role makes analysis needlessly conservative.
+
 ### `arg_presentation` — Argument presentation
 
 *command and subcommand* — Formatter layout override per 0-based argument index; body arguments are block-expanded unless declared inline.
@@ -176,6 +182,12 @@ Leave unset when the type varies and no single answer is honest.
 What type the variables the command *writes* receive, when that is not the same as what the command *returns*. `lassign` returns the leftover list but writes list *elements*; `scan` and `regexp` return a count but write parsed pieces; `gets chan line` returns a character count but writes the line into `line`.
 
 `ReturnValue` (the default) says the written variable holds the return value. `Fixed` names one type for the written variable regardless of the return. `Destructured` says the pieces cannot be typed statically. Getting this right avoids false "wrong type" warnings on the written variables.
+
+### `variable_write_min_args` — Variable-write argument floor
+
+*command only* — Minimum post-head argument count at which the command can write a variable; unset makes no claim beyond its role descriptors.
+
+The minimum number of words after the command name at which any invocation can write a variable. This is a necessary-condition proof for variable-layout commands such as `regexp` and `regsub`, not the command's general arity. Leave it unset unless every shorter invocation is guaranteed not to have a variable-write target.
 
 ### `return_type_hook` — Return-type hook
 
@@ -426,6 +438,12 @@ Marks a command that escapes the sandbox in restricted dialects — in iRules, t
 *command and subcommand* — Whether body arguments run in the caller's frame or a separate context.
 
 Whether a Body argument runs *in the caller's frame*, seeing and changing the caller's variables (`while`, `if`, `catch` — "Plain"), or in a separate context of its own (`proc` bodies, class definition bodies — "Structural"). Plain bodies join the surrounding data flow: a `set` inside them changes the enclosing scope. Structural bodies deliberately do not.
+
+### `body_interpreter` — Body interpreter
+
+*command and subcommand* — Whether evaluated body arguments run in the current interpreter or one selected by an invocation argument.
+
+Which Tcl interpreter owns evaluated Body arguments. `Current` is the normal case. `Argument` names the complete post-command argument index whose evaluated value selects another interpreter, as in `interp eval`. This is independent of body kind: interpreter ownership and stack-frame shape are separate axes.
 
 ### `byte_array_effect` — Byte-array effect
 

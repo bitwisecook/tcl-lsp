@@ -8079,9 +8079,11 @@ mod tests {
         // TclOO method bodies are lowered as their own `FunctionUnit`s, so a
         // `set re "…"; regexp $re` inside a method highlights the def-site
         // literal just like one in a proc — end-to-end through the CU overlay.
+        // Root registry calls because TclOO selects the receiver's private
+        // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = reg();
-        let src = "oo::class create C {\n  method m {s} {\n    set re \".*x\"\n    regexp $re $s\n  }\n}\n";
+        let src = "oo::class create C {\n  method m {s} {\n    ::set re \".*x\"\n    ::regexp $re $s\n  }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
@@ -8176,14 +8178,16 @@ mod tests {
         // method and `-node` (a declared property) an option — not the plain
         // strings they read as without collection-element + user-class
         // resolution.
+        // Root registry calls because TclOO selects the receiver's private
+        // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = reg();
         let src = "oo::configurable create Pin { property node }\n\
                    oo::class create Device {\n\
                      variable Pins\n\
-                     method add {pin} { dict append Pins $pin [Pin new] }\n\
-                     method cfg {pin node} { [dict get $Pins $pin] configure -node $node }\n\
+                     method add {pin} { ::dict append Pins $pin [::Pin new] }\n\
+                     method cfg {pin node} { [::dict get $Pins $pin] configure -node $node }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
@@ -8226,14 +8230,16 @@ mod tests {
         // collection binds `pin` to an element, so the loop-body dispatch
         // resolves the user method just like the `[dict get …]` retrieval
         // (SpiceGenTcl `allNodes` / `floating` shape, issue #797).
+        // Root registry calls because TclOO selects the receiver's private
+        // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = reg();
         let src = "oo::configurable create Pin { property node }\n\
                    oo::class create Device {\n\
                      variable Pins\n\
-                     method add {p} { dict append Pins $p [Pin new] }\n\
-                     method dump {} { dict for {k pin} $Pins { puts [$pin configure -node] } }\n\
+                     method add {p} { ::dict append Pins $p [::Pin new] }\n\
+                     method dump {} { ::dict for {k pin} $Pins { ::puts [$pin configure -node] } }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
@@ -8987,14 +8993,16 @@ mod tests {
         // a command substitution, so the IR never surfaces it as a loop; the
         // syntactic scan still binds `v` to the collection element (SpiceGenTcl
         // `getPinsNodes` / `getParams` shape, issue #797).
+        // Root registry calls because TclOO selects the receiver's private
+        // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = reg();
         let src = "oo::configurable create Pin { property node }\n\
                    oo::class create Device {\n\
                      variable Pins\n\
-                     method add {p} { dict append Pins $p [Pin new] }\n\
-                     method nodes {} { return [dict map {k pin} $Pins {$pin configure -node}] }\n\
+                     method add {p} { ::dict append Pins $p [::Pin new] }\n\
+                     method nodes {} { ::return [::dict map {k pin} $Pins {$pin configure -node}] }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");

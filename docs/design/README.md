@@ -426,6 +426,9 @@ are its rules, and what are the failure modes". One contract per file.
   — LSP diagnostics publication and suppression model.
 - [vm-bytecode-test-boundary.md](contracts/vm-bytecode-test-boundary.md)
   — VM and bytecode identity and fixture boundary guidance.
+- [vm-compiled-artifact-provenance.md](contracts/vm-compiled-artifact-provenance.md)
+  — the TclVM owner for assembly plus profile, command, and compile-service
+  generations, and the lazy-recompile versus fail-closed invalidation rules.
 - [vscode-extension.md](contracts/vscode-extension.md) — VS Code
   extension integration contracts.
 - [wasm-explorer-view.md](contracts/wasm-explorer-view.md) — JSON

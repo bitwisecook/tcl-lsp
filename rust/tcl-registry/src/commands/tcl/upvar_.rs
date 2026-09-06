@@ -96,6 +96,7 @@ fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitio
                     frame: frame.clone(),
                     variable,
                 },
+                writes_value: false,
             },
         ));
     }

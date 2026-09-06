@@ -458,6 +458,7 @@ static SUBCOMMANDS: [SubCommand; 27] = [
         detail: "Manipulate tags applied to ranges of text.",
         synopsis: "pathName tag option ?arg ...?",
         arg_role_resolver: Some(text_tag_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         script_timing_resolver: Some(text_tag_script_timing),
         callback_taint_inputs: &[(3, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,

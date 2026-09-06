@@ -154,6 +154,7 @@ pub fn spec() -> CommandSpec {
         // scope), exactly as `proc` / `namespace eval` bodies are.
         body_kind: BodyKind::Structural,
         arg_role_resolver: Some(uplevel_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         // `uplevel ?level? arg …` — the level word is probed from the
         // leading word's text (`Tcl_UplevelObjCmd` → `TclObjGetFrame`), and
         // the script it runs belongs to the frame that word selects, not to

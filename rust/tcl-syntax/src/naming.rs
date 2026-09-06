@@ -233,13 +233,19 @@ pub fn key_tail(name: &str) -> &str {
         };
     }
     // A constructed key's separator is a `::` whose suffix holds no further
-    // `::` run and whose prefix is itself a valid key (a prefix ending in a
-    // separator would carry an empty namespace segment, which the grammar
-    // cannot produce — `namespace eval {}` is the *global* namespace).  A key
-    // can satisfy this at two positions at once (`"::a:::"` is both `:` in
-    // `::a` and `{}` in `::a:`); prefer the non-empty simple name, matching
-    // the far more common construction.
-    let prefix_ok = |i: usize| i < 2 || !(bytes[i - 1] == b':' && bytes[i - 2] == b':');
+    // `::` run and whose prefix is itself a valid namespace key.  Testing only
+    // whether the prefix appears to end in a separator is insufficient:
+    // `::a:::` is the valid key for namespace `:` below `::a`, despite its
+    // final two bytes. Validate the construction grammar recursively (without
+    // calling `key_tail`) so any depth of literal-colon segments is retained.
+    let rooted = name.starts_with("::");
+    let prefix_ok = |i: usize| {
+        if rooted {
+            i == 0 || (i > 2 && constructed_namespace_path_is_valid(&bytes[2..i]))
+        } else {
+            i > 0 && constructed_namespace_path_is_valid(&bytes[..i])
+        }
+    };
     let mut saw_empty_suffix = false;
     let mut i = bytes.len().saturating_sub(2);
     loop {
@@ -260,6 +266,36 @@ pub fn key_tail(name: &str) -> &str {
     if saw_empty_suffix { "" } else { name }
 }
 
+/// Whether `path` is a non-empty sequence of constructed namespace segments.
+/// Segments themselves contain no `::` run and are joined by exactly `::`;
+/// they may contain a lone colon, including the whole segment `:`.  Colon runs
+/// therefore have more than one possible split, so recognise the grammar with
+/// a small position work-list instead of parsing a written Tcl name.
+fn constructed_namespace_path_is_valid(path: &[u8]) -> bool {
+    if path.is_empty() {
+        return false;
+    }
+    let mut starts = vec![false; path.len() + 1];
+    starts[0] = true;
+    for start in 0..path.len() {
+        if !starts[start] {
+            continue;
+        }
+        for end in start + 1..=path.len() {
+            if end >= start + 2 && path[end - 2] == b':' && path[end - 1] == b':' {
+                break;
+            }
+            if end == path.len() {
+                return true;
+            }
+            if end + 1 < path.len() && path[end] == b':' && path[end + 1] == b':' {
+                starts[end + 2] = true;
+            }
+        }
+    }
+    false
+}
+
 /// Split a **constructed** qualified key into its holder-namespace key and
 /// simple tail — the exact inverse of the `"{holder}::{simple}"` construction
 /// ([`key_tail`] for the tail rule).  The holder of a root-level key is `"::"`
@@ -272,6 +308,8 @@ pub fn key_tail(name: &str) -> &str {
 /// assert_eq!(key_holder_and_tail("::a::b"), ("::a", "b"));
 /// assert_eq!(key_holder_and_tail("::x"), ("::", "x"));
 /// assert_eq!(key_holder_and_tail(":::"), ("::", ":"));
+/// assert_eq!(key_holder_and_tail(":::::p"), (":::", "p"));
+/// assert_eq!(key_holder_and_tail("::a:::::p"), ("::a:::", "p"));
 /// assert_eq!(key_holder_and_tail("::::::"), (":::", ":"));
 /// assert_eq!(key_holder_and_tail("::x::"), ("::x", ""));
 /// assert_eq!(key_holder_and_tail("::"), ("::", ""));
@@ -972,6 +1010,27 @@ pub fn qualify(prefix: &str, name: &str) -> String {
         return format!("::{canonical}");
     }
     format!("::{p}::{canonical}")
+}
+
+/// Add the global root marker to an **unrooted constructed key**.
+///
+/// This is not written-name canonicalisation: the input has already been
+/// constructed from namespace segments, so every byte must be retained.  In
+/// particular, an unrooted key may itself begin with `::` when its first
+/// segment contains literal colons; prepend exactly one root marker rather
+/// than using [`canonical_written_command`] or testing whether it already
+/// looks rooted.
+///
+/// ```
+/// use tcl_syntax::naming::root_unrooted_key;
+///
+/// assert_eq!(root_unrooted_key(""), "::");
+/// assert_eq!(root_unrooted_key("matrix"), "::matrix");
+/// assert_eq!(root_unrooted_key(":::p"), ":::::p");
+/// ```
+#[must_use]
+pub fn root_unrooted_key(key: &str) -> String {
+    format!("::{key}")
 }
 
 /// Candidate qualified names for Tcl's real bareword command/procedure
@@ -1747,6 +1806,10 @@ mod tests {
         assert_eq!(key_tail("::a::b"), "b");
         assert_eq!(key_tail("::a"), "a");
         assert_eq!(key_tail(":::"), ":");
+        assert_eq!(key_tail(":::::p"), "p");
+        assert_eq!(key_tail("::a:::::p"), "p");
+        assert_eq!(key_tail("::a::::::::p"), "p");
+        assert_eq!(key_tail("::::p"), "::::p");
         assert_eq!(key_tail("::::::"), ":");
         assert_eq!(key_tail("::a:::"), ":");
         assert_eq!(key_tail("::a::::x"), ":x");
@@ -1757,6 +1820,15 @@ mod tests {
         assert_eq!(key_tail("cmd"), "cmd");
         assert_eq!(key_tail("a::b"), "b");
         assert_eq!(key_tail(""), "");
+    }
+
+    #[test]
+    fn constructed_key_split_preserves_nested_literal_colon_namespaces() {
+        assert_eq!(key_holder_and_tail(":::::p"), (":::", "p"));
+        assert_eq!(key_holder_and_tail("::a:::::p"), ("::a:::", "p"));
+        assert_eq!(key_holder_and_tail("::a:::::"), ("::a:::", ""));
+        assert_eq!(key_holder_and_tail("::a::::::::p"), ("::a::::::", "p"));
+        assert_eq!(key_segments("::a:::::p"), ["a", ":", "p"]);
     }
 
     #[test]

@@ -771,8 +771,8 @@ fn tp_lattice_typed_receiver_agrees_across_references_lens_and_rename() {
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
-        "oo::class create A { method make {} { return [B new] } }\n\
-         oo::class create B {\n    method greet {} { return \"hi\" }\n}\n\
+        "oo::class create A { method make {} { ::return [::B new] } }\n\
+         oo::class create B {\n    method greet {} { ::return \"hi\" }\n}\n\
          set a [A new]\n\
          set b [$a make]\n\
          $b greet\n",

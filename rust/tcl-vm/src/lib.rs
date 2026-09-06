@@ -69,6 +69,7 @@ mod cmd_thread;
 mod cmd_trace;
 mod cmd_try;
 mod command;
+mod compiled;
 mod environment;
 mod exec;
 mod expr;
@@ -84,7 +85,10 @@ pub use error::TclError;
 pub use interp::Vm;
 pub use value::Value;
 
-pub use tcl_runtime_api::{Code, CompileError, CompileService, Completion};
+pub use tcl_runtime_api::{
+    Code, CompileError, CompileService, Completion, ProcedureCompileTarget, ProcedureDispatch,
+    ScriptCompileTarget,
+};
 // The Family-B role traits the VM satisfies, re-exported so a consumer can call
 // the impls (a trait must be in scope to use its methods). More land as the VM
 // grows.

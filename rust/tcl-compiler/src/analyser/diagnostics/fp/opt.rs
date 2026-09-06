@@ -501,12 +501,13 @@ fn fp_opt_12_impure_user_proc_still_blocks() {
 }
 
 #[test]
-fn fp_opt_12_tcloo_pure_method_rhs_deleted() {
-    // SF-2 FIXED (TP): pure TclOO method RHS in unused assignment must fire O126.
-    let src = "oo::class create C {\n    method pure_helper {} { return 42 }\n    method m {} {\n        set unused [my pure_helper]\n        puts done\n    }\n}\n";
+fn fp_opt_12_runtime_selected_tcloo_method_rhs_not_deleted() {
+    // Tcl 9.0.4 oracle: `my` is a relative command head and an object's
+    // namespace may shadow it, so the optimiser cannot prove this dispatch.
+    let src = "oo::class create C {\n    method pure_helper {} { ::return 42 }\n    method m {} {\n        ::set unused [my pure_helper]\n        ::puts done\n    }\n}\n";
     assert!(
-        opt_fires(src, D, "O126"),
-        "FP-OPT-12: pure-method RHS in unused assign must fire O126; rewrites={:?}",
+        !opt_fires(src, D, "O126"),
+        "FP-OPT-12: relative `my` dispatch must make O126 abstain; rewrites={:?}",
         opt_rewrites(src, D)
     );
 }
@@ -556,12 +557,13 @@ fn fp_opt_12_array_element_instance_var_write_not_deleted() {
 }
 
 #[test]
-fn fp_opt_12_instance_var_read_only_method_deleted() {
-    // SF-2 precision: read-only instance-var method is pure; O126 must fire.
-    let src = "oo::class create C {\n    variable counter\n    method get {} { return $counter }\n    method m {} { set unused [my get]; puts done }\n}\n";
+fn fp_opt_12_runtime_selected_instance_var_reader_not_deleted() {
+    // The callee body is pure, but Tcl 9.0.4 resolves the relative `my` head
+    // at runtime, so that is insufficient proof for O126.
+    let src = "oo::class create C {\n    variable counter\n    method get {} { ::return $counter }\n    method m {} { ::set unused [my get]; ::puts done }\n}\n";
     assert!(
-        opt_fires(src, D, "O126"),
-        "FP-OPT-12: read-only instance-var method should fold to O126; rewrites={:?}",
+        !opt_fires(src, D, "O126"),
+        "FP-OPT-12: relative `my` dispatch must make O126 abstain; rewrites={:?}",
         opt_rewrites(src, D)
     );
 }
@@ -598,12 +600,13 @@ fn fp_opt_12_duplicate_in_body_method_not_pure() {
 // has no counterpart in the Rust optimiser surface.
 
 #[test]
-fn fp_opt_12_oo_define_pure_method_rhs_deleted() {
-    // SF-2 TP via oo::define body form: methods added via oo::define are summarised same way.
-    let src = "oo::class create C {}\noo::define C {\n    method pure_helper {} { return 42 }\n    method m {} {\n        set unused [my pure_helper]\n        puts done\n    }\n}\n";
+fn fp_opt_12_runtime_selected_oo_define_method_rhs_not_deleted() {
+    // An `oo::define` method has the same Tcl 9.0.4 relative-head rule: bare
+    // `my` is runtime-selected and cannot justify deleting its call.
+    let src = "oo::class create C {}\noo::define C {\n    method pure_helper {} { ::return 42 }\n    method m {} {\n        ::set unused [my pure_helper]\n        ::puts done\n    }\n}\n";
     assert!(
-        opt_fires(src, D, "O126"),
-        "FP-OPT-12: oo::define pure-method RHS must fire O126; rewrites={:?}",
+        !opt_fires(src, D, "O126"),
+        "FP-OPT-12: oo::define relative `my` dispatch must make O126 abstain; rewrites={:?}",
         opt_rewrites(src, D)
     );
 }

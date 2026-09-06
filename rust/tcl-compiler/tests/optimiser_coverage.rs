@@ -357,6 +357,16 @@ fn o101_global_write_across_call_guard() {
         "O101"
     ));
 
+    // TP (canonical alias call): lowering retains `call_mutate` for source
+    // fidelity and `mutate` as its resolved target. The global-write call
+    // graph and the call-site invalidation must both follow that target.
+    // Tcl 9.0.4 yields 100, never the stale fold 6.
+    assert!(opt_absent(
+        "proc mutate {} { global x; set x 99 }\ninterp alias {} call_mutate {} mutate\nset x 5\ncall_mutate\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
+
     // TP (namespace variable): `variable` writes are outer-scope too.
     // tclsh: same reasoning as the `global` repro — 100, not 6.
     assert!(opt_absent(
@@ -710,6 +720,23 @@ fn o102_uplevel_hash_zero_list_built_script_kills_the_stale_global() {
 }
 
 #[test]
+fn o102_alias_to_uplevel_uses_its_prepended_caller_level() {
+    // Tcl 9.0.4: `write_caller` executes `uplevel 1 [list ::set x 99]`,
+    // so `setter` writes x in its caller's frame. The source head is not a
+    // registry command; its alias target and prepended level are.
+    let src = "interp alias {} write_caller {} uplevel 1\n\
+               proc setter {} { write_caller [list ::set x 99] }\n\
+               set x 5\n\
+               setter\n\
+               puts $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale caller-frame value must not forward across `setter`: {out}"
+    );
+}
+
+#[test]
 fn o102_uplevel_hash_zero_through_a_call_chain_kills_the_stale_global() {
     // TP (issue #1198) — nested call chain: `outer` calls `setter`; the
     // global-frame write is transitive through the direct-call closure.
@@ -770,6 +797,27 @@ fn o102_uplevel_hash_zero_non_writing_script_still_forwards() {
     let src = "proc shout {} {\n    uplevel #0 [list puts hi]\n}\nset x 5\nshout\nputs $x\n";
     assert!(opt_fires(src, TCL, "O102"));
     assert!(optimised(src, TCL).contains("puts 5"));
+}
+
+#[test]
+fn o102_alias_baked_set_target_kills_the_stale_global() {
+    // Tcl 9.0.4: the alias contributes `x`, so `put 99` executes `set x 99`
+    // in the target interpreter and `p` prints 99.  The compiler must project
+    // that prepended variable name through the registry-owned `set` layout.
+    let src = "interp alias {} put {} set x\n\
+               proc p {} { global x; put 99 }\n\
+               set x 5\n\
+               p\n\
+               puts $x\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts 5"),
+        "the stale global 5 must not forward across the aliased set: {out}"
+    );
+    assert!(
+        out.contains("puts $x"),
+        "the runtime read must survive: {out}"
+    );
 }
 
 #[test]
@@ -912,6 +960,15 @@ fn o103_interprocedural_folding() {
         TCL,
         "O103"
     ));
+}
+
+#[test]
+fn o103_alias_resolved_proc_replacement_is_not_folded_as_the_original() {
+    let src = "proc p {} {return P}\nproc q {} {return Q}\n\
+               interp alias {} r {} rename\n\
+               r p oldp\nr q p\nset value [p]\n";
+    assert!(opt_absent(src, TCL, "O103"));
+    assert!(optimised(src, TCL).contains("set value [p]"));
 }
 
 // O104 — fold string build chains

@@ -227,8 +227,10 @@ fn handle_eval(args: &[String], state: &mut EscapeState, registry: &tcl_registry
     // scan could find a reference in — so today the mode is unobservable and
     // the guard is what carries the soundness. It is written as ``scan_word``
     // so that narrowing that guard cannot silently reintroduce the hole.
-    let mut scanner =
-        crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
+    let mut scanner = crate::var_refs::VarReferenceScanner::for_registry(
+        crate::var_refs::VarScanOptions::default(),
+        registry,
+    );
     for ref_ in scanner.scan_word(&body, registry) {
         state.escape_with_reason(
             &ref_,

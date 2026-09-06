@@ -78,6 +78,7 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
     synopsis: "my variable ?varName ...?",
     return_type: Some(TclType::String),
     arg_role_resolver: Some(my_variable_arg_roles),
+    arg_role_resolver_roles: &[ArgRole::VarWrite],
     creates_scope_alias: true,
     side_effects: &[SideEffect {
         target: SideEffectTarget::Variable,

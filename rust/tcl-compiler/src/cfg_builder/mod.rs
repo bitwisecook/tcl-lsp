@@ -26,23 +26,24 @@
 //! - [`build_cfg`] — build CFGs for a whole module (top-level + procs).
 //! - [`build_cfg_function`] — build a CFG for a single script body.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::LazyLock;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 use tcl_lexer::{Span, TokenType};
-use tcl_registry::Traits;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::{CommandRegistry, EffectiveRegistrySemantics, Traits};
 
 use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
+use crate::command_binding::ModuleCommandBindings;
 use crate::expr_ast::ExprNode;
-use crate::ir::{CommandTokens, Module, Script, Statement};
+use crate::ir::{CommandBindingSite, CommandTokens, Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 
 use self::global_write_info::GlobalWriteInfo;
-use self::upvar_info::{FrameReach, UpvarInfo, collect_upvar_targets};
+use self::upvar_info::{FrameReach, UpvarInfo};
 
 /// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
 ///
@@ -127,8 +128,40 @@ struct MutableBlock {
     terminator: Option<Terminator>,
 }
 
+#[derive(Default)]
+struct ResolvedUpvarEffects {
+    defs: Vec<String>,
+    opaque_arguments: bool,
+    has_unresolvable_target: bool,
+    frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+}
+
+/// Whether a call-shaped IR statement has one statically literal command
+/// head. Computed dispatch already has its own dynamic-command handling; a
+/// runtime-selected namespace only adds uncertainty for a literal relative
+/// head that could be shadowed there.
+fn statement_has_literal_head(stmt: &Statement) -> bool {
+    match stmt {
+        Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. } => {
+            tokens.as_ref().is_none_or(|tokens| {
+                tokens.synthetic.is_none()
+                    && tokens.words().first().is_none_or(|head| {
+                        crate::registry_invocation::invocation_word(head)
+                            .literal()
+                            .is_some()
+                    })
+            })
+        }
+        _ => false,
+    }
+}
+
 /// Builder that accumulates blocks and loop metadata for one function.
-pub(crate) struct CfgBuilder {
+///
+/// The independent flags describe separate lowering policies; grouping them
+/// would hide that each can be selected by a different public CFG entry point.
+#[allow(clippy::struct_excessive_bools)]
+pub(crate) struct CfgBuilder<'a> {
     counter: u32,
     blocks: HashMap<String, MutableBlock>,
     /// Block name → [`BlockId`], assigned in block-creation order so the
@@ -151,6 +184,15 @@ pub(crate) struct CfgBuilder {
     /// so SCCP treats a global/namespace name as overdefined across an
     /// opaque call that writes it, not as an ordinary untouched local.
     global_write_procs: HashMap<String, GlobalWriteInfo>,
+    /// Closed module command state used to resolve direct and parsed embedded
+    /// spellings to effective user-procedure targets, including alias chains.
+    command_bindings: ModuleCommandBindings,
+    /// Namespace in which direct command heads in this function resolve.
+    invocation_namespace: crate::ir::ExecutionNamespace,
+    /// Whether registry-declared `TclOO` self/next dispatch must conservatively
+    /// invalidate this method's caller frame. Method reachability analysis
+    /// owns this decision; user-procedure summaries stay identity-pure.
+    widen_oo_dispatch: bool,
     /// Stack of `(break_target, continue_target)` block names for the
     /// enclosing loops, so `break` / `continue` in a body lower to a CFG
     /// edge.  Without this a `while 1 { … break }` exit block is
@@ -161,6 +203,22 @@ pub(crate) struct CfgBuilder {
     /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
     /// codegen builds so the default bytecode is unchanged.
     faithful_exceptions: bool,
+    /// Every command must retain ordinary runtime dispatch semantics. This is
+    /// the CFG half of `Module::plain_command_dispatch`: command-name traits
+    /// must not promote a generic call to a builtin-specific return/loop edge,
+    /// because the live command may have been replaced.
+    plain_command_dispatch: bool,
+    /// The exact registry that lowered the IR this builder consumes.  CFG
+    /// variable-write recovery must query this registry rather than rebuilding
+    /// a release-only approximation from [`Module::dialect`]: callers may add
+    /// pack commands or override command descriptors without changing the
+    /// dialect name.
+    registry: &'a CommandRegistry,
+    /// Release/dialect-specific command control-flow facts, derived from the
+    /// same registry profile that lowered the module.  Keeping this on the
+    /// builder prevents a Tcl 9 command (for example `throw`) from shaping a
+    /// Tcl 8.4 CFG where that spelling can be a user procedure.
+    command_classes: CfgCommandClasses,
     /// When `Some`, every block that raises an explicit `error` / `throw`
     /// is recorded here. `lower_try` installs a fresh list around its body
     /// so the on-error edge is sourced from each throw point (at its
@@ -179,6 +237,17 @@ pub(crate) struct CfgBuilder {
     /// [`crate::cfg::Function`] for source-text-independent error-frame
     /// emission.
     inline_body_error_sites: Vec<crate::cfg::InlineBodyErrorSite>,
+    /// Structured command dependencies collected from every recursively
+    /// flattened IR script in this function.
+    command_binding_sites: Vec<CommandBindingSite>,
+    /// User-procedure dependencies retained by executable IR inlining.
+    procedure_binding_requirements: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+    /// Block name to exact owning structured Tcl command for synthetic runtime
+    /// revalidation boundaries.
+    command_boundary_sites: HashMap<String, CommandBindingSite>,
+    /// Entry block to continuation block for an explicitly delimited inline
+    /// structured-command region.
+    command_boundary_continuations: HashMap<String, String>,
     /// Caller-frame injection the function currently being built is subject
     /// to: the union of every called procedure's
     /// [`UpvarInfo::caller_frame_barrier`].  Drained into
@@ -229,17 +298,16 @@ pub(crate) struct CfgBuilder {
 /// play over the same IR.
 const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
 
-/// Maximum nested-`[...]` descent depth for
-/// [`CfgBuilder::upvar_defs_from_text_bounded`] /
-/// [`CfgBuilder::global_write_defs_from_text_bounded`] (issue #923 idx
-/// 122) — bounds pathological/adversarial bracket nesting the same way
-/// [`MAX_LOWER_DEPTH`] bounds `lower_script`. No real source nests
-/// anywhere near this.
-const MAX_EMBEDDED_SUBST_DEPTH: u32 = 16;
-
-impl CfgBuilder {
-    fn new(inline_loops: bool) -> Self {
-        Self::new_with_upvars(inline_loops, HashMap::new(), HashMap::new(), HashMap::new())
+impl<'a> CfgBuilder<'a> {
+    fn new(inline_loops: bool, registry: &'a CommandRegistry) -> Self {
+        Self::new_with_upvars(
+            inline_loops,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            ModuleCommandBindings::default(),
+            registry,
+        )
     }
 
     fn new_with_upvars(
@@ -247,6 +315,29 @@ impl CfgBuilder {
         upvar_procs: HashMap<String, UpvarInfo>,
         proc_params: HashMap<String, Vec<String>>,
         global_write_procs: HashMap<String, GlobalWriteInfo>,
+        command_bindings: ModuleCommandBindings,
+        registry: &'a CommandRegistry,
+    ) -> Self {
+        let command_classes = CfgCommandClasses::from_registry(registry);
+        Self::new_with_upvars_and_classes(
+            inline_loops,
+            upvar_procs,
+            proc_params,
+            global_write_procs,
+            command_bindings,
+            registry,
+            command_classes,
+        )
+    }
+
+    fn new_with_upvars_and_classes(
+        inline_loops: bool,
+        upvar_procs: HashMap<String, UpvarInfo>,
+        proc_params: HashMap<String, Vec<String>>,
+        global_write_procs: HashMap<String, GlobalWriteInfo>,
+        command_bindings: ModuleCommandBindings,
+        registry: &'a CommandRegistry,
+        command_classes: CfgCommandClasses,
     ) -> Self {
         Self {
             counter: 0,
@@ -257,12 +348,22 @@ impl CfgBuilder {
             upvar_procs,
             proc_params,
             global_write_procs,
+            command_bindings,
+            invocation_namespace: crate::ir::ExecutionNamespace::exact("::"),
+            widen_oo_dispatch: false,
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
             faithful_exceptions: false,
+            plain_command_dispatch: false,
+            registry,
+            command_classes,
             throw_blocks: None,
             last_terminal_block: None,
             inline_body_error_sites: Vec::new(),
+            command_binding_sites: Vec::new(),
+            procedure_binding_requirements: Vec::new(),
+            command_boundary_sites: HashMap::new(),
+            command_boundary_continuations: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
@@ -285,6 +386,140 @@ impl CfgBuilder {
         self
     }
 
+    /// Bind every command-sensitive CFG decision to one resolved command
+    /// surface and dispatch mode. Single-function consumers cannot recover
+    /// either fact from a detached [`Script`], so their public entry points
+    /// require them and funnel through this seam.
+    fn with_command_surface(mut self, plain_command_dispatch: bool) -> Self {
+        self.plain_command_dispatch = plain_command_dispatch;
+        self
+    }
+
+    fn with_invocation_namespace(mut self, namespace: crate::ir::ExecutionNamespace) -> Self {
+        self.invocation_namespace = namespace;
+        self
+    }
+
+    fn with_oo_dispatch_widening(mut self) -> Self {
+        self.widen_oo_dispatch = true;
+        self
+    }
+
+    /// Registry-owned variable writes projected in the function's actual
+    /// command-resolution context. A receiver-selected relative head may be
+    /// shadowed by an arbitrary object-local command and therefore widens the
+    /// whole variable frame.
+    fn variable_write_projection(&self, stmt: &Statement) -> tcl_registry::VariableWriteProjection {
+        let (Statement::Call { command: head, .. } | Statement::Barrier { command: head, .. }) =
+            stmt
+        else {
+            return tcl_registry::VariableWriteProjection::default();
+        };
+        let Some(namespace) = self.invocation_namespace.for_head(head) else {
+            if !statement_has_literal_head(stmt) {
+                return tcl_registry::VariableWriteProjection::default();
+            }
+            return tcl_registry::VariableWriteProjection {
+                literal_names: Vec::new(),
+                opaque_variable_frame: true,
+            };
+        };
+        self.command_bindings
+            .variable_write_projection(stmt, self.registry, namespace)
+    }
+
+    /// Resolve the caller-frame effects of every retained user procedure a
+    /// direct source invocation may reach. Command identity and alias-prefix
+    /// composition come exclusively from [`ModuleCommandBindings`].
+    fn direct_upvar_effects(&self, stmt: &Statement) -> ResolvedUpvarEffects {
+        let mut combined = ResolvedUpvarEffects::default();
+        let (Statement::Call { command: head, .. } | Statement::Barrier { command: head, .. }) =
+            stmt
+        else {
+            return combined;
+        };
+        let Some(namespace) = self.invocation_namespace.for_head(head) else {
+            if !statement_has_literal_head(stmt) {
+                return combined;
+            }
+            combined.has_unresolvable_target = true;
+            combined.opaque_arguments = true;
+            combined.frame_barrier = crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT;
+            return combined;
+        };
+        self.command_bindings
+            .for_each_resolved_invocation(stmt, namespace, |target, words| {
+                self.extend_upvar_effects(
+                    &mut combined,
+                    &target.command,
+                    target.registry_backed,
+                    words.arguments(),
+                );
+            });
+        combined
+    }
+
+    /// Fold one binding-resolved terminal user procedure into a caller-frame
+    /// effect set. Both direct statements and parsed embedded commands enter
+    /// here, so their parameter projection and barrier semantics cannot drift.
+    fn extend_upvar_effects(
+        &self,
+        combined: &mut ResolvedUpvarEffects,
+        command: &str,
+        registry_backed: bool,
+        arguments: tcl_registry::InvocationArguments<'_>,
+    ) {
+        if registry_backed {
+            // TclOO self/next dispatch has no statically named method target.
+            // The method-barrier pass enables this capability only for a
+            // method whose reachable dispatch surface can mutate its caller.
+            let is_oo_dispatch = matches!(
+                self.registry.method_dispatch_keyword(command),
+                Some(
+                    tcl_registry::MethodDispatchKind::SelfDispatch
+                        | tcl_registry::MethodDispatchKind::NextChain
+                )
+            );
+            if self.widen_oo_dispatch && is_oo_dispatch {
+                combined.has_unresolvable_target = true;
+                combined.frame_barrier =
+                    combined
+                        .frame_barrier
+                        .union(crate::dynamic_names::DynamicNameBarrier {
+                            writes: true,
+                            destroys: false,
+                            reads: false,
+                        });
+            }
+            return;
+        }
+        if !self.proc_params.contains_key(command) {
+            // The binding owner can recover callable procedure bodies that
+            // are absent from Module::procedures. Until summaries carry body
+            // generation identities, never treat such a terminal target as
+            // an effect-free retained procedure.
+            combined.has_unresolvable_target = true;
+            combined.opaque_arguments = true;
+            combined.frame_barrier = combined
+                .frame_barrier
+                .union(crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT);
+            return;
+        }
+        let Some(info) = self.upvar_procs.get(command) else {
+            return;
+        };
+        let params: &[String] = self.proc_params.get(command).map_or(&[][..], Vec::as_slice);
+        let effects = info.caller_side_effects(arguments, params);
+        combined.opaque_arguments |= effects.opaque;
+        combined.has_unresolvable_target |= info.has_unresolvable_caller_target;
+        combined.frame_barrier = combined.frame_barrier.union(info.caller_frame_barrier());
+        for name in effects.defs {
+            if !combined.defs.contains(&name) {
+                combined.defs.push(name);
+            }
+        }
+    }
+
     /// Augment a statement's effective `defs` with caller-side
     /// variable names that any callee proc will modify via `upvar`.
     /// Returns a list of statements — the original (possibly with
@@ -294,10 +529,10 @@ impl CfgBuilder {
     /// can't be merged into the host statement (e.g. an
     /// `AssignValue` whose `value` text contains `[upvar_proc arg]`).
     ///
-    /// Direct-call form: looks up `Statement::Call::command` in
-    /// `upvar_procs`; if found, merges
-    /// `UpvarInfo::caller_side_defs(args, params)` into the call's
-    /// own `defs`.
+    /// Direct-call form: resolves the statement through the module command
+    /// state, then maps the effective user-procedure target and its
+    /// alias-prepended structured arguments through `UpvarInfo` into the
+    /// call's own `defs`.
     ///
     /// Embedded-substitution form: scans the call's args / the
     /// `AssignValue`'s value text for `[command_substitution]`
@@ -328,32 +563,11 @@ impl CfgBuilder {
         if self.upvar_procs.is_empty() {
             return;
         }
-        if let Statement::Call { command, args, .. } = stmt
-            && let Some(info) = self.upvar_procs.get(command.as_str())
-        {
-            let params: &[String] = self
-                .proc_params
-                .get(command.as_str())
-                .map_or(&[][..], Vec::as_slice);
-            self.alias_observed_vars
-                .extend(info.caller_side_defs(args, params));
-        }
-        let texts: Vec<&str> = match stmt {
-            Statement::AssignValue { value, .. }
-            | Statement::Return {
-                value: Some(value), ..
-            } if value.contains('[') => vec![value.as_str()],
-            Statement::Call { args, .. } => args
-                .iter()
-                .filter(|a| a.contains('['))
-                .map(String::as_str)
-                .collect(),
-            _ => Vec::new(),
-        };
-        for text in texts {
-            self.alias_observed_vars
-                .extend(self.upvar_defs_from_text(text));
-        }
+        self.alias_observed_vars
+            .extend(self.direct_upvar_effects(stmt).defs);
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        self.alias_observed_vars
+            .extend(self.upvar_effects_from_commands(&embedded.commands).defs);
     }
 
     /// Whole-frame blindness the statement's calls impose on *this*
@@ -366,11 +580,26 @@ impl CfgBuilder {
     /// the same abstention direction as the dynamic-name barrier
     /// ([`crate::dynamic_names`]).
     fn record_caller_frame_barrier(&mut self, stmt: &Statement) {
-        for command in Self::called_command_names(stmt, self.config) {
-            if let Some(info) = self.upvar_procs.get(command.as_str()) {
-                self.caller_frame_barrier =
-                    self.caller_frame_barrier.union(info.caller_frame_barrier());
-            }
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        if embedded.opaque {
+            self.caller_frame_barrier = self
+                .caller_frame_barrier
+                .union(crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT);
+        }
+        let direct = self.direct_upvar_effects(stmt);
+        let embedded = self.upvar_effects_from_commands(&embedded.commands);
+        self.caller_frame_barrier = self
+            .caller_frame_barrier
+            .union(direct.frame_barrier)
+            .union(embedded.frame_barrier);
+        if direct.opaque_arguments || embedded.opaque_arguments {
+            self.caller_frame_barrier =
+                self.caller_frame_barrier
+                    .union(crate::dynamic_names::DynamicNameBarrier {
+                        writes: true,
+                        destroys: false,
+                        reads: false,
+                    });
         }
     }
 
@@ -379,25 +608,28 @@ impl CfgBuilder {
     /// ([`Self::init_written_names`]) can ask what a statement writes without
     /// recording the statement twice.
     fn upvar_invalidated(&self, mut stmt: Statement) -> Vec<Statement> {
-        // 0. A callee whose caller-frame effect cannot be enumerated per
-        //    name widens the call site with an opaque barrier after the
-        //    call (SCCP/propagation widen every tracked value at a
-        //    `Statement::Barrier`), instead of trusting the
-        //    under-approximate `caller_side_defs` / `names`.
-        if let Some(barrier) = self.opaque_call_barrier(&stmt) {
-            return vec![stmt, barrier];
-        }
-
         // 1. Direct-call extras: command is a known upvar proc / a proc
         //    that writes outer-scope names.
         let direct_extras = self.direct_call_extras(&stmt);
 
-        // 2. Embedded-substitution extras: walk text for
+        // 2. A callee whose caller-frame effect cannot be fully enumerated per
+        //    name widens the call site with an opaque barrier after the call
+        //    (SCCP/propagation widen every tracked value at a
+        //    `Statement::Barrier`). Keep processing the call, though: a
+        //    summary may contain both precise caller-side defs and an opaque
+        //    remainder, and dropping the known defs loses useful facts such
+        //    as `uplevel 1 [list set $parameter value]`.
+        let direct_opaque_barrier = self.opaque_call_barrier(&stmt);
+
+        // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
         let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
-            return vec![stmt];
+            return match direct_opaque_barrier {
+                Some(barrier) => vec![stmt, barrier],
+                None => vec![stmt],
+            };
         }
 
         // 2b. An embedded call to a proc that runs an unreadable script at
@@ -430,10 +662,15 @@ impl CfgBuilder {
                     defs.push(d);
                 }
             }
-            return match opaque_barrier {
-                Some(barrier) => vec![barrier, stmt],
-                None => vec![stmt],
-            };
+            let mut out = Vec::new();
+            if let Some(barrier) = opaque_barrier {
+                out.push(barrier);
+            }
+            out.push(stmt);
+            if let Some(barrier) = direct_opaque_barrier {
+                out.push(barrier);
+            }
+            return out;
         }
 
         // 4. Non-Call host (e.g. AssignValue) with embedded extras —
@@ -461,6 +698,9 @@ impl CfgBuilder {
             });
         }
         out.push(stmt);
+        if let Some(barrier) = direct_opaque_barrier {
+            out.push(barrier);
+        }
         out
     }
 
@@ -471,24 +711,42 @@ impl CfgBuilder {
     /// script at the global frame (`uplevel #0 $body`, issue #1198) can
     /// write or read ANY global/namespace name.
     fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
-        let Statement::Call { command, span, .. } = stmt else {
+        let Statement::Call {
+            command,
+            canonical_command,
+            span,
+            tokens,
+            ..
+        } = stmt
+        else {
             return None;
         };
-        let unresolvable_upvar = self
-            .upvar_procs
-            .get(command.as_str())
-            .is_some_and(|info| info.has_unresolvable_caller_target);
+        let literal_head = tokens.as_ref().is_none_or(|tokens| {
+            tokens.synthetic.is_none()
+                && tokens.words().first().is_none_or(|head| {
+                    crate::registry_invocation::invocation_word(head)
+                        .literal()
+                        .is_some()
+                })
+        });
+        let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        let direct_upvar = self.direct_upvar_effects(stmt);
+        let unresolvable_upvar = direct_upvar.has_unresolvable_target;
         let opaque_global = self
             .global_write_procs
-            .get(command.as_str())
-            .is_some_and(|info| info.opaque_global_frame);
-        if !unresolvable_upvar && !opaque_global {
+            .get(target)
+            .is_some_and(|info| literal_head && info.opaque_global_frame);
+        let source_opaque_upvar = direct_upvar.opaque_arguments;
+        let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
+        if !unresolvable_upvar && !source_opaque_upvar && !opaque_global && !opaque_variable_write {
             return None;
         }
-        let reason = if unresolvable_upvar {
+        let reason = if unresolvable_upvar || source_opaque_upvar {
             format!("{command} upvar-aliases a dynamic caller variable")
-        } else {
+        } else if opaque_global {
             format!("{command} runs an unreadable script at the global frame")
+        } else {
+            format!("{command} writes a source-opaque variable name")
         };
         Some(Statement::Barrier {
             span: *span,
@@ -521,21 +779,22 @@ impl CfgBuilder {
     /// [`Self::record_alias_observed`] (a read here would fabricate
     /// read-before-set uses — a false W210 — for the pure out-param shape).
     fn direct_call_extras(&self, stmt: &Statement) -> Vec<String> {
-        let Statement::Call { command, args, .. } = stmt else {
+        let Statement::Call {
+            command,
+            canonical_command,
+            ..
+        } = stmt
+        else {
             return Vec::new();
         };
-        let mut extras = self
-            .upvar_procs
-            .get(command.as_str())
-            .map(|info| {
-                let params: &[String] = self
-                    .proc_params
-                    .get(command.as_str())
-                    .map_or(&[][..], Vec::as_slice);
-                info.caller_side_defs(args, params)
-            })
-            .unwrap_or_default();
-        if let Some(info) = self.global_write_procs.get(command.as_str()) {
+        let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        let mut extras = self.direct_upvar_effects(stmt).defs;
+        for name in self.variable_write_projection(stmt).literal_names {
+            if !extras.contains(&name) {
+                extras.push(name);
+            }
+        }
+        if let Some(info) = self.global_write_procs.get(target) {
             for name in &info.names {
                 if !extras.contains(name) {
                     extras.push(name.clone());
@@ -550,173 +809,80 @@ impl CfgBuilder {
     /// statement's argument words (or an assignment's value), plus whether
     /// any embedded callee runs an unreadable script at the global frame.
     fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
-        let texts: Vec<&str> = match stmt {
-            Statement::AssignValue { value, .. } if value.contains('[') => vec![value.as_str()],
-            Statement::Call { args, .. } => args
-                .iter()
-                .filter(|a| a.contains('['))
-                .map(String::as_str)
-                .collect(),
-            _ => Vec::new(),
-        };
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         let mut embedded_extras: Vec<String> = Vec::new();
-        let mut embedded_opaque_global = false;
-        for text in texts {
-            for d in self.upvar_defs_from_text(text) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
+        let mut embedded_opaque_global = embedded.opaque;
+        let upvar = self.upvar_effects_from_commands(&embedded.commands);
+        embedded_opaque_global |= upvar.opaque_arguments;
+        for d in upvar.defs {
+            if !embedded_extras.contains(&d) {
+                embedded_extras.push(d);
             }
-            let (global_defs, opaque) = self.global_write_defs_from_text(text);
-            embedded_opaque_global |= opaque;
-            for d in global_defs {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
+        }
+        let (global_defs, opaque) = self.global_write_defs_from_commands(&embedded.commands);
+        embedded_opaque_global |= opaque;
+        for d in global_defs {
+            if !embedded_extras.contains(&d) {
+                embedded_extras.push(d);
             }
-            // A var-mutating builtin inside a command substitution
-            // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its
-            // target variable as a side effect; record it so copy / constant
-            // propagation (O100) does not propagate a stale value past the
-            // mutation (FP-OPT-06).
-            for d in Self::builtin_write_defs_from_text(text, self.config) {
-                if !embedded_extras.contains(&d) {
-                    embedded_extras.push(d);
-                }
+        }
+        // A var-mutating builtin inside a command substitution
+        // (`set y [append x b]`, `[incr x]`, `[lset l …]`) writes its
+        // target variable as a side effect; record it so copy / constant
+        // propagation (O100) does not propagate a stale value past the
+        // mutation (FP-OPT-06).
+        let writes = crate::ir_helpers::variable_write_effects_from_commands(
+            &embedded.commands,
+            self.registry,
+        );
+        embedded_opaque_global |= writes.opaque;
+        for d in writes.names {
+            if !embedded_extras.contains(&d) {
+                embedded_extras.push(d);
             }
         }
         (embedded_extras, embedded_opaque_global)
     }
 
-    /// Every command word a statement invokes: its own head, plus the head
-    /// of every `[…]` substitution nested in its arguments (or, for an
-    /// assignment, in its value).
-    ///
-    /// The caller-frame barrier is a *whole-function* fact, so it has to be
-    /// raised wherever a call appears — `helper $x`, `set y [helper $x]`,
-    /// and `if {[helper $x]} …` alike. Bounded by
-    /// [`MAX_EMBEDDED_SUBST_DEPTH`], like every other bracket descent here.
-    fn called_command_names(stmt: &Statement, config: tcl_lexer::LexerConfig) -> Vec<String> {
-        let mut out: Vec<String> = Vec::new();
-        let mut texts: Vec<&str> = Vec::new();
-        match stmt {
-            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-                out.push(command.clone());
-                texts.extend(args.iter().map(String::as_str));
-            }
-            Statement::AssignValue { value, .. } | Statement::AssignConst { value, .. } => {
-                texts.push(value.as_str());
-            }
-            _ => {}
-        }
-        for text in texts {
-            Self::command_heads_in_text(text, 0, &mut out, config);
-        }
-        out
-    }
-
-    /// Accumulate the head word of every `[…]` substitution in *text*,
-    /// descending into nested brackets.
-    fn command_heads_in_text(
-        text: &str,
-        depth: u32,
-        out: &mut Vec<String>,
-        config: tcl_lexer::LexerConfig,
-    ) {
-        use tcl_lexer::{Lexer, SourceMap, TokenType};
-
-        if !text.contains('[') || depth >= MAX_EMBEDDED_SUBST_DEPTH {
-            return;
-        }
-        let sm = SourceMap::new(text);
-        let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
-            return;
-        };
-        for tok in &tokens {
-            if tok.kind != TokenType::Cmd {
+    fn upvar_effects_from_commands(
+        &self,
+        commands: &[Vec<crate::ir_helpers::CommandWord>],
+    ) -> ResolvedUpvarEffects {
+        let mut combined = ResolvedUpvarEffects::default();
+        for words in commands {
+            let Some(head) = words.first() else {
+                continue;
+            };
+            if head.literal().is_none() {
+                combined.opaque_arguments = true;
                 continue;
             }
-            let inner = sm.token_text(*tok);
-            if let Some(head) = words_from_text_with_config(inner, config).first() {
-                out.push(head.clone());
-            }
-            Self::command_heads_in_text(inner, depth + 1, out, config);
-        }
-    }
-
-    /// Scan *text* for `[command_substitution]` tokens and
-    /// accumulate caller-side defs from any embedded calls to
-    /// known upvar procs.
-    fn upvar_defs_from_text(&self, text: &str) -> Vec<String> {
-        self.upvar_defs_from_text_bounded(text, 0)
-    }
-
-    /// [`Self::upvar_defs_from_text`], recursing into a nested `[...]`
-    /// found within a matched command's own inner text (issue #923 idx
-    /// 122): `set err [getopt argv $opts opt arg]` — the real tcllib
-    /// `cmdline::getoptions` shape, condition-position or not — wraps the
-    /// known upvar proc call in an outer `set`, so only checking
-    /// `words.first()` against `upvar_procs` misses it entirely (`set`
-    /// itself is never a known upvar proc). `words_from_text` strips a
-    /// nested `Cmd` token's own brackets when flattening it into a word
-    /// (mirroring `SourceMap::token_text`'s "extract inner content"
-    /// convention), so the nested substitution can only be recovered by
-    /// re-lexing `inner` itself, not by pattern-matching the word list.
-    /// `depth` bounds the descent the same way [`MAX_LOWER_DEPTH`] bounds
-    /// `lower_script`, against pathological/adversarial nesting.
-    fn upvar_defs_from_text_bounded(&self, text: &str, depth: u32) -> Vec<String> {
-        use tcl_lexer::{Lexer, SourceMap, TokenType};
-
-        if self.upvar_procs.is_empty() || !text.contains('[') || depth >= MAX_EMBEDDED_SUBST_DEPTH {
-            return Vec::new();
-        }
-
-        let sm = SourceMap::new(text);
-        let lexer = Lexer::with_config(text, self.config);
-        let Ok(tokens) = lexer.tokenise_all() else {
-            return Vec::new();
-        };
-
-        let mut defs: Vec<String> = Vec::new();
-        for tok in &tokens {
-            if tok.kind != TokenType::Cmd {
+            let head_name = head.literal().expect("literal head checked above");
+            let Some(namespace) = self.invocation_namespace.for_head(head_name) else {
+                combined.opaque_arguments = true;
+                combined.frame_barrier = combined
+                    .frame_barrier
+                    .union(crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT);
                 continue;
-            }
-            // Inner text of `[...]`, re-lexed for word extraction.
-            let inner = sm.token_text(*tok);
-            let words = words_from_text_with_config(inner, self.config);
-            if let Some(cmd) = words.first()
-                && let Some(info) = self.upvar_procs.get(cmd.as_str())
-            {
-                let params: &[String] = self
-                    .proc_params
-                    .get(cmd.as_str())
-                    .map_or(&[][..], Vec::as_slice);
-                let raw_args: Vec<String> = words.iter().skip(1).cloned().collect();
-                for d in info.caller_side_defs(&raw_args, params) {
-                    if !defs.contains(&d) {
-                        defs.push(d);
-                    }
-                }
-            }
-            // `inner`'s own raw text still carries any bracket nested
-            // inside it (only the outermost pair this token wraps was
-            // stripped) — recurse on it, one level shallower, so a
-            // wrapping command doesn't hide a known upvar proc buried
-            // inside it.
-            for d in self.upvar_defs_from_text_bounded(inner, depth + 1) {
-                if !defs.contains(&d) {
-                    defs.push(d);
-                }
-            }
+            };
+            self.command_bindings.for_each_resolved_command_words(
+                words,
+                namespace,
+                |target, invocation| {
+                    self.extend_upvar_effects(
+                        &mut combined,
+                        &target.command,
+                        target.registry_backed,
+                        invocation.arguments(),
+                    );
+                },
+            );
         }
-        defs
+        combined
     }
 
-    /// Scan *text* for `[command_substitution]` tokens and accumulate the
-    /// outer-scope (global/namespace) names any embedded call to a known
-    /// global-writing proc writes — the embedded-substitution analogue of
-    /// [`Self::upvar_defs_from_text`], for the same soundness reason: a
+    /// Accumulate the outer-scope (global/namespace) names any embedded call
+    /// to a known global-writing proc writes. A
     /// global write reached via `set y [mutate]` is just as real as one
     /// reached via a bare `mutate` statement.
     ///
@@ -724,64 +890,39 @@ impl CfgBuilder {
     /// carries [`GlobalWriteInfo::opaque_global_frame`] (`uplevel #0 $body`,
     /// issue #1198) — no def list can enumerate that, so the caller must
     /// widen with an opaque barrier.
-    fn global_write_defs_from_text(&self, text: &str) -> (Vec<String>, bool) {
-        let mut opaque = false;
-        let defs = self.global_write_defs_from_text_bounded(text, 0, &mut opaque);
-        (defs, opaque)
-    }
-
-    /// [`Self::global_write_defs_from_text`], recursing into a nested
-    /// `[...]` the same way [`Self::upvar_defs_from_text_bounded`] does
-    /// (issue #923 idx 122) — see its doc for the wrapping-command shape
-    /// this recovers.
-    fn global_write_defs_from_text_bounded(
+    fn global_write_defs_from_commands(
         &self,
-        text: &str,
-        depth: u32,
-        opaque: &mut bool,
-    ) -> Vec<String> {
-        use tcl_lexer::{Lexer, SourceMap, TokenType};
-
-        if self.global_write_procs.is_empty()
-            || !text.contains('[')
-            || depth >= MAX_EMBEDDED_SUBST_DEPTH
-        {
-            return Vec::new();
-        }
-
-        let sm = SourceMap::new(text);
-        let lexer = Lexer::with_config(text, self.config);
-        let Ok(tokens) = lexer.tokenise_all() else {
-            return Vec::new();
-        };
-
+        commands: &[Vec<crate::ir_helpers::CommandWord>],
+    ) -> (Vec<String>, bool) {
         let mut defs: Vec<String> = Vec::new();
-        for tok in &tokens {
-            if tok.kind != TokenType::Cmd {
+        let mut opaque = false;
+        for words in commands {
+            let Some(cmd) = words.first() else {
                 continue;
-            }
-            let inner = sm.token_text(*tok);
-            let words = words_from_text_with_config(inner, self.config);
-            if let Some(cmd) = words.first()
-                && let Some(info) = self.global_write_procs.get(cmd.as_str())
-            {
-                *opaque |= info.opaque_global_frame;
-                for name in &info.names {
-                    if !defs.contains(name) {
-                        defs.push(name.clone());
+            };
+            let Some(cmd_name) = cmd.literal() else {
+                opaque = true;
+                continue;
+            };
+            let Some(namespace) = self.invocation_namespace.for_head(cmd_name) else {
+                opaque = true;
+                continue;
+            };
+            opaque |= self
+                .command_bindings
+                .target_resolution_may_be_unknown(cmd_name, namespace);
+            for target in self.command_bindings.targets(cmd_name, namespace) {
+                if let Some(info) = self.global_write_procs.get(&target.command) {
+                    opaque |= info.opaque_global_frame;
+                    for name in &info.names {
+                        if !defs.contains(name) {
+                            defs.push(name.clone());
+                        }
                     }
                 }
             }
-            // See `upvar_defs_from_text_bounded`'s identical step: `inner`
-            // still carries any bracket nested inside it, so recurse on
-            // the raw text rather than the (bracket-stripped) word list.
-            for d in self.global_write_defs_from_text_bounded(inner, depth + 1, opaque) {
-                if !defs.contains(&d) {
-                    defs.push(d);
-                }
-            }
         }
-        defs
+        (defs, opaque)
     }
 
     /// Condition-position command-substitution out-vars (issue #923 idx
@@ -789,8 +930,7 @@ impl CfgBuilder {
     /// ([`crate::ir_helpers::condition_command_out_vars`]) with the same
     /// known-upvar-proc /
     /// known-global-writer resolution every *other* embedded-substitution
-    /// site already gets ([`Self::upvar_defs_from_text`] /
-    /// [`Self::global_write_defs_from_text`]).  Without this, a user
+    /// site already gets. Without this, a user
     /// proc's `upvar` write was only recognised as a bare statement or an
     /// ordinary value (`set x [getKnownOpt ...]`) — invoked from a
     /// `while`/`if` *condition* instead (`while {[getopt argv $opts opt
@@ -804,26 +944,31 @@ impl CfgBuilder {
     /// then push an opaque barrier alongside the `<cond>` defs, because no
     /// def list can enumerate what the condition's evaluation clobbers.
     fn condition_out_vars(&self, condition: &ExprNode) -> (Vec<String>, bool) {
-        // The CFG builder carries no registry handle (see the module note at
-        // `registry_derived_cfg_classes`); the write-role answer is core Tcl in
-        // every dialect, so the cached default registry is the right source.
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let mut out = crate::ir_helpers::condition_command_out_vars(condition, registry);
-        let mut opaque = false;
-        let mut cmds = Vec::new();
-        crate::ir_helpers::collect_expr_commands(condition, &mut cmds);
-        for cmd_text in &cmds {
-            for d in self.upvar_defs_from_text(cmd_text) {
-                if !out.contains(&d) {
-                    out.push(d);
-                }
+        let mut out = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
+        let embedded =
+            crate::ir_helpers::expression_command_substitutions(condition, self.registry);
+        let upvar = self.upvar_effects_from_commands(&embedded.commands);
+        let opaque_upvar = upvar.opaque_arguments;
+        for d in upvar.defs {
+            if !out.contains(&d) {
+                out.push(d);
             }
-            let (global_defs, cmd_opaque) = self.global_write_defs_from_text(cmd_text);
-            opaque |= cmd_opaque;
-            for d in global_defs {
-                if !out.contains(&d) {
-                    out.push(d);
-                }
+        }
+        let (global_defs, mut opaque) = self.global_write_defs_from_commands(&embedded.commands);
+        opaque |= embedded.opaque || opaque_upvar;
+        let writes = crate::ir_helpers::variable_write_effects_from_commands(
+            &embedded.commands,
+            self.registry,
+        );
+        opaque |= writes.opaque;
+        for d in writes.names {
+            if !out.contains(&d) {
+                out.push(d);
+            }
+        }
+        for d in global_defs {
+            if !out.contains(&d) {
+                out.push(d);
             }
         }
         (out, opaque)
@@ -865,69 +1010,6 @@ impl CfgBuilder {
         }
     }
 
-    /// Scan *text* for `[command_substitution]` tokens whose head is a builtin
-    /// command that mutates a named variable passed as a literal argument
-    /// (`append` / `lappend` / `incr` / `lset` / `set`, and the `dict`
-    /// sub-mutators). Returns the written variable names, so a copy / constant
-    /// propagation pass treats the substitution as a kill-site for them. Only
-    /// literal targets are returned — a `$`-substituted or computed target name
-    /// is not statically known. Recurses into nested substitutions.
-    fn builtin_write_defs_from_text(text: &str, config: tcl_lexer::LexerConfig) -> Vec<String> {
-        use tcl_lexer::{Lexer, SourceMap, TokenType};
-
-        if !text.contains('[') {
-            return Vec::new();
-        }
-        let sm = SourceMap::new(text);
-        let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
-            return Vec::new();
-        };
-
-        let mut defs: Vec<String> = Vec::new();
-        let record = |name: Option<&String>, defs: &mut Vec<String>| {
-            if let Some(n) = name
-                && !n.is_empty()
-                && !n.contains('$')
-                && !n.contains('[')
-                && !defs.iter().any(|d| d == n)
-            {
-                defs.push(n.clone());
-            }
-        };
-        for tok in &tokens {
-            if tok.kind != TokenType::Cmd {
-                continue;
-            }
-            let inner = sm.token_text(*tok);
-            let words = words_from_text_with_config(inner, config);
-            let Some(cmd) = words.first().map(String::as_str) else {
-                continue;
-            };
-            // Membership is registry-driven: the first-arg writers via
-            // `writes_first_arg_variable`, and the `dict` sub-mutators via
-            // the per-subcommand `VarWrite` role (which includes the
-            // body-carrying `update`/`with` — their bodies write the dict
-            // back on completion, so the substitution is a kill-site).
-            let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-            if registry.writes_first_arg_variable(cmd) {
-                record(words.get(1), &mut defs);
-            } else if words.len() >= 2 {
-                let arg_strs: Vec<&str> = words[1..].iter().map(String::as_str).collect();
-                if registry
-                    .arg_indices_for_role(cmd, &arg_strs, tcl_registry::ArgRole::VarWrite)
-                    .contains(&1)
-                {
-                    record(words.get(2), &mut defs);
-                }
-            }
-            // Nested substitutions inside this one (`[set y [incr x]]`).
-            for d in Self::builtin_write_defs_from_text(inner, config) {
-                record(Some(&d), &mut defs);
-            }
-        }
-        defs
-    }
-
     /// If `stmt` is a loop jump (the registry's `BREAKS_LOOP` /
     /// `CONTINUES_LOOP` classes) inside a loop, push it into
     /// `current` and set a `Goto` terminator to the loop's exit / continue
@@ -935,11 +1017,14 @@ impl CfgBuilder {
     /// Matched against the raw command word (no `::` trimming), as the
     /// retired hardcoded comparison was.
     fn lower_loop_jump(&mut self, current: &str, stmt: &Statement) -> bool {
+        if self.plain_command_dispatch {
+            return false;
+        }
         let Statement::Call { command, span, .. } = stmt else {
             return false;
         };
-        let is_break = is_loop_break_command(command);
-        if !is_break && !is_loop_continue_command(command) {
+        let is_break = self.command_classes.is_loop_break_command(command);
+        if !is_break && !self.command_classes.is_loop_continue_command(command) {
             return false;
         }
         let Some((brk, cont)) = self.loop_stack.last().cloned() else {
@@ -963,6 +1048,9 @@ impl CfgBuilder {
         for s in self.apply_upvar_invalidation(stmt.clone()) {
             self.block_mut(current).statements.push(s);
         }
+        if self.plain_command_dispatch {
+            return;
+        }
         if let Statement::Call {
             command,
             canonical_command,
@@ -983,14 +1071,14 @@ impl CfgBuilder {
             // `error`/`exit`.  Promote it only in analysis builds
             // (`faithful_exceptions`) so the codegen / non-faithful CFG shape
             // stays byte-identical — codegen leaves the call as a fall-through.
-            let exits_proc = is_block_terminating_command(canon)
-                || (self.faithful_exceptions && is_tailcall_command(canon));
+            let exits_proc = self.command_classes.is_block_terminating_command(canon)
+                || (self.faithful_exceptions && self.command_classes.is_tailcall_command(canon));
             if exits_proc {
                 // A catchable `error` / `throw` (not `exit` / `tailcall`, which
                 // leave the process / pop the frame) is a throw point: record
                 // the current block so an enclosing `try`'s on-error edge can be
                 // sourced from here, where the body's prior defs are live.
-                if is_catchable_throw(canon)
+                if self.command_classes.is_catchable_throw(canon)
                     && let Some(blocks) = self.throw_blocks.as_mut()
                 {
                     blocks.push(current.to_owned());
@@ -1097,6 +1185,18 @@ impl CfgBuilder {
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
             .collect();
         func.inline_body_error_sites = std::mem::take(&mut self.inline_body_error_sites);
+        func.command_binding_sites = std::mem::take(&mut self.command_binding_sites);
+        func.procedure_binding_requirements =
+            std::mem::take(&mut self.procedure_binding_requirements);
+        func.command_boundary_sites = std::mem::take(&mut self.command_boundary_sites)
+            .into_iter()
+            .map(|(block, site)| (self.bid(&block), site))
+            .collect();
+        func.command_boundary_continuations =
+            std::mem::take(&mut self.command_boundary_continuations)
+                .into_iter()
+                .map(|(entry, continuation)| (self.bid(&entry), self.bid(&continuation)))
+                .collect();
         func.caller_frame_barrier = self.caller_frame_barrier;
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
         func
@@ -1115,6 +1215,10 @@ impl CfgBuilder {
     /// so the result is a truncated-but-valid CFG rather than a stack
     /// overflow.
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
+        self.command_binding_sites
+            .extend(script.command_binding_sites.iter().cloned());
+        self.procedure_binding_requirements
+            .extend(script.procedure_binding_requirements.iter().cloned());
         self.depth += 1;
         if MAX_LOWER_DEPTH.exceeded(self.depth) {
             self.depth -= 1;
@@ -1241,38 +1345,53 @@ impl CfgBuilder {
             span,
             value,
             expr,
+            command_binding,
             braced,
         } = stmt
         else {
             unreachable!();
         };
 
-        // `return [upvar_proc …]` invokes the callee before the frame unwinds,
-        // so its caller-frame aliases must be widened exactly as for a plain
-        // call. Otherwise the feeding store in this frame looks dead and
-        // O109/O126 can delete it (issue #1193's upvar differential).
+        // Every substitution in the returned value runs before the frame
+        // unwinds. Feed the same shared effect inventory used by ordinary
+        // statements through caller-frame, alias-observation, global-write,
+        // and builtin-write handling before installing the terminator.
+        self.record_caller_frame_barrier(stmt);
         self.record_alias_observed(stmt);
-        if let Some(v) = value.as_deref()
-            && v.contains('[')
-        {
-            let extras = self.upvar_defs_from_text(v);
-            if !extras.is_empty() {
-                let synthetic = Statement::Call {
-                    span: *span,
-                    command: "<upvar-invalidate>".to_string(),
-                    canonical_command: None,
-                    args: Vec::new(),
-                    defs: extras,
-                    reads: Vec::new(),
-                    reads_own_defs: false,
-                    safe_on_uninit: false,
-                    tokens: Some(crate::ir::CommandTokens::marker(
-                        crate::ir::SyntheticMarker::UpvarInvalidate,
-                    )),
-                    foreach_groups: None,
-                };
-                self.block_mut(current).statements.push(synthetic);
-            }
+        if let Some(binding) = command_binding {
+            self.command_binding_sites.push(CommandBindingSite {
+                span: *span,
+                binding: binding.clone(),
+            });
+        }
+        let (extras, opaque) = self.embedded_subst_extras(stmt);
+        if opaque {
+            self.block_mut(current).statements.push(Statement::Barrier {
+                span: *span,
+                reason: "return value invokes an opaque embedded command".to_owned(),
+                command: "<global-frame-script>".to_owned(),
+                canonical_command: None,
+                args: Vec::new(),
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
+            });
+        }
+        if !extras.is_empty() {
+            self.block_mut(current).statements.push(Statement::Call {
+                span: *span,
+                command: "<upvar-invalidate>".to_string(),
+                canonical_command: None,
+                args: Vec::new(),
+                defs: extras,
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::UpvarInvalidate,
+                )),
+                foreach_groups: None,
+            });
         }
         self.block_mut(current).terminator = Some(Terminator::Return {
             value: value.clone(),
@@ -1283,6 +1402,7 @@ impl CfgBuilder {
     }
 
     fn lower_script_statement(&mut self, stmt: &Statement, current: &str) -> Option<String> {
+        self.mark_command_boundary(current, stmt);
         match stmt {
             Statement::If { .. } => Some(self.lower_if(stmt, current)),
             Statement::For { .. } => self.lower_for_or_frozen(stmt, current),
@@ -1315,7 +1435,23 @@ impl CfgBuilder {
                             context: *context,
                         });
                 }
-                self.lower_script(body, current)
+                let owns_inline_region = self
+                    .command_boundary_sites
+                    .get(current)
+                    .is_some_and(|site| site.span == *span);
+                if !self.faithful_exceptions && owns_inline_region {
+                    let body_block = self.new_block("inline_block_body");
+                    let continuation = self.new_block("inline_block_end");
+                    self.ensure_goto(current, &body_block, Some(*span));
+                    self.command_boundary_continuations
+                        .insert(current.to_owned(), continuation.clone());
+                    if let Some(tail) = self.lower_script(body, &body_block) {
+                        self.ensure_goto(&tail, &continuation, Some(*span));
+                    }
+                    Some(continuation)
+                } else {
+                    self.lower_script(body, current)
+                }
             }
             // `return -options …` / `return {*}…args` lower to a
             // Statement::Barrier, but still unconditionally exit the proc
@@ -1334,6 +1470,29 @@ impl CfgBuilder {
                 self.push_plain_statement(current, other);
                 Some(current.to_owned())
             }
+        }
+    }
+
+    /// Associate `block` with the explicit structured-command site retained by
+    /// lowering for `stmt`. Statements without such a site are deliberately not
+    /// inferred from their source text.
+    fn mark_command_boundary(&mut self, block: &str, stmt: &Statement) {
+        if let Some(site) = self
+            .command_binding_sites
+            .iter()
+            .rev()
+            .find(|site| site.span == stmt.span())
+            .cloned()
+        {
+            self.command_boundary_sites.insert(block.to_owned(), site);
+        }
+    }
+
+    /// Propagate an established owner to a helper block which emits the same
+    /// structured command's synthetic runtime boundary.
+    fn copy_command_boundary(&mut self, owner: &str, block: &str) {
+        if let Some(site) = self.command_boundary_sites.get(owner).cloned() {
+            self.command_boundary_sites.insert(block.to_owned(), site);
         }
     }
 
@@ -1619,6 +1778,28 @@ pub fn qualified_lookup_keys(qname: &str) -> Vec<String> {
 /// on how the caller happened to write the name.
 #[must_use]
 pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
+    let registry = static_context_for(module.dialect.as_deref().unwrap_or("tcl")).commands();
+    detect_upvar_procs_with_registry(module, registry)
+}
+
+/// Scan caller-frame effects against the exact registry that lowered
+/// `module`.
+#[must_use]
+pub fn detect_upvar_procs_with_registry(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> HashMap<String, UpvarInfo> {
+    let command_bindings = ModuleCommandBindings::analyse(module, registry);
+    detect_upvar_procs_with_bindings(module, registry, &command_bindings)
+}
+
+/// Scan caller-frame effects using the module binding summary already
+/// prepared by the whole-module CFG pipeline.
+fn detect_upvar_procs_with_bindings(
+    module: &Module,
+    registry: &CommandRegistry,
+    command_bindings: &ModuleCommandBindings,
+) -> HashMap<String, UpvarInfo> {
     let mut result: HashMap<String, UpvarInfo> = HashMap::new();
     // Deterministic (qualified-name) iteration order, for the same reason
     // [`prepare_cfg_context`] does it for `proc_params`: the *short* key below is
@@ -1631,7 +1812,19 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     entries.sort_by(|a, b| a.0.cmp(b.0));
     let mut own: Vec<(&String, &crate::ir::Procedure, UpvarInfo)> = Vec::new();
     for (qname, proc) in entries {
-        own.push((qname, proc, collect_upvar_targets(&proc.body, &proc.params)));
+        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+        let namespace = if holder.is_empty() { "::" } else { holder };
+        own.push((
+            qname,
+            proc,
+            upvar_info::collect_upvar_targets_with_bindings(
+                &proc.body,
+                &proc.params,
+                registry,
+                command_bindings,
+                namespace,
+            ),
+        ));
     }
 
     // One hop, no fixpoint: `uplevel <caller frame> [list callee …]` puts
@@ -1650,17 +1843,11 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
         }
     }
     let mut composed: Vec<(&String, UpvarInfo)> = Vec::new();
-    for (qname, proc, own_info) in &own {
+    for (qname, _, own_info) in &own {
         let mut info = own_info.clone();
         for (callee, constructed) in &own_info.uplevel_forwarded_calls {
             if let Some((callee_info, callee_params)) = by_name.get(callee.as_str()) {
-                upvar_info::compose_forwarded(
-                    callee_info,
-                    callee_params,
-                    constructed,
-                    &proc.params,
-                    &mut info,
-                );
+                upvar_info::compose_forwarded(callee_info, callee_params, constructed, &mut info);
             } else {
                 // The forwarded command is not a procedure this unit can
                 // see (a cross-file helper, a runtime-installed command).
@@ -1714,11 +1901,24 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
         }
         result.insert(qname.clone(), info);
     }
+    for qname in &module.redefined_procedures {
+        let opaque = UpvarInfo {
+            has_unresolvable_caller_target: true,
+            caller_frame_opaque_writes: true,
+            caller_frame_opaque_reads: true,
+            frame_reach: FrameReach::PastTheCaller,
+            ..UpvarInfo::default()
+        };
+        for key in qualified_lookup_keys(qname) {
+            result.insert(key, opaque.clone());
+        }
+    }
     result
 }
 
 /// Module-wide CFG-determining context: the upvar-procs map, the
-/// parameter-list map, and the global-write-procs map
+/// parameter-list map, the global-write-procs map, and the closed command
+/// binding state
 /// ([`global_write_info::detect_global_write_procs`]) [`prepare_cfg_context`]
 /// returns. The single canonical definition [`crate::compilation_unit`]
 /// reuses for its own `CfgContext` alias, so the two never drift apart.
@@ -1726,7 +1926,23 @@ pub type CfgContext = (
     HashMap<String, UpvarInfo>,
     HashMap<String, Vec<String>>,
     HashMap<String, GlobalWriteInfo>,
+    ModuleCommandBindings,
 );
+
+/// Prepared module facts shared by every CFG builder in one lowering pipeline.
+/// The tuple [`CfgContext`] remains the public compatibility boundary.
+pub(crate) struct PreparedCfgContext {
+    pub(crate) context: CfgContext,
+    command_classes: CfgCommandClasses,
+}
+
+impl PreparedCfgContext {
+    /// Borrow the closed binding lattice shared by downstream CFG and codegen
+    /// consumers.
+    pub(crate) fn command_bindings(&self) -> &ModuleCommandBindings {
+        &self.context.3
+    }
+}
 
 /// Return the upvar-procs map, the parameter-list map, and the
 /// global-write-procs map ([`global_write_info::detect_global_write_procs`])
@@ -1734,8 +1950,32 @@ pub type CfgContext = (
 /// qualified and short forms are registered for every proc.
 #[must_use]
 pub fn prepare_cfg_context(module: &Module) -> CfgContext {
-    let upvar_procs = detect_upvar_procs(module);
-    let global_write_procs = global_write_info::detect_global_write_procs(module);
+    let registry = static_context_for(module.dialect.as_deref().unwrap_or("tcl")).commands();
+    prepare_cfg_context_with_registry(module, registry)
+}
+
+/// Prepare the module-wide CFG context against the exact registry that
+/// lowered the module.
+#[must_use]
+pub fn prepare_cfg_context_with_registry(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> CfgContext {
+    prepare_cfg_context_bundle(module, registry).context
+}
+
+#[must_use]
+pub(crate) fn prepare_cfg_context_bundle(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> PreparedCfgContext {
+    let command_bindings = ModuleCommandBindings::analyse(module, registry);
+    let upvar_procs = detect_upvar_procs_with_bindings(module, registry, &command_bindings);
+    let global_write_procs = global_write_info::detect_global_write_procs_with_bindings(
+        module,
+        registry,
+        &command_bindings,
+    );
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
     // Iterate procedures in a deterministic (qualified-name) order: a *short*
     // name shared by two procedures (`::a::x` and `::b::x`) is inserted by both,
@@ -1751,7 +1991,15 @@ pub fn prepare_cfg_context(module: &Module) -> CfgContext {
             proc_params.insert(key, proc.params.clone());
         }
     }
-    (upvar_procs, proc_params, global_write_procs)
+    PreparedCfgContext {
+        context: (
+            upvar_procs,
+            proc_params,
+            global_write_procs,
+            command_bindings,
+        ),
+        command_classes: CfgCommandClasses::from_registry(registry),
+    }
 }
 
 /// Build CFGs for a whole module: top-level script + each procedure.
@@ -1767,79 +2015,164 @@ pub fn prepare_cfg_context(module: &Module) -> CfgContext {
 /// [`prepare_cfg_context`] for the per-module scan.
 #[must_use]
 pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
-    // The module carries its dialect *name*; resolve it once through the
-    // grammar owner so a host or test that builds a CFG straight from a
-    // module still lexes its bodies under the module's grammar. A caller
-    // holding the document's config uses `build_cfg_with_config`.
-    build_cfg_inner(
-        module,
-        defer_top_level,
-        true,
-        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
-            module.dialect.as_deref(),
-        )),
-    )
+    let registry = static_context_for(module.dialect.as_deref().unwrap_or("tcl")).commands();
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
+        module.dialect.as_deref(),
+    ));
+    build_cfg_with_registry_and_config(module, defer_top_level, registry, config)
 }
 
-/// [`build_cfg`] with the document's own [`tcl_lexer::LexerConfig`], threaded
-/// into every embedded-`[…]` re-lex the builder performs (see
-/// [`CfgBuilder::config`]).
+/// [`build_cfg`] with the document's exact [`tcl_lexer::LexerConfig`].
 #[must_use]
 pub fn build_cfg_with_config(
     module: &Module,
     defer_top_level: bool,
     config: tcl_lexer::LexerConfig,
 ) -> CfgModule {
-    build_cfg_inner(module, defer_top_level, true, config)
+    let registry = static_context_for(module.dialect.as_deref().unwrap_or("tcl")).commands();
+    build_cfg_with_registry_and_config(module, defer_top_level, registry, config)
 }
 
-/// Build CFGs for codegen (bytecode / WASM): the plain, byte-identical loop /
-/// switch shape with **no** analysis-only transforms (`faithful_exceptions`
-/// off).  The terminator promotions (`tailcall`, all-exit opaque switch), the
-/// opaque-switch loop-jump edges, and the guaranteed-iteration loop rotation
-/// are gated on `faithful_exceptions`, so they appear only in the analysis CFG
-/// ([`build_cfg`]) and never in the CFG codegen lowers — keeping the emitted
-/// bytecode / CFG shape identical to the unannotated source.
+/// Build analysis CFGs against the exact registry that lowered `module`.
 #[must_use]
-pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
-    // See `build_cfg`: the module's dialect name resolves once through the
-    // grammar owner.
-    build_cfg_inner(
+pub fn build_cfg_with_registry(
+    module: &Module,
+    defer_top_level: bool,
+    registry: &CommandRegistry,
+) -> CfgModule {
+    build_cfg_with_registry_and_config(
         module,
         defer_top_level,
-        false,
-        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
-            module.dialect.as_deref(),
-        )),
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
     )
 }
 
-/// [`build_cfg_codegen`] with the document's own [`tcl_lexer::LexerConfig`].
+/// Build analysis CFGs against both the exact command surface and lexer
+/// configuration that lowered `module`.
+#[must_use]
+pub fn build_cfg_with_registry_and_config(
+    module: &Module,
+    defer_top_level: bool,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, true, registry, config)
+}
+
+/// Build analysis CFGs from an already-prepared registry-owned module context.
+pub(crate) fn build_cfg_with_registry_and_context(
+    module: &Module,
+    defer_top_level: bool,
+    registry: &CommandRegistry,
+    context: &PreparedCfgContext,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    build_cfg_inner_with_context(module, defer_top_level, true, registry, context, config)
+}
+
+/// Build CFGs for codegen (bytecode / WASM): the plain, byte-identical loop /
+/// switch shape with no analysis-only transforms.
+#[must_use]
+pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
+    let registry = static_context_for(module.dialect.as_deref().unwrap_or("tcl")).commands();
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
+        module.dialect.as_deref(),
+    ));
+    build_cfg_codegen_with_registry_and_config(module, defer_top_level, registry, config)
+}
+
+/// [`build_cfg_codegen`] with the document's exact lexer configuration.
 #[must_use]
 pub fn build_cfg_codegen_with_config(
     module: &Module,
     defer_top_level: bool,
     config: tcl_lexer::LexerConfig,
 ) -> CfgModule {
-    build_cfg_inner(module, defer_top_level, false, config)
+    let registry = static_context_for(module.dialect.as_deref().unwrap_or("tcl")).commands();
+    build_cfg_codegen_with_registry_and_config(module, defer_top_level, registry, config)
+}
+
+/// Build code-generation CFGs against the exact registry that lowered
+/// `module`.
+#[must_use]
+pub fn build_cfg_codegen_with_registry(
+    module: &Module,
+    defer_top_level: bool,
+    registry: &CommandRegistry,
+) -> CfgModule {
+    build_cfg_codegen_with_registry_and_config(
+        module,
+        defer_top_level,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
+}
+
+/// Build code-generation CFGs against both the exact command surface and lexer
+/// configuration that lowered `module`.
+#[must_use]
+pub fn build_cfg_codegen_with_registry_and_config(
+    module: &Module,
+    defer_top_level: bool,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, false, registry, config)
+}
+
+/// Build code-generation CFGs from an already-prepared registry-owned module
+/// context.
+pub(crate) fn build_cfg_codegen_with_registry_and_context(
+    module: &Module,
+    defer_top_level: bool,
+    registry: &CommandRegistry,
+    context: &PreparedCfgContext,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    build_cfg_inner_with_context(module, defer_top_level, false, registry, context, config)
 }
 
 fn build_cfg_inner(
     module: &Module,
     defer_top_level: bool,
     faithful: bool,
+    registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> CfgModule {
-    let (upvar_procs, proc_params, global_write_procs) = prepare_cfg_context(module);
+    let context = prepare_cfg_context_bundle(module, registry);
+    build_cfg_inner_with_context(
+        module,
+        defer_top_level,
+        faithful,
+        registry,
+        &context,
+        config,
+    )
+}
+
+fn build_cfg_inner_with_context(
+    module: &Module,
+    defer_top_level: bool,
+    faithful: bool,
+    registry: &CommandRegistry,
+    context: &PreparedCfgContext,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    let (upvar_procs, proc_params, global_write_procs, command_bindings) = &context.context;
 
     let new_builder = |inline: bool| {
-        let b = CfgBuilder::new_with_upvars(
+        let b = CfgBuilder::new_with_upvars_and_classes(
             inline,
             upvar_procs.clone(),
             proc_params.clone(),
             global_write_procs.clone(),
+            command_bindings.clone(),
+            registry,
+            context.command_classes.clone(),
         )
-        .with_lexer_config(config);
+        .with_lexer_config(config)
+        .with_command_surface(module.plain_command_dispatch);
         if faithful {
             b.with_faithful_exceptions()
         } else {
@@ -1847,12 +2180,20 @@ fn build_cfg_inner(
         }
     };
 
-    let mut top_builder = new_builder(!defer_top_level);
+    let top_namespace = if module.top_level_namespace.is_empty() {
+        "::".to_owned()
+    } else {
+        module.top_level_namespace.clone()
+    };
+    let mut top_builder = new_builder(!defer_top_level)
+        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(top_namespace));
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
-        let mut builder = new_builder(true);
+        let mut builder = new_builder(true).with_invocation_namespace(
+            crate::ir::ExecutionNamespace::exact(command_namespace(qname)),
+        );
         proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
@@ -1862,52 +2203,213 @@ fn build_cfg_inner(
     }
 }
 
-/// Build a CFG for a single script body.  Does not apply the upvar-
-/// invalidation pass — use [`build_cfg`] when a whole module is
-/// available and call-site def invalidation matters.
+/// Build a CFG for a single script body against one resolved command surface.
 #[must_use]
 pub fn build_cfg_function(
     name: &str,
     script: &Script,
     inline_loops: bool,
-    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
 ) -> Function {
-    let mut builder = CfgBuilder::new(inline_loops).with_lexer_config(config);
-    builder.build_function(name, script)
+    build_cfg_function_with_config(
+        name,
+        script,
+        inline_loops,
+        registry,
+        plain_command_dispatch,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
 }
 
-/// Build a CFG for a single script body with an explicit upvar
-/// context (from [`prepare_cfg_context`]), reading every embedded `[…]`
-/// substitution under the document's own [`tcl_lexer::LexerConfig`].
-///
-/// Used for `TclOO` method bodies, which are lowered to their own
-/// [`Function`]s outside [`build_cfg`] (methods are deliberately excluded
-/// from [`CfgModule::procedures`] — codegen never emits them) but still
-/// need the same call-site def invalidation as procs.
+/// [`build_cfg_function`] with the exact lexer configuration used to lower
+/// `script`.
 #[must_use]
-pub fn build_cfg_function_with_upvars_and_config<S1, S2, S3>(
+pub fn build_cfg_function_with_config(
     name: &str,
     script: &Script,
     inline_loops: bool,
-    upvar_procs: HashMap<String, UpvarInfo, S1>,
-    proc_params: HashMap<String, Vec<String>, S2>,
-    global_write_procs: HashMap<String, GlobalWriteInfo, S3>,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
     config: tcl_lexer::LexerConfig,
-) -> Function
-where
-    S1: std::hash::BuildHasher,
-    S2: std::hash::BuildHasher,
-    S3: std::hash::BuildHasher,
-{
-    let upvar_procs: HashMap<String, UpvarInfo> = upvar_procs.into_iter().collect();
-    let proc_params: HashMap<String, Vec<String>> = proc_params.into_iter().collect();
-    let global_write_procs: HashMap<String, GlobalWriteInfo> =
-        global_write_procs.into_iter().collect();
-    let mut builder =
-        CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params, global_write_procs)
-            .with_faithful_exceptions()
-            .with_lexer_config(config);
+) -> Function {
+    let mut builder = CfgBuilder::new(inline_loops, registry)
+        .with_lexer_config(config)
+        .with_command_surface(plain_command_dispatch)
+        .with_invocation_namespace(crate::ir::ExecutionNamespace::exact(command_namespace(
+            name,
+        )));
     builder.build_function(name, script)
+}
+
+/// Build a CFG for one body with the registry-owned module context prepared by
+/// [`prepare_cfg_context`].
+#[must_use]
+pub fn build_cfg_function_with_upvars(
+    name: &str,
+    script: &Script,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    context: CfgContext,
+) -> Function {
+    build_cfg_function_with_upvars_and_config(
+        name,
+        script,
+        inline_loops,
+        registry,
+        plain_command_dispatch,
+        context,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
+}
+
+/// Build a CFG for one body with both the registry-owned module context and the
+/// exact dialect-aware lexer configuration used during lowering.
+#[must_use]
+pub fn build_cfg_function_with_upvars_and_config(
+    name: &str,
+    script: &Script,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    context: CfgContext,
+    config: tcl_lexer::LexerConfig,
+) -> Function {
+    build_cfg_function_with_upvars_inner(
+        name,
+        script,
+        crate::ir::ExecutionNamespace::exact(command_namespace(name)),
+        inline_loops,
+        registry,
+        plain_command_dispatch,
+        context,
+        false,
+        None,
+        config,
+    )
+}
+
+/// Build an ordinary body CFG using the module's already-prepared facts.
+pub(crate) fn build_cfg_function_with_prepared_context(
+    name: &str,
+    script: &Script,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    context: &PreparedCfgContext,
+    config: tcl_lexer::LexerConfig,
+) -> Function {
+    build_cfg_function_with_upvars_inner(
+        name,
+        script,
+        crate::ir::ExecutionNamespace::exact(command_namespace(name)),
+        inline_loops,
+        registry,
+        plain_command_dispatch,
+        context.context.clone(),
+        false,
+        Some(context.command_classes.clone()),
+        config,
+    )
+}
+
+/// Test seam for building one method with an explicitly supplied context.
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn build_cfg_method_function_with_upvars(
+    name: &str,
+    script: &Script,
+    execution_namespace: crate::ir::ExecutionNamespace,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    context: CfgContext,
+    widen_oo_dispatch: bool,
+) -> Function {
+    build_cfg_function_with_upvars_inner(
+        name,
+        script,
+        execution_namespace,
+        inline_loops,
+        registry,
+        plain_command_dispatch,
+        context,
+        widen_oo_dispatch,
+        None,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
+}
+
+/// Build a method CFG using the module's already-prepared facts.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_cfg_method_function_with_prepared_context(
+    name: &str,
+    script: &Script,
+    execution_namespace: crate::ir::ExecutionNamespace,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    context: &PreparedCfgContext,
+    widen_oo_dispatch: bool,
+    config: tcl_lexer::LexerConfig,
+) -> Function {
+    build_cfg_function_with_upvars_inner(
+        name,
+        script,
+        execution_namespace,
+        inline_loops,
+        registry,
+        plain_command_dispatch,
+        context.context.clone(),
+        widen_oo_dispatch,
+        Some(context.command_classes.clone()),
+        config,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_cfg_function_with_upvars_inner(
+    name: &str,
+    script: &Script,
+    execution_namespace: crate::ir::ExecutionNamespace,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    context: CfgContext,
+    widen_oo_dispatch: bool,
+    command_classes: Option<CfgCommandClasses>,
+    config: tcl_lexer::LexerConfig,
+) -> Function {
+    let (upvar_procs, proc_params, global_write_procs, command_bindings) = context;
+    let command_classes =
+        command_classes.unwrap_or_else(|| CfgCommandClasses::from_registry(registry));
+    let mut builder = CfgBuilder::new_with_upvars_and_classes(
+        inline_loops,
+        upvar_procs,
+        proc_params,
+        global_write_procs,
+        command_bindings,
+        registry,
+        command_classes,
+    )
+    .with_faithful_exceptions()
+    .with_lexer_config(config)
+    .with_command_surface(plain_command_dispatch)
+    .with_invocation_namespace(execution_namespace);
+    if widen_oo_dispatch {
+        builder = builder.with_oo_dispatch_widening();
+    }
+    builder.build_function(name, script)
+}
+
+fn command_namespace(qname: &str) -> String {
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+    if holder.is_empty() {
+        "::".to_owned()
+    } else {
+        holder.to_owned()
+    }
 }
 
 /// Deduplicate a `Vec` while preserving first-occurrence order.
@@ -1918,108 +2420,72 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 
 // Registry-derived command classifications
 //
-// The CFG builder's public entry points ([`build_cfg`],
-// [`build_cfg_function`]) carry no registry handle, and several
-// classification consumers ([`flow_facts_stmt`],
-// [`escaping_loop_jumps`]) are free functions shared with SSA — so the
-// name sets are materialised once per process from the shared plain-Tcl
-// registry ([`registry_for_dialect`]'s cached `&'static` instance)
-// instead of being threaded through every signature. The sets replace
-// the hardcoded name matches this file used to carry; the drift test
-// `registry_derived_cfg_classes_match_previous_hardcodes` pins their
-// contents so a registry stamping change is a conscious CFG decision.
+// These are facts of one resolved release/dialect registry, not a
+// process-global union. In particular Tcl 8.4 has no builtin `throw`; a
+// procedure with that name is an ordinary fall-through call in that profile.
+// The owning [`CfgBuilder`] carries the classes derived for its module and
+// passes them through the recursive flow-fact helpers below.
 
 /// Name sets for the command classifications the CFG builder keys
 /// control-flow shape on, each derived from one registry trait.
+#[derive(Clone)]
 struct CfgCommandClasses {
-    /// [`Traits::TERMINATES_BLOCK`] minus specs lowered through
-    /// [`LoweringHookId::Return`]: `return` carries the trait but
-    /// reaches the builder as its own [`Statement::Return`], never as a
-    /// plain `Statement::Call`, so it has no business in the
-    /// name-keyed terminator set.
-    terminates_block: HashSet<&'static str>,
-    /// [`Traits::CATCHABLE_THROW`] — raises `TCL_ERROR`, sourcing an
-    /// enclosing `try`'s on-error edge (`error` / `throw`; not `exit`,
-    /// which kills the process outside any exception range).
-    catchable_throw: HashSet<&'static str>,
-    /// [`Traits::REPLACES_FRAME`] — replaces the procedure frame and
-    /// never returns to the calling body (`tailcall`).
-    replaces_frame: HashSet<&'static str>,
-    /// [`Traits::BREAKS_LOOP`] — jumps to the enclosing loop's
-    /// post-loop target.
-    breaks_loop: HashSet<&'static str>,
-    /// [`Traits::CONTINUES_LOOP`] — jumps to the enclosing loop's
-    /// next-iteration target.
-    continues_loop: HashSet<&'static str>,
+    /// The registry's one effective-spec index, shared with command-binding
+    /// analysis. Classification stays trait-driven without rebuilding five
+    /// complete name sets for every compilation unit.
+    semantics: Arc<EffectiveRegistrySemantics>,
 }
 
-/// The classification sets, built once from the cached plain-Tcl
-/// registry. All five classes are core-Tcl commands present in every
-/// dialect, so the plain registry is the right (and dialect-stable)
-/// source — exactly the set the retired hardcoded matches encoded.
-static CFG_COMMAND_CLASSES: LazyLock<CfgCommandClasses> = LazyLock::new(|| {
-    let registry = static_context_for("").commands();
-    let with = |t: Traits| -> HashSet<&'static str> {
-        registry.commands_with_trait(t).into_iter().collect()
-    };
-    let terminates_block = registry
-        .commands_with_trait(Traits::TERMINATES_BLOCK)
-        .into_iter()
-        .filter(|name| {
-            registry
-                .get(name)
-                .is_none_or(|s| s.lowering_hook != Some(LoweringHookId::Return))
-        })
-        .collect();
-    CfgCommandClasses {
-        terminates_block,
-        catchable_throw: with(Traits::CATCHABLE_THROW),
-        replaces_frame: with(Traits::REPLACES_FRAME),
-        breaks_loop: with(Traits::BREAKS_LOOP),
-        continues_loop: with(Traits::CONTINUES_LOOP),
+impl CfgCommandClasses {
+    fn from_registry(registry: &CommandRegistry) -> Self {
+        Self {
+            semantics: registry.effective_semantics(),
+        }
     }
-});
 
-/// Builtin commands that unconditionally terminate the current block —
-/// the registry's `Traits::TERMINATES_BLOCK` set (minus `return`, which
-/// is handled separately as its own `Statement::Return`; see
-/// [`CfgCommandClasses::terminates_block`]).  Leading `:` runs are
-/// trimmed so a qualified `::error` classifies like `error`, as the
-/// retired hardcoded match did.
-fn is_block_terminating_command(command: &str) -> bool {
-    CFG_COMMAND_CLASSES
-        .terminates_block
-        .contains(command.trim_start_matches(':'))
+    #[cfg(test)]
+    fn for_dialect(dialect: Option<&str>) -> Self {
+        Self::from_registry(static_context_for(dialect.unwrap_or("tcl")).commands())
+    }
+
+    fn is_block_terminating_command(&self, command: &str) -> bool {
+        self.semantics
+            .command(command.trim_start_matches(':'))
+            .is_some_and(|facts| {
+                facts.has_traits(Traits::TERMINATES_BLOCK)
+                    && facts.lowering_hook() != Some(LoweringHookId::Return)
+            })
+    }
+
+    fn is_tailcall_command(&self, command: &str) -> bool {
+        self.semantics
+            .command(command.trim_start_matches(':'))
+            .is_some_and(|facts| facts.has_traits(Traits::REPLACES_FRAME))
+    }
+
+    fn is_loop_break_command(&self, name: &str) -> bool {
+        self.semantics
+            .command(name)
+            .is_some_and(|facts| facts.has_traits(Traits::BREAKS_LOOP))
+    }
+
+    fn is_loop_continue_command(&self, name: &str) -> bool {
+        self.semantics
+            .command(name)
+            .is_some_and(|facts| facts.has_traits(Traits::CONTINUES_LOOP))
+    }
+
+    fn is_catchable_throw(&self, command: &str) -> bool {
+        self.semantics
+            .command(command.trim_start_matches(':'))
+            .is_some_and(|facts| facts.has_traits(Traits::CATCHABLE_THROW))
+    }
 }
 
-/// Whether `command` replaces the current procedure's frame — the
-/// registry's `Traits::REPLACES_FRAME` set (`tailcall`, canonical
-/// `::tailcall`).
-///
-/// `tailcall` (Tcl 8.6+) replaces the current procedure's frame and never
-/// returns here: `TclNRTailcallObjCmd` (generic/tclBasic.c) always
-/// `return TCL_RETURN` — both bare `tailcall` and `tailcall command ...` exit
-/// the proc; the arg count only decides what runs *after* the frame pops, not
-/// whether this proc continues.  So *any* frame-replacing command ends
-/// straight-line flow exactly like `error` / `exit` (with no args guard).
-fn is_tailcall_command(command: &str) -> bool {
-    CFG_COMMAND_CLASSES
-        .replaces_frame
-        .contains(command.trim_start_matches(':'))
-}
-
-/// Whether `name` (pre-normalised by the caller — raw at
-/// [`CfgBuilder::lower_loop_jump`], `:`-trimmed elsewhere, matching
-/// what each site historically compared) jumps to the enclosing loop's
-/// post-loop target — the registry's `Traits::BREAKS_LOOP` set.
-fn is_loop_break_command(name: &str) -> bool {
-    CFG_COMMAND_CLASSES.breaks_loop.contains(name)
-}
-
-/// Loop-jump twin of [`is_loop_break_command`] for the next-iteration
-/// target — the registry's `Traits::CONTINUES_LOOP` set.
-fn is_loop_continue_command(name: &str) -> bool {
-    CFG_COMMAND_CLASSES.continues_loop.contains(name)
+impl Default for CfgCommandClasses {
+    fn default() -> Self {
+        Self::from_registry(&CommandRegistry::build_default())
+    }
 }
 
 // Definite-assignment ("flow facts") over un-lowered IR scripts
@@ -2068,7 +2534,10 @@ pub(crate) enum Completion {
 /// * loops (`For`/`While`/`Foreach`), `Catch`/`Try` and everything else may not
 ///   execute / always complete (`catch` even swallows `break`), so they
 ///   contribute no must-define and complete normally.
-pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion) {
+fn flow_facts_stmt_with_classes(
+    stmt: &Statement,
+    command_classes: &CfgCommandClasses,
+) -> (BTreeSet<String>, Completion) {
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
@@ -2098,8 +2567,8 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
             if matches!(
                 reason.as_str(),
                 "return with options" | "return with expansion"
-            ) || is_block_terminating_command(canon)
-                || is_tailcall_command(canon)
+            ) || command_classes.is_block_terminating_command(canon)
+                || command_classes.is_tailcall_command(canon)
             {
                 (BTreeSet::new(), Completion::ProcExit)
             } else {
@@ -2114,18 +2583,24 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
         } => {
             let canon = canonical_command.as_deref().unwrap_or(command);
             let bare = canon.trim_start_matches(':');
-            let completion = if is_loop_break_command(bare) || is_loop_continue_command(bare) {
+            let completion = if command_classes.is_loop_break_command(bare)
+                || command_classes.is_loop_continue_command(bare)
+            {
                 // A loop jump leaves to the enclosing loop's target — it still
                 // reaches the code after that loop, just without later defs.
                 Completion::LoopJump
-            } else if is_block_terminating_command(canon) || is_tailcall_command(canon) {
+            } else if command_classes.is_block_terminating_command(canon)
+                || command_classes.is_tailcall_command(canon)
+            {
                 Completion::ProcExit
             } else {
                 Completion::Normal
             };
             (defs.iter().cloned().collect(), completion)
         }
-        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => flow_facts_script(body),
+        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+            flow_facts_script_with_classes(body, command_classes)
+        }
         Statement::If {
             clauses,
             else_body: Some(eb),
@@ -2133,7 +2608,7 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
         } => {
             let mut bodies: Vec<&Script> = clauses.iter().map(|c| &c.body).collect();
             bodies.push(eb);
-            intersect_completing(&bodies)
+            intersect_completing(&bodies, command_classes)
         }
         Statement::Switch {
             arms,
@@ -2142,13 +2617,20 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
         } => {
             let mut bodies: Vec<&Script> = vec![default];
             bodies.extend(arms.iter().filter_map(|arm| arm.body.as_ref()));
-            intersect_completing(&bodies)
+            intersect_completing(&bodies, command_classes)
         }
         // An else-less `If` / default-less `Switch` has a fall-through path that
         // assigns nothing for certain; everything else may not run / always
         // completes.
         _ => (BTreeSet::new(), Completion::Normal),
     }
+}
+
+/// Profile-less compatibility entry point. Module CFG construction uses the
+/// release-aware `*_with_classes` path owned by its [`CfgBuilder`].
+#[cfg(test)]
+pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion) {
+    flow_facts_stmt_with_classes(stmt, &CfgCommandClasses::default())
 }
 
 /// `(vars definitely assigned, completion)` for an un-lowered IR script.
@@ -2159,10 +2641,13 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
 /// being those accumulated up to (and including) it.  Only names guaranteed to
 /// be assigned are returned, so it never over-claims (which would hide a real
 /// read-before-set).
-pub(crate) fn flow_facts_script(script: &Script) -> (BTreeSet<String>, Completion) {
+fn flow_facts_script_with_classes(
+    script: &Script,
+    command_classes: &CfgCommandClasses,
+) -> (BTreeSet<String>, Completion) {
     let mut assigned = BTreeSet::new();
     for stmt in &script.statements {
-        let (defs, completion) = flow_facts_stmt(stmt);
+        let (defs, completion) = flow_facts_stmt_with_classes(stmt, command_classes);
         assigned.extend(defs);
         if completion != Completion::Normal {
             return (assigned, completion);
@@ -2181,12 +2666,15 @@ pub(crate) fn flow_facts_script(script: &Script) -> (BTreeSet<String>, Completio
 /// sound when a `break`/`continue` arm escapes an opaque switch without the
 /// other arms' defs.  The combined completion is `Normal` if any branch falls
 /// through, else `LoopJump` if any jumps, else `ProcExit` (every branch exits).
-fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, Completion) {
+fn intersect_completing(
+    bodies: &[&Script],
+    command_classes: &CfgCommandClasses,
+) -> (BTreeSet<String>, Completion) {
     let mut common: Option<BTreeSet<String>> = None;
     let mut any_normal = false;
     let mut any_loop_jump = false;
     for body in bodies {
-        let (assigned, completion) = flow_facts_script(body);
+        let (assigned, completion) = flow_facts_script_with_classes(body, command_classes);
         match completion {
             Completion::ProcExit => continue,
             Completion::Normal => any_normal = true,
@@ -2216,8 +2704,14 @@ fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, Completion) {
 /// before jumping), because it still reaches the code after the enclosing loop —
 /// so an arm that breaks without assigning `y` correctly drops `y` rather than
 /// letting it be claimed defined.
-pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
-    flow_facts_stmt(stmt).0
+pub(crate) fn switch_must_defines(
+    stmt: &Statement,
+    registry: Option<&CommandRegistry>,
+) -> BTreeSet<String> {
+    let command_classes = registry.map_or_else(CfgCommandClasses::default, |registry| {
+        CfgCommandClasses::from_registry(registry)
+    });
+    flow_facts_stmt_with_classes(stmt, &command_classes).0
 }
 
 /// `(can_break, can_continue)` for `break`/`continue` that escape *script* to an
@@ -2238,7 +2732,11 @@ pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
 /// both are transitively bounded today via the same cap `lower_script`
 /// already builds every `Script` under, so this is defence-in-depth /
 /// consistency with that cap rather than a currently-reachable path).
-pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
+fn escaping_loop_jumps_with_classes(
+    script: &Script,
+    depth: u32,
+    command_classes: &CfgCommandClasses,
+) -> (bool, bool) {
     if MAX_LOWER_DEPTH.exceeded(depth) {
         return (false, false);
     }
@@ -2255,9 +2753,9 @@ pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
                     .as_deref()
                     .unwrap_or(command)
                     .trim_start_matches(':');
-                if is_loop_break_command(bare) {
+                if command_classes.is_loop_break_command(bare) {
                     can_break = true;
-                } else if is_loop_continue_command(bare) {
+                } else if command_classes.is_loop_continue_command(bare) {
                     can_continue = true;
                 }
             }
@@ -2265,23 +2763,24 @@ pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    let (b, c) = escaping_loop_jumps(&clause.body, depth + 1);
+                    let (b, c) =
+                        escaping_loop_jumps_with_classes(&clause.body, depth + 1, command_classes);
                     can_break |= b;
                     can_continue |= c;
                 }
                 if let Some(eb) = else_body {
-                    let (b, c) = escaping_loop_jumps(eb, depth + 1);
+                    let (b, c) = escaping_loop_jumps_with_classes(eb, depth + 1, command_classes);
                     can_break |= b;
                     can_continue |= c;
                 }
             }
             Statement::Switch { .. } => {
-                let (b, c) = switch_escaping_jumps(stmt, depth);
+                let (b, c) = switch_escaping_jumps_with_classes(stmt, depth, command_classes);
                 can_break |= b;
                 can_continue |= c;
             }
             Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
-                let (b, c) = escaping_loop_jumps(body, depth + 1);
+                let (b, c) = escaping_loop_jumps_with_classes(body, depth + 1, command_classes);
                 can_break |= b;
                 can_continue |= c;
             }
@@ -2291,16 +2790,17 @@ pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
                 finally_body,
                 ..
             } => {
-                let (b, c) = escaping_loop_jumps(body, depth + 1);
+                let (b, c) = escaping_loop_jumps_with_classes(body, depth + 1, command_classes);
                 can_break |= b;
                 can_continue |= c;
                 for h in handlers {
-                    let (b, c) = escaping_loop_jumps(&h.body, depth + 1);
+                    let (b, c) =
+                        escaping_loop_jumps_with_classes(&h.body, depth + 1, command_classes);
                     can_break |= b;
                     can_continue |= c;
                 }
                 if let Some(fb) = finally_body {
-                    let (b, c) = escaping_loop_jumps(fb, depth + 1);
+                    let (b, c) = escaping_loop_jumps_with_classes(fb, depth + 1, command_classes);
                     can_break |= b;
                     can_continue |= c;
                 }
@@ -2311,16 +2811,28 @@ pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
         // dead code (a later `break`/`continue` never runs), so stop scanning —
         // otherwise a dead `break` after `error`/`return` would forge a
         // loop-exit edge and fire W210 on unreachable post-loop code.
-        if flow_facts_stmt(stmt).1 != Completion::Normal {
+        if flow_facts_stmt_with_classes(stmt, command_classes).1 != Completion::Normal {
             break;
         }
     }
     (can_break, can_continue)
 }
 
+/// Profile-less compatibility entry point. Module CFG construction uses the
+/// release-aware `*_with_classes` path owned by its [`CfgBuilder`].
+#[cfg(test)]
+pub(crate) fn escaping_loop_jumps(script: &Script, depth: u32) -> (bool, bool) {
+    escaping_loop_jumps_with_classes(script, depth, &CfgCommandClasses::default())
+}
+
 /// `(can_break, can_continue)` over all bodies of an opaque `switch`.
-/// `depth` is `stmt`'s own nesting level — see [`escaping_loop_jumps`].
-pub(crate) fn switch_escaping_jumps(stmt: &Statement, depth: u32) -> (bool, bool) {
+/// `depth` is `stmt`'s own nesting level — see
+/// [`escaping_loop_jumps_with_classes`].
+fn switch_escaping_jumps_with_classes(
+    stmt: &Statement,
+    depth: u32,
+    command_classes: &CfgCommandClasses,
+) -> (bool, bool) {
     let Statement::Switch {
         arms, default_body, ..
     } = stmt
@@ -2330,13 +2842,13 @@ pub(crate) fn switch_escaping_jumps(stmt: &Statement, depth: u32) -> (bool, bool
     let mut can_break = false;
     let mut can_continue = false;
     if let Some(default) = default_body {
-        let (b, c) = escaping_loop_jumps(default, depth + 1);
+        let (b, c) = escaping_loop_jumps_with_classes(default, depth + 1, command_classes);
         can_break |= b;
         can_continue |= c;
     }
     for arm in arms {
         if let Some(body) = &arm.body {
-            let (b, c) = escaping_loop_jumps(body, depth + 1);
+            let (b, c) = escaping_loop_jumps_with_classes(body, depth + 1, command_classes);
             can_break |= b;
             can_continue |= c;
         }
@@ -2386,7 +2898,7 @@ pub(crate) fn foreach_runs_at_least_once(
         .any(|it| list_literal_nonempty(&it.list_arg, rules))
 }
 
-impl CfgBuilder {
+impl CfgBuilder<'_> {
     /// Names a non-`AssignConst` init statement may write.  `None` means "can't
     /// tell" — the caller then drops *all* constant bindings (a write it can't
     /// characterise might clobber any of them).
@@ -2498,90 +3010,42 @@ fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
     EnvValue::Str(text.to_owned())
 }
 
-/// Whether `command` raises a *catchable* exception — the registry's
-/// `Traits::CATCHABLE_THROW` set (`error` / `throw`); `exit` terminates
-/// the process and is not caught by `try`. Throw points of this kind
-/// source an enclosing `try`'s on-error edge.
-fn is_catchable_throw(command: &str) -> bool {
-    CFG_COMMAND_CLASSES
-        .catchable_throw
-        .contains(command.trim_start_matches(':'))
-}
-
-/// Lex *text* into Tcl words, accumulating contiguous tokens between
-/// `Sep` / `Eol` separators into single-string words.  `Var` tokens
-/// are re-prefixed with `$` so the caller can normalise them via
-/// [`crate::naming::normalise_var_name`].
-///
-/// Returns an empty list when the text fails to lex.
-/// `config` is the document's own [`tcl_lexer::LexerConfig`] — where the word
-/// boundaries fall is a dialect fact (`}{` under iRules, `$(…)` under Jim,
-/// `{*}` from 8.5 on).
-pub(super) fn words_from_text_with_config(
-    text: &str,
-    config: tcl_lexer::LexerConfig,
-) -> Vec<String> {
-    use tcl_lexer::{Lexer, SourceMap, TokenType};
-
-    let sm = SourceMap::new(text);
-    let lexer = Lexer::with_config(text, config);
-    let Ok(tokens) = lexer.tokenise_all() else {
-        return Vec::new();
-    };
-
-    let mut words: Vec<String> = Vec::new();
-    let mut current: String = String::new();
-    let mut prev_sep = true;
-
-    for tok in &tokens {
-        match tok.kind {
-            TokenType::Sep | TokenType::Eol | TokenType::Comment | TokenType::Eof => {
-                if !current.is_empty() {
-                    words.push(std::mem::take(&mut current));
-                }
-                prev_sep = true;
-            }
-            _ => {
-                let t = sm.token_text(*tok);
-                // Re-prepend `$` for `Var` tokens (the lexer strips
-                // it on read) so the param-target resolver sees the
-                // original `$arg` shape and `normalise_var_name`
-                // strips it cleanly.
-                let sigil = if matches!(tok.kind, TokenType::Var) {
-                    "$"
-                } else {
-                    ""
-                };
-                if prev_sep {
-                    current.clear();
-                }
-                current.push_str(sigil);
-                current.push_str(t);
-                prev_sep = false;
-            }
-        }
-    }
-    if !current.is_empty() {
-        words.push(current);
-    }
-    words
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{ForeachIterator, IfClause, Script, SwitchArm, SwitchMode};
     use tcl_lexer::Span;
 
+    fn build_test_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Function {
+        build_cfg_function(
+            name,
+            script,
+            inline_loops,
+            &CommandRegistry::build_default(),
+            false,
+        )
+    }
+
     /// The registry-derived commands which leave a procedure when they appear
     /// as ordinary calls. Keep test data tied to traits rather than duplicating
     /// command names alongside the production lookup.
-    fn proc_exit_host_commands() -> Vec<&'static str> {
-        let mut commands: Vec<_> = CFG_COMMAND_CLASSES
-            .terminates_block
-            .iter()
-            .chain(CFG_COMMAND_CLASSES.replaces_frame.iter())
-            .copied()
+    fn proc_exit_host_commands() -> Vec<String> {
+        let classes = CfgCommandClasses::for_dialect(Some("tcl9.0"));
+        let mut commands: Vec<_> = classes
+            .semantics
+            .command_names_with_traits(Traits::TERMINATES_BLOCK)
+            .filter(|name| {
+                classes
+                    .semantics
+                    .command(name)
+                    .is_some_and(|facts| facts.lowering_hook() != Some(LoweringHookId::Return))
+            })
+            .chain(
+                classes
+                    .semantics
+                    .command_names_with_traits(Traits::REPLACES_FRAME),
+            )
+            .map(str::to_owned)
             .collect();
         commands.sort_unstable();
         commands.dedup();
@@ -2615,7 +3079,7 @@ mod tests {
     }
 
     fn build_analysis_cfg(name: &str, script: &Script) -> Function {
-        CfgBuilder::new(true)
+        CfgBuilder::new(true, tcl_registry::default_registry())
             .with_faithful_exceptions()
             .build_function(name, script)
     }
@@ -2661,22 +3125,102 @@ mod tests {
     /// silent one.
     #[test]
     fn registry_derived_cfg_classes_match_previous_hardcodes() {
-        let sorted = |set: &HashSet<&'static str>| -> Vec<&'static str> {
-            let mut v: Vec<&'static str> = set.iter().copied().collect();
+        fn sorted(classes: &CfgCommandClasses, traits: Traits) -> Vec<&str> {
+            let mut v: Vec<&str> = classes
+                .semantics
+                .command_names_with_traits(traits)
+                .collect();
             v.sort_unstable();
             v
-        };
-        let classes = &*CFG_COMMAND_CLASSES;
+        }
+        let classes = CfgCommandClasses::for_dialect(Some("tcl9.0"));
         // `return` carries TERMINATES_BLOCK but lowers to
         // `Statement::Return`, so the name-keyed terminator set excludes it.
+        let mut terminates = sorted(&classes, Traits::TERMINATES_BLOCK);
+        terminates.retain(|name| {
+            classes
+                .semantics
+                .command(name)
+                .is_some_and(|facts| facts.lowering_hook() != Some(LoweringHookId::Return))
+        });
+        assert_eq!(terminates, ["error", "exit", "throw"]);
         assert_eq!(
-            sorted(&classes.terminates_block),
-            ["error", "exit", "throw"]
+            sorted(&classes, Traits::CATCHABLE_THROW),
+            ["error", "throw"]
         );
-        assert_eq!(sorted(&classes.catchable_throw), ["error", "throw"]);
-        assert_eq!(sorted(&classes.replaces_frame), ["tailcall"]);
-        assert_eq!(sorted(&classes.breaks_loop), ["break"]);
-        assert_eq!(sorted(&classes.continues_loop), ["continue"]);
+        assert_eq!(sorted(&classes, Traits::REPLACES_FRAME), ["tailcall"]);
+        assert_eq!(sorted(&classes, Traits::BREAKS_LOOP), ["break"]);
+        assert_eq!(sorted(&classes, Traits::CONTINUES_LOOP), ["continue"]);
+
+        let tcl84 = CfgCommandClasses::for_dialect(Some("tcl8.4"));
+        assert!(
+            !tcl84.is_block_terminating_command("throw") && !tcl84.is_catchable_throw("throw"),
+            "Tcl 8.4 must select its visible spec set, not inherit later `throw` traits"
+        );
+    }
+
+    #[test]
+    fn cfg_and_binding_analysis_share_the_registry_semantic_index() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("set value 1", &registry);
+        let bindings = ModuleCommandBindings::analyse(&module, &registry);
+        let classes = CfgCommandClasses::from_registry(&registry);
+
+        assert!(Arc::ptr_eq(
+            bindings.effective_semantics(),
+            &classes.semantics
+        ));
+    }
+
+    #[test]
+    fn whole_module_cfg_uses_the_exact_custom_registry_traits() {
+        let mut registry = CommandRegistry::build_default();
+        let mut custom = registry.get("puts").expect("puts spec").clone();
+        custom.traits |= Traits::TERMINATES_BLOCK;
+        registry.insert(custom);
+
+        let module = crate::lowering::lower_to_ir("puts before\nset reached 1", &registry);
+        let cfg = build_cfg_with_registry(&module, false, &registry);
+        let entry = &cfg.top_level.blocks[&cfg.top_level.entry];
+        assert!(
+            matches!(entry.terminator, Some(Terminator::Return { .. })),
+            "the custom registry's terminating command must shape the whole-module CFG: {entry:?}"
+        );
+        assert!(
+            cfg.top_level.blocks.values().any(|block| {
+                block.name.starts_with("unreachable")
+                    && block.statements.iter().any(|statement| {
+                        matches!(statement, Statement::AssignConst { name, .. } if name == "reached")
+                    })
+            }),
+            "the statement after the custom terminator must be unreachable"
+        );
+    }
+
+    #[test]
+    fn condition_var_writes_use_the_exact_custom_registry_roles() {
+        let mut registry = CommandRegistry::build_default();
+        let mut custom = registry.get("list").expect("list spec").clone();
+        custom.arg_roles = &[(0, tcl_registry::ArgRole::VarWrite)];
+        custom.arg_role_resolver = None;
+        registry.insert(custom);
+
+        let module = crate::lowering::lower_to_ir("if {[list slot]} {puts yes}", &registry);
+        let cfg = build_cfg_with_registry(&module, false, &registry);
+        let condition_defs = cfg
+            .top_level
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find_map(|statement| match statement {
+                Statement::Call { command, defs, .. } if command == "<cond>" => Some(defs),
+                _ => None,
+            })
+            .expect("condition command substitutions produce a synthetic CFG call");
+        assert!(
+            condition_defs.iter().any(|name| name == "slot"),
+            "custom VarWrite role was replaced by a default Tcl registry: {condition_defs:?}"
+        );
     }
 
     /// The classification helpers keep each site's historical name
@@ -2686,19 +3230,20 @@ mod tests {
     /// `::break` stays a plain call there).
     #[test]
     fn cfg_class_helpers_keep_site_normalisation() {
-        assert!(is_block_terminating_command("error"));
-        assert!(is_block_terminating_command("::throw"));
-        assert!(is_block_terminating_command("exit"));
-        assert!(!is_block_terminating_command("return"));
-        assert!(!is_block_terminating_command("break"));
-        assert!(is_catchable_throw("::error"));
-        assert!(!is_catchable_throw("exit"));
-        assert!(is_tailcall_command("::tailcall"));
-        assert!(!is_tailcall_command("error"));
-        assert!(is_loop_break_command("break"));
-        assert!(!is_loop_break_command("::break"));
-        assert!(is_loop_continue_command("continue"));
-        assert!(!is_loop_continue_command("break"));
+        let classes = CfgCommandClasses::for_dialect(Some("tcl9.0"));
+        assert!(classes.is_block_terminating_command("error"));
+        assert!(classes.is_block_terminating_command("::throw"));
+        assert!(classes.is_block_terminating_command("exit"));
+        assert!(!classes.is_block_terminating_command("return"));
+        assert!(!classes.is_block_terminating_command("break"));
+        assert!(classes.is_catchable_throw("::error"));
+        assert!(!classes.is_catchable_throw("exit"));
+        assert!(classes.is_tailcall_command("::tailcall"));
+        assert!(!classes.is_tailcall_command("error"));
+        assert!(classes.is_loop_break_command("break"));
+        assert!(!classes.is_loop_break_command("::break"));
+        assert!(classes.is_loop_continue_command("continue"));
+        assert!(!classes.is_loop_continue_command("break"));
     }
 
     #[test]
@@ -2708,7 +3253,7 @@ mod tests {
         // extend this test automatically. Test both source spellings the CFG
         // accepts, including the global-qualified form.
         for command in proc_exit_host_commands() {
-            for spelling in [command.to_owned(), format!("::{command}")] {
+            for spelling in [command.clone(), format!("::{command}")] {
                 for (kind, statement) in [
                     ("Call", host_call(spelling.clone())),
                     ("Barrier", host_barrier(spelling.clone())),
@@ -2790,12 +3335,7 @@ mod tests {
 
     #[test]
     fn empty_script_produces_entry_exit() {
-        let func = build_cfg_function(
-            "::test",
-            &Script::new(),
-            true,
-            tcl_lexer::LexerConfig::default(),
-        );
+        let func = build_test_cfg_function("::test", &Script::new(), true);
         assert_eq!(func.name, "::test");
         assert!(func.blocks.contains_key(&func.entry));
         // entry → exit
@@ -2820,7 +3360,7 @@ mod tests {
                 value_span: None,
             },
         ]);
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_test_cfg_function("::test", &script, true);
         // Entry block should have both statements.
         let entry = &func.blocks[&func.entry];
         assert_eq!(entry.statements.len(), 2);
@@ -2840,6 +3380,7 @@ mod tests {
                 span: Span::new(8, 16),
                 value: Some("$x".into()),
                 expr: None,
+                command_binding: None,
                 braced: false,
             },
             Statement::AssignConst {
@@ -2850,7 +3391,7 @@ mod tests {
                 value_span: None,
             },
         ]);
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_test_cfg_function("::test", &script, true);
         let entry = &func.blocks[&func.entry];
         // Only one statement before the return terminator.
         assert_eq!(entry.statements.len(), 1);
@@ -2882,7 +3423,7 @@ mod tests {
             else_body: None,
             else_span: None,
         }]);
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_test_cfg_function("::test", &script, true);
         // Should have at least: entry, if_then, if_next, if_end, exit
         assert!(func.blocks.len() >= 4);
         // Entry block should have a Branch terminator.
@@ -2900,6 +3441,29 @@ mod tests {
         let cfg = build_cfg(&module, false);
         assert_eq!(cfg.top_level.name, "::top");
         assert!(cfg.procedures.is_empty());
+    }
+
+    #[test]
+    fn prepared_context_cfg_matches_compatibility_entry_point() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "proc writer {} { global answer; set answer 42 }\n\
+             interp alias {} write-answer {} writer\n\
+             write-answer\n",
+            &registry,
+        );
+        let context = prepare_cfg_context_bundle(&module, &registry);
+
+        assert_eq!(
+            build_cfg_with_registry_and_context(
+                &module,
+                false,
+                &registry,
+                &context,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            ),
+            build_cfg_with_registry(&module, false, &registry),
+        );
     }
 
     #[test]
@@ -2935,7 +3499,7 @@ mod tests {
             raw_args: vec!["{set inner 1}".into(), "result".into()],
             tokens: None,
         }]);
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_test_cfg_function("::test", &script, true);
         let entry = &func.blocks[&func.entry];
         // Should have a Call to "catch" with defs.
         assert!(entry.statements.iter().any(|s| matches!(
@@ -2982,7 +3546,7 @@ mod tests {
             is_array_iteration: false,
             raw_tokens: None,
         }]);
-        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
+        let func = build_test_cfg_function("::test", &script, true);
         let mut found_groups: Option<Vec<usize>> = None;
         for block in func.blocks.values() {
             for stmt in &block.statements {
@@ -3132,6 +3696,55 @@ mod tests {
     }
 
     #[test]
+    fn rooted_regexp_value_form_does_not_widen_runtime_selected_method_frame() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "oo::class create C {\n\
+                 method value {re s} {::regexp $re $s}\n\
+                 method capture {re s target} {::regexp $re $s $target}\n\
+             }",
+            &registry,
+        );
+        let context = prepare_cfg_context_with_registry(&module, &registry);
+        let build = |name: &str| {
+            let method = &module.methods[name];
+            build_cfg_method_function_with_upvars(
+                name,
+                &method.body,
+                method.execution_namespace.clone(),
+                true,
+                &registry,
+                module.plain_command_dispatch,
+                context.clone(),
+                false,
+            )
+        };
+        let has_opaque_variable_barrier = |function: &Function| {
+            function.blocks.values().any(|block| {
+                block.statements.iter().any(|statement| {
+                    matches!(
+                        statement,
+                        Statement::Barrier { reason, .. }
+                            if reason.contains("writes a source-opaque variable name")
+                    )
+                })
+            })
+        };
+
+        let value = build("::C::value");
+        assert!(
+            !has_opaque_variable_barrier(&value),
+            "an absolute two-operand regexp has no capture variable"
+        );
+
+        let capture = build("::C::capture");
+        assert!(
+            has_opaque_variable_barrier(&capture),
+            "a dynamic capture name must still widen the variable frame"
+        );
+    }
+
+    #[test]
     fn detect_upvar_procs_registers_short_and_qualified() {
         let module = lower_module("proc ::ns::p {} { upvar 1 caller_x x }\nproc ::ns::p2 {} {}");
         let upvar_procs = detect_upvar_procs(&module);
@@ -3140,6 +3753,31 @@ mod tests {
         // p2 has no upvar — not registered.
         assert!(!upvar_procs.contains_key("::ns::p2"));
         assert!(!upvar_procs.contains_key("p2"));
+    }
+
+    #[test]
+    fn redefined_procedure_generation_is_an_opaque_frame_effect() {
+        let module = lower_module(
+            "proc p {} {}\n\
+             rename p old\n\
+             proc p {} {upvar 1 x y; set y 2}\n\
+             proc caller {} {p}",
+        );
+        let summaries = detect_upvar_procs(&module);
+        assert!(summaries["::p"].caller_frame_barrier().writes);
+        let cfg = build_cfg(&module, false);
+        assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
+    }
+
+    #[test]
+    fn recovered_procedure_without_a_published_summary_is_opaque() {
+        let module = lower_module(
+            "namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]\n\
+             proc caller {} {::n::writer}",
+        );
+        assert!(!module.procedures.contains_key("::n::writer"));
+        let cfg = build_cfg(&module, false);
+        assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
     }
 
     // Issue #923 idx 18 (revisited after PR #1020 review): a wrapper proc
@@ -3245,6 +3883,30 @@ mod tests {
         );
     }
 
+    /// Tcl 9.0.4 oracle:
+    ///
+    /// ```tcl
+    /// proc far {} {uplevel 2 {set x 2}}
+    /// interp alias {} via {} far
+    /// proc middle {} {via}
+    /// proc outer {} {set x 1; middle; return $x}
+    /// puts [outer] ;# -> 2
+    /// ```
+    #[test]
+    fn alias_terminal_proc_propagates_a_beyond_caller_effect() {
+        let module = lower_module(
+            "proc far {} {uplevel 2 {set x 2}}\n\
+             interp alias {} via {} far\n\
+             proc middle {} {via}",
+        );
+        let upvar_procs = detect_upvar_procs(&module);
+        let middle = upvar_procs
+            .get("::middle")
+            .expect("the alias resolves to far's beyond-caller effect");
+        assert!(middle.caller_frame_opaque_writes, "{middle:?}");
+        assert!(middle.caller_frame_opaque_reads, "{middle:?}");
+    }
+
     /// TN — `uplevel #0` (global) and `uplevel 0` (the callee's own frame)
     /// reach no caller at all, so neither is a beyond-caller effect and
     /// neither makes a plain-call wrapper one.
@@ -3281,7 +3943,8 @@ mod tests {
     #[test]
     fn prepare_cfg_context_registers_params_for_all_procs() {
         let module = lower_module("proc ::ns::p {a b} { upvar 1 $a x }\nproc q {c} {}");
-        let (_upvar_procs, proc_params, _global_write_procs) = prepare_cfg_context(&module);
+        let (_upvar_procs, proc_params, _global_write_procs, _command_bindings) =
+            prepare_cfg_context(&module);
         assert_eq!(
             proc_params.get("::ns::p"),
             Some(&vec!["a".to_string(), "b".to_string()]),
@@ -3312,6 +3975,26 @@ mod tests {
     }
 
     #[test]
+    fn alias_to_upvar_uses_its_prepended_frame_level() {
+        // Tcl 9.0.4: `bind` executes `upvar 1 target local`; assigning
+        // `local` in `setter` therefore assigns `target` in its caller.
+        // The frame descriptor and argv are both supplied by the closed
+        // command binding, not by the source spelling `bind`.
+        let module = lower_module(
+            "interp alias {} bind {} upvar 1\n\
+             proc setter {} { bind target local; set local 99 }\n\
+             setter",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert!(
+            defs.contains(&"target".to_owned()),
+            "the aliased upvar target must invalidate its caller: {defs:?}"
+        );
+    }
+
+    #[test]
     fn param_upvar_proc_call_resolves_call_site_arg() {
         // `proc setter {name} { upvar 1 $name x }` aliased to whatever
         // the caller passes for `name`.  Call `setter my_var` should
@@ -3330,9 +4013,54 @@ mod tests {
     }
 
     #[test]
-    fn param_upvar_normalises_dollar_call_arg() {
-        // `setter $caller_var` — the call passes a `$`-prefixed name;
-        // the wiring normalises it to `caller_var` for the def list.
+    fn early_and_late_aliases_to_upvar_proc_prepend_the_caller_target() {
+        for source in [
+            "interp alias {} assign {} setter target\n\
+             proc setter {name} { upvar 1 $name x; set x 1 }\n\
+             proc outer {} { assign }",
+            "proc setter {name} { upvar 1 $name x; set x 1 }\n\
+             proc outer {} { assign }\n\
+             interp alias {} assign {} setter target",
+        ] {
+            let module = lower_module(source);
+            let cfg = build_cfg(&module, false);
+            let outer = cfg
+                .procedures
+                .get("::outer")
+                .expect("outer proc CFG should exist");
+            let defs = find_call_defs(outer, "assign").expect("alias call should be in outer CFG");
+            assert!(
+                defs.contains(&"target".to_owned()),
+                "alias definition order must not hide its prepended upvar target: {defs:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn alias_chain_preserves_prefix_order_for_upvar_proc_arguments() {
+        let module = lower_module(
+            "proc setter {first name} { upvar 1 $name x; set x 1 }\n\
+             interp alias {} inner {} setter first\n\
+             interp alias {} outer {} inner second\n\
+             outer",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "outer")
+            .expect("outer alias call should be in top-level CFG");
+        assert!(
+            defs.contains(&"second".to_owned()),
+            "inner then outer alias prefixes must remain in runtime argv order: {defs:?}",
+        );
+        assert!(
+            !defs.contains(&"first".to_owned()),
+            "the first fixed argument must not be projected onto the second parameter: {defs:?}",
+        );
+    }
+
+    #[test]
+    fn substituted_upvar_actual_is_opaque_not_a_literal_def() {
+        // The source spelling `$caller_var` is not the variable name passed
+        // at runtime. No precise def may be manufactured from that spelling.
         let module = lower_module(
             "proc setter {name} { upvar 1 $name x }\n\
              setter $caller_var",
@@ -3341,9 +4069,67 @@ mod tests {
         let defs = find_call_defs(&cfg.top_level, "setter")
             .expect("setter call should be in top-level CFG");
         assert!(
-            defs.contains(&"caller_var".to_string()),
-            "expected caller_var (normalised from $caller_var) in defs, got {defs:?}",
+            !defs.contains(&"caller_var".to_string()),
+            "substituted source text became a literal caller def: {defs:?}",
         );
+        assert_eq!(
+            cfg.top_level.caller_frame_barrier,
+            crate::dynamic_names::DynamicNameBarrier {
+                writes: true,
+                destroys: false,
+                reads: false,
+            }
+        );
+    }
+
+    #[test]
+    fn trailing_expansion_preserves_a_known_upvar_actual_prefix() {
+        let module = lower_module(
+            "proc setter {name args} { upvar 1 $name x; set x 1 }\n\
+             setter my_var {*}$rest",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert!(defs.contains(&"my_var".to_string()), "defs={defs:?}");
+    }
+
+    #[test]
+    fn expanded_upvar_actual_is_opaque_not_a_literal_def() {
+        let module = lower_module(
+            "proc setter {name} { upvar 1 $name x; set x 1 }\n\
+             setter {*}$actual",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert!(
+            defs.is_empty(),
+            "expanded source text became defs: {defs:?}"
+        );
+        assert_eq!(
+            cfg.top_level.caller_frame_barrier,
+            crate::dynamic_names::DynamicNameBarrier {
+                writes: true,
+                destroys: false,
+                reads: false,
+            }
+        );
+    }
+
+    #[test]
+    fn computed_or_expanded_direct_head_is_not_misidentified_as_a_static_callee() {
+        for call in ["$command target", "{*}$invocation"] {
+            let module = lower_module(&format!(
+                "proc setter {{name}} {{ upvar 1 $name x; set x 1 }}\n{call}"
+            ));
+            let cfg = build_cfg(&module, false);
+            assert_eq!(
+                cfg.top_level.caller_frame_barrier,
+                crate::dynamic_names::DynamicNameBarrier::default(),
+                "call={call}"
+            );
+        }
     }
 
     #[test]
@@ -3395,6 +4181,27 @@ mod tests {
     }
 
     #[test]
+    fn late_alias_call_inside_proc_uses_projected_global_write_summary() {
+        let module = lower_module(
+            "proc ::mutate {} { global x; set x 99 }\n\
+             proc ::z::mutate {} {}\n\
+             proc ::outer {} { call_mutate }\n\
+             interp alias {} call_mutate {} mutate",
+        );
+        let cfg = build_cfg(&module, false);
+        let outer = cfg
+            .procedures
+            .get("::outer")
+            .expect("outer proc CFG should exist");
+        let defs =
+            find_call_defs(outer, "call_mutate").expect("late alias call should be in outer CFG");
+        assert!(
+            defs.contains(&"x".to_owned()),
+            "projected alias summary must invalidate x at the inner call: {defs:?}",
+        );
+    }
+
+    #[test]
     fn upvar_call_inside_if_branch_augments_defs() {
         // Calls inside structured constructs (if branches, while
         // bodies, ...) must also be augmented — the wiring runs in
@@ -3435,7 +4242,8 @@ mod tests {
             "::top",
             &module.top_level,
             true,
-            tcl_lexer::LexerConfig::default(),
+            &CommandRegistry::build_default(),
+            module.plain_command_dispatch,
         );
         let defs = find_call_defs(&func, "setter").expect("setter call should be in top-level CFG");
         assert!(
@@ -3444,8 +4252,8 @@ mod tests {
         );
     }
 
-    // Embedded-substitution
-    // form: `[upvar_proc arg]` inside `AssignValue.value` or `Call.args`.
+    // Embedded-substitution form: `[upvar_proc arg]` in every evaluated
+    // statement value, argument, expression, return, or condition surface.
 
     /// Walk every block looking for a Call whose `defs` contain
     /// *def*.  Returns the command name when found.
@@ -3462,30 +4270,6 @@ mod tests {
         None
     }
 
-    fn words_from_text_cfg(text: &str) -> Vec<String> {
-        words_from_text_with_config(text, tcl_lexer::LexerConfig::default())
-    }
-
-    #[test]
-    fn words_from_text_extracts_word_list() {
-        let words = words_from_text_cfg("step 1 two");
-        assert_eq!(
-            words,
-            vec!["step".to_string(), "1".to_string(), "two".to_string()],
-        );
-    }
-
-    #[test]
-    fn words_from_text_prefixes_dollar_for_vars() {
-        let words = words_from_text_cfg("step $varname");
-        assert_eq!(words, vec!["step".to_string(), "$varname".to_string()]);
-    }
-
-    #[test]
-    fn words_from_text_handles_empty() {
-        assert!(words_from_text_cfg("").is_empty());
-    }
-
     #[test]
     fn embedded_subst_in_assign_value_emits_synthetic_invalidate() {
         // `set foo [setter]` where setter upvars caller_x.  The
@@ -3500,6 +4284,44 @@ mod tests {
         let cmd = find_call_with_def(&cfg.top_level, "caller_x")
             .expect("expected a Call carrying caller_x in defs");
         assert_eq!(cmd, "<upvar-invalidate>");
+    }
+
+    #[test]
+    fn embedded_subst_in_return_emits_synthetic_invalidate_before_terminator() {
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; set x 1; return 0 }\n\
+             proc outer {} { return [setter] }",
+        );
+        let cfg = build_cfg(&module, false);
+        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
+        assert_eq!(
+            find_call_with_def(outer, "caller_x"),
+            Some("<upvar-invalidate>")
+        );
+        assert!(
+            outer
+                .blocks
+                .values()
+                .any(|block| { matches!(block.terminator, Some(Terminator::Return { .. })) })
+        );
+    }
+
+    #[test]
+    fn embedded_subst_in_assign_expr_and_expr_eval_emits_invalidation() {
+        let module = lower_module(
+            "proc setter {} { upvar 1 caller_x x; set x 1; return 0 }\n\
+             proc assign_expr {} { set result [expr {[setter] + 1}] }\n\
+             proc expr_eval {} { expr {[setter] + 1} }",
+        );
+        let cfg = build_cfg(&module, false);
+        for proc_name in ["::assign_expr", "::expr_eval"] {
+            let function = cfg.procedures.get(proc_name).expect("procedure CFG");
+            assert_eq!(
+                find_call_with_def(function, "caller_x"),
+                Some("<upvar-invalidate>"),
+                "missing embedded invalidation in {proc_name}"
+            );
+        }
     }
 
     #[test]
@@ -3541,6 +4363,51 @@ mod tests {
         let cmd = find_call_with_def(&cfg.top_level, "myvar")
             .expect("expected synthetic invalidate carrying myvar");
         assert_eq!(cmd, "<upvar-invalidate>");
+    }
+
+    /// Tcl 9.0.4 oracle:
+    ///
+    /// ```tcl
+    /// proc far {name} {upvar 1 $name v; set v 2; return ok}
+    /// interp alias {} via {} far x
+    /// proc p {} {set x 1; set y [via]; return $x}
+    /// puts [p] ;# -> 2
+    /// ```
+    #[test]
+    fn embedded_alias_prefix_terminal_proc_invalidates_its_caller_target() {
+        let module = lower_module(
+            "proc far {name} {upvar 1 $name v; set v 2; return ok}\n\
+             interp alias {} via {} far x\n\
+             proc p {} {set x 1; set y [via]; return $x}",
+        );
+        let cfg = build_cfg(&module, false);
+        let p = cfg.procedures.get("::p").expect("::p CFG");
+        assert_eq!(find_call_with_def(p, "x"), Some("<upvar-invalidate>"));
+    }
+
+    #[test]
+    fn embedded_terminal_proc_honours_namespace_and_unknown_resolution() {
+        let namespace_module = lower_module(
+            "namespace eval ::a {\n\
+                 proc mutate {} {upvar 1 x v; set v 2; return ok}\n\
+                 proc p {} {set x 1; set y [mutate]; return $x}\n\
+             }\n\
+             namespace eval ::b {\n\
+                 proc mutate {} {upvar 1 y v; set v 3; return ok}\n\
+             }",
+        );
+        let namespace_cfg = build_cfg(&namespace_module, false);
+        let p = namespace_cfg.procedures.get("::a::p").expect("::a::p CFG");
+        assert_eq!(find_call_with_def(p, "x"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "y"), None);
+
+        let unknown_module = lower_module(
+            "proc unknown {name args} {upvar 1 $name v; set v 2; return ok}\n\
+             proc p {} {set missing 1; set y [missing]; return $missing}",
+        );
+        let unknown_cfg = build_cfg(&unknown_module, false);
+        let p = unknown_cfg.procedures.get("::p").expect("::p CFG");
+        assert_eq!(find_call_with_def(p, "missing"), Some("<upvar-invalidate>"));
     }
 
     #[test]

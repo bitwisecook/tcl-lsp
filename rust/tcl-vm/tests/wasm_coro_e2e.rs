@@ -114,22 +114,10 @@ fn have_wasm_target() -> bool {
 const LIB_RS: &str = r#"
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct Svc(CommandRegistry);
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(m) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(m));
-        }
-        let ir = lower_to_ir(src, &self.0);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
-    }
-}
+use tcl_vm::Vm;
 
 fn eval_int(script: &str) -> i32 {
     let reg = CommandRegistry::build_default();
@@ -137,7 +125,7 @@ fn eval_int(script: &str) -> i32 {
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &reg);
     let mut vm = Vm::with_output(Box::new(std::io::sink()));
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let comp = vm.run_module(&asm);
     comp.result.to_str().trim().parse::<i32>().unwrap_or(-1)
 }

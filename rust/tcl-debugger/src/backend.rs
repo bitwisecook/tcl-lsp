@@ -33,13 +33,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen_with_config;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
-use tcl_dialect::DialectProfile;
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, DebugAction, DebugSnapshot, Vm};
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_vm::{CompileService, DebugAction, DebugSnapshot, Vm};
 
 use crate::controller::DebugController;
 use crate::types::{StackFrame, StepMode, StopEvent, StopReason, Variable, VariableKind};
@@ -142,54 +137,7 @@ pub trait DebugBackend {
 /// `eval` / command substitution: the real Rust compiler pipeline, built from
 /// the one resolved [`DialectProfile`] the debugger VM emulates (issue #1462)
 /// so the compiler's grammar and registry match the runtime release.
-struct Svc {
-    registry: &'static CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    dialect: Option<&'static DialectProfile>,
-}
-
-impl Svc {
-    /// A compile service targeting `profile`'s grammar, registry, and dialect.
-    fn for_profile(profile: &'static DialectProfile) -> Self {
-        Self {
-            // The resolved environment's registry generation, through the
-            // one ingress seam — the same store the retired
-            // `registry_for_profile` published, shared by handle
-            // (centralisation row C2, ledger row B11).
-            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: Some(profile),
-        }
-    }
-}
-
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg_codegen_with_config(&ir, false, self.config);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile(src)
-    }
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg_codegen_with_config(&ir, false, self.config);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-    fn compile_traced_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile_traced(src)
-    }
-}
+type Svc = BytecodeCompileService;
 
 /// The native record-and-replay VM backend.
 #[derive(Default)]

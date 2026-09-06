@@ -100,12 +100,7 @@ fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
 /// `ProcEscapeSummary`.
 fn cfg_result(src: &str) -> CfgEscapeResult {
     let m = lower_to_ir(src, registry());
-    let cfg = build_cfg_function(
-        "::top",
-        &m.top_level,
-        true,
-        tcl_lexer::LexerConfig::default(),
-    );
+    let cfg = build_cfg_function("::top", &m.top_level, true, registry(), false);
     let ssa = build_ssa(&cfg, registry());
     analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
 }
@@ -464,18 +459,17 @@ fn cu_dynamic_set_name_spills_all_known_locals() {
 }
 
 #[test]
-fn cu_dynamic_set_name_resolved_to_literal_escapes_just_that_name() {
+fn cu_dynamic_set_name_resolved_to_literal_records_that_name_under_the_guard() {
     // tclsh: when the name var holds a known literal, only that target is
     // written:
     //   proc f {} { set target real; set $target 77; return $real }  -> 77
-    // The CFG walker's single-writer literal tracking resolves `$target` to
-    // `real`, so only `real` escapes — and the proc is NOT pessimistic.
+    // The CFG walker's single-writer literal tracking still resolves
+    // `$target` to `real`. The registry-owned source projection cannot use
+    // that later flow fact, so it also retains the conservative dynamic-name
+    // guard needed by consumers which do not run this lattice.
     let s = escape_cu("proc ::p {} { set target real\n set $target 99 }");
     let p = summary(&s, "::p");
-    assert!(
-        !p.dynamic_barrier(),
-        "a resolved dynamic set-name avoids the pessimistic spill"
-    );
+    assert!(p.dynamic_barrier(), "the source name remains opaque: {p:?}");
     assert!(p.is_frame("real"), "the resolved literal target escapes");
     assert!(ssa_frame(p, "real", 0), "real#0 escaped: {:?}", p.ssa_tags);
 }

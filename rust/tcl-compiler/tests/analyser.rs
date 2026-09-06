@@ -8303,13 +8303,14 @@ mod const_cmd_subst_set_rhs {
     #[test]
     fn a_self_class_chain_folds_inside_an_instance_method() {
         // TP — the ticklecharts idiom one level removed: `set ns
-        // [namespace qualifiers [self class]]` inside an instance method
-        // of `::tc::Chart` (issue #923 idx 44's full mechanic).
+        // [namespace qualifiers [self class]]` inside an instance method of
+        // `::tc::Chart`. Every registry dependency is exact, so the
+        // runtime-selected receiver namespace cannot change the fold.
         let src = concat!(
             "namespace eval tc { proc setdef {a b} { return 1 } }\n",
             "oo::class create ::tc::Chart {\n",
             "    method go {} {\n",
-            "        set ns [namespace qualifiers [self class]]\n",
+            "        ::set ns [::namespace qualifiers [::oo::Helpers::self class]]\n",
             "        ${ns}::setdef x y\n",
             "    }\n",
             "}\n",

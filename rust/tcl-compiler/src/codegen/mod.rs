@@ -45,7 +45,7 @@ pub mod values;
 pub mod wasm;
 
 pub use backend::{Backend, BytecodeBackend};
-pub use emitter::{codegen_function, codegen_module};
+pub use emitter::{codegen_function, codegen_module, codegen_module_with_command_mutations};
 // Bytecode artifact types moved to the `tcl-bytecode` crate; re-export them (and
 // the `layout`/`format` modules) so `crate::codegen::{Op, FunctionAsm, …}`,
 // `codegen::layout::*`, and `codegen::format::*` keep resolving for the emitter
@@ -53,7 +53,7 @@ pub use emitter::{codegen_function, codegen_module};
 pub use tcl_bytecode::*;
 pub use tcl_bytecode::{format, layout};
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
@@ -212,7 +212,7 @@ pub struct CodegenCtx<'r> {
     /// appends. Set at the top of each statement / terminator emission and
     /// reset to `None` for synthetic per-block instructions, so each op's
     /// `source_span` reflects the construct it actually came from.
-    pub current_span: Option<Span>,
+    current_span: Option<Span>,
     /// Command registry consulted by registry-driven codegen hooks.
     ///
     /// Threaded in by the caller so dialect-loaded specs (iRules,
@@ -220,8 +220,12 @@ pub struct CodegenCtx<'r> {
     /// lifetime of the context — codegen runs synchronously and the
     /// caller already holds the registry that lowering used.
     pub registry: &'r CommandRegistry,
-    /// Whole-module command-binding summary — which command *names* still
-    /// denote their original builtin anywhere in this compilation unit
+    /// Rooted constructed namespace in which command heads emitted directly
+    /// by codegen resolve. IR-carried bindings retain their own source-site
+    /// namespace and are never rewritten to this value.
+    resolution_namespace: String,
+    /// Whole-module command-mutation summary — which command *names* may stop
+    /// denoting their original builtin anywhere in this compilation unit
     /// (issue #1585).
     ///
     /// C Tcl inline-compiles a builtin unconditionally but guards every
@@ -229,9 +233,11 @@ pub struct CodegenCtx<'r> {
     /// way once `iPtr->compileEpoch` moves — so `rename dict {}` earlier in
     /// the file makes the *compiled* `dict create` call fall back and raise
     /// `invalid command name "dict"` (tclExecute.c, `instStartCmdFailed`).
-    /// This compiler emits no epoch guard, so the same protection has to be
-    /// static: a fold or a specialised emission is only sound for a name no
-    /// body in the unit `rename`s, `interp alias`es, or shadows with a proc.
+    /// Compiled artifacts now carry the equivalent typed binding requirements
+    /// and source boundaries for runtime epoch revalidation. Fully consuming
+    /// transforms that have no independently replayable command boundary still
+    /// need this conservative static fact; entered-token specialisations retain
+    /// their exact binding and are revalidated when execution reaches them.
     ///
     /// `None` means the caller supplied **no whole-module view** — the
     /// hand-built emitter contexts in unit tests and the per-function
@@ -241,6 +247,11 @@ pub struct CodegenCtx<'r> {
     /// [`codegen_module`](crate::codegen::codegen_module), the whole-unit
     /// entry point every production pipeline uses, always supplies the scan.
     pub command_bindings: Option<&'r crate::command_binding::ModuleCommandMutations>,
+    /// Registry identities assumed by specialised operations emitted into this
+    /// function. The bytecode artifact carries these to the runtime.
+    pub command_binding_requirements: BTreeSet<tcl_runtime_api::CommandBindingIdentity>,
+    /// Suppress registry codegen hooks as well as lowering hooks.
+    pub plain_command_dispatch: bool,
     /// The module's original source text, indexed by `current_span` to recover
     /// each command's surface text for `errorInfo` (`while executing "…"`).
     /// Empty when the caller did not supply it (hand-built test contexts).
@@ -248,6 +259,15 @@ pub struct CodegenCtx<'r> {
     /// The lexer-owned line index for [`Self::source`]. Production module
     /// emission shares one Arc-backed index across every function context.
     line_index: Option<tcl_lexer::LineIndex>,
+    /// Whether [`Self::current_span`] denotes an executable Tcl command rather
+    /// than CFG control machinery such as a condition or body-edge jump.
+    /// Both need source ranges for diagnostics, but only a command supplies a
+    /// safe whole script for runtime command-table revalidation.
+    current_span_is_command: bool,
+    /// Unrooted constructed namespace paired with the current executable
+    /// command source site. This follows explicit IR binding sites across
+    /// inlining rather than inheriting the surrounding function's namespace.
+    current_command_namespace: String,
     /// Per-argument "is a braced (`{…}`) word" flags for the command currently
     /// dispatching to a codegen hook (`try_bytecoded`). Set by [`Self::emit_call`]
     /// from the command's tokens and consulted by [`Self::emit_word_arg`] so a
@@ -314,9 +334,14 @@ impl<'r> CodegenCtx<'r> {
             current_source_line: 0,
             current_span: None,
             registry,
+            resolution_namespace: "::".to_owned(),
             command_bindings: None,
+            command_binding_requirements: BTreeSet::new(),
+            plain_command_dispatch: false,
             source: "".into(),
             line_index: None,
+            current_span_is_command: false,
+            current_command_namespace: String::new(),
             cmd_arg_braced: Vec::new(),
         }
     }
@@ -354,6 +379,37 @@ impl<'r> CodegenCtx<'r> {
         tcl_lexer::LexerConfig::for_profile(self.registry.profile())
     }
 
+    /// Set the rooted constructed command-resolution namespace for direct
+    /// codegen specialisations in this function.
+    pub(crate) fn set_resolution_namespace(&mut self, namespace: &str) {
+        namespace.clone_into(&mut self.resolution_namespace);
+        Self::unrooted_namespace(namespace).clone_into(&mut self.current_command_namespace);
+    }
+
+    fn unrooted_namespace(namespace: &str) -> &str {
+        namespace.strip_prefix("::").unwrap_or(namespace)
+    }
+
+    /// Rooted constructed command-resolution namespace for direct codegen
+    /// specialisations in this function.
+    pub(crate) fn resolution_namespace(&self) -> &str {
+        &self.resolution_namespace
+    }
+
+    /// Construct the complete source-site identity for a direct codegen
+    /// specialisation.
+    pub(crate) fn command_binding_identity(
+        &self,
+        name: impl Into<String>,
+        identity: impl Into<String>,
+    ) -> tcl_runtime_api::CommandBindingIdentity {
+        tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+            &self.resolution_namespace,
+            name,
+            identity,
+        )
+    }
+
     /// Set the module source text (see [`Self::source`]) so emitted instructions
     /// carry their command's surface text for `errorInfo`.
     pub fn set_source(&mut self, source: &str) {
@@ -372,9 +428,31 @@ impl<'r> CodegenCtx<'r> {
         self.source = source;
     }
 
-    /// Whether `name` still denotes its original builtin everywhere in this
-    /// compilation unit, so a constant fold or a specialised inline emission
-    /// for it is sound (issue #1585).
+    /// Select the executable Tcl command whose source metadata subsequent
+    /// instructions inherit.
+    ///
+    /// A source span and its command/control ownership are one piece of
+    /// emitter state: updating only the span would retain the right line while
+    /// silently dropping the command text needed by `errorInfo` and runtime
+    /// command-table revalidation. Keep that invariant behind this method
+    /// rather than exposing the two fields independently.
+    pub fn set_command_source_span(&mut self, span: impl Into<Option<Span>>) {
+        self.current_span = span.into();
+        self.current_span_is_command = true;
+        self.current_command_namespace =
+            Self::unrooted_namespace(&self.resolution_namespace).to_owned();
+    }
+
+    /// Select compiler control which has a useful diagnostic span but is not
+    /// itself a replayable Tcl command (for example, a CFG branch condition).
+    pub(crate) fn set_control_source_span(&mut self, span: Option<Span>) {
+        self.current_span = span;
+        self.current_span_is_command = false;
+        self.current_command_namespace.clear();
+    }
+
+    /// Whether `name` is free of whole-unit mutation, for transforms that have
+    /// no independently replayable command boundary (issue #1585).
     ///
     /// Answers from the whole-module [`Self::command_bindings`] summary — a
     /// flow-**insensitive** scan on purpose: a `rename` buried in a proc body
@@ -384,6 +462,160 @@ impl<'r> CodegenCtx<'r> {
     #[must_use]
     pub fn trusts_builtin(&self, name: &str) -> bool {
         self.command_bindings.is_none_or(|m| m.trusts(name))
+    }
+
+    /// Record one source binding relied on by specialised emission.
+    pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+        self.command_binding_requirements.insert(binding.clone());
+        self.current_command_namespace
+            .clone_from(&binding.resolution_namespace);
+    }
+
+    /// Resolve a registry-described lowering specialisation for an inline
+    /// emitter which operates below the normal IR lowering boundary.
+    ///
+    /// The returned identity is the dependency the caller must retain if it
+    /// consumes the command head. Keeping the proof and its identity together
+    /// prevents ad-hoc nested-body emitters from specialising on a raw command
+    /// name without participating in runtime command-table revalidation.
+    pub(crate) fn inline_lowering_hook(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> Option<(
+        tcl_registry::hooks::LoweringHookId,
+        tcl_runtime_api::CommandBindingIdentity,
+    )> {
+        if self.plain_command_dispatch || !self.trusts_builtin(command) {
+            return None;
+        }
+        let resolved =
+            self.registry
+                .resolve_call(command, args, self.registry.own_surface_query())?;
+        if resolved.spec.name != command {
+            return None;
+        }
+        Some((
+            resolved.lowering_hook?,
+            self.command_binding_identity(command, resolved.spec.name),
+        ))
+    }
+
+    /// Clear source ownership before emitting compiler-generated block
+    /// machinery. A later `START_CMD` remains a non-boundary until its exact
+    /// owning Tcl command is supplied explicitly.
+    pub(crate) fn clear_source_site(&mut self) {
+        self.set_control_source_span(None);
+    }
+
+    /// Select the explicit structured-command owner for a synthetic runtime
+    /// boundary. No site means the marker is compiler control only and must not
+    /// be used for plain-dispatch replay.
+    pub(crate) fn set_command_boundary_site(
+        &mut self,
+        site: Option<&crate::ir::CommandBindingSite>,
+    ) {
+        self.clear_source_site();
+        if let Some(site) = site {
+            self.set_command_source_span(site.span);
+            self.current_command_namespace
+                .clone_from(&site.binding.resolution_namespace);
+            if !self.plain_command_dispatch {
+                self.require_command_binding(&site.binding);
+            }
+        }
+    }
+
+    /// Restamp an already-emitted synthetic `START_CMD` with its explicit
+    /// structured owner without changing the source metadata of the wrapped
+    /// clause instructions.
+    pub(crate) fn stamp_command_boundary(
+        &mut self,
+        instruction: usize,
+        site: Option<&crate::ir::CommandBindingSite>,
+    ) {
+        let (span, text, line) = site.map_or((None, String::new(), 0), |site| {
+            if !self.plain_command_dispatch {
+                self.require_command_binding(&site.binding);
+            }
+            (
+                Some(site.span),
+                self.source_text(site.span),
+                self.source_line(site.span),
+            )
+        });
+        if let Some(instr) = self.instructions.get_mut(instruction) {
+            instr.source_span = span;
+            instr.source_cmd_text = text;
+            instr.source_line = line;
+            instr.source_command_namespace = site
+                .map(|site| site.binding.resolution_namespace.clone())
+                .unwrap_or_default();
+            instr.source_command_boundary = site.is_some().into();
+        }
+    }
+
+    /// Give every synthetic `START_CMD` just emitted for an inline body command
+    /// its exact replay text, without overwriting a more deeply nested command
+    /// boundary that was already restamped while those instructions were
+    /// produced.
+    ///
+    /// The absolute module span stays inherited from the enclosing construct:
+    /// debugger and explorer consumers index the module source with it. Runtime
+    /// replay reads the explicit command text and local continuation carried by
+    /// `START_CMD`, so this helper updates only those replay-owned fields.
+    pub(crate) fn restamp_emitted_inline_command_boundaries(
+        &mut self,
+        start: usize,
+        text: &str,
+        line: u32,
+    ) {
+        let enclosing_span = self.current_span;
+        let enclosing_text = self.command_span_text();
+        let enclosing_line = self.span_line();
+        for instruction in self.instructions.iter_mut().skip(start) {
+            if instruction.op == Op::START_CMD
+                && instruction.source_span == enclosing_span
+                && instruction.source_cmd_text == enclosing_text
+                && instruction.source_line == enclosing_line
+            {
+                text.clone_into(&mut instruction.source_cmd_text);
+                instruction.source_line = line;
+                // This START_CMD is a nested inline replay point, not the
+                // boundary of the enclosing IR/source command used to locate
+                // that outer command's continuation.
+                instruction.source_command_boundary = SourceCommandBoundary::InlineReplay;
+            }
+        }
+    }
+
+    /// Begin an executable boundary for an inline command whose specialised
+    /// instructions consume the invocation completely.
+    ///
+    /// Most inline command substitutions pass through `emit_cmd_word`, which
+    /// already retains a nested `START_CMD`. A compile-time constant fold is
+    /// different: it replaces the entire invocation with a literal push, so
+    /// without this boundary a command-table mutation in an earlier argument
+    /// of the same active command can leave the later fold executing stale
+    /// semantics. The explicit source text lets the VM replay ordinary Tcl
+    /// dispatch and resume after the stale folded instructions.
+    ///
+    /// This is a nested boundary, not a new source-command owner. Its absolute
+    /// span/line continue to identify the enclosing command for diagnostics,
+    /// while `source_cmd_text` is the exact bracket interior to replay.
+    pub(crate) fn begin_consumed_inline_command(&mut self, text: &str) -> String {
+        let end = self.fresh_label("inline_cmd_end");
+        let start = self.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(end.clone()), Operand::Imm(1)],
+            "",
+        );
+        if let Some(instruction) = self.instructions.get_mut(start) {
+            text.clone_into(&mut instruction.source_cmd_text);
+            instruction.source_command_boundary = SourceCommandBoundary::InlineReplay;
+        }
+        self.cmd_index += 1;
+        end
     }
 
     /// The surface text of the construct at `current_span`, for `errorInfo`.
@@ -406,6 +638,16 @@ impl<'r> CodegenCtx<'r> {
                 self.source.get(s..e).unwrap_or("").to_string()
             }
             None => String::new(),
+        }
+    }
+
+    /// The whole Tcl command represented by [`Self::current_span`], or empty
+    /// when the span belongs only to compiler-generated control machinery.
+    fn command_span_text(&self) -> String {
+        if self.current_span_is_command {
+            self.span_text()
+        } else {
+            String::new()
         }
     }
 
@@ -453,8 +695,15 @@ impl<'r> CodegenCtx<'r> {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         instr.source_span = self.current_span;
-        instr.source_cmd_text = self.span_text();
+        instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        if !instr.source_cmd_text.is_empty() {
+            instr
+                .source_command_namespace
+                .clone_from(&self.current_command_namespace);
+        }
+        instr.source_command_boundary =
+            (op == Op::START_CMD && !instr.source_cmd_text.is_empty()).into();
         self.instructions.push(instr);
         idx
     }
@@ -465,8 +714,15 @@ impl<'r> CodegenCtx<'r> {
         let mut instr = Instruction::new(op, operands);
         comment.clone_into(&mut instr.comment);
         instr.source_span = self.current_span;
-        instr.source_cmd_text = self.span_text();
+        instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        if !instr.source_cmd_text.is_empty() {
+            instr
+                .source_command_namespace
+                .clone_from(&self.current_command_namespace);
+        }
+        instr.source_command_boundary =
+            (op == Op::START_CMD && !instr.source_cmd_text.is_empty()).into();
         self.instructions.push(instr);
         idx
     }
@@ -501,6 +757,9 @@ impl<'r> CodegenCtx<'r> {
             body_base_line: 0,
             proc_body_src: None,
             error_regions: Vec::new(),
+            plain_command_dispatch: self.plain_command_dispatch,
+            command_bindings: self.command_binding_requirements.into_iter().collect(),
+            procedure_bindings: Vec::new(),
         }
     }
 }

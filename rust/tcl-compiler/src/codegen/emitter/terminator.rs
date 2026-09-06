@@ -44,7 +44,12 @@ impl CodegenCtx<'_> {
     pub fn emit_term(&mut self, cfg: &CfgFunction, term: &Terminator, next_block: Option<&str>) {
         // Carry the terminator's source span (jump condition / return
         // value) onto the instructions it lowers to, when one exists.
-        self.current_span = term.span();
+        let is_command = matches!(term, Terminator::Return { .. });
+        if is_command {
+            self.set_command_source_span(term.span());
+        } else {
+            self.set_control_source_span(term.span());
+        }
         match term {
             Terminator::Goto { target, .. } => {
                 let target = cfg.block_name(*target);
@@ -192,7 +197,7 @@ impl CodegenCtx<'_> {
             unreachable!("emit_proc_return called with non-Return terminator");
         };
         // Stamp the return's source span onto its instructions.
-        self.current_span = term.span();
+        self.set_command_source_span(term.span());
         let val = value.as_deref().unwrap_or("");
         // The *whole* value must be one balanced `[…]`: the inline emitter
         // strips the outer brackets and word-splits what is left, so a value

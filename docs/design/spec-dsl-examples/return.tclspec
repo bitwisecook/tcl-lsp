@@ -14,7 +14,7 @@
 # set, per-value completion codes, and three dialect-gated `form` rows for
 # one command.
 
-speclib tcl 1.1 {
+speclib tcl 2.1 {
 
 # `-code`'s five symbolic completion codes, each paired with its canonical
 # integer equivalent (`return -code error …` ≡ `return -code 1 …`).  A
@@ -59,6 +59,7 @@ command return {
         if {[string index [lindex $words 0] 0] eq "-"} return
         role 0 Result
     }
+    arg_role_resolver_roles {Result}
 
     # F5 return(1): directly inside a `when EVENT { … }` body, `return` takes
     # no arguments.  A proc — even one defined inside the same `ltm rule` —

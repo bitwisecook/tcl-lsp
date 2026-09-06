@@ -821,14 +821,17 @@ fn emit_value_list_expand_concat_and_folds() {
     //   * `[dict create k v]` constant-folds to a verified-dict literal push.
     let dict = value_ops(false, &[], "[dict create k v]", false);
     assert!(
-        dict.contains(&Op::VERIFY_DICT) && dict.first() == Some(&Op::PUSH1),
-        "dict create fold → push + verifyDict: {dict:?}",
+        dict.first() == Some(&Op::START_CMD)
+            && dict.contains(&Op::PUSH1)
+            && dict.contains(&Op::DUP)
+            && dict.contains(&Op::VERIFY_DICT),
+        "dict create fold → replay boundary + push + verifyDict: {dict:?}",
     );
     // tclsh: dict create k v → "k v"  (8.6 + 9.0) — the folded dict literal.
-    //   * `[format {%s} hi]` constant-folds to a single literal push.
+    //   * `[format {%s} hi]` constant-folds behind its replay boundary.
     assert_eq!(
         value_ops(false, &[], "[format {%s} hi]", false),
-        vec![Op::PUSH1]
+        vec![Op::START_CMD, Op::PUSH1]
     );
     // tclsh: format {%s} hi → hi  (8.6 + 9.0)
 }
@@ -865,9 +868,9 @@ fn emit_cmd_subst_arg_composite_and_special_forms() {
         arg_ops(true, &["opt"], "$opt*", false),
         vec![Op::LOAD_SCALAR1, Op::PUSH1, Op::STR_CONCAT1],
     );
-    // A braced arg carrying substitution markers (`{$x}`) is re-wrapped and
-    // pushed as a single literal (braces suppress substitution).
-    assert_eq!(arg_ops(true, &[], "{$x}", true), vec![Op::PUSH1]);
+    // A parsed braced arg carrying substitution markers has already lost its
+    // grouping braces; it is pushed once on the verbatim literal path.
+    assert_eq!(arg_ops(true, &[], "$x", true), vec![Op::PUSH1]);
     // `$={n}` is literal user text, not a marker: `$` before `=` is not a
     // substitution trigger in any release, so the whole word is pushed
     // (issue #1617). It used to load the variable `n`.
@@ -896,17 +899,21 @@ fn self_class_folds_to_the_lexically_enclosing_class() {
     // TP. Oracle: `oo::class create ::A { method m {} { self class } }` then
     // `[::A new] m` -> ::A.
     assert_eq!(
-        o129("oo::class create ::A {\n    method m {} { puts [self class] }\n}\n"),
+        o129("oo::class create ::A {\n    method m {} { ::puts [::oo::Helpers::self class] }\n}\n"),
         vec!["::A".to_string()],
     );
     // TP, the `return` shape — the whole statement is the rewrite target.
     assert_eq!(
-        o129("oo::class create ::A {\n    method m {} { return [self class] }\n}\n"),
+        o129(
+            "oo::class create ::A {\n    method m {} { ::return [::oo::Helpers::self class] }\n}\n"
+        ),
         vec!["return ::A".to_string()],
     );
     // TP, the `set` value position.
     assert_eq!(
-        o129("oo::class create ::A {\n    method m {} { set c [self class]\n    puts $c }\n}\n"),
+        o129(
+            "oo::class create ::A {\n    method m {} { ::set c [::oo::Helpers::self class]\n    ::puts $c }\n}\n"
+        ),
         vec!["::A".to_string()],
     );
 }
@@ -917,7 +924,9 @@ fn self_class_folds_through_every_class_defining_shape() {
     // `oo::define ::B { method n {} { self class } }` -> ::B, even for a
     // subclass whose inherited method still answers with ::A.
     assert_eq!(
-        o129("oo::class create ::B {}\noo::define ::B { method n {} { puts [self class] } }\n"),
+        o129(
+            "oo::class create ::B {}\noo::define ::B { method n {} { ::puts [::oo::Helpers::self class] } }\n"
+        ),
         vec!["::B".to_string()],
     );
     // TP. A relative class name inside `namespace eval` resolves the same way
@@ -925,7 +934,7 @@ fn self_class_folds_through_every_class_defining_shape() {
     // `[::N::C new] m` -> ::N::C.
     assert_eq!(
         o129(
-            "namespace eval ::N {\n    oo::class create C { method m {} { puts [self class] } }\n}\n"
+            "namespace eval ::N {\n    oo::class create C { method m {} { ::puts [::oo::Helpers::self class] } }\n}\n"
         ),
         vec!["::N::C".to_string()],
     );
@@ -933,7 +942,7 @@ fn self_class_folds_through_every_class_defining_shape() {
     // — oracle: both report ::E.
     assert_eq!(
         o129(
-            "oo::class create ::E {\n    constructor {} { puts [self class] }\n    destructor { puts [self class] }\n}\n"
+            "oo::class create ::E {\n    constructor {} { ::puts [::oo::Helpers::self class] }\n    destructor { ::puts [::oo::Helpers::self class] }\n}\n"
         ),
         vec!["::E".to_string(), "::E".to_string()],
     );
@@ -943,7 +952,7 @@ fn self_class_folds_through_every_class_defining_shape() {
 fn self_class_folds_inside_nested_bodies() {
     // TP. The method-body walk recurses through control-flow bodies.
     let r = o129(
-        "oo::class create ::A {\n    method m {} {\n        if {1} { puts [self class] }\n        foreach x {1 2} { puts [self class] }\n        while {0} { puts [self class] }\n    }\n}\n",
+        "oo::class create ::A {\n    method m {} {\n        ::if {1} { ::puts [::oo::Helpers::self class] }\n        ::foreach x {1 2} { ::puts [::oo::Helpers::self class] }\n        ::while {0} { ::puts [::oo::Helpers::self class] }\n    }\n}\n",
     );
     assert_eq!(r, vec!["::A".to_string(); 3], "got {r:?}");
 }
@@ -1046,14 +1055,13 @@ fn a_dynamic_class_name_leaves_self_class_alone() {
 }
 
 #[test]
-fn folding_self_class_does_not_disturb_the_rest_of_the_method_body() {
-    // Blast-radius guard. The method-body walk carries no constants map, so it
-    // introduces no variable propagation inside a method — an instance
-    // variable is object state that outlives the frame and any `my …` call may
-    // rewrite it, which the per-function SCCP lattice does not model. Only the
-    // frame-constant fold fires here.
-    let src = "oo::class create ::A {\n    variable ivar\n    method m {} {\n        set ivar 1\n        my other\n        puts $ivar\n        puts [self class]\n    }\n    method other {} { set ivar 2 }\n}\n";
-    assert_eq!(o129(src), vec!["::A".to_string()]);
+fn runtime_selected_my_abstains_from_the_entire_method_body() {
+    // A receiver-local command can shadow bare `my`, so the lexical TclOO
+    // fallback cannot justify either the frame-constant fold or variable
+    // propagation. Exact core/helper spellings around that dispatch do not
+    // weaken the runtime-selected dependency.
+    let src = "oo::class create ::A {\n    variable ivar\n    method m {} {\n        ::set ivar 1\n        my other\n        ::puts $ivar\n        ::puts [::oo::Helpers::self class]\n    }\n    method other {} { ::set ivar 2 }\n}\n";
+    assert!(o129(src).is_empty());
     // No `$ivar` was propagated to a literal `1` anywhere.
     assert!(
         !opts(src).iter().any(|o| o.replacement == "1"),
@@ -1083,7 +1091,7 @@ fn namespace_qualifiers_and_tail_fold_over_the_self_class_frame_constant() {
     //   namespace qualifiers ::ticklecharts::Gauge -> ::ticklecharts
     assert_eq!(
         o129(
-            "oo::class create ::ticklecharts::Gauge {\n    method m {} { set ns [namespace qualifiers [self class]] }\n}\n"
+            "oo::class create ::ticklecharts::Gauge {\n    method m {} { ::set ns [::namespace qualifiers [::oo::Helpers::self class]] }\n}\n"
         ),
         vec!["::ticklecharts".to_string()],
     );
@@ -1091,7 +1099,7 @@ fn namespace_qualifiers_and_tail_fold_over_the_self_class_frame_constant() {
     //   namespace tail ::ticklecharts::Gauge -> Gauge
     assert_eq!(
         o129(
-            "oo::class create ::ticklecharts::Gauge {\n    method m {} { set n [namespace tail [self class]] }\n}\n"
+            "oo::class create ::ticklecharts::Gauge {\n    method m {} { ::set n [::namespace tail [::oo::Helpers::self class]] }\n}\n"
         ),
         vec!["Gauge".to_string()],
     );
@@ -1134,7 +1142,7 @@ fn method_local_variable_propagates_into_the_fold_chain() {
     // method-body walk carried no constants map at all, so this folded
     // nothing.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        set base ::ticklecharts::Gauge\n        set ns [namespace qualifiers $base]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::set base ::ticklecharts::Gauge\n        ::set ns [::namespace qualifiers $base]\n    }\n}\n",
     );
     assert!(
         r.contains(&"::ticklecharts".to_string()),
@@ -1143,13 +1151,13 @@ fn method_local_variable_propagates_into_the_fold_chain() {
     // TP — the same for a `[string …]` fold over a method-local, the other
     // example issue #1097 lists.
     let r = o129(
-        "oo::class create ::A {\n    method m {} {\n        set s abcde\n        puts [string length $s]\n    }\n}\n",
+        "oo::class create ::A {\n    method m {} {\n        ::set s abcde\n        ::puts [::string length $s]\n    }\n}\n",
     );
     assert!(r.contains(&"5".to_string()), "got {r:?}");
     // TP — plain `$var` propagation inside a method body (O100), the other
     // half of what #1097 switched on.
     let r = repls(
-        "oo::class create ::A {\n    method m {} {\n        set v 42\n        puts $v\n    }\n}\n",
+        "oo::class create ::A {\n    method m {} {\n        ::set v 42\n        ::puts $v\n    }\n}\n",
         "O100",
     );
     assert_eq!(r, vec!["42".to_string()], "got {r:?}");
@@ -1163,7 +1171,7 @@ fn an_instance_variable_never_propagates_inside_a_method_body() {
     // frame-constant `[self class]` still folds (it reads no variable), but
     // the `[namespace qualifiers $ns]` hop must not.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    variable ns\n    method m {} {\n        set ns [self class]\n        set q [namespace qualifiers $ns]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    variable ns\n    method m {} {\n        ::set ns [::oo::Helpers::self class]\n        ::set q [::namespace qualifiers $ns]\n    }\n}\n",
     );
     assert_eq!(
         r,
@@ -1172,19 +1180,19 @@ fn an_instance_variable_never_propagates_inside_a_method_body() {
     );
     // TN — the same via a method-local `my variable` declaration.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        my variable ns\n        set ns [self class]\n        set q [namespace qualifiers $ns]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        my variable ns\n        ::set ns [::oo::Helpers::self class]\n        ::set q [::namespace qualifiers $ns]\n    }\n}\n",
     );
     assert_eq!(
         r,
-        vec!["::ticklecharts::Gauge".to_string()],
-        "a `my variable` alias must bar propagation, got {r:?}",
+        Vec::<String>::new(),
+        "bare `my` is runtime-selected, so the whole method must abstain, got {r:?}",
     );
     // TN — plain O100 `$var` propagation must not touch object state
     // either: `my bump` can rewrite `n` between the write and the read, which
     // is exactly the miscompile issue #1097 opens with.
     assert!(
         repls(
-            "oo::class create ::C {\n    variable n\n    method bump {} { incr n }\n    method m {} {\n        set n 1\n        my bump\n        puts $n\n    }\n}\n",
+            "oo::class create ::C {\n    variable n\n    method bump {} { ::incr n }\n    method m {} {\n        ::set n 1\n        my bump\n        ::puts $n\n    }\n}\n",
             "O100",
         )
         .is_empty(),
@@ -1192,7 +1200,7 @@ fn an_instance_variable_never_propagates_inside_a_method_body() {
     );
     // TN — an ordinary `variable` declaration inside the body.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        variable ns\n        set ns [self class]\n        set q [namespace qualifiers $ns]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::variable ns\n        ::set ns [::oo::Helpers::self class]\n        ::set q [::namespace qualifiers $ns]\n    }\n}\n",
     );
     assert_eq!(
         r,
@@ -1202,19 +1210,18 @@ fn an_instance_variable_never_propagates_inside_a_method_body() {
 }
 
 #[test]
-fn a_method_that_can_reach_its_caller_frame_bars_method_local_propagation() {
-    // TN (#1097's barrier). `helper` aliases its *caller's* local `base`, and
-    // it is reached by `my helper` — a dispatch the CFG's upvar-callee table
-    // cannot see, because the call does not name it.  So no method body's
-    // locals may be propagated in this module.  The frame constant still
-    // folds: it reads no variable.
+fn runtime_selected_my_abstains_when_the_target_can_reach_its_caller_frame() {
+    // Bare `my` is resolved in the receiver namespace and can be shadowed by
+    // an arbitrary command. Even though the lexical target also reaches its
+    // caller frame, no deep fact—including the independent frame constant—may
+    // be derived from that incomplete command surface.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    method helper {} { upvar 1 base b\n        set b ::hijacked }\n    method m {} {\n        set base [self class]\n        my helper\n        set ns [namespace qualifiers $base]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    method helper {} { ::upvar 1 base b\n        ::set b ::hijacked }\n    method m {} {\n        ::set base [::oo::Helpers::self class]\n        my helper\n        ::set ns [::namespace qualifiers $base]\n    }\n}\n",
     );
     assert_eq!(
         r,
-        vec!["::ticklecharts::Gauge".to_string()],
-        "a caller-frame-reaching method must bar propagation, got {r:?}",
+        Vec::<String>::new(),
+        "runtime-selected dispatch must guard the method, got {r:?}",
     );
 }
 
@@ -1286,12 +1293,12 @@ fn a_redefined_method_bars_propagation() {
 #[test]
 fn a_benign_redefinition_no_longer_bars_propagation() {
     // TP (issue #1166's precision win): every retained body of the
-    // redefined `helper` is caller-frame-clean, so method-local
-    // propagation stays on — the union of bodies over-approximates
-    // whichever is live at dispatch time, and none of them can touch
-    // `m`'s locals.  Oracle (tclsh 9.0.4): `[D create d1] m` prints `1`
-    // whichever helper body is live.
-    let src = "oo::class create D {\n    method helper {} { return a }\n    method m {} { set x 1\n        my helper\n        puts $x }\n}\noo::define D { method helper {} { return b } }\n";
+    // redefined `helper` is caller-frame-clean, so its presence does not
+    // impose a class-wide barrier on an exact, dispatch-free sibling method.
+    // The formerly-used bare `my` is intentionally absent: it is resolved in
+    // the receiver namespace and therefore has an independent reason to make
+    // that calling method abstain.
+    let src = "oo::class create D {\n    method helper {} { ::return a }\n    method m {} { ::set x 1\n        ::puts $x }\n}\noo::define D { method helper {} { ::return b } }\n";
     let r = o100(src);
     assert!(
         r.contains(&"1".to_string()),
@@ -1371,7 +1378,7 @@ fn sccp_closes_the_two_hop_self_class_chain_in_a_method() {
     // `[self class]` used to be a *suggestion*, so `base` was never a
     // lattice constant and the second hop never folded.  With the lattice
     // fold (issue #1134) both hops fold and the `$ns` use propagates.
-    let src = "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        set base [self class]\n        set ns [namespace qualifiers $base]\n        puts $ns\n    }\n}\n";
+    let src = "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::set base [::oo::Helpers::self class]\n        ::set ns [::namespace qualifiers $base]\n        ::puts $ns\n    }\n}\n";
     let r = o100(src);
     assert!(
         r.contains(&"::ticklecharts".to_string()),
@@ -1452,10 +1459,11 @@ fn sccp_lattice_fold_stays_out_of_class_side_frames() {
 fn an_unrelated_class_keeps_propagation_despite_a_classvar_helper_elsewhere() {
     // TP — the classvar idiom: `::Util::cv` reaches its caller's frame, so
     // methods hierarchy-related to `::Util` are barred. `::Plain` is
-    // unrelated — no superclass/mixin connects them — and its own
-    // dispatches (`my getv`) stay inside its own component, so its
-    // method-local constant still propagates.
-    let src = "oo::class create ::Util {\n    method cv {name} { upvar 2 $name v\n        set v 0 }\n    method use {} { set a 5\n        my cv a\n        puts $a }\n}\noo::class create ::Plain {\n    method getv {} { return g }\n    method m {} { set v 42\n        my getv\n        puts $v }\n}\n";
+    // unrelated — no superclass/mixin connects them — and its dispatch-free,
+    // exact-command method keeps its local constant. The dynamic receiver in
+    // `use` supplies the bad component's barrier without introducing an
+    // independently runtime-selected literal command head.
+    let src = "oo::class create ::Util {\n    method cv {name} { ::upvar 2 $name v\n        ::set v 0 }\n    method use {obj} { ::set a 5\n        $obj cv a\n        ::puts $a }\n}\noo::class create ::Plain {\n    method getv {} { ::return g }\n    method m {} { ::set v 42\n        ::puts $v }\n}\n";
     let r = o100(src);
     assert!(
         r.contains(&"42".to_string()),
@@ -1510,7 +1518,7 @@ fn a_proc_mediated_dispatch_bars_the_calling_method() {
 fn a_class_command_dispatch_reaches_that_component() {
     // FP guard — `::Util create u` dispatches ::Util's constructor, whose
     // component contains the bad helper; the creating method is barred.
-    let src = "oo::class create ::Util {\n    constructor {} { upvar 2 x v\n        set v 0 }\n}\noo::class create ::Plain {\n    method m {} { set x 3\n        ::Util create u\n        puts $x }\n}\n";
+    let src = "oo::class create ::Util {\n    constructor {} { ::upvar 2 x v\n        ::set v 0 }\n}\noo::class create ::Plain {\n    method m {} { ::set x 3\n        ::Util create u\n        ::puts $x }\n}\n";
     assert!(
         !o100(src).contains(&"3".to_string()),
         "a class-command dispatch must reach the bad component, got {:?}",
@@ -1518,7 +1526,7 @@ fn a_class_command_dispatch_reaches_that_component() {
     );
     // TN — and a method of ::Plain that performs NO dispatch at all keeps
     // its locals even in the same module.
-    let with_quiet = "oo::class create ::Util {\n    method cv {n} { upvar 1 $n v\n        set v 0 }\n}\noo::class create ::Plain {\n    method quiet {} { set y 9\n        puts $y }\n}\n";
+    let with_quiet = "oo::class create ::Util {\n    method cv {n} { ::upvar 1 $n v\n        ::set v 0 }\n}\noo::class create ::Plain {\n    method quiet {} { ::set y 9\n        ::puts $y }\n}\n";
     assert!(
         o100(with_quiet).contains(&"9".to_string()),
         "a dispatch-free method is never barred, got {:?}",
@@ -1530,8 +1538,9 @@ fn a_class_command_dispatch_reaches_that_component() {
 fn a_namespace_alias_is_not_a_caller_frame_alias() {
     // TN for the widening itself — the barrier must not swallow every module.
     // `global` / `variable` / `namespace upvar` reach a *namespace*, not the
-    // caller's locals, so a class using them still propagates its own locals.
-    let src = "oo::class create F {\n    method helper {} { global g\n        variable v\n        namespace upvar ::ns n n\n        set g 1 }\n    method m {} { set s abcde\n        my helper\n        puts [string length $s] }\n}\n";
+    // caller's locals, so an exact call to a procedure using them does not
+    // block propagation of a method's own locals.
+    let src = "proc ::helper {} { ::global g\n    ::variable v\n    ::namespace upvar ::ns n n\n    ::set g 1 }\noo::class create F {\n    method m {} { ::set s abcde\n        ::helper\n        ::puts [::string length $s] }\n}\n";
     let r = repls(src, "O129");
     assert!(
         r.contains(&"5".to_string()),

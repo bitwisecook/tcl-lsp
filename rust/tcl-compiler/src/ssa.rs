@@ -51,7 +51,7 @@ use tcl_registry::CommandRegistry;
 use crate::cfg::{self, BlockId};
 use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
-use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
+use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 /// SSA version number — each definition of a variable gets a unique version.
 pub type Version = u32;
@@ -780,7 +780,7 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
         Statement::Switch {
             default_body: Some(_),
             ..
-        } => crate::cfg_builder::switch_must_defines(stmt)
+        } => crate::cfg_builder::switch_must_defines(stmt, registry)
             .into_iter()
             .collect(),
         _ => Vec::new(),
@@ -1061,15 +1061,33 @@ pub(crate) fn build_dom_tree(
 /// starting from blocks where it is defined, propagate phi nodes to
 /// the dominance frontier until convergence.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn compute_phi_vars(
     func: &cfg::Function,
     df: &HashMap<BlockId, HashSet<BlockId>>,
     registry: &CommandRegistry,
     elems: &ArrayElems,
 ) -> HashMap<BlockId, HashSet<String>> {
+    compute_phi_vars_with_config(
+        func,
+        df,
+        registry,
+        elems,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
+}
+
+/// [`compute_phi_vars`] under the exact lexical policy that produced `func`.
+fn compute_phi_vars_with_config(
+    func: &cfg::Function,
+    df: &HashMap<BlockId, HashSet<BlockId>>,
+    registry: &CommandRegistry,
+    elems: &ArrayElems,
+    config: tcl_lexer::LexerConfig,
+) -> HashMap<BlockId, HashSet<String>> {
     let reachable = func.reachable_blocks();
     let (nonlocal_names, all_defsites) =
-        nonlocal_names_and_defsites(func, &reachable, registry, elems);
+        nonlocal_names_and_defsites(func, &reachable, registry, elems, config);
 
     // Semi-pruned SSA (Briggs et al. 1998): place phis only for *non-local*
     // (upward-exposed-use) names. A phi for a purely-local name has no reader,
@@ -1116,14 +1134,20 @@ pub(crate) fn compute_phi_vars(
 pub(crate) type ArrayElems = FxHashMap<String, BTreeSet<String>>;
 
 /// Collect every constant-keyed array element defined or read in `func`.
-fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> ArrayElems {
-    let grammar = registry_grammar(registry);
-    let mut scanner = VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: false,
-        element_qualified: true,
-    });
+fn collect_array_elems(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> ArrayElems {
+    let mut scanner = VarReferenceScanner::with_config(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: true,
+        },
+        config,
+    );
     let mut elems: ArrayElems = ArrayElems::default();
     let note = |name: &str, elems: &mut ArrayElems| {
         if let Some(open) = name.find('(') {
@@ -1144,7 +1168,7 @@ fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> Arra
         }
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in condition.vars_element_qualified_with_grammar(grammar) {
+                for u in condition.vars_element_qualified_with_config(scanner.lexer_config()) {
                     note(&u, &mut elems);
                 }
             }
@@ -1155,7 +1179,7 @@ fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> Arra
                     }
                 }
                 if let Some(e) = expr {
-                    for u in e.vars_element_qualified_with_grammar(grammar) {
+                    for u in e.vars_element_qualified_with_config(scanner.lexer_config()) {
                         note(&u, &mut elems);
                     }
                 }
@@ -1237,14 +1261,17 @@ fn nonlocal_names_and_defsites(
     reachable: &HashSet<BlockId>,
     registry: &CommandRegistry,
     elems: &ArrayElems,
+    config: tcl_lexer::LexerConfig,
 ) -> (FxHashSet<String>, FxHashMap<String, FxHashSet<BlockId>>) {
-    let mut scanner = VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: false,
-        element_qualified: true,
-    });
-    let grammar = registry_grammar(registry);
+    let mut scanner = VarReferenceScanner::with_config(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+            element_qualified: true,
+        },
+        config,
+    );
     let mut nonlocal_names: FxHashSet<String> = FxHashSet::default();
     let mut defsites: FxHashMap<String, FxHashSet<BlockId>> = FxHashMap::default();
 
@@ -1277,14 +1304,15 @@ fn nonlocal_names_and_defsites(
         let mut term_uses: Vec<String> = Vec::new();
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                term_uses.extend(condition.vars_element_qualified_with_grammar(grammar));
+                term_uses
+                    .extend(condition.vars_element_qualified_with_config(scanner.lexer_config()));
             }
             Some(cfg::Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value {
                     term_uses.extend(scanner.scan_word(v, registry));
                 }
                 if let Some(e) = expr {
-                    term_uses.extend(e.vars_element_qualified_with_grammar(grammar));
+                    term_uses.extend(e.vars_element_qualified_with_config(scanner.lexer_config()));
                 }
             }
             _ => {}
@@ -1488,9 +1516,7 @@ pub fn uses_of_classified(
 
     match stmt {
         Statement::ExprEval { expr, .. } => {
-            found
-                .substituted
-                .extend(expr_vars_for(scanner, expr, registry_grammar(registry)));
+            found.substituted.extend(expr_vars_for(scanner, expr));
         }
 
         Statement::AssignConst { .. }
@@ -1529,9 +1555,7 @@ pub fn uses_of_classified(
                 sink.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
-                found
-                    .substituted
-                    .extend(expr_vars_for(scanner, e, registry_grammar(registry)));
+                found.substituted.extend(expr_vars_for(scanner, e));
             }
         }
 
@@ -1692,48 +1716,49 @@ fn canonical_set_value<'a>(
 /// lowering captures: an `[expr {…}]` value is parsed as an expression (so a
 /// braced `$x`, which plain word scanning would miss, is seen); any other value
 /// word is scanned for `$`-substitutions, recursing into `[...]` command
-/// substitutions.
+/// substitutions. Alias-derived nested expression reads already retained in
+/// [`Statement::Call::reads`] complement this fallback; this path preserves
+/// the scanner's requested base/element qualification for direct registry
+/// spellings.
 fn set_value_reads(
     value: &str,
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> BTreeSet<String> {
     let trimmed = value.trim();
-    // The registry carries the environment's profile: the `[expr …]` interior
-    // is re-lexed, and its expression parsed, under the document's grammar.
+    // The registry carries the expression-language profile; the scanner owns
+    // the exact word lexer config used to recover the `[expr …]` interior.
     let profile = registry.profile();
     if let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']'))
-        && let Some((expr_arg, _)) = crate::lowering_hooks::extract_single_expr_arg_with_config(
-            inner,
-            &HashSet::new(),
-            tcl_lexer::LexerConfig::for_profile(profile),
-        )
+        && let Some((_, _, expr_arg, _)) =
+            crate::lowering_hooks::extract_single_expr_arg_with_config(
+                inner,
+                &crate::alias::CommandAliasMap::new(),
+                "::",
+                registry,
+                None,
+                scanner.lexer_config(),
+            )
     {
         let expr = crate::parse_expr_for_profile(&expr_arg, profile);
         return if scanner.element_qualified() {
-            expr.vars_element_qualified_with_grammar(registry_grammar(registry))
+            expr.vars_element_qualified_with_config(scanner.lexer_config())
                 .into_iter()
                 .collect()
         } else {
-            vars_in_expr(&expr, registry_grammar(registry))
+            expr.vars_with_config(scanner.lexer_config())
+                .into_iter()
+                .collect()
         };
     }
     scanner.scan_word(value, registry)
 }
 
 /// Variable reads of a [`Statement::Call`]: its head + non-body argument
-/// words, the explicit `VarRead`-role names (`reads`), a read-modify-write
-/// target (`reads_own_defs`), and — for an aliased / renamed `set` — its value
-/// word. Mirrors [`uses_in_assignment`]'s shape; extracted from [`uses_of`].
-///
-/// An aliased / renamed `set` (`interp alias {} myset {} set` / `rename set
-/// myset`) stays a runtime `Call` (codegen must not inline it — the binding may
-/// change by call time), but for def/use it reads its value word exactly as the
-/// un-aliased `set VAR VALUE` would: an `[expr {…}]` value is parsed as an
-/// expression so a braced `$x` is seen, and the target is a read-before-write
-/// whenever the value references it. Without this a loop-carried self-store
-/// (`myset x [expr {$x+1}]`) would look write-only, so no header phi would form
-/// and S102 could never fire on the aliased store.
+/// words, generic lowering-provided reads (`reads`), a read-modify-write
+/// target (`reads_own_defs`), and the ordinary direct-registry fallback for a
+/// `set`-style value word. Mirrors [`uses_in_assignment`]'s shape; extracted
+/// from [`uses_of`].
 fn uses_in_call(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
@@ -1837,7 +1862,7 @@ fn uses_in_assignment(
             expr,
             ..
         } => {
-            vars_found.extend(expr_vars_for(scanner, expr, registry_grammar(registry)));
+            vars_found.extend(expr_vars_for(scanner, expr));
             if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
@@ -1889,27 +1914,20 @@ fn uses_in_assignment(
     }
 }
 
-/// The document's lexer grammar, read off the registry's own resolved
-/// profile — the expression AST's `Raw` fallback text is re-lexed under it.
-fn registry_grammar(registry: &CommandRegistry) -> tcl_dialect::LexerGrammar {
-    registry
-        .profile()
-        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
-}
-
 /// The expression-AST variable reads, named per the scanner's qualification
 /// mode — element-qualified for the SSA build, base names otherwise.
 fn expr_vars_for(
     scanner: &VarReferenceScanner,
     expr: &crate::expr_ast::ExprNode,
-    grammar: tcl_dialect::LexerGrammar,
 ) -> BTreeSet<String> {
     if scanner.element_qualified() {
-        expr.vars_element_qualified_with_grammar(grammar)
+        expr.vars_element_qualified_with_config(scanner.lexer_config())
             .into_iter()
             .collect()
     } else {
-        vars_in_expr(expr, grammar)
+        expr.vars_with_config(scanner.lexer_config())
+            .into_iter()
+            .collect()
     }
 }
 
@@ -2265,7 +2283,7 @@ fn reads_in_stmt(
             for clause in clauses {
                 reads
                     .substituted
-                    .extend(vars_in_expr(&clause.condition, registry_grammar(registry)));
+                    .extend(expr_vars_for(scanner, &clause.condition));
                 reads.merge(reads_in_script(&clause.body, scanner, registry));
             }
             if let Some(eb) = else_body {
@@ -2275,9 +2293,7 @@ fn reads_in_stmt(
         Statement::While {
             condition, body, ..
         } => {
-            reads
-                .substituted
-                .extend(vars_in_expr(condition, registry_grammar(registry)));
+            reads.substituted.extend(expr_vars_for(scanner, condition));
             reads.merge(reads_in_script(body, scanner, registry));
         }
         Statement::For {
@@ -2288,9 +2304,7 @@ fn reads_in_stmt(
             ..
         } => {
             reads.merge(reads_in_script(init, scanner, registry));
-            reads
-                .substituted
-                .extend(vars_in_expr(condition, registry_grammar(registry)));
+            reads.substituted.extend(expr_vars_for(scanner, condition));
             reads.merge(reads_in_script(next, scanner, registry));
             reads.merge(reads_in_script(body, scanner, registry));
         }
@@ -2665,11 +2679,10 @@ fn intern_terminator_reads(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) {
-    let grammar = registry_grammar(registry);
     for block in func.blocks.values() {
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in condition.vars_element_qualified_with_grammar(grammar) {
+                for u in condition.vars_element_qualified_with_config(scanner.lexer_config()) {
                     interner.intern(&u);
                 }
             }
@@ -2680,7 +2693,7 @@ fn intern_terminator_reads(
                     }
                 }
                 if let Some(e) = expr {
-                    for u in e.vars_element_qualified_with_grammar(grammar) {
+                    for u in e.vars_element_qualified_with_config(scanner.lexer_config()) {
                         interner.intern(&u);
                     }
                 }
@@ -2762,7 +2775,7 @@ struct RenameWalk {
 }
 
 impl RenameWalk {
-    fn new(func: &cfg::Function) -> Self {
+    fn new(func: &cfg::Function, config: tcl_lexer::LexerConfig) -> Self {
         let mut out = RenameOutputs::default();
         for id in func.blocks.keys() {
             out.phi_versions.insert(*id, HashMap::new());
@@ -2774,12 +2787,15 @@ impl RenameWalk {
         Self {
             version_counter: HashMap::new(),
             stacks: HashMap::new(),
-            scanner: VarReferenceScanner::new(VarScanOptions {
-                include_var_read_roles: true,
-                recurse_cmd_substitutions: true,
-                include_reads_before_write: false,
-                element_qualified: true,
-            }),
+            scanner: VarReferenceScanner::with_config(
+                VarScanOptions {
+                    include_var_read_roles: true,
+                    recurse_cmd_substitutions: true,
+                    include_reads_before_write: false,
+                    element_qualified: true,
+                },
+                config,
+            ),
             interner: VarInterner::default(),
             out,
         }
@@ -2977,6 +2993,24 @@ impl RenameWalk {
 /// and use.
 #[must_use]
 pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
+    build_ssa_with_config(
+        func,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
+}
+
+/// Build SSA under the exact lexer configuration that produced `func`.
+///
+/// Unlike [`build_ssa`], this entry preserves environment-only grammar axes
+/// (notably `JimTcl`, which deliberately has no catalogue profile) and host
+/// overrides through phi placement, renaming, and terminator-read interning.
+#[must_use]
+pub fn build_ssa_with_config(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> SsaFunction {
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
     // SSA; the compilation-unit builder likewise produces a trivial analysis
@@ -3000,13 +3034,14 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     let idom = compute_idom_fast(func);
     let df = compute_dominance_frontier(func, &idom);
     let tree = build_dom_tree(&idom);
-    let elems = collect_array_elems(func, registry);
-    let phi_vars = compute_phi_vars(func, &df, registry, &elems);
+    let config = config.nested().normalized();
+    let elems = collect_array_elems(func, registry, config);
+    let phi_vars = compute_phi_vars_with_config(func, &df, registry, &elems, config);
 
     // 2. Set up rename state: the transient version stacks / counters, the
     // use-scanner, name interner, and per-block outputs (keyed by variable
     // name / version, interned to `Symbol` when blocks are assembled).
-    let mut walk = RenameWalk::new(func);
+    let mut walk = RenameWalk::new(func, config);
 
     // 3. Rename walk — iterative using an explicit stack to avoid
     //    deep recursion on large dominator trees.
@@ -3391,6 +3426,7 @@ mod tests {
             span: Span::new(0, 10),
             value: Some("1".into()),
             expr: None,
+            command_binding: None,
             braced: false,
         };
         assert!(defs_of(&stmt).is_empty());
@@ -3998,6 +4034,7 @@ mod tests {
             span: Span::new(0, 15),
             value: Some("$result".into()),
             expr: None,
+            command_binding: None,
             braced: false,
         };
         let uses = uses_of(&stmt, &mut scanner, &reg);
@@ -4010,6 +4047,7 @@ mod tests {
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let stmt = Statement::ExprEval {
             span: Span::new(0, 20),
+            command_binding: tcl_runtime_api::CommandBindingIdentity::new("expr", "expr"),
             expr: ExprNode::Binary {
                 op: crate::expr_ast::BinOp::Add,
                 left: Box::new(ExprNode::Var {
@@ -4160,6 +4198,7 @@ mod tests {
             span: Span::new(0, 15),
             value: Some("$y".into()),
             expr: None,
+            command_binding: None,
             braced: true,
         };
         assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
@@ -4568,6 +4607,77 @@ mod tests {
     }
 
     #[test]
+    fn exact_jim_config_places_and_versions_phi_for_expr_sugar_return() {
+        let reg = default_registry();
+        let mut func = diamond_cfg();
+        let (then, els, end) = (
+            id_of(&func, "then"),
+            id_of(&func, "else"),
+            id_of(&func, "end"),
+        );
+        for (block, value) in [(then, "1"), (els, "2")] {
+            func.blocks
+                .get_mut(&block)
+                .unwrap()
+                .statements
+                .push(Statement::AssignConst {
+                    span: Span::new(10, 20),
+                    name: "a".into(),
+                    name_braced: false,
+                    value: value.into(),
+                    value_span: None,
+                });
+        }
+        func.blocks.get_mut(&end).unwrap().terminator = Some(Terminator::Return {
+            value: Some("$($a)".into()),
+            span: None,
+            expr: None,
+            braced: false,
+        });
+
+        // Jim is an environment grammar without a catalogue profile. Its
+        // `$()` expression sugar must therefore come from the exact config,
+        // not the default registry's profile. Deliberately include file/offset
+        // state: SSA re-scans detached words in local nested coordinates.
+        let jim = tcl_lexer::LexerConfig {
+            base_offset: 91,
+            base_line: 7,
+            base_col: 13,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_dialect("jim")
+        };
+        let ssa = build_ssa_with_config(&func, &reg, jim);
+        let a = ssa.var_symbol("a").expect("Jim return read interns a");
+        let phi = ssa.blocks[&end]
+            .phis
+            .iter()
+            .find(|phi| phi.name == a)
+            .expect("Jim-only return read keeps the merge phi live");
+        assert!(phi.incoming.contains_key(&then));
+        assert!(phi.incoming.contains_key(&els));
+
+        let def_use = crate::def_use::build_def_use_chains(&ssa, Some(&func), jim);
+        let chain = def_use
+            .chain_for("a", phi.version)
+            .expect("the phi definition has a chain");
+        assert!(
+            chain
+                .uses
+                .iter()
+                .any(|use_site| use_site.kind == crate::def_use::UseKind::Terminator),
+            "the Jim return must read the merged SSA version: {chain:?}"
+        );
+
+        let tcl = build_ssa_with_config(&func, &reg, tcl_lexer::LexerConfig::for_dialect("tcl9.0"));
+        assert!(
+            tcl.var_symbol("a").is_none_or(|symbol| {
+                !tcl.blocks[&end].phis.iter().any(|phi| phi.name == symbol)
+            }),
+            "Tcl must not reinterpret Jim's `$()` expression sugar as a read"
+        );
+    }
+
+    #[test]
     fn build_ssa_loop() {
         let reg = default_registry();
         // entry: set i 0 → header: branch $i<10 → body: incr i → header
@@ -4611,48 +4721,50 @@ mod tests {
     }
 
     #[test]
-    fn canonical_set_value_recognises_aliased_setter_only() {
+    fn aliased_set_preserves_aliased_nested_expr_read_in_call_ir_for_ssa() {
         let reg = default_registry();
-        let s = |xs: &[&str]| xs.iter().map(|x| (*x).to_owned()).collect::<Vec<_>>();
-        // Aliased `set` (2-arg setter) → the value word.
-        assert_eq!(
-            canonical_set_value("myset", Some("set"), &s(&["x", "0"]), &s(&["x"]), &reg),
-            Some("0")
+        let module = crate::lowering::lower_to_ir(
+            "interp alias {} myset {} set\ninterp alias {} e {} expr\nmyset y [e {$x+1}]\n",
+            &reg,
         );
-        // One-arg getter (no def) → None.
-        assert_eq!(
-            canonical_set_value("myset", Some("set"), &s(&["x"]), &[], &reg),
-            None
+        let call = module
+            .top_level
+            .statements
+            .last()
+            .expect("aliased set call");
+        let Statement::Call {
+            canonical_command,
+            defs,
+            reads,
+            ..
+        } = call
+        else {
+            panic!("expected generic aliased set Call, got {call:?}");
+        };
+        assert_eq!(canonical_command.as_deref(), Some("set"));
+        assert_eq!(defs, &["y"]);
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        assert!(
+            reads.contains(&"x".to_owned()),
+            "lowering must retain the nested aliased expr read in Call IR: {reads:?}"
         );
-        // A non-set canonical (an aliased `puts`) → None.
-        assert_eq!(
-            canonical_set_value("myputs", Some("puts"), &s(&["x", "0"]), &s(&["x"]), &reg),
-            None
-        );
-        // No canonical + a bare non-set command → None.
-        assert_eq!(
-            canonical_set_value("frobnicate", None, &s(&["x", "0"]), &s(&["x"]), &reg),
-            None
+        assert!(
+            uses_of(call, &mut scanner, &reg).contains(&"x".to_owned()),
+            "SSA must consume the generic Call read fact"
         );
     }
 
     #[test]
-    fn set_value_reads_parses_braced_expr() {
+    fn set_value_reads_preserves_scanner_element_qualification() {
         let reg = default_registry();
-        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
-        // A braced `[expr {…}]` value: plain word scanning misses `$x` inside
-        // the braces, so it must be parsed as an expression.
+        let mut scanner = VarReferenceScanner::new(VarScanOptions {
+            element_qualified: true,
+            ..VarScanOptions::default()
+        });
         assert!(
-            set_value_reads("[expr {$x + 1}]", &mut scanner, &reg).contains("x"),
-            "braced expr value must expose $x as a read"
+            set_value_reads("[::expr {$array(key) + 1}]", &mut scanner, &reg)
+                .contains("array(key)")
         );
-        // A command-substitution value with a bare `$x` is caught by ordinary
-        // recursion.
-        assert!(set_value_reads("[string range $x 0 end]", &mut scanner, &reg).contains("x"));
-        // A pure var-ref value.
-        assert!(set_value_reads("$y", &mut scanner, &reg).contains("y"));
-        // A bare literal reads nothing.
-        assert!(set_value_reads("0", &mut scanner, &reg).is_empty());
     }
 
     #[test]

@@ -448,8 +448,9 @@ pub fn collect_opaque_callee_name_args(
 
 // Call-target resolution
 
-/// Resolve a command name to a qualified procedure name if it refers to one
-/// defined in `known`, via [`crate::naming::resolve_command_with`] — Tcl's
+/// Predicate-backed owner for the compiler's internal procedure resolution.
+///
+/// Resolves via [`crate::naming::resolve_command_with`] — Tcl's
 /// real existence-checked resolution: an absolute name (`::foo`) is looked
 /// up directly; a relative name — bare (`foo`) or dotted (`inner::p`) —
 /// tries the caller's namespace first, then global, dispatching the first
@@ -461,12 +462,14 @@ pub fn collect_opaque_callee_name_args(
 /// Shared with the analyser's identical same-file resolution
 /// (`Analyser::resolve_proc_call`) and the optimiser's
 /// (`resolve_proc_qname`) so the three can't diverge on the same rule.
-#[must_use]
-pub fn resolve_internal_call<S: std::hash::BuildHasher>(
+pub(crate) fn resolve_internal_call_with<F>(
     command: &str,
     caller_qname: &str,
-    known: &HashSet<String, S>,
-) -> Option<String> {
+    exists: F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
     if command.is_empty() {
         return None;
     }
@@ -476,7 +479,22 @@ pub fn resolve_internal_call<S: std::hash::BuildHasher>(
     } else {
         format!("::{}", ns_parts.join("::"))
     };
-    crate::naming::resolve_command_with::<&str, _>(&ns, &[], command, |qname| known.contains(qname))
+    crate::naming::resolve_command_with::<&str, _>(&ns, &[], command, exists)
+}
+
+/// Resolve a command name to a qualified procedure name if it refers to one
+/// defined in `known`.
+///
+/// Uses the shared existence-checked rule: an absolute name is looked up
+/// directly; a relative name tries the caller's namespace first, then global,
+/// and never walks intermediate ancestor namespaces.
+#[must_use]
+pub fn resolve_internal_call<S: std::hash::BuildHasher>(
+    command: &str,
+    caller_qname: &str,
+    known: &HashSet<String, S>,
+) -> Option<String> {
+    resolve_internal_call_with(command, caller_qname, |qname| known.contains(qname))
 }
 
 /// Top-level call-target resolver. Convenience wrapper that
@@ -599,6 +617,46 @@ pub fn build_interprocedural_analysis(
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
 ) -> InterproceduralAnalysis {
+    build_interprocedural_analysis_inner(
+        ir_module,
+        registry,
+        dialect,
+        object_types,
+        identities,
+        None,
+    )
+}
+
+/// Build interprocedural summaries while reusing an already-built module CFG.
+/// This is the production companion to [`build_interprocedural_analysis`]; it
+/// avoids preparing command-binding context and rebuilding the same CFG solely
+/// to recover instance-backed global writes.
+pub(crate) fn build_interprocedural_analysis_with_cfg(
+    ir_module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    object_types: ObjectTypeMap<'_>,
+    identities: &crate::realm::CommandBindingRealm,
+    cfg_module: &crate::cfg::CfgModule,
+) -> InterproceduralAnalysis {
+    build_interprocedural_analysis_inner(
+        ir_module,
+        registry,
+        dialect,
+        object_types,
+        identities,
+        Some(cfg_module),
+    )
+}
+
+fn build_interprocedural_analysis_inner(
+    ir_module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    object_types: ObjectTypeMap<'_>,
+    identities: &crate::realm::CommandBindingRealm,
+    cfg_module: Option<&crate::cfg::CfgModule>,
+) -> InterproceduralAnalysis {
     let object_types = object_types.0;
     let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
 
@@ -642,8 +700,17 @@ pub fn build_interprocedural_analysis(
     );
 
     let global_instance_classes = global_instance_classes(ir_module, registry);
-    let tainted_global_writes =
-        tainted_global_writes(ir_module, registry, &global_instance_classes);
+    let tainted_global_writes = cfg_module.map_or_else(
+        || tainted_global_writes(ir_module, registry, &global_instance_classes),
+        |cfg_module| {
+            tainted_global_writes_from_cfg(
+                ir_module,
+                cfg_module,
+                registry,
+                &global_instance_classes,
+            )
+        },
+    );
 
     InterproceduralAnalysis {
         procedures,
@@ -819,11 +886,23 @@ pub(crate) fn tainted_global_writes(
     registry: &tcl_registry::CommandRegistry,
     global_classes: &HashMap<String, crate::taint::InstanceClassState>,
 ) -> HashMap<String, HashSet<String>> {
-    let mut cfg_module = crate::cfg_builder::build_cfg_with_config(
+    let mut cfg_module = crate::cfg_builder::build_cfg_with_registry_and_config(
         ir_module,
         false,
+        registry,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
     );
+    let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
+    close_tainted_global_writes(ir_module, writes)
+}
+
+fn tainted_global_writes_from_cfg(
+    ir_module: &crate::ir::Module,
+    cfg_module: &crate::cfg::CfgModule,
+    registry: &tcl_registry::CommandRegistry,
+    global_classes: &HashMap<String, crate::taint::InstanceClassState>,
+) -> HashMap<String, HashSet<String>> {
+    let mut cfg_module = cfg_module.clone();
     let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
     close_tainted_global_writes(ir_module, writes)
 }
@@ -1138,6 +1217,21 @@ fn scan_method_body_facts(
         identities,
     } = scan;
     let params: HashSet<String> = body_def.params.iter().cloned().collect();
+    if matches!(
+        body_def.execution_namespace,
+        crate::ir::ExecutionNamespace::RuntimeSelected
+    ) && crate::ir_helpers::requires_runtime_command_namespace(&body_def.body, registry)
+    {
+        // A TclOO receiver namespace can contain an object-local command that
+        // shadows every relative fallback considered below. Preserve useful
+        // known fallback edges, but never prove purity or bounded state from
+        // that incomplete target set.
+        facts.has_barrier = true;
+        facts.has_unknown_calls = true;
+        facts.local_pure = false;
+        facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+        facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+    }
     let ctx = ScanCtx {
         caller: mqname,
         known: method_known,
@@ -3341,7 +3435,7 @@ mod tests {
         let ia = build(
             "oo::class create C {\n\
              \x20   variable n\n\
-             \x20   method get {} { return $n }\n\
+             \x20   method get {} { ::return $n }\n\
              }",
         );
         let m = ia.methods.get("::C::get").expect("method summary");
@@ -3390,7 +3484,7 @@ mod tests {
         let ia = build(
             "oo::class create C {\n\
              \x20   method a {} { my b }\n\
-             \x20   method b {} { return 1 }\n\
+             \x20   method b {} { ::return 1 }\n\
              }",
         );
         let a = ia.methods.get("::C::a").expect("method a");
@@ -3407,10 +3501,10 @@ mod tests {
         // pure when all bodies are pure, impure when any is.
         let ia = build(
             "oo::class create C {\n\
-             \x20   method m {} { return 1 }\n\
+             \x20   method m {} { ::return 1 }\n\
              }\n\
              oo::define C {\n\
-             \x20   method m {} { return 2 }\n\
+             \x20   method m {} { ::return 2 }\n\
              }",
         );
         let m = ia.methods.get("::C::m").expect("method summary");
@@ -3439,10 +3533,10 @@ mod tests {
         // Agreeing constants survive the join.
         let ia = build(
             "oo::class create C {\n\
-             \x20   method m {} { return 7 }\n\
+             \x20   method m {} { ::return 7 }\n\
              }\n\
              oo::define C {\n\
-             \x20   method m {} { return 7 }\n\
+             \x20   method m {} { ::return 7 }\n\
              }",
         );
         let m = ia.methods.get("::C::m").expect("method summary");

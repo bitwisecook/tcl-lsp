@@ -652,6 +652,29 @@ fn try_on_error_inside_catch_full_dispatch() {
 }
 
 #[test]
+fn try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector() {
+    // The registry receives resolved word values, so the braced whitespace
+    // form is `" 1 "`. All of these are Tcl numeric spellings for error (1),
+    // and must reach the existing typed `Error` path rather than falling back
+    // to a compiler-local selector parser or generic invocation.
+    for selector in ["+1", "01", "0x1", "{ 1 }"] {
+        let source = format!(
+            "proc p {{}} {{ set rc [catch {{try {{error boom}} on {selector} {{msg}} {{set handled $msg}}}} result]; return $rc }}"
+        );
+        let fa = proc_via_backend(&source, "::p");
+        let ops = opcodes(&fa);
+        assert!(
+            count(&ops, Op::BEGIN_CATCH4) >= 3,
+            "{selector:?} must select inline try body and handler ranges: {ops:?}"
+        );
+        assert!(
+            ops.contains(&Op::JUMP_FALSE4),
+            "{selector:?} must use the typed error-code dispatch: {ops:?}"
+        );
+    }
+}
+
+#[test]
 fn try_on_error_inline_direct() {
     // Drive emit_try_on_error_inline directly so the branch is exercised with a
     // minimal, deterministic input. Asserts the full sequence shape.
@@ -659,6 +682,7 @@ fn try_on_error_inline_direct() {
     let mut ctx = ctx_with_params(&reg, &[]);
     let normal = ctx.fresh_label("normal");
     ctx.emit_try_on_error_inline(
+        "try",
         &[
             ("expr {1/0}".into(), true),
             ("on".into(), false),
@@ -704,6 +728,7 @@ fn try_on_error_handler_var_is_first_slot() {
     let mut ctx = ctx_with_params(&reg, &[]);
     let normal = ctx.fresh_label("normal");
     ctx.emit_try_on_error_inline(
+        "try",
         &[
             ("list 1 2".into(), true),
             ("on".into(), false),

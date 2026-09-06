@@ -42,6 +42,7 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 // Compile the way the real VM runtime does (`tcl-vm-cli`): the bytecode lowering
 // turns constructs the backend can't compile correctly — a literal `try` with
 // handlers, nested complex `foreach`/`lmap` — into runtime-command barriers,
@@ -50,29 +51,8 @@ use tcl_compiler::codegen::codegen_module;
 // would test bytecode the VM never actually runs.
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-/// A `tcl-compiler`-backed compile service so the VM can resolve runtime
-/// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself
-/// never depends on the compiler).
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        // Mirror the real VM compile services: a hard parse error becomes a
-        // catchable runtime error with the exact C Tcl message.
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_runtime_api::{CompileError, CompileService, ScriptCommandPlan};
+use tcl_vm::Vm;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -97,9 +77,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -108,6 +86,341 @@ fn run(src: &str) -> (bool, String, String) {
         completion.result.to_str().to_string(),
         out,
     )
+}
+
+/// Runtime compiler which deliberately emits ordinary command dispatch for
+/// every dynamic script. This isolates the generic/plain `catch` and `try`
+/// path without relying on execution-trace side effects to select it.
+struct PlainRuntimeCompiler(BytecodeCompileService);
+
+impl CompileService for PlainRuntimeCompiler {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+        self.0.compile_traced(src)
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.0.compile_traced_for_profile(src, profile)
+    }
+
+    fn script_command_plan_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> ScriptCommandPlan {
+        self.0.script_command_plan_for_profile(src, profile)
+    }
+}
+
+fn run_with_plain_runtime_compiler(src: &str) -> (bool, String, String) {
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir(src, &registry);
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(PlainRuntimeCompiler(
+        BytecodeCompileService::default(),
+    )));
+    let completion = vm.run_module(&asm);
+    let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
+    (
+        completion.code.is_ok(),
+        completion.result.to_str().to_string(),
+        out,
+    )
+}
+
+/// A literal `catch` in a procedure may inline its exception range, but its
+/// body is still a complete Tcl script. Commands after a separator must not be
+/// folded into the first command's argument list; the first command's local
+/// write is visible to the later error-producing command.
+#[test]
+fn literal_catch_multicommand_proc_body_executes_in_order() {
+    // tclsh 9.0.4: `1 boom-ok`
+    assert_eq!(
+        run(
+            "proc p {} {set code [catch {set x ok; error boom-$x} message]; list $code $message}; p"
+        )
+        .1,
+        "1 boom-ok",
+    );
+}
+
+/// The catch argument parser already removes its own outer word delimiters.
+/// Braces at the beginning and end of the resulting script value belong to
+/// command words and must survive inline lowering.
+#[test]
+fn literal_catch_preserves_braced_first_and_last_words() {
+    // tclsh 9.0.4: `0 1 1`
+    assert_eq!(
+        run("proc p {} {set code [catch {{set} x {1}} r]; list $code $r $x}; p").1,
+        "0 1 1",
+    );
+}
+
+/// Each command in a segmented inline body owns its own replay text. If the
+/// first command mutates the command table, deoptimising the second must not
+/// replay the enclosing catch expression or run the mutation twice.
+#[test]
+fn literal_catch_replays_only_the_stale_nested_command_after_mutation() {
+    // tclsh 9.0.4: `0 REPLACED 1`
+    assert_eq!(
+        run(
+            "set ::runs 0; \
+             proc mutate {} {incr ::runs; rename error saved_error; proc error args {return REPLACED}; return first}; \
+             proc p {} {set code [catch {mutate; error \"boom\"} result]; list $code $result $::runs}; p"
+        )
+        .1,
+        "0 REPLACED 1",
+    );
+}
+
+/// Diagnostic line metadata changes as a multiline inline body advances, but
+/// returning from its final nested command to the synthetic catch epilogue is
+/// not a new execution of the enclosing source command. Only explicit command
+/// boundaries may trigger stale-bytecode replay.
+#[test]
+fn multiline_catch_epilogue_does_not_replay_the_enclosing_command() {
+    // tclsh 9.0.4: `0 REPLACED 1`
+    assert_eq!(
+        run(
+            "set ::runs 0\n\
+             proc mutate {} {incr ::runs; rename error saved_error; proc error args {return REPLACED}; return first}\n\
+             proc p {} {\n\
+                 set code [catch {\n\
+                     mutate\n\
+                     error boom\n\
+                 } result]\n\
+                 list $code $result $::runs\n\
+             }\n\
+             p"
+        )
+        .1,
+        "0 REPLACED 1",
+    );
+}
+
+#[test]
+fn literal_catch_reports_incomplete_body_before_substitution_side_effects() {
+    // tclsh 9.0.4: `1 0 {missing "}`
+    assert_eq!(
+        run(
+            "proc p {} {set side 0; set code [catch {set x [incr side] \"} r]; list $code $side $r}; p"
+        )
+        .1,
+        "1 0 {missing \"}",
+    );
+}
+
+#[test]
+fn literal_catch_executes_complete_prefix_before_later_parse_error() {
+    // Tcl evaluates a script command at a time. A malformed later command is
+    // caught only after every complete prefix command has already run.
+    // tclsh 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run(
+            "proc p {} {set side 0; set code [catch {incr side; set x \"} r]; list $code $side $r}; p"
+        )
+        .1,
+        "1 1 {missing \"}",
+    );
+}
+
+#[test]
+fn nested_try_executes_complete_phase_prefix_before_later_parse_error() {
+    // The specialized try body reaches its handler only after the complete
+    // prefix ran; the specialized handler likewise runs its complete prefix
+    // before its malformed tail escapes to the enclosing catch.
+    // tclsh 9.0.4: `0 1 {BODY:missing "}` / `1 1 {missing "}`
+    assert_eq!(
+        run(
+            "proc p {} {set side 0; set code [catch {try {incr side; set x \"} on error m {set m BODY:$m}} result]; list $code $side $result}; p"
+        )
+        .1,
+        "0 1 {BODY:missing \"}",
+    );
+    assert_eq!(
+        run(
+            "proc p {} {set side 0; set code [catch {try {error BOOM} on error m {incr side; set x \"}} result]; list $code $side $result}; p"
+        )
+        .1,
+        "1 1 {missing \"}",
+    );
+}
+
+/// A computed top-level `catch` reaches the ordinary builtin rather than the
+/// procedure-only inline emitter. Its runtime compiler must preserve Tcl's
+/// command-at-a-time parse boundary too.
+#[test]
+fn generic_top_level_catch_executes_prefix_before_fatal_tail() {
+    // tclsh 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run("set side 0; set c catch; set code [$c {incr side; set x \"} msg]; list $code $side $msg").1,
+        "1 1 {missing \"}",
+    );
+}
+
+/// The forced plain runtime compiler keeps every body command on ordinary
+/// dispatch. The catch result must not depend on registry-specialised lowering.
+#[test]
+fn plain_dispatch_catch_executes_prefix_before_fatal_tail() {
+    // tclsh 9.0.4: `1 1 {missing "}`
+    assert_eq!(
+        run_with_plain_runtime_compiler(
+            "set side 0; set c catch; \
+             set code [$c {incr side; set x \"} msg]; \
+             list $code $side $msg"
+        )
+        .1,
+        "1 1 {missing \"}",
+    );
+}
+
+/// A computed top-level `try` uses the generic state machine. Its error
+/// handler observes the side effect from the complete prefix and the exact Tcl
+/// 9.0.4 parse message from the fatal tail.
+#[test]
+fn generic_top_level_try_executes_prefix_before_fatal_tail() {
+    // tclsh 9.0.4: `{{missing "} 1} 1`
+    assert_eq!(
+        run("set side 0; set t try; \
+             set result [$t {incr side; set x \"} on error m {list $m $side}]; \
+             list $result $side")
+        .1,
+        "{{missing \"} 1} 1",
+    );
+}
+
+/// Plain-dispatch runtime compilation and ordinary `try` dispatch consume the
+/// same compiler-owned command-prefix plan as the optimised generic path.
+#[test]
+fn plain_dispatch_try_executes_prefix_before_fatal_tail() {
+    // tclsh 9.0.4: `{{missing "} 1} 1`
+    assert_eq!(
+        run_with_plain_runtime_compiler(
+            "set side 0; set t try; \
+             set result [$t {incr side; set x \"} on error m {list $m $side}]; \
+             list $result $side"
+        )
+        .1,
+        "{{missing \"} 1} 1",
+    );
+}
+
+/// The narrow nested `catch {try ... on error ...}` compiler specialisation
+/// keeps distinct live ranges for the try body and handler. Both are complete
+/// scripts: body errors reach the handler, successful handler results reach the
+/// outer catch, and body success bypasses the handler.
+#[test]
+fn nested_catch_try_multicommand_phases_preserve_results() {
+    // tclsh 9.0.4: `0 boom-ok/handled`
+    assert_eq!(
+        run(
+            "proc p {} {set code [catch {try {set x ok; error boom-$x} on error message {set suffix handled; set message $message/$suffix}} result]; list $code $result}; p"
+        )
+        .1,
+        "0 boom-ok/handled",
+    );
+    // tclsh 9.0.4: `0 ok`
+    assert_eq!(
+        run(
+            "proc p {} {set code [catch {try {set x ok; set x} on error message {error unexpected}} result]; list $code $result}; p"
+        )
+        .1,
+        "0 ok",
+    );
+}
+
+/// The nested inline shape uses Tcl's list grammar for `variableList` and
+/// binds the body's result and options separately, like Tcl 9.0.4.
+#[test]
+fn nested_catch_try_binds_result_and_options_variables() {
+    // tclsh 9.0.4: `0 boom`
+    assert_eq!(
+        run(
+            "proc p {} {set code [catch {try {error boom} on error {m o} {set m}} result]; list $code $result}; p"
+        )
+        .1,
+        "0 boom",
+    );
+    // tclsh 9.0.4: `0 {boom 1}`
+    assert_eq!(
+        run(
+            "proc p {} {set code [catch {try {error boom} on error {m o} {list $m [dict get $o -code]}} result]; list $code $result}; p"
+        )
+        .1,
+        "0 {boom 1}",
+    );
+}
+
+/// Substituted catch/try phase words must retain Tcl's pre-invocation word
+/// substitution. The literal specialisers decline these shapes and the shared
+/// explicit-stack runtime commands evaluate their resulting script values.
+#[test]
+fn catch_and_nested_try_decline_dynamic_phase_words() {
+    // tclsh 9.0.4: `1 boom`
+    assert_eq!(
+        run("proc p {} {set body {error boom}; set code [catch $body result]; list $code $result}; p").1,
+        "1 boom",
+    );
+    // tclsh 9.0.4: `0 {boom 1}` for a substituted try body.
+    assert_eq!(
+        run(
+            "proc p {} {set body {error boom}; set code [catch {try $body on error {m o} {list $m [dict get $o -code]}} result]; list $code $result}; p"
+        )
+        .1,
+        "0 {boom 1}",
+    );
+    // tclsh 9.0.4: `0 {boom 1}` for a substituted handler body.
+    assert_eq!(
+        run(
+            "proc p {} {set handler {list $m [dict get $o -code]}; set code [catch {try {error boom} on error {m o} $handler} result]; list $code $result}; p"
+        )
+        .1,
+        "0 {boom 1}",
+    );
+    // tclsh 9.0.4: `0 {boom 1}` for a substituted handler variable list.
+    assert_eq!(
+        run(
+            "proc p {} {set vars {m o}; set code [catch {try {error boom} on error $vars {list $m [dict get $o -code]}} result]; list $code $result}; p"
+        )
+        .1,
+        "0 {boom 1}",
+    );
+}
+
+/// A braced handler body may still contain a dynamic variable-name word. The
+/// handler's typed `set` lowering hook is not enough to use `STORE_SCALAR1`:
+/// Tcl substitutes `$target` before selecting the variable to write.
+#[test]
+fn nested_try_handler_declines_dynamic_set_target() {
+    // tclsh 9.0.4: `0 changed changed`
+    assert_eq!(
+        run(
+            "proc p {} {set target m; set m outer; set code [catch {try {error boom} on error {m o} {set $target changed}} result]; list $code $result $m}; p"
+        )
+        .1,
+        "0 changed changed",
+    );
+}
+
+/// A quoted catch body has already undergone Tcl's word substitution. It must
+/// stay on the generic command path even when its current text happens to be
+/// static.
+#[test]
+fn catch_declines_unbraced_script_body() {
+    // tclsh 9.0.4: "1 boom"
+    assert_eq!(
+        run("proc p {} {set code [catch \"error boom\" result]; list $code $result}; p").1,
+        "1 boom",
+    );
 }
 
 // try / throw  (cmd_try.rs)

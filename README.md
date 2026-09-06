@@ -1438,7 +1438,13 @@ A bytecode interpreter that compiles and executes Tcl scripts using the
 compiler pipeline, with an interactive REPL and disassembly mode.  Supports
 TclOO classes (constructors, destructors, methods, mixins, filters, private
 variables), namespaces, coroutine-free control flow, and 85% conformance
-against Tcl 9.0.3 native test suites.
+against Tcl 9.0.4 native test suites.
+
+Runtime bytecode carries its dialect, command-table, and compiler-service
+provenance. Replacing the compiler or dialect invalidates cached eval modules;
+source-bearing procedures, methods, and function handles compile lazily for
+the new target, while live or suspended activations fail closed. See the
+[compiled-artifact contract](docs/design/contracts/vm-compiled-artifact-provenance.md).
 
 The VM ships as the native `tclvm` binary.
 

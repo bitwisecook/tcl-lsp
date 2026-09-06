@@ -66,6 +66,12 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     for site in &mut fu.cfg.inline_body_error_sites {
         shift(&mut site.span, delta);
     }
+    for site in &mut fu.cfg.command_binding_sites {
+        shift(&mut site.span, delta);
+    }
+    for site in fu.cfg.command_boundary_sites.values_mut() {
+        shift(&mut site.span, delta);
+    }
     // SSA holds its own clones of the IR statements; some emitters read spans
     // from them (`stmt.statement.span()`), so rebase those too.
     for block in fu.ssa.blocks.values_mut() {
@@ -158,6 +164,9 @@ pub fn rebase_script(script: &mut Script, delta: i64) {
     }
     for stmt in &mut script.statements {
         rebase_statement(stmt, delta);
+    }
+    for site in script.command_binding_sites.iter_mut() {
+        shift(&mut site.span, delta);
     }
 }
 
@@ -385,12 +394,33 @@ mod tests {
             !fu.cfg.inline_body_error_sites.is_empty(),
             "an inlined eval body should record an error-context site",
         );
-        let before = fu.cfg.inline_body_error_sites.clone();
+        assert!(
+            !fu.cfg.command_binding_sites.is_empty(),
+            "an inlined eval body should retain its structured command binding",
+        );
+        assert!(
+            !fu.cfg.command_boundary_sites.is_empty(),
+            "an inlined eval body should retain its runtime replay boundary",
+        );
+        let before_errors = fu.cfg.inline_body_error_sites.clone();
+        let before_bindings = fu.cfg.command_binding_sites.clone();
+        let before_boundaries = fu.cfg.command_boundary_sites.clone();
         rebase_function_unit(&mut fu, 100);
-        for (before, after) in before.iter().zip(&fu.cfg.inline_body_error_sites) {
+        for (before, after) in before_errors.iter().zip(&fu.cfg.inline_body_error_sites) {
             assert_eq!(after.span.start(), before.span.start() + 100);
             assert_eq!(after.span.end(), before.span.end() + 100);
             assert_eq!(after.context, before.context);
+        }
+        for (before, after) in before_bindings.iter().zip(&fu.cfg.command_binding_sites) {
+            assert_eq!(after.span.start(), before.span.start() + 100);
+            assert_eq!(after.span.end(), before.span.end() + 100);
+            assert_eq!(after.binding, before.binding);
+        }
+        for (block, before) in before_boundaries {
+            let after = &fu.cfg.command_boundary_sites[&block];
+            assert_eq!(after.span.start(), before.span.start() + 100);
+            assert_eq!(after.span.end(), before.span.end() + 100);
+            assert_eq!(after.binding, before.binding);
         }
     }
 

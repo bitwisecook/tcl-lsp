@@ -112,6 +112,12 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
         return;
     };
     visited.insert(name.to_owned());
+    if let Some(block) = cfg.block_id(name)
+        && let Some(continuation) = cfg.command_boundary_continuations.get(&block)
+    {
+        let continuation = cfg.block_name(*continuation).to_owned();
+        dfs(cfg, &continuation, visited, order);
+    }
     if let Some(term) = &blk.terminator {
         match term {
             Terminator::Goto { target, .. } => {

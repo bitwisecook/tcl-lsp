@@ -124,6 +124,7 @@ fn object_class() -> CommandSpec {
         arity: Arity::new(1, 7),
         options: OBJECT_CLASS_OPTIONS,
         arg_role_resolver: Some(object_class_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Name, ArgRole::Body],
         ..block(
             "object_class",
             &crate::definer::SPECTCL_OBJECT_CLASS_GRAMMAR,

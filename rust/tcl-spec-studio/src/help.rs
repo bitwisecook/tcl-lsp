@@ -108,6 +108,14 @@ argument is always the body; everything before it comes in `name value` \
 pairs\" — and a maintainer writes the few lines.",
     ),
     (
+        "arg_role_resolver_roles",
+        "The complete set of roles the dynamic argument-role resolver can \
+ever return. This is declarative even though the resolver itself is code. \
+Consumers use it when substitutions or expansions hide the exact argument \
+values, so omitting a possible role can suppress analysis while adding an \
+impossible role makes analysis needlessly conservative.",
+    ),
+    (
         "arg_presentation",
         "How the formatter lays an argument out, when that differs from the \
 default. Body arguments normally expand onto their own indented lines (the \
@@ -202,6 +210,14 @@ variable holds the return value. `Fixed` names one type for the written \
 variable regardless of the return. `Destructured` says the pieces cannot be \
 typed statically. Getting this right avoids false \"wrong type\" warnings \
 on the written variables.",
+    ),
+    (
+        "variable_write_min_args",
+        "The minimum number of words after the command name at which any \
+invocation can write a variable. This is a necessary-condition proof for \
+variable-layout commands such as `regexp` and `regsub`, not the command's \
+general arity. Leave it unset unless every shorter invocation is guaranteed \
+not to have a variable-write target.",
     ),
     (
         "return_type_hook",
@@ -695,6 +711,14 @@ in a separate context of its own (`proc` bodies, class definition bodies — \
 \"Structural\"). Plain bodies join the surrounding data flow: a `set` \
 inside them changes the enclosing scope. Structural bodies deliberately do \
 not.",
+    ),
+    (
+        "body_interpreter",
+        "Which Tcl interpreter owns evaluated Body arguments. `Current` is \
+the normal case. `Argument` names the complete post-command argument index \
+whose evaluated value selects another interpreter, as in `interp eval`. \
+This is independent of body kind: interpreter ownership and stack-frame \
+shape are separate axes.",
     ),
     (
         "body_arg_implicit_args",

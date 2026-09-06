@@ -87,7 +87,13 @@ pub(crate) struct PurityCtx<'a> {
     pub(crate) config: tcl_lexer::LexerConfig,
 }
 
-fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32) -> bool {
+#[derive(Clone, Copy)]
+struct EffectCtx<'a> {
+    purity: PurityCtx<'a>,
+    execution_namespace: Option<&'a crate::ir::ExecutionNamespace>,
+}
+
+fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>, depth: u32) -> bool {
     // Native-stack safety net (issue #996): this recurses into nested `[cmd
     // …]` substitutions inside a single word's raw text, a genuinely
     // unbounded axis. Past the cap, assume an observable side effect — the
@@ -96,6 +102,7 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         return true;
     }
+    let purity = effect.purity;
     let PurityCtx {
         interproc_pure,
         pure_methods,
@@ -130,6 +137,16 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
         }
         let cmd_name = cmds[0].texts[0].as_str();
         let cmd_args: &[String] = &cmds[0].texts[1..];
+        if effect
+            .execution_namespace
+            .is_some_and(|namespace| namespace.for_head(cmd_name).is_none())
+        {
+            // TclOO selects the receiver namespace at invocation time. A
+            // relative command there can be shadowed by an object-local
+            // command, including `my` / `next`; a registry spelling is not an
+            // exact binding proof.
+            return true;
+        }
         let se = classify_side_effects(registry, cmd_name, cmd_args, None, None);
         if !se.pure {
             // A user proc / method that the registry can't classify may
@@ -137,8 +154,9 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
             let proc_pure = interproc_pure.contains(cmd_name)
                 || interproc_pure.contains(format!("::{cmd_name}").as_str())
                 || interproc_pure.contains(cmd_name.trim_start_matches(':'));
-            // The self-dispatch keyword is registry data (`get` resolves the
-            // `::`-qualified spelling), not a name literal (issue #1050).
+            // The contextual self-dispatch keyword is registry data, not a
+            // name literal (issue #1050). Runtime-selected spellings already
+            // returned conservatively above.
             let self_dispatch_pure = registry.method_dispatch_keyword(cmd_name)
                 == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
                 && !cmd_args.is_empty()
@@ -149,7 +167,7 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
         }
         // Recurse into nested substitutions inside the args.
         for arg in cmd_args {
-            if word_has_observable_side_effect(arg, purity, depth + 1) {
+            if word_has_observable_side_effect(arg, effect, depth + 1) {
                 return true;
             }
         }
@@ -176,7 +194,7 @@ fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<Stri
 /// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
 /// if any embedded command substitution in the expression has an
 /// observable side effect.
-fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>, depth: u32) -> bool {
+fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth: u32) -> bool {
     // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
     // native frame per level. Past the cap, assume an observable side effect
     // — the conservative direction, so an expression assignment nested deeper
@@ -188,27 +206,27 @@ fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>, depth
     }
     match node {
         ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
-            word_has_observable_side_effect(text, purity, 0)
+            word_has_observable_side_effect(text, effect, 0)
         }
         ExprNode::Binary { left, right, .. } => {
-            expr_has_observable_side_effect(left, purity, depth + 1)
-                || expr_has_observable_side_effect(right, purity, depth + 1)
+            expr_has_observable_side_effect(left, effect, depth + 1)
+                || expr_has_observable_side_effect(right, effect, depth + 1)
         }
         ExprNode::Unary { operand, .. } => {
-            expr_has_observable_side_effect(operand, purity, depth + 1)
+            expr_has_observable_side_effect(operand, effect, depth + 1)
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expr_has_observable_side_effect(condition, purity, depth + 1)
-                || expr_has_observable_side_effect(true_branch, purity, depth + 1)
-                || expr_has_observable_side_effect(false_branch, purity, depth + 1)
+            expr_has_observable_side_effect(condition, effect, depth + 1)
+                || expr_has_observable_side_effect(true_branch, effect, depth + 1)
+                || expr_has_observable_side_effect(false_branch, effect, depth + 1)
         }
         ExprNode::Call { args, .. } => args
             .iter()
-            .any(|a| expr_has_observable_side_effect(a, purity, depth + 1)),
+            .any(|a| expr_has_observable_side_effect(a, effect, depth + 1)),
         _ => false,
     }
 }
@@ -220,16 +238,26 @@ fn expr_has_observable_side_effect(node: &ExprNode, purity: PurityCtx<'_>, depth
 /// unless its optional amount word has a side effect. Any other
 /// statement form is conservatively unsafe.
 pub(crate) fn assignment_safe_to_delete(stmt: &Statement, purity: PurityCtx<'_>) -> bool {
+    assignment_safe_to_delete_with_effect(
+        stmt,
+        EffectCtx {
+            purity,
+            execution_namespace: None,
+        },
+    )
+}
+
+fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>) -> bool {
     match stmt {
         Statement::AssignConst { .. } => true,
-        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, purity, 0),
-        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, purity, 0),
+        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(value, effect, 0),
+        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(expr, effect, 0),
         // `incr v` reads + writes v — the assignment itself is the
         // observable effect, so deleting it is OK when v is dead and
         // the optional amount word is side-effect-free.
         Statement::Incr { amount, .. } => match amount {
             None => true,
-            Some(a) => !word_has_observable_side_effect(a, purity, 0),
+            Some(a) => !word_has_observable_side_effect(a, effect, 0),
         },
         // Unknown statement form — conservative.
         _ => false,
@@ -285,6 +313,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         &cu.top_level,
         is_top_level(&cu.top_level),
         purity,
+        None,
         &proc_index,
     );
     emit_adce(
@@ -293,6 +322,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         &baseline,
         &interproc_pure,
         &pure_methods,
+        None,
         None,
     );
 
@@ -315,14 +345,23 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             enclosing_class: None,
             config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
         };
-        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, &proc_index);
-        emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
+        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, None, &proc_index);
+        emit_adce(
+            ctx,
+            fu,
+            &baseline,
+            &interproc_pure,
+            &pure_methods,
+            None,
+            None,
+        );
     }
     ctx.cross_event_vars = saved_proc_cross;
 
-    // Optimise TclOO method bodies as functions too,
-    // passing the owning class qname so the O126 `my <method>` purity
-    // gate can resolve same-class pure methods. Instance variables
+    // Optimise TclOO method bodies as functions too, passing both the owning
+    // class qname and the command execution namespace. The O126 `my <method>`
+    // purity gate may resolve a same-class method only after namespace
+    // selection proves the command head. Instance variables
     // escape the method frame (they are object state), so they are fed
     // through the same escaping channel iRules cross-event state uses —
     // the dead-store / unused-assignment passes must not delete a
@@ -331,6 +370,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for (mqname, fu) in &cu.methods {
         let ir_method = cu.ir_module.methods.get(mqname);
         let enclosing_class = ir_method.map(|m| m.class_name.as_str());
+        let execution_namespace = ir_method.map(|m| &m.execution_namespace);
         ctx.cross_event_vars = ir_method
             .map(|m| m.instance_vars.clone())
             .unwrap_or_default();
@@ -342,7 +382,8 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             enclosing_class,
             config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
         };
-        let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, &proc_index);
+        let baseline =
+            emit_dead_stores_and_unused(ctx, fu, false, purity, execution_namespace, &proc_index);
         emit_adce(
             ctx,
             fu,
@@ -350,6 +391,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             &interproc_pure,
             &pure_methods,
             enclosing_class,
+            execution_namespace,
         );
     }
     ctx.cross_event_vars = saved_cross;
@@ -435,6 +477,7 @@ fn emit_dead_stores_and_unused(
     fu: &FunctionUnit,
     is_top_level: bool,
     purity: PurityCtx<'_>,
+    execution_namespace: Option<&crate::ir::ExecutionNamespace>,
     proc_index: &crate::interprocedural::ProcIndex,
 ) -> HashSet<(String, u32)> {
     // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any* store,
@@ -518,7 +561,13 @@ fn emit_dead_stores_and_unused(
         // effects (`set unused [puts X]` prints, `set unused [my
         // impureMethod]` mutates object state). Only delete when every
         // embedded command substitution is provably side-effect-free.
-        if !assignment_safe_to_delete(stmt, purity) {
+        if !assignment_safe_to_delete_with_effect(
+            stmt,
+            EffectCtx {
+                purity,
+                execution_namespace,
+            },
+        ) {
             continue;
         }
         // Suppress when this element write is observed by a read the name-level
@@ -678,6 +727,7 @@ fn emit_adce(
     interproc_pure: &HashSet<String>,
     pure_methods: &HashSet<String>,
     enclosing_class: Option<&str>,
+    execution_namespace: Option<&crate::ir::ExecutionNamespace>,
 ) {
     let purity = PurityCtx {
         registry: ctx.registry,
@@ -695,6 +745,7 @@ fn emit_adce(
         &keep_forever,
         &stmt_to_defs,
         purity,
+        execution_namespace,
     );
     emit_adce_reports(ctx, fu, baseline, &removed);
 }
@@ -753,6 +804,7 @@ fn run_adce_fixpoint(
     keep_forever: &HashSet<(String, u32)>,
     stmt_to_defs: &StmtDefsMap,
     purity: PurityCtx<'_>,
+    execution_namespace: Option<&crate::ir::ExecutionNamespace>,
 ) -> HashSet<(String, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let mut removed = baseline.clone();
@@ -787,7 +839,13 @@ fn run_adce_fixpoint(
             // statement live. This reuses the same `PurityCtx` /
             // `assignment_safe_to_delete` gate O109/DSE applies rather than
             // treating every assignment as pure.
-            if !assignment_safe_to_delete(stmt, purity) {
+            if !assignment_safe_to_delete_with_effect(
+                stmt,
+                EffectCtx {
+                    purity,
+                    execution_namespace,
+                },
+            ) {
                 continue;
             }
             let empty: Vec<(String, usize)> = Vec::new();
@@ -1101,16 +1159,19 @@ pub(crate) fn collect_rmw_hidden_reads(
     registry: &CommandRegistry,
 ) -> HashSet<String> {
     use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-    let mut deep = VarReferenceScanner::new(VarScanOptions {
-        include_var_read_roles: true,
-        recurse_cmd_substitutions: true,
-        include_reads_before_write: true,
-        element_qualified: false,
-    });
-    let mut shallow = VarReferenceScanner::new(VarScanOptions::default());
     // The document's grammar, from the dialect-selected registry's own
     // profile — the same route `dynamic_names::lexer_config_for` takes.
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let mut deep = VarReferenceScanner::with_config(
+        VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: true,
+            element_qualified: false,
+        },
+        config,
+    );
+    let mut shallow = VarReferenceScanner::with_config(VarScanOptions::default(), config);
     let mut out: HashSet<String> = HashSet::new();
     let mut scan = |word: &str| {
         if !word.contains('[') {
@@ -1480,13 +1541,17 @@ mod tests {
             enclosing_class: None,
             config: tcl_lexer::LexerConfig::default(),
         };
+        let effect = EffectCtx {
+            purity,
+            execution_namespace: None,
+        };
 
         // Tier 1B: `[a [a [a … [a x] … ]]]` nested substitutions.
         let mut deep = "x".to_owned();
         for _ in 0..3000 {
             deep = format!("[a {deep}]");
         }
-        let _ = word_has_observable_side_effect(&deep, purity, 0);
+        let _ = word_has_observable_side_effect(&deep, effect, 0);
 
         // Tier 1A: a 3000-deep `ExprNode` tree (nested unary `!`).
         let mut node = ExprNode::Literal {
@@ -1500,7 +1565,7 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let _ = expr_has_observable_side_effect(&node, purity, 0);
+        let _ = expr_has_observable_side_effect(&node, effect, 0);
     }
 
     #[test]
@@ -1968,19 +2033,19 @@ mod tests {
     // method-body O126
 
     #[test]
-    fn sf2_o126_folds_pure_my_dispatch_in_method_body() {
-        // The optimiser now runs over TclOO method bodies with the
-        // owning class as `enclosing_class`, so `set unused [my pure]`
-        // — a self-dispatch to a method proven pure — folds to O126.
-        // (FP-OPT-12 PARTIAL → FIXED.)
+    fn runtime_selected_my_dispatch_is_not_assumed_pure() {
+        // Tcl 9.0.4 resolves bare commands in the receiving object's runtime
+        // namespace. Installing `${object_namespace}::my` shadows TclOO's
+        // normal self-dispatch command, so even a same-named lexical method
+        // proven pure is not an exact binding proof for `[my pure]`.
         let src = "oo::class create C {\n\
-                   \x20   method pure {} { return 1 }\n\
-                   \x20   method uses {} { set unused [my pure]; return 2 }\n\
+                   \x20   method pure {} { ::return 1 }\n\
+                   \x20   method uses {} { ::set unused [my pure]; ::return 2 }\n\
                    }";
         let opts = crate::optimiser::optimise(src, &registry());
         assert!(
-            opts.iter().any(|o| o.code == DiagCode::O126),
-            "pure `my` self-dispatch RHS should fold, got {opts:?}",
+            opts.iter().all(|o| o.code != DiagCode::O126),
+            "runtime-selected `my` binding must preserve the RHS, got {opts:?}",
         );
     }
 

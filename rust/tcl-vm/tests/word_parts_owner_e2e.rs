@@ -40,26 +40,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::Vm;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -83,9 +67,7 @@ fn run(src: &str) -> (bool, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
     (
         completion.code.is_ok(),
@@ -170,29 +152,30 @@ fn well_formed_templates_are_unchanged() {
     );
 }
 
-/// Issue #1646 is **not** in the word decomposer, and this records the
-/// measurement rather than asserting the bug is gone.
+/// Issue #1646 was in compiler literal emission, not the word decomposer. This
+/// records the fixed behaviour at that owner and keeps the boundary that rules
+/// out a compensating decode in the VM.
 ///
-/// The divergence is in the compiler's literal emission for a word nested in
-/// a bracket word, not in how the VM splits a word into parts, and the shape
-/// of the evidence is what says so:
+/// The former divergence was in the compiler's literal emission for a word
+/// nested in a bracket word, not in how the VM splits a word into parts. The
+/// shape of the evidence located it:
 ///
 /// | vector | oracle | this VM |
 /// |---|---|---|
 /// | `string length "x\$y"` (top level) | 3 | 3 |
-/// | `set n [string length "x\$y"]` | 3 | **4** |
-/// | `set n [list "x\$y"]` | `{x$y}` | **`{x\$y}`** |
+/// | `set n [string length "x\$y"]` | 3 | 3 |
+/// | `set n [list "x\$y"]` | `{x$y}` | `{x$y}` |
 ///
-/// The same word reads correctly at the top level and wrongly one bracket
-/// deep, so the decomposition is not what differs — what the compiler pushes
-/// is. `tcl explore --show asm` confirms it: the nested form emits the literal
-/// `x\$y` where the word's value is `x$y`.
+/// The same word always decomposed correctly at the top level. The nested
+/// compiler path now decodes the literal escape under the selected word
+/// grammar before emitting the finished value, so it pushes `x$y`, not the
+/// source spelling `x\$y`.
 ///
-/// A blanket decode in the VM would "fix" the nested vectors by breaking the
+/// A blanket decode in the VM would break the
 /// `set body` one below, whose literal legitimately *does* contain
 /// backslashes. The VM's rule — an emitted `PUSH` literal is already its value
-/// — is the correct one; the emission is not. Fixing it means changing
-/// `rust/tcl-compiler`, which the native-lowering lane owns.
+/// — remains the correct one. This test deliberately retains the low-level
+/// compiler path so the fixed emission cannot be hidden by a runtime wrapper.
 #[test]
 fn issue_1646_is_a_compiler_literal_emission_gap_not_a_decomposition_one() {
     // The VM's rule, which is right: an emitted literal is already the value.
@@ -203,16 +186,11 @@ fn issue_1646_is_a_compiler_literal_emission_gap_not_a_decomposition_one() {
     );
     // The same word, decomposed correctly at the top level.
     assert_eq!(run(r#"string length "x\$y""#), (true, "3".to_owned()));
-    // …and the compiler's gap, one bracket deep. If either of these now reads
-    // the oracle value, the compiler-side fix for #1646 landed: delete this
-    // test and pin the oracle values instead.
+    // The nested compiler path now emits that same finished value.
     let (ok, result) = run(r#"set n [string length "x\$y"]"#);
     assert!(ok);
-    assert_eq!(result, "4", "oracle says 3 — see this test's doc comment");
+    assert_eq!(result, "3", "must match the Tcl 9.0.4 oracle");
     let (ok, result) = run(r#"set n [list "x\$y"]"#);
     assert!(ok);
-    assert_eq!(
-        result, r"{x\$y}",
-        "oracle says {{x$y}} — see this test's doc comment"
-    );
+    assert_eq!(result, r"{x$y}", "must match the Tcl 9.0.4 oracle");
 }

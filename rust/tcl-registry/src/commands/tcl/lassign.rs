@@ -88,6 +88,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_role_resolver: Some(lassign_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::VarWrite],
         arg_types: &[(
             0,
             ArgTypeHint {

@@ -947,9 +947,14 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     req.qname,
                     req.body,
                     true,
-                    req.upvar_procs.clone(),
-                    req.proc_params.clone(),
-                    req.global_write_procs.clone(),
+                    &registry,
+                    req.plain_command_dispatch,
+                    (
+                        req.upvar_procs.clone(),
+                        req.proc_params.clone(),
+                        req.global_write_procs.clone(),
+                        req.command_bindings.clone(),
+                    ),
                     tcl_lexer::LexerConfig::default(),
                 );
                 let pc =

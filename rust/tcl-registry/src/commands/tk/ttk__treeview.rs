@@ -1340,6 +1340,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName tag add|bind|cell|configure|delete|has|names|remove ?arg ...?",
         traits: Traits::DEFERS_BODY,
         arg_role_resolver: Some(treeview_tag_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         script_timing_resolver: Some(treeview_tag_script_timing),
         callback_taint_inputs: &[(3, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,

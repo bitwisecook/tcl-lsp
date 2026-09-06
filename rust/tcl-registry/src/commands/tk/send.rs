@@ -126,6 +126,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(2),
         arg_role_resolver: Some(send_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Name, ArgRole::Body],
         script_timing_resolver: Some(send_script_timing),
         traits: Traits::EVALUATES_CODE
             | Traits::SCRIPT_CONCATENATES_ARGS

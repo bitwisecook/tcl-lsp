@@ -557,7 +557,7 @@ mod tests {
         entry.statements.push(s);
         ssa.blocks.insert(entry_id, entry);
 
-        let du = build_def_use_chains(&ssa, Some(&cfg), tcl_dialect::LexerGrammar::default());
+        let du = build_def_use_chains(&ssa, Some(&cfg), tcl_lexer::LexerConfig::default());
         let registry = tcl_registry::CommandRegistry::build_default();
         let sccp_result = sccp(
             &cfg,
@@ -599,7 +599,7 @@ mod tests {
         let s = assign_const_ssa(&mut ssa, "x", "42", 1);
         entry.statements.push(s);
         ssa.blocks.insert(BlockId(0), entry);
-        let du = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
+        let du = build_def_use_chains(&ssa, None, tcl_lexer::LexerConfig::default());
 
         // A `Known` type lattice for x@1 must render as the uppercase
         // kind name "KNOWN"; a value absent from the map renders as the
@@ -666,7 +666,7 @@ mod tests {
         });
         ssa.blocks.insert(entry_id, entry);
 
-        let du = build_def_use_chains(&ssa, Some(&cfg), tcl_dialect::LexerGrammar::default());
+        let du = build_def_use_chains(&ssa, Some(&cfg), tcl_lexer::LexerConfig::default());
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top", &ssa, &du, None, None, None,
         );
@@ -727,16 +727,10 @@ mod tests {
         entry_b.statements.push(sb);
         ssa_b.blocks.insert(BlockId(0), entry_b);
 
-        let du_a = crate::def_use::build_def_use_chains(
-            &ssa_a,
-            None,
-            tcl_dialect::LexerGrammar::default(),
-        );
-        let du_b = crate::def_use::build_def_use_chains(
-            &ssa_b,
-            None,
-            tcl_dialect::LexerGrammar::default(),
-        );
+        let du_a =
+            crate::def_use::build_def_use_chains(&ssa_a, None, tcl_lexer::LexerConfig::default());
+        let du_b =
+            crate::def_use::build_def_use_chains(&ssa_b, None, tcl_lexer::LexerConfig::default());
 
         // Pass inputs in reverse name order to exercise the sort.
         let inputs: Vec<FunctionInputs> = vec![

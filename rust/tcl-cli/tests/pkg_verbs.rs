@@ -71,9 +71,13 @@ fn pkg_discover_uses_analysis_and_optimisation() {
         dir.join("main.tcl"),
         "proc load_json {} { package require json 1.2 }\n\
          proc load_tls {} {\n\
-             set dep [string cat t l s]\n\
+             set dep tls\n\
              set minimum 1.7\n\
              package require $dep $minimum\n\
+         }\n\
+         proc load_computed {} {\n\
+             set computed [string cat constructed _dependency]\n\
+             package require $computed 3.0\n\
          }\n\
          if {$optional} { package require Tk 8.6 }\n\
          set alternative 2.0-2.5\n\
@@ -82,6 +86,11 @@ fn pkg_discover_uses_analysis_and_optimisation() {
          package require $runtime_package\n",
     )
     .unwrap();
+
+    // Keep the optimiser assertion on literal value propagation. A
+    // `package require` may load arbitrary commands, so command-derived
+    // values such as `[string cat t l s]` correctly abstain once the shared
+    // command-binding analysis sees this module's external-load surface.
 
     let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--json"]);
     assert_eq!(code, 0, "{stderr}");
@@ -124,6 +133,11 @@ fn pkg_discover_uses_analysis_and_optimisation() {
     }));
     assert!(requirements.iter().any(|requirement| {
         requirement["expression"] == "${runtime_package}"
+            && requirement["name"].is_null()
+            && requirement["status"] == "unresolved"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["expression"] == "${computed}"
             && requirement["name"].is_null()
             && requirement["status"] == "unresolved"
     }));

@@ -26,7 +26,7 @@
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
-use crate::body_kind::BodyKind;
+use crate::body_kind::{BodyInterpreter, BodyKind};
 use crate::command_table::CommandTableEffect;
 use crate::completion::CompletionDescriptor;
 use crate::dispatch_stability::{DispatchDependencies, ResolvedDispatchDependencies};
@@ -206,6 +206,7 @@ fn resolve_invocation_semantics<'r>(
         var_elements_effect: sub.map_or(spec.var_elements_effect, |sub| sub.var_elements_effect),
         frame_effect: inherit_command.then_some(spec.frame_effect).flatten(),
         body_kind: sub.map_or(spec.body_kind, |sub| sub.body_kind),
+        body_interpreter: sub.map_or(spec.body_interpreter, |sub| sub.body_interpreter),
         lowering_hook: form
             .and_then(|form| form.lowering_hook)
             .or(sub.and_then(|sub| sub.lowering_hook))
@@ -573,6 +574,8 @@ pub struct InvocationSemantics<'r> {
     pub frame_effect: Option<FrameEffectSpec>,
     /// Whether body arguments run as ordinary scripts or structural bodies.
     pub body_kind: BodyKind,
+    /// Which interpreter owns evaluated body arguments.
+    pub body_interpreter: BodyInterpreter,
     /// Typed common front-end structural-lowering descriptor.
     ///
     /// This is not a target code-generation hook.  It is the existing
@@ -695,6 +698,8 @@ pub struct InvocationFacts {
     pub var_elements_effect: Option<VarElementsEffect>,
     /// Whether body words run in the caller frame or a structural scope.
     pub body_kind: BodyKind,
+    /// Which interpreter owns evaluated body arguments.
+    pub body_interpreter: BodyInterpreter,
     /// Frame-crossing argument grammar, when declared.
     pub frame_effect: Option<FrameEffectSpec>,
 }
@@ -887,6 +892,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             return_elements: self.semantics.return_elements,
             var_elements_effect: self.semantics.var_elements_effect,
             body_kind: self.semantics.body_kind,
+            body_interpreter: self.semantics.body_interpreter,
             frame_effect: self.semantics.frame_effect,
         }
     }

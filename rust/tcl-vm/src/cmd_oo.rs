@@ -47,7 +47,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
-use tcl_bytecode::FunctionAsm;
 use tcl_registry::commands::tcl::{
     InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyKind, TclOoPropertyOption,
     info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
@@ -59,18 +58,19 @@ use crate::command::{Command, Param, ProcDef, parse_params};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
-/// A method (or constructor/destructor) body: a proc-like param list plus the
-/// pre-compiled body, and whether it is exported for public (`$obj m`) dispatch.
+/// A method (or constructor/destructor) body: a proc-like parameter list plus
+/// an exact-object-namespace compiled body, and whether it is exported for public
+/// (`$obj m`) dispatch. A class method has no single procedure namespace at
+/// definition time, so compilation is deferred until an exact object-private
+/// namespace is known. The cache is deliberately one bounded exact entry: an
+/// object method is stable, while a shared class method recompiles when calls
+/// move between object-private namespaces instead of retaining dead objects.
 #[derive(Clone)]
 struct Method {
     params: Vec<Param>,
     has_args: bool,
-    body: Rc<FunctionAsm>,
+    compiled_body: Option<(String, crate::compiled::CompiledUnit)>,
     body_src: Value,
-    /// Dialect-profile generation under which `body` was compiled. The
-    /// transient `ProcDef` built for an invocation carries this through the
-    /// shared profile/trace freshness owner.
-    compiled_profile_generation: u64,
     /// `None` for an ordinary method; `Some(prefix)` for a `forward` (invoking
     /// the method evaluates `prefix args…`).
     forward: Option<Vec<Value>>,
@@ -540,11 +540,11 @@ fn apply_property(
     let read_method = format!("<ReadProp-{name}>");
     let write_method = format!("<WriteProp-{name}>");
     let get_m = match getter {
-        Some(body) => Some(build_method(vm, "", &body, false)?),
+        Some(body) => Some(build_method("", &body, false)?),
         None => None,
     };
     let set_m = match setter {
-        Some(body) => Some(build_method(vm, "value", &body, false)?),
+        Some(body) => Some(build_method("value", &body, false)?),
         None => None,
     };
     let apply = |methods: &mut BTreeMap<String, Method>,
@@ -1397,29 +1397,41 @@ fn run_step_inner(
         })
         .collect();
 
+    let body = match &m.compiled_body {
+        Some((namespace, body)) if namespace == &obj_ns => body.clone(),
+        _ => match vm.prepare_procedure_body(None, &m.params, &obj_ns, &m.body_src.to_str()) {
+            Ok(body) => body,
+            Err(error) => return crate::command::completion_from_tcl_error(error),
+        },
+    };
     let ns_id = vm.definition_namespace_token(&obj_ns);
     let proc = ProcDef {
         name: format!("{obj_ns}::{method}"),
-        namespace: obj_ns,
+        namespace: obj_ns.clone(),
         ns_id,
         params: m.params.clone(),
         has_args: m.has_args,
-        body: Rc::clone(&m.body),
+        body,
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
-        compiled_epoch: 0,
-        compiled_profile_generation: m.compiled_profile_generation,
     };
     // Refresh through the shared proc owner, then persist the replacement on
     // its defining facet.  Recompiling on every method call after a profile
     // switch is both wasteful and makes the class cache lie about its body.
-    let proc = vm.ensure_proc_traced(Rc::new(proc));
-    if !Rc::ptr_eq(&proc.body, &m.body)
-        || proc.compiled_profile_generation != m.compiled_profile_generation
-    {
+    let proc = match vm.ensure_proc_traced(Rc::new(proc)) {
+        Ok(proc) => proc,
+        Err(error) => return crate::command::completion_from_tcl_error(error),
+    };
+    let cache_is_current = m.compiled_body.as_ref().is_some_and(|(namespace, cached)| {
+        namespace == &obj_ns
+            && Rc::ptr_eq(&proc.body.asm, &cached.asm)
+            && proc.body.command_epoch == cached.command_epoch
+            && proc.body.profile_generation == cached.profile_generation
+            && proc.body.compiler == cached.compiler
+    });
+    if !cache_is_current {
         let mut refreshed = m.clone();
-        refreshed.body = Rc::clone(&proc.body);
-        refreshed.compiled_profile_generation = proc.compiled_profile_generation;
+        refreshed.compiled_body = Some((obj_ns, proc.body.clone()));
         if method.is_empty() {
             if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
                 class.constructor = Some(refreshed);
@@ -1861,21 +1873,16 @@ fn def_body_cmd(vm: &mut Vm, verb: &str, args: &[Value]) -> Completion<Value> {
 
 /// Compile a method/constructor body and build a [`Method`].
 fn build_method(
-    vm: &mut Vm,
     params_spec: &str,
     body: &Value,
     exported: bool,
 ) -> Result<Method, Completion<Value>> {
     let (params, has_args) = parse_params(params_spec).map_err(err)?;
-    let compiled = vm
-        .compile_dynamic_body(&body.to_str())
-        .ok_or_else(|| err("could not compile method body"))?;
     Ok(Method {
         params,
         has_args,
-        body: compiled,
+        compiled_body: None,
         body_src: body.clone(),
-        compiled_profile_generation: vm.profile_generation(),
         forward: None,
         exported,
     })
@@ -1900,7 +1907,7 @@ fn def_method(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Comp
     };
     let name = name.to_str().to_string();
     let exported = vis.unwrap_or_else(|| exported_by_default(&name));
-    let method = match build_method(vm, &params.to_str(), body, exported) {
+    let method = match build_method(&params.to_str(), body, exported) {
         Ok(m) => m,
         Err(e) => return e,
     };
@@ -1929,7 +1936,7 @@ fn def_constructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) ->
         }
         return ok(Value::empty());
     }
-    let method = match build_method(vm, &params.to_str(), body, true) {
+    let method = match build_method(&params.to_str(), body, true) {
         Ok(m) => m,
         Err(e) => return e,
     };
@@ -1952,7 +1959,7 @@ fn def_destructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> 
         }
         return ok(Value::empty());
     }
-    let method = match build_method(vm, "", body, true) {
+    let method = match build_method("", body, true) {
         Ok(m) => m,
         Err(e) => return e,
     };
@@ -2035,7 +2042,7 @@ fn def_mixin(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Compl
 }
 
 fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
-    let Some((name, prefix)) = args.split_first() else {
+    let Some((name, prefix)) = args.split_first().filter(|(_, prefix)| !prefix.is_empty()) else {
         return err("wrong # args: should be \"forward name cmdName ?arg ...?\"");
     };
     let name = name.to_str().to_string();
@@ -2043,9 +2050,8 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Com
     let method = Method {
         params: Vec::new(),
         has_args: true,
-        body: empty_body(vm),
+        compiled_body: None,
         body_src: Value::empty(),
-        compiled_profile_generation: vm.profile_generation(),
         forward: Some(prefix.to_vec()),
         exported,
     };
@@ -2057,11 +2063,6 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Com
         o.methods.insert(name, method);
     }
     ok(Value::empty())
-}
-
-/// A compiled empty body (placeholder for a forward's unused `body`).
-fn empty_body(vm: &mut Vm) -> Rc<FunctionAsm> {
-    vm.compile_dynamic_body("").expect("empty body compiles")
 }
 
 // oo::class create — the metaclass factory, handled specially so the new

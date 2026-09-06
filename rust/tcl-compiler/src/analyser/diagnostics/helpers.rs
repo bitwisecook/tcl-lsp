@@ -232,9 +232,15 @@ pub(super) fn is_ident_continue(b: u8) -> bool {
 /// `![info exists X]` query guards the false target.
 pub(super) fn collect_existence_guards(
     fu: &crate::compilation_unit::FunctionUnit,
+    registry: Option<&tcl_registry::CommandRegistry>,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<(String, BlockId)> {
     use crate::cfg::Terminator;
     let mut guards = Vec::new();
+    let registry = match registry {
+        Some(registry) => registry,
+        None => tcl_registry::default_registry(),
+    };
     for block in fu.cfg.blocks.values() {
         if let Some(Terminator::Branch {
             condition,
@@ -242,7 +248,7 @@ pub(super) fn collect_existence_guards(
             false_target,
             ..
         }) = &block.terminator
-            && let Some(query) = crate::expr_ast::existence_query_var(condition)
+            && let Some(query) = crate::existence_query::in_expr(condition, registry, config)
         {
             // Either spelling proves the name is bound in the guarded region:
             // `array exists X` implies `info exists X`.
@@ -882,19 +888,34 @@ fn harvest_dict_with_suppression(
     }
 }
 
+/// Release-, dialect-, and registry-shaped inputs used while reconstructing
+/// read-before-set suppression from detached expression and list text.
+#[derive(Clone, Copy)]
+pub(super) struct UndefSuppressionSemantics<'a> {
+    pub dialect: Option<SurfaceQuery<'a>>,
+    pub registry: Option<&'a tcl_registry::CommandRegistry>,
+    pub rules: tcl_syntax::word_rules::WordValueRules,
+    pub lexer_config: tcl_lexer::LexerConfig,
+}
+
 pub(super) fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
     initial_global: bool,
     global_aliases: &HashSet<String>,
-    dialect: Option<SurfaceQuery<'_>>,
-    rules: tcl_syntax::word_rules::WordValueRules,
+    semantics: UndefSuppressionSemantics<'_>,
 ) -> UndefSuppression {
+    let UndefSuppressionSemantics {
+        dialect,
+        registry,
+        rules,
+        lexer_config,
+    } = semantics;
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
-    let exists_guards = collect_existence_guards(fu);
+    let exists_guards = collect_existence_guards(fu, registry, lexer_config);
     let undef_ctx = PhiUndefCtx {
         phi_def: &phi_def,
         phi_block: &phi_block,

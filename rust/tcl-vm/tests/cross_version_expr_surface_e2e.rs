@@ -55,10 +55,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_dialect::TclVersion;
+use tcl_vm::Vm;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -70,54 +70,6 @@ impl std::io::Write for Capture {
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
-    }
-}
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-    /// The compile target for any script the VM compiles at run time (`eval`,
-    /// a proc body): the same release it is emulating.
-    dialect: &'static str,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(
-            src,
-            &self.registry,
-            tcl_lexer::LexerConfig::default(),
-            Some(
-                tcl_registry::model::ingress::resolve_environment(self.dialect).analyser_profile(),
-            ),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            config,
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
     }
 }
 
@@ -141,10 +93,7 @@ fn vm_output(src: &str, version: TclVersion) -> String {
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-        dialect,
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()

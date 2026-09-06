@@ -101,6 +101,7 @@ struct ModuleEmit<'a> {
     /// [`CodegenCtx::command_bindings`](crate::codegen::CodegenCtx::command_bindings).
     /// Scanned once per module, not once per function.
     command_bindings: &'a crate::command_binding::ModuleCommandMutations,
+    plain_command_dispatch: bool,
 }
 
 /// Like [`codegen_function_with_procs`] but threading the module source text so
@@ -115,8 +116,10 @@ fn codegen_function_src(
     proc_defs: &[IrProcedure],
     module: &ModuleEmit<'_>,
     base_line: u32,
+    resolution_namespace: &str,
 ) -> FunctionAsm {
     let mut ctx = CodegenCtx::new(is_proc, params, module.registry);
+    ctx.set_resolution_namespace(resolution_namespace);
     ctx.numbers = module.numbers;
     ctx.escapes = module.escapes;
     ctx.braced_var = module.braced_var;
@@ -124,6 +127,7 @@ fn codegen_function_src(
     ctx.expr_grammar = module.expr_grammar;
     ctx.dialect = module.dialect;
     ctx.command_bindings = Some(module.command_bindings);
+    ctx.plain_command_dispatch = module.plain_command_dispatch;
     ctx.set_indexed_source(
         std::rc::Rc::clone(&module.source),
         module.line_index.clone(),
@@ -162,46 +166,85 @@ pub fn codegen_module(
     ir_module: &IrModule,
     registry: &CommandRegistry,
 ) -> ModuleAsm {
-    let source: std::rc::Rc<str> = ir_module.source.as_str().into();
-    let line_index = tcl_lexer::LineIndex::new(&source);
-    // The compile's target release: a named dialect's own numeric grammar, else
-    // the permissive 9.x default.
-    let dialect = ir_module.dialect.as_deref();
-    // One grammar, resolved once from the name, and every axis read off it
-    // — so the numerals codegen emits and the numerals it re-parses `expr`
-    // bodies under are the same value by construction.
-    let grammar = tcl_dialect::grammar_of_dialect_name(dialect);
-    let numbers = grammar.numbers;
-    let escapes = grammar.escapes;
-    let braced_var = grammar.braced_var;
-    let word_rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
-    let expr_grammar = dialect.map(|_| grammar);
-    // Which builtins this unit leaves alone (issue #1585). Scanned from the IR
-    // — the top-level script plus every proc / method body — so a `rename` or
-    // shadowing `proc` *anywhere* in the unit is seen before the first
-    // instruction is emitted, whatever order the bodies are lowered in.
-    let command_bindings =
+    let command_mutations =
         crate::command_binding::scan_module_command_mutations(ir_module, registry);
-    let module = ModuleEmit {
+    codegen_module_with_command_mutations(cfg_module, ir_module, registry, &command_mutations)
+}
+
+/// Generate bytecode assembly while reusing a whole-module command-mutation
+/// summary already owned by the caller's compilation unit.
+///
+/// [`codegen_module`] remains the compatibility entry point for callers that
+/// only retain IR; it computes the same summary once before delegating here.
+#[must_use]
+pub fn codegen_module_with_command_mutations(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+) -> ModuleAsm {
+    codegen_module_with_top_context(
+        cfg_module,
+        ir_module,
+        &[],
+        false,
         registry,
-        source,
-        line_index,
-        dialect: emit_profile(dialect),
-        numbers,
-        escapes,
-        braced_var,
-        word_rules,
-        expr_grammar,
-        command_bindings: &command_bindings,
-    };
-    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], &module, 0);
-    // The same top level as a *procedure body*. A body compiled at run time
-    // (`proc` on a cache miss, an `apply` lambda, a method) reaches the
-    // compiler as a bare script, so without this it would run script-shaped and
-    // lose every `is_proc` specialisation its AOT-compiled twin gets — see
-    // [`ModuleAsm::top_level_body`].
-    let top_body = codegen_function_src(&cfg_module.top_level, &[], true, &[], &module, 0);
-    let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
+        command_mutations,
+    )
+}
+
+/// Generate a bytecode module whose outer function is a procedure body.
+/// Nested procedure definitions remain ordinary entries in `procedures`.
+#[must_use]
+pub fn codegen_procedure_module(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    params: &[&str],
+    registry: &CommandRegistry,
+) -> ModuleAsm {
+    let command_mutations =
+        crate::command_binding::scan_module_command_mutations(ir_module, registry);
+    codegen_procedure_module_with_command_mutations(
+        cfg_module,
+        ir_module,
+        params,
+        registry,
+        &command_mutations,
+    )
+}
+
+/// Generate a procedure-body bytecode module while reusing the caller's
+/// whole-module command-mutation summary.
+#[must_use]
+pub fn codegen_procedure_module_with_command_mutations(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    params: &[&str],
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+) -> ModuleAsm {
+    codegen_module_with_top_context(
+        cfg_module,
+        ir_module,
+        params,
+        true,
+        registry,
+        command_mutations,
+    )
+}
+
+struct EmittedProcedures {
+    functions: HashMap<String, FunctionAsm>,
+    provenance: HashMap<String, tcl_bytecode::ProcedureProvenance>,
+}
+
+fn codegen_procedures(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    module: &ModuleEmit<'_>,
+) -> EmittedProcedures {
+    let mut functions = HashMap::new();
+    let mut provenance = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
         // Skip procs defined inside namespace eval — tclsh compiles
@@ -222,7 +265,16 @@ pub fn codegen_module(
                 .line
                 .saturating_add(1)
         });
-        let mut asm = codegen_function_src(cfg_func, &params, true, &[], &module, base_line);
+        let (procedure_namespace, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+        let mut asm = codegen_function_src(
+            cfg_func,
+            &params,
+            true,
+            &[],
+            module,
+            base_line,
+            procedure_namespace,
+        );
         // The body word this assembly was compiled from, so a runtime consumer
         // keyed by name can tell it apart from another `proc` of the same name
         // (see `FunctionAsm::proc_body_src`). Recorded as the word *value*, not
@@ -234,13 +286,107 @@ pub fn codegen_module(
         asm.proc_body_src = ir_proc
             .and_then(|p| p.body_source.as_deref())
             .map(|body| module.word_rules.collapse_braced_word(body).into_owned());
-        procs.insert(qname.clone(), asm);
+        functions.insert(qname.clone(), asm);
+        if let Some(proc) = ir_proc
+            && let Some(body) = &proc.body_source
+        {
+            provenance.insert(
+                qname.clone(),
+                tcl_bytecode::ProcedureProvenance {
+                    name: proc.qualified_name.clone(),
+                    parameters: proc.params_raw.clone(),
+                    body: body.clone(),
+                },
+            );
+        }
     }
+    EmittedProcedures {
+        functions,
+        provenance,
+    }
+}
+
+fn codegen_module_with_top_context(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    top_params: &[&str],
+    top_is_proc: bool,
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+) -> ModuleAsm {
+    let src = &ir_module.source;
+    let source: std::rc::Rc<str> = src.as_str().into();
+    let line_index = tcl_lexer::LineIndex::new(&source);
+    // The compile's target release: a named dialect's own numeric grammar, else
+    // the permissive 9.x default.
+    let dialect = ir_module.dialect.as_deref();
+    // One grammar, resolved once from the name, and every axis read off it
+    // — so the numerals codegen emits and the numerals it re-parses `expr`
+    // bodies under are the same value by construction.
+    let grammar = tcl_dialect::grammar_of_dialect_name(dialect);
+    let numbers = grammar.numbers;
+    let escapes = grammar.escapes;
+    let braced_var = grammar.braced_var;
+    let word_rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
+    let expr_grammar = dialect.map(|_| grammar);
+    let module = ModuleEmit {
+        registry,
+        source,
+        line_index,
+        dialect: emit_profile(dialect),
+        numbers,
+        escapes,
+        braced_var,
+        word_rules,
+        expr_grammar,
+        command_bindings: command_mutations,
+        plain_command_dispatch: ir_module.plain_command_dispatch,
+    };
+    let top = codegen_function_src(
+        &cfg_module.top_level,
+        top_params,
+        top_is_proc,
+        &[],
+        &module,
+        0,
+        &ir_module.top_level_namespace,
+    );
+    // The same top level as a *procedure body*. A body compiled at run time
+    // (`proc` on a cache miss, an `apply` lambda, a method) reaches the
+    // compiler as a bare script, so without this it would run script-shaped and
+    // lose every `is_proc` specialisation its AOT-compiled twin gets — see
+    // [`ModuleAsm::top_level_body`]. A procedure-target compile already has
+    // that shape, including its seeded parameter slots.
+    let top_body = if top_is_proc {
+        top.clone()
+    } else {
+        codegen_function_src(
+            &cfg_module.top_level,
+            top_params,
+            true,
+            &[],
+            &module,
+            0,
+            &ir_module.top_level_namespace,
+        )
+    };
+    let procedures = codegen_procedures(cfg_module, ir_module, &module);
     ModuleAsm {
         profile: emit_profile(dialect).unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+        source: src.clone(),
+        // Lowering owns the rooted constructed form; the runtime ABI uses the
+        // corresponding unrooted constructed key. Remove exactly the root
+        // marker rather than reparsing a key whose first segment may be `:`.
+        source_namespace: ir_module
+            .top_level_namespace
+            .strip_prefix("::")
+            .unwrap_or(&ir_module.top_level_namespace)
+            .to_owned(),
+        plain_command_dispatch: ir_module.plain_command_dispatch,
         top_level: top,
         top_level_body: top_body,
-        procedures: procs,
+        procedures: procedures.functions,
+        procedure_provenance: procedures.provenance,
     }
 }
 

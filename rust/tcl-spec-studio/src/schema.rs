@@ -43,6 +43,8 @@ pub enum FieldKind {
     OptBool,
     /// A non-negative count (`u8` / `usize`).
     Count,
+    /// `Option<u16>` — a non-negative count, or unset.
+    OptCount,
     /// `Option<u8>` — a 0-based argument index, or unset.
     OptIndex,
     /// `&'static str`.
@@ -71,8 +73,15 @@ pub enum FieldKind {
         /// Whether the field is `Option<T>`.
         optional: bool,
     },
+    /// `&'static [T]` where `T` is a named catalogue enum.
+    EnumList {
+        /// Catalogue id — a key of [`catalogues`].
+        catalogue: &'static str,
+    },
     /// [`tcl_registry::Arity`] — min, max, step, and the extra exact count.
     Arity,
+    /// [`tcl_registry::BodyInterpreter`] — current or argument-selected.
+    BodyInterpreter,
     /// `&'static [(u8, ArgRole)]`.
     RoleMap,
     /// `&'static [(u8, AppendedArity)]` — command-prefix positions.
@@ -128,6 +137,7 @@ impl FieldKind {
             Self::Bool => "bool",
             Self::OptBool => "optBool",
             Self::Count => "count",
+            Self::OptCount => "optCount",
             Self::OptIndex => "optIndex",
             Self::Text => "text",
             Self::OptText => "optText",
@@ -137,7 +147,9 @@ impl FieldKind {
             Self::OptIndexList => "optIndexList",
             Self::Enum { .. } => "enum",
             Self::FlagSet { .. } => "flagSet",
+            Self::EnumList { .. } => "enumList",
             Self::Arity => "arity",
+            Self::BodyInterpreter => "bodyInterpreter",
             Self::RoleMap => "roleMap",
             Self::PrefixMap => "prefixMap",
             Self::CallbackTaintMap => "callbackTaintMap",
@@ -175,6 +187,7 @@ impl FieldKind {
                 out["catalogue"] = json!(catalogue);
                 out["optional"] = json!(optional);
             }
+            Self::EnumList { catalogue } => out["catalogue"] = json!(catalogue),
             Self::RustExpr { hint } => out["hint"] = json!(hint),
             _ => {}
         }
@@ -459,6 +472,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list; wins over `arg_roles`.",
     ),
     f(
+        "arg_role_resolver_roles",
+        "Resolver role capabilities",
+        ARGS,
+        FieldKind::EnumList {
+            catalogue: "argRole",
+        },
+        "Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.",
+    ),
+    f(
         "arg_presentation",
         "Argument presentation",
         ARGS,
@@ -542,6 +564,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "VarWriteTyping::Fixed(TclType::String)",
         },
         "How the command types the variables it writes, when that differs from its return value.",
+    ),
+    f(
+        "variable_write_min_args",
+        "Variable-write argument floor",
+        TYPES,
+        FieldKind::OptCount,
+        "Minimum post-head argument count at which the command can write a variable; unset makes no claim beyond its role descriptors.",
     ),
     f(
         "return_type_hook",
@@ -993,6 +1022,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Whether body arguments run in the caller's frame or a separate context.",
     ),
     f(
+        "body_interpreter",
+        "Body interpreter",
+        BEHAVIOUR,
+        FieldKind::BodyInterpreter,
+        "Whether evaluated body arguments run in the current interpreter or one selected by an invocation argument.",
+    ),
+    f(
         "body_arg_implicit_args",
         "Body implicit arguments",
         ARGS,
@@ -1420,6 +1456,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list.",
     ),
     f(
+        "arg_role_resolver_roles",
+        "Resolver role capabilities",
+        ARGS,
+        FieldKind::EnumList {
+            catalogue: "argRole",
+        },
+        "Closed set of roles the dynamic resolver can emit when an invocation cannot be resolved precisely.",
+    ),
+    f(
         "arg_presentation",
         "Argument presentation",
         ARGS,
@@ -1776,6 +1821,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             optional: false,
         },
         "Whether body arguments run in the caller's frame or a separate context.",
+    ),
+    f(
+        "body_interpreter",
+        "Body interpreter",
+        BEHAVIOUR,
+        FieldKind::BodyInterpreter,
+        "Whether body arguments run in the current interpreter or one selected by an invocation argument.",
     ),
     f(
         "byte_array_effect",
@@ -2229,8 +2281,9 @@ mod tests {
         let cats = cats.as_object().expect("catalogues is an object");
         for list in [COMMAND_FIELDS, SUBCOMMAND_FIELDS] {
             for field in list {
-                if let FieldKind::Enum { catalogue, .. } | FieldKind::FlagSet { catalogue, .. } =
-                    field.kind
+                if let FieldKind::Enum { catalogue, .. }
+                | FieldKind::FlagSet { catalogue, .. }
+                | FieldKind::EnumList { catalogue } = field.kind
                 {
                     assert!(
                         cats.contains_key(catalogue),

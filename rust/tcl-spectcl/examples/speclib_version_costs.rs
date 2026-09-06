@@ -16,19 +16,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! What the `SpecTcl` 2.0 vocabulary costs the bundled corpus.
+//! What the newest `SpecTcl` vocabulary costs the bundled corpus.
 //!
-//! Every shipped pack declares 1.1 — the newest vocabulary any of them uses,
-//! on a ladder that runs 1.0, 1.1, 1.2, 2.0. The 2.0 rewrite says
+//! Shipped packs span the additive vocabulary ladder through 2.1. The newest
+//! rewrite says
 //! the same facts in the algebra (`available {tcl 8.6-}` for `dialects
 //! tcl8.6+`), so the two files must load to the same registry — and the
 //! question this answers is what the second spelling costs to read.
 //!
 //! Three numbers per pack, each over the *same* source read twice:
 //!
-//!   - **1.x** — the file as it ships (1.1, for every pack here).
-//!   - **2.0** — `tcl spec upgrade`'s rewrite of it, evaluated the same way.
-//!   - **2.0 (VM)** — the same 2.0 source with the static fast path off, so
+//!   - **shipped** — the file exactly as it ships.
+//!   - **2.1** — `tcl spec upgrade`'s rewrite of it, evaluated the same way.
+//!   - **2.1 (VM)** — the same 2.1 source with the static fast path off, so
 //!     the pack really is executed as a Tcl program by `tcl-vm` rather than
 //!     captured from its CST. This is the honest upper bound on what design
 //!     E's "a pack is a Tcl program" costs when nothing short-circuits it.
@@ -129,15 +129,15 @@ fn main() {
     packs.sort();
 
     println!(
-        "| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |"
+        "| pack | lines | commands | shipped ms | 2.1 ms | Δ | 2.1 VM ms | shipped KiB | 2.1 KiB | 2.1 VM KiB |"
     );
     println!("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
     let mut totals = [Duration::ZERO; 3];
     let mut retained = [0usize; 3];
     for path in &packs {
         let name = path.file_stem().unwrap_or_default().to_string_lossy();
-        let legacy = std::fs::read_to_string(path).expect("a readable pack");
-        let outcome = upgrade_source(&legacy, &UpgradeOptions::default());
+        let shipped = std::fs::read_to_string(path).expect("a readable pack");
+        let outcome = upgrade_source(&shipped, &UpgradeOptions::default());
         assert!(
             matches!(
                 outcome.status,
@@ -147,11 +147,11 @@ fn main() {
             outcome.status,
             outcome.refusals
         );
-        let modern = outcome.source;
+        let newest = outcome.source;
 
-        let old = measure(&legacy, true, runs);
-        let new = measure(&modern, true, runs);
-        let vm = measure(&modern, false, runs);
+        let old = measure(&shipped, true, runs);
+        let new = measure(&newest, true, runs);
+        let vm = measure(&newest, false, runs);
         assert_eq!(
             old.commands, new.commands,
             "{name}: the rewrite must register the same commands"
@@ -160,7 +160,7 @@ fn main() {
 
         println!(
             "| `{name}` | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-            legacy.lines().count(),
+            shipped.lines().count(),
             old.commands,
             ms(old.median),
             ms(new.median),

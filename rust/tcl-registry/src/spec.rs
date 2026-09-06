@@ -25,7 +25,7 @@
 use crate::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use crate::arg_role::ArgRole;
 use crate::arity::{Arity, ArityWindow};
-use crate::body_kind::BodyKind;
+use crate::body_kind::{BodyInterpreter, BodyKind};
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
@@ -1331,6 +1331,13 @@ pub struct CommandSpec {
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Roles the dynamic resolver can emit for some invocation.
+    ///
+    /// Source-aware projections consult this closed capability set when
+    /// expansion or substitution prevents calling the value-dependent
+    /// resolver precisely.
+    pub arg_role_resolver_roles: &'static [ArgRole],
+
     /// Formatter **presentation** overrides, keyed by 0-based argument index
     /// — how an argument should be *laid out*, as distinct from what
     /// [`Self::arg_roles`] says it *is* (issue #1186).
@@ -1423,6 +1430,18 @@ pub struct CommandSpec {
     /// variables.  See [`VarWriteTyping`].  Default
     /// [`VarWriteTyping::ReturnValue`].
     pub var_write_typing: VarWriteTyping,
+
+    /// Minimum number of post-head argv words at which this command can write
+    /// a variable value, including any leading option words.
+    ///
+    /// `None` makes no sharper claim than the command's argument-role
+    /// descriptors.  `Some(n)` is a necessary-condition proof used by
+    /// source-aware effect projection: when an exact argv has fewer than `n`
+    /// words, a dynamic leading option cannot manufacture a write target and
+    /// the caller's whole variable frame need not be widened.  This is
+    /// deliberately separate from [`Self::arity`], since value-returning and
+    /// variable-writing forms of one command can have different floors.
+    pub variable_write_min_args: Option<u16>,
 
     /// How the result value relates to container element structure
     /// (`list` builds a list of its args; `lindex` retrieves one element) —
@@ -1717,6 +1736,13 @@ pub struct CommandSpec {
     /// data flow (SSA, def-use scans, dead-store detection).  Default
     /// `Plain` keeps existing specs unchanged.
     pub body_kind: BodyKind,
+
+    /// Which interpreter owns the command's evaluated body arguments.
+    ///
+    /// This is independent of [`Self::body_kind`], which describes frame and
+    /// structural scope within an interpreter. The default is the invoking
+    /// interpreter; an ensemble may override it on a body-bearing subcommand.
+    pub body_interpreter: BodyInterpreter,
 
     /// Number of runtime-supplied positional args the body's first
     /// command receives.  Used by proc-call arity checks to relax
@@ -2231,6 +2257,7 @@ impl CommandSpec {
         arity_windows: &[],
         arg_roles: &[],
         arg_role_resolver: None,
+        arg_role_resolver_roles: &[],
         arg_presentation: &[],
         repeated_args: &[],
         frame_effect: None,
@@ -2242,6 +2269,7 @@ impl CommandSpec {
         return_type: None,
         return_type_hook: None,
         var_write_typing: VarWriteTyping::ReturnValue,
+        variable_write_min_args: None,
         return_elements: None,
         var_elements_effect: None,
         representation_effect: None,
@@ -2292,6 +2320,7 @@ impl CommandSpec {
         arg_values: &[],
         versioned_arg_values: &[],
         body_kind: BodyKind::Plain,
+        body_interpreter: BodyInterpreter::Current,
         body_arg_implicit_args: 0,
         taint_output_sink: None,
         taint_output_sink_subcommands: &[],
@@ -3099,6 +3128,10 @@ pub struct SubCommand {
     /// Dynamic argument role resolver.
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Roles the dynamic resolver can emit for some invocation. See the
+    /// command-level field of the same name.
+    pub arg_role_resolver_roles: &'static [ArgRole],
+
     /// Formatter presentation overrides (after the subcommand word) — the
     /// subcommand-level twin of [`CommandSpec::arg_presentation`]. Empty
     /// means every body argument is laid out as a block, the default.
@@ -3272,6 +3305,10 @@ pub struct SubCommand {
     /// this subcommand.  See [`CommandSpec::body_kind`] for the
     /// semantics; default `Plain`.
     pub body_kind: BodyKind,
+
+    /// Interpreter realm for this subcommand's evaluated body arguments.
+    /// See [`CommandSpec::body_interpreter`].
+    pub body_interpreter: BodyInterpreter,
 
     /// How this subcommand transforms a byte-array (binary) operand — drives
     /// the S110 byte-array-corruption check for `string`'s value subcommands
@@ -3524,6 +3561,7 @@ impl SubCommand {
         hover: None,
         arg_roles: &[],
         arg_role_resolver: None,
+        arg_role_resolver_roles: &[],
         arg_presentation: &[],
         repeated_args: &[],
         command_prefixes: &[],
@@ -3564,6 +3602,7 @@ impl SubCommand {
         creates_scope_alias: false,
         inferred_storage_type: None,
         body_kind: BodyKind::Plain,
+        body_interpreter: BodyInterpreter::Current,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         closed_value_args: &[],
         arg_values_accept_prefix: false,

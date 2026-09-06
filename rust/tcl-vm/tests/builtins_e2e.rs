@@ -28,20 +28,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct Svc(CommandRegistry);
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.0);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
-    }
-}
+use tcl_vm::Vm;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -146,7 +136,7 @@ fn run(src: &str) -> (bool, String, String) {
     let asm = codegen_module(&cfg, &ir, &registry);
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");
     (c.code.is_ok(), c.result.to_str().to_string(), out)
@@ -195,7 +185,7 @@ fn exec_command_capability() {
     // host has. `exec` yields the faithful "unsupported" error, not a panic.
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.set_host(Rc::new(tcl_vm::host_native::NativeHost::sandboxed()));
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("exec echo hello", &registry);
@@ -1136,7 +1126,7 @@ fn bootstrap_globals_present() {
 #[test]
 fn host_rebind_replaces_bytecode_vm_bootstrap_globals() {
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.set_host(Rc::new(SyntheticHost::new(&[
         ("USER", "first-user"),
         ("TCL_LIBRARY", "/first/lib"),

@@ -139,6 +139,26 @@ fn index_slice(values: &[Value]) -> String {
     format!("&[{}]", items.join(", "))
 }
 
+/// Render a slice of catalogue enum variants such as `&[ArgRole::Body]`.
+fn enum_slice(ty: &str, values: &[Value]) -> String {
+    let items: Vec<String> = values
+        .iter()
+        .map(|value| format!("{ty}::{}", as_str(value)))
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
+fn body_interpreter_expr(value: &Value) -> Option<String> {
+    match value.get("kind")?.as_str()? {
+        "Current" => Some("BodyInterpreter::Current".to_owned()),
+        "Argument" => Some(format!(
+            "BodyInterpreter::Argument({})",
+            value.get("index")?.as_u64()?
+        )),
+        _ => None,
+    }
+}
+
 /// Render a bitflag union such as `Traits::A.union(Traits::B)`, or
 /// `TYPE::empty()` when no bits are set.
 ///
@@ -898,7 +918,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::Bool => as_bool(value).to_string(),
         FieldKind::OptBool => format!("Some({})", value.as_bool()?),
         FieldKind::Count => as_u64(value).to_string(),
-        FieldKind::OptIndex => format!("Some({})", value.as_u64()?),
+        FieldKind::OptCount | FieldKind::OptIndex => format!("Some({})", value.as_u64()?),
         FieldKind::Text | FieldKind::Prose => rust_string(as_str(value)),
         FieldKind::OptText => format!("Some({})", rust_string(value.as_str()?)),
         FieldKind::TextList => str_slice(as_array(value)),
@@ -933,7 +953,9 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
                 flag_union(ty, as_array(value))
             }
         }
+        FieldKind::EnumList { catalogue } => enum_slice(enum_type_name(catalogue), as_array(value)),
         FieldKind::Arity => arity_expr(value),
+        FieldKind::BodyInterpreter => body_interpreter_expr(value)?,
         FieldKind::RoleMap => role_map_expr(as_array(value)),
         FieldKind::PrefixMap => prefix_map_expr(as_array(value)),
         FieldKind::CallbackTaintMap => callback_taint_map_expr(as_array(value)),

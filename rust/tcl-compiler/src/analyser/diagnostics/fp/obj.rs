@@ -752,9 +752,11 @@ fn fp_w307_oo_class_bare_name_factory_propagates() {
 
 #[test]
 fn fp_w307_oo_class_method_local_literal_fires() {
-    // TP: a bare local set to a literal non-command inside an oo::class method body must
-    // fire W307 — `in_method` is no longer a blanket suppression.
-    let src = "oo::class create C {\n    method m {} { set cmd nope; $cmd arg }\n}";
+    // TP: an exact local set to a literal non-command inside an oo::class
+    // method body must fire W307 — `in_method` is no longer a blanket
+    // suppression. Qualifying the builtin keeps this test independent of an
+    // object-local command that may shadow a relative `set` at runtime.
+    let src = "oo::class create C {\n    method m {} { ::set cmd nope; $cmd arg }\n}";
     assert!(
         fires(src, D, "W307"),
         "local 'set cmd nope' inside method body must fire W307 on $cmd; emitted: {:?}",

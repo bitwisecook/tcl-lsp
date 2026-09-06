@@ -31,6 +31,17 @@ fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &CommandRegistry::build_default(), false).ir_module
 }
 
+fn module_for_namespace(source: &str, namespace: &str, registry: &CommandRegistry) -> Module {
+    crate::lowering::lower_script_module_for_bytecode(
+        source,
+        namespace,
+        registry,
+        tcl_lexer::LexerConfig::default(),
+        None,
+        false,
+    )
+}
+
 /// `inline_module` against a freshly-built default registry.
 fn inline_module_default(module: Module) -> Module {
     inline_module(module, &CommandRegistry::build_default())
@@ -161,6 +172,163 @@ fn verbatim_wrapper_body_is_spliced() {
     let inlined = inline_module(module, &CommandRegistry::build_default());
     assert_eq!(top_calls_to(&inlined, "greet"), 0, "wrapper call replaced");
     assert_eq!(top_calls_to(&inlined, "puts"), 1, "wrapper body spliced");
+}
+
+#[test]
+fn runtime_script_top_level_inlines_from_its_explicit_namespace() {
+    let registry = CommandRegistry::build_default();
+    let module = module_for_namespace(
+        "proc ::pick {} { puts GLOBAL }\n\
+         proc ::n::pick {} { puts NAMESPACED }\n\
+         pick",
+        "n",
+        &registry,
+    );
+    assert_eq!(module.top_level_namespace, "::n");
+
+    let inlined = inline_module(module, &registry);
+    assert!(
+        inlined
+            .top_level
+            .statements
+            .iter()
+            .any(|statement| matches!(
+                statement,
+                Statement::Call { command, args, .. }
+                    if command == "puts" && args.len() == 1 && args[0] == "NAMESPACED"
+            )),
+        "the bare call must inline ::n::pick, not the colliding ::pick: {:?}",
+        inlined.top_level.statements,
+    );
+    assert!(
+        !inlined
+            .top_level
+            .statements
+            .iter()
+            .any(|statement| matches!(
+                statement,
+                Statement::Call { command, args, .. }
+                    if command == "puts" && args.len() == 1 && args[0] == "GLOBAL"
+            )),
+        "the global collision must not be selected from namespace ::n",
+    );
+}
+
+#[test]
+fn bare_call_does_not_resolve_through_an_ancestor_namespace() {
+    let with_global = inline_module_default(module_for(
+        "namespace eval ::a::b {}\n\
+         proc ::a::target {} { puts ANCESTOR }\n\
+         proc ::target {} { puts GLOBAL }\n\
+         proc ::a::b::caller {} { target }",
+    ));
+    let caller = &with_global.procedures["::a::b::caller"];
+    assert!(caller.body.statements.iter().any(|statement| matches!(
+        statement,
+        Statement::Call { command, args, .. }
+            if command == "puts" && args.len() == 1 && args[0] == "GLOBAL"
+    )));
+    assert!(
+        caller
+            .body
+            .procedure_binding_requirements
+            .iter()
+            .any(|binding| binding.name == "::target")
+    );
+
+    let without_global = inline_module_default(module_for(
+        "namespace eval ::a::b {}\n\
+         proc ::a::target {} { puts ANCESTOR }\n\
+         proc ::a::b::caller {} { target }",
+    ));
+    assert!(
+        without_global.procedures["::a::b::caller"]
+            .body
+            .statements
+            .iter()
+            .any(|statement| matches!(
+                statement,
+                Statement::Call { command, .. } if command == "target"
+            ))
+    );
+}
+
+#[test]
+fn top_level_cross_namespace_call_keeps_its_runtime_proc_frame() {
+    let module = module_for(
+        "namespace eval ::n {}\n\
+         proc ::n::callee {} { puts NAMESPACED }\n\
+         ::n::callee",
+    );
+    let inlined = inline_module_default(module);
+
+    assert_eq!(
+        top_calls_to(&inlined, "::n::callee"),
+        1,
+        "a module top level may run as Tcl frame zero, so a procedure from \
+         another namespace must retain the call frame that stale-command \
+         replay and uplevel observe: {:?}",
+        inlined.top_level.statements,
+    );
+    assert!(
+        inlined
+            .top_level
+            .procedure_binding_requirements
+            .iter()
+            .all(|binding| binding.name != "::n::callee"),
+        "a call which was not consumed must not acquire inline-procedure provenance",
+    );
+}
+
+#[test]
+fn procedure_caller_can_still_inline_across_namespaces() {
+    let inlined = inline_module_default(module_for(
+        "namespace eval ::n {}\n\
+         proc ::n::callee {} { puts NAMESPACED }\n\
+         proc ::caller {} { ::n::callee }",
+    ));
+    let caller = &inlined.procedures["::caller"];
+
+    assert!(
+        caller.body.statements.iter().any(|statement| matches!(
+            statement,
+            Statement::Call { command, args, .. }
+                if command == "puts" && args.len() == 1 && args[0] == "NAMESPACED"
+        )),
+        "a procedure activation has a supra-global namespace slot for transparent replay: {:?}",
+        caller.body.statements,
+    );
+    assert!(caller.body.statements.iter().all(|statement| !matches!(
+        statement,
+        Statement::Call { command, .. } if command == "::n::callee"
+    )));
+}
+
+#[test]
+fn executable_pipeline_retains_consumed_user_proc_binding() {
+    let registry = CommandRegistry::build_default();
+    let module = inline_module(
+        module_for("proc ::greet {} { puts hello }\ngreet"),
+        &registry,
+    );
+    let requirement = module
+        .top_level
+        .procedure_binding_requirements
+        .iter()
+        .next()
+        .expect("the consumed call must leave an exact procedure dependency");
+    assert_eq!(requirement.resolution_namespace, "");
+    assert_eq!(requirement.invocation_name, "greet");
+    assert_eq!(requirement.name, "::greet");
+    assert_eq!(requirement.parameters, "");
+    assert_eq!(requirement.body, " puts hello ");
+
+    let cfg = crate::cfg_builder::build_cfg_codegen(&module, true);
+    let asm = crate::codegen::codegen_module(&cfg, &module, &registry);
+    assert_eq!(
+        asm.top_level.procedure_bindings,
+        std::slice::from_ref(requirement)
+    );
 }
 
 #[test]
@@ -463,6 +631,60 @@ fn v3_trailing_return_non_terminal_is_wrapped() {
         ),
         1
     );
+}
+
+#[test]
+fn v3_wrapped_return_preserves_nested_command_binding() {
+    let stmts = inlined_top("proc ::add {x} {return [expr {$x + 1}]}\nadd 1\nputs after");
+    assert!(
+        !stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Statement::Call { command, .. } if command == "add")),
+        "the parameterised call must be inlined",
+    );
+    let wrapped = stmts
+        .iter()
+        .find_map(|stmt| match stmt {
+            Statement::While { body, .. } => Some(body),
+            _ => None,
+        })
+        .expect("the non-terminal return must use the one-shot while wrapper");
+    assert!(
+        wrapped
+            .command_binding_sites
+            .iter()
+            .any(|site| { site.binding.name == "expr" && site.binding.identity == "expr" }),
+        "the return-to-assignment transform lost nested expr provenance: {:?}",
+        wrapped.command_binding_sites,
+    );
+}
+
+#[test]
+fn repeated_v3_wrap_preserves_transitive_procedure_bindings_in_asm() {
+    let registry = CommandRegistry::build_default();
+    let source = concat!(
+        "proc ::nested {} { puts nested }\n",
+        "proc ::outer {x} { ::nested\n return $x }\n",
+        "::outer 7\n",
+        "puts done",
+    );
+
+    // The first pass consumes `nested` inside `outer`, making `outer` itself
+    // eligible for v3 inlining. The second pass consumes the non-terminal
+    // `outer` call and therefore routes its rewritten body through the
+    // return-as-break wrapper.
+    let once = inline_module(module_for(source), &registry);
+    let module = inline_module(once, &registry);
+    let cfg = crate::cfg_builder::build_cfg_codegen(&module, true);
+    let asm = crate::codegen::codegen_module(&cfg, &module, &registry);
+    let bindings: Vec<_> = asm
+        .top_level
+        .procedure_bindings
+        .iter()
+        .map(|binding| binding.name.as_str())
+        .collect();
+
+    assert_eq!(bindings, ["::nested", "::outer"]);
 }
 
 #[test]

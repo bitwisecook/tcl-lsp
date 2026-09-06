@@ -6307,7 +6307,7 @@ mod tests {
     fn a_method_read_without_classvariable_still_warns() {
         let src = "oo::class create Foo {\n\
                    initialize { variable Pitch; const Pitch 5e-6 }\n\
-                   method m {} { return $Pitch }\n\
+                   method m {} { ::return $Pitch }\n\
                    }";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl9.0");

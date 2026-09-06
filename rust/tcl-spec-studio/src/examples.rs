@@ -58,6 +58,14 @@ const fn focus(line: usize, needle: &'static str, note: &'static str) -> Focus {
     Focus { line, needle, note }
 }
 
+const FIELD_ARG_ROLE_RESOLVER_ROLES: Example = Example {
+    code: "if {$ready} { run } elseif {$waiting} { wait }",
+    focuses: &[
+        focus(0, "{$ready}", "Expr is one role the resolver can return"),
+        focus(0, "{ run }", "Body is another role the resolver can return"),
+    ],
+};
+
 mod catalogues;
 mod fields_behaviour;
 mod fields_core;
@@ -100,6 +108,9 @@ fn group_template(group: &str) -> Option<Example> {
 /// fallback — inheriting the group's snippet is how a hundred settings shipped
 /// showing something other than themselves (#1714).
 fn field_template(key: &str) -> Option<Example> {
+    if key == "arg_role_resolver_roles" {
+        return Some(FIELD_ARG_ROLE_RESOLVER_ROLES);
+    }
     fields_core::ENTRIES
         .iter()
         .chain(fields_behaviour::ENTRIES)

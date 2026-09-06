@@ -178,8 +178,8 @@ mod tests {
         // Issue #994 C5b: `b` is typed only by the object-type lattice's
         // method-return edge; go-to-type-definition must reach ::B like
         // every other dispatch consumer.
-        let src = "oo::class create A { method make {} { return [B new] } }\n\
-                   oo::class create B { method greet {} { return \"hi\" } }\n\
+        let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+                   oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
                    set b [$a make]\n\
                    $b greet\n";

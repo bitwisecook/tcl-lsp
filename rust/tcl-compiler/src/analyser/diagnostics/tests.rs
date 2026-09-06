@@ -4683,23 +4683,24 @@ fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
 /// diagnostics to the whole-file path — both on a cold cache (all misses,
 /// proving the refactor) and a warm cache (all hits, proving the cache key
 /// captures every lattice input).
+const MEMOIZED_DIAGNOSTIC_SNIPPETS: [&str; 6] = [
+    "proc a {x} {\n  if {$x} { set y 1 }\n  return $y\n}\nproc b {} { a 1 }\n",
+    "set g 0\nproc inc {} { global g; incr g }\ninc\nputs $g\n",
+    "proc f {n} {\n  set acc 0\n  for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n  return $acc\n}\nproc g {} { set z 9; set z 10; return $z }\n",
+    "namespace eval n {\n  proc p {a} { set b $a; return $b }\n}\nset r [n::p 3]\n",
+    "oo::class create K {\n  method m {a} { set n $a; return $n }\n}\nproc top {} { set q 1; set q 2 }\n",
+    // Constructor object typing through the memo: `set o [K new]` types
+    // `o` as OBJECT(::K), so `$o gone` is validated (W308). Exercises
+    // the `known_classes` thread on `LatticeRequest` + the memo key.
+    "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
+];
+
 #[test]
 fn memoized_compilation_unit_diagnostics_match_whole_file() {
     use crate::compilation_unit::{CompilationUnit, FunctionUnit};
     use std::collections::HashMap;
     use std::sync::Arc;
-    let snippets = [
-        "proc a {x} {\n  if {$x} { set y 1 }\n  return $y\n}\nproc b {} { a 1 }\n",
-        "set g 0\nproc inc {} { global g; incr g }\ninc\nputs $g\n",
-        "proc f {n} {\n  set acc 0\n  for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n  return $acc\n}\nproc g {} { set z 9; set z 10; return $z }\n",
-        "namespace eval n {\n  proc p {a} { set b $a; return $b }\n}\nset r [n::p 3]\n",
-        "oo::class create K {\n  method m {a} { set n $a; return $n }\n}\nproc top {} { set q 1; set q 2 }\n",
-        // Constructor object typing through the memo: `set o [K new]` types
-        // `o` as OBJECT(::K), so `$o gone` is validated (W308). Exercises
-        // the `known_classes` thread on `LatticeRequest` + the memo key.
-        "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
-    ];
-    for src in snippets {
+    for src in MEMOIZED_DIAGNOSTIC_SNIPPETS {
         // The permissive `tcl` profile loads no pack of its own.
         let registry = tcl_registry::CommandRegistry::build_default();
         // Whole-file reference.
@@ -4743,9 +4744,14 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         req.qname,
                         req.body,
                         true,
-                        req.upvar_procs.clone(),
-                        req.proc_params.clone(),
-                        req.global_write_procs.clone(),
+                        &registry,
+                        req.plain_command_dispatch,
+                        (
+                            req.upvar_procs.clone(),
+                            req.proc_params.clone(),
+                            req.global_write_procs.clone(),
+                            req.command_bindings.clone(),
+                        ),
                         tcl_lexer::LexerConfig::default(),
                     );
                     let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
@@ -4855,9 +4861,14 @@ fn memoized_compilation_unit_shift_correctness() {
                     req.qname,
                     req.body,
                     true,
-                    req.upvar_procs.clone(),
-                    req.proc_params.clone(),
-                    req.global_write_procs.clone(),
+                    &registry,
+                    req.plain_command_dispatch,
+                    (
+                        req.upvar_procs.clone(),
+                        req.proc_params.clone(),
+                        req.global_write_procs.clone(),
+                        req.command_bindings.clone(),
+                    ),
                     tcl_lexer::LexerConfig::default(),
                 );
                 let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
@@ -6507,14 +6518,10 @@ fn codes_for(src: &str) -> Vec<String> {
 fn method_body_read_before_set_now_flags_w210() {
     // TP — the finding's own real repro shape, reduced: `nico-robert_tomato`'s
     // Vector3d.tcl `method * {type}` reads `$other`, a variable belonging to
-    // a *sibling* method (`DotProduct {other}`), never bound in `*`'s own
-    // scope — tclsh8.6/9.0.4 both crash with `can't read "other": no such
-    // variable` the moment `*` runs on an object operand. The exact same
-    // unbound-read shape inside a plain `proc` already fired W210; a TclOO
-    // method body previously got zero diagnostics at all, because the whole
-    // CFG/SSA dataflow family (`emit_cfg_ssa_diagnostics_for_function_full`)
-    // was only ever run over `cu.procedures`, never `cu.methods`.
-    let src = "oo::class create Vector3d {\n    variable _x\n    constructor {x} { set _x $x }\n    method DotProduct {other} { return [expr {$_x * $other}] }\n    method Buggy {type} { return [my DotProduct $other] }\n}\n";
+    // a sibling method and never bound in its own scope. The fixture uses
+    // absolute command heads to isolate that Tcl 9.0.4 read-before-set fact
+    // from runtime-selected method-relative command lookup.
+    let src = "oo::class create Vector3d {\n    variable _x\n    constructor {x} { ::set _x $x }\n    method DotProduct {other} { ::return [::expr {$_x * $other}] }\n    method Buggy {type} { ::return [::expr {$_x * $other}] }\n}\n";
     let codes = codes_for(src);
     assert_eq!(
         codes,
@@ -6581,7 +6588,7 @@ fn method_body_ordinary_unused_local_still_flags_w211() {
     // TN — the fix must not blanket-suppress every diagnostic inside a
     // method body: a genuinely unused *local* (not a param, not an instance
     // var) still flags W211, exactly as it would inside a plain proc.
-    let src = "oo::class create P {\n    method Foo {} {\n        set unused 1\n        return ok\n    }\n}\n";
+    let src = "oo::class create P {\n    method Foo {} {\n        ::set unused 1\n        ::return ok\n    }\n}\n";
     let codes = codes_for(src);
     assert!(
         codes.contains(&"W211".to_string()),
@@ -6598,7 +6605,7 @@ fn objdefine_method_body_unbound_read_now_flags_w210() {
     // FN now caught — an `oo::objdefine $obj { method … }` body previously
     // produced no method unit at all, so a genuinely unbound read inside it
     // got zero diagnostics (issue #1172 item 1).
-    let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    method probe {} { return $neverBound }\n}\n";
+    let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    method probe {} { ::return $neverBound }\n}\n";
     let codes = codes_for(src);
     assert!(
         codes.contains(&"W210".to_string()),
@@ -6685,7 +6692,7 @@ fn method_body_unbound_read_inside_switch_arm_still_flags_w210() {
     // TN — a sanity check that the new loop reaches a method's full CFG,
     // not just a shallow top-level scan: the unbound read is nested inside
     // a `switch` arm.
-    let src = "oo::class create P {\n    method Foo {n} {\n        switch $n {\n            1 { return $missing }\n        }\n        return 0\n    }\n}\n";
+    let src = "oo::class create P {\n    method Foo {n} {\n        ::switch $n {\n            1 { ::return $missing }\n        }\n        ::return 0\n    }\n}\n";
     let codes = codes_for(src);
     assert!(
         codes.contains(&"W210".to_string()),
@@ -7076,8 +7083,8 @@ fn info_exists_still_folds_never_set_non_instance_local_in_method() {
     // method bodies": `zzz` is neither instance state nor a parameter nor ever
     // assigned, so it still folds false exactly as it would inside a proc.
     let codes = codes_for(
-        "oo::class create C {\n variable x\n constructor {} { set x 1 }\n \
-         method m {} { if {[info exists zzz]} { puts hi } }\n}\n",
+        "oo::class create C {\n variable x\n constructor {} { ::set x 1 }\n \
+         method m {} { ::if {[::info exists zzz]} { ::puts hi } }\n}\n",
     );
     assert!(
         codes.contains(&"I230".to_string()),
@@ -7098,7 +7105,7 @@ fn info_exists_folds_true_not_false_for_method_parameter() {
     // consumers disagreed; both now read the same `MethodDef`.
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics(
-        "oo::class create C {\n method m {p} { if {[info exists p]} { puts hi } }\n}\n",
+        "oo::class create C {\n method m {p} { ::if {[::info exists p]} { ::puts hi } }\n}\n",
     );
     let i230: Vec<&str> = a
         .result
@@ -7162,20 +7169,17 @@ fn info_exists_does_not_fold_upvar_defined_local_across_next_dispatch() {
 
 #[test]
 fn info_exists_still_folds_across_my_when_no_method_reaches_the_caller_frame() {
-    // TN guard (issue #1177) — the widening is evidence-gated, not a
-    // blanket "no folds near `my`": when no method in the module can reach
-    // its caller's frame, a dispatch cannot create locals here, so a
-    // never-set non-instance local still folds always false (tclsh 9.0.4 /
-    // 8.6.14: `[info exists zzz]` is 0 after `my Helper`).
+    // Tcl 9.0.4 resolves the relative `my` command head at runtime and an
+    // object's namespace may shadow it, so the fold must abstain.
     let codes = codes_for(
         "oo::class create C {\n \
-         method Helper {} { return 1 }\n \
+         method Helper {} { ::return 1 }\n \
          method m {} {\n my Helper\n \
-         if {[info exists zzz]} { puts hi }\n }\n}\n",
+         ::if {[::info exists zzz]} { ::puts hi }\n }\n}\n",
     );
     assert!(
-        codes.contains(&"I230".to_string()),
-        "with complete dispatch evidence the fold must survive; got {codes:?}",
+        !codes.contains(&"I230".to_string()),
+        "relative `my` dispatch must make the fold abstain; got {codes:?}",
     );
 }
 
@@ -7231,8 +7235,8 @@ fn info_exists_folds_true_for_method_parameter_shadowing_an_instance_var() {
     // and with the instance variable never assigned, the parameter still
     // binds (`A2 in-method: exists 1 value hello`, `A2 after m: 0`).
     let msgs = i230_messages(
-        "oo::class create A {\n variable x\n constructor {} { set x 42 }\n \
-         method m {x} { if {[info exists x]} { puts hi } }\n}\n",
+        "oo::class create A {\n variable x\n constructor {} { ::set x 42 }\n \
+         method m {x} { ::if {[::info exists x]} { ::puts hi } }\n}\n",
     );
     assert_eq!(
         msgs.len(),
@@ -7252,9 +7256,9 @@ fn info_exists_still_abstains_on_the_non_shadowed_instance_vars() {
     // is shadowed by the parameter and folds; the sibling instance variable
     // `y`, which nothing in this method binds, must keep abstaining.
     let msgs = i230_messages(
-        "oo::class create A {\n variable x y\n constructor {} { set x 42 }\n \
-         method m {x} {\n if {[info exists x]} { puts hi }\n \
-         if {[info exists y]} { puts ho }\n }\n}\n",
+        "oo::class create A {\n variable x y\n constructor {} { ::set x 42 }\n \
+         method m {x} {\n ::if {[::info exists x]} { ::puts hi }\n \
+         ::if {[::info exists y]} { ::puts ho }\n }\n}\n",
     );
     assert_eq!(
         msgs.len(),
@@ -7288,8 +7292,8 @@ fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
     // false") and gave the *procedure* the class's instance variables (so it
     // abstained on `x`, a name it fully owns as a never-set local).
     let msgs = i230_messages(
-        "oo::class create C {\n variable x\n constructor {} { set x 42 }\n \
-         method m {p} { if {[info exists p]} { puts inmethod } }\n}\n\
+        "oo::class create C {\n variable x\n constructor {} { ::set x 42 }\n \
+         method m {p} { ::if {[::info exists p]} { ::puts inmethod } }\n}\n\
          namespace eval ::C {}\n\
          proc ::C::m {q} {\n if {[info exists q]} { puts inproc }\n \
          if {[info exists x]} { puts nope }\n}\n",
@@ -8854,8 +8858,8 @@ fn w307_suppressed_for_method_return_captured_handle() {
     // `$var`-dispatched method and captured into a variable.  The lattice's
     // method-return edge types `b`, so the re-dispatch draws no W307 (the
     // information hover / go-to-definition already surface).
-    let src = "oo::class create A { method make {} { return [B new] } }\n\
-               oo::class create B { method greet {} { return \"hi\" } }\n\
+    let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+               oo::class create B { method greet {} { ::return \"hi\" } }\n\
                set a [A new]\n\
                set b [$a make]\n\
                $b greet\n";
@@ -8870,8 +8874,8 @@ fn w307_suppressed_for_method_return_captured_handle() {
 fn w308_fires_for_bogus_method_on_method_return_captured_handle() {
     // The positive half of the same edge: once `b` is provably a ::B, an
     // unknown method is W308 — the diagnostic and hover agree on the class.
-    let src = "oo::class create A { method make {} { return [B new] } }\n\
-               oo::class create B { method greet {} { return \"hi\" } }\n\
+    let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+               oo::class create B { method greet {} { ::return \"hi\" } }\n\
                set a [A new]\n\
                set b [$a make]\n\
                $b fly\n";
@@ -8886,8 +8890,8 @@ fn w308_fires_for_bogus_method_on_method_return_captured_handle() {
 fn tp_e001_bare_dispatch_on_method_return_captured_handle() {
     // Issue #1200's variable flow: the same lattice typing makes a bare
     // `$b` the unconditional TclOO zero-word failure.
-    let src = "oo::class create A { method make {} { return [B new] } }\n\
-               oo::class create B { method greet {} { return \"hi\" } }\n\
+    let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+               oo::class create B { method greet {} { ::return \"hi\" } }\n\
                set a [A new]\n\
                set b [$a make]\n\
                $b\n";

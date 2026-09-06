@@ -1424,9 +1424,10 @@ mod object_instance_taint_sources {
     #[test]
     fn tk_unqualified_link_targets_global_not_proc_local_state() {
         let false_positive = "package require Tk\nproc p {} {\n    set value safe\n    entry .e -textvariable value\n    eval $value\n}\np";
+        let warnings = of_code(false_positive, D, "T100");
         assert!(
-            of_code(false_positive, D, "T100").is_empty(),
-            "Tk's unqualified link is ::value; it must not taint proc-local value"
+            warnings.is_empty(),
+            "Tk's unqualified link is ::value; it must not taint proc-local value: {warnings:?}"
         );
 
         let false_negative = "package require Tk\nproc p {} {\n    entry .e -textvariable value\n}\np\neval $::value";
@@ -1900,11 +1901,14 @@ mod output_sinks {
     fn puts_inside_tcloo_method_body_still_fires() {
         // TclOO method bodies are analysable functions like any proc — the
         // sink check must not be limited to top-level / plain-proc bodies.
+        // Qualify the core heads because an instance method executes in its
+        // runtime-selected object namespace: a relative `puts` may denote an
+        // object-local command, for which deep analysis correctly abstains.
         let ws = of_code(
             "oo::class create Foo {\n\
              method bar {} {\n\
-             set x [read $fd]\n\
-             puts $x\n\
+             ::set x [::read $fd]\n\
+             ::puts $x\n\
              }\n\
              }",
             D,

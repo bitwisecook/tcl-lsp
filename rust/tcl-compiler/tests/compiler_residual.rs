@@ -178,6 +178,37 @@ fn string_equal_nocase_end_to_end_through_proc() {
 }
 
 #[test]
+fn string_equal_nocase_statement_with_mutating_argument_uses_invoke_replace() {
+    // This is deliberately a command statement, not a value-position
+    // substitution. The nested command can mutate `string` after the outer
+    // command has been entered, so the typed String hook must still reach its
+    // INVOKE_REPLACE emitter and retain the registry binding assumed by that
+    // executable shape.
+    let asm = proc_asm("proc p {} { string equal -nocase [mutate] X }", "::p");
+    let ops: Vec<Op> = asm
+        .instructions
+        .iter()
+        .map(|instruction| instruction.op)
+        .collect();
+    assert!(
+        ops.contains(&Op::INVOKE_REPLACE),
+        "statement-position String hook must emit INVOKE_REPLACE: {ops:?}"
+    );
+    assert_eq!(
+        count(&ops, Op::INVOKE_STK1) + count(&ops, Op::INVOKE_STK4),
+        1,
+        "only the nested mutate call remains a generic invoke: {ops:?}"
+    );
+    assert!(
+        asm.command_bindings
+            .iter()
+            .any(|binding| binding.name == "string" && binding.identity == "string"),
+        "String specialisation retains its registry identity: {:?}",
+        asm.command_bindings
+    );
+}
+
+#[test]
 fn string_compare_length_uses_invoke_replace() {
     // `string compare -length 3 a b` → INVOKE_REPLACE with the `-length` flag
     // prefix, distinct from the bare STR_CMP 2-arg form.
@@ -658,9 +689,10 @@ fn cmd_subst_arg_bare_array_ref_loads_array() {
 }
 
 #[test]
-fn cmd_subst_arg_braced_with_subst_rewraps() {
-    // A braced arg that still holds a `$`/`[` marker is re-wrapped in braces and
-    // pushed verbatim (a single PUSH1) — the runtime sees `{$x}`.
+fn cmd_subst_arg_braced_with_subst_is_verbatim() {
+    // `parse_cmd_parts` strips a braced word's grouping braces. The compiler
+    // retains its exact value and marks the PUSH verbatim, so the runtime does
+    // not reinterpret `$x` as a substitution.
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["x"]);
     ctx.emit_cmd_subst_arg("$x", true);
@@ -669,9 +701,10 @@ fn cmd_subst_arg_braced_with_subst_rewraps() {
         vec![Op::PUSH1],
         "braced-with-subst → single push"
     );
+    assert!(ctx.instructions[0].push_verbatim);
     assert!(
-        ctx.literals.entries().iter().any(|l| l == "{$x}"),
-        "the brace-wrapped literal is interned: {:?}",
+        ctx.literals.entries().iter().any(|l| l == "$x"),
+        "the exact literal is interned: {:?}",
         ctx.literals.entries()
     );
 }
@@ -802,7 +835,7 @@ fn emit_stamps_source_cmd_text_with_quoted_word_widen() {
     ctx.set_source(src);
     let start = u32::try_from(src.find("puts").unwrap()).unwrap();
     let inner_end = u32::try_from(src.rfind('"').unwrap()).unwrap(); // points AT the closing quote
-    ctx.current_span = Some(Span::new(start, inner_end));
+    ctx.set_command_source_span(Span::new(start, inner_end));
     let idx = ctx.emit(Op::INVOKE_STK1, vec![]);
     let instr = &ctx.instructions[idx];
     assert_eq!(
@@ -840,7 +873,7 @@ fn emit_with_no_source_yields_empty_text() {
     // present (and the command text is correctly empty regardless).
     let reg = registry();
     let mut ctx = CodegenCtx::new(false, &[], &reg);
-    ctx.current_span = Some(Span::new(0, 5));
+    ctx.set_command_source_span(Span::new(0, 5));
     let idx = ctx.emit(Op::NOP, vec![]);
     assert_eq!(
         ctx.instructions[idx].source_cmd_text, "",
@@ -860,7 +893,7 @@ fn emit_comment_stamps_text_line_and_comment() {
     let src = "set a 1\nset b 2\nincr a";
     ctx.set_source(src);
     let start = u32::try_from(src.rfind("incr").unwrap()).unwrap();
-    ctx.current_span = Some(Span::new(start, start + 6)); // "incr a"
+    ctx.set_command_source_span(Span::new(start, start + 6)); // "incr a"
     let idx = ctx.emit_comment(Op::INCR_STK_IMM, vec![Operand::Imm(1)], "the comment");
     let instr = &ctx.instructions[idx];
     assert_eq!(instr.comment, "the comment");
@@ -878,7 +911,7 @@ fn span_text_quoted_widen_only_when_quote_follows() {
     ctx.set_source(src);
     let start = u32::try_from(src.find("set").unwrap()).unwrap();
     let end = u32::try_from(src.find(" value").unwrap()).unwrap(); // ends right after "set name"
-    ctx.current_span = Some(Span::new(start, end));
+    ctx.set_command_source_span(Span::new(start, end));
     let idx = ctx.emit(Op::STORE_STK, vec![]);
     assert_eq!(
         ctx.instructions[idx].source_cmd_text, "set name",

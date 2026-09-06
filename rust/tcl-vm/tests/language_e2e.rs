@@ -26,23 +26,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::Vm;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -64,9 +51,7 @@ fn run(src: &str) -> (bool, String, String) {
     let asm = codegen_module(&cfg, &ir, &registry);
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");
     (c.code.is_ok(), c.result.to_str().to_string(), out)
@@ -459,6 +444,13 @@ fn link_commands_reject_element_looking_names() {
     let (ok, _r, out) = run("proc p {} { upvar 0 arr(k) v; set v 9; puts $v }\np\n");
     assert!(ok, "an element is a legal upvar *target*");
     assert_eq!(out, "9\n");
+
+    // `namespace upvar` has the same scalar-alias guard. Its target namespace
+    // is already resolved, but alias installation still belongs to the shared
+    // upvar link owner.
+    let (ok, r, _out) = run("set zz 1\nnamespace upvar :: zz (v)\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"(v)\": {SCALAR}"));
 
     // `global` guards each name, reporting the unqualified tail.
     let (ok, r, _out) = run("proc p {} { global (x) }\np\n");

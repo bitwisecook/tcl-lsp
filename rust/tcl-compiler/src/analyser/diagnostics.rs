@@ -72,8 +72,8 @@ use tcl_core_types::DiagCode;
 use rustc_hash::FxHashSet;
 
 use helpers::{
-    build_undef_suppression, collect_defined_vars, collect_existence_guards, globals_read_by_procs,
-    globals_written_by_procs,
+    UndefSuppressionSemantics, build_undef_suppression, collect_defined_vars,
+    collect_existence_guards, globals_read_by_procs, globals_written_by_procs,
 };
 
 use super::state::Analyser;
@@ -483,16 +483,21 @@ impl Analyser {
         // asnPeekTag data tag type dummy`) is not flagged as a dead
         // store.  `collect_call_by_name_reads` then yields the suppressed
         // names per function, merged into the dead-store `cross_event_vars`.
-        let cbn_proc_index = {
+        let cbn_proc_index = if let Some(ia) = cu.interproc.as_ref() {
+            crate::interprocedural::build_proc_index_from_summaries(ia)
+        } else {
             // The call-by-name proc index (W220) needs only direct proc→proc
             // reachability, not object-instance callback edges, so no
-            // object-type map is threaded here.
-            let ia = crate::interprocedural::build_interprocedural_analysis(
+            // object-type map is threaded here. A caller supplying a baseline
+            // unit may not have populated `interproc`, so retain the standalone
+            // fallback for that compatibility path.
+            let ia = crate::interprocedural::build_interprocedural_analysis_with_cfg(
                 &cu.ir_module,
                 registry,
                 Some(self.profile),
                 crate::interprocedural::ObjectTypeMap::none(),
                 &self.head_identities,
+                &cu.cfg_module,
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
         };
@@ -930,10 +935,15 @@ impl Analyser {
             &considered,
             initial_global,
             &global_aliases,
-            Some(self.analysis_context().context().authoring_query()),
-            self.word_rules(),
+            UndefSuppressionSemantics {
+                dialect: Some(self.analysis_context().context().authoring_query()),
+                registry: self.registry.as_deref(),
+                rules: self.word_rules(),
+                lexer_config: self.lexer_config(),
+            },
         );
-        let exists_guards = collect_existence_guards(function_unit);
+        let exists_guards =
+            collect_existence_guards(function_unit, self.registry.as_deref(), self.lexer_config());
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();

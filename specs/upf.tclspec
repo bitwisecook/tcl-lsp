@@ -25,7 +25,7 @@
 # Edit this file to change the specs; there is no generator to re-run.
 # Syntax: docs/design/spec-dsl-examples/README.md.
 
-speclib upf 1.1 {
+speclib upf 2.1 {
 
 display_name {IEEE 1801 UPF}
 file_extension upf -name {Unified Power Format} -dialect synopsys-eda-tcl
@@ -824,6 +824,7 @@ command define_power_model {
             role [expr {$n - 1}] Body
         }
     }
+    arg_role_resolver_roles Body
 
     option -for -takes model_list \
         -detail {The names of the models to which the power model applies, defaulting to power_model_name itself when absent.}

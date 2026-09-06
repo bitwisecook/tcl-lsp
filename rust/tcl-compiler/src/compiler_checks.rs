@@ -666,7 +666,7 @@ mod tests {
 
     #[test]
     fn shimmer_not_double_counted_in_tcloo_method_body() {
-        let src = "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";
+        let src = "oo::class create C {\n    method m {} {\n        ::set x hello\n        ::incr x\n    }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let diags = run_all_checks(&cu, &registry(), None);
         let s100: Vec<_> = diags.iter().filter(|d| d.code.as_str() == "S100").collect();
@@ -714,7 +714,7 @@ mod tests {
     /// not a blanket regression of `incr`-on-String detection inside methods.
     #[test]
     fn shimmer_still_fires_in_tcloo_method_without_my_variable() {
-        let src = "oo::class create Counter {\n    method bump {} {\n        set count hello\n        incr count\n    }\n}\n";
+        let src = "oo::class create Counter {\n    method bump {} {\n        ::set count hello\n        ::incr count\n    }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let diags = run_all_checks(&cu, &registry(), None);
         let shimmer: Vec<_> = diags

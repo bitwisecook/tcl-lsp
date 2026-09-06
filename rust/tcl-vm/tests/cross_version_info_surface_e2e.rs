@@ -27,43 +27,9 @@ use std::cell::RefCell;
 use std::io::Write as _;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
-use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            config,
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_dialect::TclVersion;
+use tcl_vm::{CompileService, Vm};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -82,9 +48,7 @@ impl std::io::Write for Capture {
 fn vm_output(src: &str, version: TclVersion) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    };
+    let service = BytecodeCompileService::for_profile(profile);
     let asm = service
         .compile_for_profile(src, profile)
         .expect("test script compiles for its selected profile");

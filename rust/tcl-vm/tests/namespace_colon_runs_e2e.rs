@@ -38,29 +38,10 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-/// A `tcl-compiler`-backed compile service so the VM can resolve runtime
-/// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself
-/// never depends on the compiler).
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::Vm;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -85,9 +66,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -124,6 +103,60 @@ fn proc_with_colon_run_defines_collapsed_name() {
          list [foo::baz] [lsort [info commands ::foo::*]]");
     assert!(ok, "got: {res}");
     assert_eq!(res, "baz {::foo::bar ::foo::baz}");
+}
+
+/// A constructed key whose namespace is literally `:` must be inverted as a
+/// key, not reparsed as a written root marker. Procedure compilation and a
+/// nested `proc` both retain the `:::` namespace.
+#[test]
+fn proc_body_in_literal_colon_namespace_keeps_its_namespace() {
+    // tclsh9.0.4: `::: {} :::`.
+    let (ok, res, _) = run("namespace eval : {\
+             proc p {} {\
+                 list [namespace current] [proc h {} {namespace current}] [h]\
+             };\
+             p\
+         }");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "::: {} :::");
+}
+
+/// A constructed namespace key must not be reparsed as a written namespace
+/// when a nested `namespace eval` frame is pushed. The literal `:` child below
+/// `outer` is distinct from `outer` itself.
+#[test]
+fn nested_literal_colon_namespace_keeps_its_constructed_key() {
+    // tclsh9.0.4:
+    // `::outer::: ::outer::: ::outer:::::p ::outer
+    //  {::outer:::::: ::outer:::::: ::outer::::::::p ::outer:::}`.
+    let (ok, res, _) = run("namespace eval outer {namespace eval : {\
+             proc p {} {namespace current};\
+             list [namespace current] [p] [namespace which p] [namespace parent] \
+                 [namespace eval : {\
+                     proc p {} {namespace current};\
+                     list [namespace current] [p] [namespace which p] [namespace parent]\
+                 }]\
+         }}");
+    assert!(ok, "got: {res}");
+    assert_eq!(
+        res,
+        "::outer::: ::outer::: ::outer:::::p ::outer \
+         {::outer:::::: ::outer:::::: ::outer::::::::p ::outer:::}"
+    );
+}
+
+/// Relative lookups through the shared `Namespaces` adapter join their
+/// written suffix onto the constructed context key without re-canonicalising
+/// the literal-colon segment already present in that context.
+#[test]
+fn relative_namespace_lookup_below_literal_colon_context_keeps_its_key() {
+    // tclsh9.0.4: `::outer::: {}`.
+    let (ok, res, _) = run("namespace eval outer {namespace eval : {\
+             namespace eval child {};\
+             list [namespace parent child] [namespace children child]\
+         }}");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "::outer::: {}");
 }
 
 /// A trailing colon run in a *command* name denotes the `{}`-named command in
@@ -191,6 +224,24 @@ fn namespace_eval_trailing_run_creates_plain_namespace() {
     let (ok, res, _) = run("namespace eval c9b::: {namespace current}");
     assert!(ok, "got: {res}");
     assert_eq!(res, "::c9b");
+}
+
+/// `apply`'s explicit namespace is a written Tcl namespace name. Leading,
+/// interior, and trailing separator runs all canonicalise before existence
+/// lookup and before the lambda body is compiled.
+#[test]
+fn apply_namespace_canonicalises_separator_runs() {
+    // tclsh9.0.4: every spelling denotes ::foo, including the nested proc.
+    for spelling in [":::foo", "::foo:::", "foo:::"] {
+        let (ok, res, _) = run(&format!(
+            "namespace eval foo {{}}; \
+             apply {{{{}} {{\
+                 list [namespace current] [proc h {{}} {{namespace current}}] [h]\
+             }} {spelling}}}"
+        ));
+        assert!(ok, "{spelling}: got {res}");
+        assert_eq!(res, "::foo {} ::foo", "{spelling}");
+    }
 }
 
 /// `namespace delete` collapses colon runs in its argument.

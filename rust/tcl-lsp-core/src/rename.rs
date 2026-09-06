@@ -2471,8 +2471,8 @@ mod tests {
         // `greet` refused (untracked-receiver hazard on `$b greet`) even
         // though hover/definition resolved the site.  Now the site is a
         // proven ::B dispatch: the rename proceeds and rewrites it.
-        let src = "oo::class create A { method make {} { return [B new] } }\n\
-                   oo::class create B { method greet {} { return \"hi\" } }\n\
+        let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+                   oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
                    set b [$a make]\n\
                    $b greet\n";

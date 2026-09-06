@@ -165,6 +165,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Filter a dictionary.",
         synopsis: "dict filter dictionaryValue filterType ...",
         arg_role_resolver: Some(dict_filter_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::Dict),
         arg_types: &[(
             0,
@@ -449,6 +450,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
+        arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead, ArgRole::Body],
         // `dictionaryVariable key varName ?key varName ...? body` — each
         // `varName` is a local the body sees, at every other index from 2
         // (after the subcommand word), with the trailing body excluded
@@ -504,6 +506,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // the parameter used).
         creates_scope_alias: true,
         arg_role_resolver: Some(dict_last_arg_body),
+        arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead, ArgRole::Body],
         arg_types: &[(
             0,
             ArgTypeHint {
@@ -837,6 +840,7 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 // {…}` would neither bind its loop vars nor analyse its body.
                 arg_roles: sub.arg_roles,
                 arg_role_resolver: sub.arg_role_resolver,
+                arg_role_resolver_roles: sub.arg_role_resolver_roles,
                 command_prefixes: sub.command_prefixes,
                 command_prefix_resolver: sub.command_prefix_resolver,
                 analyser_hook: sub.analyser_hook,

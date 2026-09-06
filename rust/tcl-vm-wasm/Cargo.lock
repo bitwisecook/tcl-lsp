@@ -215,6 +215,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 

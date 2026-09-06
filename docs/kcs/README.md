@@ -94,6 +94,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## Q&A
 
+- [kcs-qa-when-must-tclvm-recompile-runtime-bytecode.md](kcs-qa-when-must-tclvm-recompile-runtime-bytecode.md)
+  — when embedders can reuse TclVM bytecode after a dialect-profile or compile-
+  service replacement, and why live activations fail closed.
 - [kcs-qa-which-commands-are-available-in-a-dialect.md](kcs-qa-which-commands-are-available-in-a-dialect.md)
   — how the dialect profile decides command availability (embedded Tcl
   base + the iRules disable list).

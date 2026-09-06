@@ -24,7 +24,7 @@
 
 #![allow(dead_code)]
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use tcl_registry::InlineBodyErrorContext;
 
@@ -34,7 +34,7 @@ use crate::ir::Statement;
 
 use super::super::CodegenCtx;
 use super::super::layout::{optimise_jumps, resolve_layout};
-use super::super::{FunctionAsm, Op, Operand};
+use super::super::{FunctionAsm, Op, Operand, SourceCommandBoundary};
 use super::loop_blocks::{ComplexForeach, ForeachInfo, detect_complex_foreach, detect_foreach};
 use super::ordering::{
     self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
@@ -77,6 +77,14 @@ struct GenerateState {
     /// Pending startCommand end labels for if/switch join pops — each
     /// label is placed *before* the join pop once it is emitted.
     pending_join_labels: HashMap<String, String>,
+    /// Explicit inline structured-command continuation block to its replay
+    /// label. The continuation pops either the optimised region's result or the
+    /// transparent plain-dispatch child's result into `last_result`.
+    command_boundary_end_labels: HashMap<String, String>,
+    /// Proc-only constant-true `if` bodies whose first source command begins at
+    /// the same bytecode position as the enclosing command. Tcl represents the
+    /// pair with one count-two `START_CMD`, not nested markers.
+    first_command_covered_by_if: HashSet<String>,
 }
 
 impl GenerateState {
@@ -96,6 +104,8 @@ impl GenerateState {
             foreach_end_labels: HashMap::new(),
             for_body_end_labels: HashMap::new(),
             pending_join_labels: HashMap::new(),
+            command_boundary_end_labels: HashMap::new(),
+            first_command_covered_by_if: HashSet::new(),
         }
     }
 }
@@ -270,6 +280,11 @@ fn emit_block_prologue(
     bname: &str,
     blk: &crate::cfg::Block,
 ) -> bool {
+    if let Some(label) = state.command_boundary_end_labels.remove(bname) {
+        ctx.place_label(&label);
+        ctx.emit(Op::POP, vec![]);
+    }
+
     // Complex foreach: emit foreach_step + foreach_end at the
     // bottom of the loop body, before the loop-result push/pop.
     if let Some(header) = fe.end_to_header.get(bname)
@@ -351,6 +366,10 @@ fn emit_block_start_cmds(
         && matches!(blk.terminator, Some(Terminator::Branch { .. }))
         && ctx.cmd_index > 0
     {
+        ctx.set_command_boundary_site(
+            cfg.block_id(bname)
+                .and_then(|id| cfg.command_boundary_sites.get(&id)),
+        );
         let fb_end_label = ctx.fresh_label("for_body_end");
         ctx.emit_comment(
             Op::START_CMD,
@@ -379,6 +398,10 @@ fn emit_block_start_cmds(
         && ctx.cmd_index > 0
         && !bname.starts_with("foreach_header_")
     {
+        ctx.set_command_boundary_site(
+            cfg.block_id(bname)
+                .and_then(|id| cfg.command_boundary_sites.get(&id)),
+        );
         let fif_end_label = ctx.fresh_label("foreach_if_end");
         ctx.emit_comment(
             Op::START_CMD,
@@ -409,11 +432,13 @@ fn emit_block_start_cmds(
     // pending startCommand end label *before* the pop so the
     // startCommand covers only the arm body, not the result
     // cleanup.
-    if starts_with_any(bname, VALUE_JOIN_PREFIXES) && block_has_work(cfg, blk, ctx.is_proc) {
+    if starts_with_any(bname, VALUE_JOIN_PREFIXES) {
         if let Some(lbl) = state.pending_join_labels.remove(bname) {
             ctx.place_label(&lbl);
         }
-        ctx.emit(Op::POP, vec![]);
+        if block_has_work(cfg, blk, ctx.is_proc) {
+            ctx.emit(Op::POP, vec![]);
+        }
     }
 }
 
@@ -422,6 +447,7 @@ fn emit_block_start_cmds(
 /// `return` past normal statement/terminator emission).
 fn emit_foreach_header(
     ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
     state: &mut GenerateState,
     fe: &ForeachData,
     bname: &str,
@@ -430,6 +456,10 @@ fn emit_foreach_header(
         return false;
     };
     if ctx.cmd_index > 0 {
+        ctx.set_command_boundary_site(
+            cfg.block_id(bname)
+                .and_then(|id| cfg.command_boundary_sites.get(&id)),
+        );
         let fe_lbl = ctx.fresh_label("cmd_end");
         ctx.emit_comment(
             Op::START_CMD,
@@ -484,7 +514,7 @@ fn emit_foreach_body(
     // source construct; clear the sticky statement span so they
     // serialise as null rather than inheriting the last body
     // statement's range.
-    ctx.current_span = None;
+    ctx.clear_source_site();
     // Collecting loop (`lmap`): strip the body's trailing `POP` so its result
     // stays on the stack, then append it VM-side via `LMAP_COLLECT` on the
     // fall-through path (a break/continue redirect jumps past it, contributing
@@ -516,6 +546,7 @@ fn emit_block_statements(
     ctx: &mut CodegenCtx,
     cfg: &CfgFunction,
     state: &mut GenerateState,
+    bname: &str,
     blk: &crate::cfg::Block,
 ) {
     // For-init blocks: the last statement before a Goto to a
@@ -523,8 +554,13 @@ fn emit_block_statements(
     // it with a count=2 startCommand spanning the whole for loop.
     let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
 
+    let first_command_covered = state.first_command_covered_by_if.remove(bname);
     for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
         ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+        if first_command_covered && stmt_idx == 0 {
+            ctx.emit_stmt_under_start_cmd(stmt);
+            continue;
+        }
         if Some(stmt_idx) == for_init_last_idx {
             // For-init: emit startCommand with deferred end label
             // and count=2 (for + init both start at this offset).
@@ -541,7 +577,17 @@ fn emit_block_statements(
                 state
                     .for_init_end_labels
                     .insert(cfg.block_name(*for_end).to_owned(), fi_label.clone());
+                let before = ctx.instructions.len();
                 ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
+                if let Some(start_cmd) = (before..ctx.instructions.len())
+                    .find(|&idx| ctx.instructions[idx].op == Op::START_CMD)
+                {
+                    ctx.stamp_command_boundary(
+                        start_cmd,
+                        cfg.block_id(bname)
+                            .and_then(|id| cfg.command_boundary_sites.get(&id)),
+                    );
+                }
                 continue;
             }
         }
@@ -567,6 +613,38 @@ fn emit_block_statements(
     }
 }
 
+/// Emit the owning command boundary for a structured block that CFG lowering
+/// split into an explicit entry/body/continuation region.
+fn emit_inline_block_command_boundary(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    bname: &str,
+) {
+    let Some(entry) = cfg.block_id(bname) else {
+        return;
+    };
+    let Some(continuation) = cfg.command_boundary_continuations.get(&entry) else {
+        return;
+    };
+    let Some(site) = cfg.command_boundary_sites.get(&entry) else {
+        return;
+    };
+
+    ctx.set_command_boundary_site(Some(site));
+    let end_label = ctx.fresh_label("inline_block_cmd_end");
+    ctx.emit_comment(
+        Op::START_CMD,
+        vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+        "",
+    );
+    state
+        .command_boundary_end_labels
+        .insert(cfg.block_name(*continuation).to_owned(), end_label);
+    ctx.cmd_index += 1;
+    ctx.seen_generic_invoke = true;
+}
+
 /// Emit a block's terminator: constant-folded `if {1}` startCommand,
 /// switch jump tables, proc returns, or the generic terminator.
 fn emit_block_terminator(
@@ -580,32 +658,47 @@ fn emit_block_terminator(
 ) {
     let next_block = block_order.get(i + 1).map(String::as_str);
     if let Some(term) = &blk.terminator {
-        // Constant-folded `if {1}` startCommand in
-        // non-proc scripts. tclsh preserves a command boundary for
-        // the `if` even when the condition is dead — the
-        // startCommand's end label is placed before the join pop.
-        if !ctx.is_proc
-            && let Terminator::Branch {
-                condition,
-                true_target,
-                ..
-            } = term
+        // A constant-true `if` and its first selected-body command begin at the
+        // same bytecode offset. In a proc, Tcl emits the owning count-two
+        // marker only when an earlier generic invocation could have changed
+        // the compile epoch; the first body command then shares that marker.
+        // Top-level emission retains its historical marker policy and later
+        // peepholes remove it when the unit has no generic invocation.
+        if let Terminator::Branch {
+            condition,
+            true_target,
+            ..
+        } = term
             && super::ordering::fold_const_branch(condition) == Some(true)
             && let Some(tt_blk) = cfg.blocks.get(true_target)
             && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
             && cfg.block_name(*join).starts_with("if_end_")
         {
-            let end_label = ctx.fresh_label("cmd_end");
-            ctx.emit_comment(
-                Op::START_CMD,
-                vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
-                "",
-            );
-            ctx.cmd_index += 1;
-            ctx.seen_generic_invoke = true;
-            state
-                .pending_join_labels
-                .insert(cfg.block_name(*join).to_owned(), end_label);
+            if ctx.is_proc {
+                state
+                    .first_command_covered_by_if
+                    .insert(cfg.block_name(*true_target).to_owned());
+            }
+            if !ctx.is_proc || ctx.seen_generic_invoke {
+                ctx.set_command_boundary_site(
+                    cfg.block_id(bname)
+                        .and_then(|id| cfg.command_boundary_sites.get(&id)),
+                );
+                let end_label = ctx.fresh_label("cmd_end");
+                ctx.emit_comment(
+                    Op::START_CMD,
+                    vec![
+                        Operand::Label(end_label.clone()),
+                        Operand::Imm(if ctx.is_proc { 2 } else { 1 }),
+                    ],
+                    "",
+                );
+                ctx.cmd_index += 1;
+                ctx.seen_generic_invoke = true;
+                state
+                    .pending_join_labels
+                    .insert(cfg.block_name(*join).to_owned(), end_label);
+            }
         }
 
         // Try switch-dispatch jump-table emission first.
@@ -649,10 +742,14 @@ fn emit_block(
     // NOPs, startCommand boundary markers emitted before any statement)
     // carry no direct source span; statement / terminator emission
     // sets a real span below.
-    ctx.current_span = None;
+    ctx.clear_source_site();
 
     // try/finally inline compilation at try_body block.
     if let Some(info) = state.try_finally_info.get(bname).cloned() {
+        ctx.set_command_boundary_site(
+            cfg.block_id(bname)
+                .and_then(|id| cfg.command_boundary_sites.get(&id)),
+        );
         ctx.emit_try_finally_inline(cfg, bname, &info.try_finally);
         return;
     }
@@ -667,14 +764,16 @@ fn emit_block(
     let is_loop_end = emit_block_prologue(ctx, cfg, state, fe, bname, blk);
     emit_block_start_cmds(ctx, cfg, state, fe, bname, blk);
 
-    if emit_foreach_header(ctx, state, fe, bname) {
+    if emit_foreach_header(ctx, cfg, state, fe, bname) {
         return;
     }
     if emit_foreach_body(ctx, state, fe, bname, blk) {
         return;
     }
 
-    emit_block_statements(ctx, cfg, state, blk);
+    emit_block_statements(ctx, cfg, state, bname, blk);
+
+    emit_inline_block_command_boundary(ctx, cfg, state, bname);
 
     // If/switch arms: keep last statement value on TOS instead of
     // popping — the value is the arm's result.
@@ -709,8 +808,7 @@ fn emit_block(
     }
 
     // While-loop startCommand: emit before the jump to while_header.
-    if ctx.is_proc
-        && ctx.cmd_index > 0
+    if ctx.cmd_index > 0
         && let Some(Terminator::Goto {
             target: wh_header, ..
         }) = &blk.terminator
@@ -725,6 +823,10 @@ fn emit_block(
                 ..
             }) = &wh_blk.terminator
         {
+            ctx.set_command_boundary_site(
+                cfg.block_id(bname)
+                    .and_then(|id| cfg.command_boundary_sites.get(&id)),
+            );
             let wh_label = ctx.fresh_label("while_cmd_end");
             ctx.emit_comment(
                 Op::START_CMD,
@@ -772,6 +874,8 @@ fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut Gener
 
 /// Run the peephole passes and layout pass, then assemble the final
 /// [`FunctionAsm`] (loop-target table + inline-body error regions).
+// Finalisation is one ordered sequence of metadata-sensitive passes.
+#[allow(clippy::too_many_lines)]
 fn finalize_function(
     ctx: &mut CodegenCtx,
     cfg: &CfgFunction,
@@ -781,6 +885,7 @@ fn finalize_function(
     // Peephole passes.
     ctx.remove_trailing_pop();
     ctx.fold_tail_return_to_done();
+    ctx.strip_empty_start_cmd();
     ctx.strip_unused_start_cmd();
     ctx.fixup_top_level_start_cmd();
     ctx.fold_const_push_pop_nops();
@@ -790,6 +895,64 @@ fn finalize_function(
     // Layout pass.
     optimise_jumps(&mut ctx.instructions, &ctx.label_positions, 10);
     let labels = resolve_layout(&mut ctx.instructions, &ctx.label_positions);
+
+    // Mark actual source-command entry independently of diagnostic metadata.
+    // START_CMD owns its own replay/continuation path and deliberately does not
+    // change the implicit owner: nested inline catch/try instructions retain
+    // the enclosing absolute span, and returning to that span is not a second
+    // execution of the outer command.
+    let mut source_owner: Option<(u32, Option<tcl_lexer::Span>, String, String)> = None;
+    let mut nested_start_owner: Option<(u32, Option<tcl_lexer::Span>, String, String)> = None;
+    for instruction in &mut ctx.instructions {
+        if let Some(site) = instruction.source_span.and_then(|span| {
+            cfg.command_binding_sites
+                .iter()
+                .rev()
+                .find(|site| site.span == span)
+        }) {
+            instruction
+                .source_command_namespace
+                .clone_from(&site.binding.resolution_namespace);
+        }
+        if instruction.op == Op::START_CMD {
+            if instruction.source_command_boundary.is_start() {
+                source_owner = Some((
+                    instruction.source_line,
+                    instruction.source_span,
+                    instruction.source_cmd_text.clone(),
+                    instruction.source_command_namespace.clone(),
+                ));
+                nested_start_owner = None;
+            } else if !instruction.source_cmd_text.is_empty() {
+                nested_start_owner = Some((
+                    instruction.source_line,
+                    instruction.source_span,
+                    instruction.source_cmd_text.clone(),
+                    instruction.source_command_namespace.clone(),
+                ));
+            }
+            continue;
+        }
+        instruction.source_command_boundary = SourceCommandBoundary::None;
+        if instruction.source_cmd_text.is_empty() {
+            nested_start_owner = None;
+            continue;
+        }
+        let owner = (
+            instruction.source_line,
+            instruction.source_span,
+            instruction.source_cmd_text.clone(),
+            instruction.source_command_namespace.clone(),
+        );
+        if nested_start_owner.as_ref() == Some(&owner) {
+            continue;
+        }
+        nested_start_owner = None;
+        if source_owner.as_ref() != Some(&owner) {
+            instruction.source_command_boundary = SourceCommandBoundary::Start;
+            source_owner = Some(owner);
+        }
+    }
 
     // Loop-target table: each loop-body instruction → its loop's break/continue
     // byte offsets, so the executor can catch a command-returned break/continue
@@ -839,6 +1002,17 @@ fn finalize_function(
         body_base_line: 0,
         proc_body_src: None,
         error_regions,
+        plain_command_dispatch: ctx.plain_command_dispatch,
+        command_bindings: std::mem::take(&mut ctx.command_binding_requirements)
+            .into_iter()
+            .collect(),
+        procedure_bindings: cfg
+            .procedure_binding_requirements
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
     }
 }
 
@@ -851,6 +1025,11 @@ fn finalize_function(
 /// end labels at the loop-end pop, try/finally CFG patterns,
 /// bottom-tested loop layout (via `ordering::reorder_bottom_tested`).
 pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
+    if !ctx.plain_command_dispatch {
+        for site in &cfg.command_binding_sites {
+            ctx.require_command_binding(&site.binding);
+        }
+    }
     let block_order = linearise(cfg);
     let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new(proc_defs);

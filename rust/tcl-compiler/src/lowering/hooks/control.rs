@@ -34,12 +34,13 @@
 //! expression is attached to the [`Statement::Return`] so codegen
 //! can emit the value directly.
 
-use crate::alias::{CommandAliasMap, expr_alias_names};
+use crate::alias::CommandAliasMap;
 use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
     ArgTokenKind, LoweringCommand, extract_single_expr_arg_with_config, has_expansion,
 };
+use tcl_runtime_api::CommandBindingIdentity;
 
 /// Lower `expr` to [`Statement::ExprEval`] when the call is the
 /// single-arg form, or `None` to fall back to [`Statement::Call`].
@@ -80,6 +81,15 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     });
     Some(Statement::ExprEval {
         span: cmd.span,
+        // `try_lower_hook` replaces the provisional target with the
+        // registry-resolved canonical implementation. Keeping the source
+        // spelling here makes the hook independently well-formed for tests
+        // and external callers.
+        command_binding: CommandBindingIdentity::in_rooted_namespace(
+            cmd.resolution_namespace,
+            cmd.name,
+            cmd.name,
+        ),
         expr,
         expr_base,
     })
@@ -89,7 +99,12 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
 /// [`Statement::Barrier`] when the command form is not the simple
 /// `return ?value?` shape (option-bearing or `{*}`-expanded).
 #[must_use]
-pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
+pub fn try_lower_return(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+) -> Statement {
     if has_expansion(cmd) {
         return Statement::Barrier {
             span: cmd.span,
@@ -113,6 +128,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
 
     let value = cmd.args.first().cloned();
     let mut expr = None;
+    let mut command_binding = None;
     let mut braced = false;
 
     if value.is_some()
@@ -127,13 +143,22 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
                     .strip_prefix('[')
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(&cmd.args[0]);
-                let alias_names = expr_alias_names(aliases);
-                if let Some((expr_arg, _)) = extract_single_expr_arg_with_config(
-                    inner,
-                    &alias_names,
-                    tcl_lexer::LexerConfig::for_profile(cmd.dialect),
-                ) {
+                if let Some((expr_cmd, canonical_cmd, expr_arg, _)) =
+                    extract_single_expr_arg_with_config(
+                        inner,
+                        aliases,
+                        cmd.resolution_namespace,
+                        registry,
+                        context,
+                        cmd.lexer_config,
+                    )
+                {
                     expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
+                    command_binding = Some(CommandBindingIdentity::in_rooted_namespace(
+                        cmd.resolution_namespace,
+                        expr_cmd,
+                        canonical_cmd,
+                    ));
                 }
             }
             ArgTokenKind::ExprSugar => {
@@ -154,6 +179,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
         span: cmd.span,
         value,
         expr,
+        command_binding,
         braced,
     }
 }
@@ -177,7 +203,9 @@ mod tests {
         assert_eq!(m.top_level.statements.len(), 1);
         assert!(matches!(
             &m.top_level.statements[0],
-            Statement::ExprEval { .. }
+            Statement::ExprEval { command_binding, .. }
+                if command_binding
+                    == &CommandBindingIdentity::new("expr", "expr")
         ));
     }
 
@@ -319,12 +347,14 @@ mod tests {
         LoweringCommand {
             span: Span::new(0, 8),
             name,
+            resolution_namespace: "::",
             args,
             single_token_word: single,
             expand_word: expand,
             tokens: None,
             arg_kinds: kinds,
             dialect: None,
+            lexer_config: tcl_lexer::LexerConfig::default(),
         }
     }
 
@@ -365,8 +395,9 @@ mod tests {
         let single = vec![true, true];
         let kinds = vec![ArgTokenKind::Var];
         let aliases = CommandAliasMap::new();
+        let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
-        match try_lower_return(&cmd, &aliases) {
+        match try_lower_return(&cmd, &aliases, &registry, None) {
             Statement::Return {
                 value,
                 expr,
@@ -387,8 +418,9 @@ mod tests {
         let single = vec![true];
         let kinds: Vec<ArgTokenKind> = vec![];
         let aliases = CommandAliasMap::new();
+        let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
-        match try_lower_return(&cmd, &aliases) {
+        match try_lower_return(&cmd, &aliases, &registry, None) {
             Statement::Return { value, .. } => assert!(value.is_none()),
             other => panic!("expected Return, got {other:?}"),
         }
@@ -400,9 +432,10 @@ mod tests {
         let single = vec![true, true, true];
         let kinds = vec![ArgTokenKind::Esc, ArgTokenKind::Esc];
         let aliases = CommandAliasMap::new();
+        let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
         assert!(matches!(
-            try_lower_return(&cmd, &aliases),
+            try_lower_return(&cmd, &aliases, &registry, None),
             Statement::Barrier { .. }
         ));
     }
@@ -414,8 +447,9 @@ mod tests {
         let kinds = vec![ArgTokenKind::Var];
         let expand = vec![false, true];
         let aliases = CommandAliasMap::new();
+        let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, Some(&expand));
-        match try_lower_return(&cmd, &aliases) {
+        match try_lower_return(&cmd, &aliases, &registry, None) {
             Statement::Barrier { reason, .. } => {
                 assert_eq!(reason, "return with expansion");
             }
@@ -429,8 +463,9 @@ mod tests {
         let single = vec![true, true];
         let kinds = vec![ArgTokenKind::Str];
         let aliases = CommandAliasMap::new();
+        let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
-        match try_lower_return(&cmd, &aliases) {
+        match try_lower_return(&cmd, &aliases, &registry, None) {
             Statement::Return { braced, .. } => assert!(braced),
             other => panic!("expected Return, got {other:?}"),
         }

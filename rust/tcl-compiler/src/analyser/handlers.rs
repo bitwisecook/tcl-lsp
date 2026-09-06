@@ -1106,6 +1106,7 @@ impl Analyser {
         };
         crate::const_subst::ConstSubstCtx {
             registry: &registry,
+            resolution_namespace: &self.command_resolution_namespace(scope_path),
             version,
             defining_class: defining_class.as_deref(),
             trusts: &trusts,

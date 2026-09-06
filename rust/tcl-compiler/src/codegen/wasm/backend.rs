@@ -54,7 +54,6 @@ use crate::codegen::emit::Emit;
 use crate::codegen::structured;
 use crate::command_binding::{
     Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
-    scan_module_command_mutations,
 };
 use crate::common_aot_plan::semantic_operation_binding_is_trusted;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -1395,9 +1394,9 @@ fn function_facts(
     unit: &FunctionUnit,
     module: &Module,
     registry: &CommandRegistry,
+    mutations: &ModuleCommandMutations,
     is_top: bool,
 ) -> FunctionFacts {
-    let mutations = scan_module_command_mutations(module, registry);
     let initial: Vec<(String, Binding)> = if is_top {
         Vec::new()
     } else {
@@ -1490,7 +1489,7 @@ fn function_facts(
                 record_direct_calls(
                     &mut facts,
                     module,
-                    &mutations,
+                    mutations,
                     &bindings,
                     (block, stmt_idx),
                     statement,
@@ -1740,13 +1739,12 @@ fn procedure_plan<'a>(
         .map(|proc| (span_key(proc.span), (*proc).clone()))
         .collect();
     let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
-        let mutations = scan_module_command_mutations(module, registry);
         procs
             .iter()
             .filter(|proc| {
-                unit.procedures
-                    .get(&proc.qualified_name)
-                    .is_some_and(|fu| direct_proc_eligible(module, proc, fu, registry, &mutations))
+                unit.procedures.get(&proc.qualified_name).is_some_and(|fu| {
+                    direct_proc_eligible(module, proc, fu, registry, &unit.command_mutations)
+                })
             })
             .map(|proc| proc.qualified_name.clone())
             .collect()
@@ -1842,6 +1840,7 @@ impl NativeTier<'_> {
             function: executable,
             source: &self.unit.source,
             module: &self.unit.ir_module,
+            mutations: &self.unit.command_mutations,
             config: self.config,
             escape: None,
             top_level,
@@ -1996,7 +1995,13 @@ fn codegen(
         direct: direct_procs,
     } = procedure_plan(module, analysis, top_idx);
     let top_facts = analysis.map_or_else(FunctionFacts::default, |(unit, registry)| {
-        function_facts(&unit.top_level, module, registry, true)
+        function_facts(
+            &unit.top_level,
+            module,
+            registry,
+            &unit.command_mutations,
+            true,
+        )
     });
 
     let mut emitter = WasmEmitter {
@@ -2196,7 +2201,7 @@ fn codegen(
             .and_then(|(unit, registry)| {
                 unit.procedures
                     .get(&proc.qualified_name)
-                    .map(|fu| function_facts(fu, module, registry, false))
+                    .map(|fu| function_facts(fu, module, registry, &unit.command_mutations, false))
             })
             .unwrap_or_default();
         if direct {
@@ -2355,7 +2360,13 @@ mod tests {
     fn top_level_facts(source: &str) -> FunctionFacts {
         let registry = CommandRegistry::build_default();
         let unit = CompilationUnit::build_for(source, &registry, false);
-        function_facts(&unit.top_level, &unit.ir_module, &registry, true)
+        function_facts(
+            &unit.top_level,
+            &unit.ir_module,
+            &registry,
+            &unit.command_mutations,
+            true,
+        )
     }
 
     fn only_decline(facts: &FunctionFacts) -> WasmLeafInvokeDecline {

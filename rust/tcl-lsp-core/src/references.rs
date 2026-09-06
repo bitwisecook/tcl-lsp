@@ -4589,8 +4589,8 @@ mod tests {
         // analyser's `instance_classes` never binds it, so before the
         // unification Find References on `greet` missed the `$b greet` site
         // that semantic tokens and hover already resolved.
-        let src = "oo::class create A { method make {} { return [B new] } }\n\
-                   oo::class create B { method greet {} { return \"hi\" } }\n\
+        let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+                   oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
                    set b [$a make]\n\
                    $b greet\n";
@@ -4637,8 +4637,8 @@ mod tests {
         // inside `::mk` only (`by_scope`); a same-named integer in `::other`
         // must not become a reference — the scope-keyed map is exactly what
         // stops the bare-name collision.
-        let src = "oo::class create A { method make {} { return [B new] } }\n\
-                   oo::class create B { method greet {} { return \"hi\" } }\n\
+        let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
+                   oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    proc mk {} { set a [A new]\n  set b [$a make]\n  $b greet }\n\
                    proc other {} { set b 7\n  $b greet }\n";
         let analysis = analyse(src);

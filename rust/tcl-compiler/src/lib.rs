@@ -94,6 +94,7 @@ pub mod codegen;
 pub mod command_binding;
 pub mod common_aot_plan;
 pub mod compilation_unit;
+pub mod compile_service;
 pub mod compiler_checks;
 pub mod completion;
 pub mod connection_scope;
@@ -107,6 +108,7 @@ pub mod dynamic_names;
 pub mod effect_ssa;
 pub(crate) mod environment_ingress;
 pub mod executable_ir;
+mod existence_query;
 // The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
 // (consumed by both the compiler and the runtime port). Re-exported under the
 // original module paths so the ~45 in-crate consumers (and the LSP bindings)

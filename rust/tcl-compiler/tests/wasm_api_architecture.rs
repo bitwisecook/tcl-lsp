@@ -109,6 +109,38 @@ fn wasm_has_one_module_emitter_for_semantic_and_general_plans() {
 }
 
 #[test]
+fn analysed_codegen_reuses_the_compilation_unit_command_mutations() {
+    let root = workspace_root();
+    for relative in [
+        "rust/tcl-compiler/src/common_aot_plan.rs",
+        "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+    ] {
+        let contents = source(&root, relative);
+        assert!(
+            !contents.contains("scan_module_command_mutations"),
+            "{relative} must reuse CompilationUnit.command_mutations"
+        );
+        assert!(
+            contents.contains("unit.command_mutations"),
+            "{relative} must consume CompilationUnit.command_mutations"
+        );
+    }
+
+    let emitter = source(&root, "rust/tcl-compiler/src/codegen/emitter/mod.rs");
+    assert!(emitter.contains("pub fn codegen_module_with_command_mutations"));
+    assert_eq!(
+        emitter.matches("scan_module_command_mutations").count(),
+        2,
+        "only the module and procedure IR-only compatibility wrappers may scan"
+    );
+    let explorer = source(&root, "rust/tcl-explorer/src/asm.rs");
+    assert!(
+        explorer.contains("codegen_module_with_command_mutations"),
+        "the analysed Explorer path must reuse CompilationUnit.command_mutations"
+    );
+}
+
+#[test]
 fn architecture_doc_does_not_advertise_removed_backend_choices() {
     let root = workspace_root();
     let document = source(&root, "docs/design/compiler/wasm-codegen.md");

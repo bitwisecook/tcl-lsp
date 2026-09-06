@@ -25,12 +25,11 @@
 
 use std::rc::Rc;
 
-use tcl_bytecode::FunctionAsm;
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
 use crate::error::TclError;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, canonical_ns_name, err, key_holder_and_tail_unrooted, ok};
 use crate::value::Value;
 
 /// A native builtin: receives argv *without* the command name (Tcl's `objv[1..]`).
@@ -81,8 +80,8 @@ pub struct ProcDef {
     pub params: Vec<Param>,
     /// Whether the last parameter is the `args` catch-all.
     pub has_args: bool,
-    /// Pre-compiled body bytecode.
-    pub body: Rc<FunctionAsm>,
+    /// Pre-compiled body bytecode and its VM-local provenance.
+    pub(crate) body: crate::compiled::CompiledUnit,
     /// Original body source text — used by `info body`.
     pub body_src: Value,
     /// Overrides the leading token of the `wrong # args` usage message. `None`
@@ -90,17 +89,6 @@ pub struct ProcDef {
     /// message reads `wrong # args: should be "apply lambdaExpr …"` rather than
     /// leaking the internal temp proc name (apply-4.*).
     pub usage_name: Option<String>,
-    /// The `Vm::trace_deopt_epoch` this `body` was compiled under (`0` for
-    /// every proc defined the ordinary way, before any step-capable
-    /// execution trace exists). A call site compares this against the
-    /// interp's current epoch and recompiles from `body_src` — traced or
-    /// fast, matching whether a step trace is currently active — when they
-    /// differ (issue #946 fault 3). See [`crate::interp::Vm::ensure_proc_traced`].
-    pub compiled_epoch: u64,
-    /// The VM dialect-profile generation under which `body` was compiled.
-    /// Profile mutation recompiles stored bodies from [`Self::body_src`] before
-    /// specialised bytecode can run under the new command surface.
-    pub compiled_profile_generation: u64,
 }
 
 /// A registered command.
@@ -366,9 +354,9 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `pending_eval`, which pushes a transparent script frame whose result
     // replaces this placeholder. The script frame adds the `("eval" body line N)`
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
-    match vm.compile_source_cached(&script) {
-        Ok(asm) => {
-            vm.pending_eval = Some((asm, Some("eval"), None));
+    match vm.compile_script_cached(&script) {
+        Ok(script) => {
+            vm.pending_eval = Some((script, Some("eval"), None));
             ok(Value::empty())
         }
         Err(e) => err(e.message),
@@ -419,15 +407,12 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         }
     };
     let body = parts[1].clone();
-    let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {
-        return Err(err("apply: could not compile lambda body"));
-    };
     // The optional third element is the namespace the body runs in (default
-    // global). Strip a leading `::` to the canonical form. A named namespace
-    // must already exist (apply-3.*); the message quotes the spelling given.
+    // global). Resolve its written separator runs through the VM's one
+    // namespace-key owner before both lookup and procedure compilation.
     let namespace = parts
         .get(2)
-        .map(|v| v.to_str().trim_start_matches("::").to_string())
+        .map(|v| canonical_ns_name(&v.to_str()).into_owned())
         .unwrap_or_default();
     if parts.len() == 3 && !vm.namespace_exists(&namespace) {
         // The message names the fully-qualified namespace: a relative third
@@ -435,6 +420,9 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         // leading `::` (apply-3.3 — `NONEXIST::…` → `::NONEXIST::…`).
         return Err(err(format!("namespace \"::{namespace}\" not found")));
     }
+    let body_asm = vm
+        .prepare_procedure_body(None, &params_vec, &namespace, &body.to_str())
+        .map_err(completion_from_tcl_error)?;
 
     let name = fresh_apply_name();
     let ns_id = vm.definition_namespace_token(&namespace);
@@ -447,8 +435,6 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         body: body_asm,
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
-        compiled_epoch: 0,
-        compiled_profile_generation: vm.profile_generation(),
     });
     Ok(name)
 }
@@ -478,9 +464,9 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     words.push(Value::string(name.as_str()));
     words.extend_from_slice(call_args);
     let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
-    match vm.compile_source_cached(&script) {
-        Ok(asm) => {
-            vm.pending_eval = Some((asm, None, Some(name)));
+    match vm.compile_script_cached(&script) {
+        Ok(script) => {
+            vm.pending_eval = Some((script, None, Some(name)));
             ok(Value::empty())
         }
         Err(e) => {
@@ -1287,8 +1273,10 @@ pub(crate) fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
     Ok((params, has_args))
 }
 
-/// `proc name params body` — define a procedure (body is taken pre-compiled
-/// from the module; dynamic bodies are not yet supported).
+/// `proc name params body` — define a procedure. An exact-provenance module
+/// body is admitted when available; dynamic definitions compile through the
+/// typed procedure target so locals, namespace, profile, and dispatch mode are
+/// never inferred from a top-level script artifact.
 fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name, params, body_text] = args else {
         return err("wrong # args: should be \"proc name args body\"");
@@ -1297,29 +1285,20 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // The registration / activation name is qualified with the *current*
     // namespace (so `namespace eval foo { proc bar … }` defines `foo::bar`).
     let reg_name = vm.qualify_name(&name_s);
-    // The pre-compiled body cache is keyed by the *runtime-qualified* name. A
-    // bare proc name resolves against the current namespace, so two procs that
-    // share an unqualified name in different namespaces (`::a::p` vs `::b::p`)
-    // must not collide on one cached body — keying by `reg_name` keeps them
-    // distinct.
-    //
-    // The cache is filled from `ModuleAsm::procedures`, whose keys are the
-    // compiler's **rooted** qnames (`::p`, `::a::p`), while `qualify_name`
-    // answers the unrooted command key (`p`, `a::p`) every other command table
-    // in this interpreter is keyed by. Root the lookup rather than unrooting
-    // the merge: `module_procs` mirrors a compiler artefact, and the two
-    // spellings must not be allowed to collide in it. Missing the root here
-    // meant *every* proc missed its pre-compiled body and silently recompiled
-    // as a top-level script, so no proc body anywhere ran with `is_proc`
-    // codegen.
-    let body_key = format!("::{reg_name}");
-    // `reg_name` is canonical (single `::`s); the shared qualifier split keeps
-    // the namespace correct for colon-run sources too (`proc foo:::baz` in an
-    // existing `foo` defines `::foo::baz`, tclsh8.6-verified — the old
-    // `rsplit_once` derived the bogus namespace `foo:` and errored).
-    let namespace = std::str::from_utf8(tcl_cmd_core::namespace::qualifiers(reg_name.as_bytes()))
-        .expect("subslice of valid UTF-8")
-        .to_string();
+    // The pre-compiled body cache is keyed by the *runtime-qualified* command
+    // key, with no leading `::`. A bare proc name resolves against the current
+    // namespace, so two procs that share an unqualified name in different
+    // namespaces (`::a::p` vs `::b::p`) must not collide on one cached body —
+    // keying by `reg_name` (`a::p` vs `b::p`, or just `p` globally) keeps them
+    // distinct. Compiler analysis keys may remain rooted (`::p`); when no
+    // matching provenance exists, the body is compiled through the shared
+    // procedure-body owner instead of guessing that the rooted key belongs to
+    // the current namespace.
+    let body_key = reg_name.clone();
+    // `reg_name` is an already-constructed unrooted key. Invert it through the
+    // key owner rather than parsing it again as a written word: a literal `:`
+    // namespace begins with colons but is not a root separator (#934).
+    let namespace = key_holder_and_tail_unrooted(&reg_name).0;
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
@@ -1332,28 +1311,15 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(p) => p,
         Err(e) => return err(e),
     };
-    // The pre-compiled `module_procs` cache is keyed by name, and one name is
-    // reachable from several `proc` commands with different bodies — a
-    // redefinition (`proc p {} …` then `proc p {bar} …`, common in test
-    // suites), the two arms of an `if`, a second `eval` after a `rename` —
-    // while a compiled unit records only the first. Take the cached assembly
-    // only when its body word is *exactly* the one supplied here; anything
-    // else compiles the body actually given. Matching on the text rather than
-    // on "is this the first definition?" is what makes the fast path sound:
-    // the alternative silently runs a body the script never asked for.
-    //
-    // A body built by substitution (`proc p {} "return $x"`) never matches,
-    // since the compiler recorded the unsubstituted word — it simply misses.
     let body_str = body_text.to_str();
-    let pre = vm
-        .module_proc(&body_key)
-        .filter(|asm| asm.proc_body_src.as_deref() == Some(&*body_str));
-    let body = match pre {
-        Some(b) => b,
-        None => match vm.compile_dynamic_body(&body_str) {
-            Some(b) => b,
-            None => return err(format!("proc \"{name_s}\": could not compile body")),
-        },
+    let body = match vm.prepare_procedure_body(
+        Some((&body_key, &params.to_str())),
+        &params_vec,
+        &namespace,
+        &body_str,
+    ) {
+        Ok(body) => body,
+        Err(error) => return completion_from_tcl_error(error),
     };
     let ns_id = vm.definition_namespace_token(&namespace);
     vm.define_proc(ProcDef {
@@ -1365,8 +1331,6 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body,
         body_src: body_text.clone(),
         usage_name: None,
-        compiled_epoch: 0,
-        compiled_profile_generation: vm.profile_generation(),
     });
     ok(Value::empty())
 }
@@ -1835,14 +1799,22 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // code — is absorbed by `finish_catch` (which binds the result/options vars
     // and yields the status code). Mirrors `cmd_eval`'s `pending_eval`, but
     // catch's completion is caught rather than propagated.
-    match vm.compile_source_cached(&script.to_str()) {
-        Ok(asm) => {
+    match vm.prepare_script_commands(&script.to_str()) {
+        Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending_catch = Some(crate::exec::CatchReq {
-                asm,
+                script: prepared.prefix.expect("checked above"),
                 resvar: resvar.map(|v| (*v).clone()),
                 optvar: optvar.map(|v| (*v).clone()),
+                fatal_tail: prepared.fatal_tail,
             });
             ok(Value::empty())
+        }
+        Ok(prepared) => {
+            let comp = prepared.fatal_tail.map_or_else(
+                || ok(Value::empty()),
+                |message| Completion::new(Code::Error, Value::string(message), Value::empty()),
+            );
+            vm.finish_catch(comp, resvar, optvar)
         }
         // A body that fails to *parse* is itself a catchable error: run the
         // epilogue directly with the parse-error completion (no body to execute).
@@ -2252,9 +2224,9 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // different frame that must be restored afterwards, which a transparent
     // script frame cannot carry, so those keep the nested-drive `eval_at_level`.
     if target == cur {
-        return match vm.compile_source_cached(&script) {
-            Ok(asm) => {
-                vm.pending_eval = Some((asm, Some("uplevel"), None));
+        return match vm.compile_script_cached(&script) {
+            Ok(script) => {
+                vm.pending_eval = Some((script, Some("uplevel"), None));
                 ok(Value::empty())
             }
             Err(e) => err(e.message),

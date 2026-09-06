@@ -247,6 +247,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_role_resolver: Some(scan_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         // `scan`'s conversion string is the same printf-style mini-language
         // `format` writes; `scan_arg_roles` puts `ArgRole::ScanFormat` at the
         // word (#1185).

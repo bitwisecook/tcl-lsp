@@ -451,12 +451,16 @@ fn fold_tail(args: &[&str]) -> Option<String> {
 
 const NAMESPACE_UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
-    StateTransitionDomain::Namespaces,
     StateTransitionDomain::VariableTraces,
 ];
 
-const NAMESPACE_LOOKUP_TRANSITION_DOMAINS: &[StateTransitionDomain] =
+const NAMESPACE_STATE_TRANSITION_DOMAINS: &[StateTransitionDomain] =
     &[StateTransitionDomain::Namespaces];
+
+const NAMESPACE_LOOKUP_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::CommandResolution,
+];
 
 const NAMESPACE_IMPORT_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::CommandBindings,
@@ -550,7 +554,7 @@ const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
         operands: StateTransitionOperandLayout::Indices(&[1]),
-        domains: NAMESPACE_LOOKUP_TRANSITION_DOMAINS,
+        domains: NAMESPACE_STATE_TRANSITION_DOMAINS,
     }],
     effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
     // Namespace creation happens before the body executes.  The body can
@@ -564,7 +568,7 @@ const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
         operands: StateTransitionOperandLayout::EveryArgument,
-        domains: NAMESPACE_LOOKUP_TRANSITION_DOMAINS,
+        domains: NAMESPACE_STATE_TRANSITION_DOMAINS,
     }],
     effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
     commit: StateTransitionCommit::OnOkOnly,
@@ -660,6 +664,7 @@ fn namespace_upvar_state_transitions(arguments: InvocationArguments<'_>) -> Stat
                     namespace: namespace.clone(),
                     variable,
                 },
+                writes_value: false,
             },
         ));
     }
@@ -821,7 +826,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // [list Tracer]]`, Tk's own `fontchooser.tcl` idiom — unwraps this
         // one level and extracts the head from the script. See
         // `Traits::WRAPS_COMMAND_PREFIX`.
-        traits: Traits::WRAPS_COMMAND_PREFIX,
+        // The wrapper captures the script for whoever later invokes the
+        // returned prefix; `namespace code` itself never evaluates it.
+        // Keep that timing in registry data so every executable-body
+        // consumer distinguishes capture from same-invocation execution.
+        traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -849,6 +858,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Every positional word names a namespace — see
         // `namespace_delete_arg_roles`.
         arg_role_resolver: Some(namespace_delete_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::NamespaceName],
         world_effects: Some(NAMESPACE_DELETE_EFFECTS),
         state_transitions: Some(NAMESPACE_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
@@ -1193,6 +1203,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace which ?-command? ?-variable? name",
         options: WHICH_OPTIONS,
         arg_role_resolver: Some(namespace_which_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandNameProbe],
         pure: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
@@ -1249,6 +1260,16 @@ mod tests {
     use crate::InvocationArguments;
     use tcl_dialect::model::surface_admits;
     use tcl_dialect::model::{Family, SurfaceQuery};
+
+    #[test]
+    fn namespace_code_declares_deferred_execution_timing() {
+        let registry = crate::CommandRegistry::build_default();
+
+        assert_eq!(
+            registry.script_timing("namespace", &["code", "rename set saved_set"], 1, None,),
+            Some(crate::ScriptTiming::Deferred)
+        );
+    }
 
     #[test]
     fn namespace_path_keeps_its_tcl_list_operand_whole() {

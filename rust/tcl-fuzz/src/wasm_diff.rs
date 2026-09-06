@@ -49,13 +49,14 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
+use tcl_compiler::cfg_builder::build_cfg_codegen_with_registry;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::lowering::{lower_to_ir_traced, lower_to_ir_with_config};
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, CompileError, CompileService, Vm};
+use tcl_vm::{Code, Vm};
 use wasmtime::{Caller, Config, Engine, Linker, Memory, MemoryType, Module, Store, Trap};
 
 /// Instruction budget for a single WASM-driven run. Generated programs have
@@ -97,28 +98,6 @@ impl Write for Capture {
     }
 }
 
-/// The `CompileService` the embedded `Vm` uses for `eval_source`.
-struct Svc {
-    registry: CommandRegistry,
-}
-impl CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir_with_config(
-            src,
-            &self.registry,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-    fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir_traced(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
-
 /// The wasmtime store's host data: the live interpreter, the string-handle
 /// table, the imported memory, and an error latch.
 struct HostState {
@@ -132,21 +111,15 @@ struct HostState {
 fn fresh_vm() -> (Vm, Rc<RefCell<Vec<u8>>>) {
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_compiler(Box::new(Svc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     (vm, buf)
 }
 
 /// Run `src` directly on `tcl-vm`; return `(errored, stdout)`.
 fn run_direct(src: &str) -> (bool, String) {
     let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir_with_config(
-        src,
-        &registry,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    );
-    let cfg = build_cfg_codegen(&ir, false);
+    let ir = lower_to_ir(src, &registry);
+    let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
     let asm = codegen_module(&cfg, &ir, &registry);
     let (mut vm, buf) = fresh_vm();
     let comp = vm.run_module(&asm);

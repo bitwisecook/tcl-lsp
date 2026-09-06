@@ -74,7 +74,14 @@ fn eval_in_ns(
         vm.push_ns_eval_frame(&target, call_argv);
         vm.push_ns_token(target, id);
     } else {
-        vm.declare_namespace(&target);
+        // `canon_ns` has already resolved the written namespace word into the
+        // VM's constructed key. Re-canonicalising that key as source text
+        // would collapse a literal `:` child (`outer:::`) back into `outer`.
+        if written.starts_with("::") {
+            vm.declare_namespace_key_from_root(&target);
+        } else {
+            vm.declare_namespace_key(&target);
+        }
         vm.push_ns_eval_frame(&target, call_argv);
         vm.push_ns(target);
     }
@@ -383,15 +390,11 @@ fn ns_upvar(
             canonical_cmd_key(&format!("::{namespace}::{other}")).into_owned()
         };
 
-        // At namespace scope the alias itself is a namespace variable; inside
-        // a proc it is an ordinary local. This is the same frame/link primitive
-        // used by `upvar`, so scalars, arrays, byte arrays, and later writes all
-        // share one cell rather than copying or stringifying the value.
-        if vm.in_ns_script() && !local.contains("::") && !vm.current_ns().is_empty() {
-            let alias = vm.qualify_name(&local);
-            vm.add_global_link(&alias, 0, &target);
-        } else {
-            vm.add_link(&local, 0, &target);
+        // The namespace word has already resolved `target` to an internal key.
+        // Use the key-form owner so namespace identity is not parsed twice and
+        // every `upvar`-family consumer shares alias validation and storage.
+        if let Err(error) = vm.link_upvar_key(0, &target, &local) {
+            return crate::command::upvar_link_error(error, &other, &local);
         }
     }
     ok(Value::empty())

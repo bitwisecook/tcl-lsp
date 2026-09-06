@@ -41,24 +41,11 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_dialect::{DialectProfile, TclVersion};
+use tcl_dialect::TclVersion;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc {
-    registry: CommandRegistry,
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.registry);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
-    }
-}
+use tcl_vm::Vm;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -82,9 +69,7 @@ fn run(src: &str) -> (bool, String) {
     let asm = codegen_module(&cfg, &ir, &registry);
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
     (c.code.is_ok(), out)
@@ -108,7 +93,7 @@ fn run_at(version: TclVersion, src: &str) -> (bool, String) {
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
     vm.set_dialect_profile(profile);
-    vm.set_compiler(Box::new(ProfiledCompilerSvc { profile }));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
     (c.code.is_ok(), out)
@@ -145,35 +130,6 @@ fn child_and_safe_platform_schemas_come_from_the_shared_owner() {
            [info exists ::tclDefaultLibrary] [info exists ::tcl_pkgPath]}]\n");
     assert!(ok, "safe child path query failed: {out}");
     assert_eq!(out, "0 0 0 0 0");
-}
-
-/// A compile service pinned to one resolved profile, as `tclvm` wires it.
-struct ProfiledCompilerSvc {
-    profile: &'static DialectProfile,
-}
-
-impl CompileService for ProfiledCompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        self.compile_for_profile(src, self.profile)
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
 }
 
 /// TP: a hidden command called directly inside a safe child's `interp eval`

@@ -27,11 +27,8 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_dialect::DialectProfile;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_vm::{CompileService, Vm};
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone, Default)]
@@ -47,64 +44,19 @@ impl Write for Capture {
     }
 }
 
-/// The `tclvm` compile service: registry, lexer grammar, and expression
-/// dialect all resolved once from the emulated release's profile.
-struct CompilerSvc {
-    registry: &'static tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    dialect: Option<&'static DialectProfile>,
-}
-
-impl CompilerSvc {
-    fn for_profile(profile: &'static DialectProfile) -> Self {
-        Self {
-            registry: tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            // `Some(profile)` rather than the profile's *name*: this harness is
-            // always constructed from a resolved profile, so there is no
-            // unstated-dialect case to represent (`None`) and no name to
-            // re-resolve.
-            dialect: Some(profile),
-        }
-    }
-}
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) =
-            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
-        {
-            return Err(CompileError(msg));
-        }
-        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, self.registry))
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        Self::for_profile(profile).compile(src)
-    }
-}
-
 /// Compile and run `src` on a VM pinned to `release`; return the result
 /// string (an uncaught error leaves its message there), or the compile
 /// rejection.
 fn run_at(src: &str, release: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
-    let svc = CompilerSvc::for_profile(profile);
+    let svc = BytecodeCompileService::for_profile(profile);
     let asm = match svc.compile(src) {
         Ok(asm) => asm,
         Err(e) => return e.0,
     };
     let mut vm = Vm::with_output(Box::new(Capture::default()));
     vm.set_dialect_profile(profile);
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     vm.run_module(&asm).result.to_str().to_string()
 }
 
@@ -124,8 +76,8 @@ fn run_flipping(steps: &[(&str, &str)]) -> String {
     for (release, src) in steps {
         let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
         vm.set_dialect_profile(profile);
-        vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
-        match CompilerSvc::for_profile(profile).compile(src) {
+        vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+        match BytecodeCompileService::for_profile(profile).compile(src) {
             Ok(asm) => last = vm.run_module(&asm).result.to_str().to_string(),
             Err(e) => return e.0,
         }
@@ -250,7 +202,7 @@ fn command_origin_reports_none_for_a_command_that_was_not_imported() {
     use tcl_runtime_api::Namespaces;
 
     let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
-    let svc = CompilerSvc::for_profile(profile);
+    let svc = BytecodeCompileService::for_profile(profile);
     let asm = svc
         .compile(
             "namespace eval src {namespace export p; proc p {} {return P}}\n\
@@ -259,7 +211,7 @@ fn command_origin_reports_none_for_a_command_that_was_not_imported() {
         .expect("setup compiles");
     let mut vm = Vm::with_output(Box::new(Capture::default()));
     vm.set_dialect_profile(profile);
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     assert!(vm.run_module(&asm).code.is_ok());
 
     let cur = Namespaces::current(&vm);

@@ -33,22 +33,10 @@ use tcl_bytecode::layout::resolve_layout;
 use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand};
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, Vm};
-
-/// A `tcl-compiler`-backed compile service (the CLI embedders' shape), for
-/// tests whose procs / dynamic bodies compile at runtime.
-struct Svc(CommandRegistry);
-
-impl tcl_vm::CompileService for Svc {
-    type Module = tcl_bytecode::ModuleAsm;
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, tcl_vm::CompileError> {
-        let ir = lower_to_ir_for_bytecode(src, &self.0);
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
-    }
-}
 
 /// Compile `src` and return the AOT body of proc `qname` (e.g. `::p`).
 fn compiled_proc_body(src: &str, qname: &str) -> FunctionAsm {
@@ -88,6 +76,9 @@ fn assemble(
         body_base_line: 0,
         proc_body_src: None,
         error_regions: Vec::new(),
+        plain_command_dispatch: false,
+        command_bindings: Vec::new(),
+        procedure_bindings: Vec::new(),
     }
 }
 
@@ -171,7 +162,7 @@ fn inline_catch_absorbs_child_proc_error() {
     let mut vm = Vm::new();
     // Defining the procs needs a compile service for their (dynamic) bodies —
     // route through the compiler exactly like the CLI embedders.
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert!(vm.run_module(&module).code.is_ok());
     // Now run the AOT inline-catch body with `boom` registered.
     let body = module.procedures.get("::p").expect("::p");

@@ -32,10 +32,15 @@ use tcl_registry::{ArgRole, CommandRegistry};
 use crate::alias::{
     CommandAliasMap, command_table_transitions, is_current_interpreter, resolve_alias,
 };
+use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{
-    CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure, Script, Statement,
+    CommandBindingSite, CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure,
+    Script, Statement,
 };
-use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
+use crate::lowering_hooks::{
+    ArgTokenKind, LoweringCommand, ResolvedLowering, extract_single_expr_arg_with_config,
+    try_lower_hook_with_binding,
+};
 use crate::naming::normalise_var_name;
 use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::surface_admits;
@@ -156,6 +161,9 @@ impl Lowerer<'_> {
     ) -> Option<DefinerCall> {
         let spec = self.registry.get(canonical.unwrap_or(command))?;
         let grammar = spec.definition_body?;
+        if !grammar.family.manufactures_runtime_commands() {
+            return None;
+        }
         // A metaclass's registry manufacturer descriptor supplies both the
         // static class-name word and definition-body word. Every other
         // definer is `DEFINER TARGET {body}`. Auto-naming manufacturers and
@@ -188,6 +196,110 @@ impl Lowerer<'_> {
             body_idx,
             per_object,
         })
+    }
+
+    /// Whether a registry-declared definer invocation supplies (or may select)
+    /// an executable definition body that the exact extractor did not accept.
+    ///
+    /// Exact calls are classified before this is queried. Alias-prefix and
+    /// dynamic-dispatch shapes cannot be aligned reliably with the source argv
+    /// here, so they conservatively report a possible body.
+    fn definer_invocation_may_supply_body(
+        &self,
+        command: &str,
+        canonical: Option<&str>,
+        texts: &[String],
+    ) -> bool {
+        let identity = canonical.unwrap_or(command);
+        let Some(spec) = self.registry.get(identity) else {
+            return false;
+        };
+        if !spec
+            .definition_body
+            .is_some_and(|grammar| grammar.family.manufactures_runtime_commands())
+        {
+            return false;
+        }
+        if canonical.is_some_and(|canonical| canonical != command) {
+            return true;
+        }
+        let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
+        if !self
+            .registry
+            .arg_indices_for_role(identity, &args, ArgRole::Body)
+            .is_empty()
+        {
+            return true;
+        }
+        // A computed manufacturer/subcommand can select a body-bearing form
+        // even when the registry cannot assign one exact argument layout.
+        texts
+            .iter()
+            .skip(1)
+            .any(|word| word.contains('$') || word.contains('['))
+    }
+
+    fn member_invocation_supplies_body(
+        &self,
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+        keyword: &str,
+        args: &[String],
+    ) -> bool {
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        !grammar
+            .member_body_indices_in(keyword, &args, self.registry.own_surface_query())
+            .is_empty()
+    }
+
+    /// A definition created only when this method runs is not part of the
+    /// post-pass's source-root walk. Detect it recursively and retain explicit
+    /// module evidence rather than pretending its callable bodies do not exist.
+    fn method_body_may_install_definition(&self, script: &Script) -> bool {
+        fn walk(lowerer: &Lowerer<'_>, script: &Script, depth: u32) -> bool {
+            if MAX_LOWER_NEST_DEPTH.exceeded(depth) {
+                return true;
+            }
+            script.statements.iter().any(|stmt| {
+                let installs = match stmt {
+                    Statement::Call {
+                        command,
+                        canonical_command,
+                        tokens,
+                        ..
+                    }
+                    | Statement::Barrier {
+                        command,
+                        canonical_command,
+                        tokens,
+                        ..
+                    } => tokens.as_ref().map_or_else(
+                        || {
+                            lowerer
+                                .registry
+                                .get(canonical_command.as_deref().unwrap_or(command))
+                                .and_then(|spec| spec.definition_body)
+                                .is_some_and(|grammar| {
+                                    grammar.family.manufactures_runtime_commands()
+                                })
+                        },
+                        |tokens| {
+                            lowerer.definer_invocation_may_supply_body(
+                                command,
+                                canonical_command.as_deref(),
+                                &tokens.argv_texts,
+                            )
+                        },
+                    ),
+                    _ => false,
+                };
+                installs
+                    || crate::ir_helpers::nested_bodies(stmt)
+                        .into_iter()
+                        .any(|body| walk(lowerer, body, depth + 1))
+            })
+        }
+
+        walk(self, script, 0)
     }
 }
 
@@ -764,6 +876,10 @@ pub struct Lowerer<'r> {
     /// observed and mutated by other code, so const-propagating
     /// them is unsound.
     const_map_stack: Vec<HashMap<String, String>>,
+    /// Per-recursive-script structured command dependencies. Each body owns
+    /// its sites, so CFG construction receives the exact bindings for the
+    /// script it flattens rather than a module-global approximation.
+    command_binding_site_stack: Vec<Vec<CommandBindingSite>>,
     /// Depth of `proc` / `when` body lowerings currently in
     /// flight. A positive value enables the const-map.
     proc_depth: u32,
@@ -787,11 +903,11 @@ pub struct Lowerer<'r> {
     pub(crate) dead_code_depth: u32,
     /// `true` while lowering a `TclOO` method body. A `proc`
     /// (or `namespace eval`-lifted proc) defined inside a method
-    /// body is created at method-call time in the global namespace,
+    /// body is created at method-call time in the runtime receiver namespace,
     /// NOT at class-definition time — so it must not be lifted into
     /// `module.procedures` (codegen would otherwise emit it
     /// unconditionally at script load). The method body is still
-    /// lowered for analysis; only the global registration is
+    /// lowered for analysis; only the premature static registration is
     /// suppressed.
     suppress_proc_register: bool,
     /// Lexer config for the document's dialect, threaded into every
@@ -941,6 +1057,7 @@ impl<'r> Lowerer<'r> {
             in_namespace_eval: false,
             registry,
             const_map_stack: Vec::new(),
+            command_binding_site_stack: Vec::new(),
             proc_depth: 0,
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
@@ -1005,13 +1122,75 @@ impl<'r> Lowerer<'r> {
 
     /// Lower a complete source string to an IR module.
     pub fn lower(&mut self, source: &str) -> &Module {
+        self.start_module();
+        self.module.top_level_namespace.clear();
+        self.module.top_level_namespace.push_str("::");
         self.module.top_level = self.lower_script(source, "::");
-        // Surface namespace import / export directives onto
-        // the module for downstream consumers (codegen import
-        // resolution, future warning passes).
-        self.module.namespace_imports = std::mem::take(&mut self.namespace_imports);
-        self.module.namespace_exports = std::mem::take(&mut self.namespace_exports);
         &self.module
+    }
+
+    /// Lower a runtime procedure body as this module's top-level script.
+    ///
+    /// This is the procedure-target counterpart of [`Self::lower`].  It uses
+    /// the same fresh frame as a static `proc` body, while retaining all
+    /// module-wide side effects (nested procedures, aliases, namespaces, OO
+    /// definitions, and traces) for the bytecode backend.
+    pub fn lower_procedure_target(&mut self, source: &str, namespace: &str) -> &Module {
+        self.start_module();
+        // The runtime ABI carries an unrooted constructed namespace key while
+        // compiler IR records rooted constructed keys.  Convert at the shared
+        // naming owner without re-parsing the key as a written Tcl word: a
+        // leading `::` here may belong to a literal-colon namespace segment.
+        let namespace = tcl_syntax::naming::root_unrooted_key(namespace);
+        self.module.top_level_namespace.clone_from(&namespace);
+        self.module.top_level = self
+            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_script(source, &namespace)
+            });
+        &self.module
+    }
+
+    /// Lower a runtime script in an explicit constructed namespace.
+    ///
+    /// Unlike [`Self::lower_procedure_target`], this keeps script-frame
+    /// variable and return semantics. Both target forms share the exact same
+    /// namespace conversion and module provenance field.
+    pub fn lower_script_target(&mut self, source: &str, namespace: &str) -> &Module {
+        self.start_module();
+        let namespace = tcl_syntax::naming::root_unrooted_key(namespace);
+        self.module.top_level_namespace.clone_from(&namespace);
+        self.module.top_level = self.lower_script(source, &namespace);
+        &self.module
+    }
+
+    /// Apply the module-level target stamp shared by ordinary and
+    /// procedure-target lowering.
+    fn start_module(&mut self) {
+        self.module.plain_command_dispatch = self.target.is_trace_visible();
+    }
+
+    /// Enter a fresh procedure-like runtime frame for one body lowering.
+    ///
+    /// A procedure frame must not inherit literal bindings from its caller;
+    /// `proc_depth` also enables the body-only const-map paths.  Callers that
+    /// have an explicit iRules placement supply it here, so all three pieces
+    /// of procedure-frame setup are balanced together.
+    fn in_procedure_frame<T>(
+        &mut self,
+        context: Option<IrulesExecutionContext>,
+        lower: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        self.proc_depth += 1;
+        self.const_map_stack.push(HashMap::new());
+        let previous_context =
+            context.map(|context| std::mem::replace(&mut self.irules_execution_context, context));
+        let result = lower(self);
+        if let Some(previous) = previous_context {
+            self.irules_execution_context = previous;
+        }
+        self.const_map_stack.pop();
+        self.proc_depth -= 1;
+        result
     }
 
     /// Lower a source-text literal into a [`Script`] without
@@ -1063,10 +1242,15 @@ impl<'r> Lowerer<'r> {
     fn lower_script_inner(&mut self, source: &str, namespace: &str) -> Script {
         let commands = segment_commands_with_offset_and_config(source, 0, self.config);
         self.const_map_stack.push(HashMap::new());
+        self.command_binding_site_stack.push(Vec::new());
         let stmts =
             self.in_word_space(source, 0, |this| this.lower_segmented(&commands, namespace));
+        let command_binding_sites = self
+            .command_binding_site_stack
+            .pop()
+            .expect("the script command-binding site scope is balanced");
         self.const_map_stack.pop();
-        Script::from_statements(stmts)
+        Script::from_lowered_parts(stmts, command_binding_sites)
     }
 
     /// Lower a body argument (inside braces/brackets) to an IR script.
@@ -1176,11 +1360,16 @@ impl<'r> Lowerer<'r> {
         let commands = segment_commands_with_offset_and_config(text, base_offset, self.config);
         let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
         self.const_map_stack.push(inherited);
+        self.command_binding_site_stack.push(Vec::new());
         let stmts = self.in_word_space(text, base_offset, |this| {
             this.lower_segmented(&commands, namespace)
         });
+        let command_binding_sites = self
+            .command_binding_site_stack
+            .pop()
+            .expect("the body command-binding site scope is balanced");
         self.const_map_stack.pop();
-        Script::from_statements(stmts)
+        Script::from_lowered_parts(stmts, command_binding_sites)
     }
 
     /// Lower a list of segmented commands to IR statements.
@@ -1453,6 +1642,8 @@ impl<'r> Lowerer<'r> {
     ///    when its `lowering_hook` is stamped.
     /// 2. The hook ID is the canonical key consumed by downstream
     ///    audit / LSP / compiler-explorer surfaces.
+    // Registry-hook dispatcher keeps uniform fallback policy in one place.
+    #[allow(clippy::too_many_lines)]
     fn try_dispatch_structured_hook(
         &mut self,
         cmd_name: &str,
@@ -1504,10 +1695,12 @@ impl<'r> Lowerer<'r> {
             // bodies (`eval $dyn` with no const-map binding,
             // `eval [cmd]`) fall through to the default barrier
             // dispatch.
-            LoweringHookId::Eval => Some(
-                self.try_lower_eval_static(seg, namespace, inline_body_error_context)
-                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
-            ),
+            LoweringHookId::Eval => Some(self.lower_eval_structured(
+                seg,
+                namespace,
+                inline_body_error_context,
+                resolved.canonical_command,
+            )),
 
             // `apply {{params} body ?ns?} …` — walk the braced body so nested
             // definitions register (like `namespace eval`), keeping the call a
@@ -1519,17 +1712,37 @@ impl<'r> Lowerer<'r> {
             // `::tcl::array::for` with the body as an unparsed literal), but a
             // braced literal body is walked in a fresh frame bound to the two
             // loop variables so it is analysable.
-            LoweringHookId::ArrayFor => Some(self.lower_array_for(seg, namespace)),
+            LoweringHookId::ArrayFor => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_array_for(seg, namespace))
+            }
 
             // Straightforward control-flow forms.  Each is a
             // single-method dispatch with no arity / shared-method /
             // subcommand complications.
-            LoweringHookId::If => Some(self.lower_if(seg, namespace)),
-            LoweringHookId::Switch => Some(self.lower_switch(seg, namespace)),
-            LoweringHookId::For => Some(self.lower_for(seg, namespace)),
-            LoweringHookId::While => Some(self.lower_while(seg, namespace)),
-            LoweringHookId::Catch => Some(self.lower_catch(seg, namespace)),
-            LoweringHookId::Try => Some(self.lower_try(seg, namespace)),
+            LoweringHookId::If => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_if(seg, namespace))
+            }
+            LoweringHookId::Switch => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_switch(seg, namespace))
+            }
+            LoweringHookId::For => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_for(seg, namespace))
+            }
+            LoweringHookId::While => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_while(seg, namespace))
+            }
+            LoweringHookId::Catch => {
+                Some(self.lower_catch_with_binding(seg, namespace, resolved.canonical_command))
+            }
+            LoweringHookId::Try => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_try(seg, namespace))
+            }
 
             // Forms with shape preconditions.  Calls with the wrong
             // arity / shape must fall through to `lower_default`
@@ -1559,8 +1772,14 @@ impl<'r> Lowerer<'r> {
             // — share `lower_foreach(... is_lmap)`.  The
             // dedicated lowerer handles its own shape errors,
             // so no precondition here.
-            LoweringHookId::Foreach => Some(self.lower_foreach(seg, namespace, false)),
-            LoweringHookId::Lmap => Some(self.lower_foreach(seg, namespace, true)),
+            LoweringHookId::Foreach => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_foreach(seg, namespace, false))
+            }
+            LoweringHookId::Lmap => {
+                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
+                Some(self.lower_foreach(seg, namespace, true))
+            }
             // `dict <subcommand> ...` — must have at least one
             // arg so the subcommand can be picked.  Bare `dict`
             // falls through to `lower_default`.
@@ -1568,6 +1787,11 @@ impl<'r> Lowerer<'r> {
                 if args.is_empty() {
                     None
                 } else {
+                    self.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
                     Some(self.lower_dict(seg, namespace))
                 }
             }
@@ -1599,11 +1823,7 @@ impl<'r> Lowerer<'r> {
             // flowing to `lower_default` instead of triggering a
             // barrier inside the dedicated emitter.
             LoweringHookId::ForeachLine => {
-                if args.len() == 3 {
-                    Some(self.lower_foreach_line(seg, namespace))
-                } else {
-                    None
-                }
+                self.try_lower_foreach_line_structured(seg, namespace, resolved.canonical_command)
             }
 
             // Non-structured hooks (`Expr` / `Return` / `Set` /
@@ -1624,6 +1844,72 @@ impl<'r> Lowerer<'r> {
             | LoweringHookId::Variable
             | LoweringHookId::Upvar => None,
         }
+    }
+
+    /// Retain the resolved head of a command whose typed lowering consumes its
+    /// live command semantics. This is recorded before lowering nested bodies,
+    /// while the enclosing script's site scope is current.
+    fn record_consumed_command_binding(
+        &mut self,
+        seg: &SegmentedCommand,
+        resolution_namespace: &str,
+        canonical_command: &str,
+    ) {
+        let Some(sites) = self.command_binding_site_stack.last_mut() else {
+            return;
+        };
+        sites.push(CommandBindingSite {
+            span: seg.span,
+            binding: tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+                resolution_namespace,
+                seg.name(),
+                canonical_command,
+            ),
+        });
+    }
+
+    fn lower_catch_with_binding(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        canonical_command: &str,
+    ) -> Statement {
+        let lowered = self.lower_catch(seg, namespace);
+        if matches!(lowered, Statement::Catch { .. }) {
+            self.record_consumed_command_binding(seg, namespace, canonical_command);
+        }
+        lowered
+    }
+
+    fn lower_eval_structured(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        inline_body_error_context: Option<tcl_registry::InlineBodyErrorContext>,
+        canonical_command: &str,
+    ) -> Statement {
+        let lowered = self.try_lower_eval_static(seg, namespace, inline_body_error_context);
+        if lowered.is_some() {
+            self.record_consumed_command_binding(seg, namespace, canonical_command);
+        }
+        lowered.unwrap_or_else(|| self.lower_default(seg, namespace))
+    }
+
+    fn try_lower_foreach_line_structured(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        canonical_command: &str,
+    ) -> Option<Statement> {
+        if seg.args().len() != 3 {
+            return None;
+        }
+
+        let lowered = self.lower_foreach_line(seg, namespace);
+        if matches!(lowered, Statement::Foreach { .. }) {
+            self.record_consumed_command_binding(seg, namespace, canonical_command);
+        }
+        Some(lowered)
     }
 
     fn try_lower_proc_declaration(
@@ -1709,6 +1995,24 @@ impl<'r> Lowerer<'r> {
             return None;
         };
         Some(self.lower_when(seg, namespace, &event, body_index, priority))
+    }
+
+    /// Store a non-structured hook's exact dependency only when it replaced
+    /// ordinary command dispatch with specialised IR.
+    fn finish_resolved_lowering(
+        &mut self,
+        seg: &SegmentedCommand,
+        lowered: ResolvedLowering,
+    ) -> Statement {
+        if let Some(binding) = lowered.binding
+            && let Some(sites) = self.command_binding_site_stack.last_mut()
+        {
+            sites.push(CommandBindingSite {
+                span: seg.span,
+                binding,
+            });
+        }
+        lowered.statement
     }
 
     /// Lower a single command.
@@ -1818,14 +2122,16 @@ impl<'r> Lowerer<'r> {
         let hook_cmd = LoweringCommand {
             span: seg.span,
             name: cmd_name,
+            resolution_namespace: namespace,
             args,
             single_token_word: &seg.single_token_word,
             expand_word: seg.expand_word.as_deref(),
             tokens: Some(self.cmd_tokens(seg)),
             arg_kinds: &Self::arg_kinds(seg),
             dialect: self.dialect,
+            lexer_config: self.config,
         };
-        if let Some(stmt) = try_lower_hook(
+        if let Some(lowered) = try_lower_hook_with_binding(
             &hook_cmd,
             &self.aliases,
             self.registry,
@@ -1834,7 +2140,7 @@ impl<'r> Lowerer<'r> {
                 .map(tcl_registry::model::ContextRegistry::context),
             self.safe_on_uninit(cmd_name, args),
         ) {
-            return Some(stmt);
+            return Some(self.finish_resolved_lowering(seg, lowered));
         }
 
         // Registry-driven hook-ID dispatch covers all 17
@@ -1939,10 +2245,10 @@ impl<'r> Lowerer<'r> {
         );
 
         // A `proc` defined inside a TclOO method body is created
-        // at method-call time in the global namespace, not at script
+        // at method-call time in the runtime receiver namespace, not at script
         // load — so it must not be lifted into `module.procedures`
         // (codegen would otherwise emit it unconditionally). The body
-        // was still lowered above for analysis; only the global
+        // was still lowered above for analysis; only the premature static
         // registration is suppressed.
         if !self.suppress_proc_register {
             match self.module.procedures.entry(qualified.clone()) {
@@ -1992,41 +2298,38 @@ impl<'r> Lowerer<'r> {
         // ``lower_body`` otherwise inherits the enclosing scope's tracked
         // scalars, which is sound for control flow but not a proc's fresh
         // runtime frame.
-        self.proc_depth += 1;
-        self.const_map_stack.push(HashMap::new());
-        let body = if let Some(text) = materialised_body {
-            self.lower_script_in_irules_context(
-                &text,
-                body_namespace,
-                IrulesExecutionContext::ProcedureBody,
-            )
-        } else if body_is_dynamic {
-            // The resolved body value is dynamic; retain the runtime call but
-            // do not compile the literal `$body` spelling as Tcl source.
-            Script::default()
-        } else if let Some(cache) = self.body_cache.filter(|_| {
-            self.proc_depth == 1
-                && !self
-                    .registry
-                    .profile()
-                    .is_some_and(tcl_dialect::DialectProfile::is_irules)
-                && body_cache_eligible(body_text)
-        }) {
-            // Only context-free Tcl bodies can use the offset-zero body cache.
-            let mut script = cache(body_text, body_namespace);
-            crate::lattice_rebase::rebase_script(&mut script, i64::from(body_offset));
-            script
-        } else {
-            self.lower_body_in_irules_context(
-                body_text,
-                body_offset,
-                body_namespace,
-                IrulesExecutionContext::ProcedureBody,
-            )
-        };
-        self.const_map_stack.pop();
-        self.proc_depth -= 1;
-        body
+        self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+            if let Some(text) = materialised_body {
+                lowerer.lower_script_in_irules_context(
+                    &text,
+                    body_namespace,
+                    IrulesExecutionContext::ProcedureBody,
+                )
+            } else if body_is_dynamic {
+                // The resolved body value is dynamic; retain the runtime call but
+                // do not compile the literal `$body` spelling as Tcl source.
+                Script::default()
+            } else if let Some(cache) = lowerer.body_cache.filter(|_| {
+                lowerer.proc_depth == 1
+                    && !lowerer
+                        .registry
+                        .profile()
+                        .is_some_and(tcl_dialect::DialectProfile::is_irules)
+                    && body_cache_eligible(body_text)
+            }) {
+                // Only context-free Tcl bodies can use the offset-zero body cache.
+                let mut script = cache(body_text, body_namespace);
+                crate::lattice_rebase::rebase_script(&mut script, i64::from(body_offset));
+                script
+            } else {
+                lowerer.lower_body_in_irules_context(
+                    body_text,
+                    body_offset,
+                    body_namespace,
+                    IrulesExecutionContext::ProcedureBody,
+                )
+            }
+        })
     }
 
     /// Resolve a proc name that may be a `$var` / `[cmd]` substitution.
@@ -2279,16 +2582,23 @@ impl<'r> Lowerer<'r> {
                 return None;
             }
         }
+        let body_namespace = match (level.absolute, level.shift) {
+            (true, 0) => "::",
+            // A non-zero relative frame is selected only at runtime. Keep the
+            // lexical fallback for lowering; ExecutionNamespace later marks
+            // the body runtime-selected and invalidates relative typed proof.
+            _ => namespace,
+        };
         let body = if body_tok.kind == TokenType::Str {
             let body_text = self.guarded_body_text(*body_tok, &args[body_tok_idx]);
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-            self.lower_body(body_text, body_offset, namespace)
+            self.lower_body(body_text, body_offset, body_namespace)
         } else if body_tok.kind == TokenType::Var {
             // `uplevel ?N? $var` with $var resolved by the
             // const-map to a brace-string literal — fold the literal
             // in and lower as a static UpFrame.
             let literal = self.const_map_lookup(&args[body_tok_idx])?;
-            self.lower_script(&literal, namespace)
+            self.lower_script(&literal, body_namespace)
         } else {
             return None;
         };
@@ -2748,6 +3058,69 @@ impl<'r> Lowerer<'r> {
         );
     }
 
+    /// Registry-resolved reads hidden inside the value word of a generic
+    /// value-passthrough store.
+    ///
+    /// An alias/rename of `set` must remain a runtime [`Statement::Call`], but
+    /// its one value word still has the same expression semantics as a direct
+    /// `set`.  Capture those reads while the lowering alias map and resolved
+    /// dialect context are live, rather than asking SSA to reconstruct command
+    /// bindings from a flattened call later.
+    fn nested_expr_reads_in_set_value(
+        &self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        resolved_command: &str,
+        prepend_n: usize,
+    ) -> Vec<String> {
+        if prepend_n != 0
+            || seg.args().len() != 2
+            || !matches!(
+                seg.argv.get(2).map(|token| token.kind),
+                Some(TokenType::Cmd)
+            )
+            || !seg.single_token_word.get(2).copied().unwrap_or(false)
+            || self
+                .registry
+                .get(resolved_command)
+                .and_then(|spec| spec.lowering_hook)
+                != Some(LoweringHookId::Set)
+        {
+            return Vec::new();
+        }
+
+        let value = &seg.args()[1];
+        let inner = value
+            .strip_prefix('[')
+            .and_then(|text| text.strip_suffix(']'))
+            .unwrap_or(value);
+        let context = self
+            .dialect_context
+            .as_deref()
+            .map(tcl_registry::model::ContextRegistry::context);
+        let Some((_, _, expression, _)) = extract_single_expr_arg_with_config(
+            inner,
+            &self.aliases,
+            namespace,
+            self.registry,
+            context,
+            self.config,
+        ) else {
+            return Vec::new();
+        };
+        let grammar = self
+            .dialect
+            .or_else(|| self.registry.profile())
+            .map_or_else(
+                || tcl_dialect::grammar_of_dialect_name(None),
+                |profile| profile.grammar,
+            );
+        parse_expr_for_profile(&expression, self.dialect)
+            .vars_element_qualified_with_grammar(grammar)
+            .into_iter()
+            .collect()
+    }
+
     /// Default lowering: generic [`Statement::Call`] with registry-based
     /// arg roles.
     // The generic path deliberately assembles every registry-owned call fact
@@ -2877,7 +3250,7 @@ impl<'r> Lowerer<'r> {
                     })
                 })
                 .collect();
-            let var_reads: Vec<String> = var_read_indices
+            let mut var_reads: Vec<String> = var_read_indices
                 .iter()
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
@@ -2898,6 +3271,13 @@ impl<'r> Lowerer<'r> {
                     })
                 })
                 .collect();
+            let nested_expr_reads =
+                self.nested_expr_reads_in_set_value(seg, namespace, &role_cmd, prepend_n);
+            var_reads.extend(nested_expr_reads);
+            let reads_own_defs = reads_before_write
+                || var_reads
+                    .iter()
+                    .any(|read| var_defs.iter().any(|definition| definition == read));
             return Statement::Call {
                 span: seg.span,
                 command: cmd_name.into(),
@@ -2905,7 +3285,7 @@ impl<'r> Lowerer<'r> {
                 args: args.to_vec(),
                 defs: var_defs,
                 reads: var_reads,
-                reads_own_defs: reads_before_write,
+                reads_own_defs,
                 safe_on_uninit: self.safe_on_uninit(&role_cmd, &role_args),
                 tokens: Some(self.cmd_tokens(seg)),
                 foreach_groups: None,
@@ -2941,7 +3321,12 @@ impl<'r> Lowerer<'r> {
     /// byte-identical.
     pub fn extract_oo_methods_pass(&mut self) {
         let top_level = self.module.top_level.clone();
-        self.walk_for_oo_methods(&top_level.statements, "::");
+        let top_namespace = if self.module.top_level_namespace.is_empty() {
+            "::".to_owned()
+        } else {
+            self.module.top_level_namespace.clone()
+        };
+        self.walk_for_oo_methods(&top_level.statements, &top_namespace);
         let procs: Vec<(String, Script)> = self
             .module
             .procedures
@@ -3024,6 +3409,12 @@ impl<'r> Lowerer<'r> {
                             ct.argv[call.body_idx].start() + 1,
                             namespace,
                         );
+                    } else if self.definer_invocation_may_supply_body(
+                        command,
+                        canonical_command.as_deref(),
+                        &ct.argv_texts,
+                    ) {
+                        self.module.oo_evidence.unretained_executable_roots = true;
                     } else if is_namespace_eval_shape(
                         command,
                         &ct.argv_texts,
@@ -3054,17 +3445,25 @@ impl<'r> Lowerer<'r> {
     /// and extracting members from any registry-classified definer block.
     fn walk_segments_for_oo(&mut self, segments: &[SegmentedCommand], namespace: &str) {
         for seg in segments {
-            if seg.is_partial || seg.texts.is_empty() {
+            if seg.texts.is_empty() {
                 continue;
             }
             let kinds: Vec<TokenType> = seg.argv.iter().map(|t| t.kind).collect();
             let cmd = seg.texts[0].as_str();
+            if seg.is_partial {
+                if self.definer_invocation_may_supply_body(cmd, None, &seg.texts) {
+                    self.module.oo_evidence.unretained_executable_roots = true;
+                }
+                continue;
+            }
             if let Some(call) =
                 self.classify_definer_call(cmd, None, &seg.texts, &kinds, &seg.single_token_word)
             {
                 let body = seg.argv[call.body_idx];
                 let off = body.span.start() + u32::from(body.content_offset);
                 self.extract_definer_members(call, &seg.texts, off, namespace);
+            } else if self.definer_invocation_may_supply_body(cmd, None, &seg.texts) {
+                self.module.oo_evidence.unretained_executable_roots = true;
             } else if is_namespace_eval_shape(cmd, &seg.texts, &kinds, &seg.single_token_word) {
                 let child_ns = join_namespace(namespace, &seg.texts[2]);
                 let off = seg.argv[3].span.start() + u32::from(seg.argv[3].content_offset);
@@ -3142,6 +3541,7 @@ impl<'r> Lowerer<'r> {
             let tail = target.trim().trim_start_matches('$');
             let tail = tail.trim_matches(|c| c == '{' || c == '}');
             if tail.is_empty() || tail.contains('[') {
+                self.module.oo_evidence.unretained_executable_roots = true;
                 return;
             }
             format!("::@objdefine@::{tail}")
@@ -3153,6 +3553,7 @@ impl<'r> Lowerer<'r> {
             // they can see).
             if target.contains('$') || target.contains('[') {
                 self.module.oo_evidence.dynamic_target = true;
+                self.module.oo_evidence.unretained_executable_roots = true;
                 return;
             }
             qualify_proc_name(namespace, target)
@@ -3191,14 +3592,24 @@ impl<'r> Lowerer<'r> {
         namespace: &str,
     ) {
         for seg in segments {
-            if seg.is_partial || seg.texts.is_empty() {
+            if seg.texts.is_empty() {
                 continue;
             }
             let head = seg.texts[0].as_str();
+            let member_supplies_body =
+                self.member_invocation_supplies_body(call.grammar, head, &seg.texts[1..]);
+            if seg.is_partial {
+                self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
+                continue;
+            }
             if self.record_class_relation_member(Some(call.grammar), seg, class_qname) {
                 continue;
             }
             let Some(member) = call.grammar.member(head) else {
+                // Definition scripts can call ordinary absolute commands (or
+                // dynamically installed definition helpers). Their execution
+                // is not represented by a MethodDef root.
+                self.module.oo_evidence.unretained_executable_roots = true;
                 continue;
             };
             // A wrapper member (`self …`, `private …`, itcl's access
@@ -3212,6 +3623,8 @@ impl<'r> Lowerer<'r> {
                         // No double wrapping (`self private method …` is not
                         // a real Tcl shape).
                         if inner_member.kind != tcl_registry::definer::MemberKind::Flat {
+                            self.module.oo_evidence.unretained_executable_roots |=
+                                member_supplies_body;
                             continue;
                         }
                         (inner_member, inner.as_str(), 2usize, Some(head))
@@ -3246,13 +3659,19 @@ impl<'r> Lowerer<'r> {
                         );
                         continue;
                     }
-                    _ => continue,
+                    _ => {
+                        self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
+                        continue;
+                    }
                 },
                 tcl_registry::definer::MemberKind::Flat => (member, head, 1usize, None),
                 // Flag-keyed bodies (`property … -get/-set …`) are accessor
                 // scripts, not method frames — no unit today (documented
                 // limit).
-                tcl_registry::definer::MemberKind::FlagKeyed => continue,
+                tcl_registry::definer::MemberKind::FlagKeyed => {
+                    self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
+                    continue;
+                }
             };
             self.extract_one_member(
                 MemberExtraction {
@@ -3284,14 +3703,22 @@ impl<'r> Lowerer<'r> {
         wrapper: &str,
     ) {
         for seg in segments {
-            if seg.is_partial || seg.texts.is_empty() {
+            if seg.texts.is_empty() {
                 continue;
             }
             let head = seg.texts[0].as_str();
+            let member_supplies_body =
+                self.member_invocation_supplies_body(call.grammar, head, &seg.texts[1..]);
+            if seg.is_partial {
+                self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
+                continue;
+            }
             let Some(member) = call.grammar.member(head) else {
+                self.module.oo_evidence.unretained_executable_roots = true;
                 continue;
             };
             if member.kind != tcl_registry::definer::MemberKind::Flat {
+                self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
             }
             self.extract_one_member(
@@ -3313,6 +3740,8 @@ impl<'r> Lowerer<'r> {
     /// Lift one body-bearing member call to a [`MethodDef`] unit, when its
     /// grammar layout and this consumer's kind routing say it opens a
     /// method frame.
+    // One grammar-driven member extraction with shared validation paths.
+    #[allow(clippy::too_many_lines)]
     fn extract_one_member(
         &mut self,
         ex: MemberExtraction<'_, '_>,
@@ -3329,12 +3758,16 @@ impl<'r> Lowerer<'r> {
             wrapper,
         } = ex;
         let args = &seg.texts[base..];
-        let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
-            return;
-        };
         // Argument layout comes from the grammar: which relative index (0-
         // based after the keyword) is the body / name / parameter list.
-        let Some(body_rel) = member.indices_for_call(args, ArgRole::Body).next() else {
+        let Some(body_rel) = member
+            .indices_for_call(args, ArgRole::Body)
+            .find(|&index| index < args.len())
+        else {
+            return;
+        };
+        let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
+            self.module.oo_evidence.unretained_executable_roots = true;
             return;
         };
         // A member that also declares a variable (itcl `variable NAME ?init?
@@ -3347,12 +3780,14 @@ impl<'r> Lowerer<'r> {
             .next()
             .is_some()
         {
+            self.module.oo_evidence.unretained_executable_roots = true;
             return;
         }
         let b_idx = base + body_rel;
         let name_owned: String;
         let name: &str = if let Some(rel) = member.indices_for_call(args, ArgRole::Name).next() {
             let Some(n) = seg.texts.get(base + rel) else {
+                self.module.oo_evidence.unretained_executable_roots = true;
                 return;
             };
             n.as_str()
@@ -3371,6 +3806,7 @@ impl<'r> Lowerer<'r> {
             self.module
                 .oo_unanalysed_classes
                 .insert(class_qname.to_string());
+            self.module.oo_evidence.unretained_executable_roots = true;
             return;
         }
         // A parameter list Tcl would reject defines no method, and the class as
@@ -3386,6 +3822,7 @@ impl<'r> Lowerer<'r> {
             self.module
                 .oo_unanalysed_classes
                 .insert(class_qname.to_string());
+            self.module.oo_evidence.unretained_executable_roots = true;
             return;
         };
         // Lower the method body in its own frame (fresh const-map +
@@ -3395,14 +3832,30 @@ impl<'r> Lowerer<'r> {
         // nested-proc registration while doing so.
         let body_tok = seg.argv[b_idx];
         let body_off = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let execution_namespace = match call.grammar.member_current_namespace() {
+            tcl_registry::definer::MemberCurrentNamespace::DefinedEntity => {
+                crate::ir::ExecutionNamespace::exact(class_qname)
+            }
+            tcl_registry::definer::MemberCurrentNamespace::RuntimeReceiver => {
+                crate::ir::ExecutionNamespace::RuntimeSelected
+            }
+        };
+        // A runtime receiver namespace cannot be named during lowering. Keep
+        // the lexical namespace for source reconstruction; the typed
+        // execution context carried by MethodDef makes every proof consumer
+        // abstain from relative command-resolution assumptions.
+        let lowering_namespace = execution_namespace.for_head("").unwrap_or(namespace);
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
         let prev_suppress = self.suppress_proc_register;
         self.suppress_proc_register = true;
-        let body_script = self.lower_body(seg.texts[b_idx].as_str(), body_off, namespace);
+        let body_script = self.lower_body(seg.texts[b_idx].as_str(), body_off, lowering_namespace);
         self.suppress_proc_register = prev_suppress;
         self.const_map_stack.pop();
         self.proc_depth -= 1;
+        if self.method_body_may_install_definition(&body_script) {
+            self.module.oo_evidence.unretained_executable_roots = true;
+        }
 
         // Instance vars in scope: class-level decls (plus the grammar's
         // implicit member-body variables — snit's `self`/`selfns`/`type`/
@@ -3434,6 +3887,7 @@ impl<'r> Lowerer<'r> {
             method_name: name.to_string(),
             params,
             body: body_script,
+            execution_namespace,
             kind: MethodKind::from_str_lossy(kind),
             span: Some(seg.span),
             instance_vars: method_ivars,
@@ -3636,13 +4090,55 @@ pub fn lower_proc_body_isolated(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Script {
     let mut lowerer = Lowerer::with_config(registry, config).with_dialect(dialect);
-    lowerer.proc_depth += 1;
-    lowerer.irules_execution_context = IrulesExecutionContext::ProcedureBody;
-    lowerer.const_map_stack.push(HashMap::new());
-    let body = lowerer.lower_body(body_text, 0, namespace);
-    lowerer.const_map_stack.pop();
-    lowerer.proc_depth -= 1;
-    body
+    lowerer.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+        lowerer.lower_body(body_text, 0, namespace)
+    })
+}
+
+/// Lower one runtime procedure body as a complete IR module.
+///
+/// Unlike the ordinary module entry point, the outer source runs at procedure
+/// depth in `namespace`. This preserves procedure-only lowering semantics and
+/// retains any nested procedure definitions and whole-unit command-mutation
+/// facts for bytecode emission.
+#[must_use]
+pub fn lower_proc_body_module_for_bytecode(
+    body_text: &str,
+    namespace: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    plain_command_dispatch: bool,
+) -> Module {
+    let mut lowerer = Lowerer::with_config(registry, config)
+        .with_dialect(dialect)
+        .for_bytecode_backend();
+    if plain_command_dispatch {
+        lowerer = lowerer.trace_visible();
+    }
+    lowerer.lower_procedure_target(body_text, namespace);
+    lowerer.finish_module(body_text)
+}
+
+/// Lower one runtime script as a complete bytecode IR module in its exact
+/// constructed command-resolution namespace.
+#[must_use]
+pub fn lower_script_module_for_bytecode(
+    source: &str,
+    namespace: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    plain_command_dispatch: bool,
+) -> Module {
+    let mut lowerer = Lowerer::with_config(registry, config)
+        .with_dialect(dialect)
+        .for_bytecode_backend();
+    if plain_command_dispatch {
+        lowerer = lowerer.trace_visible();
+    }
+    lowerer.lower_script_target(source, namespace);
+    lowerer.finish_module(source)
 }
 
 /// Whether a single top-level `proc` body can be lowered in isolation (through
@@ -4042,20 +4538,97 @@ pub fn first_fatal_parse_cut(
     tcl_lexer::first_parse_cut(source, config)
 }
 
+/// A Tcl script split at the first command whose parse is fatally malformed.
+///
+/// Both bytecode inline control-flow emission and runtime compilation consume
+/// this owner. Keeping the command boundary beside the dialect-aware lexer
+/// prevents `catch`/`try` paths from growing their own separator scanners.
+pub(crate) struct CommandAtTimeScript {
+    /// Complete commands before the malformed tail (all commands when clean).
+    pub(crate) commands: Vec<crate::segmenter::SegmentedCommand>,
+    /// Byte offset and Tcl parse message for the first malformed command.
+    pub(crate) fatal_tail: Option<(usize, String)>,
+}
+
+/// Segment `source` using `config`, retaining only complete commands before a
+/// fatal command and recording the exact suffix boundary/error.
+pub(crate) fn command_at_time_script_with_config(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> CommandAtTimeScript {
+    let fatal = first_fatal_parse_cut(source, config);
+    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let fatal_index = fatal
+        .map(|cut| cut.command)
+        .or_else(|| commands.iter().position(|command| command.is_partial));
+    let fatal_tail = match (fatal, fatal_index) {
+        (fatal, Some(index)) => {
+            let Some(command) = commands.get(index) else {
+                commands.clear();
+                return CommandAtTimeScript {
+                    commands,
+                    fatal_tail: Some((
+                        0,
+                        fatal.map_or_else(
+                            || "invalid command parse".to_owned(),
+                            |cut| cut.message.to_owned(),
+                        ),
+                    )),
+                };
+            };
+            let start = command.span.start() as usize;
+            let partial_message = command
+                .partial_delimiter
+                .map(|delimiter| delimiter.missing_message().to_owned());
+            commands.truncate(index);
+            Some((
+                start,
+                fatal
+                    .map(|cut| cut.message.to_owned())
+                    .or(partial_message)
+                    .unwrap_or_else(|| "invalid command parse".to_owned()),
+            ))
+        }
+        (Some(cut), None) => {
+            commands.clear();
+            Some((0, cut.message.to_owned()))
+        }
+        (None, None) => None,
+    };
+    CommandAtTimeScript {
+        commands,
+        fatal_tail,
+    }
+}
+
 /// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of
 /// the `lower_to_ir*` entry points).
 fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     lowerer.lower(source);
-    // Extract TclOO method bodies from the fully-assembled
-    // module (cache-independent — see `extract_oo_methods_pass`).
-    lowerer.extract_oo_methods_pass();
-    let registry = lowerer.registry;
-    let dialect = lowerer.dialect.map(|profile| profile.name.to_owned());
-    let mut module = lowerer.module;
-    module.source = source.to_string();
-    module.dialect = dialect;
-    populate_trace_facts(&mut module, registry);
-    module
+    lowerer.finish_module(source)
+}
+
+impl Lowerer<'_> {
+    /// Complete either module entry path after its top-level script has been
+    /// lowered.  Namespace tables, OO extraction, source/profile stamps, and
+    /// trace facts deliberately have this one owner so compiling a runtime
+    /// procedure target cannot drift from ordinary module lowering.
+    pub(crate) fn finish_module(mut self, source: &str) -> Module {
+        // Surface namespace import / export directives onto the module for
+        // downstream consumers (codegen import resolution and warning passes).
+        self.module.namespace_imports = std::mem::take(&mut self.namespace_imports);
+        self.module.namespace_exports = std::mem::take(&mut self.namespace_exports);
+        // Extract TclOO method bodies from the fully-assembled module
+        // (cache-independent — see `extract_oo_methods_pass`).
+        self.extract_oo_methods_pass();
+        let registry = self.registry;
+        let dialect = self.dialect.map(|profile| profile.name.to_owned());
+        let mut module = self.module;
+        source.clone_into(&mut module.source);
+        module.dialect = dialect;
+        populate_trace_facts(&mut module, registry);
+        module
+    }
 }
 
 /// Post-lower scan for `trace add ...` calls that populates
@@ -4744,6 +5317,11 @@ mod tests {
         assert_eq!(get.method_name, "get");
         assert_eq!(get.kind, MethodKind::Method);
         assert_eq!(get.class_name, "::Counter");
+        assert_eq!(
+            get.execution_namespace,
+            crate::ir::ExecutionNamespace::RuntimeSelected,
+            "TclOO resolves relative commands in the runtime receiver namespace"
+        );
         // `variable n` in the class body is an in-scope instance var
         // for every method (auto-linked).
         assert!(
@@ -4761,6 +5339,10 @@ mod tests {
         let ctor = &m.methods["::Counter::<constructor>"];
         assert_eq!(ctor.kind, MethodKind::Constructor);
         assert!(m.redefined_methods.is_empty());
+        assert!(
+            !m.oo_evidence.unretained_executable_roots,
+            "every executable body in a fully static class was retained"
+        );
     }
 
     #[test]
@@ -4877,6 +5459,10 @@ mod tests {
             .get("::Dog::bark")
             .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
         assert_eq!(bark.kind, MethodKind::Method);
+        assert_eq!(
+            bark.execution_namespace,
+            crate::ir::ExecutionNamespace::exact("::Dog")
+        );
         assert!(!bark.body.statements.is_empty());
         for implicit in ["self", "selfns", "type", "options", "name"] {
             assert!(
@@ -4927,6 +5513,10 @@ mod tests {
             .get("::Toaster::toast")
             .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
         assert_eq!(toast.params, vec!["n".to_string()]);
+        assert_eq!(
+            toast.execution_namespace,
+            crate::ir::ExecutionNamespace::exact("::Toaster")
+        );
         for name in ["this", "crumbs", "heat"] {
             assert!(
                 toast.instance_vars.contains(name),
@@ -4958,6 +5548,7 @@ mod tests {
         );
         assert_eq!(m.methods["::W::direct"].kind, MethodKind::ClassMethod);
         assert_eq!(m.methods["::W::hidden"].kind, MethodKind::Method);
+        assert!(!m.oo_evidence.unretained_executable_roots);
     }
 
     // TN: an `initialise` body is a *definition script* evaluated in the
@@ -4975,6 +5566,10 @@ mod tests {
             m.methods.keys().collect::<Vec<_>>()
         );
         assert!(m.methods.contains_key("::I::read"));
+        assert!(
+            m.oo_evidence.unretained_executable_roots,
+            "the unrepresented initialise script must remain explicit evidence"
+        );
     }
 
     // TN: a dynamic objdefine receiver that is not a simple variable
@@ -4989,6 +5584,7 @@ mod tests {
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
+        assert!(m.oo_evidence.unretained_executable_roots);
     }
 
     #[test]
@@ -5017,6 +5613,7 @@ mod tests {
         );
         assert!(m.oo_unanalysed_classes.is_empty());
         assert!(!m.oo_evidence.dynamic_target);
+        assert!(!m.oo_evidence.unretained_executable_roots);
     }
 
     #[test]
@@ -5028,16 +5625,48 @@ mod tests {
             &reg(),
         );
         assert!(m.oo_unanalysed_classes.contains("::C"), "{m:?}");
+        assert!(m.oo_evidence.unretained_executable_roots);
         // A dynamic member BODY is a method whose code no scan can read.
         let m = lower_to_ir("oo::class create C {\n    method m {} $body\n}\n", &reg());
         assert!(m.oo_unanalysed_classes.contains("::C"));
+        assert!(m.oo_evidence.unretained_executable_roots);
         // A dynamic CLASS word may touch any class — module-wide flag.
         let m = lower_to_ir("oo::define $cls { method m {} { return 1 } }\n", &reg());
         assert!(m.oo_evidence.dynamic_target);
+        assert!(m.oo_evidence.unretained_executable_roots);
         // A fully-static module sets neither.
         let m = lower_to_ir("oo::class create C { method m {} { return 1 } }\n", &reg());
         assert!(m.oo_unanalysed_classes.is_empty());
         assert!(!m.oo_evidence.dynamic_target);
+        assert!(!m.oo_evidence.unretained_executable_roots);
+    }
+
+    #[test]
+    fn every_unextracted_oo_body_shape_leaves_module_evidence() {
+        for source in [
+            // The outer definition script is computed, so the definer post-pass
+            // cannot segment it.
+            "oo::class create C [list method mutate {} { return 1 }]",
+            // Inline oo::define is body-bearing but is not a braced definition
+            // block accepted by classify_definer_call.
+            "oo::class create C {}; oo::define C method mutate {} { return 1 }",
+            // Accessor and configuration scripts are deliberately not MethodDef
+            // frames, but remain runtime-callable executable bodies.
+            "oo::configurable create C { property p -get { return 1 } }",
+            "itcl::class C { variable value 0 { return 1 } }",
+            // A definition created when an already-extracted method runs is not
+            // visited by this source-root post-pass.
+            "oo::class create Outer { method install {} { oo::class create Inner { method mutate {} { return 1 } } } }",
+            // Definition scripts may invoke ordinary commands; such execution
+            // is not represented by a lifted method body.
+            "oo::class create C { ::rename ::set ::saved_set }",
+        ] {
+            let module = lower_to_ir(source, &reg());
+            assert!(
+                module.oo_evidence.unretained_executable_roots,
+                "unretained executable definition body was not recorded: {source}"
+            );
+        }
     }
 
     #[test]
@@ -7170,6 +7799,7 @@ mod tests {
                     name,
                     expr,
                     expr_base,
+                    command_binding,
                     ..
                 },
                 Statement::Return {
@@ -7181,6 +7811,10 @@ mod tests {
                 assert!(rendered.contains('a'), "operand missing from {rendered}");
                 // `set x ` is six bytes, `$(` two more: the body starts at 8.
                 assert_eq!(*expr_base, Some(8), "the sugar body's absolute anchor");
+                assert!(
+                    command_binding.is_none(),
+                    "Jim expression syntax must not manufacture an expr command binding"
+                );
                 assert!(return_expr.is_some(), "return $(…) carries its expression");
             }
             other => panic!("expected AssignExpr + Return; got {other:?}"),

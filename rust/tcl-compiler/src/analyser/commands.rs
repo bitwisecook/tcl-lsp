@@ -1152,25 +1152,12 @@ impl Analyser {
         self.dispatch_body_arguments(&descriptor_name, args, arg_tokens, arg_single, scope_path);
     }
 
-    /// Resolve the [`AnalyserHookId`] for a command head, mirroring the
-    /// retired per-handler guards exactly: the head must be the spec's
-    /// own spelling — a `::`-qualified spelling of a **bareword** global
-    /// command (`::proc`, `::namespace`, …) resolves no hook (the literal
-    /// guards never matched one, and `CommandRegistry::get`'s leading-`::`
-    /// fallback must not widen *that* dispatch) — and a subcommand word
-    /// must match its `SubCommand` name exactly.
-    ///
-    /// A **namespaced** registry spelling (`tcl::OptProc`, `oo::define`) is
-    /// different: real corpus code commonly writes it fully qualified
-    /// (`::tcl::OptProc`, issue #923 idx 90), and `get`'s single-`::`-strip
-    /// fallback resolves that to the exact same spec either way — an exact
-    /// match, never the naive tail-matching the guard above exists to rule
-    /// out. Allowed only when the bareword tail *itself* still contains a
-    /// `::` (so `::proc` → `proc`, no embedded `::`, stays blocked; `::tcl
-    /// ::OptProc` → `tcl::OptProc`, embedded `::`, is allowed) — hooks
-    /// stamped before this distinction existed keep their exact prior
-    /// behaviour; only a namespaced spec's own qualified spelling gains
-    /// coverage.
+    /// Resolve the [`AnalyserHookId`] for a command head through the shared
+    /// registry/context owner. A leading global qualifier on a rootable
+    /// command (`::proc`, `::set`, `::namespace`, …) denotes the same exact
+    /// registry binding as its bare spelling; method-context-only commands
+    /// without a global form are rejected by the registry's rooted-fallback
+    /// policy. Subcommand selection remains exact.
     ///
     /// Outside an `analyse*` run (unit harnesses drive handlers on a
     /// bare `Analyser::new()`) the shared core registry stands in for
@@ -1215,11 +1202,6 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
     ) -> Option<ResolvedAnalyserHook> {
-        if let Some(bare) = cmd_name.strip_prefix("::")
-            && !bare.contains("::")
-        {
-            return None;
-        }
         let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         // The C3 selection primitive under invariant I4 (P1a): with the
@@ -5652,7 +5634,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_analyser_hook_mirrors_the_retired_name_guards() {
+    fn resolve_analyser_hook_uses_registry_rooted_resolution() {
         use tcl_registry::hooks::AnalyserHookId as H;
         let a = Analyser::new();
         let args = |words: &[&str]| words.iter().map(ToString::to_string).collect::<Vec<_>>();
@@ -5687,12 +5669,8 @@ mod tests {
             a.resolve_analyser_hook("dict", &args(&["for", "{k v}", "$d", "{}"])),
             Some(H::DictFor)
         );
-        // A **namespaced** registry spelling is different (issue #923 idx
-        // 90): real corpus code commonly writes `::tcl::OptProc` fully
-        // qualified, and `CommandRegistry::get`'s single-`::`-strip
-        // fallback resolves that to the exact same spec either way — an
-        // exact match, never the naive tail-matching the bareword guard
-        // above exists to rule out. Both spellings resolve identically…
+        // A namespaced registry spelling and its rooted form resolve
+        // identically through the registry owner (issue #923 idx 90).
         assert_eq!(
             a.resolve_analyser_hook("tcl::OptProc", &args(&["p", "{a}", "{}"])),
             Some(H::OptProc)
@@ -5701,13 +5679,15 @@ mod tests {
             a.resolve_analyser_hook("::tcl::OptProc", &args(&["p", "{a}", "{}"])),
             Some(H::OptProc)
         );
-        // …while a `::`-qualified spelling of a genuinely bareword global
-        // command is still blocked — the guard narrows on "does the
-        // bareword tail itself contain `::`", not merely "starts with
-        // `::`", so this pinned case keeps its exact prior behaviour.
+        // Rootable global commands have the same exact binding and hook with
+        // or without their explicit global qualifier.
         assert_eq!(
             a.resolve_analyser_hook("::proc", &args(&["p", "a", "b"])),
-            None
+            Some(H::Proc)
+        );
+        assert_eq!(
+            a.resolve_analyser_hook("set", &args(&["name", "value"])),
+            a.resolve_analyser_hook("::set", &args(&["name", "value"]))
         );
     }
 

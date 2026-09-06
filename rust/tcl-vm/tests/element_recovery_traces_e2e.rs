@@ -52,41 +52,9 @@ use std::cell::RefCell;
 use std::io::Write as _;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_vm::{CompileError, CompileService, Vm};
-
-struct CompilerSvc;
-
-impl CompileService for CompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        self.compile_for_profile(
-            src,
-            tcl_registry::model::ingress::resolve_environment(TclVersion::V9_0.dialect_name())
-                .analyser_profile(),
-        )
-    }
-
-    fn compile_for_profile(
-        &self,
-        src: &str,
-        profile: &'static DialectProfile,
-    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
-            src,
-            registry,
-            config,
-            Some(profile),
-        );
-        let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
-    }
-}
+use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_dialect::TclVersion;
+use tcl_vm::{CompileService, Vm};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -105,14 +73,20 @@ impl std::io::Write for Capture {
 fn vm_output(src: &str, version: TclVersion) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let asm = CompilerSvc
+    let service = BytecodeCompileService::for_profile(profile);
+    let asm = service
         .compile_for_profile(src, profile)
         .expect("test script compiles for its selected profile");
     let capture = Capture::default();
     let mut vm = Vm::with_output(Box::new(capture.clone()));
-    vm.set_compiler(Box::new(CompilerSvc));
+    vm.set_compiler(Box::new(service));
     vm.set_runtime_version(version);
-    let _ = vm.run_module(&asm);
+    let completion = vm.run_module(&asm);
+    assert!(
+        completion.code.is_ok(),
+        "VM run failed: {}",
+        completion.result.to_str()
+    );
     String::from_utf8_lossy(&capture.0.borrow())
         .trim()
         .to_owned()

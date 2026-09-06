@@ -39,7 +39,7 @@
 //!
 //! [`TransitionSubject::Unknown`]: tcl_registry::TransitionSubject::Unknown
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use tcl_registry::{
     CommandRegistry, InvocationWord, InvocationWords, StateTransitions, TransitionSubject,
@@ -143,35 +143,6 @@ pub fn resolve_alias(
     aliases
         .get(&normalise_qualified_name(&format!("::{cmd_name}")))
         .cloned()
-}
-
-/// Return names that are aliases for `expr` (no prepended args).
-///
-/// Returns both the qualified keys (`::=`) and stripped short names
-/// (`=`) so callers matching against bare command words get a hit.
-///
-/// The literal `"expr"` target match stays name-keyed for now: the
-/// consumers are the registry-less lowering fast paths
-/// (`extract_single_expr_arg` behind `LoweringHookId::Return` / `Set`),
-/// whose shared `dispatch_lowering_hook` signature deliberately carries
-/// no registry.  Routing this through `EXPR_CONCATENATES_ARGS` means
-/// threading a registry through that public dispatch table — tracked
-/// migration debt rather than a semantic choice.
-#[must_use]
-pub fn expr_alias_names(aliases: &CommandAliasMap) -> HashSet<String> {
-    let mut result = HashSet::new();
-    for (name, (target, prepended)) in aliases {
-        if target == "expr" && prepended.is_empty() {
-            result.insert(name.clone());
-            if let Some(short) = name.rsplit("::").next()
-                && !short.is_empty()
-                && name.starts_with("::")
-            {
-                result.insert(short.to_owned());
-            }
-        }
-    }
-    result
 }
 
 #[cfg(test)]
@@ -432,18 +403,5 @@ mod tests {
     fn resolve_not_found() {
         let aliases = CommandAliasMap::new();
         assert!(resolve_alias("nope", &aliases, "::").is_none());
-    }
-
-    #[test]
-    fn expr_aliases() {
-        let mut aliases = CommandAliasMap::new();
-        aliases.insert("::=".into(), ("expr".into(), vec![]));
-        aliases.insert("::notexpr".into(), ("puts".into(), vec![]));
-        aliases.insert("::exprwithargs".into(), ("expr".into(), vec!["1".into()]));
-        let names = expr_alias_names(&aliases);
-        assert!(names.contains("::="));
-        assert!(names.contains("="));
-        assert!(!names.contains("::notexpr"));
-        assert!(!names.contains("::exprwithargs"));
     }
 }

@@ -138,6 +138,10 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::CREATES_BARRIER
             | Traits::CREATES_DYNAMIC_BARRIER
+            // The default handler calls `auto_load`, which can source an
+            // indexed unit and install or replace arbitrary commands before
+            // retrying the missing invocation.
+            | Traits::LOADS_EXTERNAL_UNIT
             | Traits::OVERRIDABLE_LIBRARY_PROC
             // cmdName reaching `unknown` from tainted input can end up
             // passed straight to `exec` via the documented auto-exec
@@ -180,5 +184,27 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CommandRegistry;
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
+    #[test]
+    fn default_unknown_declares_its_autoload_boundary() {
+        assert!(spec().traits.contains(Traits::LOADS_EXTERNAL_UNIT));
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation(
+                "unknown",
+                &["missing_command"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
+            .expect("Tcl 9.0 unknown resolves")
+            .facts();
+        assert!(facts.traits.contains(Traits::LOADS_EXTERNAL_UNIT));
     }
 }

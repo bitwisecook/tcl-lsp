@@ -61,6 +61,8 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
             .iter()
             .map(|s| rewrite_stmt(s, rename))
             .collect(),
+        command_binding_sites: script.command_binding_sites.clone(),
+        procedure_binding_requirements: script.procedure_binding_requirements.clone(),
     }
 }
 
@@ -163,12 +165,16 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             name,
             name_braced,
             expr,
+            command_binding,
+            fallback_value,
             ..
         } => Statement::AssignExpr {
             span: *span,
             name: rename_var_name(name, rename),
             name_braced: *name_braced,
             expr: rewrite_expr(expr, rename),
+            command_binding: command_binding.clone(),
+            fallback_value: rewrite_value_string(fallback_value, rename),
             // The rewrite renames variables in-place, so leaf offsets no
             // longer index the (renamed) text — drop the source anchor.
             expr_base: None,
@@ -186,8 +192,14 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             amount: amount.as_ref().map(|a| rewrite_value_string(a, rename)),
             safe_on_uninit: *safe_on_uninit,
         },
-        Statement::ExprEval { span, expr, .. } => Statement::ExprEval {
+        Statement::ExprEval {
+            span,
+            command_binding,
+            expr,
+            ..
+        } => Statement::ExprEval {
             span: *span,
+            command_binding: command_binding.clone(),
             expr: rewrite_expr(expr, rename),
             expr_base: None,
         },
@@ -229,11 +241,13 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             span,
             value,
             expr,
+            command_binding,
             braced,
         } => Statement::Return {
             span: *span,
             value: value.as_ref().map(|v| rewrite_value_string(v, rename)),
             expr: expr.as_ref().map(|e| rewrite_expr(e, rename)),
+            command_binding: command_binding.clone(),
             braced: *braced,
         },
         _ => unreachable!("rewrite_call_like dispatched a non-call statement"),

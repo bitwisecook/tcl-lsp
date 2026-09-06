@@ -4185,6 +4185,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -4327,11 +4328,8 @@ version = "0.1.0"
 name = "tcl-engine-tclvm"
 version = "0.1.0"
 dependencies = [
- "tcl-bytecode",
  "tcl-compiler",
- "tcl-dialect",
  "tcl-engine-api",
- "tcl-lexer",
  "tcl-registry",
  "tcl-vm",
 ]

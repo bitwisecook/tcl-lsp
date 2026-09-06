@@ -232,6 +232,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Register a handler for a window manager protocol.",
         synopsis: "wm protocol window ?name? ?command?",
         arg_role_resolver: Some(wm_protocol_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         script_timing_resolver: Some(wm_protocol_script_timing),
         body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT

@@ -188,7 +188,40 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Strip all `startCommand` when no generic invoke exists.
+    /// Remove `startCommand` markers whose continuation is the immediately
+    /// following instruction.
+    ///
+    /// Such a marker owns no executable bytecode. It can remain after CFG
+    /// optimisation consumes an explicitly delimited command region; keeping
+    /// it would turn a command-table epoch change into a replay of source that
+    /// has already completed. Strip it before layout while labels still name
+    /// instruction indices, then shift every label past the removed marker.
+    pub fn strip_empty_start_cmd(&mut self) {
+        let mut i = 0;
+        while i < self.instructions.len() {
+            let is_empty = self.instructions[i].op == Op::START_CMD
+                && self.instructions[i]
+                    .operands
+                    .first()
+                    .and_then(|operand| match operand {
+                        Operand::Label(label) => self.label_positions.get(label),
+                        Operand::Imm(_) => None,
+                    })
+                    .is_some_and(|&target| target == i + 1);
+            if is_empty {
+                self.instructions.remove(i);
+                for pos in self.label_positions.values_mut() {
+                    if *pos > i {
+                        *pos -= 1;
+                    }
+                }
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Strip ordinary `startCommand` markers when no generic invoke exists.
     ///
     /// tclsh 9.0 only emits `startCommand` in top-level scripts where
     /// generic invokes are present.  In proc bodies, `startCommand` is
@@ -219,10 +252,18 @@ impl CodegenCtx<'_> {
             return;
         }
 
-        // No generic invokes — strip all startCommand instructions.
+        // No generic invokes — strip the C-parity source markers, but retain
+        // nested inline replay boundaries. A specialised operation earlier in
+        // the same command may run a variable trace that mutates the command
+        // table; the replay marker is then the only thing preventing a later
+        // constant-folded substitution from executing stale builtin semantics.
         let mut i = 0;
         while i < self.instructions.len() {
-            if self.instructions[i].op == Op::START_CMD {
+            if self.instructions[i].op == Op::START_CMD
+                && !self.instructions[i]
+                    .source_command_boundary
+                    .is_inline_replay()
+            {
                 self.instructions.remove(i);
                 for pos in self.label_positions.values_mut() {
                     if *pos > i {
@@ -283,6 +324,7 @@ impl CodegenCtx<'_> {
 mod tests {
     use super::*;
     use crate::codegen::CodegenCtx;
+    use tcl_bytecode::SourceCommandBoundary;
     use tcl_registry::CommandRegistry;
 
     #[test]
@@ -362,6 +404,32 @@ mod tests {
     }
 
     #[test]
+    fn strip_empty_start_cmd_removes_zero_width_replay_range() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.push_lit("already completed");
+        ctx.emit(
+            Op::START_CMD,
+            vec![Operand::Label("empty_end".into()), Operand::Imm(1)],
+        );
+        ctx.place_label("empty_end");
+        ctx.emit(
+            Op::START_CMD,
+            vec![Operand::Label("live_end".into()), Operand::Imm(1)],
+        );
+        ctx.push_lit("live command");
+        ctx.place_label("live_end");
+
+        ctx.strip_empty_start_cmd();
+
+        assert_eq!(ctx.instructions.len(), 3);
+        assert_eq!(ctx.instructions[0].op, Op::PUSH1);
+        assert_eq!(ctx.instructions[1].op, Op::START_CMD);
+        assert_eq!(ctx.label_positions["empty_end"], 1);
+        assert_eq!(ctx.label_positions["live_end"], 3);
+    }
+
+    #[test]
     fn strip_unused_start_cmd_no_generic() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
@@ -376,6 +444,30 @@ mod tests {
         // startCommand removed since no generic invoke
         assert_eq!(ctx.instructions.len(), 2);
         assert!(!ctx.instructions.iter().any(|i| i.op == Op::START_CMD));
+    }
+
+    #[test]
+    fn strip_unused_start_cmd_preserves_inline_replay_without_generic_invoke() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let mut replay = Instruction::new(
+            Op::START_CMD,
+            vec![Operand::Label("end_0".into()), Operand::Imm(1)],
+        );
+        replay.source_cmd_text = "list a b".to_owned();
+        replay.source_command_boundary = SourceCommandBoundary::InlineReplay;
+        ctx.instructions.push(replay);
+        ctx.push_lit("a b");
+        ctx.emit(Op::DONE, vec![]);
+
+        ctx.strip_unused_start_cmd();
+
+        assert_eq!(ctx.instructions[0].op, Op::START_CMD);
+        assert!(
+            ctx.instructions[0]
+                .source_command_boundary
+                .is_inline_replay()
+        );
     }
 
     #[test]

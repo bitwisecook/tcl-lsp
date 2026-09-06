@@ -477,7 +477,9 @@ mod tests {
             source: source.into(),
             ir_module: crate::ir::Module {
                 source: String::new(),
+                top_level_namespace: "::".to_owned(),
                 dialect: None,
+                plain_command_dispatch: false,
                 top_level: crate::ir::Script::new(),
                 procedures: HashMap::new(),
                 methods: HashMap::new(),
@@ -499,6 +501,7 @@ mod tests {
                 top_level: fu.cfg.clone(),
                 procedures: HashMap::new(),
             },
+            command_mutations: crate::command_binding::ModuleCommandMutations::default(),
             top_level: fu,
             procedures: HashMap::new(),
             methods: HashMap::new(),

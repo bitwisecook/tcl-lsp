@@ -71,6 +71,7 @@ pub fn spec() -> CommandSpec {
         // "wrong # args").
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         arg_role_resolver: Some(foreach_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body],
         repeated_args: REPEATED,
         // Index 0 here is a fixed key, not a real source-position argument
         // index: the CFG builder lowers a `foreach` header to a synthetic

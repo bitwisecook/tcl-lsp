@@ -72,6 +72,7 @@ pub fn spec() -> CommandSpec {
         // dynamically so the option/test roles only apply to the
         // complete `body option test` form.
         arg_role_resolver: Some(control_do_arg_roles),
+        arg_role_resolver_roles: &[ArgRole::Body, ArgRole::Keyword],
         arg_values: &[(1, OPTION_VALUES)],
         arg_types: &[(
             2,

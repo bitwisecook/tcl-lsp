@@ -46,6 +46,11 @@ pub enum StateTransitionDomain {
     VariableCells,
     /// Namespace membership and namespace-qualified lookup.
     Namespaces,
+    /// The namespace search configuration used to resolve command names.
+    /// Kept distinct from namespace-scoped variable-cell identity so dynamic
+    /// `global`, `variable`, and `namespace upvar` operands do not invalidate
+    /// an otherwise unchanged command table.
+    CommandResolution,
     /// Child-interpreter existence and path-to-interpreter identity.
     InterpreterTopology,
     /// Safe, trusted, hidden-command, limit, and callback policy for one interpreter.
@@ -316,6 +321,13 @@ pub struct VariableCellAliasTransition {
     pub local: TransitionSubject,
     /// The cell reached through `local`.
     pub target: VariableAliasTarget,
+    /// Whether this invocation also writes a value through the aliased cell.
+    ///
+    /// Alias establishment alone is declaration state, but some invocation
+    /// forms establish the alias and initialise the target in the same
+    /// operation.  Consumers must not infer that distinction from a command
+    /// spelling or argument layout.
+    pub writes_value: bool,
 }
 
 /// The namespace selected by a namespace-state transition.
@@ -392,6 +404,27 @@ pub enum NamespaceTransition {
         /// Namespace owning the ensemble dispatch state.
         namespace: NamespaceTransitionTarget,
     },
+}
+
+impl NamespaceTransition {
+    /// Whether this transition can change command lookup in the current
+    /// interpreter.
+    ///
+    /// Creation alone installs no command, and changing an export pattern only
+    /// affects a later import operation. Every other variant can add, remove,
+    /// redirect, or provide fallback command resolution immediately.
+    #[must_use]
+    pub const fn affects_command_resolution(&self) -> bool {
+        matches!(
+            self,
+            Self::Delete { .. }
+                | Self::Import { .. }
+                | Self::Forget { .. }
+                | Self::SetPath { .. }
+                | Self::SetUnknown { .. }
+                | Self::Ensemble { .. }
+        )
+    }
 }
 
 /// Whether a `TclOO` definition mutates class-wide or per-object dispatch.
@@ -649,6 +682,18 @@ pub struct StateTransitions {
     facts: Vec<StateTransitionFact>,
 }
 
+/// Aggregate effect of resolved state transitions on command lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandResolutionImpact {
+    /// No transition changes which command an invocation can reach.
+    None,
+    /// Exact command-binding transitions enumerate the affected identities.
+    ExplicitBindings,
+    /// Namespace lookup or an unbounded binding transition prevents a finite
+    /// command-resolution projection.
+    Unbounded,
+}
+
 impl StateTransitions {
     /// Return transition facts in Tcl execution order.
     #[must_use]
@@ -698,6 +743,50 @@ impl StateTransitions {
     pub fn touches_command_bindings(&self) -> bool {
         self.command_bindings().next().is_some()
             || self.widens(StateTransitionDomain::CommandBindings)
+    }
+
+    /// Project every registry transition onto command-resolution stability.
+    ///
+    /// This is the common owner for flow-sensitive and whole-module binding
+    /// consumers; neither needs its own namespace-variant allow-list.
+    #[must_use]
+    pub fn command_resolution_impact(&self) -> CommandResolutionImpact {
+        let mut explicit = false;
+        for fact in &self.facts {
+            match &fact.transition {
+                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
+                    return CommandResolutionImpact::Unbounded;
+                }
+                StateTransition::CommandBinding(_) => explicit = true,
+                StateTransition::Namespace(transition)
+                    if transition.affects_command_resolution() =>
+                {
+                    return CommandResolutionImpact::Unbounded;
+                }
+                StateTransition::Widen(widening)
+                    if widening.domains.iter().any(|domain| {
+                        matches!(
+                            domain,
+                            StateTransitionDomain::CommandBindings
+                                | StateTransitionDomain::CommandResolution
+                        )
+                    }) =>
+                {
+                    return CommandResolutionImpact::Unbounded;
+                }
+                StateTransition::Interpreter(_)
+                | StateTransition::VariableCellAlias(_)
+                | StateTransition::Namespace(_)
+                | StateTransition::Trace(_)
+                | StateTransition::ObjectDispatch(_)
+                | StateTransition::Widen(_) => {}
+            }
+        }
+        if explicit {
+            CommandResolutionImpact::ExplicitBindings
+        } else {
+            CommandResolutionImpact::None
+        }
     }
 
     fn set_commit(&mut self, commit: StateTransitionCommit) {
@@ -1308,6 +1397,33 @@ mod tests {
                 }),
                 commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             }]
+        );
+    }
+
+    #[test]
+    fn command_resolution_impact_distinguishes_namespace_cells_from_lookup() {
+        let widening = |domain| {
+            StateTransition::Widen(StateTransitionWidening {
+                domains: vec![StateTransitionDomain::Namespaces, domain],
+                subject: TransitionSubject::Unknown {
+                    argument_index: 0,
+                    word_kind: InvocationWordKind::Dynamic,
+                },
+            })
+        };
+
+        let mut variable_cell = StateTransitions::default();
+        variable_cell.push(widening(StateTransitionDomain::VariableCells));
+        assert_eq!(
+            variable_cell.command_resolution_impact(),
+            CommandResolutionImpact::None
+        );
+
+        let mut lookup = StateTransitions::default();
+        lookup.push(widening(StateTransitionDomain::CommandResolution));
+        assert_eq!(
+            lookup.command_resolution_impact(),
+            CommandResolutionImpact::Unbounded
         );
     }
 

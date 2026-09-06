@@ -3671,6 +3671,7 @@ mod tests {
                     span: Span::new(0, 0),
                     value: Some("$x".into()),
                     expr: None,
+                    command_binding: None,
                     braced: false,
                 },
             ],
