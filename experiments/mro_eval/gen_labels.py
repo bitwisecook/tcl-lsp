@@ -54,8 +54,8 @@ def truth_for(row):
 
 
 def main(src="label_worksheet.csv", dst="labeled_sample.csv"):
-    with open(src) as f:
-        rows = list(csv.DictReader(f))
+    with open(src, newline="") as handle:
+        rows = list(csv.DictReader(handle))
     # Stratified sample: all resolved-unknown, all non-ctor resolved, a
     # stride over resolved-known, and a stride over abstentions.
     resolved = [r for r in rows if r["resolver_verdict"].startswith("resolved")]

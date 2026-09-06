@@ -78,9 +78,10 @@ import argparse
 import json
 import math
 import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
 # --------------------------------------------------------------------------
 # Constants
@@ -476,7 +477,7 @@ def nice_ticks(
     ticks: list[float] = []
     # Integer counting rather than repeated addition keeps float drift out of
     # the labels (and so out of the committed bytes).
-    count = int(round((hi_t - lo_t) / step))
+    count = round((hi_t - lo_t) / step)
     for i in range(count + 1):
         ticks.append(round(lo_t + i * step, 10))
     return lo_t, hi_t, ticks
@@ -612,8 +613,10 @@ def _stylesheet(series_count: int, highlight: int | None) -> str:
         ".title { font-size: 15px; font-weight: 600; }",
         ".axis-title { font-size: 12px; }",
         ".note { font-size: 10px; opacity: 0.75; }",
-        f".series {{ fill: none; stroke-width: {SERIES_W};"
-        " stroke-linejoin: round; stroke-linecap: round; }",
+        (
+            f".series {{ fill: none; stroke-width: {SERIES_W};"
+            " stroke-linejoin: round; stroke-linecap: round; }"
+        ),
         # Not `currentColor`: inside a <pattern> its resolution varies between
         # renderers (it produced nothing under QuickLook's), and the hatch marks
         # a failed check — a signal that must not silently disappear. The
@@ -863,8 +866,10 @@ def _empty_note(x0: float, y0: float, x1: float, y1: float, message: str) -> lis
     that the data was absent.
     """
     return [
-        f'  <text class="note" x="{fnum((x0 + x1) / 2)}" y="{fnum((y0 + y1) / 2)}"'
-        f' text-anchor="middle">{esc(message)}</text>'
+        (
+            f'  <text class="note" x="{fnum((x0 + x1) / 2)}" y="{fnum((y0 + y1) / 2)}"'
+            f' text-anchor="middle">{esc(message)}</text>'
+        )
     ]
 
 
@@ -1241,8 +1246,10 @@ def build_comparison_lines(runs: Sequence[Run], highlight: int) -> list[str]:
         ("Total wall (s)", current.total_wall_s, previous.total_wall_s),
     ]
     out = [
-        f"**`{current.version}` vs `{previous.version}`** (same host — "
-        f"{current.host_cpu}, {current.host_cores} cores)",
+        (
+            f"**`{current.version}` vs `{previous.version}`** (same host — "
+            f"{current.host_cpu}, {current.host_cores} cores)"
+        ),
         "",
         f"| Measure | {previous.version} | {current.version} | Change |",
         "| --- | ---: | ---: | ---: |",
@@ -1271,9 +1278,11 @@ def build_summary_md(
 
     if highlight is not None:
         lines += [
-            f"`{runs[highlight].version}` is this release: it is the blue line in "
-            "every graph below, and the bold row in the table. Earlier releases are "
-            "drawn in grey, fading with age.",
+            (
+                f"`{runs[highlight].version}` is this release: it is the blue line in "
+                "every graph below, and the bold row in the table. Earlier releases are "
+                "drawn in grey, fading with age."
+            ),
             "",
         ]
 

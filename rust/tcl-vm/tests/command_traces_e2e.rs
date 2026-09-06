@@ -183,6 +183,106 @@ const VECTORS: &[Vector] = &[
                  puts after-redef:[dup]\n",
         want: "T:::dup||delete\nafter-redef:NEW",
     },
+    // The `rename` trace window. C creates the destination hash entry, fires
+    // the traces, and only then deletes the source one (`tclBasic.c` 9.0.4
+    // `TclRenameCommand`), and the traces themselves hang off the shared
+    // `Command` rather than off either entry — so a callback resolves *both*
+    // names and reaches one trace list through either of them.
+    Vector {
+        name: "a rename callback still resolves the vacating name",
+        script: "proc victim {} { return V }\n\
+                 proc et args {}\n\
+                 proc tracer args {\n\
+                     puts \"live:[llength [info commands ::victim]]|\
+                 [llength [info commands ::victim2]]|[victim]|[victim2]\"\n\
+                     puts \"cmd:[trace info command victim]|\
+                 [trace info command victim2]\"\n\
+                     puts \"exec:[trace info execution victim]|\
+                 [trace info execution victim2]\"\n\
+                 }\n\
+                 trace add command victim rename tracer\n\
+                 trace add execution victim enter et\n\
+                 rename victim victim2\n\
+                 puts \"after:[llength [info commands ::victim]]|\
+                 [llength [info commands ::victim2]]\"\n",
+        want: "live:1|1|V|V\n\
+               cmd:{rename tracer}|{rename tracer}\n\
+               exec:{enter et}|{enter et}\n\
+               after:0|1",
+    },
+    Vector {
+        name: "a rename callback's trace remove through the old name is honoured",
+        script: "proc victim {} {}\n\
+                 proc c1 args {\n\
+                     trace remove command victim rename c1\n\
+                     puts \"c1:[trace info command victim]\"\n\
+                 }\n\
+                 proc c2 args { puts \"c2:[trace info command victim2]\" }\n\
+                 trace add command victim rename c2\n\
+                 trace add command victim rename c1\n\
+                 rename victim victim2\n\
+                 puts \"after:[trace info command victim2]\"\n",
+        want: "c1:{rename c2}\nc2:{rename c2}\nafter:{rename c2}",
+    },
+    Vector {
+        name: "a rename callback's trace add through the old name follows the command",
+        script: "proc victim {} {}\n\
+                 proc d1 args { puts \"D:[join $args |]\" }\n\
+                 proc r1 args { trace add command victim delete d1 }\n\
+                 trace add command victim rename r1\n\
+                 rename victim victim2\n\
+                 puts \"info:[trace info command victim2]\"\n\
+                 rename victim2 {}\n",
+        want: "info:{delete d1} {rename r1}\nD:::victim2||delete",
+    },
+    // Both entries reference one `Command`, so a callback that renames or
+    // deletes through *either* name moves or destroys that one command — and
+    // C's `CMD_TRACE_ACTIVE` keeps the remaining callbacks of the pass from
+    // re-firing when it does.
+    Vector {
+        name: "a rename callback renaming the vacating name moves the one command",
+        script: "proc victim {} { return V }\n\
+                 proc c1 args { puts c1; rename victim victim3 }\n\
+                 proc c2 args { puts c2 }\n\
+                 trace add command victim rename c2\n\
+                 trace add command victim rename c1\n\
+                 rename victim victim2\n\
+                 puts \"live:[llength [info commands ::victim]]|\
+                 [llength [info commands ::victim2]]|\
+                 [llength [info commands ::victim3]]\"\n\
+                 puts \"info:[trace info command victim3]|[victim3]\"\n",
+        want: "c1\nc2\n\
+               live:0|0|1\n\
+               info:{rename c1} {rename c2}|V",
+    },
+    Vector {
+        name: "a rename callback deleting the vacating name destroys the one command",
+        script: "proc victim {} {}\n\
+                 proc cb args { rename victim {} }\n\
+                 trace add command victim rename cb\n\
+                 rename victim victim2\n\
+                 puts \"live:[llength [info commands ::victim]]|\
+                 [llength [info commands ::victim2]]\"\n",
+        want: "live:0|0",
+    },
+    Vector {
+        name: "a nested rename keeps the vacating name pointed at the command",
+        script: "proc victim {} {}\n\
+                 proc dd args { puts \"D:[join $args |]\" }\n\
+                 proc cb args {\n\
+                     rename victim2 victim3\n\
+                     puts \"in:[trace info command victim]|\
+                 [trace info command victim3]\"\n\
+                     trace add command victim delete dd\n\
+                 }\n\
+                 trace add command victim rename cb\n\
+                 rename victim victim2\n\
+                 puts \"after:[trace info command victim3]\"\n\
+                 rename victim3 {}\n",
+        want: "in:{rename cb}|{rename cb}\n\
+               after:{delete dd} {rename cb}\n\
+               D:::victim3||delete",
+    },
     Vector {
         name: "namespace-qualified names arrive fully qualified",
         script: "proc tracer args { puts \"T:[join $args |]\" }\n\
@@ -381,17 +481,9 @@ const VECTORS: &[Vector] = &[
     // half. `CallCommandTraces` walks `nextPtr` (`tclBasic.c` 9.0.4:3972-3993)
     // and `Tcl_UntraceCommand` unlinks at once, so a trace a callback removes
     // does not fire in that pass — for `enter` and `delete`, which walk
-    // newest-first, and for `leave`, which C scans in reverse and so reaches
-    // the *oldest* first.
-    //
-    // The `rename` op is deliberately absent. C's `TclRenameCommand` inserts
-    // the *new* hash entry, fires the rename traces while the old entry is
-    // still present, and only then removes it — and the traces hang off the
-    // shared `Command`, so a callback sees one list under either name. This VM
-    // renames first and moves its name-keyed trace list afterwards, so a
-    // callback's `trace info`/`trace remove` finds neither name traced. Fixing
-    // that is a change to when `cmd_rename` publishes the sidecar, not to the
-    // firing walk.
+    // newest-first, for `leave`, which C scans in reverse and so reaches the
+    // *oldest* first, and for `rename`, whose callback reaches the list
+    // through the name the command is vacating.
     Vector {
         name: "a callback's trace remove is honoured mid-firing for command and execution traces",
         script: "proc target {} { return T }\n\
@@ -416,12 +508,22 @@ const VECTORS: &[Vector] = &[
                  puts \"l2 info: [trace info execution lt]\" }\n\
                  trace add execution lt leave l2\n\
                  trace add execution lt leave l1\n\
-                 lt\n",
+                 lt\n\
+                 puts ---\n\
+                 proc rv {} {}\n\
+                 proc r1 args { trace remove command rv rename r2\n\
+                 puts \"r1 info: [trace info command rv]\" }\n\
+                 proc r2 args { puts \"r2 fired\" }\n\
+                 trace add command rv rename r2\n\
+                 trace add command rv rename r1\n\
+                 rename rv rv2\n",
         want: "e1 info: {enter e1}\n\
                ---\n\
                d1 info: {delete d1}\n\
                ---\n\
-               l2 info: {leave l2}",
+               l2 info: {leave l2}\n\
+               ---\n\
+               r1 info: {rename r1}",
     },
     // A **delete** walk is handed the dying token's own trace list
     // (`CallCommandTraces`, `tclBasic.c` 9.0.4:3972-3993), so a callback that

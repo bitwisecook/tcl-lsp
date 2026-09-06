@@ -888,12 +888,23 @@ fn get_property_name(
 ) -> Result<Vec<u8>, Code> {
     let given = obj_bytes(given);
     let cands = interp.object_property_list(obj, writable, true);
-    if cands.contains(&given) {
-        return Ok(given);
-    }
+    // C's `oo::configuresupport` reaches this through
+    // `tcl::prefix match -message property`, so an abbreviation resolves
+    // (`-ye` → `-yellow`) and a word prefixing several — `""` and a lone `-`
+    // included — is `ambiguous property`. This matched exactly and hand-joined
+    // the enumeration beside the owner that already words both verdicts.
+    let miss = match tcl_cmd_core::prefix::OptionTable::abbreviating("property", &cands)
+        .index_of(&given)
+    {
+        Ok(index) => return Ok(cands[index].clone()),
+        Err(message) => message,
+    };
     // Accessible the other way? Report read-only / write-only.
     let other = interp.object_property_list(obj, !writable, true);
-    if other.contains(&given) {
+    if tcl_cmd_core::prefix::OptionTable::abbreviating("property", &other)
+        .index_of(&given)
+        .is_ok()
+    {
         let mut m = b"property \"".to_vec();
         m.extend_from_slice(&given);
         m.extend_from_slice(b"\" is ");
@@ -901,34 +912,8 @@ fn get_property_name(
         m.extend_from_slice(b" only");
         return Err(interp.set_error(&m));
     }
-    // Otherwise a plain bad-property error listing the candidates (Oxford comma).
-    let mut m = b"bad property \"".to_vec();
-    m.extend_from_slice(&given);
-    m.extend_from_slice(b"\": must be ");
-    m.extend_from_slice(&oxford_join(&cands));
-    let mut code = b"TCL LOOKUP INDEX property ".to_vec();
-    code.extend_from_slice(&given);
-    Err(interp.error_with_code(&m, &code))
-}
-
-/// Join names as `a`, `a or b`, or `a, b, or c` (Tcl's option-table style).
-fn oxford_join(items: &[Vec<u8>]) -> Vec<u8> {
-    let mut out = Vec::new();
-    let n = items.len();
-    for (i, it) in items.iter().enumerate() {
-        if i > 0 {
-            if n > 2 {
-                out.extend_from_slice(b", ");
-            } else {
-                out.push(b' ');
-            }
-            if i == n - 1 {
-                out.extend_from_slice(b"or ");
-            }
-        }
-        out.extend_from_slice(it);
-    }
-    out
+    let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"INDEX", b"property", &given]);
+    Err(interp.error_with_code(&miss, &code))
 }
 
 /// Parse the `info … properties` option flags (`-all`, `-readable` [default],
@@ -1416,12 +1401,9 @@ impl Interp {
         let mut msg = b"unknown method \"".to_vec();
         msg.extend_from_slice(requested);
         msg.extend_from_slice(b"\": must be ");
-        for (i, n) in names.iter().enumerate() {
-            if i > 0 {
-                msg.extend_from_slice(if i == names.len() - 1 { b" or " } else { b", " });
-            }
-            msg.extend_from_slice(n);
-        }
+        // TclOO's method-list style: no Oxford comma before the final `or`,
+        // unlike the option tables. The rule lives in the shared owner.
+        msg.extend_from_slice(&tcl_cmd_core::prefix::tcloo_choice_list_bytes(&names));
         self.error(&msg)
     }
 }
@@ -1853,15 +1835,9 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // Default kind is `-class`.
     let instance = if argv.len() == 3 {
-        match obj_bytes(argv[1]).as_slice() {
-            b"-class" => false,
-            b"-instance" => true,
-            other => {
-                let mut m = b"bad kind \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be -class or -instance");
-                return err(interp, &m);
-            }
+        match DEFINITION_KINDS.index_of(&obj_bytes(argv[1])) {
+            Ok(index) => index == 1,
+            Err(m) => return err(interp, &m),
         }
     } else {
         false
@@ -1891,20 +1867,31 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `oo::define … definitionnamespace`'s kind word (`tclOODefineCmds.c`),
+/// resolved with `Tcl_GetIndexFromObj(…, "kind", 0)`: `-c`/`-i` abbreviate and
+/// the empty word — a prefix of both — is `ambiguous kind ""`.
+const DEFINITION_KINDS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating("kind", &[b"-class", b"-instance"]);
+
+/// `oo::define … method`'s TIP 500 export flag (`tclOODefineCmds.c`), resolved
+/// with `Tcl_GetIndexFromObj(…, "export flag", 0)`: `-e`/`-p`/`-u` abbreviate.
+const EXPORT_FLAGS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "export flag",
+        &[b"-export", b"-private", b"-unexport"],
+    );
+
 fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `method name ?-export|-unexport|-private? args body` (TIP 500 flags).
     let name = obj_bytes(argv[1]);
     let (flag_vis, rest): (Option<MethodVis>, &[*mut TclObj]) =
         match argv.get(2).map(|&a| obj_bytes(a)) {
-            Some(f) if f == b"-private" => (Some(MethodVis::Private), &argv[3..]),
-            Some(f) if f == b"-export" => (Some(MethodVis::Public), &argv[3..]),
-            Some(f) if f == b"-unexport" => (Some(MethodVis::Unexported), &argv[3..]),
-            Some(f) if f.starts_with(b"-") => {
-                let mut m = b"bad export flag \"".to_vec();
-                m.extend_from_slice(&f);
-                m.extend_from_slice(b"\": must be -export, -private, or -unexport");
-                return err(interp, &m);
-            }
+            Some(f) if f.starts_with(b"-") => match EXPORT_FLAGS.index_of(&f) {
+                Ok(0) => (Some(MethodVis::Public), &argv[3..]),
+                Ok(1) => (Some(MethodVis::Private), &argv[3..]),
+                Ok(_) => (Some(MethodVis::Unexported), &argv[3..]),
+                Err(m) => return err(interp, &m),
+            },
             _ => (None, &argv[2..]),
         };
     if rest.len() != 2 {
@@ -2114,11 +2101,20 @@ fn slot_op_split(args: &[Vec<u8>], default: SlotOp) -> Result<(SlotOp, &[Vec<u8>
         Some(b"-appendifnew") => (SlotOp::AppendIfNew, &args[1..]),
         Some(b"-clear") => (SlotOp::Clear, &[]),
         Some(op) if op.first() == Some(&b'-') => {
+            // A TclOO method list, so the join drops the Oxford comma the
+            // option tables keep — the rule lives in the shared owner.
+            const SLOT_OPS: &[&[u8]] = &[
+                b"-append",
+                b"-appendifnew",
+                b"-clear",
+                b"-prepend",
+                b"-remove",
+                b"-set",
+            ];
             let mut m = b"unknown method \"".to_vec();
             m.extend_from_slice(op);
-            m.extend_from_slice(
-                b"\": must be -append, -appendifnew, -clear, -prepend, -remove or -set",
-            );
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&tcl_cmd_core::prefix::tcloo_choice_list_bytes(SLOT_OPS));
             return Err(m);
         }
         _ => (default, args),
@@ -3198,6 +3194,14 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if sub == b"call" && argv.len() != 5 {
         return wrong_args(interp, b"info object call objName methodName");
     }
+    // `isa` reads `category objName ?className?`, and C checks that both of
+    // the first two are present *before* it resolves the category
+    // (`InfoObjectIsACmd`, tclOOInfo.c) — so `info object isa object` is this
+    // message, not a category error. The per-category counts follow in the
+    // arm, once the word is known.
+    if sub == b"isa" && argv.len() < 5 {
+        return wrong_args(interp, b"info object isa category objName ?arg ...?");
+    }
     if argv.len() < 4 {
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
     }
@@ -3226,12 +3230,41 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"isa" => {
-            // info object isa category objName ?arg?
-            let cat = obj_bytes(argv[3]);
+            // `info object isa category objName ?arg?`. C resolves the category
+            // with `Tcl_GetIndexFromObj(…, "category", 0)` (`categories[]`,
+            // `tclOOInfo.c`), so `cl`/`ob`/`t` abbreviate, `m` is ambiguous
+            // (metaclass/mixin), and an unknown word is an error — this used to
+            // answer a plain `0`.
+            const ISA_CATEGORIES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+                tcl_cmd_core::prefix::OptionTable::abbreviating(
+                    "category",
+                    &[b"class", b"metaclass", b"mixin", b"object", b"typeof"],
+                );
+            let cat = match ISA_CATEGORIES.index_of(&obj_bytes(argv[3])) {
+                Ok(index) => ISA_CATEGORIES.names()[index],
+                Err(m) => return interp.set_error(&m),
+            };
+            // Each category then pins an *exact* count — C's second stage,
+            // `Tcl_WrongNumArgs(interp, 2, objv, …)`, so the noun carries the
+            // resolved category word (an index-typed argument prints as its
+            // table entry): `info object isa t o` is
+            // `"info object isa typeof objName className"`, and a trailing
+            // extra word is an error rather than being ignored.
+            let (want, tail) = match cat {
+                b"mixin" | b"typeof" => (6, b" objName className".as_slice()),
+                // class / metaclass / object.
+                _ => (5, b" objName".as_slice()),
+            };
+            if argv.len() != want {
+                let mut m = b"info object isa ".to_vec();
+                m.extend_from_slice(cat);
+                m.extend_from_slice(tail);
+                return wrong_args(interp, &m);
+            }
             // Resolve the object name following import aliases to the origin
             // command, so an imported object command is recognised (oo-1.10).
             let target = interp.oo_resolve_object(&obj_bytes(argv[4]));
-            let yes = match cat.as_slice() {
+            let yes = match cat {
                 b"object" => interp.oo.borrow().objects.contains_key(&target),
                 b"class" => interp.oo.borrow().classes.contains_key(&target),
                 // A metaclass is a class whose own hierarchy includes
@@ -3269,6 +3302,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                             .skip(1)
                             .any(|p| *p == want)
                 }
+                // Unreachable: `ISA_CATEGORIES` has exactly these five names.
                 _ => false,
             };
             interp.set_result_bytes(if yes { b"1" } else { b"0" });
@@ -3978,17 +4012,12 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             } else {
                 b"-class".to_vec()
             };
-            let ns = match kind.as_slice() {
+            let ns = match DEFINITION_KINDS.index_of(&kind) {
                 // The namespace used to define this class itself.
-                b"-class" => interp.oo.borrow().classes[&cls].class_def_ns.clone(),
+                Ok(0) => interp.oo.borrow().classes[&cls].class_def_ns.clone(),
                 // The namespace used to define this class's instances.
-                b"-instance" => interp.oo.borrow().classes[&cls].def_ns.clone(),
-                _ => {
-                    let mut m = b"bad kind \"".to_vec();
-                    m.extend_from_slice(&kind);
-                    m.extend_from_slice(b"\": must be -class or -instance");
-                    return err(interp, &m);
-                }
+                Ok(_) => interp.oo.borrow().classes[&cls].def_ns.clone(),
+                Err(m) => return err(interp, &m),
             };
             interp.set_result_bytes(&ns.unwrap_or_default());
             Code::Ok
@@ -6160,6 +6189,215 @@ mod tests {
     /// Whether `haystack` contains the byte subsequence `needle`.
     fn contains(haystack: &[u8], needle: &[u8]) -> bool {
         haystack.windows(needle.len()).any(|w| w == needle)
+    }
+
+    /// Issue #1607: TclOO's four option tables — `info object isa`'s
+    /// `category`, `configure`'s `property` (which C reaches through
+    /// `tcl::prefix match -message property`), `definitionnamespace`'s `kind`,
+    /// and `method`'s `export flag` — were all matched exactly, with their
+    /// enumerations hand-joined. `info object isa` answered a plain `0` for an
+    /// unknown category instead of erroring.
+    ///
+    /// tclsh 9.0.4 (8.6.16 agrees on the `category` rows):
+    ///   info object isa x o   -> bad category "x": must be class, metaclass,
+    ///                            mixin, object, or typeof
+    ///   info object isa {} o  -> ambiguous category "": must be <same>
+    ///   info object isa m o   -> ambiguous category "m": must be <same>
+    ///   info object isa cl o  -> 0  ; ob o -> 1 ; me o -> 0
+    ///   q configure -zz       -> bad property "-zz": must be -yellow or -zed
+    ///   q configure {}        -> ambiguous property "": must be <same>
+    ///   q configure -ye 1     -> {}   ;  q configure -ye -> 1
+    ///   oo::define D definitionnamespace {} ::foo
+    ///                         -> ambiguous kind "": must be -class or -instance
+    ///   info class definitionnamespace D -x
+    ///                         -> bad kind "-x": must be -class or -instance
+    ///   oo::define D {method n -x {} {}}
+    ///                         -> bad export flag "-x": must be -export,
+    ///                            -private, or -unexport
+    /// The other half of `info object isa`'s dispatch: once the category
+    /// resolves, C checks an **exact** argument count per category
+    /// (`InfoObjectIsACmd`, tclOOInfo.c) — two trailing words for
+    /// `class`/`metaclass`/`object`, three for `mixin`/`typeof`. Resolving the
+    /// category by prefix without that second stage answers `0` for
+    /// `info object isa t $obj` (a missing class name) and `1` for
+    /// `info object isa ob $obj extra` (a word C refuses).
+    ///
+    /// The noun is C's `Tcl_WrongNumArgs(interp, 2, objv, …)`, so it carries
+    /// the *resolved* category word: an index-typed argument prints as its
+    /// table entry, which is why `isa t o` reports `typeof`. The
+    /// two-words-missing case is checked before the category is resolved at
+    /// all, so `info object isa object` is the generic message.
+    ///
+    /// tclsh 8.6.16 and 9.0.4, byte-identical:
+    ///   info object isa                -> wrong # args: should be "info
+    ///                                     object isa category objName ?arg ...?"
+    ///   info object isa object         -> <same>
+    ///   info object isa t o            -> wrong # args: should be "info
+    ///                                     object isa typeof objName className"
+    ///   info object isa ob o extra     -> wrong # args: should be "info
+    ///                                     object isa object objName"
+    ///   info object isa cl o extra     -> … "info object isa class objName"
+    ///   info object isa metaclass o e  -> … "info object isa metaclass objName"
+    ///   info object isa mi o           -> … "info object isa mixin objName className"
+    ///   info object isa mixin o C x    -> <same>
+    ///   info object isa ty o C x       -> … "info object isa typeof objName className"
+    #[test]
+    fn info_object_isa_enforces_the_per_category_arity() {
+        leak_free(|i| {
+            let err_of = |i: &mut Interp, src: &[u8]| {
+                assert_eq!(
+                    i.eval_str(src),
+                    Code::Error,
+                    "expected an error for {:?}",
+                    String::from_utf8_lossy(src)
+                );
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            ok(i, b"oo::class create C");
+            ok(i, b"C create o");
+            const GENERIC: &str =
+                "wrong # args: should be \"info object isa category objName ?arg ...?\"";
+            assert_eq!(err_of(i, b"info object isa"), GENERIC);
+            assert_eq!(err_of(i, b"info object isa object"), GENERIC);
+            for (src, want) in [
+                (
+                    b"info object isa t o".as_slice(),
+                    "typeof objName className",
+                ),
+                (
+                    b"info object isa mi o".as_slice(),
+                    "mixin objName className",
+                ),
+                (
+                    b"info object isa mixin o C extra".as_slice(),
+                    "mixin objName className",
+                ),
+                (
+                    b"info object isa ty o C extra".as_slice(),
+                    "typeof objName className",
+                ),
+                (b"info object isa ob o extra".as_slice(), "object objName"),
+                (b"info object isa cl o extra".as_slice(), "class objName"),
+                (
+                    b"info object isa metaclass o extra".as_slice(),
+                    "metaclass objName",
+                ),
+            ] {
+                assert_eq!(
+                    err_of(i, src),
+                    format!("wrong # args: should be \"info object isa {want}\"")
+                );
+            }
+            // The exact counts still answer.
+            assert_eq!(ok(i, b"info object isa object nosuchobj"), b"0");
+            assert_eq!(ok(i, b"info object isa typeof o C"), b"1");
+            assert_eq!(ok(i, b"info object isa mixin o C"), b"0");
+        });
+    }
+
+    #[test]
+    fn oo_option_tables_resolve_like_tcl_get_index_from_obj() {
+        const CATEGORY: &str = "must be class, metaclass, mixin, object, or typeof";
+        const KIND: &str = "must be -class or -instance";
+        leak_free(|i| {
+            let err_of = |i: &mut Interp, src: &[u8]| {
+                assert_eq!(
+                    i.eval_str(src),
+                    Code::Error,
+                    "expected an error for {:?}",
+                    String::from_utf8_lossy(src)
+                );
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            ok(i, b"oo::class create C");
+            ok(i, b"oo::define C method m {} {return 1}");
+            ok(i, b"C create o");
+            assert_eq!(
+                err_of(i, b"info object isa x o"),
+                format!("bad category \"x\": {CATEGORY}")
+            );
+            assert_eq!(
+                err_of(i, b"info object isa {} o"),
+                format!("ambiguous category \"\": {CATEGORY}")
+            );
+            assert_eq!(
+                err_of(i, b"info object isa m o"),
+                format!("ambiguous category \"m\": {CATEGORY}")
+            );
+            assert_eq!(ok(i, b"info object isa cl o"), b"0");
+            assert_eq!(ok(i, b"info object isa ob o"), b"1");
+            assert_eq!(ok(i, b"info object isa me o"), b"0");
+            // The method list keeps TclOO's own join, which drops the Oxford
+            // comma the option tables above keep.
+            assert_eq!(
+                err_of(i, b"o x"),
+                "unknown method \"x\": must be destroy or m"
+            );
+            ok(i, b"oo::class create C3");
+            ok(
+                i,
+                b"oo::define C3 {method a {} {}; method b {} {}; method c {} {}}",
+            );
+            ok(i, b"C3 create o3");
+            assert_eq!(
+                err_of(i, b"o3 zz"),
+                "unknown method \"zz\": must be a, b, c or destroy"
+            );
+            // `definitionnamespace`'s kind, both spellings.
+            ok(i, b"oo::class create D");
+            assert_eq!(
+                err_of(i, b"oo::define D definitionnamespace {} ::foo"),
+                format!("ambiguous kind \"\": {KIND}")
+            );
+            assert_eq!(
+                err_of(i, b"info class definitionnamespace D -x"),
+                format!("bad kind \"-x\": {KIND}")
+            );
+            assert_eq!(ok(i, b"info class definitionnamespace D -i"), b"");
+            // `method`'s TIP 500 export flag.
+            assert_eq!(
+                err_of(i, b"oo::define D {method n -x {} {}}"),
+                "bad export flag \"-x\": must be -export, -private, or -unexport"
+            );
+            ok(i, b"oo::define D {method n -e {} {}}");
+            ok(i, b"oo::define D {method n2 -p {} {}}");
+            i.eval_str(b"C destroy; D destroy");
+        });
+    }
+
+    /// Issue #1607's `property` half, which needs a configurable class.
+    #[test]
+    fn configure_property_word_abbreviates() {
+        const MUST: &str = "must be -yellow or -zed";
+        leak_free(|i| {
+            let err_of = |i: &mut Interp, src: &[u8]| {
+                assert_eq!(i.eval_str(src), Code::Error, "expected an error");
+                String::from_utf8_lossy(&i.result_bytes()).into_owned()
+            };
+            ok(
+                i,
+                b"oo::configurable create Q { property yellow zed\n\
+                   constructor {} { my configure -yellow 0 -zed 0 } }",
+            );
+            ok(i, b"Q create q");
+            assert_eq!(
+                err_of(i, b"q configure -zz"),
+                format!("bad property \"-zz\": {MUST}")
+            );
+            assert_eq!(
+                err_of(i, b"q configure {}"),
+                format!("ambiguous property \"\": {MUST}")
+            );
+            assert_eq!(
+                err_of(i, b"q configure -"),
+                format!("ambiguous property \"-\": {MUST}")
+            );
+            // A unique prefix resolves — and writes the *canonical* property.
+            ok(i, b"q configure -ye 1");
+            assert_eq!(ok(i, b"q configure -yellow"), b"1");
+            assert_eq!(ok(i, b"q configure -ye"), b"1");
+            i.eval_str(b"Q destroy");
+        });
     }
 
     #[test]

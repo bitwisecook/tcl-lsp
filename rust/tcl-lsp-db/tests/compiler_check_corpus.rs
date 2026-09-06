@@ -123,7 +123,7 @@ fn compiler_check_memo_matches_uncached_graphops() {
 #[test]
 fn compiler_check_memo_matches_uncached_init() {
     let dialect = "tcl8.6";
-    let path = repo_root().join("tmp/tcl8.6.16/library/init.tcl");
+    let path = repo_root().join("tmp/tcl8.6.18/library/init.tcl");
     let Ok(src) = std::fs::read_to_string(&path) else {
         eprintln!("skip: {} not present", path.display());
         return;
@@ -189,7 +189,7 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
     for v in [
         "tcl8.4.20/library",
         "tcl8.5.19/library",
-        "tcl8.6.16/library",
+        "tcl8.6.18/library",
         "tcl9.0.4/library",
         "tcllib-2.0/modules",
     ] {
@@ -263,7 +263,7 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
     let dialect = "tcl8.6";
     let mut files = Vec::new();
     for v in [
-        "tcl8.6.16/library",
+        "tcl8.6.18/library",
         "tcllib-2.0/modules",
         "tcl9.0.4/library",
     ] {

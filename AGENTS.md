@@ -53,7 +53,7 @@ Tiers, policies, and the CI redundancy contract:
 - Rust floating `stable` (`rust-toolchain.toml`), Node 24+ with
   `corepack enable npm`, then `make install-test-deps`. Remote agent sessions
   get all of it — toolchains, Wasmtime / Binaryen / wasi-sdk, the Tcl 8.4.20
-  / 8.5.19 / 8.6.16 / 9.0.4 / 9.1b0 and Tk trees under `tmp/`, tcllib 2.0 —
+  / 8.5.19 / 8.6.18 / 9.0.4 / 9.1b0 and Tk trees under `tmp/`, tcllib 2.0 —
   from `.claude/hooks/session-start.sh` before the first instruction; never
   `apt install` by hand. Versions and their owners:
   [development-environment.md](docs/design/contracts/development-environment.md).

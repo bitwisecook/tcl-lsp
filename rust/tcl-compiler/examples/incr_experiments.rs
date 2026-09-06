@@ -104,7 +104,7 @@ fn main() {
 
     // ---- E1: item-locality (preceding items invariant under a body edit) ----
     let mut files = Vec::new();
-    for v in ["tcl8.6.16", "tcllib-2.0/modules"] {
+    for v in ["tcl8.6.18", "tcllib-2.0/modules"] {
         gather_tcl(&root.join(v), &mut files, 600);
     }
     let (mut tested, mut clean, mut leaky) = (0usize, 0usize, 0usize);

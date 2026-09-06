@@ -1020,9 +1020,11 @@ fn namespace_delete_marks_the_namespace_dying_before_command_traces() {
         "{} 1"
     );
 
-    // Re-entering the exact dying namespace may provide a temporary frame to
-    // the callback, but it cannot resurrect the namespace token. Exact Tcl
-    // 9.0.4 oracle result.
+    // Re-entering the exact dying namespace is refused: `namespace eval ::N`
+    // no longer finds the token (it is `NS_DYING`) and `Tcl_CreateNamespace`
+    // then trips over the child entry `TclTeardownNamespace` unlinks only
+    // after the command loop, so the callback errors out and appends nothing.
+    // Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
     assert_eq!(
         run("set seen {}
              proc deleted {old new op} {
@@ -1032,7 +1034,7 @@ fn namespace_delete_marks_the_namespace_dying_before_command_traces() {
              trace add command ::N::p delete deleted
              namespace delete ::N
              list $seen [namespace exists ::N]"),
-        "0 0"
+        "{} 0"
     );
 }
 
@@ -2438,5 +2440,465 @@ fn a_renamed_tcloo_root_still_gates_by_its_registry_identity() {
             ("tcl8.6", "k m"),
         ]),
         "KEPT"
+    );
+}
+
+// -- #1751: a deleted namespace outlives its last active frame --------------
+
+#[test]
+fn deleting_the_running_namespace_retains_it_for_the_frame() {
+    // The issue's headline (#1751). `Tcl_DeleteNamespace` takes its
+    // `activationCount > (nsPtr == globalNsPtr)` branch: `NS_DYING`, unlink the
+    // parent edge, keep the contents for the frames still running in the token.
+    // Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"set answer [namespace eval N {
+                 proc q {} {return Q}
+                 proc p {} {
+                     namespace delete ::N
+                     set code [catch {q} message]
+                     list [namespace exists ::N] [info commands ::N::p] \
+                          [info commands ::N::q] $code $message [namespace current]
+                 }
+                 p
+             }]
+             list $answer [namespace exists ::N] [info commands ::N::*]"),
+        r"{0 {} {} 0 Q ::N} 0 {}"
+    );
+}
+
+#[test]
+fn a_namespace_eval_frame_defers_its_own_deletion() {
+    // `Tcl_PushCallFrame` counts every frame, `namespace eval`/`inscope` and
+    // `apply -ns` included. Exact Tcl 9.0.4 oracle results (identical on
+    // 8.6.16).
+    assert_eq!(
+        run(r"set r [namespace eval N {
+                 proc q {} {return Q}
+                 namespace delete ::N
+                 list [namespace exists ::N] [catch {q} m] $m [namespace current] \
+                      [info commands ::N::*]
+             }]
+             list $r [namespace exists ::N]"),
+        r"{0 0 Q ::N {}} 0"
+    );
+}
+
+#[test]
+fn inscope_and_apply_frames_defer_their_own_deletion() {
+    // `namespace inscope` and `apply` push the same kind of activation. Exact
+    // Tcl 9.0.4 oracle results (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {proc q {} {return Q}}
+             set a [namespace inscope N {
+                 namespace delete ::N
+                 list [q] [namespace current] [namespace exists ::N]
+             }]
+             list $a [namespace exists ::N]"),
+        r"{Q ::N 0} 0"
+    );
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {proc q {} {return Q}}
+             trace add command ::N::q delete rec
+             set a [apply [list {} {namespace delete ::N; list [q] [llength $::log]} ::N]]
+             list $a $log"),
+        "{Q 0} {{::N::q delete}}"
+    );
+}
+
+#[test]
+fn a_recreated_namespace_is_a_distinct_token_from_the_retained_one() {
+    // C nulls `parentPtr` in the deferred branch, so the spelling is free at
+    // once: `namespace eval ::N` builds a wholly separate token with its own
+    // command table, which the retained one neither revives nor absorbs. The
+    // relative `r` is *not* visible from the retained frame — its own table has
+    // no such command and the global one has none either. Exact Tcl 9.0.4
+    // oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc q {} {return Q}
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {proc r {} {return R}}
+                     list [q] [catch {r} m] $m [info commands ::N::*] [::N::r] \
+                          [namespace current] [namespace exists ::N] \
+                          [namespace which q] [namespace which r] [info commands q]
+                 }
+             }
+             set a [::N::p]
+             list $a [info commands ::N::*] [namespace exists ::N]"),
+        r#"{Q 1 {invalid command name "r"} ::N::r R ::N 1 ::N::q {} q} ::N::r 1"#
+    );
+}
+
+#[test]
+fn a_retained_token_takes_relative_definitions_only() {
+    // A qualified definition cannot reach the retained token (its public name
+    // is gone — `TclGetNamespaceForQualName` finds no namespace); an
+    // unqualified one lands in it through the frame, invisible to every
+    // absolute probe. Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     proc r {} {return R}
+                     list [r] [info commands ::N::r] [namespace which r] \
+                          [catch {proc ::N::s {} {}} m] $m [info commands ::N::*] \
+                          [namespace exists ::N]
+                 }
+             }
+             set a [::N::p]
+             list $a [info commands ::N::*] [namespace exists ::N]"),
+        r#"{R {} ::N::r 1 {can't create procedure "::N::s": unknown namespace} {} 0} {} 0"#
+    );
+}
+
+#[test]
+fn a_retained_token_keeps_its_children() {
+    // The child stays reachable relatively and by no absolute name at all. The
+    // absolute name is built at run time on purpose: a literal would measure
+    // tclsh's `ResolvedCmdName` bytecode cache, which only invalidates when the
+    // command's *own* namespace is `NS_DYING`. Exact Tcl 9.0.4 oracle result
+    // (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {
+                 namespace eval C {proc x {} {return X}}
+                 proc p {} {
+                     namespace delete ::N
+                     set n [join [list {} N C x] ::]
+                     list [C::x] [namespace exists ::N::C] [catch {$n} m] $m \
+                          [namespace children] [catch {namespace children ::N} m2] $m2
+                 }
+             }
+             set a [::N::p]
+             list $a [namespace exists ::N::C]"),
+        r#"{X 0 1 {invalid command name "::N::C::x"} ::N::C 1 {namespace "::N" not found}} 0"#
+    );
+}
+
+#[test]
+fn a_retained_token_keeps_its_variables() {
+    // The token's variables ride with it; every name-addressed probe fails
+    // because the name is gone. Exact Tcl 9.0.4 oracle result (identical on
+    // 8.6.16). (`catch {set ::N::v}` is not pinned here: the VM keeps namespace
+    // variables in one flat global table, so the retained token's cells are
+    // still addressable by their canonical name — see the milestone note in
+    // `interp.rs`.)
+    assert_eq!(
+        run(r"namespace eval N {
+                 variable v V
+                 proc p {} {
+                     namespace delete ::N
+                     variable v
+                     list [set v] [info vars ::N::*] [info vars [namespace current]::*]
+                 }
+             }
+             ::N::p"),
+        r"V {} {}"
+    );
+}
+
+#[test]
+fn a_retained_token_reports_its_own_name_and_commands() {
+    // The current-namespace probes from inside the frame. Exact Tcl 9.0.4
+    // oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {
+                 variable v 1
+                 proc p {} {
+                     namespace delete ::N
+                     list [namespace exists [namespace current]] \
+                          [info commands [namespace current]::*] [info procs] \
+                          [namespace which -variable v]
+                 }
+             }
+             ::N::p"),
+        r"0 {} p ::N::v"
+    );
+}
+
+#[test]
+fn an_active_child_defers_while_its_parent_tears_down() {
+    // `TclDeleteNamespaceChildren` re-enters `Tcl_DeleteNamespace` per child,
+    // so the parent (no frame of its own) tears down at once while the child
+    // holding the frame is retained until it pops. Exact Tcl 9.0.4 oracle
+    // result (identical on 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc np {} {return NP}
+                 namespace eval C {
+                     proc cq {} {return CQ}
+                     proc p {} {
+                         namespace delete ::N
+                         set abs [join [list {} N C cq] ::]
+                         list [namespace exists ::N] [namespace exists ::N::C] \
+                              [namespace current] [cq] [catch {$abs} m] $m [llength $::log]
+                     }
+                 }
+             }
+             trace add command ::N::np delete rec
+             trace add command ::N::C::cq delete rec
+             set a [::N::C::p]
+             list $a $log"),
+        r#"{0 0 ::N::C CQ 1 {invalid command name "::N::C::cq"} 1} {{::N::np delete} {::N::C::cq delete}}"#
+    );
+}
+
+#[test]
+fn command_delete_traces_wait_for_the_last_activation() {
+    // Nothing in the retained token fires until the last frame pops, and the
+    // enclosing `namespace eval N` is a second activation, so returning from
+    // the proc is not enough. Exact Tcl 9.0.4 oracle result (identical on
+    // 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc q {} {return Q}
+                 proc p {} {namespace delete ::N; set ::mid $::log; return [q]}
+             }
+             trace add command ::N::p delete rec
+             trace add command ::N::q delete rec
+             set r [namespace eval N {set inner [p]; set ::after_p $::log; set inner}]
+             list $r $mid $after_p $log"),
+        r"Q {} {} {{::N::p delete} {::N::q delete}}"
+    );
+}
+
+#[test]
+fn a_deferred_namespace_is_unpublished_for_every_caller() {
+    // The frame that defers need not be the one running the delete, and the
+    // retained token refuses a second deletion — its name is already gone.
+    // Exact Tcl 9.0.4 oracle results (identical on 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc q {} {return Q}
+                 proc p2 {} {namespace delete ::N}
+                 proc p {} {p2; list [q] [llength $::log]}
+             }
+             trace add command ::N::q delete rec
+             set a [::N::p]
+             list $a [llength $log]"),
+        r"{Q 0} 1"
+    );
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc p {} {namespace delete ::N; list [catch {namespace delete ::N} m] $m}
+             }
+             ::N::p"),
+        r#"1 {unknown namespace "::N" in namespace delete command}"#
+    );
+}
+
+#[test]
+fn an_owned_ensemble_dies_while_its_namespace_is_retained() {
+    // `Tcl_DeleteNamespace` pops `nsPtr->ensembles` before it looks at the
+    // activation count, so an owned ensemble dies at once. Exact Tcl 9.0.4
+    // oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 namespace ensemble create -command ::E
+                 proc p {} {namespace delete ::N; list [info commands ::E] $::log}
+             }
+             trace add command ::E delete rec
+             ::N::p"),
+        r"{} {{::E delete}}"
+    );
+}
+
+#[test]
+fn a_deferred_teardown_keeps_tcl_hash_order() {
+    // The deferred teardown is the ordinary one run later, so the command table
+    // still empties in `Tcl_FirstHashEntry` order — imports at their own hash
+    // position included. Exact Tcl 9.0.4 oracle results (identical on
+    // 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec2 {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval N {}
+             foreach n {one two three four five six seven eight nine ten} {
+                 proc ::N::$n {} {}
+             }
+             proc ::N::p {} {namespace delete ::N; return [llength $::log]}
+             foreach n [info commands ::N::*] {trace add command $n delete rec2}
+             set r [::N::p]
+             list $r $log"),
+        r"0 {p six four three eight seven nine five two one ten}"
+    );
+    assert_eq!(
+        run(r"set log {}
+             proc rec2 {old new op} {lappend ::log [namespace tail $old]}
+             namespace eval S {proc s1 {} {}; namespace export s*}
+             namespace eval N {
+                 namespace import ::S::s1
+                 proc p {} {namespace delete ::N; return}
+             }
+             foreach n {one two three four five six seven eight nine ten} {
+                 proc ::N::$n {} {}
+             }
+             foreach n [info commands ::N::*] {trace add command $n delete rec2}
+             ::N::p
+             set log"),
+        "p three seven one two four eight five nine s1 six ten"
+    );
+}
+
+#[test]
+fn a_command_deleted_from_a_retained_frame_reports_its_own_namespace() {
+    // `namespace current` answers from the token's retained name, so a proc the
+    // retained frame calls still reports `::N`. Exact Tcl 9.0.4 oracle result
+    // (identical on 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc q {} {return [namespace current]}
+                 proc p {} {namespace delete ::N; set a [q]; set b $::log; list $a $b}
+             }
+             trace add command ::N::q delete rec
+             set a [::N::p]
+             list $a $log"),
+        r"{::N {}} {{::N::q delete}}"
+    );
+}
+
+// -- #1751: a retained token is entered by identity, never by spelling ------
+
+#[test]
+fn a_retained_procedure_runs_in_its_own_token_not_the_recreations() {
+    // `TclProcInterpProc` hands `Tcl_PushCallFrame` the procedure's own
+    // `cmdPtr->nsPtr`, so a retained `::N::q` called after `::N` has been
+    // recreated still runs in the retained token — the recreation's `r` is not
+    // in its table, and its own table has no `r` either. Exact Tcl 9.0.4 oracle
+    // result (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc q {} {list [catch {r} m] $m [namespace current]}
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {proc r {} {return NEW-R}}
+                     list [q] [namespace current]
+                 }
+             }
+             set a [::N::p]
+             list $a [namespace exists ::N] [info commands ::N::*]"),
+        r#"{{1 {invalid command name "r"} ::N} ::N} 1 ::N::r"#
+    );
+}
+
+#[test]
+fn a_relative_namespace_eval_enters_the_retained_child() {
+    // `TclGetNamespaceForQualName` walks a *relative* name from the frame's own
+    // namespace, so `namespace eval C` from a retained `::N` enters the
+    // retained `::N::C` and republishes neither name. An *absolute*
+    // `namespace eval ::N::C` is rooted at the global namespace instead, and
+    // builds a fresh pair that has none of the retained commands (the name is
+    // joined at run time so this measures the semantics, not tclsh's
+    // `ResolvedCmdName` cache). Exact Tcl 9.0.4 oracle results (identical on
+    // 8.6.16).
+    assert_eq!(
+        run(r"namespace eval N {
+                 namespace eval C {proc x {} {return X}}
+                 proc p {} {
+                     namespace delete ::N
+                     set r [namespace eval C {list [x] [namespace current]}]
+                     list $r [namespace exists ::N] [namespace exists ::N::C] [namespace current]
+                 }
+             }
+             set a [::N::p]
+             list $a [namespace exists ::N] [namespace exists ::N::C]"),
+        r"{{X ::N::C} 0 0 ::N} 0 0"
+    );
+    assert_eq!(
+        run(r"namespace eval N {
+                 namespace eval C {proc x {} {return X}}
+                 proc p {} {
+                     namespace delete ::N
+                     set abs [join [list {} N C] ::]
+                     set r [catch {namespace eval $abs {
+                         list [catch {x} m] $m [namespace current]
+                     }} out]
+                     list $r $out [namespace exists ::N] [namespace exists ::N::C]
+                 }
+             }
+             set a [::N::p]
+             list $a [namespace exists ::N] [namespace exists ::N::C]"),
+        r#"{0 {1 {invalid command name "x"} ::N::C} 1 1} 1 1"#
+    );
+}
+
+#[test]
+fn a_retained_token_keeps_its_namespace_path() {
+    // `commandPathArray` hangs off the `Namespace`, and its entries point at
+    // namespaces that are still live, so a retained token keeps resolving
+    // through its own path. A retained *child* keeps its own (empty) one.
+    // Exact Tcl 9.0.4 oracle results (identical on 8.6.16).
+    assert_eq!(
+        run(r"namespace eval L {proc lc {} {return LC}}
+             namespace eval N {
+                 namespace path ::L
+                 proc p {} {
+                     namespace delete ::N
+                     list [namespace path] [catch {lc} m] $m [namespace current]
+                 }
+             }
+             ::N::p"),
+        r"::L 0 LC ::N"
+    );
+    assert_eq!(
+        run(r"namespace eval L {proc lc {} {return LC}}
+             namespace eval N {
+                 namespace path ::L
+                 namespace eval C {proc cx {} {list CX [namespace path]}}
+                 proc p {} {
+                     namespace delete ::N
+                     list [namespace path] [lc] [C::cx]
+                 }
+             }
+             ::N::p"),
+        "::L LC {CX {}}"
+    );
+}
+
+#[test]
+fn a_retained_token_loses_its_unknown_handler_and_keeps_its_exports() {
+    // `Tcl_DeleteNamespace` frees `unknownHandlerPtr` before it looks at the
+    // activation count, so an unresolvable command in the retained frame
+    // reaches the interpreter default rather than the handler the namespace
+    // had. Its `namespace export` patterns, which live on the `Namespace`, do
+    // ride with the token — and are not the recreation's. Exact Tcl 9.0.4
+    // oracle results (identical on 8.6.16).
+    assert_eq!(
+        run(r"proc myunk {args} {list UNK $args}
+             namespace eval N {
+                 namespace unknown ::myunk
+                 proc p {} {
+                     namespace delete ::N
+                     list [namespace unknown] [catch {nosuchcommand a b} m] $m
+                 }
+             }
+             ::N::p"),
+        r#"{} 1 {invalid command name "nosuchcommand"}"#
+    );
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc e1 {} {}
+                 namespace export e*
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {}
+                     list [namespace export] [namespace eval ::N {namespace export}]
+                 }
+             }
+             ::N::p"),
+        "e* {}"
     );
 }

@@ -136,8 +136,10 @@ pub struct CmdTrace {
     /// when the token dies. Our registry is keyed by FQN, so a delete callback
     /// that binds a replacement at the same name registers on a *different*
     /// token under the same key; only the generation tells the two lists
-    /// apart. Generations are minted per table in binding order, so a trace on
-    /// a token installed after the dying one always compares greater.
+    /// apart. Generations are minted in binding order across the whole
+    /// interpreter, so a trace on a token installed after the dying one always
+    /// compares greater — including when the two tokens live in a retained
+    /// namespace table and a same-named recreation of it.
     pub token: Option<u64>,
     /// The command's resolved FQN (the binding the trace is attached to).
     pub name: Vec<u8>,

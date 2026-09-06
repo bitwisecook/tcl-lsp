@@ -43,8 +43,9 @@ import platform
 import shutil
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent

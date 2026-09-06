@@ -5,7 +5,7 @@
   "version": "0.0.0-dev",
   "publisher": "bitwisecook",
   "license": "AGPL-3.0-or-later",
-  "packageManager": "npm@12.0.0-pre.0.0",
+  "packageManager": "npm@12.0.2",
   "icon": "docs/icon.png",
   "repository": {
     "type": "git",
@@ -9503,15 +9503,15 @@
     "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.4.1",
-    "@types/vscode": "~1.134.0",
+    "@types/vscode": "~1.95.0",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
-    "@typescript-eslint/parser": "^8.67.0",
+    "@typescript-eslint/parser": "^8.69.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^3.9.2",
     "c8": "^12.0.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "glob": "^13.0.6",
     "mocha": "^12.0.0",
@@ -9528,18 +9528,18 @@
   },
   "overrides": {
     "@typescript-eslint/typescript-estree": {
-      "minimatch": "^10.2.2"
+      "minimatch": "^10.2.6"
     },
     "mocha": {
-      "diff": "^8.0.3",
-      "serialize-javascript": "^7.0.5"
+      "diff": "^9.0.0",
+      "serialize-javascript": "^7.1.1"
     },
     "@vscode/vsce": {
-      "@azure/msal-node": "^5.1.5"
+      "@azure/msal-node": "^5.6.0"
     },
     "lodash": "^4.18.1",
     "qs": "^6.16.0",
-    "undici": "^7.28.0",
+    "undici": "^7.29.1",
     "@vscode/wasm-wasi-lsp": {
       "vscode-languageclient": "$vscode-languageclient"
     }

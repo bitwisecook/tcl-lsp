@@ -127,6 +127,19 @@ fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
     // via the fallthrough).
     assert_eq!(interp.eval_str(b"catch {interp cancel} e; set e"), Code::Ok);
     assert!(interp.result_bytes().starts_with(b"bad option \"cancel\""));
+    // Issue #1607: the list is shortened, but it is still resolved by the one
+    // `Tcl_GetIndexFromObj` matcher, so tclsh's abbreviation and ambiguity
+    // verdicts hold over it.
+    //
+    // tclsh9.0.4:
+    //   interp cr j -> j   ;  interp c j -> ambiguous option "c": must be …
+    //   interp {}   -> ambiguous option "": must be …
+    assert_eq!(interp.eval_str(b"interp cr j"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"j".as_slice());
+    assert_eq!(interp.eval_str(b"catch {interp c j} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"ambiguous option \"c\""));
+    assert_eq!(interp.eval_str(b"catch {interp {}} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"ambiguous option \"\""));
 }
 
 /// item 3: `interp target path alias` — the interp-path from this interp to
@@ -222,6 +235,15 @@ fn child_command_bad_option_matches_the_tclsh_shape() {
           or recursionlimit"
             .as_slice()
     );
+    // Issue #1607: the same table now abbreviates, exactly as tclsh's does.
+    //
+    // tclsh9.0.4:
+    //   kid ev {set x 1} -> 1
+    //   kid h            -> ambiguous option "h": must be …
+    assert_eq!(interp.eval_str(b"kid ev {set x 1}"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"1".as_slice());
+    assert_eq!(interp.eval_str(b"catch {kid h} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"ambiguous option \"h\""));
 }
 
 /// item 4 (fixed before this lane started, pinned here as a regression
@@ -758,5 +780,77 @@ fn child_arity_errors_name_the_word_the_call_used() {
           {wrong # args: should be \"foo limit limitType ?-option value ...?\"} \
           {wrong # args: should be \"::foo hidden\"} renamed-child-still-works"
             .as_slice()
+    );
+}
+
+/// The seam where the two mechanisms meet: the child's option word is
+/// resolved through the shared `OptionTable` owner (so it abbreviates), while
+/// the arity noun is the word the *call* used. Each half answers a different
+/// question — "which subcommand is this?" and "what was this command called?"
+/// — and a call that abbreviates a subcommand on a renamed child needs both
+/// answers at once, which is why neither test above can see this case.
+///
+/// The subcommand half of the noun is the *canonical* word, not the
+/// abbreviation: `Tcl_WrongNumArgs` expands an index-typed argument back to
+/// its table entry (`tclIndexObj.c`), and `Tcl_GetIndexFromObj` has already
+/// retyped `objv[1]` by the time C reaches the arity check. So the command
+/// word is echoed as written and the subcommand word as tabled.
+///
+/// tclsh9.0.4 (and 8.6.16):
+///   interp create kid
+///   rename kid foo
+///   set out {}
+///   foreach script {{foo hidd extra} {foo alias} {foo ex} {foo hid} {::foo ev}
+///                   {foo invo} {foo debu -frame 1 x} {foo recur 1 2} {foo {}}
+///                   {foo nosuch}} {
+///       catch $script m; lappend out $m
+///   }
+///   lappend out [foo ev {set x still-works}]
+///   => {wrong # args: should be "foo hidden"} … {ambiguous option ""…} …
+///      {bad option "nosuch"…} still-works
+#[test]
+fn child_abbreviations_resolve_while_arity_errors_name_the_written_word() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(
+            b"interp create kid
+              rename kid foo
+              set out {}
+              foreach script {
+                  {foo hidd extra}
+                  {foo alias}
+                  {foo ex}
+                  {foo hid}
+                  {::foo ev}
+                  {foo invo}
+                  {foo debu -frame 1 x}
+                  {foo recur 1 2}
+                  {foo {}}
+                  {foo nosuch}
+              } {
+                  catch $script m
+                  lappend out $m
+              }
+              lappend out [foo ev {set x still-works}]
+              set out"
+        ),
+        Code::Ok
+    );
+    let options = "alias, aliases, bgerror, debug, eval, expose, hide, hidden, \
+issafe, invokehidden, limit, marktrusted, or recursionlimit";
+    assert_eq!(
+        String::from_utf8_lossy(&interp.result_bytes()),
+        format!(
+            "{{wrong # args: should be \"foo hidden\"}} \
+{{wrong # args: should be \"foo alias aliasName ?targetName? ?arg ...?\"}} \
+{{wrong # args: should be \"foo expose hiddenCmdName ?cmdName?\"}} \
+{{ambiguous option \"hid\": must be {options}}} \
+{{wrong # args: should be \"::foo eval arg ?arg ...?\"}} \
+{{wrong # args: should be \"foo invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?\"}} \
+{{wrong # args: should be \"foo debug ?-frame ?bool??\"}} \
+{{wrong # args: should be \"foo recursionlimit ?newlimit?\"}} \
+{{ambiguous option \"\": must be {options}}} \
+{{bad option \"nosuch\": must be {options}}} still-works"
+        )
     );
 }

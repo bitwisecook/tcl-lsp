@@ -57,7 +57,7 @@ fi
 
 echo "== Tcl core oo tests =="
 mkdir -p vendor/tcl-oo-tests
-for v in tcl8.6.16 tcl9.0.4; do
+for v in tcl8.6.18 tcl9.0.4; do
   tree="../../tmp/$v"
   [ -d "$tree" ] || continue
   for f in oo.test ooNext2.test ooUtil.test; do

@@ -169,35 +169,43 @@ def _normalise_cidr(s: str) -> str:
 # (regex, category, human effect). Matched case-insensitively on the rule body.
 _DYNAMIC_CMDS: list[tuple[re.Pattern[str], str, str]] = [
     (
-        re.compile(r"\bSSL::disable(?:\s+(clientside|serverside))?", re.I),
+        re.compile(r"\bSSL::disable(?:\s+(clientside|serverside))?", re.IGNORECASE),
         "SSL",
         "SSL::disable",
     ),
     (
-        re.compile(r"\bSSL::enable(?:\s+(clientside|serverside))?", re.I),
+        re.compile(r"\bSSL::enable(?:\s+(clientside|serverside))?", re.IGNORECASE),
         "SSL",
         "SSL::enable",
     ),
-    (re.compile(r"\bHTTP::disable\b", re.I), "HTTP", "HTTP::disable"),
-    (re.compile(r"\bHTTP::enable\b", re.I), "HTTP", "HTTP::enable"),
-    (re.compile(r"\bCOMPRESS::disable\b", re.I), "Compression", "COMPRESS::disable"),
-    (re.compile(r"\bCOMPRESS::enable\b", re.I), "Compression", "COMPRESS::enable"),
-    (re.compile(r"\bCACHE::disable\b", re.I), "Cache", "CACHE::disable"),
-    (re.compile(r"\bCACHE::enable\b", re.I), "Cache", "CACHE::enable"),
-    (re.compile(r"\bWAM::(?:enable|disable)\b", re.I), "WebAccel", "WAM"),
-    (re.compile(r"\bLB::detach\b", re.I), "Pool", "LB::detach"),
+    (re.compile(r"\bHTTP::disable\b", re.IGNORECASE), "HTTP", "HTTP::disable"),
+    (re.compile(r"\bHTTP::enable\b", re.IGNORECASE), "HTTP", "HTTP::enable"),
+    (
+        re.compile(r"\bCOMPRESS::disable\b", re.IGNORECASE),
+        "Compression",
+        "COMPRESS::disable",
+    ),
+    (
+        re.compile(r"\bCOMPRESS::enable\b", re.IGNORECASE),
+        "Compression",
+        "COMPRESS::enable",
+    ),
+    (re.compile(r"\bCACHE::disable\b", re.IGNORECASE), "Cache", "CACHE::disable"),
+    (re.compile(r"\bCACHE::enable\b", re.IGNORECASE), "Cache", "CACHE::enable"),
+    (re.compile(r"\bWAM::(?:enable|disable)\b", re.IGNORECASE), "WebAccel", "WAM"),
+    (re.compile(r"\bLB::detach\b", re.IGNORECASE), "Pool", "LB::detach"),
     (
         re.compile(
             r"\bpersist\s+(none|uie|cookie|source_addr|dest_addr|hash|ssl|sip|carp|universal)",
-            re.I,
+            re.IGNORECASE,
         ),
         "Persistence",
         "persist",
     ),
-    (re.compile(r"\bsnatpool\s+(\S+)", re.I), "SNAT", "snatpool"),
-    (re.compile(r"\bsnat\s+(automap|none|\S+)", re.I), "SNAT", "snat"),
-    (re.compile(r"\bnode\s+(\d[\d.:a-fA-F]+)", re.I), "Node", "node override"),
-    (re.compile(r"\bvirtual\s+(\S+)", re.I), "Virtual", "virtual target"),
+    (re.compile(r"\bsnatpool\s+(\S+)", re.IGNORECASE), "SNAT", "snatpool"),
+    (re.compile(r"\bsnat\s+(automap|none|\S+)", re.IGNORECASE), "SNAT", "snat"),
+    (re.compile(r"\bnode\s+(\d[\d.:a-fA-F]+)", re.IGNORECASE), "Node", "node override"),
+    (re.compile(r"\bvirtual\s+(\S+)", re.IGNORECASE), "Virtual", "virtual target"),
 ]
 
 
