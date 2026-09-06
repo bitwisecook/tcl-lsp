@@ -3082,16 +3082,14 @@ impl WorkspaceIndex {
     ) -> Vec<IndexedWorkspaceSymbol> {
         let lower_query = query.to_lowercase();
         let mut out: Vec<IndexedWorkspaceSymbol> = Vec::new();
-        let excluded_uris: HashSet<&str> = excluded_uris.into_iter().collect();
         let excluded_slots: HashSet<usize> = excluded_uris
-            .iter()
-            .filter_map(|uri| self.slots.get(*uri).copied())
+            .into_iter()
+            .filter_map(|uri| self.slots.get(uri).copied())
             .collect();
         // Built once for the whole scan — the class-member walk needs the
         // workspace's cross-document retractions, which no single document's
         // records can answer for themselves (issue #1263).
-        let mut retractions = self.retraction_index();
-        retractions.retain(|_, (class, _)| !excluded_uris.contains(class.uri.as_str()));
+        let retractions = self.retraction_index_excluding(&excluded_slots);
         for (slot, doc) in self.docs.iter().enumerate() {
             if out.len() >= limit {
                 break;
@@ -3850,8 +3848,20 @@ impl WorkspaceIndex {
     /// ([`Self::class_records`]), so which stub an arrival is attributed to
     /// does not depend on indexing order.
     fn retraction_index(&self) -> RetractionIndex<'_> {
+        self.retraction_index_excluding(&HashSet::new())
+    }
+
+    /// Build the cross-document member fold without records contributed by
+    /// excluded document slots. Filtering after the map is folded is unsound:
+    /// a stable first retraction from an excluded document may have displaced
+    /// a later live retraction for the same member.
+    fn retraction_index_excluding(&self, excluded_slots: &HashSet<usize>) -> RetractionIndex<'_> {
         let mut records: Vec<&WorkspaceClass> = self
-            .classes()
+            .docs
+            .iter()
+            .enumerate()
+            .filter(|(slot, _)| !excluded_slots.contains(slot))
+            .flat_map(|(_, doc)| doc.classes.iter())
             .filter(|c| !c.retracted_members.is_empty())
             .collect();
         if records.is_empty() {
@@ -6639,6 +6649,30 @@ mod tests {
                 .iter()
                 .all(|symbol| symbol.uri != "file:///orphan.tcl"),
             "an excluded arrival must neither re-key nor locate a live member",
+        );
+    }
+
+    #[test]
+    fn symbol_exclusions_rebuild_duplicate_retractions_from_live_documents() {
+        let class = analyse("oo::class create ::C { method old {} {} }\n");
+        let orphan = analyse("oo::define ::C { renamemethod old orphan_arrival }\n");
+        let live = analyse("oo::define ::C { renamemethod old live_arrival }\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &class),
+            ("file:///a-orphan.tcl", &orphan),
+            ("file:///b-live.tcl", &live),
+        ]);
+
+        let symbols = index.symbols_matching_excluding("arrival", 10, ["file:///a-orphan.tcl"]);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "live_arrival");
+        assert_eq!(symbols[0].uri, "file:///b-live.tcl");
+        assert!(
+            index
+                .symbols_matching_excluding("old", 10, ["file:///a-orphan.tcl"])
+                .iter()
+                .all(|symbol| symbol.kind != WorkspaceSymbolKind::Method),
+            "the remaining live retraction must still retire the old member name",
         );
     }
 
