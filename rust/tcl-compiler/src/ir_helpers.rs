@@ -795,15 +795,15 @@ pub(crate) fn evaluated_command_substitution_surfaces(
         }
         Statement::Switch {
             subject,
+            subject_braced,
             arms,
-            patterns_braced,
             ..
         } => {
-            push_text(subject, &mut texts);
-            if !patterns_braced {
-                for arm in arms {
-                    push_text(&arm.pattern, &mut texts);
-                }
+            if !subject_braced {
+                push_text(subject, &mut texts);
+            }
+            for arm in arms.iter().filter(|arm| !arm.pattern_braced) {
+                push_text(&arm.pattern, &mut texts);
             }
         }
         Statement::AssignConst { .. } | Statement::Block { .. } | Statement::UpFrame { .. } => {}
@@ -1375,6 +1375,24 @@ mod tests {
         collect_expr_commands(&expr, &mut cmds);
         assert_eq!(cmds.len(), 1);
         assert_eq!(cmds[0], "[set x 1]");
+    }
+
+    #[test]
+    fn compiled_word_surfaces_only_execute_when_unbraced() {
+        let registry = CommandRegistry::build_default();
+        let commands = |braced| {
+            expression_command_substitutions(
+                &ExprNode::CompiledWord {
+                    text: "prefix[set x 1]".into(),
+                    braced,
+                },
+                &registry,
+            )
+            .commands
+        };
+
+        assert_eq!(commands(false)[0][0].text, "set");
+        assert!(commands(true).is_empty());
     }
 
     #[test]

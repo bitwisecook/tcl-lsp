@@ -1353,22 +1353,42 @@ impl<'a> CfgBuilder<'a> {
         };
 
         // Every substitution in the returned value runs before the frame
-        // unwinds. Feed the same shared effect inventory used by ordinary
-        // statements through caller-frame, alias-observation, global-write,
-        // and builtin-write handling before installing the terminator.
-        self.record_caller_frame_barrier(stmt);
-        self.record_alias_observed(stmt);
+        // unwinds. Materialise its analysis effects before installing the
+        // terminator.
+        self.push_embedded_control_effects(
+            stmt,
+            current,
+            "return value invokes an opaque embedded command",
+        );
         if let Some(binding) = command_binding {
             self.command_binding_sites.push(CommandBindingSite {
                 span: *span,
                 binding: binding.clone(),
             });
         }
+        self.block_mut(current).terminator = Some(Terminator::Return {
+            value: value.clone(),
+            span: Some(*span),
+            expr: expr.clone(),
+            braced: *braced,
+        });
+    }
+
+    /// Materialise the variable effects of substitutions executed by a
+    /// control statement before its terminator or dispatch is installed.
+    fn push_embedded_control_effects(
+        &mut self,
+        stmt: &Statement,
+        current: &str,
+        opaque_reason: &str,
+    ) {
+        self.record_caller_frame_barrier(stmt);
+        self.record_alias_observed(stmt);
         let (extras, opaque) = self.embedded_subst_extras(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
-                span: *span,
-                reason: "return value invokes an opaque embedded command".to_owned(),
+                span: stmt.span(),
+                reason: opaque_reason.to_owned(),
                 command: "<global-frame-script>".to_owned(),
                 canonical_command: None,
                 args: Vec::new(),
@@ -1379,7 +1399,7 @@ impl<'a> CfgBuilder<'a> {
         }
         if !extras.is_empty() {
             self.block_mut(current).statements.push(Statement::Call {
-                span: *span,
+                span: stmt.span(),
                 command: "<upvar-invalidate>".to_string(),
                 canonical_command: None,
                 args: Vec::new(),
@@ -1393,12 +1413,6 @@ impl<'a> CfgBuilder<'a> {
                 foreach_groups: None,
             });
         }
-        self.block_mut(current).terminator = Some(Terminator::Return {
-            value: value.clone(),
-            span: Some(*span),
-            expr: expr.clone(),
-            braced: *braced,
-        });
     }
 
     fn lower_script_statement(&mut self, stmt: &Statement, current: &str) -> Option<String> {
@@ -4306,6 +4320,52 @@ mod tests {
                 .values()
                 .any(|block| { matches!(block.terminator, Some(Terminator::Return { .. })) })
         );
+    }
+
+    #[test]
+    fn switch_word_substitutions_invalidate_before_dispatch() {
+        let module = lower_module(
+            "proc setter {name} { upvar 1 $name value; set value 1; return 0 }\n\
+             proc outer {} {\n\
+                 set subject 1\n\
+                 set pattern 1\n\
+                 switch [setter subject] [setter pattern] { return ok } default { return no }\n\
+             }",
+        );
+        let cfg = build_cfg(&module, false);
+        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
+        for name in ["subject", "pattern"] {
+            assert_eq!(
+                find_call_with_def(outer, name),
+                Some("<upvar-invalidate>"),
+                "the unbraced switch {name} substitution must invalidate before dispatch"
+            );
+        }
+        assert!(outer.blocks.values().any(|block| {
+            block.statements.iter().any(|stmt| {
+                matches!(
+                    stmt,
+                    Statement::Call { command, defs, .. }
+                        if command == "<upvar-invalidate>"
+                            && defs.iter().any(|name| name == "subject")
+                            && defs.iter().any(|name| name == "pattern")
+                )
+            }) && matches!(block.terminator, Some(Terminator::Branch { .. }))
+        }));
+    }
+
+    #[test]
+    fn braced_switch_words_do_not_invalidate_before_dispatch() {
+        let module = lower_module(
+            "proc setter {name} { upvar 1 $name value; set value 1; return 0 }\n\
+             proc outer {} {\n\
+                 switch {[setter subject]} {[setter pattern]} { return ok }\n\
+             }",
+        );
+        let cfg = build_cfg(&module, false);
+        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
+        assert_eq!(find_call_with_def(outer, "subject"), None);
+        assert_eq!(find_call_with_def(outer, "pattern"), None);
     }
 
     #[test]
