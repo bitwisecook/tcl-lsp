@@ -21,6 +21,8 @@
 //! These are standalone helpers with no emitter state — used by every
 //! other codegen submodule.
 
+use super::statements::has_unescaped_subst;
+
 /// Tcl 9.0 default trim characters — pushed when `string trim` is
 /// called without an explicit chars argument.  Includes ASCII
 /// whitespace, NUL, and all Unicode category Zs space separators.
@@ -699,15 +701,34 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
             }
             _ => {
                 // Bare word — a `$`/`[` makes it a substitution, not a constant.
+                //
+                // A backslash escapes the byte after it, which is what ends the
+                // word *and* what the value is: `a\ b` is the one word `a b`, so
+                // the scan may not break on that space, and `\{\}` is the
+                // two-byte value `{}`, so the escapes are substituted here for
+                // the same reason the quoted arm above substitutes its own. The
+                // scan used to stop at any blank and the word went out as its
+                // *source spelling*, so `set v [format %s \{\}]` measured 4 where
+                // both oracles say 2, `[format %s a\ b]` folded to `a\`, and
+                // `[format %s a\tb]` froze the escape text instead of a tab.
                 let start = i;
                 while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                    i += 1;
+                    if bytes[i] == b'\\' {
+                        // Past the backslash — ASCII, so `i` is a char boundary
+                        // — then over the *whole* escaped character, which may
+                        // be multi-byte (`\é`). A flat `i += 2` would slice
+                        // through it.
+                        i += 1;
+                        i += inner[i..].chars().next().map_or(0, char::len_utf8);
+                    } else {
+                        i += 1;
+                    }
                 }
                 let word = &inner[start..i];
-                if word.contains('$') || word.contains('[') {
+                if has_unescaped_subst(word) {
                     return None;
                 }
-                parts.push(word.to_owned());
+                parts.push(tcl_lexer::backslash_subst(word).into_owned());
             }
         }
     }
