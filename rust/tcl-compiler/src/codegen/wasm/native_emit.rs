@@ -50,20 +50,22 @@
 //! holds the typed-value out slots, one completion triple, and the argv array
 //! the generic and operator intrinsics read.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
+use tcl_core_types::Code as CompletionCode;
 use tcl_runtime_api::codegen_abi::{
-    CodegenAbiImportId, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
-    WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
+    CodegenAbiImportId, NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_CODE_OFFSET,
+    WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
 };
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
 use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
+use crate::native_lowering::ProcEntryDecline;
 use crate::native_lowering::cells::CellPlace;
 use crate::native_lowering::ir::{
-    CmpOp, CompareKind, DoubleOp, IfElseResult, IntOp, NativeBlockId, NativeFunction, NativeOp,
-    NativeStatement, NativeTerminator, NativeType, NativeValueId,
+    CmpOp, CompareKind, DoubleOp, EntryProtocol, IfElseResult, IntOp, NativeBlockId,
+    NativeFunction, NativeOp, NativeStatement, NativeTerminator, NativeType, NativeValueId,
 };
 use crate::native_lowering::representation::int_op;
 
@@ -112,6 +114,9 @@ pub(super) struct NativeImports {
     expr_eval: u32,
     mathop: u32,
     mathfunc: u32,
+    proc_define_native: u32,
+    log_command: u32,
+    return_state: u32,
 }
 
 /// Declare every import the native tier uses.
@@ -151,6 +156,30 @@ pub(super) fn add_native_imports(
         expr_eval: add(wasm, CodegenAbiImportId::ExprEval),
         mathop: add(wasm, CodegenAbiImportId::MathOp),
         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
+        proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
+        log_command: add(wasm, CodegenAbiImportId::LogCommand),
+        return_state: add(wasm, CodegenAbiImportId::ReturnState),
+    }
+}
+
+/// The module's window in the runtime's shared function table: which compiled
+/// procedure bodies it installed there, and the module global holding the base
+/// index `table.grow` returned for the window.
+///
+/// A `proc` statement whose body this module compiled reads its entry as
+/// `base + slot`; every other definition passes `0`, the ABI's "source body
+/// only" spelling.
+#[derive(Clone, Copy)]
+pub(super) struct EntryTable<'a> {
+    /// Slot ordinal within the window, per bound procedure.
+    pub(super) slots: &'a BTreeMap<String, u32>,
+    /// Index of the module global holding the window's base.
+    pub(super) base_global: u32,
+}
+
+impl EntryTable<'_> {
+    fn slot(self, qualified_name: &str) -> Option<u32> {
+        self.slots.get(qualified_name).copied()
     }
 }
 
@@ -335,6 +364,19 @@ fn intersect(idom: &[usize], rpo: &[usize], mut a: usize, mut b: usize) -> usize
     a
 }
 
+/// Parameter slots of a proc entry, which occupy the low local indices and so
+/// shift every local the emitter allocates (see [`Emitter::local_base`]).
+const PARAM_ARGV: u64 = 0;
+const PARAM_ARGC: u64 = 1;
+const PARAM_OUT: u64 = 2;
+const PROC_ENTRY_PARAMS: u64 = 3;
+
+/// The Tcl completion code an `errorInfo` frame is logged for.
+const TCL_ERROR: i64 = 1;
+
+/// The `-level` a plain `return` records: one enclosing boundary consumes it.
+const PLAIN_RETURN_LEVEL: i64 = 1;
+
 /// Local slots reserved before the NLIR values.
 const LOCAL_FRAME: u64 = 0;
 const LOCAL_EXIT_CODE: u64 = 1;
@@ -352,6 +394,12 @@ const FIXED_LOCALS: u64 = 11;
 struct Emitter<'a, 'p> {
     imports: NativeImports,
     function: &'a NativeFunction,
+    /// The module's table window, read by a `proc` definition statement.
+    table: EntryTable<'a>,
+    /// How many parameter slots sit below the emitter's own locals: the one
+    /// place the proc-entry signature costs anything, because every local the
+    /// emitter names is an index past the parameters.
+    local_base: u64,
     pool: ConstantPool<'p>,
     body: Vec<WasmInstruction>,
     labels: Vec<Label>,
@@ -365,17 +413,101 @@ struct Emitter<'a, 'p> {
     /// Scratch boxed locals that hold a temporary the current operation
     /// boxed; released at the end of that operation.
     scratch_owned: Vec<u64>,
+    /// The completions a `Return` terminator reads. Only these need their Tcl
+    /// result materialised in a proc entry; every other completion is
+    /// consumed by a completion switch, which reads only the code.
+    returned: HashSet<crate::executable_ir::CompletionId>,
 }
 
-/// Emit one lowered function as a WASM function of no parameters and no
-/// results.
+/// Emit one lowered function in the shape its
+/// [`EntryProtocol`](crate::native_lowering::ir::EntryProtocol) prescribes.
+///
+/// [`EntryProtocol::Script`] is `() -> ()` and opens with the compiled
+/// activation the module's entry point holds. [`EntryProtocol::ProcEntry`] is
+/// `(argv, argc, out) -> status` and is **prologue-free**: it takes no
+/// activation and pushes no Tcl frame, because `Interp::run_proc` has already
+/// pushed the procedure's variable frame and `Interp::run_native_body` holds
+/// the activation and the `CmdFrame`. Emitting the script prologue here would
+/// push a second, nameless frame at the caller's namespace.
 pub(super) fn emit_function(
     name: &str,
     kind: &str,
     function: &NativeFunction,
     imports: NativeImports,
+    table: EntryTable<'_>,
     pool: ConstantPool<'_>,
 ) -> WasmFunction {
+    let proc_entry = function.protocol == EntryProtocol::ProcEntry;
+    let local_base = if proc_entry { PROC_ENTRY_PARAMS } else { 0 };
+    let LocalPlan {
+        types: locals_types,
+        names: local_names,
+        value_locals,
+        owned_locals,
+        completion_base,
+    } = function_locals(function);
+    let argv_slots = i64::try_from(argv_slots(function)).unwrap_or(i64::MAX);
+    let shape = Shape::of(function);
+    let mut emitter = Emitter {
+        imports,
+        function,
+        table,
+        local_base,
+        pool,
+        body: Vec::new(),
+        labels: Vec::new(),
+        shape,
+        value_locals,
+        completion_base,
+        argv_slots,
+        emitted: HashSet::new(),
+        owned_locals,
+        scratch_owned: Vec::new(),
+        returned: function
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                NativeTerminator::Return(completion) => Some(*completion),
+                _ => None,
+            })
+            .collect(),
+    };
+    emitter.emit_body();
+    let (params, results, param_names) = if proc_entry {
+        (
+            vec![ValType::I32, ValType::I32, ValType::I32],
+            vec![ValType::I32],
+            vec!["$argv".to_owned(), "$argc".to_owned(), "$out".to_owned()],
+        )
+    } else {
+        (Vec::new(), Vec::new(), Vec::new())
+    };
+    let mut names = param_names;
+    names.extend(local_names);
+    WasmFunction {
+        name: name.to_owned(),
+        params,
+        results,
+        locals: locals_types,
+        body: emitter.body,
+        local_names: names,
+        exported: true,
+        source_range: None,
+        kind: kind.to_owned(),
+    }
+}
+
+/// Every local an emitted function allocates: the fixed scratch slots, one per
+/// NLIR value, and a `(code, result, options)` triple per completion.
+struct LocalPlan {
+    types: Vec<ValType>,
+    names: Vec<String>,
+    value_locals: Vec<u64>,
+    owned_locals: Vec<u64>,
+    completion_base: u64,
+}
+
+fn function_locals(function: &NativeFunction) -> LocalPlan {
     let mut locals_types: Vec<ValType> = vec![
         ValType::I32, // frame
         ValType::I32, // exit code
@@ -427,34 +559,116 @@ pub(super) fn emit_function(
         owned_locals.push(base + 1);
         owned_locals.push(base + 2);
     }
-    let argv_slots = i64::try_from(argv_slots(function)).unwrap_or(i64::MAX);
-    let shape = Shape::of(function);
-    let mut emitter = Emitter {
-        imports,
-        function,
-        pool,
-        body: Vec::new(),
-        labels: Vec::new(),
-        shape,
+    LocalPlan {
+        types: locals_types,
+        names: local_names,
         value_locals,
-        completion_base,
-        argv_slots,
-        emitted: HashSet::new(),
         owned_locals,
-        scratch_owned: Vec::new(),
-    };
-    emitter.emit_body();
-    WasmFunction {
-        name: name.to_owned(),
-        params: Vec::new(),
-        results: Vec::new(),
-        locals: locals_types,
-        body: emitter.body,
-        local_names,
-        exported: true,
-        source_range: None,
-        kind: kind.to_owned(),
+        completion_base,
     }
+}
+
+/// Whether a lowered body may be bound as a procedure's native entry, and the
+/// reason when it may not.
+///
+/// A proc entry's completion **is** the procedure's answer, so every
+/// completion the body returns on its own normal edge has to carry the Tcl
+/// result of the command that produced it. Most operations do — a generic
+/// invocation adopts the runtime's whole triple, an evaluated source rung
+/// leaves the runtime's own result, a fixed completion is explicit — and the
+/// two that do not, `set` and `incr`, the emitter materialises from the value
+/// they stored ([`Emitter::materialise_result`]). What is left is
+/// `append`/`lappend`, whose new cell value the runtime does not hand back,
+/// and a structured region (`if` with no `else`, say), whose completion the
+/// executable IR produces with no result at all. Binding one of those would
+/// answer with the empty string where Tcl answers with a value, so the
+/// definition keeps its source body instead.
+pub(super) fn proc_entry_decline(function: &NativeFunction) -> Option<ProcEntryDecline> {
+    for block in &function.blocks {
+        let NativeTerminator::Return(completion) = &block.terminator else {
+            continue;
+        };
+        // A `Return` in a block that did not produce the completion is an
+        // abrupt edge: the statement abandoned itself, so the runtime's own
+        // result (the error message it set) or the completion triple it
+        // adopted already stands.
+        let Some(last) = block.statements.last() else {
+            continue;
+        };
+        if last.completion != *completion {
+            continue;
+        }
+        if result_source(last).is_none() {
+            return Some(ProcEntryDecline::UndeterminedResult);
+        }
+    }
+    None
+}
+
+/// Where the Tcl result of a statement's command is once its operations have
+/// run to the end, or `None` when the statement determines no result.
+fn result_source(statement: &NativeStatement) -> Option<ResultSource> {
+    match statement.ops.last() {
+        // A generic invocation adopts the runtime's whole completion triple;
+        // an evaluated source rung and a proc definition each leave the answer
+        // as the runtime's own result, which a null completion result adopts.
+        Some(
+            NativeOp::Invoke { .. } | NativeOp::EvalSource { .. } | NativeOp::DefineProc { .. },
+        ) => Some(ResultSource::Completion),
+        Some(NativeOp::Complete { result, .. }) => Some(match result {
+            Some(_) => ResultSource::Completion,
+            // `return`, `break` and `continue` with no value answer with the
+            // empty string.
+            None => ResultSource::Empty,
+        }),
+        // `puts` answers with the empty string.
+        Some(NativeOp::Puts { .. }) => Some(ResultSource::Empty),
+        // `set` and `incr` answer with the value they stored.
+        Some(NativeOp::CellWrite { src, .. }) => Some(ResultSource::Value(*src)),
+        Some(NativeOp::CellIncr { dst, .. }) => Some(ResultSource::Value(*dst)),
+        _ => None,
+    }
+}
+
+/// Whether any operation in the statement can complete with a Tcl error, and
+/// so needs an `errorInfo` frame logged for its site.
+///
+/// Written as a list of the operations that provably cannot fail — constants,
+/// boxing, and arithmetic the representation lattice already proved in range —
+/// so an operation added later is logged rather than silently skipped.
+fn can_fail(ops: &[NativeOp]) -> bool {
+    ops.iter().any(|op| match op {
+        NativeOp::ConstInt { .. }
+        | NativeOp::ConstDouble { .. }
+        | NativeOp::ConstBool { .. }
+        | NativeOp::ConstStr { .. }
+        | NativeOp::Box { .. }
+        | NativeOp::Truth { .. }
+        | NativeOp::IntToDouble { .. }
+        | NativeOp::BoolToInt { .. }
+        | NativeOp::IntBinary { .. }
+        | NativeOp::IntNeg { .. }
+        | NativeOp::IntBitNot { .. }
+        | NativeOp::DoubleNeg { .. }
+        | NativeOp::Compare { .. }
+        | NativeOp::NotBool { .. }
+        | NativeOp::Complete { .. } => false,
+        NativeOp::IfElse {
+            then_ops, else_ops, ..
+        } => can_fail(then_ops) || can_fail(else_ops),
+        _ => true,
+    })
+}
+
+/// Where a statement's Tcl result comes from.
+#[derive(Clone, Copy)]
+enum ResultSource {
+    /// The completion's own result slot already holds it.
+    Completion,
+    /// The empty string.
+    Empty,
+    /// An NLIR value the emitter has to retain into the completion.
+    Value(NativeValueId),
 }
 
 /// The largest argv the function's runtime calls need.
@@ -525,7 +739,11 @@ impl Emitter<'_, '_> {
         ));
     }
 
+    /// Read one of the emitter's own locals. Every local index the emitter
+    /// names is relative to its own first slot, so a proc entry's parameters
+    /// shift them here rather than at each of the hundred use sites.
     fn get(&mut self, local: u64) {
+        let local = local + self.local_base;
         self.body.push(WasmInstruction::with_operands(
             WasmOp::LocalGet,
             leb128_unsigned(local),
@@ -533,6 +751,7 @@ impl Emitter<'_, '_> {
     }
 
     fn set(&mut self, local: u64) {
+        let local = local + self.local_base;
         self.body.push(WasmInstruction::with_operands(
             WasmOp::LocalSet,
             leb128_unsigned(local),
@@ -540,9 +759,18 @@ impl Emitter<'_, '_> {
     }
 
     fn tee(&mut self, local: u64) {
+        let local = local + self.local_base;
         self.body.push(WasmInstruction::with_operands(
             WasmOp::LocalTee,
             leb128_unsigned(local),
+        ));
+    }
+
+    /// Read one of the function's parameters, which sit below `local_base`.
+    fn param(&mut self, index: u64) {
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::LocalGet,
+            leb128_unsigned(index),
         ));
     }
 
@@ -711,17 +939,25 @@ impl Emitter<'_, '_> {
     // -- function body --------------------------------------------------------
 
     fn emit_body(&mut self) {
-        self.call(self.imports.activation_enter);
-        self.open(WasmOp::If, Label::Plain);
-        self.push(WasmOp::Return);
-        self.close();
+        // A script entry holds the activation the eval loop would hold for
+        // the script it runs. A proc entry holds none: `run_native_body`
+        // already took one for this body, and taking a second would halve the
+        // recursion depth Tcl allows.
+        if self.proc_entry() {
+            // The parameters are the reserved seam for P5's native formal
+            // binder; a P5-lite body reads its formals as named cells, which
+            // `run_proc` bound before the call.
+            let _ = (PARAM_ARGV, PARAM_ARGC);
+        } else {
+            self.call(self.imports.activation_enter);
+            self.open(WasmOp::If, Label::Plain);
+            self.push(WasmOp::Return);
+            self.close();
+        }
         self.i32(FRAME_ARGV + self.argv_slots * i64::from(WASM32_POINTER_BYTES));
         self.i32(FRAME_ALIGN);
         self.call(self.imports.call_frame_alloc);
         self.set(LOCAL_FRAME);
-        if self.function.pushes_frame {
-            self.call(self.imports.frame_push);
-        }
         self.open(WasmOp::Block, Label::Exit);
         let entry = self.function.entry.index();
         self.do_tree(entry);
@@ -730,15 +966,20 @@ impl Emitter<'_, '_> {
             self.get(local);
             self.call(self.imports.obj_release);
         }
-        if self.function.pushes_frame {
-            self.call(self.imports.frame_pop);
-        }
         self.get(LOCAL_FRAME);
         self.call(self.imports.call_frame_free);
         self.push(WasmOp::Drop);
-        self.get(LOCAL_EXIT_CODE);
-        self.call(self.imports.activation_leave);
+        if self.proc_entry() {
+            self.i32(i64::from(NATIVE_PROC_STATUS_RAN));
+        } else {
+            self.get(LOCAL_EXIT_CODE);
+            self.call(self.imports.activation_leave);
+        }
         self.push(WasmOp::End);
+    }
+
+    const fn proc_entry(&self) -> bool {
+        matches!(self.function.protocol, EntryProtocol::ProcEntry)
     }
 
     // -- structurisation ------------------------------------------------------
@@ -820,9 +1061,13 @@ impl Emitter<'_, '_> {
                 self.emit_switch(code, &cases, default);
             }
             NativeTerminator::Return(completion) => {
-                let code = self.code_local(*completion);
-                self.get(code);
-                self.set(LOCAL_EXIT_CODE);
+                if self.proc_entry() {
+                    self.write_completion_out(*completion);
+                } else {
+                    let code = self.code_local(*completion);
+                    self.get(code);
+                    self.set(LOCAL_EXIT_CODE);
+                }
                 self.br(Label::Exit);
             }
         }
@@ -850,12 +1095,88 @@ impl Emitter<'_, '_> {
 
     fn emit_statement(&mut self, statement: &NativeStatement) {
         let code = self.code_local(statement.completion);
+        // A proc entry hands the completions a `Return` reads to the runtime,
+        // so those — and only those — have to carry the statement's Tcl
+        // result. Every other completion is read by a completion switch,
+        // which looks at the code alone.
+        let escapes = self.proc_entry() && self.returned.contains(&statement.completion);
+        let materialise = escapes.then(|| result_source(statement)).flatten();
         self.i32(0);
         self.set(code);
+        if escapes {
+            // An edge that abandons the statement must report the runtime's
+            // own result — the error message the failing operation set — not
+            // the one a previous execution of this same statement left here.
+            self.i32(0);
+            self.set_owned(code + 1);
+        }
         self.open(WasmOp::Block, Label::Abort);
         for op in &statement.ops {
             self.emit_op(op, statement.completion);
         }
+        // Reached only when every operation ran: an abandoned statement
+        // branched past this to the end of the block.
+        if let Some(source) = materialise {
+            self.materialise_result(statement.completion, source);
+        }
+        self.close();
+        self.log_error_site(statement);
+    }
+
+    /// Put the Tcl result of the statement's command in the completion, for
+    /// the operations whose runtime call does not leave it anywhere the
+    /// proc-entry epilogue can find it.
+    ///
+    /// `set foo bar` answers with `bar` and `incr n` with the new value, but
+    /// `tcl_codegen_var_set`/`tcl_codegen_var_incr` set no interpreter result:
+    /// without this a body ending in one would answer with whatever the
+    /// runtime's result happened to be. Only a proc entry needs it — a script
+    /// entry's completion result is never read.
+    fn materialise_result(
+        &mut self,
+        completion: crate::executable_ir::CompletionId,
+        source: ResultSource,
+    ) {
+        let code = self.code_local(completion);
+        match source {
+            // Already where the epilogue looks.
+            ResultSource::Completion => {}
+            ResultSource::Empty => {
+                self.text_pair("");
+                self.call(self.imports.new_owned_string);
+                self.set(code + 1);
+            }
+            ResultSource::Value(value) => {
+                self.push_retained(value);
+                self.set(code + 1);
+            }
+        }
+    }
+
+    /// Log the statement's own `errorInfo` frame when it completed with an
+    /// error, because a compiled statement reaches no eval loop that would.
+    ///
+    /// The runtime owns the `already_logged` protocol, so the innermost
+    /// statement of a nest logs and the rest are no-ops — the same dedup C
+    /// applies within one bytecode frame. Without this a compiled body's
+    /// error carries neither a `while executing "<text>"` frame nor the TIP
+    /// 348 `CALL` entry, and `errorLine` never advances.
+    fn log_error_site(&mut self, statement: &NativeStatement) {
+        let Some(site) = statement.site.as_ref() else {
+            return;
+        };
+        if !can_fail(&statement.ops) {
+            return;
+        }
+        let (line, text) = (i64::from(site.line), site.text.clone());
+        let code = self.code_local(statement.completion);
+        self.get(code);
+        self.i32(TCL_ERROR);
+        self.push(WasmOp::I32Eq);
+        self.open(WasmOp::If, Label::Plain);
+        self.i32(line);
+        self.text_pair(&text);
+        self.call(self.imports.log_command);
         self.close();
     }
 
@@ -888,6 +1209,31 @@ impl Emitter<'_, '_> {
         self.get(LOCAL_FRAME);
         self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_OPTIONS_OFFSET));
         self.set_owned(code + 2);
+    }
+
+    /// Hand the completion triple to the caller through `out` and give up
+    /// ownership of it: the runtime takes the reference on each non-null
+    /// pointer, so the locals are nulled and the epilogue's release loop
+    /// skips them.
+    ///
+    /// A null result is not an omission: it means the runtime's own current
+    /// result is the body's answer, which is what an evaluated source rung
+    /// and every error edge leave behind.
+    fn write_completion_out(&mut self, completion: crate::executable_ir::CompletionId) {
+        let code = self.code_local(completion);
+        self.param(PARAM_OUT);
+        self.get(code);
+        self.store_i32(i64::from(WASM32_COMPLETION_CODE_OFFSET));
+        self.param(PARAM_OUT);
+        self.get(code + 1);
+        self.store_i32(i64::from(WASM32_COMPLETION_RESULT_OFFSET));
+        self.i32(0);
+        self.set(code + 1);
+        self.param(PARAM_OUT);
+        self.get(code + 2);
+        self.store_i32(i64::from(WASM32_COMPLETION_OPTIONS_OFFSET));
+        self.i32(0);
+        self.set(code + 2);
     }
 
     /// After a completion-writing intrinsic: fail on a non-OK code, else move
@@ -1185,12 +1531,38 @@ impl Emitter<'_, '_> {
             }
             NativeOp::Complete { code, result } => {
                 let code_local = self.code_local(completion);
+                // A compiled `return` *is* the `return` command, so it records
+                // the pending return state that command records for its plain
+                // form. Without it the enclosing procedure's return boundary
+                // (`Interp::settle_return`) consumes whatever an earlier
+                // `return -level N` left behind, and the call propagates code
+                // 2 — or a stale requested code — instead of its value. Only
+                // `return` reaches this arm: every option-carrying form keeps
+                // the generic invocation, which records the state itself, and
+                // `settle_return` ignores every completion code but `Return`.
+                if *code == CompletionCode::Return {
+                    self.i32(PLAIN_RETURN_LEVEL);
+                    self.i32(CompletionCode::Ok.as_int());
+                    self.call(self.imports.return_state);
+                }
                 self.i32(code.as_int());
                 self.set(code_local);
                 if let Some(result) = result {
                     self.push_retained(*result);
                     self.set_owned(code_local + 1);
                 }
+            }
+            NativeOp::DefineProc {
+                qualified_name,
+                params_raw,
+                body_source,
+            } => {
+                self.text_pair(qualified_name);
+                self.text_pair(params_raw);
+                self.text_pair(body_source);
+                self.push_entry_index(qualified_name);
+                self.call(self.imports.proc_define_native);
+                self.fail_on_code(completion);
             }
             NativeOp::EvalSource { text, .. } => {
                 self.text_pair(text);
@@ -1211,6 +1583,23 @@ impl Emitter<'_, '_> {
         self.br(Label::Abort);
         self.close();
         self.release_scratch();
+    }
+
+    /// The `entry` argument of a proc definition: the module's own table
+    /// index for a body it compiled and installed, or `0` — the ABI's
+    /// "source body only" — for one it did not.
+    fn push_entry_index(&mut self, qualified_name: &str) {
+        match self.table.slot(qualified_name) {
+            Some(slot) => {
+                self.body.push(WasmInstruction::with_operands(
+                    WasmOp::GlobalGet,
+                    leb128_unsigned(u64::from(self.table.base_global)),
+                ));
+                self.i32(i64::from(slot));
+                self.push(WasmOp::I32Add);
+            }
+            None => self.i32(0),
+        }
     }
 
     fn cell_name_args(&mut self, place: &CellPlace) {

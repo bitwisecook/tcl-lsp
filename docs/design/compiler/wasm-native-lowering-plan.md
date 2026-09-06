@@ -142,7 +142,14 @@ Both are filed for roll-in in §8 and are fixed by the architecture in §3
 (structured words everywhere; a real activation record around compiled code)
 rather than by patching the heuristics.
 
-### 2.3 The emitted proc functions are never executed
+### 2.3 The emitted proc functions are never executed — **closed by #1774**
+
+**Status: landed.** A natively lowered procedure body is now emitted in its
+own `(argv, argc, out) -> status` shape, installed in the runtime's shared
+indirect function table by `::top`, and bound to the definition through
+`tcl_codegen_proc_define_native`; `Interp::run_proc` dispatches it instead of
+re-parsing the source body. What follows is the finding as written.
+
 
 `codegen()` emits one exported WASM function per non-namespaced proc and
 walks its body through the same structured driver. But the runtime learns of
@@ -539,7 +546,7 @@ linked-WASM fuzz arm, `command-backing`, and byte-identical output against
 | **P2 executable IR total** | `If`/`While`/`For`/`Foreach`/`Switch`/`Catch`/`Try`/`Return` as executable edges with completion classes | Explorer shows no `opaque` region for T1/T5 samples | #1648 (fold gating across proc/eval unit boundaries), #1603 (per-command parse model: an opaque tail must not abort earlier statements) |
 | **P3 native lowering T0–T1** | NLIR, `NativeLowering` descriptors for `set`/`incr`/`append`/`expr`/conditions; representation lattice; native `i64`/`f64` arithmetic with checked edges; native conditions; `puts` boundary | T0 and T1 samples emit zero `tcl_eval_code`/`tcl_expr_bool`; `02_arith_chain` is straight-line `i64` ops | the `puts` compat-text defect (2.2), `whole_var_reference` retired from codegen |
 | **P4 values T2** | intrinsic table generated from the registry; list/string/dict/regexp/format/split/join intrinsics; `foreach`/`lmap` as cursor loops; `CellReadModifyWrite` for `lappend`/`dict set`/`lset` | T2 samples emit no `tcl_eval_code`; `command-backing` reports "native intrinsic" coverage | #1607 (option tables for the intrinsics' subcommand parsing go through `OptionTable`), #1576, #1586, #1646 |
-| **P5 procs T3** | compiled proc bodies executed via the function table; formal binder proof; direct calls; frame plans `Absent`/`MetadataOnly`; recursion; `apply` literal lambdas | `31_recursion` runs `fib 20` with no Tcl frame; `32_defaults_and_args` binds defaults/`args` natively and reports the exact `wrong # args` text | #1765 (tailcall tick protocol, shared with VM) |
+| **P5 procs T3** | compiled proc bodies executed via the function table (**landed**, #1774: the entry shape, the `::top` table install, the `Definition` lowering and the compiled statement's `errorInfo` frame); formal binder proof; direct calls; frame plans `Absent`/`MetadataOnly`; recursion; `apply` literal lambdas | `31_recursion` runs `fib 20` through a compiled body; `35_native_dispatch_matrix` and `36_proc_error_info` cover the whole observable surface; `32_defaults_and_args` binds defaults/`args` natively and reports the exact `wrong # args` text | #1765 (tailcall tick protocol, shared with VM) |
 | **P6 scopes T4** | `LinkCell` for `global`/`variable`/`upvar`; arrays as element cells with slot-backed keys; namespace cells; ensembles as static dispatch when sealed | T4 samples; `41_upvar` keeps a `Full` frame only in `incrby`/`swap` | #1751, #1752, #1753, #1755 (namespace token lifecycle, needed so a compiled namespace cell survives deferred deletion), #1412 (rename semantics the direct-call guard relies on) |
 | **P7 completion T5** | `catch`/`try`/`return -code`/`-errorcode`/`-errorstack` through the completion spine; `Dispatch` narrowing | T5 samples byte-identical including `-errorcode` and `$::errorCode` | #1750 (`-errorstack` parity with the VM) |
 | **P8 TclOO T6** | §5 light object framing; `ObjectDispatch` un-poisoned; chain cache | T6 samples; 60/61 with direct `my`/`next`; 62/63 via cached chain | #1764 (stable class/object identity), #1763 (trace sidecars by token), #1594, #1703, #1704 |
@@ -570,7 +577,7 @@ programme unless a shared owner is named.
 | **R8 output encoding** | #1598 (byte-valued characters rendered through UTF-8 on `puts`/error text) | `cmd_chan.rs` write path, VM channel layer | P9 | Sonnet |
 | **R9 infrastructure** | #1768 (runtime unit suite in CI), #1589 (`run_script` builtins), #1716 (macOS wasm32-capable clang probe), #1570 (clippy in `cmd_fs.rs`) | `ci.yml`, `Makefile`, `scripts/dev/ensure-test-deps.sh`, examples | P0 (in flight, #1716 and #1570 absorbed) | Opus |
 | **R10 parser-owner convergence** | #1784 (tracking) with #1785 compiler `WordExpr` adoption, #1786 command segmentation owner, #1787 shared per-command driver; the word-component owner itself landed in lane `r10-word-parts`. Found while answering "does wasm have its own parser": `runtime/rust/src/parse.rs` tokenises with `tcl_lexer::Lexer` and delegates braces, `${}`, array indices, backslashes, and lists to the shared owners, but still carries its own word-component decomposer (`scan_parts`, `scan_var_name`, `skip_command_subst`, `parse_var_ref`) and `subst.rs` mirrors it; `tcl-vm`'s `subst.rs`/`interp.rs` have a third copy, and the compiler's `WordExpr`/`CommandTokens::from_segmented` a fourth. The `missing "`/`missing close-bracket` leniency R4 found is a symptom | move word-component decomposition (`WordPart` model) into a leaf crate (`tcl-lexer::ranges` or `tcl-syntax`) with one `LexerConfig` axis, then make `tcl-compiler::segmenter`, `runtime/rust/{parse,subst}.rs`, and `tcl-vm` consumers; add an owner row to `shared-utility-contracts-rust.md` and its gate | before P4 (the intrinsic argv path and `subst` must agree on parts) | Opus |
-| **C1 codegen defects** | #1772 (`puts` fast path reparses compatibility text), #1774 (emitted proc functions never executed) | `codegen/wasm/backend.rs`, ABI proc table | P3 / P5 | Fable |
+| **C1 codegen defects** | ~~#1772 (`puts` fast path reparses compatibility text)~~ closed by P3; ~~#1774 (emitted proc functions never executed)~~ closed by P5-lite | `codegen/wasm/backend.rs`, ABI proc table | P3 / P5 | Fable |
 | **C2 TclOO callback prefixes** | #1703, #1704 (method callback prefixes in `CommandPrefix` slots; one-hop stored prefixes) | `analyser/`, LSP navigation | feeds P8's "does a stored prefix force a `Full` frame" proof; not on the WASM critical path | Opus, separate PR |
 
 Verified against the linked runtime while bucketing: #1732's 9.x array-index

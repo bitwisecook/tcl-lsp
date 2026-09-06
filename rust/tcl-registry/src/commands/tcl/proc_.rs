@@ -106,6 +106,17 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
 
+        // An already-resolved core `proc` consults neither TclOO dispatch nor
+        // `unknown`: it is a resolved builtin, and a resolved command cannot
+        // enter missing-command fallback once its binding and namespace lookup
+        // are proven. Live binding, namespace lookup, execution traces, and
+        // interpreter policy stay irreducible BASE guards. Without this, every
+        // `proc` after the first in a script fails its own site proof — a
+        // definition writes the command table, which retires the `unknown`
+        // domain that `proc` never consulted.
+        dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
+            DispatchDependencies::NONE,
+        )),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         // Declared once, by naming the stock descriptor (ledger C8).
         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),

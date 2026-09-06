@@ -128,6 +128,7 @@ mod tests {
             body: Script::new(),
             params_raw: params.into(),
             body_source: Some(body.into()),
+            body_offset: 0,
             namespace_scoped: false,
             base_priority: 500,
         }

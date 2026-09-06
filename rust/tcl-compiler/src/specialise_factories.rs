@@ -151,6 +151,7 @@ fn register_synthesised(module: &mut Module, name: &str, params: &str, body: Scr
         body,
         params_raw: params.to_string(),
         body_source: None,
+        body_offset: 0,
         namespace_scoped: false,
         base_priority: 500,
     };
