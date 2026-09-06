@@ -6184,6 +6184,7 @@ struct PublicationLocks<'a> {
     db: TrackedMutexGuard<'a, tcl_lsp_db::TclDatabase>,
     files: TrackedMutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
     tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    project_members: tokio::sync::MutexGuard<'a, HashSet<Uri>>,
     project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
     index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
     seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
@@ -6199,6 +6200,7 @@ struct LiveSourceLocks<'a> {
     db: TrackedMutexGuard<'a, tcl_lsp_db::TclDatabase>,
     files: TrackedMutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
     tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    project_members: tokio::sync::MutexGuard<'a, HashSet<Uri>>,
     project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
 }
 
@@ -6235,6 +6237,7 @@ enum LivePublicationWait {
     Database,
     Files,
     Tombstones,
+    ProjectMembers,
     Project,
     SalsaSnapshots,
     WorkspaceIndex,
@@ -6271,6 +6274,7 @@ impl LivePublicationWait {
             Self::Database => "db.try_lock",
             Self::Files => "db_files.try_lock",
             Self::Tombstones => "db_tombstones.try_lock",
+            Self::ProjectMembers => "db_project_members.try_lock",
             Self::Project => "db_project.try_lock",
             Self::SalsaSnapshots => "db.snapshot_census.zero",
             Self::WorkspaceIndex => "workspace_index.try_write",
@@ -6689,9 +6693,12 @@ pub struct Backend {
     /// handles are never in `db_files`, so they never reach the salsa
     /// [`tcl_lsp_db::Project`] file set either.
     db_tombstones: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
-    /// The salsa `Project` input — the workspace file set, kept in lock-step with
-    /// `db_files` (re-set only when membership changes, on open/close), driving
-    /// the opt-in project callback-arity query.
+    /// URIs admitted to the Salsa project. An edited open orphan keeps its
+    /// local `db_files` handle but is deliberately absent here, so its dead
+    /// path cannot contribute cross-document facts.
+    db_project_members: Arc<Mutex<HashSet<Uri>>>,
+    /// The salsa `Project` input — the cross-document workspace file set,
+    /// re-set only when `db_project_members` changes.
     /// `None` until the first document is tracked.
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
@@ -8027,6 +8034,7 @@ impl Backend {
             db: Arc::new(TrackedMutex::new("db", db)),
             db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
+            db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -8111,7 +8119,8 @@ impl Backend {
 
     /// Create or update a salsa `SourceFile` input in tests that need to seed
     /// the query graph directly.
-    /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
+    /// Lock order is always `db` → `db_files` → `db_tombstones` →
+    /// `db_project_members` → `db_project`.
     ///
     /// Borrows the text rather than taking it by value: callers on the edit
     /// path hold the document snapshot's shared `Arc<str>` and must not have to
@@ -8159,12 +8168,14 @@ impl Backend {
             &mut tombstones,
             std::iter::once((uri, text, dialect.as_str())),
         );
+        let mut members = self.db_project_members.lock().await;
+        let member_added = members.insert(uri.clone());
         drop(tombstones);
-        if membership_changed {
+        if membership_changed || member_added {
             // Membership changed — re-set the `Project` file set. A text-only
             // edit leaves it untouched (and does not backdate its aggregates).
             let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_db_project(&mut db, &files, &members, &mut project);
         }
     }
 
@@ -8198,8 +8209,8 @@ impl Backend {
     }
 
     /// Retire the salsa `SourceFile` input for `uri` (on `did_close`).  Lock
-    /// order is `db` → `db_files` → `db_tombstones` → `db_project`, matching
-    /// [`Self::db_set_source`].
+    /// order is `db` → `db_files` → `db_tombstones` →
+    /// `db_project_members` → `db_project`, matching [`Self::db_set_source`].
     async fn db_remove_source(&self, uri: &Uri) {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
@@ -8207,9 +8218,11 @@ impl Backend {
             let mut tombstones = self.db_tombstones.lock().await;
             Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri)
         };
-        if retired {
+        let mut members = self.db_project_members.lock().await;
+        let member_removed = members.remove(uri);
+        if retired || member_removed {
             let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &mut project);
+            Self::sync_db_project(&mut db, &files, &members, &mut project);
         }
     }
 
@@ -8304,6 +8317,7 @@ impl Backend {
             db: self.db.try_lock().ok()?,
             files: self.db_files.try_lock().ok()?,
             tombstones: self.db_tombstones.try_lock().ok()?,
+            project_members: self.db_project_members.try_lock().ok()?,
             project: self.db_project.try_lock().ok()?,
             index: self.workspace_index.try_write().ok()?,
             seeds: self.rehomed_source_seeds.try_lock().ok()?,
@@ -8336,6 +8350,10 @@ impl Backend {
             .db_tombstones
             .try_lock()
             .map_err(|_| LivePublicationWait::Tombstones)?;
+        let project_members = self
+            .db_project_members
+            .try_lock()
+            .map_err(|_| LivePublicationWait::ProjectMembers)?;
         let project = self
             .db_project
             .try_lock()
@@ -8344,6 +8362,7 @@ impl Backend {
             db,
             files,
             tombstones,
+            project_members,
             project,
         })
     }
@@ -8526,6 +8545,13 @@ impl Backend {
                     self.join_live_publication_queue(self.db_tombstones.lock(), retry.generation)
                         .await;
                 }
+                LivePublicationWait::ProjectMembers => {
+                    self.join_live_publication_queue(
+                        self.db_project_members.lock(),
+                        retry.generation,
+                    )
+                    .await;
+                }
                 LivePublicationWait::Project => {
                     self.join_live_publication_queue(self.db_project.lock(), retry.generation)
                         .await;
@@ -8654,6 +8680,7 @@ impl Backend {
         // while this waits either changes the removal classification below or
         // republishes after this transaction releases the gate.
         let _live_publication = self.live_publication_gate.lock().await;
+        let mut snapshot_drain = None;
         loop {
             let Some(locks) = self.try_publication_locks() else {
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
@@ -8665,6 +8692,7 @@ impl Backend {
             // background transaction. Holding `db` makes this zero stable.
             if self.db.snapshot_report().outstanding != 0 {
                 drop(locks);
+                snapshot_drain.get_or_insert_with(|| self.db.begin_snapshot_drain());
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
                 continue;
             }
@@ -8714,6 +8742,7 @@ impl Backend {
                 mut db,
                 mut files,
                 mut tombstones,
+                mut project_members,
                 mut project,
                 mut index,
                 mut seeds,
@@ -8732,29 +8761,31 @@ impl Backend {
                     .iter()
                     .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
             );
-            if removed_members || added_members {
-                Self::sync_db_project(&mut db, &files, &mut project);
-            }
+            Self::sync_db_project_membership(
+                &mut db,
+                &files,
+                &mut project_members,
+                &mut project,
+                removals
+                    .iter()
+                    .copied()
+                    .chain(index_only_removals.iter().copied()),
+                replacements.iter().map(|entry| &entry.0),
+                removed_members || added_members,
+            );
 
-            for uri in &removals {
-                index.remove_document(uri.as_str());
-                seeds.remove(uri.as_str());
-            }
-            for uri in &index_only_removals {
-                index.remove_document(uri.as_str());
-                seeds.remove(uri.as_str());
-            }
-            for entry in &replacements {
-                index.replace_document(entry.0.as_str(), &entry.3);
-                seeds.remove(entry.0.as_str());
-            }
+            Self::sync_disk_index(
+                &mut index,
+                &mut seeds,
+                removals
+                    .iter()
+                    .copied()
+                    .chain(index_only_removals.iter().copied()),
+                replacements.iter().map(|entry| (&entry.0, &entry.3)),
+            );
+            drop(snapshot_drain.take());
 
-            return removals
-                .into_iter()
-                .chain(index_only_removals)
-                .chain(replacements.into_iter().map(|entry| &entry.0))
-                .cloned()
-                .collect();
+            return Self::changed_disk_uris(removals, index_only_removals, replacements);
         }
     }
 
@@ -9066,26 +9097,12 @@ impl Backend {
 
                 {
                     let ReopenPublicationLocks {
-                        source:
-                            LiveSourceLocks {
-                                mut db,
-                                mut files,
-                                mut tombstones,
-                                mut project,
-                            },
+                        source,
                         mut last_semantic_tokens,
                         mut semantic_tokens_refresh_asked,
                         mut workspace_class_analyses,
                     } = locks;
-                    let membership_changed = Self::set_db_sources_locked(
-                        &mut db,
-                        &mut files,
-                        &mut tombstones,
-                        std::iter::once((uri, text, dialect)),
-                    );
-                    if membership_changed {
-                        Self::sync_db_project(&mut db, &files, &mut project);
-                    }
+                    Self::set_live_db_source_locked(source, uri, text, dialect, true);
                     last_semantic_tokens.remove(uri);
                     semantic_tokens_refresh_asked.remove(uri);
                     workspace_class_analyses.remove(uri);
@@ -9183,32 +9200,16 @@ impl Backend {
                 }
                 continue;
             };
-            let current = docs
-                .get(uri)
-                .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
-                && self.live_publication_uri_generation(uri) == retry.uri_generation;
-            if !current {
+            let Some(current) = docs.get(uri).filter(|doc| {
+                doc.matches_live_source_publication(text, dialect, revision)
+                    && self.live_publication_uri_generation(uri) == retry.uri_generation
+            }) else {
                 return false;
-            }
+            };
+            let orphaned = current.backing_file_deleted;
             drop(docs);
 
-            {
-                let LiveSourceLocks {
-                    mut db,
-                    mut files,
-                    mut tombstones,
-                    mut project,
-                } = locks;
-                let membership_changed = Self::set_db_sources_locked(
-                    &mut db,
-                    &mut files,
-                    &mut tombstones,
-                    std::iter::once((uri, text, dialect)),
-                );
-                if membership_changed {
-                    Self::sync_db_project(&mut db, &files, &mut project);
-                }
-            }
+            Self::set_live_db_source_locked(locks, uri, text, dialect, !orphaned);
             drop(snapshot_drain.take());
             let mut docs = self.documents.lock(operation).await;
             let Some(doc) = docs.get_mut(uri) else {
@@ -9255,10 +9256,13 @@ impl Backend {
         let mut retry =
             LivePublicationRetry::new(generation, self.live_publication_uri_generation(uri));
         loop {
+            if self.live_publication_uri_generation(uri) != retry.uri_generation {
+                return false;
+            }
             if let Some(docs) = self.documents.try_lock(operation) {
                 if !docs
                     .get(uri)
-                    .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
+                    .is_some_and(|doc| doc.matches_live_source_publication(text, dialect, revision))
                 {
                     return false;
                 }
@@ -9292,34 +9296,18 @@ impl Backend {
                 }
                 continue;
             };
-            let current = docs
+            let Some(current) = docs
                 .get(uri)
-                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
-            if !current {
+                .filter(|doc| doc.matches_live_source_publication(text, dialect, revision))
+            else {
                 return false;
-            }
+            };
+            let orphaned = current.backing_file_deleted;
             drop(docs);
 
             {
-                let OpenPublicationLocks {
-                    source:
-                        LiveSourceLocks {
-                            mut db,
-                            mut files,
-                            mut tombstones,
-                            mut project,
-                        },
-                    mut index,
-                } = locks;
-                let membership_changed = Self::set_db_sources_locked(
-                    &mut db,
-                    &mut files,
-                    &mut tombstones,
-                    std::iter::once((uri, text, dialect)),
-                );
-                if membership_changed {
-                    Self::sync_db_project(&mut db, &files, &mut project);
-                }
+                let OpenPublicationLocks { source, mut index } = locks;
+                Self::set_live_db_source_locked(source, uri, text, dialect, !orphaned);
                 index.remove_document(uri.as_str());
             }
             drop(snapshot_drain.take());
@@ -9327,12 +9315,24 @@ impl Backend {
             let Some(doc) = docs.get_mut(uri) else {
                 return false;
             };
-            if !doc.matches_live_publication(text, dialect, revision) {
+            if !doc.matches_live_source_publication(text, dialect, revision)
+                || self.live_publication_uri_generation(uri) != retry.uri_generation
+            {
                 return false;
             }
-            doc.publication = DocumentPublication::Salsa;
+            doc.publication = if doc.backing_file_deleted {
+                DocumentPublication::Indexed
+            } else {
+                DocumentPublication::Salsa
+            };
+            let orphaned = doc.backing_file_deleted;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
+            if orphaned {
+                drop(snapshot_drain);
+                drop(publication);
+                return true;
+            }
             // Fresh analysis must not retain the live-publication gate: a
             // newer edit is authoritative and must be able to supersede this
             // seed while it runs, exactly as on the cold-open path.
@@ -9474,19 +9474,21 @@ impl Backend {
         files.get(uri)?.external_call_sites(&*db).clone()
     }
 
-    /// Re-set the salsa [`tcl_lsp_db::Project`] input to the current `db_files`
-    /// set (sorted by URI for a stable, iteration-order-independent `Vec` so the
-    /// input only changes when membership does — not on `HashMap` reshuffles).
-    /// Called when membership changes (open/close/scan), so a text edit never
-    /// re-derives the project aggregates.  The `Project` handle is stable across
-    /// re-sets, so workers holding it keep reading the current value.
+    /// Re-set the salsa [`tcl_lsp_db::Project`] input to the admitted member
+    /// set, sorted by URI for stable iteration. `db_files` may additionally
+    /// contain an edited open orphan whose local providers still need a Salsa
+    /// handle; only `members` defines its cross-document identity.
     fn sync_db_project(
         db: &mut tcl_lsp_db::TclDatabase,
         files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        members: &HashSet<Uri>,
         project: &mut Option<tcl_lsp_db::Project>,
     ) {
         use salsa::Setter as _;
-        let mut entries: Vec<(&Uri, &tcl_lsp_db::SourceFile)> = files.iter().collect();
+        let mut entries: Vec<(&Uri, &tcl_lsp_db::SourceFile)> = files
+            .iter()
+            .filter(|(uri, _)| members.contains(*uri))
+            .collect();
         entries.sort_by(|a, b| a.0.cmp(b.0));
         let sources: Vec<tcl_lsp_db::SourceFile> = entries.into_iter().map(|(_, &f)| f).collect();
         match *project {
@@ -9495,6 +9497,98 @@ impl Backend {
             }
             None => *project = Some(tcl_lsp_db::Project::new(&*db, sources)),
         }
+    }
+
+    /// Apply admitted project membership changes and re-set the Salsa project
+    /// exactly when either its handle set or admitted subset changed.
+    fn sync_db_project_membership<'a>(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        members: &mut HashSet<Uri>,
+        project: &mut Option<tcl_lsp_db::Project>,
+        removals: impl IntoIterator<Item = &'a Uri>,
+        additions: impl IntoIterator<Item = &'a Uri>,
+        source_membership_changed: bool,
+    ) {
+        let mut membership_changed = false;
+        for uri in removals {
+            membership_changed = members.remove(uri) || membership_changed;
+        }
+        for uri in additions {
+            membership_changed = members.insert(uri.clone()) || membership_changed;
+        }
+        if source_membership_changed || membership_changed {
+            Self::sync_db_project(db, files, members, project);
+        }
+    }
+
+    /// Publish one live source while keeping local Salsa handles distinct from
+    /// cross-document project membership for edited open orphans.
+    fn set_live_db_source_locked(
+        locks: LiveSourceLocks<'_>,
+        uri: &Uri,
+        text: &str,
+        dialect: &str,
+        project_member: bool,
+    ) {
+        let LiveSourceLocks {
+            mut db,
+            mut files,
+            mut tombstones,
+            mut project_members,
+            mut project,
+        } = locks;
+        let source_membership_changed = Self::set_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            std::iter::once((uri, text, dialect)),
+        );
+        let (removals, additions) = if project_member {
+            (None, Some(uri))
+        } else {
+            (Some(uri), None)
+        };
+        Self::sync_db_project_membership(
+            &mut db,
+            &files,
+            &mut project_members,
+            &mut project,
+            removals,
+            additions,
+            source_membership_changed,
+        );
+    }
+
+    /// Apply one closed-file transaction to the workspace index and retire
+    /// any source-site seeds that were built from its previous contents.
+    fn sync_disk_index<'a>(
+        index: &mut core_workspace_index::WorkspaceIndex,
+        seeds: &mut HashMap<String, Vec<String>>,
+        removals: impl IntoIterator<Item = &'a Uri>,
+        replacements: impl IntoIterator<Item = (&'a Uri, &'a AnalysisResult)>,
+    ) {
+        for uri in removals {
+            index.remove_document(uri.as_str());
+            seeds.remove(uri.as_str());
+        }
+        for (uri, analysis) in replacements {
+            index.replace_document(uri.as_str(), analysis);
+            seeds.remove(uri.as_str());
+        }
+    }
+
+    fn changed_disk_uris(
+        removals: Vec<&Uri>,
+        index_only_removals: Vec<&Uri>,
+        replacements: Vec<&(Uri, String, String, AnalysisResult)>,
+    ) -> Vec<Uri> {
+        removals
+            .into_iter()
+            .chain(index_only_removals)
+            .chain(replacements.into_iter().map(|entry| &entry.0))
+            .cloned()
+            .collect()
     }
 
     /// Resolve one dirty open document against its **current** identity.
@@ -11388,7 +11482,7 @@ impl Backend {
     ///   removal deliberately leaves open documents alone), `diag_slots`
     ///   ([`Self::evict_diag_slot`] — a slot a worker is draining is that
     ///   worker's liveness record and must survive), `db_files` /
-    ///   `db_tombstones` ([`Self::db_remove_source`] retires the salsa handle
+    ///   `db_tombstones` / `db_project_members` ([`Self::db_remove_source`] retires the salsa handle
     ///   rather than dropping it, #1145), `pull_diag_cache` / `closed_diag_gen` /
     ///   `closed_diag_order` ([`Self::clear_closed_diagnostics`], which must also
     ///   publish the empty diagnostic set), `semantic_tokens_convergence` (a
@@ -11414,6 +11508,7 @@ impl Backend {
             workspace_index: _,
             db_files: _,
             db_tombstones: _,
+            db_project_members: _,
             pull_diag_cache: _,
             closed_diag_gen: _,
             closed_diag_order: _,
@@ -19759,15 +19854,12 @@ impl Backend {
     /// [`Self::analysis_for`] provides the same off-database fallback on a
     /// cancelled memo read.
     ///
-    /// A **published** URI with no input keeps contributing nothing,
-    /// deliberately: an open buffer whose file was deleted out from under it
-    /// has its input retired ([`Self::retire_db_source`]) precisely so it stops
-    /// answering workspace queries under a path that no longer exists, while
-    /// the buffer itself keeps working. Resurrecting it from `documents` here
-    /// would re-ghost every proc in the picker under the dead URI. A pending
-    /// URI is different: a brand-new or untitled buffer may simply not have
-    /// reached its first Salsa publication, so its captured live text remains
-    /// authoritative even without an input handle.
+    /// An orphan contributes nothing, deliberately, even after a later edit
+    /// restores the Salsa handle its local providers need. Resurrecting it
+    /// from `documents` here would re-ghost every proc in the picker under the
+    /// dead URI. A pending non-orphan is different: a brand-new or untitled
+    /// buffer may simply not have reached its first Salsa publication, so its
+    /// captured live text remains authoritative even without an input handle.
     async fn open_but_unindexed_symbols(
         &self,
         query: &str,
@@ -19782,7 +19874,9 @@ impl Backend {
                 let index = self.workspace_index.read().await;
                 let unindexed: Vec<(Uri, DocumentState)> = docs
                     .iter()
-                    .filter(|(uri, _)| !index.contains_document(uri.as_str()))
+                    .filter(|(uri, doc)| {
+                        !doc.backing_file_deleted && !index.contains_document(uri.as_str())
+                    })
                     .map(|(uri, doc)| (uri.clone(), doc.clone()))
                     .collect();
                 // Snapshot ordinary index hits under the same read lock that
@@ -33551,6 +33645,7 @@ mod tests {
             db: Arc::new(TrackedMutex::new("db", db)),
             db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
+            db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
             db_config: Arc::new(Mutex::new(db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -42683,6 +42778,87 @@ proc p {} {
         );
     }
 
+    /// Exact-head automated review of #1854: disk publication shares the live
+    /// source gate, so it must also establish writer intent while snapshots
+    /// drain. Otherwise an overlapping request stream can keep its census
+    /// non-empty forever and strand every later didOpen/didChange behind it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_publication_intent_stops_new_snapshots_until_drain_1854() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///disk-snapshot-drain-1854.tcl").unwrap();
+        let text = "proc disk_current {} {}\n";
+        let analysis = Analyser::new().analyse(text, "tcl8.6").clone();
+        let existing = backend
+            .db
+            .snapshot("issue-1854-pre-disk-drain-reader")
+            .await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                let replacements = vec![(uri, text.to_owned(), "tcl8.6".to_owned(), analysis)];
+                backend
+                    .publish_disk_results(
+                        &replacements,
+                        &[],
+                        DiskRemovalPolicy::ClosedOnly,
+                        "test_disk_snapshot_drain",
+                    )
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !backend
+                .db
+                .snapshots
+                .publication_intent
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the disk publisher must establish drain intent");
+
+        let mut later_reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                backend
+                    .db
+                    .snapshot("issue-1854-post-disk-drain-reader")
+                    .await
+            }
+        });
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(100), &mut later_reader)
+                .await
+                .is_err(),
+            "a later reader must queue instead of replenishing the disk census",
+        );
+
+        drop(existing);
+        assert_eq!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("disk publication must finish when the old reader retires")
+                .expect("the disk publication task must not panic"),
+            vec![uri.clone()],
+        );
+        let later = crate::rt::timeout(std::time::Duration::from_secs(5), later_reader)
+            .await
+            .expect("queued readers must resume after disk publication")
+            .expect("the reader task must not panic");
+        drop(later);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert_eq!(
+            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            Some(text),
+            "disk publication must run between the old and later snapshots",
+        );
+    }
+
     /// Exact-head review of #1854: publishing the completed open seed may wait
     /// behind a slow workspace-index reader, but must do so without retaining
     /// the global document map. Otherwise the next edit holds its ordered turn
@@ -43234,10 +43410,106 @@ proc p {} {
         assert_eq!(current.publication, DocumentPublication::Indexed);
         let db = backend.db.lock().await;
         let files = backend.db_files.lock().await;
+        let orphan_file = files.get(&uri).copied();
         assert_eq!(
-            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            orphan_file.map(|file| file.text(&*db).as_str()),
             Some(edited),
             "the post-deletion revision must be the Salsa source",
+        );
+        let project = *backend.db_project.lock().await;
+        assert!(
+            orphan_file.is_some_and(|file| {
+                project.is_some_and(|project| !project.files(&*db).contains(&file))
+            }),
+            "the local orphan handle must remain outside Salsa project membership",
+        );
+        drop(files);
+        drop(db);
+        assert!(
+            !backend.db_project_members.lock().await.contains(&uri),
+            "the dead path must not be admitted to the cross-document project",
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str()),
+            "the edited orphan must not regain a cross-document identity",
+        );
+        let symbols = backend.open_but_unindexed_symbols("after_delete", 10).await;
+        assert!(
+            symbols.fallback_hits.is_empty() && symbols.indexed_hits.is_empty(),
+            "workspace/symbol fallback must not resurrect an edited orphan",
+        );
+    }
+
+    /// Exact-head automated review of #1854: an orphan remains locally live
+    /// when an in-source or configuration change re-resolves its dialect. The
+    /// new dialect must reach Salsa readiness without restoring any project or
+    /// workspace-index identity for the missing path.
+    #[tokio::test]
+    async fn orphan_dialect_change_republishes_only_local_salsa_state_1854() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///orphan-dialect-change-1854.tcl").unwrap();
+        let text = "proc orphan_local {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1)
+                .with_language_id("tcl".to_owned()),
+        );
+        backend.db_set_source(&uri, text, "tcl8.6".to_owned()).await;
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "diagnostics": false })
+                .as_object()
+                .unwrap(),
+        );
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp_server::ls_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        *backend.default_dialect.lock().await = "tcl9.0".to_owned();
+        *backend.default_dialect_explicit.lock().await = true;
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the orphan remains open")
+            .mark_dialect_resolution_dirty();
+        backend
+            .resolve_dirty_open_document_dialect(&uri, "test_orphan_dialect")
+            .await;
+
+        let current = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.read_document(&uri),
+        )
+        .await
+        .expect("local readiness must settle after an orphan dialect change")
+        .expect("the orphan remains readable");
+        assert_eq!(current.dialect, "tcl9.0");
+        assert!(current.backing_file_deleted);
+        assert_eq!(current.publication, DocumentPublication::Indexed);
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let file = *files
+            .get(&uri)
+            .expect("the dialect publisher restores a local Salsa handle");
+        assert_eq!(file.dialect(&*db), "tcl9.0");
+        assert!(
+            backend
+                .db_project
+                .lock()
+                .await
+                .is_some_and(|project| !project.files(&*db).contains(&file)),
+            "an orphan dialect change must remain outside project membership",
         );
         drop(files);
         drop(db);
@@ -43247,7 +43519,7 @@ proc p {} {
                 .read()
                 .await
                 .contains_document(uri.as_str()),
-            "the edited orphan must not regain a cross-document identity",
+            "an orphan dialect change must not restore workspace-index facts",
         );
     }
 
