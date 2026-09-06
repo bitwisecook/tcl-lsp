@@ -51,11 +51,10 @@ updates:
       interval: weekly
     groups:
       # The npm CLI itself is pinned via the `packageManager` field in
-      # package.json (currently npm@12.0.0-pre.0.0). Dependabot tracks that
+      # package.json (currently npm@12.0.2). Dependabot tracks that
       # field as the "npm" dependency, so isolate it in its own group: a CLI
-      # bump (e.g. the npm 12 prerelease -> stable 12.0.0) then lands as a
-      # clearly labelled standalone PR instead of being buried in the weekly
-      # devDependency roll-up.
+      # bump then lands as a clearly labelled standalone PR instead of being
+      # buried in the weekly devDependency roll-up.
       npm-cli:
         patterns:
           - "npm"
@@ -65,6 +64,9 @@ updates:
         exclude-patterns:
           - "npm"
     ignore:
+      # Compile against the oldest API declared in engines.vscode. Newer types
+      # would allow calls that fail for users on the supported 1.95 floor.
+      - dependency-name: "@types/vscode"
       # typescript-eslint 8.69 supports TypeScript only below 6.1.
       - dependency-name: typescript
         versions: [">=7.0.0"]
