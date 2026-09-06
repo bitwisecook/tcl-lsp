@@ -453,17 +453,6 @@ fn link_path_package_closures(metadata: &Metadata) -> HashMap<String, BTreeSet<S
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect();
-    let procedural_macros: HashSet<&str> = metadata
-        .packages
-        .iter()
-        .filter(|package| {
-            package
-                .targets
-                .iter()
-                .any(|target| target.kind.iter().any(|kind| kind == "proc-macro"))
-        })
-        .map(|package| package.id.as_str())
-        .collect();
     metadata
         .workspace_members
         .iter()
@@ -481,9 +470,7 @@ fn link_path_package_closures(metadata: &Metadata) -> HashMap<String, BTreeSet<S
                             || kind.kind.as_deref() == Some("build")
                             || (include_dev && kind.kind.as_deref() == Some("dev"))
                     });
-                    if !contributes_link_paths
-                        || procedural_macros.contains(dependency.pkg.as_str())
-                    {
+                    if !contributes_link_paths {
                         continue;
                     }
                     if seen.insert(dependency.pkg.clone()) {
@@ -2214,7 +2201,7 @@ const CARGO_FIXTURE_FILES: &[(&str, &str)] = &[
     (
         "Cargo.toml",
         r#"[workspace]
-members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r"]
+members = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
 resolver = "2"
 "#,
     ),
@@ -2290,7 +2277,14 @@ edition = "2024"
 proc-macro = true
 "#,
     ),
-    ("d/src/lib.rs", ""),
+    (
+        "d/build.rs",
+        "fn main() { let native = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()).join(\"proc-macro-native\"); std::fs::create_dir_all(&native).unwrap(); println!(\"cargo::rustc-link-search=native={}\", native.display()); }\n",
+    ),
+    (
+        "d/src/lib.rs",
+        "extern crate proc_macro;\n#[proc_macro]\npub fn marker(_input: proc_macro::TokenStream) -> proc_macro::TokenStream { proc_macro::TokenStream::new() }\n",
+    ),
     (
         "e/Cargo.toml",
         r#"[package]
@@ -2550,6 +2544,62 @@ edition = "2024"
         "r/build.rs",
         "fn main() { let native = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()).join(\"build-only-native\"); std::fs::create_dir_all(&native).unwrap(); println!(\"cargo::rustc-link-search=native={}\", native.display()); }\n",
     ),
+    (
+        "s/Cargo.toml",
+        r#"[package]
+name = "s"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+"#,
+    ),
+    (
+        "s/build.rs",
+        "fn main() { let native = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()).join(\"unrelated-proc-macro-native\"); std::fs::create_dir_all(&native).unwrap(); println!(\"cargo::rustc-link-search=native={}\", native.display()); }\n",
+    ),
+    ("s/src/lib.rs", "extern crate proc_macro;\n"),
+    (
+        "t/Cargo.toml",
+        r#"[package]
+name = "t"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+d = { path = "../d" }
+"#,
+    ),
+    (
+        "t/src/lib.rs",
+        r#"d::marker!();
+
+#[test]
+fn smoke_proc_macro_link_path() {
+    let variable = if cfg!(windows) {
+        "PATH"
+    } else if cfg!(target_os = "macos") {
+        "DYLD_FALLBACK_LIBRARY_PATH"
+    } else {
+        "LD_LIBRARY_PATH"
+    };
+    let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>();
+    assert!(paths.iter().any(|path| {
+        let path = path.to_string_lossy().replace(char::from(92), "/");
+        path.contains("/build/d-") && path.ends_with("/out/proc-macro-native")
+    }));
+    if let Some(record) = std::env::var_os("TCL_LSP_RECORD_PROC_MACRO_PATH") {
+        let text = paths
+            .iter()
+            .map(|path| path.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(record, text).unwrap();
+    }
+}
+"#,
+    ),
 ];
 
 fn verify_fixture_metadata(fixture: &Fixture, targets: &[Target]) -> Result<()> {
@@ -2670,12 +2720,18 @@ fn fixture_linked_path_order(paths: &[PathBuf]) -> Vec<&'static str> {
                 Some("e-aaa-native")
             } else if path.contains("/build/c-") && path.ends_with("/out/native") {
                 Some("c-native")
+            } else if path.contains("/build/d-") && path.ends_with("/out/proc-macro-native") {
+                Some("d-proc-macro-native")
             } else if path.contains("/build/f-") && path.ends_with("/out/native") {
                 Some("f-native")
             } else if path.contains("/build/r-") && path.ends_with("/out/build-only-native") {
                 Some("r-build-only-native")
             } else if path.ends_with("/shared-native") {
                 Some("e-shared-native")
+            } else if path.contains("/build/s-")
+                && path.ends_with("/out/unrelated-proc-macro-native")
+            {
+                Some("s-unrelated-proc-macro-native")
             } else {
                 None
             }
@@ -2835,6 +2891,67 @@ fn verify_package_narrowing_loses_features(
         .stderr(Stdio::piped());
     if targeted.output()?.status.success() {
         bail!("package-narrowed feature-loss self-test unexpectedly passed");
+    }
+    Ok(())
+}
+
+fn verify_fixture_proc_macro_link_path(
+    fixture: &Fixture,
+    package_roots: &HashMap<String, PathBuf>,
+    package_environments: &PackageEnvironments,
+    targets: &[Target],
+    runtime: &CargoRuntime,
+    extra_env: &BTreeMap<OsString, OsString>,
+    runtime_library: &Path,
+) -> Result<()> {
+    let target = fixture_target(targets, "t", "t")?;
+    let args = cargo_target_args("", "", true);
+    let artifacts = cargo_test_executables(&fixture.root, &args, None, extra_env)?;
+    let executable = artifacts
+        .executable(target)
+        .context("fixture package t has no library executable")?;
+    let runtime_environment = artifacts.runtime_environment(target, executable)?;
+    let direct_record = fixture.root.join("direct-proc-macro-paths");
+    let mut environment =
+        harness_environment(&package_environments["t"], &runtime_environment.values);
+    environment.insert(
+        OsString::from("TCL_LSP_RECORD_PROC_MACRO_PATH"),
+        direct_record.as_os_str().to_os_string(),
+    );
+    let context = HarnessContext {
+        package_root: &package_roots["t"],
+        package_environment: &environment,
+        rust_runtime_library: runtime_library,
+        runner: runtime.runner.as_ref(),
+        preserves_dynamic_library_path: runtime_environment.preserves_dynamic_library_path,
+    };
+    run_harness(target, executable, &context, false, true)?;
+
+    let cargo_record = fixture.root.join("cargo-proc-macro-paths");
+    let mut cargo_args = args;
+    cargo_args.extend([
+        "--exclude".to_owned(),
+        "n".to_owned(),
+        "smoke_proc_macro_link_path".to_owned(),
+        "--".to_owned(),
+        "--exact".to_owned(),
+    ]);
+    let mut cargo_harness = Command::new("cargo");
+    cargo_harness
+        .args(cargo_args)
+        .current_dir(&fixture.root)
+        .envs(extra_env)
+        .env("TCL_LSP_RECORD_PROC_MACRO_PATH", &cargo_record);
+    command_output(&mut cargo_harness)?;
+
+    let direct_paths = read_fixture_runtime_paths(&direct_record)?;
+    let cargo_paths = read_fixture_runtime_paths(&cargo_record)?;
+    let direct = fixture_linked_path_order(&direct_paths);
+    let cargo = fixture_linked_path_order(&cargo_paths);
+    if direct != ["d-proc-macro-native"] || !cargo.contains(&"d-proc-macro-native") {
+        bail!(
+            "direct harness procedural-macro paths {direct:?} do not preserve Cargo's dependency path {cargo:?}: direct {direct_paths:?}, Cargo {cargo_paths:?}"
+        );
     }
     Ok(())
 }
@@ -3084,6 +3201,15 @@ fn cargo_fixture_self_test_inner() -> Result<()> {
     reset_rustc_probe(&fixture)?;
     let runtime_library = rust_runtime_library(&fixture.root, &runtime.target, &runtime.rustc)?;
     verify_rustc_probe(&fixture)?;
+    verify_fixture_proc_macro_link_path(
+        &fixture,
+        &package_roots,
+        &package_environments,
+        &targets,
+        &runtime,
+        &extra_env,
+        &runtime_library,
+    )?;
     verify_fixture_libraries(
         &fixture,
         &package_roots,

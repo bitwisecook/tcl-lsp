@@ -116,9 +116,9 @@ behind it.
    an owning build script's explicit platform dynamic-library-path variable
    verbatim, without appending the reconstructed profile/sysroot suffix;
    only packages without that override receive reconstructed qualifying
-   `rustc-link-search` paths. Those paths include normal, development, and
-   build-only dependency closures because Cargo exposes build-dependency
-   search paths to a test harness even under resolver v2. The harness also
+   `rustc-link-search` paths. Those paths include normal, development,
+   build-only, and procedural-macro dependency closures because Cargo exposes
+   their search paths to a test harness even under resolver v2. The harness also
    preserves an inherited `CARGO_MANIFEST_LINKS`; an explicit value emitted by
    the owning build script overrides it, matching Cargo. Ambient
    `CARGO_BIN_EXE_*` values are likewise preserved, while executable paths
