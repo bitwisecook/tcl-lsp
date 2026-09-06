@@ -6,3 +6,8 @@ tcl_explorer_wasm_bg.wasm
 mermaid.min.js
 # Shared Pages update monitor, copied by `make explorer-build`.
 site-update.js
+# Spec studio editor bundle (Monaco assets, language server worker + wasm),
+# copied from rust/tcl-spec-studio-wasm/dist by `make explorer-build`.
+# Anchored: only the bundle at the gui root, never an `editor` subtree
+# somewhere under test/.
+/editor/
