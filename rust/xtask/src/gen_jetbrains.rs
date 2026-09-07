@@ -413,10 +413,7 @@ fn panel(current: &str) -> String {
             opt_dirty,
             "            triState(opt{code}) != s.optimiser{code} ||"
         );
-        let _ = writeln!(
-            opt_apply,
-            "        s.optimiser{code} = triState(opt{code})"
-        );
+        let _ = writeln!(opt_apply, "        s.optimiser{code} = triState(opt{code})");
         let _ = writeln!(
             opt_reset,
             "        opt{code}.state = threeState(s.optimiser{code})"
