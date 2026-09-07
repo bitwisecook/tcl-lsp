@@ -1,3 +1,76 @@
+# v2.2.4
+
+This stable patch is mostly the JetBrains plugin. Three defects made it
+largely unusable — Tcl files opened as plain black text, the Compiler
+Explorer never opened at all, and the settings page could neither scroll nor
+fit its own contents — and all three are fixed. The explorer's linear views
+also gained real editor tabs, and the plugin now tells the truth about which
+language-server features a JetBrains IDE actually asks for.
+
+## Breaking changes
+
+- The JetBrains plugin now requires **IntelliJ 2025.3 or newer**. Semantic
+  highlighting is the reason: it is the only language-server capability the
+  platform makes opt-in, and taking that opt-in requires building against
+  2024.3 at minimum, while moving off the getters deprecated since 2025.2
+  requires 2025.3. Users on 2024.1 through 2025.2 keep the version they have
+  and stop receiving updates.
+
+## New features
+
+- Compiler Explorer views open in ordinary editor tabs. **Open in editor**
+  puts the current view in a read-only tab where find, folding and the colour
+  scheme all work, and moving the caret through it reveals the matching source
+  span. The CFG, WASM and optimiser-diff panes stay in the tool window, where
+  their edges and connectors are drawn rather than written.
+- The JetBrains settings page gained the optimiser **profile** selector it
+  never had, alongside a link that hands every per-code choice back to the
+  chosen profile.
+- JetBrains diagnostics now carry their code, whether they are an optimiser
+  rewrite or a defect, and what accepting a quick fix would write — the
+  problems view previously showed only the message.
+
+## Bug fixes
+
+- Tcl files are syntax-highlighted in JetBrains again. The grammar shipped in
+  the plugin but nothing registered it with the IDE.
+- The JetBrains Compiler Explorer opens. Its webview was missing from every
+  published plugin: the build extracted it on a best-effort basis and
+  swallowed the failure, so the plugin shipped without it. The extraction is
+  now a hard build failure.
+- The JetBrains settings page scrolls, and its checkboxes reflow to the
+  window instead of running off the right edge.
+- Semantic highlighting refreshes when a spec pack changes. Editing a pack
+  updated diagnostics and hover but left the colours stale until the buffer
+  was touched.
+- Editor navigation from the Compiler Explorer lands on the right character
+  in files containing non-ASCII text. Explorer ranges were byte offsets fed
+  to editors that count UTF-16, which agreed only for ASCII.
+- A JetBrains IDE no longer force-enables optimisations the chosen profile
+  disables. The plugin sent every per-code toggle as an explicit "on", which
+  overrode the profile — so suggestions the default profile suppresses, such
+  as constant propagation, appeared anyway.
+
+## Improvements
+
+- The VS Code extension and the JetBrains plugin are each about 24 MB
+  smaller. Both bundled a second code editor and a WebAssembly language
+  server that neither has loaded since they began using the host IDE's own
+  editor.
+- The optimiser profile list is generated for every editor from one
+  definition, so a profile cannot exist in one editor and not another.
+- The JetBrains settings page, README and marketplace description now mark
+  the features no JetBrains IDE requests, and note the IDE version that
+  brings each of the remaining ones.
+- Visible spec selection in the registry is faster.
+
+## Security and maintenance
+
+- Code-scanning findings resolved.
+- Continuous integration splits the language-server end-to-end suite across
+  workers, skips work unaffected by a change, and reuses a green pull-request
+  result when a release tag points at the same tree.
+
 # v2.2.3
 
 This stable patch completes the editor rollout that was blocked during 2.2.2,
