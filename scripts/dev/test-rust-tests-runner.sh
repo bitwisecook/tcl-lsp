@@ -14,120 +14,218 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 WORKFLOW=$REPO_ROOT/.github/workflows/ci.yml
 
-rust_tests_job=$(awk '
-    /^  rust-tests:/ { in_job = 1 }
-    in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests:" { exit }
-    in_job { print }
-' "$WORKFLOW")
-
-if [ -z "$rust_tests_job" ]; then
-    echo "ci.yml must define the rust-tests job" >&2
+# Parse the workflow without PyYAML or another unprovisioned dependency.  This
+# is a strict parser for the YAML subset used by the contract: mappings,
+# sequences, scalar values, and literal block scalars.  It records paths only
+# after walking indentation and list structure, so assertions cannot be
+# satisfied by a comment or an unrelated job/step with the same text.
+awk '
+function fail(message) {
+    print "ci.yml contract: " message > "/dev/stderr"
+    failed = 1
     exit 1
-fi
+}
+function trim(value) {
+    sub(/^[ \t]+/, "", value)
+    sub(/[ \t]+$/, "", value)
+    return value
+}
+function scalar(value,    i, c, quote, out) {
+    value = trim(value)
+    quote = ""
+    out = ""
+    for (i = 1; i <= length(value); i++) {
+        c = substr(value, i, 1)
+        if ((c == "\"" || c == "\047") && (i == 1 || substr(value, i - 1, 1) != "\\")) {
+            if (quote == "") quote = c
+            else if (quote == c) quote = ""
+        }
+        if (c == "#" && quote == "" && (i == 1 || substr(value, i - 1, 1) ~ /[ \t]/)) break
+        out = out c
+    }
+    out = trim(out)
+    if (length(out) >= 2 && ((substr(out, 1, 1) == "\"" && substr(out, length(out), 1) == "\"") ||
+                             (substr(out, 1, 1) == "\047" && substr(out, length(out), 1) == "\047")))
+        out = substr(out, 2, length(out) - 2)
+    return out
+}
+function put(path, value) {
+    if (values_seen[path]) fail("duplicate mapping key " path)
+    values_seen[path] = 1
+    seen[path] = 1
+    values[path] = value
+}
+function flush_block(    value) {
+    if (!block_active) return
+    sub(/\n$/, "", block_value)
+    put(block_path, block_value)
+    block_active = 0
+    block_path = ""
+    block_value = ""
+}
+function step(job, field, wanted,    parent, i, path) {
+    parent = job ".steps"
+    for (i = 0; i < seq_count[parent]; i++) {
+        path = parent "." i "." field
+        if (values[path] == wanted) return i
+    }
+    return -1
+}
+function need(condition, message) {
+    if (!condition) fail(message)
+}
+function contains(path, text, message) {
+    need(seen[path] && index(values[path], text) != 0, message)
+}
+{
+    line = $0
+    if (block_active) {
+        line_indent = 0
+        while (substr(line, line_indent + 1, 1) == " ") line_indent++
+        if (line ~ /^[ \t]*$/ || line_indent > block_indent) {
+            block_value = block_value line "\n"
+            next
+        }
+        flush_block()
+    }
+    if (line ~ /^[ \t]*$/ || line ~ /^[ \t]*#/) next
+    if (line ~ /\t/) fail("tabs are not valid indentation (line " NR ")")
+    indent = 0
+    while (substr(line, indent + 1, 1) == " ") indent++
+    while (stack_count > 0 && stack_indent[stack_count] >= indent) stack_count--
+    content = substr(line, indent + 1)
+    # YAML permits a flow sequence to continue on the line after its key
+    # (`needs:` in this workflow). It is a scalar for our purposes; consume it
+    # as the value of the pending mapping key rather than mistaking it for a
+    # malformed top-level line.
+    if (content ~ /^\[/ && stack_count > 0) {
+        path = stack_path[stack_count]
+        need(!values_seen[path], "duplicate mapping key " path)
+        values_seen[path] = 1
+        seen[path] = 1
+        values[path] = scalar(content)
+        stack_count--
+        next
+    }
+    if (content ~ /^-[ \t]*/) {
+        parent = (stack_count > 0 ? stack_path[stack_count] : "")
+        need(parent != "", "sequence without a mapping parent (line " NR ")")
+        sub(/^-/, "", content)
+        content = trim(content)
+        item = parent "." seq_count[parent]++
+        stack_count++
+        stack_indent[stack_count] = indent
+        stack_path[stack_count] = item
+        if (content == "") next
+        colon = index(content, ":")
+        if (colon == 0) {
+            put(item, scalar(content))
+            next
+        }
+        key = trim(substr(content, 1, colon - 1))
+        value = trim(substr(content, colon + 1))
+        path = item "." key
+    } else {
+        colon = index(content, ":")
+        need(colon != 0, "expected a mapping or sequence item (line " NR ")")
+        parent = (stack_count > 0 ? stack_path[stack_count] : "")
+        key = trim(substr(content, 1, colon - 1))
+        need(key != "", "empty mapping key (line " NR ")")
+        value = trim(substr(content, colon + 1))
+        path = (parent == "" ? key : parent "." key)
+    }
+    need(!nodes[path], "duplicate mapping key " path)
+    nodes[path] = 1
+    if (value == "") {
+        stack_count++
+        stack_indent[stack_count] = indent
+        stack_path[stack_count] = path
+    } else if (value == "|") {
+        block_active = 1
+        block_indent = indent
+        block_path = path
+        block_value = ""
+    } else if (value ~ /^[>|][+-]?$/) {
+        # Preserve folded scalars line-for-line. The contract only searches
+        # literal shell blocks, but accepting both YAML block styles keeps an
+        # unrelated workflow field from making this structural parser brittle.
+        block_active = 1
+        block_indent = indent
+        block_path = path
+        block_value = ""
+    } else {
+        put(path, scalar(value))
+    }
+}
+END {
+    if (failed) exit 1
+    flush_block()
+    need(values_seen["jobs.rust-tests.runs-on"], "ci.yml must define jobs.rust-tests as a mapping")
+    tank_jobs = 0
+    for (path in values) {
+        if (path ~ /^jobs\.[^.]+\.runs-on$/ && index(values[path], "tank") != 0) {
+            split(path, parts, ".")
+            tank_jobs++
+            tank_job = parts[2]
+        }
+    }
+    need(tank_jobs == 1 && tank_job == "rust-tests", "rust-tests must remain the only job that can reach Tank")
+    need(nodes["jobs.channel"], "ci.yml must define jobs.channel as a mapping")
+    need(values["jobs.channel.outputs.runner_policy_changed"] == "${{ steps.paths.outputs.runner_policy_changed }}",
+         "channel must publish runner_policy_changed from the paths step")
+    need(values["jobs.channel.outputs.rust_tests_runner"] == "${{ steps.rust-runner.outputs.runner }}",
+         "channel must publish the broad Rust runner decision")
 
-# Parse the workflow rather than searching comments: the fork, Dependabot, and
-# runner-policy guards must be present in the values Actions actually consumes.
-python3 - "$WORKFLOW" <<'PY'
-import sys
+    paths_step = step("jobs.channel", "id", "paths")
+    need(paths_step >= 0, "channel must define the paths step")
+    paths_run = "jobs.channel.steps." paths_step ".run"
+    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)"
+    contains(paths_run, path_list, "runner and dependency-policy changes must classify themselves for hosted proof")
 
-try:
-    import yaml
-except ModuleNotFoundError as error:
-    raise SystemExit(f"PyYAML is required for the CI contract test: {error}")
+    runner_step = step("jobs.channel", "id", "rust-runner")
+    need(runner_step >= 0, "channel must define the rust-runner step")
+    runner_run = "jobs.channel.steps." runner_step ".run"
+    contains(runner_run, "\"$PR_HEAD_REPOSITORY\" != \"$GITHUB_REPOSITORY\"", "fork pull requests must force hosted Rust tests")
+    contains(runner_run, "\"$PR_AUTHOR\" == '\''dependabot[bot]'\''", "Dependabot pull requests must force hosted Rust tests")
+    contains(runner_run, "\"$RUNNER_POLICY_CHANGED\" == true", "runner-policy pull requests must force hosted Rust tests")
+    contains(runner_run, "elif [[ \"$EVENT_NAME\" == workflow_dispatch ]]", "manual dispatch must remain an explicit runner override")
+    contains(runner_run, "runner=\"$DISPATCH_RUNNER\"", "manual dispatch must remain an explicit runner override")
+    routing = "if [[ \"$EVENT_NAME\" == pull_request && (\"$PR_HEAD_REPOSITORY\" != \"$GITHUB_REPOSITORY\" || \"$PR_AUTHOR\" == '\''dependabot[bot]'\'' || \"$RUNNER_POLICY_CHANGED\" == true) ]]"
+    contains(runner_run, routing, "fork, Dependabot, policy-change, and manual-dispatch routing must stay outside the mutable selector")
+    contains(runner_run, "runner=hosted", "fork, Dependabot, policy-change, and manual-dispatch routing must stay outside the mutable selector")
 
-with open(sys.argv[1], encoding="utf-8") as workflow_file:
-    workflow = yaml.safe_load(workflow_file)
+    need(values["on.workflow_dispatch.inputs.rust_tests_runner.type"] == "choice", "manual dispatch must choose a Rust runner")
+    need(values["on.workflow_dispatch.inputs.rust_tests_runner.options.0"] == "tank" &&
+         values["on.workflow_dispatch.inputs.rust_tests_runner.options.1"] == "hosted" &&
+         seq_count["on.workflow_dispatch.inputs.rust_tests_runner.options"] == 2,
+         "manual dispatch must offer exactly tank and hosted Rust runner choices")
 
+    hosted = "(github.event_name == '\''pull_request'\'' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == '\''dependabot[bot]'\'' || needs.channel.outputs.runner_policy_changed == '\''true'\'')) || needs.channel.outputs.rust_tests_runner == '\''hosted'\''"
+    contains("jobs.rust-tests.runs-on", hosted, "runs-on must include all hosted guards")
+    contains("jobs.rust-tests.concurrency.group", hosted, "concurrency group must include all hosted guards")
+    contains("jobs.rust-tests.runs-on", "&& '\''ubuntu-26.04'\'' || '\''tank'\''", "rust-tests must retain the Tank fallback")
+    contains("jobs.rust-tests.concurrency.group", "format('\''hosted-{0}'\'', github.run_id) || '\''tank'\''", "hosted overflow must be unique while Tank remains one logical lane")
+    need(values["jobs.rust-tests.concurrency.queue"] == "max", "Tank concurrency must retain every pending suite")
+    need(values["jobs.rust-tests.concurrency.cancel-in-progress"] == "false", "a new Tank job must not cancel an already-running suite")
+    need(values["jobs.rust-tests.env.CARGO_HOME"] == "/home/runner/.cargo", "rust-tests must use the canonical Cargo home")
+    need(values["jobs.rust-tests.env.RUSTUP_HOME"] == "/home/runner/.rustup", "rust-tests must use the canonical rustup home")
+    need(!nodes["jobs.rust-tests.env.CARGO_TARGET_DIR"], "rust-tests must not share CARGO_TARGET_DIR")
+    need(values["jobs.rust-tests.env.RUSTC_WRAPPER"] == "sccache", "rust-tests must retain sccache")
+    need(values["jobs.rust-tests.env.SCCACHE_GHA_ENABLED"] == "true", "rust-tests must enable GHA sccache")
 
-def require(condition, message):
-    if not condition:
-        raise SystemExit(message)
-
-
-jobs = workflow.get("jobs", {})
-rust_tests = jobs.get("rust-tests")
-require(isinstance(rust_tests, dict), "ci.yml must define jobs.rust-tests as a mapping")
-require(
-    [name for name, job in jobs.items() if isinstance(job, dict) and "tank" in str(job.get("runs-on", ""))]
-    == ["rust-tests"],
-    "rust-tests must remain the only job that can reach Tank",
-)
-channel = jobs.get("channel")
-require(isinstance(channel, dict), "ci.yml must define jobs.channel as a mapping")
-outputs = channel.get("outputs", {})
-require(outputs.get("runner_policy_changed") == "${{ steps.paths.outputs.runner_policy_changed }}",
-        "channel must publish runner_policy_changed from the paths step")
-require(outputs.get("rust_tests_runner") == "${{ steps.rust-runner.outputs.runner }}",
-        "channel must publish the broad Rust runner decision")
-
-channel_steps = channel.get("steps", [])
-paths = next((step for step in channel_steps if step.get("id") == "paths"), {})
-path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)"
-require(path_list in paths.get("run", ""),
-        "runner and dependency-policy changes must classify themselves for hosted proof")
-runner = next((step for step in channel_steps if step.get("id") == "rust-runner"), {})
-runner_script = runner.get("run", "")
-require('"$PR_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY"' in runner_script,
-        "fork pull requests must force hosted Rust tests")
-require('"$PR_AUTHOR" == \'dependabot[bot]\'' in runner_script,
-        "Dependabot pull requests must force hosted Rust tests")
-require('"$RUNNER_POLICY_CHANGED" == true' in runner_script,
-        "runner-policy pull requests must force hosted Rust tests")
-require('elif [[ "$EVENT_NAME" == workflow_dispatch ]]' in runner_script
-        and 'runner="$DISPATCH_RUNNER"' in runner_script,
-        "manual dispatch must remain an explicit runner override")
-
-triggers = workflow.get("on") or workflow.get(True, {})
-dispatch = triggers.get("workflow_dispatch", {})
-runner_input = dispatch.get("inputs", {}).get("rust_tests_runner", {})
-require(runner_input.get("type") == "choice", "manual dispatch must choose a Rust runner")
-require(runner_input.get("options") == ["tank", "hosted"],
-        "manual dispatch must offer exactly tank and hosted Rust runner choices")
-
-hosted = ("(github.event_name == 'pull_request' && ("
-          "github.event.pull_request.head.repo.full_name != github.repository || "
-          "github.event.pull_request.user.login == 'dependabot[bot]' || "
-          "needs.channel.outputs.runner_policy_changed == 'true')) || "
-          "needs.channel.outputs.rust_tests_runner == 'hosted'")
-runs_on = rust_tests.get("runs-on", "")
-group = rust_tests.get("concurrency", {}).get("group", "")
-require(hosted in runs_on, "runs-on must include all hosted guards")
-require(hosted in group, "concurrency group must include all hosted guards")
-require("&& 'ubuntu-26.04' || 'tank'" in runs_on, "rust-tests must retain the Tank fallback")
-require("format('hosted-{0}', github.run_id) || 'tank'" in group,
-        "hosted overflow must be unique while Tank remains one logical lane")
-
-concurrency = rust_tests.get("concurrency", {})
-require(concurrency.get("queue") == "max", "Tank concurrency must retain every pending suite")
-require(concurrency.get("cancel-in-progress") is False,
-        "a new Tank job must not cancel an already-running suite")
-
-env = rust_tests.get("env", {})
-require(env.get("CARGO_HOME") == "/home/runner/.cargo",
-        "rust-tests must use the canonical Cargo home")
-require(env.get("RUSTUP_HOME") == "/home/runner/.rustup",
-        "rust-tests must use the canonical rustup home")
-require("CARGO_TARGET_DIR" not in env, "rust-tests must not share CARGO_TARGET_DIR")
-require(env.get("RUSTC_WRAPPER") == "sccache", "rust-tests must retain sccache")
-require(env.get("SCCACHE_GHA_ENABLED") == "true", "rust-tests must enable GHA sccache")
-
-setup = next((step for step in rust_tests.get("steps", []) if step.get("name") == "Set up Rust"), {})
-require(setup.get("uses", "").startswith("actions-rust-lang/setup-rust-toolchain@"),
-        "rust-tests must use setup-rust-toolchain")
-require(setup.get("with", {}).get("cache-key") == "rust-tests",
-        "Rust cache key must stay stable")
-require(setup.get("with", {}).get("cache-targets") is False,
-        "Rust target archives must remain disabled")
-sccache = next((step for step in rust_tests.get("steps", []) if step.get("name") == "Set up sccache"), {})
-require(sccache.get("uses", "").startswith("mozilla-actions/sccache-action@")
-        and sccache.get("with", {}).get("version") == "v0.17.0",
-        "rust-tests must retain the pinned sccache setup")
-stats = next((step for step in rust_tests.get("steps", []) if step.get("name") == "Report sccache statistics"), {})
-require(stats.get("if") == "always()" and "sccache --show-stats" in stats.get("run", ""),
-        "cross-registration sccache reuse must be measured even after a test failure")
-require("SCCACHE_BASEDIRS" not in env,
-        "do not claim cross-checkout Rust remapping without pinned-source support")
-PY
+    setup = step("jobs.rust-tests", "name", "Set up Rust")
+    need(setup >= 0 && index(values["jobs.rust-tests.steps." setup ".uses"], "actions-rust-lang/setup-rust-toolchain@") == 1, "rust-tests must use setup-rust-toolchain")
+    need(values["jobs.rust-tests.steps." setup ".with.cache-key"] == "rust-tests", "Rust cache key must stay stable")
+    need(values["jobs.rust-tests.steps." setup ".with.cache-targets"] == "false", "Rust target archives must remain disabled")
+    sccache = step("jobs.rust-tests", "name", "Set up sccache")
+    need(sccache >= 0 && index(values["jobs.rust-tests.steps." sccache ".uses"], "mozilla-actions/sccache-action@") == 1 && values["jobs.rust-tests.steps." sccache ".with.version"] == "v0.17.0", "rust-tests must retain the pinned sccache setup")
+    stats = step("jobs.rust-tests", "name", "Report sccache statistics")
+    # Keep this assertion unconditional on the #1917 base: rust_tests_changed
+    # is introduced by #1918 and can be integrated when that branch rebases.
+    need(stats >= 0 && values["jobs.rust-tests.steps." stats ".if"] == "always()" && index(values["jobs.rust-tests.steps." stats ".run"], "sccache --show-stats") != 0, "cross-registration sccache reuse must be measured even after a test failure")
+    for (path in nodes) if (path ~ /^jobs\.rust-tests\.env\./ && path ~ /SCCACHE_BASEDIRS$/) fail("do not claim cross-checkout Rust remapping without pinned-source support")
+}
+' "$WORKFLOW"
 
 selector=$REPO_ROOT/scripts/dev/select-rust-tests-runner.sh
 tmp=${TMPDIR:-/tmp}/tcl-lsp-runner-policy.$$
