@@ -1451,6 +1451,7 @@ jobs:
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
+          # Archive/list/execute must use the exact same nextest format.
           tool: nextest@0.9.143
 
       - name: Warm already-green merge push once
