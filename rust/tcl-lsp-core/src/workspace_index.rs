@@ -2772,6 +2772,15 @@ impl WorkspaceIndex {
     /// latter creates a transient missing-definition state and loses the fact
     /// that a body-only edit left command-resolution inputs untouched.
     pub fn replace_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        self.replace_document_with_revision(uri, analysis);
+    }
+
+    /// Replace one document and return the revision assigned to its records.
+    ///
+    /// A publisher that releases the index before its final source-currency
+    /// check can use this token to roll back only its own obsolete replacement,
+    /// without deleting a newer writer's records for the same URI.
+    pub fn replace_document_with_revision(&mut self, uri: &str, analysis: &AnalysisResult) -> u64 {
         let revision = self.allocate_document_revision();
         let slot = self.slot_for(uri);
         let old = self.docs[slot].settlement_dependencies();
@@ -2780,6 +2789,7 @@ impl WorkspaceIndex {
         self.docs[slot].revision = revision;
         let changed = old != self.docs[slot].settlement_dependencies();
         self.invalidate(changed, slot);
+        revision
     }
 
     /// `uri`'s slot, allocating one — the most recently freed, else a fresh
@@ -2845,6 +2855,18 @@ impl WorkspaceIndex {
             self.free_slots.push(slot);
             self.invalidate(true, slot);
         }
+    }
+
+    /// Remove `uri` only when its records still have `revision`.
+    ///
+    /// This is the compare-and-remove counterpart to
+    /// [`Self::replace_document_with_revision`].
+    pub fn remove_document_if_revision(&mut self, uri: &str, revision: u64) -> bool {
+        if self.document_revision(uri) != Some(revision) {
+            return false;
+        }
+        self.remove_document(uri);
+        true
     }
 
     /// Every indexed `source FILE` reference.
@@ -10163,6 +10185,25 @@ mod tests {
         );
         index.remove_document("file:///a.tcl");
         assert_eq!(index.document_revision("file:///a.tcl"), None);
+    }
+
+    #[test]
+    fn conditional_revision_removal_preserves_a_newer_replacement() {
+        let old = analyse("proc old {} {}\n");
+        let new = analyse("proc new {} {}\n");
+        let mut index = WorkspaceIndex::new();
+        let old_revision = index.replace_document_with_revision("file:///a.tcl", &old);
+        let new_revision = index.replace_document_with_revision("file:///a.tcl", &new);
+
+        assert!(
+            !index.remove_document_if_revision("file:///a.tcl", old_revision),
+            "an obsolete publisher must not remove a newer replacement",
+        );
+        assert_eq!(index.document_revision("file:///a.tcl"), Some(new_revision));
+        assert!(index.workspace_command_exists("::new"));
+        assert!(!index.workspace_command_exists("::old"));
+        assert!(index.remove_document_if_revision("file:///a.tcl", new_revision));
+        assert!(!index.contains_document("file:///a.tcl"));
     }
 
     #[test]

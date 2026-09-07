@@ -9077,7 +9077,7 @@ impl Backend {
             if self.live_publication_uri_generation(uri) != uri_generation {
                 return false;
             }
-            index.replace_document(uri.as_str(), &seed.analysis);
+            let index_revision = index.replace_document_with_revision(uri.as_str(), &seed.analysis);
             drop(index);
             // This is a standalone replacement. Invalidate any source-site
             // view marker in the same rehoming transaction so the next
@@ -9089,6 +9089,11 @@ impl Backend {
                 .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
                 || self.live_publication_uri_generation(uri) != uri_generation
             {
+                drop(documents);
+                self.workspace_index
+                    .write()
+                    .await
+                    .remove_document_if_revision(uri.as_str(), index_revision);
                 return false;
             }
             documents.retag("did_open_publish_complete: commit");
@@ -9142,7 +9147,7 @@ impl Backend {
             if self.live_publication_uri_generation(uri) != uri_generation {
                 return false;
             }
-            index.replace_document(uri.as_str(), &seed.analysis);
+            let index_revision = index.replace_document_with_revision(uri.as_str(), &seed.analysis);
             drop(index);
             self.rehomed_source_seeds.lock().await.remove(uri.as_str());
             let mut documents = self.documents.lock("did_change_publish_complete").await;
@@ -9151,6 +9156,11 @@ impl Backend {
                 .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
                 || self.live_publication_uri_generation(uri) != uri_generation
             {
+                drop(documents);
+                self.workspace_index
+                    .write()
+                    .await
+                    .remove_document_if_revision(uri.as_str(), index_revision);
                 return false;
             }
             documents.retag("did_change_publish_complete: commit");
@@ -44050,6 +44060,87 @@ proc p {} {
                 .expect("the publisher task must not panic"),
             "the still-current open seed must publish",
         );
+    }
+
+    /// #1907 automated review: if a newer document revision lands after an
+    /// index replacement but before the final currency check, the obsolete
+    /// publisher must remove its own records instead of leaving stale spans
+    /// visible under the newer buffer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn superseded_open_index_replacement_is_rolled_back_1907() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///superseded-open-index-1907.tcl").unwrap();
+        let text = "proc obsolete {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let seed = FreshAnalysisSeed {
+            analysis: Arc::new(Analyser::new().analyse(text, "tcl8.6").clone()),
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
+            class_factory_generation: 0,
+        };
+
+        let index_reader = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.workspace_index.try_read().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the old publisher must queue behind the index reader");
+
+        let mut documents = backend.documents.lock("test_newer_revision").await;
+        let mut newer =
+            DocumentState::with_version("proc current {} {}\n".to_owned(), "tcl8.6".to_owned(), 2);
+        newer.publication = DocumentPublication::Salsa;
+        documents.insert(uri.clone(), newer);
+        drop(index_reader);
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .workspace_index
+                    .try_read()
+                    .is_ok_and(|index| index.workspace_command_exists("::obsolete"))
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the obsolete replacement must reach the index before its final check");
+        drop(documents);
+
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the obsolete publisher must finish")
+                .expect("the obsolete publisher must not panic"),
+            "the newer document revision must supersede the old publisher",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index.contains_document(uri.as_str()),
+            "the obsolete publisher must roll back its own index revision",
+        );
+        assert!(!index.workspace_command_exists("::obsolete"));
     }
 
     async fn mark_open_buffer_deleted_while_publication_waits_1854(
