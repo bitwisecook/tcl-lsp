@@ -41303,6 +41303,13 @@ proc p {} {
             })
             .collect();
 
+        // Do not start the synchronous sampling loop until the real hammer
+        // workers are demonstrably running. They keep acquiring and releasing
+        // on the other runtime threads while sampling, preserving the
+        // concurrent-transition proof without depending on initial scheduling.
+        while store.contention().acquisitions < 100 {
+            crate::rt::yield_now().await;
+        }
         let mut previous = store.contention().acquisitions;
         let mut seen_both = 0_u32;
         for _ in 0..100_000 {

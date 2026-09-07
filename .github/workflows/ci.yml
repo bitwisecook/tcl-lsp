@@ -797,7 +797,7 @@ jobs:
   #                     total.  Kept split for concurrency, not because it is
   #                     still the long pole.
   #   lsp-e2e           the native lsp_e2e suite: spawns the real tcl-lsp-server
-  #                     via CARGO_BIN_EXE_tcl-lsp-server and drives LSP JSON-RPC
+  #                     via nextest's archived runtime path and drives LSP JSON-RPC
   #                     over stdio (rust/tcl-lsp-server/tests/*_e2e.rs)
   #   cargo-deny        supply-chain audit, isolated so a denial is attributable
   #                     independently of the test surface
@@ -841,8 +841,10 @@ jobs:
     # healthy — a 2026-08 regression to 16 min turned out to be two oversized
     # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
     # min again, suspect a runaway test before suspecting the box or the
-    # cache).  No longer the longest pole: `lsp-e2e` now is (~390s vs ~150s
-    # here).  Note that neither is the workflow's critical path — the
+    # cache).  No longer the longest pole: the three archived `lsp-e2e`
+    # consumers now overlap their test pools instead of one unsharded run
+    # carrying the full suite.  Note that neither is the workflow's critical
+    # path — the
     # `build-tcl-lsp-server` -> `test-ext` chain is, finishing 40-80s after
     # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
     # `make test-rust` loop rather than PR turnaround.
@@ -1353,55 +1355,396 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Native-server lsp_e2e suite.  Its own job (hence its own status check)
-  # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
-  # binary and drives the end-to-end LSP suite against it over stdio JSON-RPC.
+  # Native-server lsp_e2e suite. The required lsp-e2e aggregate preserves its
+  # status context while one hosted producer builds and archives the suite and
+  # three execution-only hosted jobs consume it in parallel.
   # Fully native — the Rust port of the former Python `tests/lsp_e2e/` pytest
-  # suite, so no Python and no uv.  Also covers the crate's `*_smoke.rs` tests.
+  # suite, so no Python and no uv. Together they cover the crate's full test
+  # surface, including `*_smoke.rs` tests.
   lsp-e2e:
-    # Deliberately hosted -- see `rust-tests-heavy`.
+    # Preserve the required lsp-e2e status context while the matrix below
+    # provides three independently reported, deterministic partitions.
+    if: ${{ always() }}
+    needs: [channel, lsp-e2e-archive, lsp-e2e-partition]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Require all lsp-e2e partitions
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          ARCHIVE_RESULT: ${{ needs.lsp-e2e-archive.result }}
+          PARTITIONS_RESULT: ${{ needs.lsp-e2e-partition.result }}
+        run: |
+          echo "channel=$CHANNEL_RESULT archive=$ARCHIVE_RESULT partitions=$PARTITIONS_RESULT"
+          if [ "$CHANNEL_RESULT" != "success" ] || [ "$ARCHIVE_RESULT" != "success" ] || [ "$PARTITIONS_RESULT" != "success" ]; then
+            echo "::error::lsp-e2e prerequisites did not pass"
+            exit 1
+          fi
+
+      - name: Check out verifier for transferred normal-path results
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Download producer proof metadata
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-e2e-proof
+          path: ${{ runner.temp }}/lsp-e2e-aggregate/producer
+
+      - name: Download partition 1 metadata
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-e2e-result-1-3
+          path: ${{ runner.temp }}/lsp-e2e-aggregate/first
+
+      - name: Download partition 2 metadata
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-e2e-result-2-3
+          path: ${{ runner.temp }}/lsp-e2e-aggregate/second
+
+      - name: Download partition 3 metadata
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-e2e-result-3-3
+          path: ${{ runner.temp }}/lsp-e2e-aggregate/third
+
+      - name: Validate transferred lsp-e2e results
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        run: |
+          set -euo pipefail
+          python3 scripts/dev/verify-nextest-partitions.py --verify-results \
+            "$RUNNER_TEMP/lsp-e2e-aggregate/producer" \
+            "$RUNNER_TEMP/lsp-e2e-aggregate/first" \
+            "$RUNNER_TEMP/lsp-e2e-aggregate/second" \
+            "$RUNNER_TEMP/lsp-e2e-aggregate/third"
+
+  lsp-e2e-archive:
+    name: lsp-e2e archive
+    if: ${{ always() }}
     needs: [channel]
     runs-on: ubuntu-26.04
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
     steps:
+      - name: Skip lsp-e2e archive where no test is required
+        if: needs.channel.result != 'success' || needs.channel.outputs.docs_only == 'true' || (startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        run: echo "documentation-only, already-green tag, or unavailable channel — lsp-e2e archive is not required"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # Normal archive production and an already-green merge-push cache warm
+        # both need a checkout. Only an already-green tag skips all build work.
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         with:
           fetch-depth: 1
 
       - name: Set up Rust
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
           cache-key: lsp-e2e
 
       - name: Set up sccache
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
           version: v0.17.0
 
       - name: Install cargo-nextest
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
+          # Archive/list/execute must use the exact same nextest format.
+          tool: nextest@0.9.143
+
+      - name: Warm already-green merge push once
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green == 'true' && !startsWith(github.ref, 'refs/tags/')
+        run: cargo nextest run --no-run -p tcl-lsp-server
+
+      - name: Build and archive lsp_e2e once
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e.tar.zst
+          ARTIFACT_DIR: ${{ runner.temp }}/lsp-e2e-archive-artifact
+          PROOF_DIR: ${{ runner.temp }}/lsp-e2e-proof-artifact
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          cargo nextest archive -p tcl-lsp-server --all-features --archive-file "$ARCHIVE" 2>&1 | tee "$RUNNER_TEMP/lsp-e2e-archive.log"
+          test -s "$ARCHIVE" || { echo "::error::nextest archive was not created"; exit 1; }
+          mkdir -p "$ARTIFACT_DIR"
+          cp "$ARCHIVE" "$ARTIFACT_DIR/lsp-e2e.tar.zst"
+          mkdir -p "$PROOF_DIR"
+          (cd "$PROOF_DIR" && sha256sum "$ARCHIVE" | sed 's#  .*/#  #' > archive.sha256)
+          cargo nextest --version | tee "$PROOF_DIR/nextest-version.txt"
+          end=$(date +%s)
+          bytes=$(stat -c '%s' "$ARCHIVE")
+          seconds=$((end - start))
+          echo "lsp_e2e_archive_bytes=$bytes lsp_e2e_archive_seconds=$seconds"
+          {
+            echo "### lsp-e2e archive telemetry"
+            echo "- archive bytes: $bytes"
+            echo "- archive seconds: $seconds"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify hash-partition coverage
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e.tar.zst
+        run: |
+          set -euo pipefail
+          listing_dir="$RUNNER_TEMP/lsp-e2e-listings"
+          mkdir -p "$listing_dir"
+          cargo nextest list --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --message-format json > "$listing_dir/all.json"
+          cargo nextest list --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --partition hash:1/3 --message-format json > "$listing_dir/1-3.json"
+          cargo nextest list --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --partition hash:2/3 --message-format json > "$listing_dir/2-3.json"
+          cargo nextest list --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --partition hash:3/3 --message-format json > "$listing_dir/3-3.json"
+          scripts/dev/verify-nextest-partitions.py \
+            "$listing_dir/all.json" "$listing_dir/1-3.json" "$listing_dir/2-3.json" "$listing_dir/3-3.json"
+
+      - name: Record archive proof and listing metadata
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          PROOF_DIR: ${{ runner.temp }}/lsp-e2e-proof-artifact
+          LISTING_DIR: ${{ runner.temp }}/lsp-e2e-listings
+        run: |
+          set -euo pipefail
+          workspace_sha=$(git rev-parse HEAD)
+          archive_sha=$(awk '{print $1}' "$PROOF_DIR/archive.sha256")
+          nextest_version=$(cat "$PROOF_DIR/nextest-version.txt")
+          all_sha=$(sha256sum "$LISTING_DIR/all.json" | awk '{print $1}')
+          first_sha=$(sha256sum "$LISTING_DIR/1-3.json" | awk '{print $1}')
+          second_sha=$(sha256sum "$LISTING_DIR/2-3.json" | awk '{print $1}')
+          third_sha=$(sha256sum "$LISTING_DIR/3-3.json" | awk '{print $1}')
+          cp "$LISTING_DIR/all.json" "$PROOF_DIR/all.json"
+          cp "$LISTING_DIR/1-3.json" "$PROOF_DIR/1-3.json"
+          cp "$LISTING_DIR/2-3.json" "$PROOF_DIR/2-3.json"
+          cp "$LISTING_DIR/3-3.json" "$PROOF_DIR/3-3.json"
+          python3 - "$PROOF_DIR/producer-metadata.json" "$workspace_sha" "$nextest_version" "$archive_sha" "$all_sha" "$first_sha" "$second_sha" "$third_sha" <<'PY'
+          import json
+          import sys
+
+          output, workspace_sha, nextest_version, archive_sha, all_sha, first_sha, second_sha, third_sha = sys.argv[1:]
+          metadata = {
+              "schema": 1,
+              "kind": "producer",
+              "workspace_sha": workspace_sha,
+              "nextest_version": nextest_version,
+              "package": "tcl-lsp-server",
+              "filter": "default",
+              "partition": "all",
+              "result": "success",
+              "archive_sha256": archive_sha,
+              "listings": {"all.json": all_sha, "1-3.json": first_sha, "2-3.json": second_sha, "3-3.json": third_sha},
+          }
+          with open(output, "w", encoding="utf-8") as stream:
+              json.dump(metadata, stream, sort_keys=True)
+              stream.write("\n")
+          PY
+
+      - name: Upload lsp-e2e archive
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-e2e-archive
+          path: ${{ runner.temp }}/lsp-e2e-archive-artifact
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload lsp-e2e proof
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-e2e-proof
+          path: ${{ runner.temp }}/lsp-e2e-proof-artifact
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  lsp-e2e-partition:
+    name: lsp-e2e-partition (${{ matrix.partition }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - partition: "1/3"
+            artifact: 1-3
+          - partition: "2/3"
+            artifact: 2-3
+          - partition: "3/3"
+            artifact: 3-3
+    # Deliberately hosted -- see `rust-tests-heavy`.
+    # Matrix contexts are not individually required; the aggregate above is.
+    needs: [channel, lsp-e2e-archive]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Prepare result metadata directory
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          RESULT_DIR: ${{ runner.temp }}/lsp-e2e-result
+        run: |
+          set -euo pipefail
+          mkdir -p "$RESULT_DIR"
+          printf '%s\n' '{"rust-suites":{}}' > "$RESULT_DIR/selected.json"
+
+      - name: Skip lsp-e2e execution where no test is required
+        if: needs.channel.result != 'success' || needs.channel.outputs.docs_only == 'true' || needs.channel.outputs.already_green == 'true'
+        run: echo "lsp-e2e execution is not required for this channel result"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        with:
+          toolchain: stable
+          cache-key: lsp-e2e
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        with:
+          # Keep the machine-readable partition proof and the runner on the
+          # same nextest format/version.
           tool: nextest@0.9.143
 
       # The integration tests spawn the real `tcl-lsp-server` binary via
-      # `CARGO_BIN_EXE_tcl-lsp-server` (cargo builds it as a test dependency)
-      # and talk LSP JSON-RPC to it over stdio.  nextest runs them in one
-      # parallel pool (no serial-per-binary penalty).
+      # nextest's runtime `NEXTEST_BIN_EXE_tcl-lsp-server` path (the archive
+      # carries it as a non-test binary dependency; plain Cargo keeps the
+      # compile-time fallback) and talk LSP JSON-RPC to it over stdio. nextest runs
+      # one global parallel pool per partition; hash partitioning changes
+      # selection only, with no test mask or feature change.
       # Same skip/downgrade contract as rust-tests — see the channel job header.
-      - name: lsp_e2e against the native Rust server
-        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+      - name: Download lsp-e2e archive
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-e2e-archive
+          path: ${{ runner.temp }}/lsp-e2e-archive
+
+      - name: Download lsp-e2e proof
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lsp-e2e-proof
+          path: ${{ runner.temp }}/lsp-e2e-proof
+
+      - name: Require lsp-e2e archive and report transfer size
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         env:
-          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e-archive/lsp-e2e.tar.zst
         run: |
-          extra="--no-fail-fast"
-          if [ "$ALREADY_GREEN" = "true" ]; then
-            echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
-            extra="--no-run"
-          fi
-          cargo nextest run $extra -p tcl-lsp-server
+          set -euo pipefail
+          test -s "$ARCHIVE" || { echo "::error::lsp-e2e archive artifact is missing or empty: $ARCHIVE"; exit 1; }
+          bytes=$(stat -c '%s' "$ARCHIVE")
+          echo "lsp_e2e_archive_download_bytes=$bytes"
+
+      - name: Verify archive digest and nextest version
+        id: archive_verify
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e-archive/lsp-e2e.tar.zst
+          PROOF_DIR: ${{ runner.temp }}/lsp-e2e-proof
+        run: |
+          set -euo pipefail
+          expected_archive_sha=$(awk '{print $1}' "$PROOF_DIR/archive.sha256")
+          printf '%s  %s\n' "$expected_archive_sha" "$ARCHIVE" | sha256sum --status --check
+          expected=$(cat "$PROOF_DIR/nextest-version.txt")
+          actual=$(cargo nextest --version)
+          [ "$actual" = "$expected" ] || { echo "::error::nextest version mismatch: expected '$expected', got '$actual'"; exit 1; }
+
+      - name: Record selected partition listing
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e-archive/lsp-e2e.tar.zst
+          RESULT_DIR: ${{ runner.temp }}/lsp-e2e-result
+          PARTITION: ${{ matrix.partition }}
+        run: |
+          set -euo pipefail
+          cargo nextest list --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --partition "hash:$PARTITION" --message-format json > "$RESULT_DIR/selected.json"
+
+      - name: lsp_e2e partition ${{ matrix.partition }} against the native Rust server
+        id: tests
+        continue-on-error: true
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e-archive/lsp-e2e.tar.zst
+          PARTITION: ${{ matrix.partition }}
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          cargo nextest run --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --no-fail-fast --partition "hash:$PARTITION"
+          end=$(date +%s)
+          seconds=$((end - start))
+          echo "lsp_e2e_partition=${PARTITION} lsp_e2e_partition_seconds=$seconds"
+          {
+            echo "### lsp-e2e partition telemetry ($PARTITION)"
+            echo "- execution seconds: $seconds"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record partition result metadata
+        if: ${{ always() && needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true' }}
+        env:
+          ARCHIVE: ${{ runner.temp }}/lsp-e2e-archive/lsp-e2e.tar.zst
+          RESULT_DIR: ${{ runner.temp }}/lsp-e2e-result
+          PARTITION: ${{ matrix.partition }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          ARCHIVE_VERIFIED: ${{ steps.archive_verify.outcome }}
+        run: |
+          set -euo pipefail
+          archive_sha=""
+          listing_sha=""
+          test -f "$ARCHIVE" && archive_sha=$(sha256sum "$ARCHIVE" | awk '{print $1}') || true
+          test -f "$RESULT_DIR/selected.json" && listing_sha=$(sha256sum "$RESULT_DIR/selected.json" | awk '{print $1}') || true
+          nextest_version=$(cargo nextest --version 2>/dev/null || true)
+          workspace_sha=$(git rev-parse HEAD 2>/dev/null || printf '%s' "$GITHUB_SHA")
+          python3 - "$RESULT_DIR/result-metadata.json" "$workspace_sha" "$nextest_version" "$archive_sha" "$listing_sha" "$PARTITION" "$TEST_OUTCOME" "$ARCHIVE_VERIFIED" <<'PY'
+          import json
+          import sys
+
+          output, workspace_sha, nextest_version, archive_sha, listing_sha, partition, result, archive_verified = sys.argv[1:]
+          metadata = {
+              "schema": 1,
+              "kind": "consumer",
+              "workspace_sha": workspace_sha,
+              "nextest_version": nextest_version,
+              "package": "tcl-lsp-server",
+              "filter": "default",
+              "partition": f"hash:{partition}",
+              "result": result,
+              "archive_sha256": archive_sha,
+              "selected_listing_sha256": listing_sha,
+              "archive_verified": archive_verified == "success",
+          }
+          with open(output, "w", encoding="utf-8") as stream:
+              json.dump(metadata, stream, sort_keys=True)
+              stream.write("\n")
+          PY
+
+      - name: Upload partition listing and result metadata
+        if: ${{ always() && needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lsp-e2e-result-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/lsp-e2e-result
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Fail if lsp-e2e partition failed
+        if: ${{ always() && needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true' && steps.tests.outcome != 'success' }}
+        run: exit 1
 
   # Supply-chain audit (advisories / licenses / bans / sources) via the
   # committed deny.toml.  Its own job so a denial is attributable independently

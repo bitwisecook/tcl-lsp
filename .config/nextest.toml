@@ -18,7 +18,8 @@
 
 # cargo-nextest configuration.
 #
-# The LSP e2e suite runs in one parallel pool (see .github/workflows/rust-lsp-e2e.yml).
+# CI archives the complete LSP e2e build once, then fans execution into three
+# deterministic hash partitions (see .github/workflows/ci.yml).
 # Two kinds of tests there are resource-hungry in a way that makes them starve
 # their neighbours:
 #
