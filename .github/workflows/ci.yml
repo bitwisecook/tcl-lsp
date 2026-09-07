@@ -190,11 +190,45 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
         run: |
           ok=true
           files=""
-          if files="$(scripts/dev/changed-paths.sh "$GITHUB_EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$BEFORE" "$GITHUB_SHA" "$GITHUB_REF")"; then
+          changed_paths=scripts/dev/changed-paths.sh
+          rust_tests_path=scripts/dev/rust-tests-path.sh
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            # The PR checkout is deliberately not trusted to decide whether
+            # its own root tests run. Read the parser and closure from the
+            # exact base commit; any shallow/missing object or missing helper
+            # fails closed below. The merge checkout has both parents at
+            # fetch-depth 2.
+            trusted="$RUNNER_TEMP/root-rust-test-classifier"
+            mkdir -p "$trusted"
+            if [[ ${#BASE_SHA} -ne 40 || "$BASE_SHA" == *[!0-9a-f]* ]]; then
+              ok=false
+            fi
+            if [[ "$ok" == "true" ]]; then
+              for path in \
+                scripts/dev/changed-paths.sh \
+                scripts/dev/rust-tests-path.sh \
+                scripts/dev/rust-tests-package-paths.txt \
+                scripts/dev/rust-tests-input-paths.txt; do
+                if ! git show "$BASE_SHA:$path" >"$trusted/${path##*/}"; then
+                  ok=false
+                  break
+                fi
+              done
+            fi
+            if [[ "$ok" == "true" ]]; then
+              chmod +x "$trusted/changed-paths.sh" "$trusted/rust-tests-path.sh"
+              changed_paths="$trusted/changed-paths.sh"
+              rust_tests_path="$trusted/rust-tests-path.sh"
+              export TCL_LSP_RUST_TESTS_PACKAGE_MANIFEST="$trusted/rust-tests-package-paths.txt"
+              export TCL_LSP_RUST_TESTS_INPUT_MANIFEST="$trusted/rust-tests-input-paths.txt"
+            fi
+          fi
+          if [[ "$ok" == "true" ]] && files="$("$changed_paths" "$GITHUB_EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$BEFORE" "$GITHUB_SHA" "$GITHUB_REF")"; then
             :
           else
             ok=false
@@ -236,7 +270,7 @@ jobs:
                 .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)
                   runner_policy_changed=true ;;
               esac
-              if scripts/dev/rust-tests-path.sh "$f"; then
+              if "$rust_tests_path" "$f"; then
                 rust_tests_changed=true
               else
                 status=$?

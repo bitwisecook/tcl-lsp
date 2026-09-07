@@ -53,8 +53,13 @@ expect_relevant specs/sdc_base.tclspec
 expect_relevant docs/generated/diagnostic_codes.md
 expect_relevant editors/vscode/src/extension.ts
 expect_relevant scripts/dev/already-green.sh
+expect_relevant scripts/dev/changed-paths.sh
+expect_relevant scripts/dev/rust-tests-input-paths.txt
+expect_relevant scripts/dev/rust-tests-package-paths.txt
+expect_relevant scripts/dev/rust-tests-path.sh
 expect_relevant scripts/dev/select-rust-tests-runner.sh
 expect_relevant scripts/dev/test-already-green.sh
+expect_relevant scripts/dev/test-rust-tests-paths.sh
 expect_relevant scripts/dev/test-rust-tests-runner.sh
 expect_relevant rust/bigip-report-gen/templates/report.html.j2
 expect_relevant rust/tcl-vm-wasm/Cargo.toml
@@ -235,10 +240,16 @@ expect_status_2 push-many push owner/repo 42 0123456789abcdef0123456789abcdef012
 # Verify channel wiring remains fail-closed and step-level.
 grep -Fq 'rust_tests_changed: ${{ steps.paths.outputs.rust_tests_changed }}' "$WORKFLOW" \
     || fail "channel output is missing rust_tests_changed"
-grep -Fq 'scripts/dev/changed-paths.sh' "$WORKFLOW" \
-    || fail "channel does not use the committed changed-file helper"
-grep -Fq 'scripts/dev/rust-tests-path.sh "$f"' "$WORKFLOW" \
-    || fail "channel does not invoke the committed path classifier"
+grep -Fq 'git show "$BASE_SHA:$path"' "$WORKFLOW" \
+    || fail "PR classification does not read its helpers from the trusted base commit"
+grep -Fq 'TCL_LSP_RUST_TESTS_PACKAGE_MANIFEST="$trusted/rust-tests-package-paths.txt"' "$WORKFLOW" \
+    || fail "trusted package closure is not wired into PR classification"
+grep -Fq 'TCL_LSP_RUST_TESTS_INPUT_MANIFEST="$trusted/rust-tests-input-paths.txt"' "$WORKFLOW" \
+    || fail "trusted external-input closure is not wired into PR classification"
+grep -Fq '"$changed_paths" "$GITHUB_EVENT_NAME"' "$WORKFLOW" \
+    || fail "channel does not invoke the selected changed-file helper"
+grep -Fq '"$rust_tests_path" "$f"' "$WORKFLOW" \
+    || fail "channel does not invoke the selected path classifier"
 grep -Fq 'rust_tests_changed=true' "$WORKFLOW" \
     || fail "channel has no fail-closed Rust-test fallback"
 rust_job=$(awk '
