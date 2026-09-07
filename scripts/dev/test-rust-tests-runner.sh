@@ -121,6 +121,16 @@ expect_selection() {
     fi
 }
 
+require_path_gate_count() {
+    expected=$1
+    required=$2
+    actual=$(printf '%s\n' "$rust_tests_job" | grep -Fxc "$expected" || true)
+    if [ "$actual" -ne "$required" ]; then
+        echo "rust-tests expected $required gated steps, found $actual: $expected" >&2
+        exit 1
+    fi
+}
+
 expect_selection idle tank
 expect_selection occupied hosted
 expect_selection hosted tank
@@ -141,6 +151,22 @@ case "$(cat "$WORKFLOW")" in
     *'if [[ "$EVENT_NAME" == pull_request && ("$PR_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" || "$PR_AUTHOR" == '\''dependabot[bot]'\'' || "$RUNNER_POLICY_CHANGED" == true) ]]'*'runner=hosted'*'elif [[ "$EVENT_NAME" == workflow_dispatch ]]'*'runner="$DISPATCH_RUNNER"'*) ;;
     *)
         echo "fork, Dependabot, policy-change, and manual-dispatch routing must stay outside the mutable selector" >&2
+        exit 1
+        ;;
+esac
+
+# Keep the required job alive for unrelated changes, but do not provision
+# toolchains, caches, interpreters, or test binaries when its archive is not
+# in the changed-path closure. These are step-level gates deliberately: a
+# job-level skip would leave the required status absent.
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true'" 3
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'" 2
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')" 1
+case "$(cat "$WORKFLOW")" in
+    *'if [ "$rust_tests_changed" = "true" ]; then
+              docs_only=false'*) ;;
+    *)
+        echo "root Rust closure must override the broad docs-only path shape" >&2
         exit 1
         ;;
 esac
