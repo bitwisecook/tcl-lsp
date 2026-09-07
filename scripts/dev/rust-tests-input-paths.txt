@@ -1,0 +1,80 @@
+# Files and directories read by selected workspace crates, generated-data
+# checks, or archive/test bootstrap. Ordinary docs and unrelated lanes remain
+# no-ops.
+#
+# Audit method: package-owned include_str!/include_bytes!, filesystem reads,
+# scripts, fixtures, and tools are covered by the locked Cargo metadata path
+# closure in rust-tests-package-paths.txt.  We audited external inputs with:
+#   rg -n 'include_(str|bytes)!|env::var|var_os|read_to_string|read_to_end|File::open|Command::new|verify\.mjs|templates' rust --glob '*.rs' --glob '*.toml' --glob '*.mjs' --glob '*.sh'
+# The roots below are the resulting non-package inputs used by the root
+# rust-tests job; standalone wasm crates are listed even though Cargo excludes
+# them from the root workspace because tcl-vm's root tests build and verify
+# tcl-vm-wasm directly.
+.cargo/config.toml
+.config/nextest.toml
+.github/dependabot.yml
+.github/workflows/ci.yml
+Cargo.toml
+Cargo.lock
+Makefile
+rust-toolchain.toml
+.claude/skills/fetch-tcl-source/fetch_tcl_source.sh
+scripts/dev/ensure-test-deps.sh
+scripts/dev/already-green.sh
+scripts/dev/changed-paths.sh
+scripts/dev/rust-tests-path.sh
+scripts/dev/rust-tests-package-paths.txt
+scripts/dev/rust-tests-input-paths.txt
+scripts/dev/select-rust-tests-runner.sh
+scripts/dev/test-already-green.sh
+scripts/dev/test-rust-tests-paths.sh
+scripts/dev/test-rust-tests-runner.sh
+scripts/dev/tcl-reference-toolchains.sh
+scripts/dev/test-reference-tcl-toolchains.sh
+scripts/dev/wasm-cc-env.sh
+ai
+docs/generated
+docs/kcs/features
+docs/design/spec-dsl-examples
+docs/design/compiler/semantic-aot-optimisation.md
+docs/design/compiler/wasm-codegen.md
+docs/references/command-spec
+docs/references/f5_query
+docs/design/contracts/shared-utility-contracts-rust.md
+editors/vscode/package.json
+editors/vscode/src/chat/dialectCatalog.ts
+editors/vscode/src/compilerExplorerHtml.ts
+editors/vscode/src/extension.ts
+editors/vscode/src/generated
+editors/vscode/src/languageIds.ts
+editors/vscode/syntaxes/tcl.tmLanguage.json
+editors/vscode/testFixture/variableContexts.tcl
+editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt
+editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt
+editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt
+editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated
+editors/jetbrains/src/main/resources/META-INF/plugin.xml
+editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json
+editors/sublime-text/plugin.py
+editors/sublime-text/sublime-package.json
+editors/zed/languages
+editors/helix/README.md
+INSTALL-editors.md
+rust/bigip-report-gen/frontend/src
+rust/bigip-report-gen/frontend/dist
+rust/bigip-report-gen/assets
+rust/bigip-report-gen/templates
+rust/bigip-report-gen/python/tests/data
+rust/tcl-cli/gui
+rust/tcl-cli/tests/fixtures
+rust/tcl-vm-wasm
+rust/tcl-spectcl/data/shipped-pack-dirs.txt
+rust/tcl-spectcl/tests/fixtures
+samples
+specs
+tests/external/backend_constraints.tcl
+tests/fixtures/spec-packs
+rust/bigip-report-gen/python/deploy/github-pages.yml
+rust/bigip-report-gen/python/deploy/report-pyz.yml
+.github/workflows/github-pages.yml
+.github/workflows/report-pyz.yml

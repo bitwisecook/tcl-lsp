@@ -12,6 +12,17 @@ behind it.
 | **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
+The native `lsp-e2e` surface is produced once as a nextest 0.9.143 archive,
+then consumed by three hosted `hash:1/3`, `hash:2/3`, and `hash:3/3` jobs.
+Each consumer remaps the archive to its checkout and receives the relocated server through
+`NEXTEST_BIN_EXE_tcl-lsp-server`; ordinary Cargo tests retain the compile-time
+`CARGO_BIN_EXE_tcl-lsp-server` fallback. The `lsp-e2e` aggregate is the
+required status and fails unless all three consumers and the archive producer
+pass. The producer verifies that the three selected listings are a disjoint,
+complete union before uploading artifacts;
+`scripts/dev/verify-nextest-partitions.py` also validates transferred digests
+and metadata.
+
 ## Decision rules / contracts
 
 1. **Fuzzing is always manual.** Campaigns (`make fuzz`, `tcl-fuzz`) and
@@ -133,12 +144,35 @@ CI skips only what demonstrably did not change. The rules live in
 `ci.yml`'s `channel` job; read its header before editing them.
 
 - A **tag** whose SHA went green on a `rust` push within 24 h step-skips the
-  test surface (the release graph still runs).
+  test surface (the release graph still runs). If that exact-SHA push proof is
+  not available, a tag may carry forward a PR proof only when GitHub reports
+  exactly one merged PR for the tag commit on `rust`, its head commit's tree
+  exactly equals the tag tree, and the PR's CI run is successful and newer
+  than 24 h. The association API is authoritative even for two-parent merge
+  commits; the fetched second parent is only a consistency check. A missing,
+  ambiguous, stale, malformed, or failed lookup runs the full surface.
 - A **merge push** byte-identical to its already-green PR head downgrades
   tests to a cache-warming build (`--no-run`).
 - **Docs-only** changes skip the cargo test steps; `python`, `test-ext`, and
   `test-ext-web` run only when their input paths changed (`test-ext-web` on
   `ext_changed` or `lsp_wasm_changed`, since it consumes both).
+- The root `rust-tests` job keeps its required status for every change, but
+  step-skips Rust setup, sccache, nextest, the Tcl oracle, and doctests when
+  `rust_tests_changed` is false. The committed package closure in
+  `scripts/dev/rust-tests-package-paths.txt` and external-input closure in
+  `scripts/dev/rust-tests-input-paths.txt` define that decision; `make
+  check-rust-tests-paths` checks the manifests against locked Cargo metadata
+  and exercises the fail-closed GitHub changed-file parser. Pull requests run
+  the parser and both closure manifests copied from the exact base commit, so
+  a proposed classifier change cannot exempt itself; a missing shallow object
+  or helper runs the full suite. The sccache stats step uses the same decision
+  because no sccache executable exists when setup is skipped. This audited
+  closure overrides the broad docs-only shape check: an executable or
+  test-consumed input under `docs/` or `.claude/` still runs the suite.
+  Validate an unaffected-path change in Actions by checking that the required
+  `rust-tests` job succeeds after checkout while its setup and test steps are
+  absent; a skipped job is not equivalent because it does not report the
+  required successful check.
 - `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
   (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
   crate plus the path-dependency closure its own lockfile resolves. It is its
@@ -152,7 +186,9 @@ CI skips only what demonstrably did not change. The rules live in
   silently narrow. It is an additional semantic gate, not a replacement for
   the real link.
 - `cargo-deny` never skips: new advisories arrive against unchanged trees.
-- Every skip fails safe: API error or ambiguity → run everything.
+- Every skip fails safe: API/schema/network error, changed tree, stale result,
+  or ambiguous PR association → run everything. `cargo-deny` is unconditional
+  because its advisory database can change without a source-tree change.
 
 Trusted pull requests prefer the self-hosted `tank` runner for `rust-tests`.
 The `channel` job queries every nonterminal workflow state and routes to hosted
@@ -164,6 +200,24 @@ pagination fail safely to hosted capacity. Fork, Dependabot, and runner-policy
 pull requests independently force hosted placement. A manual dispatch remains
 an explicit `tank` or `hosted` override. Placement never changes the test
 filter, skips coverage, or carries forward a result.
+
+The Tank job uses canonical `/home/runner/.cargo` and `/home/runner/.rustup`
+homes because each registration's default homes are rooted under its own
+checkout directory. These homes are shared mutable state: cancellation can
+interrupt Cargo or rustup writes, and any untrusted build script that reached
+Tank could persist configuration, credentials, or executable tools for a later
+job. The routing guards above are therefore a security boundary, not merely a
+cache optimisation; only trusted pushes and trusted pull requests may run
+there, while fork, Dependabot, runner-policy, and explicit hosted paths stay
+on hosted capacity. The job's preflight checks ownership, writability, and a
+temporary write on every registration. `CARGO_TARGET_DIR` is deliberately not
+shared, and the `rust-tests-v2` dependency-cache generation excludes Cargo
+targets so old target-heavy archives cannot be restored. sccache v0.17 is
+measured across registrations rather than assumed to normalize differing
+absolute checkout roots. Its setup, compiler cache, and statistics are
+performance-only: an unavailable cache falls back to direct rustc, while
+failed statistics and non-zero cache-write errors emit workflow warnings
+without changing the test result.
 
 Keep these properties: skips are **step-level** (jobs still report success so
 required checks and the release `needs:` graph hold), keyed on **content
