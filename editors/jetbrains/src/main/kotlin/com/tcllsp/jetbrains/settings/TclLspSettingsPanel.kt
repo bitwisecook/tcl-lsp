@@ -20,17 +20,116 @@ package com.tcllsp.jetbrains.settings
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.ui.TitledSeparator
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.ThreeStateCheckBox
+import com.intellij.util.ui.UIUtil
 import com.tcllsp.jetbrains.TclLspServerSupportProvider
+import java.awt.BorderLayout
+import java.awt.Dimension
+import java.awt.FlowLayout
+import java.awt.Rectangle
 import javax.swing.*
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.settings.TclLspSettingsPanel")
+
+/**
+ * Width a settings hint wraps at, before HiDPI scaling.
+ *
+ * A hint sits in the form's right-hand column, so this plus the widest label
+ * is most of what the page can never be narrower than. Keep it near a normal
+ * reading measure: wider makes the whole settings pane refuse to shrink.
+ */
+private const val COMMENT_WIDTH = 440
+
+/** Mouse-wheel step for the settings scroll pane, before HiDPI scaling. */
+private const val SCROLL_UNIT = 16
+
+/**
+ * A wrapping hint under a setting.
+ *
+ * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
+ * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
+ * so on a single line it alone asked the settings pane for about 1200px and
+ * ran off the right-hand edge.
+ */
+/**
+ * The stored value a tri-state optimiser box currently represents.
+ *
+ * `null` is the third state, and it is the important one: it means "inherit
+ * from the profile". The server treats a per-code override as beating the
+ * profile in both directions — `true` lifts a code out of the profile's
+ * disabled set, `false` forces it in — so only a real user choice may travel,
+ * and `DONT_CARE` must serialise to no opinion at all rather than to `false`.
+ */
+private fun triState(box: ThreeStateCheckBox): Boolean? = when (box.state) {
+    ThreeStateCheckBox.State.SELECTED -> true
+    ThreeStateCheckBox.State.NOT_SELECTED -> false
+    else -> null
+}
+
+/** The inverse of [triState], for loading a stored value back into the box. */
+private fun threeState(value: Boolean?): ThreeStateCheckBox.State = when (value) {
+    true -> ThreeStateCheckBox.State.SELECTED
+    false -> ThreeStateCheckBox.State.NOT_SELECTED
+    null -> ThreeStateCheckBox.State.DONT_CARE
+}
+
+private fun FormBuilder.addWrappedComment(text: String): FormBuilder =
+    addComponentToRightColumn(
+        JBLabel(
+            "<html><body style='width:${JBUI.scale(COMMENT_WIDTH)}px'>" +
+                StringUtil.escapeXmlEntities(text) + "</body></html>",
+            UIUtil.ComponentStyle.SMALL,
+            UIUtil.FontColor.BRIGHTER,
+        ).apply { border = JBUI.Borders.emptyLeft(10) },
+        1,
+    )
+
+/**
+ * The component the settings dialog is handed, holding the form at the width
+ * of the scroll pane the platform puts around it.
+ *
+ * `ConfigurableCardPanel` wraps whatever `createComponent` returns in its own
+ * `JScrollPane` — unconditionally, unless the configurable implements
+ * `Configurable.NoScroll` — so returning a scroll pane of our own nested one
+ * inside the other. The inner pane was always exactly as large as its content,
+ * so it never scrolled, and it swallowed the wheel events that would otherwise
+ * have reached the outer one: the page could not be scrolled at all.
+ *
+ * Implementing [Scrollable] instead makes the platform's viewport size the
+ * form to its own width, so the content reflows rather than overflowing to the
+ * right, and leaves horizontal scrolling as the fallback for a pane narrower
+ * than the form can honestly be squeezed to.
+ */
+internal class ScrollableForm(form: JComponent) : JPanel(BorderLayout()), Scrollable {
+    init {
+        add(form, BorderLayout.CENTER)
+        isOpaque = false
+    }
+
+    override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
+
+    override fun getScrollableUnitIncrement(visible: Rectangle, orientation: Int, direction: Int): Int =
+        JBUI.scale(SCROLL_UNIT)
+
+    override fun getScrollableBlockIncrement(visible: Rectangle, orientation: Int, direction: Int): Int =
+        if (orientation == SwingConstants.VERTICAL) visible.height else visible.width
+
+    override fun getScrollableTracksViewportWidth(): Boolean {
+        val viewport = parent as? JViewport ?: return false
+        return viewport.width >= minimumSize.width
+    }
+
+    override fun getScrollableTracksViewportHeight(): Boolean = false
+}
 
 class TclLspSettingsPanel {
 
@@ -45,6 +144,17 @@ class TclLspSettingsPanel {
     private val signatureHelpInheritDisabledCommands = JBCheckBox("Inherit from config.ini")
 
     // Feature toggles
+    // Two annotations here, both derived from the published `lsp` platform
+    // module rather than guessed. A dagger marks a server feature no IntelliJ
+    // advertises at all: scanning every class in the module for
+    // `TextDocumentClientCapabilities.set*` / `WorkspaceClientCapabilities.set*`
+    // across 253, 261, 262 and 263 turns up no implementation, declaration,
+    // linkedEditingRange or workspace fileOperations at any of them. A trailing
+    // version marks one the IDE does ask for, but only from that build on —
+    // codeLens lands in 261 and rename in 262, both above our 253 floor.
+    // Note the capability set is assembled by the LSP module in the *user's*
+    // IDE at runtime, so these track the IDE the user is running, not the SDK
+    // this plugin compiles against.
     private val featureHover = JBCheckBox("Hover")
     private val featureCompletion = JBCheckBox("Completion")
     private val featureDiagnostics = JBCheckBox("Diagnostics")
@@ -54,7 +164,7 @@ class TclLspSettingsPanel {
     private val featureReferences = JBCheckBox("Find references")
     private val featureDocumentSymbols = JBCheckBox("Document symbols")
     private val featureFolding = JBCheckBox("Code folding")
-    private val featureRename = JBCheckBox("Rename symbol")
+    private val featureRename = JBCheckBox("Rename symbol (2026.2+)")
     private val featureSignatureHelp = JBCheckBox("Signature help")
     private val featureWorkspaceSymbols = JBCheckBox("Workspace symbols")
     private val featureInlayTypeHints = JBCheckBox("Inlay type hints")
@@ -63,12 +173,12 @@ class TclLspSettingsPanel {
     private val featureDocumentLinks = JBCheckBox("Document links")
     private val featureSelectionRange = JBCheckBox("Selection range")
     private val featureDocumentHighlight = JBCheckBox("Document highlight")
-    private val featureCodeLens = JBCheckBox("Code lens")
-    private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename")
-    private val featureImplementation = JBCheckBox("Go to implementation")
+    private val featureCodeLens = JBCheckBox("Code lens (2026.1+)")
+    private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename \u2020")
+    private val featureImplementation = JBCheckBox("Go to implementation \u2020")
     private val featureTypeDefinition = JBCheckBox("Go to type definition")
-    private val featureDeclaration = JBCheckBox("Go to declaration")
-    private val featureLinkedEditingRange = JBCheckBox("Linked editing range")
+    private val featureDeclaration = JBCheckBox("Go to declaration \u2020")
+    private val featureLinkedEditingRange = JBCheckBox("Linked editing range \u2020")
 
     // Formatting
     private val fmtIndentSize = JSpinner(SpinnerNumberModel(4, 1, 16, 1))
@@ -296,37 +406,46 @@ class TclLspSettingsPanel {
 
     // @generated:opt-checkboxes:begin
     private val optEnabled = JBCheckBox("Enable optimiser suggestions")
-    private val optO100 = JBCheckBox("O100: Propagate constant variables into expressions and co...")
-    private val optO101 = JBCheckBox("O101: Fold constant integer expressions")
-    private val optO102 = JBCheckBox("O102: Forward a variable's single reaching literal load to...")
-    private val optO103 = JBCheckBox("O103: Fold static procedure calls using interprocedural su...")
-    private val optO104 = JBCheckBox("O104: Fold static string build chains into a single assign...")
-    private val optO105 = JBCheckBox("O105: Propagate constants into variable references and det...")
-    private val optO106 = JBCheckBox("O106: Hoist loop-invariant computations")
-    private val optO107 = JBCheckBox("O107: Eliminate unreachable dead code")
-    private val optO108 = JBCheckBox("O108: Eliminate transitively dead code")
-    private val optO109 = JBCheckBox("O109: Eliminate dead stores")
-    private val optO110 = JBCheckBox("O110: Canonicalise expressions (InstCombine)")
-    private val optO111 = JBCheckBox("O111: Brace expression performance hints (paired with W100)")
-    private val optO112 = JBCheckBox("O112: Eliminate constant-condition compound statements")
-    private val optO113 = JBCheckBox("O113: Strength-reduce expressions (x**2 → x*x, x%8 → x&7)")
-    private val optO114 = JBCheckBox("O114: Recognise incr idiom (set x [expr {\$x + N}] → incr x N)")
-    private val optO115 = JBCheckBox("O115: Remove redundant nested [expr {...}] in expression c...")
-    private val optO116 = JBCheckBox("O116: Fold constant [list a b c] to literal value")
-    private val optO117 = JBCheckBox("O117: Simplify [string length \$s] == 0 → \$s eq \"\"")
-    private val optO118 = JBCheckBox("O118: Fold constant [lindex {a b c} 1] to element")
-    private val optO119 = JBCheckBox("O119: Pack consecutive set literals into lassign/foreach")
-    private val optO120 = JBCheckBox("O120: Prefer eq/ne over ==/!= for string comparisons")
-    private val optO121 = JBCheckBox("O121: Rewrite self-recursive tail calls to tailcall")
-    private val optO122 = JBCheckBox("O122: Convert fully tail-recursive proc to iterative while...")
-    private val optO123 = JBCheckBox("O123: Detect non-tail recursion eligible for accumulator i...")
-    private val optO124 = JBCheckBox("O124: Comment out unused procs in iRules (not called from ...")
-    private val optO125 = JBCheckBox("O125: Sink side-effect-free assignments into the deepest d...")
-    private val optO126 = JBCheckBox("O126: Remove unused variable assignments")
-    private val optO127 = JBCheckBox("O127: Inline single-use variable assignment")
-    private val optO128 = JBCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...")
-    private val optO129 = JBCheckBox("O129: Fold a pure builtin command substitution with consta...")
-    private val optO130 = JBCheckBox("O130: Fold static lappend list build chains into a single ...")
+    private val optProfile = JComboBox(arrayOf("off", "readability", "standard", "full", "aggressive"))
+    private val optO100 = ThreeStateCheckBox("O100: Propagate constant variables into expressions and co...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO101 = ThreeStateCheckBox("O101: Fold constant integer expressions", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO102 = ThreeStateCheckBox("O102: Forward a variable's single reaching literal load to...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO103 = ThreeStateCheckBox("O103: Fold static procedure calls using interprocedural su...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO104 = ThreeStateCheckBox("O104: Fold static string build chains into a single assign...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO105 = ThreeStateCheckBox("O105: Propagate constants into variable references and det...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO106 = ThreeStateCheckBox("O106: Hoist loop-invariant computations", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO107 = ThreeStateCheckBox("O107: Eliminate unreachable dead code", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO108 = ThreeStateCheckBox("O108: Eliminate transitively dead code", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO109 = ThreeStateCheckBox("O109: Eliminate dead stores", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO110 = ThreeStateCheckBox("O110: Canonicalise expressions (InstCombine)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO111 = ThreeStateCheckBox("O111: Brace expression performance hints (paired with W100)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO112 = ThreeStateCheckBox("O112: Eliminate constant-condition compound statements", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO113 = ThreeStateCheckBox("O113: Strength-reduce expressions (x**2 → x*x, x%8 → x&7)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO114 = ThreeStateCheckBox("O114: Recognise incr idiom (set x [expr {\$x + N}] → incr x N)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO115 = ThreeStateCheckBox("O115: Remove redundant nested [expr {...}] in expression c...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO116 = ThreeStateCheckBox("O116: Fold constant [list a b c] to literal value", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO117 = ThreeStateCheckBox("O117: Simplify [string length \$s] == 0 → \$s eq \"\"", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO118 = ThreeStateCheckBox("O118: Fold constant [lindex {a b c} 1] to element", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO119 = ThreeStateCheckBox("O119: Pack consecutive set literals into lassign/foreach", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO120 = ThreeStateCheckBox("O120: Prefer eq/ne over ==/!= for string comparisons", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO121 = ThreeStateCheckBox("O121: Rewrite self-recursive tail calls to tailcall", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO122 = ThreeStateCheckBox("O122: Convert fully tail-recursive proc to iterative while...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO123 = ThreeStateCheckBox("O123: Detect non-tail recursion eligible for accumulator i...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO124 = ThreeStateCheckBox("O124: Comment out unused procs in iRules (not called from ...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO125 = ThreeStateCheckBox("O125: Sink side-effect-free assignments into the deepest d...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO126 = ThreeStateCheckBox("O126: Remove unused variable assignments", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO127 = ThreeStateCheckBox("O127: Inline single-use variable assignment", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO128 = ThreeStateCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO129 = ThreeStateCheckBox("O129: Fold a pure builtin command substitution with consta...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO130 = ThreeStateCheckBox("O130: Fold static lappend list build chains into a single ...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optCodeBoxes: List<ThreeStateCheckBox> = listOf(
+        optO100, optO101, optO102, optO103, optO104, optO105,
+        optO106, optO107, optO108, optO109, optO110, optO111,
+        optO112, optO113, optO114, optO115, optO116, optO117,
+        optO118, optO119, optO120, optO121, optO122, optO123,
+        optO124, optO125, optO126, optO127, optO128, optO129,
+        optO130,
+    )
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -354,17 +473,17 @@ class TclLspSettingsPanel {
         // General section
         builder.addComponent(TitledSeparator("General"))
         builder.addLabeledComponent(JBLabel("Server path:"), serverPathField)
-        builder.addTooltip("Path to a tcl-lsp checkout root (probes target/{release,debug}/tcl-lsp-server) or directly to a built native binary (dev mode). Leave empty to use the bundled server.")
+        builder.addWrappedComment("Path to a tcl-lsp checkout root (probes target/{release,debug}/tcl-lsp-server) or directly to a built native binary (dev mode). Leave empty to use the bundled server.")
         builder.addLabeledComponent(JBLabel("Dialect:"), dialectCombo)
         builder.addLabeledComponent(JBLabel("Extra commands:"), extraCommandsField)
-        builder.addTooltip("Comma-separated list of additional command names to treat as known.")
+        builder.addWrappedComment("Comma-separated list of additional command names to treat as known.")
         builder.addLabeledComponent(JBLabel("Library paths:"), libraryPathsField)
-        builder.addTooltip("Comma-separated directories to scan for Tcl packages.")
+        builder.addWrappedComment("Comma-separated directories to scan for Tcl packages.")
         builder.addLabeledComponent(
             JBLabel("Signature help disabled commands:"),
             signatureHelpDisabledCommandsField,
         )
-        builder.addTooltip("Comma-separated built-in command names to silence, such as set,incr. Leave Inherit unchecked and this list empty to show every signature. User-defined proc signatures remain enabled.")
+        builder.addWrappedComment("Comma-separated built-in command names to silence, such as set,incr. Leave Inherit unchecked and this list empty to show every signature. User-defined proc signatures remain enabled.")
         builder.addComponent(signatureHelpInheritDisabledCommands)
         signatureHelpInheritDisabledCommands.toolTipText =
             "Use the disabled-command list from config.ini instead of overriding it in the IDE."
@@ -375,25 +494,26 @@ class TclLspSettingsPanel {
 
         // Features section
         builder.addComponent(TitledSeparator("Features"))
-        val featurePanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            val features = listOf(
-                featureHover, featureCompletion, featureDiagnostics,
-                featureSemanticTokens, featureCodeActions, featureDefinition, featureReferences,
-                featureDocumentSymbols, featureFolding, featureRename, featureSignatureHelp,
-                featureWorkspaceSymbols, featureInlayTypeHints, featureInlayParameterHints,
-                featureCallHierarchy,
-                featureDocumentLinks, featureSelectionRange,
-                featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
-                featureImplementation, featureTypeDefinition, featureDeclaration,
-                featureLinkedEditingRange,
-            )
-            // Lay out in a 3-column grid
-            val grid = JPanel(java.awt.GridLayout(0, 3, 8, 2))
-            features.forEach { grid.add(it) }
-            add(grid)
-        }
-        builder.addComponent(featurePanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    featureHover, featureCompletion, featureDiagnostics,
+                    featureSemanticTokens, featureCodeActions, featureDefinition, featureReferences,
+                    featureDocumentSymbols, featureFolding, featureRename, featureSignatureHelp,
+                    featureWorkspaceSymbols, featureInlayTypeHints, featureInlayParameterHints,
+                    featureCallHierarchy,
+                    featureDocumentLinks, featureSelectionRange,
+                    featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
+                    featureImplementation, featureTypeDefinition, featureDeclaration,
+                    featureLinkedEditingRange,
+                ),
+            ),
+        )
+        builder.addWrappedComment(
+            "\u2020 Sent to the server, but never requested by any JetBrains IDE: IntelliJ's " +
+                "LSP client does not implement these, so the toggle has no effect here. " +
+                "A version in brackets is the IDE release that starts asking for that feature.",
+        )
 
         // Formatting section
         builder.addComponent(TitledSeparator("Formatting"))
@@ -427,96 +547,116 @@ class TclLspSettingsPanel {
 
         // @generated:diag-ui:begin
         builder.addComponent(TitledSeparator("Diagnostics — Errors"))
-        val diagErrorPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagE001, diagE002, diagE003, diagE005, diagE006, diagE200,
-        ).forEach { diagErrorPanel.add(it) }
-        builder.addComponent(diagErrorPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagE001, diagE002, diagE003, diagE005, diagE006, diagE200,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Style & Best Practice"))
-        val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
-            diagW105, diagW106, diagW107, diagW108, diagW109, diagW110,
-            diagW111, diagW112, diagW113, diagW114, diagW115, diagW116,
-            diagW117, diagW118, diagW120, diagW121, diagW124, diagW125,
-            diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
-            diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
-            diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
-            diagW149, diagW150, diagW151, diagW152, diagW200, diagW201,
-            diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
-            diagW250, diagW308, diagW314, diagW315,
-        ).forEach { diagWarnPanel.add(it) }
-        builder.addComponent(diagWarnPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
+                    diagW105, diagW106, diagW107, diagW108, diagW109, diagW110,
+                    diagW111, diagW112, diagW113, diagW114, diagW115, diagW116,
+                    diagW117, diagW118, diagW120, diagW121, diagW124, diagW125,
+                    diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
+                    diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
+                    diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
+                    diagW149, diagW150, diagW151, diagW152, diagW200, diagW201,
+                    diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
+                    diagW250, diagW308, diagW314, diagW315,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Variables"))
-        val diagVarPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW210, diagW211, diagW212, diagW213, diagW214, diagW215,
-            diagW216, diagW217, diagW218, diagW220,
-        ).forEach { diagVarPanel.add(it) }
-        builder.addComponent(diagVarPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagW210, diagW211, diagW212, diagW213, diagW214, diagW215,
+                    diagW216, diagW217, diagW218, diagW220,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Security"))
-        val diagSecPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
-            diagW303, diagW304, diagW305, diagW306, diagW307, diagW309,
-            diagW313,
-        ).forEach { diagSecPanel.add(it) }
-        builder.addComponent(diagSecPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
+                    diagW303, diagW304, diagW305, diagW306, diagW307, diagW309,
+                    diagW313,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Hints"))
-        val diagHintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagH300, diagH301, diagI230, diagI231, diagW123, diagW242,
-        ).forEach { diagHintPanel.add(it) }
-        builder.addComponent(diagHintPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagH300, diagH301, diagI230, diagI231, diagW123, diagW242,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Shimmer"))
-        val diagShimmerPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagS100, diagS101, diagS102, diagS103, diagS110,
-        ).forEach { diagShimmerPanel.add(it) }
-        builder.addComponent(diagShimmerPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagS100, diagS101, diagS102, diagS103, diagS110,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Taint"))
-        val diagTaintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagT100, diagT101, diagT102, diagT104, diagT105,
-        ).forEach { diagTaintPanel.add(it) }
-        builder.addComponent(diagTaintPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagT100, diagT101, diagT102, diagT104, diagT105,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — iRules"))
-        val diagIRulePanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
-            diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
-            diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
-            diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
-            diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
-            diagIRULE4004, diagIRULE4005,
-        ).forEach { diagIRulePanel.add(it) }
-        builder.addComponent(diagIRulePanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
+                    diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
+                    diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
+                    diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
+                    diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
+                    diagIRULE4004, diagIRULE4005,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — BIG-IP Configuration"))
-        val diagBigIpPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
-            diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
-            diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
-            diagIAPP7003,
-        ).forEach { diagBigIpPanel.add(it) }
-        builder.addComponent(diagBigIpPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
+                    diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
+                    diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
+                    diagIAPP7003,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — SslicTcl"))
-        val diagSslicTclPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
-            diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
-            diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
-        ).forEach { diagSslicTclPanel.add(it) }
-        builder.addComponent(diagSslicTclPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
+                    diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
+                    diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
+                ),
+            ),
+        )
         // @generated:diag-ui:end
 
         // Style section
@@ -526,16 +666,14 @@ class TclLspSettingsPanel {
         // @generated:opt-ui:begin
         builder.addComponent(TitledSeparator("Optimiser"))
         builder.addComponent(optEnabled)
-        val optPanel = JPanel(java.awt.GridLayout(0, 4, 8, 2))
-        listOf(
-            optO100, optO101, optO102, optO103, optO104, optO105,
-            optO106, optO107, optO108, optO109, optO110, optO111,
-            optO112, optO113, optO114, optO115, optO116, optO117,
-            optO118, optO119, optO120, optO121, optO122, optO123,
-            optO124, optO125, optO126, optO127, optO128, optO129,
-            optO130,
-        ).forEach { optPanel.add(it) }
-        builder.addComponent(optPanel)
+        builder.addLabeledComponent(JBLabel("Profile:"), profileRow())
+        builder.addComponent(ReflowingGrid(optCodeBoxes))
+        builder.addWrappedComment(
+            "The profile chooses which optimisation families run. A per-code box left " +
+                "in its mixed state inherits from the profile; tick or untick one to " +
+                "force that code on or off regardless of the profile. Reset to profile " +
+                "clears every override and hands the choice back to the profile.",
+        )
         // @generated:opt-ui:end
 
         // Shimmer section
@@ -550,29 +688,27 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Runtime Validation"))
         builder.addComponent(runtimeValidation)
         builder.addLabeledComponent(JBLabel("Adapter mode:"), rtAdapter)
-        builder.addTooltip("auto: detect from dialect.  tclsh: use tclsh.  expect: use Expect.")
+        builder.addWrappedComment("auto: detect from dialect.  tclsh: use tclsh.  expect: use Expect.")
         builder.addLabeledComponent(JBLabel("tclsh path:"), rtTclshPath)
-        builder.addTooltip("Path to tclsh interpreter. Leave empty for auto-discovery.")
+        builder.addWrappedComment("Path to tclsh interpreter. Leave empty for auto-discovery.")
         builder.addLabeledComponent(JBLabel("Timeout (ms):"), rtTimeoutMs)
 
         // AI
         builder.addComponent(TitledSeparator("AI"))
         builder.addComponent(aiEnabled)
         builder.addLabeledComponent(JBLabel("Extra prompts (JSON):"), aiExtraPrompts)
-        builder.addTooltip("JSON array of prompt objects for AI-assisted features.")
+        builder.addWrappedComment("JSON array of prompt objects for AI-assisted features.")
 
         // Diagnostic patterns
         builder.addComponent(TitledSeparator("Diagnostic Patterns"))
         builder.addLabeledComponent(JBLabel("Generic variable patterns:"), genericPatternsField)
-        builder.addTooltip("Newline-separated regex patterns for IRULE4002 generic variable detection.")
+        builder.addWrappedComment("Newline-separated regex patterns for IRULE4002 generic variable detection.")
         builder.addLabeledComponent(JBLabel("Exclude files from diagnostics:"), diagnosticsExcludeField)
-        builder.addTooltip("Newline-separated glob patterns (e.g. generated/** or *.gen.tcl); matching files publish no diagnostics. Longer lists are easier to keep in the [diagnostics] exclude key of .tcl-lsp.ini.")
+        builder.addWrappedComment("Newline-separated glob patterns (e.g. generated/** or *.gen.tcl); matching files publish no diagnostics. Longer lists are easier to keep in the [diagnostics] exclude key of .tcl-lsp.ini.")
 
         builder.addComponentFillVertically(JPanel(), 0)
 
-        root = JScrollPane(builder.panel).apply {
-            border = JBUI.Borders.empty()
-        }
+        root = ScrollableForm(builder.panel)
 
         reset()
     }
@@ -815,37 +951,38 @@ class TclLspSettingsPanel {
             (styleLineLength.value as Int) != s.styleLineLength ||
             // @generated:opt-dirty:begin
             optEnabled.isSelected != s.optimiserEnabled ||
-            optO100.isSelected != s.optimiserO100 ||
-            optO101.isSelected != s.optimiserO101 ||
-            optO102.isSelected != s.optimiserO102 ||
-            optO103.isSelected != s.optimiserO103 ||
-            optO104.isSelected != s.optimiserO104 ||
-            optO105.isSelected != s.optimiserO105 ||
-            optO106.isSelected != s.optimiserO106 ||
-            optO107.isSelected != s.optimiserO107 ||
-            optO108.isSelected != s.optimiserO108 ||
-            optO109.isSelected != s.optimiserO109 ||
-            optO110.isSelected != s.optimiserO110 ||
-            optO111.isSelected != s.optimiserO111 ||
-            optO112.isSelected != s.optimiserO112 ||
-            optO113.isSelected != s.optimiserO113 ||
-            optO114.isSelected != s.optimiserO114 ||
-            optO115.isSelected != s.optimiserO115 ||
-            optO116.isSelected != s.optimiserO116 ||
-            optO117.isSelected != s.optimiserO117 ||
-            optO118.isSelected != s.optimiserO118 ||
-            optO119.isSelected != s.optimiserO119 ||
-            optO120.isSelected != s.optimiserO120 ||
-            optO121.isSelected != s.optimiserO121 ||
-            optO122.isSelected != s.optimiserO122 ||
-            optO123.isSelected != s.optimiserO123 ||
-            optO124.isSelected != s.optimiserO124 ||
-            optO125.isSelected != s.optimiserO125 ||
-            optO126.isSelected != s.optimiserO126 ||
-            optO127.isSelected != s.optimiserO127 ||
-            optO128.isSelected != s.optimiserO128 ||
-            optO129.isSelected != s.optimiserO129 ||
-            optO130.isSelected != s.optimiserO130 ||
+            optProfile.selectedItem != s.optimiserProfile ||
+            triState(optO100) != s.optimiserO100 ||
+            triState(optO101) != s.optimiserO101 ||
+            triState(optO102) != s.optimiserO102 ||
+            triState(optO103) != s.optimiserO103 ||
+            triState(optO104) != s.optimiserO104 ||
+            triState(optO105) != s.optimiserO105 ||
+            triState(optO106) != s.optimiserO106 ||
+            triState(optO107) != s.optimiserO107 ||
+            triState(optO108) != s.optimiserO108 ||
+            triState(optO109) != s.optimiserO109 ||
+            triState(optO110) != s.optimiserO110 ||
+            triState(optO111) != s.optimiserO111 ||
+            triState(optO112) != s.optimiserO112 ||
+            triState(optO113) != s.optimiserO113 ||
+            triState(optO114) != s.optimiserO114 ||
+            triState(optO115) != s.optimiserO115 ||
+            triState(optO116) != s.optimiserO116 ||
+            triState(optO117) != s.optimiserO117 ||
+            triState(optO118) != s.optimiserO118 ||
+            triState(optO119) != s.optimiserO119 ||
+            triState(optO120) != s.optimiserO120 ||
+            triState(optO121) != s.optimiserO121 ||
+            triState(optO122) != s.optimiserO122 ||
+            triState(optO123) != s.optimiserO123 ||
+            triState(optO124) != s.optimiserO124 ||
+            triState(optO125) != s.optimiserO125 ||
+            triState(optO126) != s.optimiserO126 ||
+            triState(optO127) != s.optimiserO127 ||
+            triState(optO128) != s.optimiserO128 ||
+            triState(optO129) != s.optimiserO129 ||
+            triState(optO130) != s.optimiserO130 ||
             // @generated:opt-dirty:end
             // Shimmer
             shimmerEnabled.isSelected != s.shimmerEnabled ||
@@ -1106,37 +1243,38 @@ class TclLspSettingsPanel {
 
         // @generated:opt-apply:begin
         s.optimiserEnabled = optEnabled.isSelected
-        s.optimiserO100 = optO100.isSelected
-        s.optimiserO101 = optO101.isSelected
-        s.optimiserO102 = optO102.isSelected
-        s.optimiserO103 = optO103.isSelected
-        s.optimiserO104 = optO104.isSelected
-        s.optimiserO105 = optO105.isSelected
-        s.optimiserO106 = optO106.isSelected
-        s.optimiserO107 = optO107.isSelected
-        s.optimiserO108 = optO108.isSelected
-        s.optimiserO109 = optO109.isSelected
-        s.optimiserO110 = optO110.isSelected
-        s.optimiserO111 = optO111.isSelected
-        s.optimiserO112 = optO112.isSelected
-        s.optimiserO113 = optO113.isSelected
-        s.optimiserO114 = optO114.isSelected
-        s.optimiserO115 = optO115.isSelected
-        s.optimiserO116 = optO116.isSelected
-        s.optimiserO117 = optO117.isSelected
-        s.optimiserO118 = optO118.isSelected
-        s.optimiserO119 = optO119.isSelected
-        s.optimiserO120 = optO120.isSelected
-        s.optimiserO121 = optO121.isSelected
-        s.optimiserO122 = optO122.isSelected
-        s.optimiserO123 = optO123.isSelected
-        s.optimiserO124 = optO124.isSelected
-        s.optimiserO125 = optO125.isSelected
-        s.optimiserO126 = optO126.isSelected
-        s.optimiserO127 = optO127.isSelected
-        s.optimiserO128 = optO128.isSelected
-        s.optimiserO129 = optO129.isSelected
-        s.optimiserO130 = optO130.isSelected
+        s.optimiserProfile = optProfile.selectedItem as? String ?: s.optimiserProfile
+        s.optimiserO100 = triState(optO100)
+        s.optimiserO101 = triState(optO101)
+        s.optimiserO102 = triState(optO102)
+        s.optimiserO103 = triState(optO103)
+        s.optimiserO104 = triState(optO104)
+        s.optimiserO105 = triState(optO105)
+        s.optimiserO106 = triState(optO106)
+        s.optimiserO107 = triState(optO107)
+        s.optimiserO108 = triState(optO108)
+        s.optimiserO109 = triState(optO109)
+        s.optimiserO110 = triState(optO110)
+        s.optimiserO111 = triState(optO111)
+        s.optimiserO112 = triState(optO112)
+        s.optimiserO113 = triState(optO113)
+        s.optimiserO114 = triState(optO114)
+        s.optimiserO115 = triState(optO115)
+        s.optimiserO116 = triState(optO116)
+        s.optimiserO117 = triState(optO117)
+        s.optimiserO118 = triState(optO118)
+        s.optimiserO119 = triState(optO119)
+        s.optimiserO120 = triState(optO120)
+        s.optimiserO121 = triState(optO121)
+        s.optimiserO122 = triState(optO122)
+        s.optimiserO123 = triState(optO123)
+        s.optimiserO124 = triState(optO124)
+        s.optimiserO125 = triState(optO125)
+        s.optimiserO126 = triState(optO126)
+        s.optimiserO127 = triState(optO127)
+        s.optimiserO128 = triState(optO128)
+        s.optimiserO129 = triState(optO129)
+        s.optimiserO130 = triState(optO130)
         // @generated:opt-apply:end
 
         s.shimmerEnabled = shimmerEnabled.isSelected
@@ -1163,6 +1301,36 @@ class TclLspSettingsPanel {
      * don't need a restart.
      */
     @Suppress("UnstableApiUsage")
+    /**
+     * The profile selector, with the link that clears every per-code override
+     * beside it.
+     *
+     * A function rather than a property: it reads `optProfile` and
+     * `optCodeBoxes`, both generated declarations, and building it while the
+     * form is assembled keeps it independent of the order those initialise in.
+     */
+    private fun profileRow(): JPanel =
+        JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
+            add(optProfile)
+            add(ActionLink("Reset codes to profile") { resetCodesToProfile() })
+        }
+
+    /**
+     * Hand every per-code choice back to the profile.
+     *
+     * The third state is the one that defers, so this resets to "no opinion"
+     * rather than to a set of ticks: without it, a user who explicitly set a
+     * handful of codes has no way to find which, or to undo them short of
+     * clicking each back to mixed.
+     *
+     * Only the controls change — `isModified` then reports the panel dirty and
+     * the usual Apply writes it through, so this is as undoable as any other
+     * edit on the page.
+     */
+    private fun resetCodesToProfile() {
+        optCodeBoxes.forEach { it.state = ThreeStateCheckBox.State.DONT_CARE }
+    }
+
     private fun restartLspServers() {
         for (project in ProjectManager.getInstance().openProjects) {
             if (project.isDisposed) continue
@@ -1413,37 +1581,38 @@ class TclLspSettingsPanel {
 
         // @generated:opt-reset:begin
         optEnabled.isSelected = s.optimiserEnabled
-        optO100.isSelected = s.optimiserO100
-        optO101.isSelected = s.optimiserO101
-        optO102.isSelected = s.optimiserO102
-        optO103.isSelected = s.optimiserO103
-        optO104.isSelected = s.optimiserO104
-        optO105.isSelected = s.optimiserO105
-        optO106.isSelected = s.optimiserO106
-        optO107.isSelected = s.optimiserO107
-        optO108.isSelected = s.optimiserO108
-        optO109.isSelected = s.optimiserO109
-        optO110.isSelected = s.optimiserO110
-        optO111.isSelected = s.optimiserO111
-        optO112.isSelected = s.optimiserO112
-        optO113.isSelected = s.optimiserO113
-        optO114.isSelected = s.optimiserO114
-        optO115.isSelected = s.optimiserO115
-        optO116.isSelected = s.optimiserO116
-        optO117.isSelected = s.optimiserO117
-        optO118.isSelected = s.optimiserO118
-        optO119.isSelected = s.optimiserO119
-        optO120.isSelected = s.optimiserO120
-        optO121.isSelected = s.optimiserO121
-        optO122.isSelected = s.optimiserO122
-        optO123.isSelected = s.optimiserO123
-        optO124.isSelected = s.optimiserO124
-        optO125.isSelected = s.optimiserO125
-        optO126.isSelected = s.optimiserO126
-        optO127.isSelected = s.optimiserO127
-        optO128.isSelected = s.optimiserO128
-        optO129.isSelected = s.optimiserO129
-        optO130.isSelected = s.optimiserO130
+        optProfile.selectedItem = s.optimiserProfile
+        optO100.state = threeState(s.optimiserO100)
+        optO101.state = threeState(s.optimiserO101)
+        optO102.state = threeState(s.optimiserO102)
+        optO103.state = threeState(s.optimiserO103)
+        optO104.state = threeState(s.optimiserO104)
+        optO105.state = threeState(s.optimiserO105)
+        optO106.state = threeState(s.optimiserO106)
+        optO107.state = threeState(s.optimiserO107)
+        optO108.state = threeState(s.optimiserO108)
+        optO109.state = threeState(s.optimiserO109)
+        optO110.state = threeState(s.optimiserO110)
+        optO111.state = threeState(s.optimiserO111)
+        optO112.state = threeState(s.optimiserO112)
+        optO113.state = threeState(s.optimiserO113)
+        optO114.state = threeState(s.optimiserO114)
+        optO115.state = threeState(s.optimiserO115)
+        optO116.state = threeState(s.optimiserO116)
+        optO117.state = threeState(s.optimiserO117)
+        optO118.state = threeState(s.optimiserO118)
+        optO119.state = threeState(s.optimiserO119)
+        optO120.state = threeState(s.optimiserO120)
+        optO121.state = threeState(s.optimiserO121)
+        optO122.state = threeState(s.optimiserO122)
+        optO123.state = threeState(s.optimiserO123)
+        optO124.state = threeState(s.optimiserO124)
+        optO125.state = threeState(s.optimiserO125)
+        optO126.state = threeState(s.optimiserO126)
+        optO127.state = threeState(s.optimiserO127)
+        optO128.state = threeState(s.optimiserO128)
+        optO129.state = threeState(s.optimiserO129)
+        optO130.state = threeState(s.optimiserO130)
         // @generated:opt-reset:end
 
         shimmerEnabled.isSelected = s.shimmerEnabled

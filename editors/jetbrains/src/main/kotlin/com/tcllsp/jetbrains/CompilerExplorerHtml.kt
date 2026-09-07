@@ -80,7 +80,7 @@ fun getCompilerExplorerHtml(): String {
  * of "webview API unavailable", and ensures the `compile` request reaches
  * Kotlin so the IR pane stops showing "Waiting for source from editor...".
  */
-private fun adaptHtmlForJcef(html: String): String {
+internal fun adaptHtmlForJcef(html: String): String {
     var result = html
 
     val shim = """
@@ -97,9 +97,21 @@ private fun adaptHtmlForJcef(html: String): String {
                     if (msg.type === 'compile' && typeof msg.source === 'string') {
                         window.__tcllspBridge('compile:' + msg.source + '\u0000' + (msg.dialect || ''));
                     } else if (msg.type === 'highlightSource') {
-                        window.__tcllspBridge('highlightSource:' + msg.start + ',' + msg.end);
+                        // Six fields: the UTF-16 line/column pair a caret is
+                        // actually placed with, then the byte offsets as a
+                        // fallback for a payload that predates them. An absent
+                        // field rides as an empty string.
+                        var n = function(v) { return v === undefined ? '' : v; };
+                        window.__tcllspBridge('highlightSource:' +
+                            n(msg.startLine) + ',' + n(msg.startCol) + ',' +
+                            n(msg.endLine) + ',' + n(msg.endCol) + ',' +
+                            n(msg.start) + ',' + n(msg.end));
                     } else if (msg.type === 'clearHighlight') {
                         window.__tcllspBridge('clearHighlight');
+                    } else if (msg.type === 'openProjection') {
+                        window.__tcllspBridge('openProjection:' + msg.view + '\u0000' +
+                            (msg.label || msg.view) + '\u0000' + (msg.dialect || '') +
+                            '\u0000' + (msg.source || ''));
                     }
                     // Other types (ready, dialectChange, scriptError, ...)
                     // have no host action in JCEF and are intentionally dropped.

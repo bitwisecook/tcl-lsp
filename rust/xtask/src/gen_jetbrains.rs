@@ -23,6 +23,11 @@
 //! The file is a full-file projection of the user-configurable diagnostics +
 //! optimisations, each carrying a short checkbox `label`. `--check` verifies
 //! the committed file matches, exiting non-zero on drift.
+//!
+//! It also gates the plugin's hand-written semantic-token colour map against
+//! the legend the server advertises, in both modes: a token type the server
+//! emits that the map has no colour for is painted in the default foreground,
+//! which in an editor is indistinguishable from no semantic highlighting.
 
 use std::fmt::Write as _;
 use std::process::ExitCode;
@@ -30,9 +35,17 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use tcl_core_types::{DiagCode, DocRow};
 
+use tcl_compiler::optimiser::profiles::{DEFAULT_EDITOR_PROFILE, OptimisationProfile};
+
 use crate::util::{repo_root, write_if_changed};
 
 const CATALOG_PATH: &str = "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/generated/DiagnosticCatalog.kt";
+
+/// The hand-written map this module verifies (rather than generates): the
+/// colour for a token type is an editor judgement, but its *key set* is the
+/// server's to decide.
+const SEMANTIC_TOKENS_PATH: &str =
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclSemanticTokens.kt";
 
 /// The section grouping `(key, title)` in table order (the three `irules*` keys
 /// share the iRules title, collapsing in `sectionTitles`/`sectionOrder`).
@@ -239,41 +252,121 @@ fn settings(current: &str) -> String {
     out = replace_block(&out, "diagnostic-map", &map);
 
     let mut opt_vars = String::from("    var optimiserEnabled: Boolean = true\n");
+    let _ = writeln!(
+        opt_vars,
+        "    var optimiserProfile: String = \"{}\"",
+        DEFAULT_EDITOR_PROFILE.name()
+    );
+    // Each per-code override is tri-state, exactly as the VS Code setting is
+    // (`["boolean", "null"]`, default `null`). A non-null value here *beats*
+    // the profile server-side — `true` lifts the code out of the profile's
+    // disabled set — so a hard default would silently switch on every
+    // optimisation the chosen profile deliberately leaves off.
     for (code, _) in &opts {
-        let _ = writeln!(opt_vars, "    var optimiser{code}: Boolean = true");
+        let _ = writeln!(opt_vars, "    var optimiser{code}: Boolean? = null");
     }
     out = replace_block(&out, "optimiser-vars", &opt_vars);
 
     let mut opt_map = String::from("                \"enabled\" to optimiserEnabled,\n");
+    opt_map.push_str("                \"profile\" to optimiserProfile,\n");
     for (code, _) in &opts {
         let _ = writeln!(opt_map, "                \"{code}\" to optimiser{code},");
     }
     replace_block(&out, "optimiser-map", &opt_map)
 }
 
-/// The `JBPanel` variable name for a diagnostics section title.
-fn panel_var_for(title: &str) -> &'static str {
-    match title {
-        "Diagnostics — Errors" => "diagErrorPanel",
-        "Diagnostics — Style & Best Practice" => "diagWarnPanel",
-        "Diagnostics — Variables" => "diagVarPanel",
-        "Diagnostics — Security" => "diagSecPanel",
-        "Diagnostics — Hints" => "diagHintPanel",
-        "Diagnostics — Shimmer" => "diagShimmerPanel",
-        "Diagnostics — Taint" => "diagTaintPanel",
-        "Diagnostics — iRules" => "diagIRulePanel",
-        "Diagnostics — BIG-IP Configuration" => "diagBigIpPanel",
-        "Diagnostics — SslicTcl" => "diagSslicTclPanel",
-        "Diagnostics — Package Manager" => "diagPackagePanel",
-        _ => "diagPanel",
+/// The note under the optimiser grid. A tri-state checkbox is unusual enough
+/// in a settings page that the third state needs saying out loud.
+const PROFILE_LEGEND: [&str; 6] = [
+    r"        builder.addWrappedComment(",
+    r#"            "The profile chooses which optimisation families run. A per-code box left " +"#,
+    r#"                "in its mixed state inherits from the profile; tick or untick one to " +"#,
+    r#"                "force that code on or off regardless of the profile. Reset to profile " +"#,
+    r#"                "clears every override and hands the choice back to the profile.","#,
+    r"        )",
+];
+
+/// Regenerate the optimiser half of `TclLspSettingsPanel.kt`: the profile
+/// picker, the tri-state per-code boxes, and their dirty/apply/reset arms.
+///
+/// Split out of [`panel`] to keep each side inside clippy's per-function line
+/// budget; the two halves share nothing but the file being rewritten.
+fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> String {
+    let opts = opts.to_vec();
+    let mut out = current;
+    // opt-checkboxes.
+    let mut opt_cb =
+        String::from("    private val optEnabled = JBCheckBox(\"Enable optimiser suggestions\")\n");
+    let profile_items = OptimisationProfile::ALL
+        .iter()
+        .map(|p| format!("\"{}\"", p.name()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let _ = writeln!(
+        opt_cb,
+        "    private val optProfile = JComboBox(arrayOf({profile_items}))"
+    );
+    // Tri-state, so a code can say "inherit from the profile" — the state the
+    // VS Code setting expresses as `null` and its default.
+    for (code, description) in &opts {
+        let _ = writeln!(
+            opt_cb,
+            "    private val opt{code} = ThreeStateCheckBox(\"{}\", ThreeStateCheckBox.State.DONT_CARE)",
+            short_label(code, description)
+        );
     }
+    // One named list, so the grid and the "reset to profile" link cannot
+    // disagree about which boxes are per-code overrides.
+    opt_cb.push_str("    private val optCodeBoxes: List<ThreeStateCheckBox> = listOf(\n");
+    let box_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
+    opt_cb.push_str(&six_per_line_at(&box_refs, 8));
+    opt_cb.push_str("    )\n");
+    out = replace_block(&out, "opt-checkboxes", &opt_cb);
+
+    // opt-ui.
+    let mut opt_ui = String::from(
+        "        builder.addComponent(TitledSeparator(\"Optimiser\"))\n\
+         \x20       builder.addComponent(optEnabled)\n\
+         \x20       builder.addLabeledComponent(JBLabel(\"Profile:\"), profileRow())\n\
+         \x20       builder.addComponent(ReflowingGrid(optCodeBoxes))\n",
+    );
+    for line in PROFILE_LEGEND {
+        let _ = writeln!(opt_ui, "{line}");
+    }
+    out = replace_block(&out, "opt-ui", &opt_ui);
+
+    // opt dirty/apply/reset.
+    let mut opt_dirty =
+        String::from("            optEnabled.isSelected != s.optimiserEnabled ||\n");
+    opt_dirty.push_str("            optProfile.selectedItem != s.optimiserProfile ||\n");
+    let mut opt_apply = String::from("        s.optimiserEnabled = optEnabled.isSelected\n");
+    opt_apply.push_str(
+        "        s.optimiserProfile = optProfile.selectedItem as? String ?: s.optimiserProfile\n",
+    );
+    let mut opt_reset = String::from("        optEnabled.isSelected = s.optimiserEnabled\n");
+    opt_reset.push_str("        optProfile.selectedItem = s.optimiserProfile\n");
+    for (code, _) in &opts {
+        let _ = writeln!(
+            opt_dirty,
+            "            triState(opt{code}) != s.optimiser{code} ||"
+        );
+        let _ = writeln!(opt_apply, "        s.optimiser{code} = triState(opt{code})");
+        let _ = writeln!(
+            opt_reset,
+            "        opt{code}.state = threeState(s.optimiser{code})"
+        );
+    }
+    out = replace_block(&out, "opt-dirty", &opt_dirty);
+    out = replace_block(&out, "opt-apply", &opt_apply);
+    replace_block(&out, "opt-reset", &opt_reset)
 }
 
-/// Join checkbox field refs six-per-line, each line `            a, b, …,\n`.
-fn six_per_line(refs: &[String]) -> String {
+/// Join checkbox field refs six-per-line at `indent` spaces.
+fn six_per_line_at(refs: &[String], indent: usize) -> String {
+    let pad = " ".repeat(indent);
     let mut out = String::new();
     for chunk in refs.chunks(6) {
-        let _ = writeln!(out, "            {},", chunk.join(", "));
+        let _ = writeln!(out, "{pad}{},", chunk.join(", "));
     }
     out
 }
@@ -305,23 +398,19 @@ fn panel(current: &str) -> String {
     // diag-ui: titled separator + grid panel + six-per-line refs.
     let mut ui = String::new();
     for (title, group) in &groups {
-        let pv = panel_var_for(title);
         let _ = writeln!(
             ui,
             "        builder.addComponent(TitledSeparator(\"{title}\"))"
         );
-        let _ = writeln!(
-            ui,
-            "        val {pv} = JPanel(java.awt.GridLayout(0, 2, 8, 2))"
+        ui.push_str(
+            "        builder.addComponent(\n            ReflowingGrid(\n                listOf(\n",
         );
-        ui.push_str("        listOf(\n");
         let refs: Vec<String> = group
             .iter()
             .map(|(code, _, _, _)| format!("diag{code}"))
             .collect();
-        ui.push_str(&six_per_line(&refs));
-        let _ = writeln!(ui, "        ).forEach {{ {pv}.add(it) }}");
-        let _ = writeln!(ui, "        builder.addComponent({pv})");
+        ui.push_str(&six_per_line_at(&refs, 20));
+        ui.push_str("                ),\n            ),\n        )\n");
         ui.push('\n');
     }
     let ui = ui.strip_suffix('\n').unwrap_or(&ui);
@@ -343,53 +432,7 @@ fn panel(current: &str) -> String {
     out = replace_block(&out, "diag-apply", &apply);
     out = replace_block(&out, "diag-reset", &reset);
 
-    // opt-checkboxes.
-    let mut opt_cb =
-        String::from("    private val optEnabled = JBCheckBox(\"Enable optimiser suggestions\")\n");
-    for (code, description) in &opts {
-        let _ = writeln!(
-            opt_cb,
-            "    private val opt{code} = JBCheckBox(\"{}\")",
-            short_label(code, description)
-        );
-    }
-    out = replace_block(&out, "opt-checkboxes", &opt_cb);
-
-    // opt-ui.
-    let mut opt_ui = String::from(
-        "        builder.addComponent(TitledSeparator(\"Optimiser\"))\n\
-         \x20       builder.addComponent(optEnabled)\n\
-         \x20       val optPanel = JPanel(java.awt.GridLayout(0, 4, 8, 2))\n\
-         \x20       listOf(\n",
-    );
-    let opt_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
-    opt_ui.push_str(&six_per_line(&opt_refs));
-    opt_ui.push_str("        ).forEach { optPanel.add(it) }\n");
-    opt_ui.push_str("        builder.addComponent(optPanel)\n");
-    out = replace_block(&out, "opt-ui", &opt_ui);
-
-    // opt dirty/apply/reset.
-    let mut opt_dirty =
-        String::from("            optEnabled.isSelected != s.optimiserEnabled ||\n");
-    let mut opt_apply = String::from("        s.optimiserEnabled = optEnabled.isSelected\n");
-    let mut opt_reset = String::from("        optEnabled.isSelected = s.optimiserEnabled\n");
-    for (code, _) in &opts {
-        let _ = writeln!(
-            opt_dirty,
-            "            opt{code}.isSelected != s.optimiser{code} ||"
-        );
-        let _ = writeln!(
-            opt_apply,
-            "        s.optimiser{code} = opt{code}.isSelected"
-        );
-        let _ = writeln!(
-            opt_reset,
-            "        opt{code}.isSelected = s.optimiser{code}"
-        );
-    }
-    out = replace_block(&out, "opt-dirty", &opt_dirty);
-    out = replace_block(&out, "opt-apply", &opt_apply);
-    replace_block(&out, "opt-reset", &opt_reset)
+    optimiser_blocks(out, &opts)
 }
 
 /// One generated `JetBrains` file: `(relative-path, regenerated-content)`.
@@ -406,8 +449,68 @@ fn artifacts() -> Result<Vec<(&'static str, String)>> {
 }
 
 /// Write (or, with `check`, verify) the three generated `JetBrains` files.
+/// Every token type and modifier the plugin must have a colour rule for is
+/// one the server actually advertises, and vice versa.
+fn verify_semantic_token_colors(root: &std::path::Path) -> Result<()> {
+    let path = root.join(SEMANTIC_TOKENS_PATH);
+    let source =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+
+    let mapped = quoted_keys(&source, "internal val SEMANTIC_TOKEN_COLORS", "\n)");
+    let legend: Vec<String> = tcl_lsp_core::semantic_tokens::legend_token_types()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let missing: Vec<&String> = legend.iter().filter(|t| !mapped.contains(*t)).collect();
+    let unknown: Vec<&String> = mapped.iter().filter(|t| !legend.contains(t)).collect();
+    if !missing.is_empty() || !unknown.is_empty() {
+        anyhow::bail!(
+            "{SEMANTIC_TOKENS_PATH} SEMANTIC_TOKEN_COLORS disagrees with the server \
+             legend — uncoloured token types: {missing:?}; types the server never \
+             emits: {unknown:?}"
+        );
+    }
+
+    // The modifier half: a rule keyed on a modifier the server cannot set is
+    // dead, and reads as a colour the user will never see.
+    let modifiers = tcl_lsp_core::semantic_tokens::legend_token_modifiers();
+    for key in quoted_keys(&source, "SEMANTIC_TOKEN_MODIFIER_COLORS", "\n)") {
+        if !legend.contains(&key) && !modifiers.contains(&key.as_str()) {
+            anyhow::bail!(
+                "{SEMANTIC_TOKENS_PATH} SEMANTIC_TOKEN_MODIFIER_COLORS names {key:?}, \
+                 which is in neither the token-type nor the token-modifier legend"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Every double-quoted string between `start` and the next `end` after it.
+fn quoted_keys(source: &str, start: &str, end: &str) -> Vec<String> {
+    let Some(from) = source.find(start) else {
+        return Vec::new();
+    };
+    let rest = &source[from..];
+    let body = rest.find(end).map_or(rest, |n| &rest[..n]);
+    let mut out = Vec::new();
+    let mut chars = body.char_indices();
+    while let Some((i, c)) = chars.next() {
+        if c != '"' {
+            continue;
+        }
+        if let Some(len) = body[i + 1..].find('"') {
+            out.push(body[i + 1..i + 1 + len].to_owned());
+            for _ in 0..body[i + 1..=i + len + 1].chars().count() {
+                chars.next();
+            }
+        }
+    }
+    out
+}
+
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
+    verify_semantic_token_colors(&root)?;
     let mut drift = Vec::new();
     for (rel, content) in artifacts()? {
         let path = root.join(rel);
@@ -460,16 +563,52 @@ mod tests {
     }
 
     #[test]
-    fn diagnostic_panel_variables_are_unique() {
+    fn the_semantic_token_colour_map_covers_the_server_legend() {
+        verify_semantic_token_colors(&repo_root())
+            .expect("every advertised semantic-token type needs a colour in the plugin");
+    }
+
+    #[test]
+    fn quoted_keys_reads_only_the_block_it_is_given() {
+        let source = "internal val A = mapOf(\n  \"x\" to 1,\n  \"y\" to 2,\n)\nval B = \"z\"\n";
+        assert_eq!(quoted_keys(source, "internal val A", "\n)"), ["x", "y"]);
+        assert!(quoted_keys(source, "no such marker", "\n)").is_empty());
+    }
+
+    #[test]
+    fn every_diagnostic_section_gets_its_own_titled_reflowing_grid() {
+        let panel = artifacts()
+            .expect("render JetBrains files")
+            .into_iter()
+            .find(|(rel, _)| rel.ends_with("TclLspSettingsPanel.kt"))
+            .expect("the settings panel is generated")
+            .1;
+
         let groups = diag_section_groups();
-        let names: std::collections::HashSet<_> = groups
-            .iter()
-            .map(|(title, _)| panel_var_for(title))
-            .collect();
+        for (title, _) in &groups {
+            assert_eq!(
+                panel
+                    .matches(&format!("TitledSeparator(\"{title}\")"))
+                    .count(),
+                1,
+                "diagnostics section {title:?} must be emitted exactly once"
+            );
+        }
+        let diag_ui = panel
+            .split_once("// @generated:diag-ui:begin")
+            .and_then(|(_, rest)| rest.split_once("// @generated:diag-ui:end"))
+            .expect("the diagnostics UI block")
+            .0;
         assert_eq!(
-            names.len(),
+            diag_ui.matches("ReflowingGrid(").count(),
             groups.len(),
-            "each generated diagnostics section needs a distinct Kotlin local variable"
+            "one reflowing grid per diagnostics section"
+        );
+        // A fixed column count is what made the page wider than any settings
+        // pane and pushed its right-hand columns out of reach.
+        assert!(
+            !panel.contains("GridLayout("),
+            "the settings page must not lay checkboxes out in a fixed number of columns"
         );
     }
 

@@ -37,9 +37,10 @@ function explorerAssetDirs(): string[] {
   return [
     // When built via Makefile, assets are copied next to the bundle.
     __dirname,
-    // Fallback: the source tree (dev / tsc-watch mode).
-    // __dirname is  editors/vscode/out  →  walk up to repo root.
-    join(__dirname, "..", "..", "..", "tooling", "explorer", "static"),
+    // Fallback: the source tree (dev / tsc-watch mode). __dirname is
+    // editors/vscode/out, so walk up to the repo root and into the
+    // explorer's own static directory (EXPLORER_STATIC in the Makefile).
+    join(__dirname, "..", "..", "..", "rust", "tcl-cli", "gui"),
   ];
 }
 
@@ -51,8 +52,8 @@ function findCoreJs(): string {
     }
   }
   throw new Error(
-    "explorer-core.js not found next to the bundle or in tooling/explorer/static. " +
-      "Run 'make compile' or copy tooling/explorer/static/explorer-core.js to editors/vscode/out/.",
+    "explorer-core.js not found next to the bundle or in rust/tcl-cli/gui. " +
+      "Run 'make compile' or copy rust/tcl-cli/gui/explorer-core.js to editors/vscode/out/.",
   );
 }
 
@@ -254,6 +255,22 @@ body {
   flex-shrink: 0;
   min-width: 0;
 }
+/* Pushed to the far end of the tab bar; hidden for a tab with no tree view. */
+.open-in-editor {
+  margin-left: auto;
+  align-self: center;
+  background: transparent;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  margin-right: 6px;
+  cursor: pointer;
+}
+.open-in-editor:hover { color: var(--fg); border-color: var(--fg-dim); }
+.open-in-editor[hidden] { display: none; }
 .tab {
   padding: 6px 10px;
   font-size: 12px;
@@ -837,7 +854,7 @@ body {
 }
 .disasm-diff-unchanged-note { padding: 4px 8px; color: var(--text-dim); font-size: 11px; font-style: italic; }
 /* Generic expand-on-click / Space items (shared explorer-core renderers).
-   Must mirror tooling/explorer/static/index.html so the shared xpand() /
+   Must mirror rust/tcl-cli/gui/index.html so the shared xpand() /
    optimiser-lens markup renders the same in the VS Code webview. */
 .xpand { cursor: pointer; outline: none; border-radius: 4px; }
 .xpand:focus-visible { box-shadow: inset 2px 0 0 var(--accent); background: var(--highlight); }
@@ -950,20 +967,27 @@ body {
   <div class="main" id="main">
     <div class="output-panel" id="outputPanel" style="position:relative">
       <div class="tab-bar" id="tabBar">
-        <div class="tab active" data-tab="ir">IR</div>
-        <div class="tab" data-tab="cfg-pre">CFG</div>
-        <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
-        <div class="tab" data-tab="interproc">Interproc</div>
-        <div class="tab" data-tab="types">Types</div>
-        <div class="tab" data-tab="opt">Optimiser</div>
-        <div class="tab" data-tab="gvn">GVN</div>
-        <div class="tab" data-tab="shimmer">Shimmer</div>
-        <div class="tab" data-tab="taint">Taint</div>
-        <div class="tab" data-tab="irules-flow">iRules Flow</div>
-        <div class="tab" data-tab="callouts">Callouts</div>
+        <!-- \`data-view\` is the canonical explorer view id (views.rs
+             VIEW_META), which differs from the pane's own \`data-tab\` for the
+             two CFG tabs. A tab without one has no tree view to render into an
+             editor pane, so the "Open in editor" button hides for it. -->
+        <div class="tab active" data-tab="ir" data-view="ir">IR</div>
+        <div class="tab" data-tab="cfg-pre" data-view="cfg">CFG</div>
+        <div class="tab" data-tab="cfg-post" data-view="ssa">SSA+Analysis</div>
+        <div class="tab" data-tab="interproc" data-view="interproc">Interproc</div>
+        <div class="tab" data-tab="types" data-view="types">Types</div>
+        <div class="tab" data-tab="opt" data-view="opt">Optimiser</div>
+        <div class="tab" data-tab="gvn" data-view="gvn">GVN</div>
+        <div class="tab" data-tab="shimmer" data-view="shimmer">Shimmer</div>
+        <div class="tab" data-tab="taint" data-view="taint">Taint</div>
+        <div class="tab" data-tab="irules-flow" data-view="irules">iRules Flow</div>
+        <div class="tab" data-tab="callouts" data-view="callouts">Callouts</div>
         <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
         <div class="tab" data-tab="trait-reference">Trait reference</div>
+        <button class="open-in-editor" id="openInEditor" type="button"
+                hidden
+                title="Open this view in an editor tab, where it can be searched, folded and navigated">Open in editor</button>
       </div>
       <div class="output-content" id="outputContent">
         <div class="tab-pane active" id="pane-ir">
@@ -1178,6 +1202,7 @@ window.addEventListener('message', function(event) {
       if (msg.dialect) {
         $('#dialect').value = msg.dialect;
       }
+      syncOpenInEditor();
       compile();
       break;
     case 'result':
@@ -1243,6 +1268,31 @@ $('#tabBar').addEventListener('click', e => {
   if (data && (tab.dataset.tab === 'cfg-pre' || tab.dataset.tab === 'cfg-post' || tab.dataset.tab === 'opt')) {
     requestAnimationFrame(() => scheduleEdgeRedraw());
   }
+  syncOpenInEditor();
+});
+
+// "Open in editor": ask the host to render the active view into one of its own
+// editor panes, where it can be searched, folded and navigated back to source.
+// Only tabs carrying a canonical view id have one to render.
+function activeViewId() {
+  const tab = $('.tab.active');
+  return tab && tab.dataset.view ? tab.dataset.view : null;
+}
+function syncOpenInEditor() {
+  const button = $('#openInEditor');
+  if (!button) return;
+  button.hidden = activeViewId() === null || !currentSource.trim();
+}
+$('#openInEditor').addEventListener('click', () => {
+  const view = activeViewId();
+  if (!view) return;
+  vscode.postMessage({
+    type: 'openProjection',
+    view,
+    label: ($('.tab.active') || {}).textContent || view,
+    source: currentSource,
+    dialect: $('#dialect').value,
+  });
 });
 
 // Compile
@@ -1344,7 +1394,15 @@ function setupHoverHighlighting(container) {
     if (!el) return;
     const start = parseInt(el.dataset.start);
     const end = parseInt(el.dataset.end);
-    vscode.postMessage({ type: 'highlightSource', start, end });
+    // Byte offsets for hosts that still slice bytes; UTF-16 line/column for
+    // placing a caret, which is what an editor position actually is.
+    vscode.postMessage({
+      type: 'highlightSource', start, end,
+      startLine: el.dataset.sl === undefined ? undefined : parseInt(el.dataset.sl),
+      startCol: el.dataset.sc === undefined ? undefined : parseInt(el.dataset.sc),
+      endLine: el.dataset.el === undefined ? undefined : parseInt(el.dataset.el),
+      endCol: el.dataset.ec === undefined ? undefined : parseInt(el.dataset.ec),
+    });
     if (currentHighlighted && currentHighlighted !== el) {
       currentHighlighted.classList.remove('highlighted');
     }

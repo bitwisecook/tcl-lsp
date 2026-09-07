@@ -89,7 +89,6 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   for (const surface of Object.keys(texts) as Surface[]) {
     bridge.postMessage({ type: "surfaceUpdate", surface, text: texts[surface] });
   }
-  bridge.postMessage({ type: "studioReady" });
   options.report("using the IDE's native file editor beside Spec Studio", "ok");
 
   return {

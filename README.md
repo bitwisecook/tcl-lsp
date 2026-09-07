@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/in
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
 | [Sublime Text](editors/sublime-text/) | LSP helper package (.sublime-package) | Install LSP and LSP-Tcl from Package Control | Uses Sublime's built-in Tcl syntax and snippets; downloads the matching native server |
-| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA 2024.1+ |
+| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA 2025.3+ |
 
 All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 (build it with `make rust-server`, or `cargo build -p tcl-lsp-server`).

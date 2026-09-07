@@ -4,38 +4,70 @@ IntelliJ Platform plugin providing Tcl language support via the [tcl-lsp](../../
 
 ## Requirements
 
-- IntelliJ IDEA Ultimate 2024.1+ (or other paid JetBrains IDE)
+- IntelliJ IDEA Ultimate 2025.3+ (or another paid JetBrains IDE)
 
 Nothing else — the `.zip` plugin bundles the self-contained native
 `tcl-lsp-server` binary for every supported platform and launches the one
 matching your machine. No Python, runtime, or interpreter is needed.
 
-See the [Installation Guide](../../INSTALL-editors.md) for
-full details on Python setup across platforms.
+See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
-> Starting with IntelliJ IDEA 2025.3, the LSP API will be available to all users,
-> including those without a paid subscription.
+> The platform's LSP API reaches the free editions in 2025.3. The plugin still
+> declares `com.intellij.modules.ultimate`, so dropping that dependency — and
+> with it the paid-IDE requirement — is a separate change from raising the
+> build floor to 2025.3.
 
 ## Features
 
-All features from the tcl-lsp server are supported:
+Everything the IDE's LSP client asks for is supported:
 
-- **Syntax highlighting** via TextMate grammar
+- **Syntax highlighting** via the bundled TextMate grammar, which the
+  plugin registers with the IDE's TextMate service at startup
+- **Semantic highlighting** from the language server's own tokens, layered
+  over the grammar (toggle it under Features → Semantic tokens)
 - **Diagnostics** with 30+ configurable rules
 - **Auto-completion** for commands, subcommands, variables, and switches
 - **Hover** with command help and proc signatures
-- **Go-to-definition** and **find references**
-- **Rename symbol** (F2)
+- **Go-to-definition**, **go-to-type-definition**, and **find references**
 - **Document formatting** with 20+ style options
 - **Document symbols** and **workspace symbols**
-- **Call hierarchy** (incoming/outgoing)
+- **Call hierarchy** (incoming/outgoing) and **type hierarchy**
 - **Code folding**, **inlay hints**, **signature help**
+- **Rename symbol** (F2) — needs IntelliJ 2026.2 or newer
 - **Code actions** (quick fixes)
 - **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer) — also
-  available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**
+  available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**.
+  **Open in editor** puts the current view in an ordinary read-only editor tab,
+  where find, folding and the colour scheme all work, and moving the caret in it
+  reveals the matching source. The CFG, WASM and optimiser-diff panes stay in
+  the tool window, since their edges and connectors are drawn rather than
+  written.
 - **Dialect support**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
 - **Pack-declared file extensions** registered as the packs that claim them
   load and unload (see below)
+
+### What your IDE version changes
+
+The LSP capability set is assembled by the platform's `lsp` module inside the
+IDE you are running, not by the SDK this plugin was built against, so a newer
+IDE asks the server for more without a plugin update. Relative to the 2025.3
+floor:
+
+| Feature | Needs |
+|---|---|
+| Code lens | 2026.1 |
+| Rename symbol, on-type formatting | 2026.2 |
+
+These the server implements and the VS Code extension uses, but no JetBrains
+IDE requests at any version from 2025.3 through 2026.3, so they do nothing
+here: **go-to-implementation**, **go-to-declaration**, **linked editing range**,
+and **auto-rewriting source paths on rename**. Their toggles stay in
+**Settings → Features**, marked with a dagger, because the same server settings
+are shared with editors that do support them.
+
+Both lists come from scanning every class in the published `lsp` platform module
+for `TextDocumentClientCapabilities.set*` and `WorkspaceClientCapabilities.set*`
+across builds 253, 261, 262 and 263.
 
 ## Pack-declared file extensions
 
@@ -112,7 +144,8 @@ The plugin source lives in `editors/jetbrains/`. It uses:
 
 - **IntelliJ Platform Gradle Plugin 2.x** for building
 - **IntelliJ Platform LSP API** (`ProjectWideLspServerDescriptor`)
-- **TextMate** grammar (shared with VS Code)
+- **TextMate** grammar (shared with VS Code), contributed through
+  `com.intellij.textmate.bundleProvider`
 - **JCEF** browser for the Compiler Explorer webview
 
 ```bash

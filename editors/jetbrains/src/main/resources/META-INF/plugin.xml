@@ -8,7 +8,7 @@
             <li>Semantic highlighting, diagnostics, and code actions</li>
             <li>Auto-completion for commands, subcommands, variables, and switches</li>
             <li>Hover information with command help and proc signatures</li>
-            <li>Go-to-definition, find references, and rename symbol</li>
+            <li>Go-to-definition, go-to-type-definition, and find references</li>
             <li>Document formatting with configurable style</li>
             <li>Document symbols, workspace symbols, and call hierarchy</li>
             <li>Code folding, inlay hints, and signature help</li>
@@ -21,7 +21,7 @@
     <depends>com.intellij.modules.ultimate</depends>
     <!-- JCEF moved behind its own plugin classloader in 2026.2.  The alias
          only exists from 2025.3.1 onward, so this must remain optional while
-         the plugin supports the 2024.1 floor (where JCEF is platform-owned).
+         the plugin supports the 2025.3 floor (where JCEF is platform-owned).
          The supplemental descriptor is intentionally empty: the dependency
          edge itself is what makes JCEF classes visible on newer IDEs. -->
     <depends optional="true"
@@ -43,7 +43,26 @@
             fieldName="INSTANCE"
             extensions="irul;irule;irules"/>
 
-        <!-- TextMate grammar for syntax highlighting -->
+        <!-- TextMate grammar for syntax highlighting.
+
+             Three registrations, all load-bearing:
+
+             * `textmate.bundleProvider` hands the TextMate service the
+               bundled `source.tcl` grammar. Nothing else registers it, and
+               without a registered grammar the two providers below resolve
+               nothing and Tcl opens as plain black text.
+             * `lang.syntaxHighlighterFactory` decides *which* highlighter the
+               Tcl language gets. The platform's default for a
+               `LanguageFileType` with no factory is `PlainSyntaxHighlighter`,
+               which is what `TextMateEditorHighlighterProvider` would then be
+               handed — so the provider alone is not enough.
+             * `editorHighlighterProvider` supplies TextMate's own
+               `TextMateLexerDataStorage`, which the incremental highlighter
+               needs to hold TextMate's dynamically-created element types. -->
+        <textmate.bundleProvider
+            implementation="com.tcllsp.jetbrains.TclTextMateBundleProvider"/>
+        <lang.syntaxHighlighterFactory language="Tcl"
+            implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateSyntaxHighlighterFactory"/>
         <editorHighlighterProvider filetype="Tcl"
             implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateEditorHighlighterProvider"/>
         <editorHighlighterProvider filetype="iRule"

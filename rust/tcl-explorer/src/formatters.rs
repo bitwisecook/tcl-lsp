@@ -75,11 +75,36 @@ fn widened_inclusive_end(span: Span, source: &str) -> u32 {
 /// `endCol` / `endOffset` are the inclusive end plus one (the front-end
 /// slices with an exclusive end), computed from the *inclusive* end
 /// position so a closer on the next line does not roll the column over.
+///
+/// `startCol` / `endCol` / `startOffset` / `endOffset` count **bytes** —
+/// [`LineIndex::position_at`] returns a [`tcl_lexer::ByteCol`], which agrees
+/// with an editor column only for ASCII. The web front-end slices the source
+/// string it was handed, so bytes are what it wants; an editor host placing a
+/// caret does not, because both `VS Code` positions and `IntelliJ` document
+/// offsets are UTF-16. `startColUtf16` / `endColUtf16` carry the same two
+/// positions in UTF-16 code units so a host never has to re-derive them (the
+/// line numbers are encoding-independent and are shared).
 #[must_use]
 pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
     let start = line_index.position_at(span.start());
     let inclusive_end = widened_inclusive_end(span, source);
     let end = line_index.position_at(inclusive_end);
+    let start_utf16 = line_index.position_at_utf16(span.start(), source);
+    let end_utf16 = line_index.position_at_utf16(inclusive_end, source);
+    // `inclusive_end` is the last *byte* of the final character, so
+    // `position_at_utf16` snaps back to that character's start. Advancing by
+    // one code unit would land inside a surrogate pair for anything outside
+    // the BMP — an emoji is two units — and hand both editor hosts a range
+    // ending mid-character. Advance by the character's own width instead.
+    // Deriving this from the exclusive byte end directly is not equivalent:
+    // that offset can be the first column of the *next* line, which is why
+    // the inclusive end is what the line number comes from.
+    let exclusive_end = tcl_lexer::word_span_at(source, span).end() as usize;
+    let end_units = source
+        .get(..exclusive_end)
+        .and_then(|s| s.chars().next_back())
+        .and_then(|c| u32::try_from(c.len_utf16()).ok())
+        .unwrap_or(1);
     json!({
         "startLine": start.line,
         "startCol": start.character.get(),
@@ -87,6 +112,8 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
         "endLine": end.line,
         "endCol": end.character.get() + 1,
         "endOffset": end.offset + 1,
+        "startColUtf16": start_utf16.character.get(),
+        "endColUtf16": end_utf16.character.get() + end_units,
     })
 }
 
@@ -400,5 +427,48 @@ mod tests {
         assert_eq!(d["startOffset"], 0);
         assert_eq!(d["endOffset"], 5);
         assert_eq!(d["endCol"], 5);
+    }
+
+    /// The byte columns are what the web front-end slices with; the UTF-16
+    /// pair is what an editor host places a caret with. They agree on ASCII
+    /// and must not on anything else, or a host would be placing carets in
+    /// the wrong column for every non-ASCII line.
+    #[test]
+    fn range_dict_carries_utf16_columns_beside_the_byte_ones() {
+        let ascii = "set a 1";
+        let li = LineIndex::new(ascii);
+        let d = range_dict(Span::new(4, 5), &li, ascii);
+        assert_eq!(d["startCol"], d["startColUtf16"]);
+        assert_eq!(d["endCol"], d["endColUtf16"]);
+
+        // `é` is two UTF-8 bytes and one UTF-16 code unit, so every column
+        // after it disagrees by one.
+        let source = "set é 1";
+        let li = LineIndex::new(source);
+        let value = u32::try_from(source.find('1').unwrap()).unwrap();
+        let d = range_dict(Span::new(value, value + 1), &li, source);
+        assert_eq!(d["startCol"], 7, "byte column counts é as two");
+        assert_eq!(d["startColUtf16"], 6, "UTF-16 column counts é as one");
+        assert_eq!(d["endCol"], 8);
+        assert_eq!(d["endColUtf16"], 7);
+        assert_eq!(d["startLine"], 0, "line numbers are encoding-independent");
+    }
+
+    #[test]
+    fn range_dict_spans_the_whole_of_a_surrogate_pair() {
+        // An emoji is four UTF-8 bytes and *two* UTF-16 code units. The
+        // inclusive end lands on its last byte, which maps back to the
+        // character's start, so an end column derived by adding a single unit
+        // would stop between the two halves of the pair and leave both editor
+        // hosts selecting half a character.
+        let source = "set v 😀";
+        let li = LineIndex::new(source);
+        let start = u32::try_from(source.find('😀').unwrap()).unwrap();
+        let d = range_dict(Span::new(start, start + 4), &li, source);
+        assert_eq!(d["startColUtf16"], 6, "the emoji starts after `set v `");
+        assert_eq!(
+            d["endColUtf16"], 8,
+            "the end must clear both code units of the pair",
+        );
     }
 }

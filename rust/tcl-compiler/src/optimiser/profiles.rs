@@ -63,6 +63,36 @@ fn opt_code_categories() -> impl Iterator<Item = (&'static str, OptCategory)> {
 }
 
 impl OptimisationProfile {
+    /// Every profile, in increasing order of aggressiveness.
+    ///
+    /// This is the list every surface that offers a profile choice is built
+    /// from — the VS Code `enum`, the `JetBrains` dropdown, the docs table — so
+    /// adding a tier here is the only edit needed to reach all of them, and a
+    /// generator's `--check` mode fails until each has been regenerated.
+    pub const ALL: [Self; 5] = [
+        Self::Off,
+        Self::Readability,
+        Self::Standard,
+        Self::Full,
+        Self::Aggressive,
+    ];
+
+    /// One sentence describing what the tier does, for the editor setting's
+    /// help text. Kept here rather than in each generator so the wording
+    /// cannot differ between editors.
+    #[must_use]
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Off => "All optimisations disabled.",
+            Self::Readability => {
+                "Readability improvements only — idiomatic rewrites, no code removal."
+            }
+            Self::Standard => "Readability + constant folding and pattern recognition.",
+            Self::Full => "All optimisations enabled (single pass).",
+            Self::Aggressive => "All optimisations with multi-pass to fixpoint.",
+        }
+    }
+
     /// Parse a profile name (`"off"` / `"readability"` / `"standard"` /
     /// `"full"` / `"aggressive"`); unknown names fall back to
     /// [`DEFAULT_EDITOR_PROFILE`].
@@ -133,6 +163,30 @@ pub fn profile_to_disabled(profile: OptimisationProfile) -> HashSet<&'static str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn all_lists_every_profile_and_round_trips_through_parse() {
+        // `ALL` is what every editor's profile picker is generated from, so a
+        // variant missing here silently disappears from all of them at once.
+        for profile in OptimisationProfile::ALL {
+            assert_eq!(
+                OptimisationProfile::parse(profile.name()),
+                profile,
+                "{} must round-trip through parse",
+                profile.name(),
+            );
+            assert!(
+                !profile.description().is_empty(),
+                "{} needs a description for the editor setting",
+                profile.name(),
+            );
+        }
+        // Exhaustive: adding a variant without adding it to ALL fails here.
+        let mut seen = OptimisationProfile::ALL.to_vec();
+        seen.dedup();
+        assert_eq!(seen.len(), OptimisationProfile::ALL.len());
+        assert!(OptimisationProfile::ALL.contains(&DEFAULT_EDITOR_PROFILE));
+    }
 
     #[test]
     fn readability_disables_constant_folding_and_dce() {

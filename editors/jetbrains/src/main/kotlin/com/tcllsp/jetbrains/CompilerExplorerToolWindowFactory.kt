@@ -22,6 +22,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
@@ -70,11 +71,18 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
     val browser: JBCefBrowser = JBCefBrowser()
     private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
-    // All three fields are touched only on the EDT (every mutator hops through
+    // All four fields are touched only on the EDT (every mutator hops through
     // invokeLater), so no extra synchronisation is needed.
     private var lastSource: String = ""
     private var pageReady = false
     private var pendingSource: String? = null
+
+    /**
+     * The file whose source the explorer last compiled — what a hover in the
+     * webview refers to. Not the selected tab: the explorer keeps showing one
+     * file while the user moves around the IDE.
+     */
+    private var sourceFile: VirtualFile? = null
 
     init {
         // Tie the native browser, the JS bridge query, and the editor-listener
@@ -169,6 +177,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
             val editor = manager.selectedTextEditor ?: return@invokeLater
             val file = manager.selectedFiles.firstOrNull() ?: return@invokeLater
             if (!TclFileType.isSupported(file)) return@invokeLater
+            sourceFile = file
             dispatchSource(editor.document.text, force)
         }
     }
@@ -178,6 +187,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         ApplicationManager.getApplication().invokeLater {
             if (!TclFileType.isSupported(file)) return@invokeLater
             val document = FileDocumentManager.getInstance().getDocument(file) ?: return@invokeLater
+            sourceFile = file
             dispatchSource(document.text, force)
         }
     }
@@ -218,17 +228,37 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                     runCompile(source, dialect)
                 }
                 message.startsWith("highlightSource:") -> {
-                    // Source highlighting in main editor
-                    val payload = message.removePrefix("highlightSource:")
-                    val parts = payload.split(",")
-                    if (parts.size == 2) {
-                        val start = parts[0].toIntOrNull() ?: return
-                        val end = parts[1].toIntOrNull() ?: return
-                        highlightSourceRange(start, end)
+                    // `startLine,startCol,endLine,endCol,startOffset,endOffset`
+                    // — see the shim in CompilerExplorerHtml.kt. The first four
+                    // are UTF-16 and may be empty on an older payload.
+                    val parts = message.removePrefix("highlightSource:").split(",")
+                    if (parts.size == 6) {
+                        highlightSourceRange(
+                            startLine = parts[0].toIntOrNull(),
+                            startCol = parts[1].toIntOrNull(),
+                            endLine = parts[2].toIntOrNull(),
+                            endCol = parts[3].toIntOrNull(),
+                            startOffset = parts[4].toIntOrNull(),
+                            endOffset = parts[5].toIntOrNull(),
+                        )
                     }
                 }
                 message == "clearHighlight" -> {
                     clearSourceHighlight()
+                }
+                message.startsWith("openProjection:") -> {
+                    // `view\u0000label\u0000dialect\u0000source` — the source
+                    // rides last because it is the only field that can contain
+                    // anything, including the separator's neighbours.
+                    val parts = message.removePrefix("openProjection:").split('\u0000', limit = 4)
+                    if (parts.size == 4) {
+                        openProjection(
+                            view = parts[0],
+                            label = parts[1],
+                            dialect = parts[2].ifEmpty { TclLspSettings.getInstance().dialect },
+                            source = parts[3],
+                        )
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -301,7 +331,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                 // Pass the timeout explicitly. Omitting it makes Kotlin emit a
                 // call to the synthetic `LspServer.sendRequestSync$default`
                 // bridge, which is bound to the exact class that declared the
-                // method when we compiled (2024.1). In 2026.1+ `sendRequestSync`
+                // method when we compiled (2025.3). In 2026.1+ `sendRequestSync`
                 // moved up to the `LspClient` super-interface, so that bridge no
                 // longer resolves as `LspServer.sendRequestSync$default` and the
                 // plugin fails verification / throws NoSuchMethodError at runtime.
@@ -333,6 +363,51 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         }
     }
 
+    /**
+     * Render one explorer view through the server and show it in an ordinary
+     * IntelliJ editor tab.
+     *
+     * The tool window keeps the interactive panes — the CFG's routed edges and
+     * the WASM branch lanes do not survive as flat text — but everything that
+     * *is* linear reads better in a real editor, where find, folding and the
+     * colour scheme all work. The pane is read-only and carries a line map, so
+     * moving the caret in it navigates back into the source file.
+     */
+    private fun openProjection(view: String, label: String, dialect: String, source: String) {
+        // Read on the caller's thread, before the request goes out. `sourceFile`
+        // tracks the selected editor, so a user who switches files while the
+        // render is in flight would otherwise have this view's line map paired
+        // with a file it was not rendered from, and every caret move would
+        // reveal an unrelated span there.
+        val origin = sourceFile
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val server = awaitRunningServer()
+            if (server == null) {
+                sendErrorToWebview("Tcl LSP server did not become ready — cannot render $label.")
+                return@executeOnPooledThread
+            }
+            // The explicit timeout is load-bearing; see the note in runCompile
+            // about `sendRequestSync$default`.
+            val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
+                lsp4j.workspaceService.executeCommand(
+                    org.eclipse.lsp4j.ExecuteCommandParams(
+                        "tcl-lsp.compilerExplorerView",
+                        listOf(source, dialect, view),
+                    )
+                )
+            } ?: return@executeOnPooledThread
+
+            val rendered = ExplorerProjection.parse(result)
+            if (rendered == null) {
+                sendErrorToWebview("Could not render the $label view.")
+                return@executeOnPooledThread
+            }
+            ApplicationManager.getApplication().invokeLater {
+                ExplorerProjections.getInstance(project).open(label, view, rendered, origin)
+            }
+        }
+    }
+
     private fun sendStatusToWebview(status: String) {
         browser.cefBrowser.executeJavaScript(
             "window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', text: '$status' } }));",
@@ -348,23 +423,73 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         )
     }
 
-    private fun highlightSourceRange(startOffset: Int, endOffset: Int) {
-        // Highlight in the main editor — run on EDT
+    /**
+     * Select the source span the webview is hovering, in the file the
+     * explorer actually compiled.
+     *
+     * Two things this gets right that the offset-only version could not.
+     *
+     * The span arrives as a UTF-16 line/column pair, because that is what an
+     * IntelliJ caret is. The explorer's `startOffset`/`endOffset` count
+     * *bytes* — the payload's columns come from `LineIndex::position_at`,
+     * which returns a byte column — so feeding them to `offsetToLogicalPosition`
+     * is right only for ASCII and drifts by one per non-ASCII byte after that.
+     * The offsets remain the fallback for a payload without the UTF-16 pair.
+     *
+     * And it targets [sourceFile] rather than whatever tab happens to be
+     * selected. The explorer compiles one file and keeps showing it while the
+     * user moves around the IDE, so `selectedTextEditor` is simply a different
+     * document as soon as anything else is focused — including any pane the
+     * explorer itself opens.
+     */
+    private fun highlightSourceRange(
+        startLine: Int?,
+        startCol: Int?,
+        endLine: Int?,
+        endCol: Int?,
+        startOffset: Int?,
+        endOffset: Int?,
+    ) {
         ApplicationManager.getApplication().invokeLater {
-            val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
+            val editor = editorForCompiledSource() ?: return@invokeLater
             val document = editor.document
-            if (startOffset < 0 || endOffset > document.textLength) return@invokeLater
+            val start = if (startLine != null && startCol != null) {
+                editor.logicalPositionToOffset(LogicalPosition(startLine, startCol))
+            } else {
+                startOffset ?: return@invokeLater
+            }
+            val end = if (endLine != null && endCol != null) {
+                editor.logicalPositionToOffset(LogicalPosition(endLine, endCol))
+            } else {
+                endOffset ?: return@invokeLater
+            }
+            if (start < 0 || end > document.textLength || start > end) return@invokeLater
 
-            val startPos = editor.offsetToLogicalPosition(startOffset)
-            editor.selectionModel.setSelection(startOffset, endOffset)
-            editor.scrollingModel.scrollTo(startPos, com.intellij.openapi.editor.ScrollType.CENTER_UP)
+            editor.selectionModel.setSelection(start, end)
+            editor.scrollingModel.scrollTo(
+                editor.offsetToLogicalPosition(start),
+                com.intellij.openapi.editor.ScrollType.CENTER_UP,
+            )
         }
+    }
+
+    /**
+     * The open editor for the file the explorer last compiled, or null when
+     * it has been closed. Falls back to the selected editor only when the
+     * explorer has not recorded a file yet.
+     */
+    private fun editorForCompiledSource(): com.intellij.openapi.editor.Editor? {
+        val manager = FileEditorManager.getInstance(project)
+        val file = sourceFile ?: return manager.selectedTextEditor
+        val document = FileDocumentManager.getInstance().getDocument(file) ?: return null
+        return com.intellij.openapi.editor.EditorFactory.getInstance()
+            .getEditors(document, project)
+            .firstOrNull()
     }
 
     private fun clearSourceHighlight() {
         ApplicationManager.getApplication().invokeLater {
-            val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
-            editor.selectionModel.removeSelection()
+            editorForCompiledSource()?.selectionModel?.removeSelection()
         }
     }
 

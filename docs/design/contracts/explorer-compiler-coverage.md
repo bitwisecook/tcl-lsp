@@ -34,3 +34,21 @@ data-shaped views, so a new descriptor cannot silently have no web pane.
 | World-state SSA | World SSA |
 | WASM | WASM |
 | Backend selection plans/proofs | WASM `codegenPlan` (when the canonical WASM pipeline runs) |
+
+## Native editor panes are additive
+
+An editor host may also render a tree view into one of its own editor panes,
+through the `tcl-lsp.compilerExplorerView` command: it returns
+`{text, lines}` from `tcl_explorer::render::render_view_mapped` — the same
+renderer `tcl explore --text` and the TUI use — where `lines[n]` is the source
+span the pane's line `n` points at, so a caret in the pane navigates back into
+the user's file.
+
+This never *replaces* a web pane. The rule above stands: every in-scope
+artefact keeps its renderer in both web shells. Three panes could not be a flat
+buffer anyway — the CFG's lane-routed edge overlay, the WASM branch-lane
+gutter, and the optimiser diff's bracket connectors are drawn, not written.
+
+`render_view_mapped` is the only producer of the line map, and it appends to
+the text and the map in the same place, so the two cannot drift; the alignment
+is asserted per view in `render.rs`'s tests.

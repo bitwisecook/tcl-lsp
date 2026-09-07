@@ -320,7 +320,7 @@ snippets. Use the base LSP commands and Sublime's built-in Tcl resources.
 
 ## JetBrains
 
-Requires IDEA Ultimate 2024.1+ (free editions from 2025.3).
+Requires IDEA Ultimate 2025.3+ (or another paid JetBrains IDE).
 **Settings > Plugins > gear icon > Install Plugin from Disk…**,
 select the zip, restart. Configure under **Settings > Tools > Tcl
 Language Server**.

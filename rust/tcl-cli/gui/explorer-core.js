@@ -236,9 +236,19 @@ function updateGenericExplorerBadges(views) {
 }
 
 // Hover highlighting helpers
+//
+// `startOffset`/`endOffset` count bytes, which is what this page wants: it
+// slices the source string it was handed. An editor host cannot use them —
+// VS Code positions and IntelliJ document offsets are both UTF-16 — so the
+// UTF-16 line/column pair rides along for hosts to place a caret with.
 function sourceRangeAttrs(range) {
   if (!range) return '';
-  return ' data-start="' + range.startOffset + '" data-end="' + range.endOffset + '"';
+  var attrs = ' data-start="' + range.startOffset + '" data-end="' + range.endOffset + '"';
+  if (range.startColUtf16 !== undefined) {
+    attrs += ' data-sl="' + range.startLine + '" data-sc="' + range.startColUtf16 + '"' +
+      ' data-el="' + range.endLine + '" data-ec="' + range.endColUtf16 + '"';
+  }
+  return attrs;
 }
 function spanLabel(range) {
   if (!range) return '';

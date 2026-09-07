@@ -1,0 +1,55 @@
+{
+  "name": "tcl-lsp",
+  "displayName": "Tcl",
+  "description": "TextMate grammar bundle shipped inside the Tcl Language Support plugin.",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "tcl",
+        "aliases": [
+          "Tcl",
+          "tcl"
+        ],
+        "extensions": [
+          ".tcl",
+          ".tk",
+          ".itcl",
+          ".tm",
+          ".test",
+          ".globals",
+          ".exp",
+          ".expect",
+          ".scf",
+          ".iapp",
+          ".iappimpl",
+          ".impl",
+          ".irul",
+          ".irule",
+          ".irules",
+          ".tmsh",
+          ".qsf",
+          ".qpf",
+          ".qip",
+          ".do",
+          ".tclspec",
+          ".sslictcl",
+          ".sdc",
+          ".upf",
+          ".xdc",
+          ".apl"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tcl",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      }
+    ]
+  }
+}

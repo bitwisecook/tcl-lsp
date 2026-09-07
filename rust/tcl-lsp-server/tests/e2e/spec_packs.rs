@@ -290,6 +290,53 @@ fn a_pack_added_after_startup_reloads_and_re_analyses_open_documents() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// A reload asks the client to re-pull the semantic tokens it is already
+/// showing.
+///
+/// The registry is what classifies a token: a pack decides whether a head is
+/// a `function` at all, whether it carries `defaultLibrary`, and — through
+/// `arg 1 -role Body` — whether a braced word is tokenised as code or as one
+/// opaque string. The server recomputes correctly because the salsa inputs are
+/// keyed on the pack key, but a client only re-requests tokens when the
+/// document changes. Without the push the editor keeps painting the old stream
+/// over new meaning until the user happens to type in that buffer — which is
+/// what left a Spec Studio pack edit with the sample's colours frozen while its
+/// squiggles and hovers updated.
+#[test]
+fn a_pack_reload_asks_the_client_to_re_pull_semantic_tokens() {
+    let root = workspace("token-refresh");
+    let source = "mylib::with_var counter {\n    set counter 1\n}\n";
+    let doc = root.join("app.tcl");
+    write(&doc, source);
+
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
+    let uri = file_uri(&doc);
+    lsp.open_ready(&uri, source);
+    // Take the tokens first, so the server is genuinely serving a stream the
+    // reload is about to invalidate rather than one nobody has asked for.
+    let _ = lsp.semantic_tokens_settled(&uri);
+
+    let cursor = lsp.server_request_cursor();
+    let pack = root.join(".tcl-lsp/mylib.tclspec");
+    write(&pack, MYLIB_PACK);
+    notify_pack_changed(&mut lsp, &pack, CREATED);
+    await_pack_named(&mut lsp, "mylib");
+
+    assert!(
+        lsp.try_await_server_request(
+            "workspace/semanticTokens/refresh",
+            std::time::Duration::from_secs(20),
+            cursor,
+        )
+        .is_some(),
+        "a pack reload that changed the command surface must push \
+         workspace/semanticTokens/refresh"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// Load notices land as diagnostics **on the pack file**, at the line the
 /// author wrote — and clear when the author fixes them.
 #[test]

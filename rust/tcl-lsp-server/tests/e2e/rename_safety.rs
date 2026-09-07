@@ -965,3 +965,56 @@ fn fn_guard_a_fully_tracked_member_renames_from_every_trigger_position() {
         );
     }
 }
+
+// -- the collision gate must not fire when there is nothing to collide with --
+
+/// Reported from `CLion` against exactly this buffer: renaming `a` to `b` was
+/// refused with "`::b` is already declared in this workspace", in a workspace
+/// whose only Tcl file is the three lines below and which contains no `b` at
+/// all.
+///
+/// The gate is right to refuse a rename that would merge two live namespace
+/// cells. It is wrong whenever the target cell does not exist, and a global
+/// `set` is the most ordinary shape there is, so this is the case that has to
+/// hold before any of the subtler ones mean anything.
+#[test]
+fn a_global_variable_renames_when_the_target_cell_is_free() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set a 1\nincr a\nputs \"$a\"\n");
+    let result = lsp.rename(&uri, 0, 4, "b");
+    assert!(
+        !result.is_null(),
+        "renaming `a` to `b` should produce edits, got null",
+    );
+    let texts = all_texts(&result);
+    assert_eq!(
+        texts,
+        vec!["b".to_owned(), "b".to_owned(), "$b".to_owned()],
+        "the two commands and the substitution should all be rewritten",
+    );
+}
+
+/// The same rename, after the buffer has already held `b` once.
+///
+/// This is the shape the `CLion` report is most likely to be: rename `a` to `b`,
+/// undo it, rename again. If the workspace index still carries the `::b` it
+/// saw between the two edits, the collision gate refuses a rename whose target
+/// cell is not live in any current document.
+#[test]
+fn a_variable_renames_again_after_the_first_rename_was_undone() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set a 1\nincr a\nputs \"$a\"\n");
+    // The editor applies the rename...
+    lsp.replace_document(&uri, 2, "set b 1\nincr b\nputs \"$b\"\n");
+    lsp.await_diagnostics(&uri);
+    // ...and the user undoes it.
+    lsp.replace_document(&uri, 3, "set a 1\nincr a\nputs \"$a\"\n");
+    lsp.await_diagnostics(&uri);
+    let result = lsp.rename(&uri, 0, 4, "b");
+    assert!(
+        !result.is_null(),
+        "`::b` is not declared in any live document, so the rename must proceed",
+    );
+}
