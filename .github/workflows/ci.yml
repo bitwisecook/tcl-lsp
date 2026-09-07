@@ -267,7 +267,7 @@ jobs:
                   web_frontends_changed=true ;;
               esac
               case "$f" in
-                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)
+                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh)
                   runner_policy_changed=true ;;
               esac
               if "$rust_tests_path" "$f"; then
@@ -920,8 +920,18 @@ jobs:
     runs-on: ${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && 'ubuntu-26.04' || 'tank' }}
     # The action starts the sccache server during setup, so the backend must be
     # configured at job scope rather than only on the later Cargo steps.
+    # Self-hosted Tank has several runner registrations on one host. Their
+    # default CARGO_HOME/RUSTUP_HOME point below each registration directory,
+    # and Swatinem/rust-cache hashes those values, fragmenting an otherwise
+    # identical cache. Keep dependency/tool homes stable for Tank and hosted
+    # overflow jobs alike. The runner image contract is that /home/runner is
+    # owned and writable by the runner account; the preflight below proves it
+    # on every registration before setup writes there. Do not set
+    # CARGO_TARGET_DIR: Cargo's default workspace-local target/ remains
+    # isolated per checkout/job and is not shared between worktrees or runners.
     env:
-      RUSTC_WRAPPER: sccache
+      CARGO_HOME: /home/runner/.cargo
+      RUSTUP_HOME: /home/runner/.rustup
       SCCACHE_GHA_ENABLED: "true"
     concurrency:
       group: rust-tests-${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && format('hosted-{0}', github.run_id) || 'tank' }}
@@ -934,6 +944,23 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Verify canonical Rust homes
+        if: needs.channel.outputs.rust_tests_changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=/home/runner
+          test -d "$root" && test -w "$root" && test ! -L "$root"
+          test "$(readlink -f "$root")" = "$root"
+          test "$(stat -c %u "$root")" = "$(id -u)"
+          for dir in "$CARGO_HOME" "$RUSTUP_HOME"; do
+            mkdir -p "$dir"
+            test ! -L "$dir" && test -w "$dir"
+            test "$(stat -c %u "$dir")" = "$(id -u)"
+            probe=$(mktemp "$dir/.tcl-lsp-write-probe.XXXXXX")
+            rm -f "$probe"
+          done
+
       # Must install `stable` explicitly rather than lean on the runner's
       # preinstalled rustup: the image ships a pinned stable (e.g. 1.96.1) and
       # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
@@ -945,17 +972,44 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
-          cache-key: rust-tests
+          cache-key: rust-tests-v2
+          # Swatinem's target archive is hundreds of MB and competes with the
+          # per-object sccache backend for the repository cache quota. Cargo
+          # rebuilds absent targets safely; registry/tool caches and sccache
+          # remain enabled for dependency and compiler reuse.
+          cache-targets: false
 
       # rust-cache restores dependency artefacts, but intentionally removes
-      # workspace crates before saving.  This source-aware compiler cache keeps
-      # those expensive compilations reusable across runner registrations and
-      # source revisions without weakening Cargo's freshness checks.
+      # workspace crates before saving. sccache remains source-aware, but the
+      # pinned v0.17 Rust backend does not provide a proven cross-checkout-root
+      # remapping here; measure cross-registration hits rather than assuming
+      # that registrations with different absolute workspace paths share them.
       - name: Set up sccache
+        id: sccache
         if: needs.channel.outputs.rust_tests_changed == 'true'
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
           version: v0.17.0
+          # The resilient reporting step below owns degradation warnings.
+          disable_annotations: true
+
+      # Compiler caching is an optimisation, never a condition of correctness.
+      # Do not export the wrapper until both action setup and the installed
+      # binary have succeeded; Cargo then falls back to rustc automatically.
+      - name: Enable sccache when available
+        if: needs.channel.outputs.rust_tests_changed == 'true'
+        shell: bash
+        env:
+          SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
+        run: |
+          if [[ "$SCCACHE_SETUP_OUTCOME" == success ]] \
+              && command -v sccache >/dev/null 2>&1 \
+              && sccache --version >/dev/null 2>&1; then
+            echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+          else
+            echo '::warning::sccache is unavailable; continuing with uncached compilation'
+          fi
 
       - name: Install cargo-nextest
         if: needs.channel.outputs.rust_tests_changed == 'true'
@@ -1010,7 +1064,25 @@ jobs:
       # unaffected, so sccache is unavailable on those required no-op runs.
       - name: Report sccache statistics
         if: always() && needs.channel.outputs.rust_tests_changed == 'true'
-        run: sccache --show-stats
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo '::warning::sccache statistics unavailable; compilation ran uncached'
+            exit 0
+          fi
+          set +e
+          stats=$(sccache --show-stats 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$stats"
+          if [[ "$status" -ne 0 ]]; then
+            echo "::warning::sccache statistics failed with status $status"
+            exit 0
+          fi
+          write_errors=$(printf '%s\n' "$stats" | awk '$1 == "Cache" && $2 == "write" && $3 == "errors" { print $NF; exit }')
+          if [[ -n "$write_errors" && "$write_errors" != 0 ]]; then
+            echo "::warning::sccache reported $write_errors cache write errors"
+          fi
 
   # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
   # compiler, registry, runtime, pack, or exact-reference-toolchain closure.

@@ -201,6 +201,24 @@ pull requests independently force hosted placement. A manual dispatch remains
 an explicit `tank` or `hosted` override. Placement never changes the test
 filter, skips coverage, or carries forward a result.
 
+The Tank job uses canonical `/home/runner/.cargo` and `/home/runner/.rustup`
+homes because each registration's default homes are rooted under its own
+checkout directory. These homes are shared mutable state: cancellation can
+interrupt Cargo or rustup writes, and any untrusted build script that reached
+Tank could persist configuration, credentials, or executable tools for a later
+job. The routing guards above are therefore a security boundary, not merely a
+cache optimisation; only trusted pushes and trusted pull requests may run
+there, while fork, Dependabot, runner-policy, and explicit hosted paths stay
+on hosted capacity. The job's preflight checks ownership, writability, and a
+temporary write on every registration. `CARGO_TARGET_DIR` is deliberately not
+shared, and the `rust-tests-v2` dependency-cache generation excludes Cargo
+targets so old target-heavy archives cannot be restored. sccache v0.17 is
+measured across registrations rather than assumed to normalize differing
+absolute checkout roots. Its setup, compiler cache, and statistics are
+performance-only: an unavailable cache falls back to direct rustc, while
+failed statistics and non-zero cache-write errors emit workflow warnings
+without changing the test result.
+
 Keep these properties: skips are **step-level** (jobs still report success so
 required checks and the release `needs:` graph hold), keyed on **content
 identity** (tree/SHA, never a label or commit message), and bounded in time.
