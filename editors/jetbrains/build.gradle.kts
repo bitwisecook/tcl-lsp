@@ -31,18 +31,30 @@ dependencies {
     // suite; from the 2024.3 SDK it is no longer on the platform classpath.
     testRuntimeOnly("junit:junit:4.13.2")
     intellijPlatform {
-        // Compile at the 2024.3 support floor. 2024.3 is where the LSP API
-        // grew `LspServerDescriptor.lspSemanticTokensSupport`: every published
-        // build of the `lsp` platform module below it — all seventeen 241.x
-        // releases — has no semantic-tokens member at all, so on an older IDE
-        // the host never advertises `textDocument/semanticTokens` and never
-        // asks the server for them, whatever the server offers.
+        // Compile at the 2025.3 support floor.
+        //
+        // `sinceBuild` bounds the oldest IDE whose API this plugin may
+        // *reference*, not the feature set a user gets: the LSP client
+        // capabilities are built by `LspServerDescriptor.getClientCapabilities`
+        // in the running IDE, which the plugin does not override, so folding,
+        // document symbols, inlay hints and the rest arrive with the user's
+        // IDE whatever we compile against.
+        //
+        // What does need a floor is anything the plugin *overrides*, because
+        // the symbol has to resolve when the class loads. Semantic tokens is
+        // the only such capability — `getClientCapabilities` has exactly one
+        // branch, `if (getLspSemanticTokensSupport() == null) skip` — and its
+        // member first exists at 2024.3. 2025.3 is chosen over that floor so
+        // the plugin can move to the `LspCustomization` shape that superseded
+        // the flat descriptor getters at 2025.2, and reach the per-feature
+        // customisers (`LspDocumentSymbolSupport` and friends) that let it
+        // honour its own feature toggles host-side.
         //
         // JCEF is part of the platform at this version, so the 2025.3.1+
         // `intellij.platform.ui.jcef` bundled plugin cannot be added to this
         // compile classpath. plugin.xml carries the optional compatibility
         // dependency used by newer IDEs instead.
-        intellijIdeaUltimate("2024.3")
+        intellijIdeaUltimate("2025.3")
         bundledPlugin("org.jetbrains.plugins.textmate")
 
         pluginVerifier()
@@ -77,7 +89,7 @@ intellijPlatform {
         """.trimIndent()
 
         ideaVersion {
-            sinceBuild = "243"
+            sinceBuild = "253"
             untilBuild = provider { null }
         }
 
@@ -106,11 +118,9 @@ intellijPlatform {
             // class of binary incompatibility (see the jetbrains-plugin-compat
             // skill). Keep the newest verified stable major here as JetBrains
             // ships it.
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.3")
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.1.7.2")
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6.3")
-            // First release whose core plugin advertises the JCEF dependency
-            // alias used to bridge the pre- and post-extraction layouts.
+            // The floor. Also the first release whose core plugin advertises
+            // the JCEF dependency alias bridging the pre- and post-extraction
+            // layouts, so the floor and that bridge now coincide.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.3.6.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.2")
             // #1780 was reported against this exact product/version, where

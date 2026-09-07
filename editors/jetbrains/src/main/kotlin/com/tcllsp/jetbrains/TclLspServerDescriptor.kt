@@ -29,7 +29,7 @@ import com.intellij.platform.lsp.api.Lsp4jClient
 import com.intellij.platform.lsp.api.LspServerListener
 import com.intellij.platform.lsp.api.LspServerNotificationsHandler
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
-import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport
+import com.intellij.platform.lsp.api.customization.LspCustomization
 import com.intellij.util.system.CpuArch
 import com.tcllsp.jetbrains.packs.TclLsp4jClient
 import com.tcllsp.jetbrains.packs.TclLspPackAssociations
@@ -48,11 +48,13 @@ class TclLspServerDescriptor(project: Project) :
     override fun isSupportedFile(file: VirtualFile): Boolean =
         TclFileType.isSupported(file)
 
-    // Supplying this is what makes the IDE advertise
-    // `textDocument/semanticTokens` and ask the server for tokens at all; the
-    // platform's default is `null`, and before the 2024.3 support floor the
-    // descriptor had no such member to override.
-    override val lspSemanticTokensSupport: LspSemanticTokensSupport = TclSemanticTokens()
+    // Supplying a semantic-tokens customiser is what makes the IDE advertise
+    // `textDocument/semanticTokens` and ask the server for tokens at all.
+    // `getClientCapabilities` sets every other capability unconditionally and
+    // guards this one alone on the customiser being present — so without this
+    // the host never asks, whatever the server offers. That member first
+    // exists at 2024.3, which is the floor below which the plugin cannot go.
+    override val lspCustomization: LspCustomization = TclLspCustomization()
 
     // Pack-declared file extensions (issue #1650). The push is the main path:
     // the server sends `tcl-lsp/specPacksReloaded` after every reload, this

@@ -20,6 +20,8 @@ package com.tcllsp.jetbrains
 
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as Colors
 import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.platform.lsp.api.customization.LspCustomization
+import com.intellij.platform.lsp.api.customization.LspSemanticTokensCustomizer
 import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport
 import com.intellij.psi.PsiFile
 import com.tcllsp.jetbrains.settings.TclLspSettings
@@ -127,6 +129,19 @@ private val SEMANTIC_TOKEN_MODIFIER_COLORS: Map<Pair<String, String>, TextAttrib
     // A variable the theme should not present as mutable.
     ("variable" to "readonly") to Colors.CONSTANT,
 )
+
+/**
+ * The plugin's LSP customisation.
+ *
+ * Only semantic tokens is customised; every other feature keeps the
+ * platform's default. This is the shape that superseded the flat
+ * `LspServerDescriptor.lsp*Support` properties in 2025.2 — the old ones still
+ * work through `DeprecatedLspCustomization`, but only while the descriptor
+ * does not supply a customisation of its own, so the two cannot be mixed.
+ */
+class TclLspCustomization : LspCustomization() {
+    override val semanticTokensCustomizer: LspSemanticTokensCustomizer = TclSemanticTokens()
+}
 
 /**
  * Paints the semantic tokens the Tcl language server publishes.

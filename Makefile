@@ -310,7 +310,16 @@ $(VSIX_FILE): spec-studio-wasm $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $
 		--exclude='.vscode-test-web/' \
 		$(EXT_DIR)/ $(STAGE_DIR)/
 	mkdir -p $(STAGE_DIR)/spec-studio
-	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/. $(STAGE_DIR)/spec-studio/
+	@# The IDE-hosted studio never loads Monaco or the browser LSP worker:
+	@# `studio.ts::mountEditorHost` picks `nativeEditorHost.js` whenever the
+	@# host injects `__tclSpecStudioHost`, and every code surface then goes to
+	@# a native editor tab. Shipping them anyway cost ~3 MB (Monaco) + ~21 MB
+	@# (the wasm worker) per artefact for files nothing opens. The standalone
+	@# consumers — GitHub Pages and `tcl explore --serve` — still take the
+	@# whole dist, and `build-wasm.sh` still fails without Monaco, so the
+	@# exclusion is a packaging decision, not a build one.
+	rsync -a --exclude='assets/monaco-host.*' --exclude='lsp/' \
+		$(ROOT)rust/tcl-spec-studio-wasm/dist/ $(STAGE_DIR)/spec-studio/
 	@# The browser language server (package.json `browser`), for vscode.dev /
 	@# github.dev and every other web extension host.  Staged from
 	@# `make lsp-server-wasm`'s dist rather than trusting the extension
@@ -399,6 +408,17 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 		if [[ -n "$$BAD_ENTRIES" ]]; then \
 			echo "VSIX contains dev/cache content that should be excluded:"; \
 			echo "$$BAD_ENTRIES"; \
+			exit 1; \
+		fi
+	@# The IDE-hosted spec studio delegates every code surface to a native
+	@# editor tab (studio.ts picks `nativeEditorHost.js` when the host injects
+	@# its bridge), so Monaco and the browser LSP worker are never loaded from
+	@# the VSIX. Shipping them is ~24 MB of files nothing opens.
+	@set -euo pipefail; \
+		STRAYS="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/spec-studio/(assets/monaco-host\.|lsp/)' || true)"; \
+		if [[ -n "$$STRAYS" ]]; then \
+			echo "VSIX ships the standalone studio's Monaco/worker, which it never loads:"; \
+			echo "$$STRAYS"; \
 			exit 1; \
 		fi
 	@# The extension ships native binaries only — the Python server and its
@@ -1968,7 +1988,16 @@ $(JB_PLUGIN): jb-plugin-force spec-studio-wasm $(OUT_DIR)/extension.js
 	"
 	rm -rf $(JB_DIR)/src/main/resources/spec-studio
 	mkdir -p $(JB_DIR)/src/main/resources/spec-studio
-	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/. $(JB_DIR)/src/main/resources/spec-studio/
+	@# The IDE-hosted studio never loads Monaco or the browser LSP worker:
+	@# `studio.ts::mountEditorHost` picks `nativeEditorHost.js` whenever the
+	@# host injects `__tclSpecStudioHost`, and every code surface then goes to
+	@# a native editor tab. Shipping them anyway cost ~3 MB (Monaco) + ~21 MB
+	@# (the wasm worker) per artefact for files nothing opens. The standalone
+	@# consumers — GitHub Pages and `tcl explore --serve` — still take the
+	@# whole dist, and `build-wasm.sh` still fails without Monaco, so the
+	@# exclusion is a packaging decision, not a build one.
+	rsync -a --exclude='assets/monaco-host.*' --exclude='lsp/' \
+		$(ROOT)rust/tcl-spec-studio-wasm/dist/ $(JB_DIR)/src/main/resources/spec-studio/
 	@# Build plugin — pass version via env so build.gradle.kts picks it up
 	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" ./gradlew buildPlugin
 	mkdir -p $(BUILD_DIR)
@@ -2037,7 +2066,19 @@ verify-jetbrains-resources: $(JB_PLUGIN) ## Fail if the JetBrains plugin is miss
 			echo "Built from a tree where 'make compile' or 'make spec-studio-wasm' had not run?"; \
 			exit 1; \
 		fi; \
-		echo "==> JetBrains plugin bundles the compiler explorer, spec studio, and TextMate grammar"
+		strays=""; \
+		for res in spec-studio/assets/monaco-host.js spec-studio/assets/monaco-host.css; do \
+			for jar in "$$tmp"/*/lib/*.jar; do \
+				[ -f "$$jar" ] || continue; \
+				if unzip -Z1 "$$jar" | grep -qxF "$$res"; then strays="$$strays $$res"; break; fi; \
+			done; \
+		done; \
+		if [ -n "$$strays" ]; then \
+			echo "JetBrains plugin ships Monaco, which the IDE-hosted studio never loads:$$strays"; \
+			echo "The staging copy should exclude it — see the rsync in the \$$(JB_PLUGIN) recipe."; \
+			exit 1; \
+		fi; \
+		echo "==> JetBrains plugin bundles the compiler explorer, spec studio, and TextMate grammar, and no Monaco"
 
 verify-editor-jetbrains: ## Run the IntelliJ Plugin Verifier over the JetBrains plugin (binary-compat gate)
 	@echo "==> Verifying JetBrains plugin against the configured IDE targets"

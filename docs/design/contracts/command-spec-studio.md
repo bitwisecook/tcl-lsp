@@ -63,10 +63,12 @@ privacy notice names the GitHub panel as the sole exception, and the boot check
 
 ## The editors are clients of the real language server
 
-The Pack DSL pane and the Test pane are Monaco editors whose language features
-all come from `rust/tcl-lsp-server-wasm` — the same `LspService<Backend>` the
-native binary runs, with a `postMessage` transport in place of stdio. Nothing in
-the front-end decides what a word means.
+On the standalone page the Pack DSL pane and the Test pane are Monaco editors
+whose language features all come from `rust/tcl-lsp-server-wasm` — the same
+`LspService<Backend>` the native binary runs, with a `postMessage` transport in
+place of stdio. Inside an IDE the same surfaces are native editor tabs served by
+the real language server. Either way, nothing in the front-end decides what a
+word means.
 
 | Concern | Where it lives |
 |---|---|
@@ -87,22 +89,43 @@ round-trip that can disagree with it.
 token type the server gains later paints as plain text rather than shifting
 every colour by one.
 
-### The fallback ladder
+### Two hosts, one contract
 
-Three rungs, each announced in the page's `#lspStatus` line rather than
+`web/src/editorHost.ts` is the interface; there are two implementations of it,
+chosen at runtime by `studio.ts::mountEditorHost`:
+
+- **`nativeEditorHost.ts`** — used whenever a host has injected
+  `window.__tclSpecStudioHost`, which both IDE hosts do
+  (`specStudio.ts::injectNativeBridge`, `SpecStudioHtml.kt`). It renders no
+  text at all: each code surface is opened as an ordinary editor tab in the
+  IDE, so the `.tclspec` and the Tcl sample get the real language server, the
+  user's colour scheme, find, folding and diff. The file is asserted
+  Monaco-free by `tests/web_contract.rs`.
+- **`monacoHost.ts`** — the standalone page (`GitHub Pages` `/spec-studio/`,
+  and the compiler explorer's shared editor via `mountTclEditor`), where there
+  is no host editor to delegate to.
+
+**The IDE artefacts therefore do not ship Monaco.** `mountEditorHost` can never
+choose it there, so the ~3 MB editor chunk and the ~21 MB browser LSP worker
+would be files nothing opens. The Makefile's two staging copies exclude
+`assets/monaco-host.*` and `lsp/`, `make verify-vsix` and
+`make verify-jetbrains-resources` fail if either reappears, and
+`tests/web_contract.rs` pins the exclusion. `build-wasm.sh` still hard-fails
+when Monaco is missing from `dist/`, because the standalone consumers take the
+whole directory.
+
+### The standalone fallback ladder
+
+On the standalone page, two rungs, each announced in `#lspStatus` rather than
 swallowed:
 
 1. **Monaco + the language server** — the full experience.
 2. **Monaco alone** — the worker did not start (wasm disabled, a partial
    deploy). The editor still edits; the status line says there is no analysis.
-3. **The textarea and the `dsl_highlight` overlay** — the editor chunk itself
-   never loaded (a `file://` page, an old browser). This is the surface the
-   studio had before Monaco, kept in the bundle for exactly this reason:
-   `web/src/dslEditor.ts` is ~170 lines and stays.
 
-The textarea is the state of record on every rung. Monaco writes through to it
-on each change, and `studio.ts` writes to both, so the two never disagree and
-rung 3 needs no separate state.
+The hidden textarea beside each mount point is the state of record on both
+rungs and under the native host. Monaco writes through to it on each change,
+and `studio.ts` writes to both, so the two never disagree.
 
 ### Bundle discipline
 

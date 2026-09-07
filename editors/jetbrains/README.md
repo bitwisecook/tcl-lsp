@@ -4,7 +4,7 @@ IntelliJ Platform plugin providing Tcl language support via the [tcl-lsp](../../
 
 ## Requirements
 
-- IntelliJ IDEA Ultimate 2024.3+ (or other paid JetBrains IDE)
+- IntelliJ IDEA Ultimate 2025.3+ (or another paid JetBrains IDE)
 
 Nothing else — the `.zip` plugin bundles the self-contained native
 `tcl-lsp-server` binary for every supported platform and launches the one
@@ -12,8 +12,10 @@ matching your machine. No Python, runtime, or interpreter is needed.
 
 See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
-> Starting with IntelliJ IDEA 2025.3, the LSP API will be available to all users,
-> including those without a paid subscription.
+> The platform's LSP API reaches the free editions in 2025.3. The plugin still
+> declares `com.intellij.modules.ultimate`, so dropping that dependency — and
+> with it the paid-IDE requirement — is a separate change from raising the
+> build floor to 2025.3.
 
 ## Features
 
@@ -22,8 +24,7 @@ All features from the tcl-lsp server are supported:
 - **Syntax highlighting** via the bundled TextMate grammar, which the
   plugin registers with the IDE's TextMate service at startup
 - **Semantic highlighting** from the language server's own tokens, layered
-  over the grammar (needs IntelliJ 2024.3, where the LSP API grew
-  `lspSemanticTokensSupport`; toggle it under Features → Semantic tokens)
+  over the grammar (toggle it under Features → Semantic tokens)
 - **Diagnostics** with 30+ configurable rules
 - **Auto-completion** for commands, subcommands, variables, and switches
 - **Hover** with command help and proc signatures
@@ -35,7 +36,12 @@ All features from the tcl-lsp server are supported:
 - **Code folding**, **inlay hints**, **signature help**
 - **Code actions** (quick fixes)
 - **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer) — also
-  available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**
+  available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**.
+  **Open in editor** puts the current view in an ordinary read-only editor tab,
+  where find, folding and the colour scheme all work, and moving the caret in it
+  reveals the matching source. The CFG, WASM and optimiser-diff panes stay in
+  the tool window, since their edges and connectors are drawn rather than
+  written.
 - **Dialect support**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
 - **Pack-declared file extensions** registered as the packs that claim them
   load and unload (see below)

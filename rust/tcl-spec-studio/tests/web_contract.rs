@@ -54,6 +54,53 @@ fn standalone_uses_only_monaco_and_ides_delegate_to_native_file_tabs() {
     assert!(!STUDIO_TS.contains("addEventListener(\"input\", scheduleTest)"));
 }
 
+/// The IDE artefacts must not carry the standalone page's editor.
+///
+/// Both hosts inject `__tclSpecStudioHost`, so `mountEditorHost` always picks
+/// the native controller and Monaco is dead weight there — about 3 MB, plus
+/// ~21 MB for the browser LSP worker the native path never starts. The
+/// standalone consumers (`GitHub Pages`, `tcl explore --serve`) still take the
+/// whole dist, which is why this is a packaging rule rather than a build one,
+/// and why `build-wasm.sh` must keep failing when Monaco is absent.
+#[test]
+fn the_ide_artefacts_exclude_the_standalone_editor() {
+    let makefile = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Makefile"),
+    )
+    .expect("read the Makefile");
+
+    // A recipe line can be continued with a trailing backslash, so join those
+    // before matching or the excludes and the paths land on different lines.
+    let joined = makefile.replace("\\\n", " ");
+    let hosted: Vec<&str> = joined
+        .lines()
+        .filter(|line| line.contains("tcl-spec-studio-wasm/dist"))
+        .filter(|line| line.contains("STAGE_DIR") || line.contains("JB_DIR"))
+        .collect();
+    assert_eq!(
+        hosted.len(),
+        2,
+        "one staging copy each for the VSIX and the plugin: {hosted:#?}"
+    );
+    for line in hosted {
+        assert!(
+            line.contains("--exclude='assets/monaco-host.*'") && line.contains("--exclude='lsp/'"),
+            "the hosted staging copy must exclude Monaco and the worker: {line}"
+        );
+    }
+
+    // And the standalone build must keep requiring what it still loads.
+    let build = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tcl-spec-studio-wasm/build-wasm.sh"),
+    )
+    .expect("read build-wasm.sh");
+    assert!(
+        build.contains("monaco-host.js"),
+        "build-wasm.sh must still assert the standalone editor is present"
+    );
+}
+
 #[test]
 fn compiler_explorer_monaco_preserves_shortcuts_and_lsp_failures() {
     assert!(MONACO_TS.contains("monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter"));

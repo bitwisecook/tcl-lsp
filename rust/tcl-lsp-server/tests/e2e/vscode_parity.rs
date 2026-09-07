@@ -289,6 +289,72 @@ fn test_compiler_explorer_valid_source() {
     assert!(r.get("ir").is_some());
 }
 
+/// The view command renders one projection as text with a line → source map,
+/// which is what lets an editor host put a projection in a native pane and
+/// still navigate out of it.
+#[test]
+fn test_compiler_explorer_view_maps_every_line() {
+    let mut lsp = Lsp::tcl();
+    let source = "set x 10\nputs $x\n";
+    let r = lsp.execute_command(
+        "tcl-lsp.compilerExplorerView",
+        json!([source, "tcl8.6", "ir"]),
+    );
+    assert!(r.get("error").is_none_or(Value::is_null), "{r:#?}");
+
+    let text = r
+        .get("text")
+        .and_then(Value::as_str)
+        .expect("rendered text");
+    let lines = r.get("lines").and_then(Value::as_array).expect("line map");
+    assert!(!text.is_empty(), "the ir view rendered nothing");
+    assert_eq!(
+        text.lines().count(),
+        lines.len(),
+        "one map entry per rendered line, or a caret resolves to the wrong row"
+    );
+
+    let mapped = lines.iter().find(|l| !l.is_null()).expect("a mapped line");
+    for key in [
+        "startLine",
+        "startColUtf16",
+        "endLine",
+        "endColUtf16",
+        "startOffset",
+        "endOffset",
+    ] {
+        assert!(mapped.get(key).is_some(), "{key} missing from {mapped:#?}");
+    }
+    let end = usize::try_from(mapped["endOffset"].as_u64().unwrap()).unwrap();
+    assert!(
+        end <= source.len(),
+        "the span must index the source it came from"
+    );
+}
+
+/// An unknown view id renders the same "(no data)" placeholder the CLI shows,
+/// rather than erroring — a host asking for a view this build does not have
+/// should get an empty pane, not a failure dialog.
+#[test]
+fn test_compiler_explorer_view_unknown_view_is_empty_not_an_error() {
+    let mut lsp = Lsp::tcl();
+    let r = lsp.execute_command(
+        "tcl-lsp.compilerExplorerView",
+        json!(["set x 1\n", "tcl8.6", "no-such-view"]),
+    );
+    assert!(r.get("error").is_none_or(Value::is_null), "{r:#?}");
+    let text = r.get("text").and_then(Value::as_str).unwrap_or_default();
+    assert!(text.contains("no data"), "{text:?}");
+}
+
+#[test]
+fn test_compiler_explorer_view_empty_source_is_error() {
+    let mut lsp = Lsp::tcl();
+    let r = lsp.execute_command("tcl-lsp.compilerExplorerView", json!(["", "tcl8.6", "ir"]));
+    let err = r.get("error");
+    assert!(err.is_some() && !err.unwrap().is_null());
+}
+
 #[test]
 fn test_compiler_explorer_empty_source_is_error() {
     let mut lsp = Lsp::tcl();

@@ -6,7 +6,11 @@ package com.tcllsp.jetbrains
 import com.google.gson.JsonParser
 import org.jetbrains.plugins.textmate.bundles.BundleType
 import org.jetbrains.plugins.textmate.bundles.TextMateFileNameMatcher
+import org.jetbrains.plugins.textmate.bundles.TextMateNioResourceReader
 import org.jetbrains.plugins.textmate.bundles.readVSCBundle
+import org.jetbrains.plugins.textmate.plist.JsonPlistReader
+import org.jetbrains.plugins.textmate.plist.XmlPlistReader
+import org.jetbrains.plugins.textmate.plist.JsonOrXmlPlistReader
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -30,11 +34,10 @@ class TclTextMateBundleTest {
     fun theUnpackedBundleIsOneTheTextMateServiceCanRead() {
         val dir = unpackIntoTempDirectory()
 
-        assertEquals(BundleType.VSCODE, BundleType.detectBundleType(dir))
+        val resources = TextMateNioResourceReader(dir)
+        assertEquals(BundleType.VSCODE, BundleType.detectBundleType(resources, "Tcl"))
 
-        val reader = assertNotNull(
-            readVSCBundle { relative -> Files.newInputStream(dir.resolve(relative)) },
-        )
+        val reader = assertNotNull(readVSCBundle(JsonOrXmlPlistReader(JsonPlistReader(), XmlPlistReader()), resources))
         val grammars = reader.readGrammars().toList()
         assertEquals(1, grammars.size, "the bundle contributes exactly one grammar")
 

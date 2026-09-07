@@ -16560,6 +16560,65 @@ impl Backend {
         }
     }
 
+    /// Handle `tcl-lsp.compilerExplorerView`: render one explorer view as text
+    /// plus the source span each of its lines points at.
+    ///
+    /// `args` is `(source, dialect, viewId)`. The reply is
+    /// `{text, lines: [null | {startLine, startColUtf16, endLine, endColUtf16,
+    /// startOffset, endOffset}]}`, one `lines` entry per line of `text`.
+    ///
+    /// This exists so an editor host can show a projection in one of its own
+    /// editor panes and still navigate from it: the pane holds `text`, and a
+    /// caret on line *n* resolves through `lines[n]` back into the user's
+    /// file. Rendering it here rather than in each host keeps one renderer —
+    /// the same [`tcl_explorer::render`] the `tcl explore --text` CLI and the
+    /// TUI use — and keeps the line map produced by the code that produced the
+    /// lines, so the two cannot drift.
+    async fn compiler_explorer_view_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let source = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        if source.trim().is_empty() {
+            return Ok(Some(serde_json::json!({ "error": "no source to compile" })));
+        }
+        let dialect = match args.get(1).and_then(serde_json::Value::as_str) {
+            Some(d) => d.to_owned(),
+            None => self.session_dialect().await,
+        };
+        let view = args
+            .get(2)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("ir")
+            .to_owned();
+        // Same containment as `compiler_explorer_command`: heavy pure-CPU work
+        // off the event loop, and a parser panic surfaced as `{error}` rather
+        // than tearing down the worker.
+        let value = crate::rt::spawn_blocking(move || {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let result = tcl_explorer::run_pipeline(&source, &dialect);
+                let data = tcl_explorer::serialise_result(&result);
+                let rendered = tcl_explorer::render::render_view_mapped(&view, &data, false);
+                serde_json::json!({
+                    "view": view,
+                    "text": rendered.text,
+                    "lines": rendered.lines,
+                })
+            }))
+        })
+        .await;
+        match value {
+            Ok(Ok(v)) => Ok(Some(v)),
+            _ => Ok(Some(serde_json::json!({
+                "error": "compiler explorer failed to render the view",
+            }))),
+        }
+    }
+
     /// Pull the `tclLsp` configuration section from the client and apply it.
     ///
     /// The editor (and the e2e harness) answer `workspace/configuration` with
@@ -23938,6 +23997,9 @@ impl LanguageServer for Backend {
                     .await
             }
             "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
+            "tcl-lsp.compilerExplorerView" => {
+                self.compiler_explorer_view_command(&params.arguments).await
+            }
             "tcl-lsp.tkPreview" => self.tk_preview_command(&params.arguments).await,
             "tcl-lsp.ilxReferences" => Ok(self.ilx_references_command(&params.arguments).await),
             _ => Ok(None),
@@ -28747,6 +28809,7 @@ fn build_server_capabilities(
                 "tcl-lsp.setDialect".to_owned(),
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
+                "tcl-lsp.compilerExplorerView".to_owned(),
                 "tcl-lsp.tkPreview".to_owned(),
                 "tcl-lsp.ilxReferences".to_owned(),
             ],

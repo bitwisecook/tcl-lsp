@@ -31,7 +31,7 @@
 
 use serde_json::Value;
 
-use crate::view_tree::{ViewNode, build_view};
+use crate::view_tree::{ViewNode, ViewRange, build_view};
 use crate::views::tree_view_ids;
 
 const RESET: &str = "\x1b[0m";
@@ -117,32 +117,73 @@ fn push_section(out: &mut String, view: &str, body: &str, use_colour: bool) {
 /// Render a single tree view's [`ViewNode`] forest as a box-drawing tree.
 #[must_use]
 pub fn render_view(view: &str, data: &Value, use_colour: bool) -> String {
+    render_view_mapped(view, data, use_colour).text
+}
+
+/// A rendered view, plus the source span each of its lines points at.
+///
+/// `lines[i]` is the span for the `i`th line of `text`, or `None` for a line
+/// that points nowhere (a header, a note, a row whose node has no span). An
+/// editor host showing `text` in a pane uses this to turn a caret position
+/// into a jump back into the user's file, so the two must be produced
+/// together — a map built by re-parsing the rendered text would drift the
+/// moment the renderer changed.
+#[derive(Debug, Clone, Default)]
+pub struct RenderedView {
+    /// The rendered tree.
+    pub text: String,
+    /// One entry per line of [`Self::text`].
+    pub lines: Vec<Option<ViewRange>>,
+}
+
+/// Render a view and its line → source-span map.
+#[must_use]
+pub fn render_view_mapped(view: &str, data: &Value, use_colour: bool) -> RenderedView {
     let roots = build_view(view, data);
+    let mut rendered = RenderedView::default();
     if roots.is_empty() {
-        return "  (no data)\n".to_owned();
+        rendered.push_rows("  (no data)\n", None);
+        return rendered;
     }
-    let mut out = String::new();
     let last = roots.len() - 1;
     for (i, node) in roots.iter().enumerate() {
-        render_node(node, "", i == last, use_colour, &mut out);
+        render_node(node, "", i == last, use_colour, &mut rendered);
     }
-    out
+    rendered
+}
+
+impl RenderedView {
+    /// Append `chunk` (which must end in a newline) as rows all pointing at
+    /// `range`.
+    ///
+    /// Counting the newlines rather than assuming one per push is what keeps
+    /// the map aligned: a detail *value* can itself span lines — the
+    /// structural index's inert spans do — so a row is not always a line.
+    fn push_rows(&mut self, chunk: &str, range: Option<ViewRange>) {
+        self.text.push_str(chunk);
+        self.lines
+            .extend(std::iter::repeat_n(range, chunk.matches('\n').count()));
+    }
 }
 
 /// Recursively render `node` under `prefix`, with its detail rows inlined.
-fn render_node(node: &ViewNode, prefix: &str, is_last: bool, use_colour: bool, out: &mut String) {
+fn render_node(
+    node: &ViewNode,
+    prefix: &str,
+    is_last: bool,
+    use_colour: bool,
+    out: &mut RenderedView,
+) {
     let connector = if is_last { TREE_LAST } else { TREE_BRANCH };
-    out.push_str(prefix);
-    out.push_str(connector);
-    out.push_str(&paint(&node.label, node.style.as_deref(), use_colour));
-    out.push('\n');
+    let label = paint(&node.label, node.style.as_deref(), use_colour);
+    out.push_rows(&format!("{prefix}{connector}{label}\n"), node.range);
 
     let child_prefix = format!("{prefix}{}", if is_last { TREE_GAP } else { TREE_VBAR });
     for (key, value) in &node.detail {
-        let row = format!("· {key}: {value}");
-        out.push_str(&child_prefix);
-        out.push_str(&paint(&row, Some("dim"), use_colour));
-        out.push('\n');
+        let row = paint(&format!("· {key}: {value}"), Some("dim"), use_colour);
+        // A detail row belongs to its node, so it navigates to the same span:
+        // a caret anywhere in a node's block should reach the source.
+        out.push_rows(&format!("{child_prefix}{row}\n"), node.range);
     }
     let last = node.children.len().saturating_sub(1);
     for (i, child) in node.children.iter().enumerate() {
@@ -253,5 +294,51 @@ mod tests {
         let wat = render_wasm(&d);
         assert!(wat.contains("(module"), "{wat}");
         assert!(wat.contains("$::top"), "{wat}");
+    }
+
+    /// The map has exactly one entry per rendered line.
+    ///
+    /// This is the property an editor pane depends on: it turns a caret line
+    /// into an index into `lines`, so a map that drifted by one would send
+    /// every click to the wrong statement.
+    #[test]
+    fn the_line_map_is_aligned_with_the_rendered_text() {
+        let d = data("proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n");
+        for view in crate::views::tree_view_ids() {
+            let rendered = render_view_mapped(view, &d, false);
+            assert_eq!(
+                rendered.text.lines().count(),
+                rendered.lines.len(),
+                "{view}: one map entry per rendered line"
+            );
+            assert_eq!(
+                rendered.text,
+                render_view(view, &d, false),
+                "{view}: the mapped render is the same text"
+            );
+        }
+    }
+
+    /// A mapped line points at the span its row displays.
+    #[test]
+    fn a_mapped_line_points_at_the_span_its_row_shows() {
+        let source = "set x 1\n";
+        let d = data(source);
+        let rendered = render_view_mapped("ir", &d, false);
+        let (index, range) = rendered
+            .lines
+            .iter()
+            .enumerate()
+            .find_map(|(i, r)| r.map(|r| (i, r)))
+            .expect("the IR view maps at least one line");
+        let line = rendered.text.lines().nth(index).unwrap();
+        assert!(
+            line.contains("set") || line.contains("assign") || line.contains("range"),
+            "line {index} ({line:?}) should be a statement row"
+        );
+        assert!(
+            usize::try_from(range.end_offset).unwrap() <= source.len(),
+            "the span must index the source it came from"
+        );
     }
 }

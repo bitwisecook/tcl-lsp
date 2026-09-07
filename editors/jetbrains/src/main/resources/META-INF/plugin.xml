@@ -21,7 +21,7 @@
     <depends>com.intellij.modules.ultimate</depends>
     <!-- JCEF moved behind its own plugin classloader in 2026.2.  The alias
          only exists from 2025.3.1 onward, so this must remain optional while
-         the plugin supports the 2024.3 floor (where JCEF is platform-owned).
+         the plugin supports the 2025.3 floor (where JCEF is platform-owned).
          The supplemental descriptor is intentionally empty: the dependency
          edge itself is what makes JCEF classes visible on newer IDEs. -->
     <depends optional="true"

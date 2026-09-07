@@ -246,6 +246,20 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                 message == "clearHighlight" -> {
                     clearSourceHighlight()
                 }
+                message.startsWith("openProjection:") -> {
+                    // `view\u0000label\u0000dialect\u0000source` — the source
+                    // rides last because it is the only field that can contain
+                    // anything, including the separator's neighbours.
+                    val parts = message.removePrefix("openProjection:").split('\u0000', limit = 4)
+                    if (parts.size == 4) {
+                        openProjection(
+                            view = parts[0],
+                            label = parts[1],
+                            dialect = parts[2].ifEmpty { TclLspSettings.getInstance().dialect },
+                            source = parts[3],
+                        )
+                    }
+                }
             }
         } catch (e: Exception) {
             LOG.warn("Error handling JS message: $message", e)
@@ -317,7 +331,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                 // Pass the timeout explicitly. Omitting it makes Kotlin emit a
                 // call to the synthetic `LspServer.sendRequestSync$default`
                 // bridge, which is bound to the exact class that declared the
-                // method when we compiled (2024.3). In 2026.1+ `sendRequestSync`
+                // method when we compiled (2025.3). In 2026.1+ `sendRequestSync`
                 // moved up to the `LspClient` super-interface, so that bridge no
                 // longer resolves as `LspServer.sendRequestSync$default` and the
                 // plugin fails verification / throws NoSuchMethodError at runtime.
@@ -345,6 +359,46 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
             } catch (e: Exception) {
                 LOG.warn("Compile failed", e)
                 sendErrorToWebview(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    /**
+     * Render one explorer view through the server and show it in an ordinary
+     * IntelliJ editor tab.
+     *
+     * The tool window keeps the interactive panes — the CFG's routed edges and
+     * the WASM branch lanes do not survive as flat text — but everything that
+     * *is* linear reads better in a real editor, where find, folding and the
+     * colour scheme all work. The pane is read-only and carries a line map, so
+     * moving the caret in it navigates back into the source file.
+     */
+    private fun openProjection(view: String, label: String, dialect: String, source: String) {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val server = awaitRunningServer()
+            if (server == null) {
+                sendErrorToWebview("Tcl LSP server did not become ready — cannot render $label.")
+                return@executeOnPooledThread
+            }
+            // The explicit timeout is load-bearing; see the note in runCompile
+            // about `sendRequestSync$default`.
+            val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
+                lsp4j.workspaceService.executeCommand(
+                    org.eclipse.lsp4j.ExecuteCommandParams(
+                        "tcl-lsp.compilerExplorerView",
+                        listOf(source, dialect, view),
+                    )
+                )
+            } ?: return@executeOnPooledThread
+
+            val rendered = ExplorerProjection.parse(result)
+            if (rendered == null) {
+                sendErrorToWebview("Could not render the $label view.")
+                return@executeOnPooledThread
+            }
+            val origin = sourceFile
+            ApplicationManager.getApplication().invokeLater {
+                ExplorerProjections.getInstance(project).open(label, view, rendered, origin)
             }
         }
     }

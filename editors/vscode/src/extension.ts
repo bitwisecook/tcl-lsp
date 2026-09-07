@@ -79,6 +79,7 @@ import {
   explorerDocChanged,
   explorerEditorChanged,
   openCompilerExplorer,
+  registerCompilerExplorerProjections,
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
 import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
@@ -315,6 +316,10 @@ export async function activate(context: ExtensionContext) {
       tkPreviewEditorChanged();
     }),
   );
+
+  // The explorer's read-only projection panes: a virtual-document provider
+  // plus the caret listener that navigates from a pane back into the source.
+  registerCompilerExplorerProjections(context);
   onActiveEditorChanged(window.activeTextEditor);
 
   // Warn once when semantic highlighting can't reach a Tcl buffer (wrong

@@ -63,6 +63,152 @@ export function waitForCompileComplete(timeoutMs = 10_000): Promise<boolean> {
   });
 }
 
+/** URI scheme for the read-only projection panes the explorer opens. */
+const PROJECTION_SCHEME = "tcl-explorer";
+
+/**
+ * A rendered projection, keyed by the URI its pane is showing.
+ *
+ * `lines[n]` is the source span the pane's line `n` points at, so moving the
+ * caret in a projection navigates back into the user's file. The entry is
+ * replaced whenever the view is re-opened, which is what makes a re-open pick
+ * up an edited source.
+ */
+interface Projection {
+  text: string;
+  lines: (ExplorerRange | null)[];
+  /** The file the projection was rendered from. */
+  source: vscode.Uri | undefined;
+}
+
+/** A span in the two coordinate systems `range_dict` emits. */
+interface ExplorerRange {
+  startLine: number;
+  startColUtf16: number;
+  endLine: number;
+  endColUtf16: number;
+  startOffset: number;
+  endOffset: number;
+}
+
+const projections = new Map<string, Projection>();
+
+/**
+ * Serves the projection panes.
+ *
+ * A virtual document rather than an untitled one — which is what the rest of
+ * the extension uses for command output — because a projection is derived,
+ * read-only, and re-rendered in place: an untitled document would prompt to
+ * save and would accumulate a tab per compile.
+ */
+class ProjectionProvider implements vscode.TextDocumentContentProvider {
+  private readonly changed = new vscode.EventEmitter<vscode.Uri>();
+  readonly onDidChange = this.changed.event;
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return projections.get(uri.toString())?.text ?? "";
+  }
+
+  refresh(uri: vscode.Uri): void {
+    this.changed.fire(uri);
+  }
+}
+
+const projectionProvider = new ProjectionProvider();
+
+/**
+ * Register the projection machinery. Called once from `activate`.
+ *
+ * The caret listener is what makes a pane navigable: it maps the caret's line
+ * through the projection's line map and reveals the matching span in the file
+ * the projection came from.
+ */
+export function registerCompilerExplorerProjections(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(PROJECTION_SCHEME, projectionProvider),
+    vscode.window.onDidChangeTextEditorSelection((event) => {
+      if (event.textEditor.document.uri.scheme !== PROJECTION_SCHEME) {
+        return;
+      }
+      void revealFromProjection(
+        event.textEditor.document.uri,
+        event.selections[0]?.active.line ?? 0,
+      );
+    }),
+  );
+}
+
+/** Reveal the source span the projection's line `line` points at. */
+async function revealFromProjection(uri: vscode.Uri, line: number): Promise<void> {
+  const projection = projections.get(uri.toString());
+  const range = projection?.lines[line];
+  if (!projection?.source || !range) {
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument(projection.source);
+  const target = new vscode.Range(
+    new vscode.Position(range.startLine, range.startColUtf16),
+    new vscode.Position(range.endLine, range.endColUtf16),
+  );
+  // `preserveFocus` so the caret stays in the projection the user is reading:
+  // arrowing down a projection should walk the source alongside it, not tear
+  // focus away on every keypress.
+  const editor = await vscode.window.showTextDocument(document, {
+    viewColumn: vscode.ViewColumn.One,
+    preserveFocus: true,
+  });
+  editor.setDecorations(highlightDecoration, [target]);
+  editor.revealRange(target, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+/**
+ * Render `view` through the server and show it in a read-only editor pane.
+ */
+async function openProjection(
+  view: string,
+  label: string,
+  source: string,
+  dialect: string,
+): Promise<void> {
+  const client = getClient();
+  if (!client) {
+    void vscode.window.showWarningMessage(
+      "Tcl LSP: the language server is not running, so the view cannot be rendered.",
+    );
+    return;
+  }
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.compilerExplorerView",
+    arguments: [source, dialect, view],
+  })) as { text?: string; lines?: (ExplorerRange | null)[]; error?: string };
+
+  if (!result || result.error || typeof result.text !== "string") {
+    void vscode.window.showWarningMessage(
+      `Tcl LSP: could not render the ${label} view${result?.error ? `: ${result.error}` : ""}.`,
+    );
+    return;
+  }
+
+  // One stable URI per view, so re-opening replaces the pane's contents
+  // instead of stacking tabs. The label rides in the path because that is what
+  // the tab shows.
+  const uri = vscode.Uri.parse(
+    `${PROJECTION_SCHEME}:${view}.tcl-explorer?${encodeURIComponent(label)}`,
+  );
+  projections.set(uri.toString(), {
+    text: result.text,
+    lines: result.lines ?? [],
+    source: explorerEditor?.document.uri,
+  });
+  projectionProvider.refresh(uri);
+
+  const document = await vscode.workspace.openTextDocument(uri);
+  await vscode.window.showTextDocument(document, {
+    viewColumn: vscode.ViewColumn.Beside,
+    preview: false,
+  });
+}
+
 const highlightDecoration = vscode.window.createTextEditorDecorationType({
   backgroundColor: new vscode.ThemeColor("editor.selectionBackground"),
   isWholeLine: false,
@@ -96,6 +242,8 @@ export function openCompilerExplorer(): void {
       startCol?: number;
       endLine?: number;
       endCol?: number;
+      view?: string;
+      label?: string;
       message?: string;
       stack?: string;
       filename?: string;
@@ -125,6 +273,17 @@ export function openCompilerExplorer(): void {
         msg.end !== undefined
       ) {
         highlightSourceRange(msg);
+      } else if (
+        msg.type === "openProjection" &&
+        typeof msg.view === "string" &&
+        typeof msg.source === "string"
+      ) {
+        await openProjection(
+          msg.view,
+          typeof msg.label === "string" ? msg.label : msg.view,
+          msg.source,
+          typeof msg.dialect === "string" ? msg.dialect : getActiveDialect(),
+        );
       } else if (msg.type === "clearHighlight") {
         clearSourceHighlight();
       } else if (msg.type === "coreError") {

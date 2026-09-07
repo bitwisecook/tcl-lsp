@@ -108,6 +108,10 @@ internal fun adaptHtmlForJcef(html: String): String {
                             n(msg.start) + ',' + n(msg.end));
                     } else if (msg.type === 'clearHighlight') {
                         window.__tcllspBridge('clearHighlight');
+                    } else if (msg.type === 'openProjection') {
+                        window.__tcllspBridge('openProjection:' + msg.view + '\u0000' +
+                            (msg.label || msg.view) + '\u0000' + (msg.dialect || '') +
+                            '\u0000' + (msg.source || ''));
                     }
                     // Other types (ready, dialectChange, scriptError, ...)
                     // have no host action in JCEF and are intentionally dropped.
