@@ -968,7 +968,7 @@ fn fn_guard_a_fully_tracked_member_renames_from_every_trigger_position() {
 
 // -- the collision gate must not fire when there is nothing to collide with --
 
-/// Reported from CLion against exactly this buffer: renaming `a` to `b` was
+/// Reported from `CLion` against exactly this buffer: renaming `a` to `b` was
 /// refused with "`::b` is already declared in this workspace", in a workspace
 /// whose only Tcl file is the three lines below and which contains no `b` at
 /// all.
@@ -997,7 +997,7 @@ fn a_global_variable_renames_when_the_target_cell_is_free() {
 
 /// The same rename, after the buffer has already held `b` once.
 ///
-/// This is the shape the CLion report is most likely to be: rename `a` to `b`,
+/// This is the shape the `CLion` report is most likely to be: rename `a` to `b`,
 /// undo it, rename again. If the workspace index still carries the `::b` it
 /// saw between the two edits, the collision gate refuses a rename whose target
 /// cell is not live in any current document.

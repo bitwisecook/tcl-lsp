@@ -177,6 +177,11 @@ async function openProjection(
     );
     return;
   }
+  // Captured before the await: `explorerEditor` follows the active editor, so
+  // switching files while the render is in flight would otherwise pair this
+  // view's line map with a document it was not rendered from, and every caret
+  // move in the projection would reveal an unrelated span there.
+  const origin = explorerEditor?.document.uri;
   const result = (await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.compilerExplorerView",
     arguments: [source, dialect, view],
@@ -198,7 +203,7 @@ async function openProjection(
   projections.set(uri.toString(), {
     text: result.text,
     lines: result.lines ?? [],
-    source: explorerEditor?.document.uri,
+    source: origin,
   });
   projectionProvider.refresh(uri);
 

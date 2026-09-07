@@ -91,6 +91,20 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
     let end = line_index.position_at(inclusive_end);
     let start_utf16 = line_index.position_at_utf16(span.start(), source);
     let end_utf16 = line_index.position_at_utf16(inclusive_end, source);
+    // `inclusive_end` is the last *byte* of the final character, so
+    // `position_at_utf16` snaps back to that character's start. Advancing by
+    // one code unit would land inside a surrogate pair for anything outside
+    // the BMP — an emoji is two units — and hand both editor hosts a range
+    // ending mid-character. Advance by the character's own width instead.
+    // Deriving this from the exclusive byte end directly is not equivalent:
+    // that offset can be the first column of the *next* line, which is why
+    // the inclusive end is what the line number comes from.
+    let exclusive_end = tcl_lexer::word_span_at(source, span).end() as usize;
+    let end_units = source
+        .get(..exclusive_end)
+        .and_then(|s| s.chars().next_back())
+        .and_then(|c| u32::try_from(c.len_utf16()).ok())
+        .unwrap_or(1);
     json!({
         "startLine": start.line,
         "startCol": start.character.get(),
@@ -99,7 +113,7 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
         "endCol": end.character.get() + 1,
         "endOffset": end.offset + 1,
         "startColUtf16": start_utf16.character.get(),
-        "endColUtf16": end_utf16.character.get() + 1,
+        "endColUtf16": end_utf16.character.get() + end_units,
     })
 }
 
@@ -438,5 +452,23 @@ mod tests {
         assert_eq!(d["endCol"], 8);
         assert_eq!(d["endColUtf16"], 7);
         assert_eq!(d["startLine"], 0, "line numbers are encoding-independent");
+    }
+
+    #[test]
+    fn range_dict_spans_the_whole_of_a_surrogate_pair() {
+        // An emoji is four UTF-8 bytes and *two* UTF-16 code units. The
+        // inclusive end lands on its last byte, which maps back to the
+        // character's start, so an end column derived by adding a single unit
+        // would stop between the two halves of the pair and leave both editor
+        // hosts selecting half a character.
+        let source = "set v 😀";
+        let li = LineIndex::new(source);
+        let start = u32::try_from(source.find('😀').unwrap()).unwrap();
+        let d = range_dict(Span::new(start, start + 4), &li, source);
+        assert_eq!(d["startColUtf16"], 6, "the emoji starts after `set v `");
+        assert_eq!(
+            d["endColUtf16"], 8,
+            "the end must clear both code units of the pair",
+        );
     }
 }

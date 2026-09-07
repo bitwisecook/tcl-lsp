@@ -374,6 +374,12 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
      * moving the caret in it navigates back into the source file.
      */
     private fun openProjection(view: String, label: String, dialect: String, source: String) {
+        // Read on the caller's thread, before the request goes out. `sourceFile`
+        // tracks the selected editor, so a user who switches files while the
+        // render is in flight would otherwise have this view's line map paired
+        // with a file it was not rendered from, and every caret move would
+        // reveal an unrelated span there.
+        val origin = sourceFile
         ApplicationManager.getApplication().executeOnPooledThread {
             val server = awaitRunningServer()
             if (server == null) {
@@ -396,7 +402,6 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                 sendErrorToWebview("Could not render the $label view.")
                 return@executeOnPooledThread
             }
-            val origin = sourceFile
             ApplicationManager.getApplication().invokeLater {
                 ExplorerProjections.getInstance(project).open(label, view, rendered, origin)
             }
