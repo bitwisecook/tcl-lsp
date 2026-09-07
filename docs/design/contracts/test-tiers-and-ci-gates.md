@@ -133,7 +133,13 @@ CI skips only what demonstrably did not change. The rules live in
 `ci.yml`'s `channel` job; read its header before editing them.
 
 - A **tag** whose SHA went green on a `rust` push within 24 h step-skips the
-  test surface (the release graph still runs).
+  test surface (the release graph still runs). If that exact-SHA push proof is
+  not available, a tag may carry forward a PR proof only when GitHub reports
+  exactly one merged PR for the tag commit on `rust`, its head commit's tree
+  exactly equals the tag tree, and the PR's CI run is successful and newer
+  than 24 h. The association API is authoritative even for two-parent merge
+  commits; the fetched second parent is only a consistency check. A missing,
+  ambiguous, stale, malformed, or failed lookup runs the full surface.
 - A **merge push** byte-identical to its already-green PR head downgrades
   tests to a cache-warming build (`--no-run`).
 - **Docs-only** changes skip the cargo test steps; `python`, `test-ext`, and
@@ -152,7 +158,9 @@ CI skips only what demonstrably did not change. The rules live in
   silently narrow. It is an additional semantic gate, not a replacement for
   the real link.
 - `cargo-deny` never skips: new advisories arrive against unchanged trees.
-- Every skip fails safe: API error or ambiguity → run everything.
+- Every skip fails safe: API/schema/network error, changed tree, stale result,
+  or ambiguous PR association → run everything. `cargo-deny` is unconditional
+  because its advisory database can change without a source-tree change.
 
 Trusted pull requests prefer the self-hosted `tank` runner for `rust-tests`.
 The `channel` job queries every nonterminal workflow state and routes to hosted
