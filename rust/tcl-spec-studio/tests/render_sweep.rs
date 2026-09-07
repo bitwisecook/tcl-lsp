@@ -21,9 +21,10 @@
 //! The studio's promise is that a spec loaded out of the registry renders back
 //! to a file you can drop into `tcl-registry` — so the renderer has to survive
 //! the whole real command surface, not a handful of hand-picked examples. This
-//! sweep runs the renderer over every command in every dialect the studio
-//! offers (several thousand specs) and asserts the structural invariants a
-//! valid spec file has.
+//! sweep visits every command in every dialect the studio offers and asserts
+//! the structural invariants a valid spec file has. Profiles inherit the same
+//! immutable `CommandSpec` allocation, so that allocation is rendered once
+//! and its output is checked at every dialect/name position where it appears.
 //!
 //! ## Checking that the output actually compiles
 //!
@@ -44,7 +45,9 @@
 //! # …and revert both when done.
 //! ```
 
-use tcl_spec_studio::{browsable_dialects, command_names, draft, load_command, render_rs};
+use std::collections::HashMap;
+
+use tcl_spec_studio::{browsable_dialects, command_names, draft, environment, render_rs};
 
 /// Whether every delimiter in `source` is balanced, ignoring the contents of
 /// string literals and line comments (where a stray brace is legitimate prose).
@@ -94,16 +97,21 @@ fn delimiters_balanced(source: &str) -> bool {
 #[test]
 fn every_command_in_every_dialect_renders() {
     let mut rendered = 0usize;
+    let mut rendered_specs: HashMap<*const tcl_registry::CommandSpec, String> = HashMap::new();
     for (dialect, _) in browsable_dialects() {
+        let registry = environment::store_for_dialect(dialect);
         for name in command_names(dialect) {
-            let Some(value) = load_command(name, dialect) else {
+            let Some(spec) = registry.get(name) else {
                 panic!("{name} is listed in {dialect} but does not load");
             };
-            let draft = value
-                .as_object()
-                .unwrap_or_else(|| panic!("{name} did not load as an object"))
-                .clone();
-            let source = render_rs::render(&draft);
+            // Profiles share the same immutable `CommandSpec` allocation for an
+            // inherited command. The Rust renderer consumes that spec's draft;
+            // the Studio-only source-dialect marker is deliberately not Rust
+            // output, so render an allocation once and validate its output at
+            // every dialect/name position where it is browsable.
+            let source = rendered_specs
+                .entry(std::ptr::from_ref(spec))
+                .or_insert_with(|| render_rs::render(&draft::from_command_spec(spec)));
 
             assert!(
                 source.starts_with(render_rs::COPYRIGHT_BANNER),
@@ -126,7 +134,7 @@ fn every_command_in_every_dialect_renders() {
                 "{dialect}/{name}: the DEFAULT fill is missing, so unset fields would be dropped"
             );
             assert!(
-                delimiters_balanced(&source),
+                delimiters_balanced(source),
                 "{dialect}/{name}: unbalanced delimiters in the rendered source"
             );
             // A bitflags `|` chain is not const-evaluable inside the hoisted
@@ -142,6 +150,11 @@ fn every_command_in_every_dialect_renders() {
     assert!(
         rendered > 2000,
         "expected the full command surface, rendered only {rendered}"
+    );
+    assert!(
+        rendered_specs.len() > 2000,
+        "expected the full distinct spec surface, rendered only {} allocations",
+        rendered_specs.len()
     );
 }
 
