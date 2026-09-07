@@ -134,6 +134,10 @@ jobs:
   #                    PRs prove themselves on an isolated GitHub-hosted runner;
   #                    an unreviewed policy edit must not execute new dependency
   #                    code on, overload, or strand the protected host.
+  #   rust_tests_changed — the committed root Rust-test closure (nextest plus
+  #                    the full workspace doctest command) or one of its
+  #                    build/test inputs changed. Missing/ambiguous changed-file
+  #                    data fails closed to true.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -152,6 +156,7 @@ jobs:
       web_frontends_changed: ${{ steps.paths.outputs.web_frontends_changed }}
       runner_policy_changed: ${{ steps.paths.outputs.runner_policy_changed }}
       rust_tests_runner: ${{ steps.rust-runner.outputs.runner }}
+      rust_tests_changed: ${{ steps.paths.outputs.rust_tests_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,20 +194,11 @@ jobs:
         run: |
           ok=true
           files=""
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            files="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-              --paginate --jq '.[].filename' 2>/dev/null)" || ok=false
-          elif [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != refs/tags/* &&
-            -n "$BEFORE" && "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
-            # The compare API caps the file list at 300; a full list means
-            # "could be anything", not "exactly 300 files changed".
-            files="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
-              --jq '.files[].filename' 2>/dev/null)" || ok=false
-            [ "$(printf '%s\n' "$files" | wc -l)" -ge 300 ] && ok=false
+          if files="$(scripts/dev/changed-paths.sh "$GITHUB_EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$BEFORE" "$GITHUB_SHA" "$GITHUB_REF")"; then
+            :
           else
-            ok=false # tags, dispatch, branch creation: everything counts as changed
+            ok=false
           fi
-          [ -z "$files" ] && ok=false
 
           python_changed=false
           ext_changed=false
@@ -212,6 +208,7 @@ jobs:
           runtime_rust_changed=false
           web_frontends_changed=false
           runner_policy_changed=false
+          rust_tests_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
@@ -239,6 +236,15 @@ jobs:
                 .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)
                   runner_policy_changed=true ;;
               esac
+              if scripts/dev/rust-tests-path.sh "$f"; then
+                rust_tests_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               if scripts/dev/spectcl-compat-path.sh "$f"; then
                 spectcl_compat_changed=true
               else
@@ -272,6 +278,7 @@ jobs:
             runtime_rust_changed=true
             web_frontends_changed=true
             runner_policy_changed=true
+            rust_tests_changed=true
             docs_only=false
           fi
           {
@@ -283,9 +290,10 @@ jobs:
             echo "runtime_rust_changed=$runtime_rust_changed"
             echo "web_frontends_changed=$web_frontends_changed"
             echo "runner_policy_changed=$runner_policy_changed"
+            echo "rust_tests_changed=$rust_tests_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed web_frontends_changed=$web_frontends_changed runner_policy_changed=$runner_policy_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed web_frontends_changed=$web_frontends_changed runner_policy_changed=$runner_policy_changed rust_tests_changed=$rust_tests_changed docs_only=$docs_only"
 
       - name: Select the broad Rust test runner
         id: rust-runner
@@ -880,6 +888,8 @@ jobs:
       queue: max
       cancel-in-progress: false
     steps:
+      # Keep this required job alive for unrelated changes; only the checkout
+      # runs when the channel says the root Rust test archive is unaffected.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -891,6 +901,7 @@ jobs:
       # The action installs the current stable and wires up the Swatinem cache
       # (keyed per job, so the concurrent cargo jobs don't race on save).
       - name: Set up Rust
+        if: needs.channel.outputs.rust_tests_changed == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
@@ -901,11 +912,13 @@ jobs:
       # those expensive compilations reusable across runner registrations and
       # source revisions without weakening Cargo's freshness checks.
       - name: Set up sccache
+        if: needs.channel.outputs.rust_tests_changed == 'true'
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
           version: v0.17.0
 
       - name: Install cargo-nextest
+        if: needs.channel.outputs.rust_tests_changed == 'true'
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: nextest@0.9.143
@@ -915,7 +928,7 @@ jobs:
       # lane through the same tool entry point SpecTcl uses; distro Tcl and a
       # stale system tclsh9.0 must never decide which oracle CI exercises.
       - name: Install exact Tcl 9.0 reference interpreter
-        if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         env:
           TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin
         run: |
@@ -935,7 +948,7 @@ jobs:
       # used with '--no-fail-fast'"), and the flag is meaningless anyway when
       # no tests are executed.
       - name: cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)
-        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
         run: |
@@ -950,8 +963,14 @@ jobs:
       # the crates excluded above — doctests are cheap) so the other jobs need
       # not duplicate them.  Deps are already built, so this is compile + run.
       - name: cargo test --doc
-        if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         run: cargo test --workspace --all-features --doc --no-fail-fast
+
+      # Setup is intentionally skipped when the root Rust-test closure is
+      # unaffected, so sccache is unavailable on those required no-op runs.
+      - name: Report sccache statistics
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true'
+        run: sccache --show-stats
 
   # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
   # compiler, registry, runtime, pack, or exact-reference-toolchain closure.
