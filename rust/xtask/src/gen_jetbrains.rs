@@ -278,13 +278,88 @@ fn settings(current: &str) -> String {
 /// The note under the optimiser grid. A tri-state checkbox is unusual enough
 /// in a settings page that the third state needs saying out loud.
 const PROFILE_LEGEND: [&str; 6] = [
-    r#"        builder.addWrappedComment("#,
+    r"        builder.addWrappedComment(",
     r#"            "The profile chooses which optimisation families run. A per-code box left " +"#,
     r#"                "in its mixed state inherits from the profile; tick or untick one to " +"#,
     r#"                "force that code on or off regardless of the profile. Reset to profile " +"#,
     r#"                "clears every override and hands the choice back to the profile.","#,
-    r#"        )"#,
+    r"        )",
 ];
+
+/// Regenerate the optimiser half of `TclLspSettingsPanel.kt`: the profile
+/// picker, the tri-state per-code boxes, and their dirty/apply/reset arms.
+///
+/// Split out of [`panel`] to keep each side inside clippy's per-function line
+/// budget; the two halves share nothing but the file being rewritten.
+fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> String {
+    let opts = opts.to_vec();
+    let mut out = current;
+    // opt-checkboxes.
+    let mut opt_cb =
+        String::from("    private val optEnabled = JBCheckBox(\"Enable optimiser suggestions\")\n");
+    let profile_items = OptimisationProfile::ALL
+        .iter()
+        .map(|p| format!("\"{}\"", p.name()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let _ = writeln!(
+        opt_cb,
+        "    private val optProfile = JComboBox(arrayOf({profile_items}))"
+    );
+    // Tri-state, so a code can say "inherit from the profile" — the state the
+    // VS Code setting expresses as `null` and its default.
+    for (code, description) in &opts {
+        let _ = writeln!(
+            opt_cb,
+            "    private val opt{code} = ThreeStateCheckBox(\"{}\", ThreeStateCheckBox.State.DONT_CARE)",
+            short_label(code, description)
+        );
+    }
+    // One named list, so the grid and the "reset to profile" link cannot
+    // disagree about which boxes are per-code overrides.
+    opt_cb.push_str("    private val optCodeBoxes: List<ThreeStateCheckBox> = listOf(\n");
+    let box_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
+    opt_cb.push_str(&six_per_line_at(&box_refs, 8));
+    opt_cb.push_str("    )\n");
+    out = replace_block(&out, "opt-checkboxes", &opt_cb);
+
+    // opt-ui.
+    let mut opt_ui = String::from(
+        "        builder.addComponent(TitledSeparator(\"Optimiser\"))\n\
+         \x20       builder.addComponent(optEnabled)\n\
+         \x20       builder.addLabeledComponent(JBLabel(\"Profile:\"), profileRow())\n\
+         \x20       builder.addComponent(ReflowingGrid(optCodeBoxes))\n",
+    );
+    for line in PROFILE_LEGEND {
+        let _ = writeln!(opt_ui, "{line}");
+    }
+    out = replace_block(&out, "opt-ui", &opt_ui);
+
+    // opt dirty/apply/reset.
+    let mut opt_dirty =
+        String::from("            optEnabled.isSelected != s.optimiserEnabled ||\n");
+    opt_dirty.push_str("            optProfile.selectedItem != s.optimiserProfile ||\n");
+    let mut opt_apply = String::from("        s.optimiserEnabled = optEnabled.isSelected\n");
+    opt_apply.push_str(
+        "        s.optimiserProfile = optProfile.selectedItem as? String ?: s.optimiserProfile\n",
+    );
+    let mut opt_reset = String::from("        optEnabled.isSelected = s.optimiserEnabled\n");
+    opt_reset.push_str("        optProfile.selectedItem = s.optimiserProfile\n");
+    for (code, _) in &opts {
+        let _ = writeln!(
+            opt_dirty,
+            "            triState(opt{code}) != s.optimiser{code} ||"
+        );
+        let _ = writeln!(opt_apply, "        s.optimiser{code} = triState(opt{code})");
+        let _ = writeln!(
+            opt_reset,
+            "        opt{code}.state = threeState(s.optimiser{code})"
+        );
+    }
+    out = replace_block(&out, "opt-dirty", &opt_dirty);
+    out = replace_block(&out, "opt-apply", &opt_apply);
+    replace_block(&out, "opt-reset", &opt_reset)
+}
 
 /// Join checkbox field refs six-per-line at `indent` spaces.
 fn six_per_line_at(refs: &[String], indent: usize) -> String {
@@ -357,71 +432,7 @@ fn panel(current: &str) -> String {
     out = replace_block(&out, "diag-apply", &apply);
     out = replace_block(&out, "diag-reset", &reset);
 
-    // opt-checkboxes.
-    let mut opt_cb =
-        String::from("    private val optEnabled = JBCheckBox(\"Enable optimiser suggestions\")\n");
-    let profile_items = OptimisationProfile::ALL
-        .iter()
-        .map(|p| format!("\"{}\"", p.name()))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let _ = writeln!(
-        opt_cb,
-        "    private val optProfile = JComboBox(arrayOf({profile_items}))"
-    );
-    // Tri-state, so a code can say "inherit from the profile" — the state the
-    // VS Code setting expresses as `null` and its default.
-    for (code, description) in &opts {
-        let _ = writeln!(
-            opt_cb,
-            "    private val opt{code} = ThreeStateCheckBox(\"{}\", ThreeStateCheckBox.State.DONT_CARE)",
-            short_label(code, description)
-        );
-    }
-    // One named list, so the grid and the "reset to profile" link cannot
-    // disagree about which boxes are per-code overrides.
-    opt_cb.push_str("    private val optCodeBoxes: List<ThreeStateCheckBox> = listOf(\n");
-    let box_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
-    opt_cb.push_str(&six_per_line_at(&box_refs, 8));
-    opt_cb.push_str("    )\n");
-    out = replace_block(&out, "opt-checkboxes", &opt_cb);
-
-    // opt-ui.
-    let mut opt_ui = String::from(
-        "        builder.addComponent(TitledSeparator(\"Optimiser\"))\n\
-         \x20       builder.addComponent(optEnabled)\n\
-         \x20       builder.addLabeledComponent(JBLabel(\"Profile:\"), profileRow())\n\
-         \x20       builder.addComponent(ReflowingGrid(optCodeBoxes))\n",
-    );
-    for line in PROFILE_LEGEND {
-        let _ = writeln!(opt_ui, "{line}");
-    }
-    out = replace_block(&out, "opt-ui", &opt_ui);
-
-    // opt dirty/apply/reset.
-    let mut opt_dirty =
-        String::from("            optEnabled.isSelected != s.optimiserEnabled ||\n");
-    opt_dirty.push_str("            optProfile.selectedItem != s.optimiserProfile ||\n");
-    let mut opt_apply = String::from("        s.optimiserEnabled = optEnabled.isSelected\n");
-    opt_apply.push_str(
-        "        s.optimiserProfile = optProfile.selectedItem as? String ?: s.optimiserProfile\n",
-    );
-    let mut opt_reset = String::from("        optEnabled.isSelected = s.optimiserEnabled\n");
-    opt_reset.push_str("        optProfile.selectedItem = s.optimiserProfile\n");
-    for (code, _) in &opts {
-        let _ = writeln!(
-            opt_dirty,
-            "            triState(opt{code}) != s.optimiser{code} ||"
-        );
-        let _ = writeln!(opt_apply, "        s.optimiser{code} = triState(opt{code})");
-        let _ = writeln!(
-            opt_reset,
-            "        opt{code}.state = threeState(s.optimiser{code})"
-        );
-    }
-    out = replace_block(&out, "opt-dirty", &opt_dirty);
-    out = replace_block(&out, "opt-apply", &opt_apply);
-    replace_block(&out, "opt-reset", &opt_reset)
+    optimiser_blocks(out, &opts)
 }
 
 /// One generated `JetBrains` file: `(relative-path, regenerated-content)`.
