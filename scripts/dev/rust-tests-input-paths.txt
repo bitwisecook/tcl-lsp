@@ -31,6 +31,8 @@ ai
 docs/generated
 docs/kcs/features
 docs/design/spec-dsl-examples
+docs/design/compiler/semantic-aot-optimisation.md
+docs/design/compiler/wasm-codegen.md
 docs/references/command-spec
 docs/references/f5_query
 docs/design/contracts/shared-utility-contracts-rust.md
