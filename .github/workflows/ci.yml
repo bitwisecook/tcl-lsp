@@ -2170,9 +2170,13 @@ jobs:
   #
   # The triple→bundle-dir mapping lives in the Makefile (SERVER_TARGET_MAP);
   # keep the matrix below and that map in sync (7 triples total).
+  # This producer is deliberately independent of `create-release`: it only
+  # uploads short-lived workflow artefacts and can overlap the release gates.
+  # Every consumer that attaches these bytes to a Release keeps its explicit
+  # `create-release` plus test/portability dependencies below.
   build-server-matrix:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
+    needs: [channel]
     strategy:
       fail-fast: false
       # One job per target triple (not per OS): the old 3-leg matrix built up

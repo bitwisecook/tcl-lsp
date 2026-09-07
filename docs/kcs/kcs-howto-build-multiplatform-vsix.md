@@ -119,10 +119,13 @@ BUNDLED_TARGETS="$(make -s print-server-targets-all)"`.
 ### Build for release
 
 The real release artefacts are built by CI: the tag-triggered
-`build-server-matrix` job compiles the Darwin and Windows binaries on native
+`build-server-matrix` job starts after the tag channel is classified and
+compiles the Darwin and Windows binaries on native
 runners, the x86_64/aarch64 GNU/Linux binaries in architecture-matched UBI 8
-containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. The
-`linux-release-portability` fan-in enforces those Linux ABI floors before
+containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. The matrix
+uploads only short-lived workflow artefacts; the
+`linux-release-portability` fan-in waits for the release gate and enforces
+those Linux ABI floors before
 `build-vsix` downloads the binaries and runs
 both `make package-vsix BUNDLED_TARGETS="$(make -s
 print-server-targets-all)"` (the universal package) and `make

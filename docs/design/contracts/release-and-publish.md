@@ -74,7 +74,7 @@ new advisories are audited at every release point.
 │ .github/workflows/*.yml                                      │
 │   - pr-gate    fast Rust gate (cargo test lsp_e2e) on PRs    │
 │   - test-ext   VS Code extension tests on push and tags      │
-│   - create-release  + build-vsix + build native binaries     │
+│   - create-release  + build-vsix + native build matrix       │
 │     (tcl / f5-query / tcl-lsp-server / tcl-mcp, cross-matrix) │
 │     + build-claude-skills + build-jetbrains + build-sublime  │
 │     + build-zed + publish-checksums       — tag-only         │
@@ -131,6 +131,32 @@ from the laptop:
 maintainer doesn't have to remember the sequence.  `make publish-vsix` /
 `make publish-openvsx` / `make publish-jetbrains` remain laptop fallbacks if
 a CI publish job fails.
+
+### Native build overlap and release gating
+
+The tag-only `build-server-matrix` job is a read-only producer of short-lived
+workflow artefacts. It starts after `channel`, while the validation jobs and
+`create-release` run in parallel. The producer has only `contents: read`
+permission and no `environment`, `secrets.*`, release upload, or OIDC step, so
+its workflow artefacts cannot become release assets on their own.
+
+The release graph keeps the handoff explicit: `linux-release-portability`
+waits for both `create-release` and the matrix; `publish-native-binaries`,
+`build-vsix`, `build-jetbrains`, and `build-sublime` retain their
+`create-release` and portability dependencies (with the package-specific test
+jobs also listed). The checksum and marketplace jobs consume only those
+validated release-producing jobs. This lets expensive cross-compilation hide
+under validation without allowing a native byte or derived package to publish
+before the release object, required tests, and Linux portability checks exist.
+
+The matrix artefacts use `retention-days: 1`: that bounds storage and is safe
+for the normal same-run handoff, but it is not a recovery store. A tag run
+whose validation or portability fan-in remains paused for more than a day can
+lose its producer artifacts; rerun the tag workflow to rebuild them rather
+than weakening the downstream `needs` lists. Keeping the matrix independent
+also means it may finish before `create-release`; no producer artifact is
+attached to a Release until a consumer with the explicit release and
+validation dependencies runs.
 
 ## Linux release portability is an ABI-floor contract
 

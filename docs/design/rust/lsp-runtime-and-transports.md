@@ -464,8 +464,9 @@ and uploads it as the `wasi-module` workflow artifact. `build-vsix` downloads
 it, stages it, and attaches the bare module to the Release, exactly as that job
 takes the native binaries from `build-server-matrix` rather than
 cross-compiling them itself. The split matters: `gh release upload` has to run
-after `create-release`, and `lsp-server-wasi` cannot depend on that tag-only job
-without losing its own PR coverage, so the producing job uploads an artifact
+after `create-release`; both producers can therefore upload workflow artefacts
+while the release gates run. `lsp-server-wasi` cannot depend on that tag-only
+job without losing its own PR coverage, so the producing job uploads an artifact
 and the attaching job — which does depend on `create-release` — signs it. The
 release path needs only the wasip1 target and binaryen; the pinned wasmtime
 download stays gated on the test path, so it cannot fail a tag build.
