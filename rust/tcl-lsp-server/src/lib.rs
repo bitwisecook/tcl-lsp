@@ -448,24 +448,6 @@ struct FreshAnalysisSeed {
     class_factory_generation: u64,
 }
 
-/// The no-await write set that publishes one live document's index seed.
-struct LiveIndexCommitLocks<'a> {
-    documents: DocumentsGuard<'a>,
-    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
-    seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
-}
-
-/// A fair dependency turn retained into the next live-index bundle attempt.
-///
-/// Tokio hands a released writer to the readers queued behind it before a
-/// later `try_write` can barge in. Keeping the acquired turn here is what
-/// turns fair admission into an actual atomic commit opportunity.
-enum LiveIndexFairTurn<'a> {
-    Documents(DocumentsGuard<'a>),
-    WorkspaceIndex(tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>),
-    RehomedSourceSeeds(tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>),
-}
-
 /// A snapshot of what the editor holds for every open document, by path.
 ///
 /// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
@@ -971,12 +953,6 @@ impl<T> TrackedMutex<T> {
 /// on guard drop.
 struct DocumentStore {
     docs: Mutex<HashMap<Uri, DocumentState>>,
-    /// Ordinary acquisitions take a shared admission only until they own
-    /// `docs`. A live-index commit takes the exclusive admission after two
-    /// different dependencies defeat its fair turns, giving that rare slow
-    /// path one quiet document-map hand-off. The ordinary optimistic path
-    /// holds only a shared admission until it acquires the map.
-    admission: tokio::sync::RwLock<()>,
     /// Who holds the map, who held it last, and how many times it has been
     /// taken — under **one** lock, deliberately.
     ///
@@ -1147,7 +1123,6 @@ impl Default for DocumentStore {
     fn default() -> Self {
         Self {
             docs: Mutex::new(HashMap::new()),
-            admission: tokio::sync::RwLock::new(()),
             tracking: std::sync::Mutex::new(DocumentsTracking::default()),
         }
     }
@@ -1160,14 +1135,6 @@ impl DocumentStore {
     /// `site` is a `&'static str` naming the caller — it ends up in a stall
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
-        let admission = self.admission.read().await;
-        let docs = self.lock_without_admission(site).await;
-        drop(admission);
-        docs
-    }
-
-    /// Take the map while the caller owns the exclusive admission.
-    async fn lock_without_admission(&self, site: &'static str) -> DocumentsGuard<'_> {
         // Uncontended fast path: no waiter, so nothing to instrument, and the
         // poll/wake shim's per-poll waker allocation is never paid. tokio's
         // mutex is fair, so `try_lock` cannot barge past a queued waiter — a
@@ -1186,14 +1153,10 @@ impl DocumentStore {
     /// what prevents that low-priority work from inverting the foreground
     /// `documents -> db -> workspace_index` order used by document sync.
     fn try_lock(&self, site: &'static str) -> Option<DocumentsGuard<'_>> {
-        let admission = self.admission.try_read().ok()?;
-        let documents = self
-            .docs
+        self.docs
             .try_lock()
             .ok()
-            .map(|docs| self.record_acquisition(docs, site));
-        drop(admission);
-        documents
+            .map(|docs| self.record_acquisition(docs, site))
     }
 
     /// Attach holder telemetry to an already-acquired map guard.
@@ -9053,165 +9016,6 @@ impl Backend {
         );
     }
 
-    fn try_live_index_commit_locks<'a>(
-        &'a self,
-        site: &'static str,
-        fair_turn: Option<LiveIndexFairTurn<'a>>,
-    ) -> Result<LiveIndexCommitLocks<'a>, LivePublicationWait> {
-        match fair_turn {
-            None => {
-                let documents = self
-                    .documents
-                    .try_lock(site)
-                    .ok_or(LivePublicationWait::Documents)?;
-                let index = self
-                    .workspace_index
-                    .try_write()
-                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
-                let seeds = self
-                    .rehomed_source_seeds
-                    .try_lock()
-                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
-                Ok(LiveIndexCommitLocks {
-                    documents,
-                    index,
-                    seeds,
-                })
-            }
-            Some(LiveIndexFairTurn::Documents(documents)) => {
-                let index = self
-                    .workspace_index
-                    .try_write()
-                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
-                let seeds = self
-                    .rehomed_source_seeds
-                    .try_lock()
-                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
-                Ok(LiveIndexCommitLocks {
-                    documents,
-                    index,
-                    seeds,
-                })
-            }
-            Some(LiveIndexFairTurn::WorkspaceIndex(index)) => {
-                let documents = self
-                    .documents
-                    .try_lock(site)
-                    .ok_or(LivePublicationWait::Documents)?;
-                let seeds = self
-                    .rehomed_source_seeds
-                    .try_lock()
-                    .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
-                Ok(LiveIndexCommitLocks {
-                    documents,
-                    index,
-                    seeds,
-                })
-            }
-            Some(LiveIndexFairTurn::RehomedSourceSeeds(seeds)) => {
-                let documents = self
-                    .documents
-                    .try_lock(site)
-                    .ok_or(LivePublicationWait::Documents)?;
-                let index = self
-                    .workspace_index
-                    .try_write()
-                    .map_err(|_| LivePublicationWait::WorkspaceIndex)?;
-                Ok(LiveIndexCommitLocks {
-                    documents,
-                    index,
-                    seeds,
-                })
-            }
-        }
-    }
-
-    /// Acquire the live-index commit bundle without ever awaiting while a
-    /// partial bundle is held. The dependency awaited fairly is retained into
-    /// the next optimistic attempt, so sustained readers cannot take its turn
-    /// back before the no-await commit begins.
-    async fn live_index_commit_locks(&self, site: &'static str) -> LiveIndexCommitLocks<'_> {
-        let mut fair_turn = None;
-        loop {
-            let retained_turn = fair_turn.take();
-            let had_retained_turn = retained_turn.is_some();
-            match self.try_live_index_commit_locks(site, retained_turn) {
-                Ok(locks) => return locks,
-                Err(LivePublicationWait::Documents) => {
-                    if had_retained_turn {
-                        break;
-                    }
-                    fair_turn = Some(LiveIndexFairTurn::Documents(
-                        self.documents.lock(site).await,
-                    ));
-                }
-                Err(LivePublicationWait::WorkspaceIndex) => {
-                    if had_retained_turn {
-                        break;
-                    }
-                    fair_turn = Some(LiveIndexFairTurn::WorkspaceIndex(
-                        self.workspace_index.write().await,
-                    ));
-                }
-                Err(LivePublicationWait::RehomedSourceSeeds) => {
-                    if had_retained_turn {
-                        break;
-                    }
-                    fair_turn = Some(LiveIndexFairTurn::RehomedSourceSeeds(
-                        self.rehomed_source_seeds.lock().await,
-                    ));
-                }
-                Err(wait) => unreachable!(
-                    "live index publication cannot wait for {}",
-                    wait.dependency()
-                ),
-            }
-        }
-
-        self.live_index_commit_locks_after_alternating_contention(site)
-            .await
-    }
-
-    /// Close an alternating-contention cycle without holding `documents`
-    /// while an index reader drains.
-    ///
-    /// The exclusive admission starts only after two different fair turns
-    /// failed to form the bundle. It lets every already-admitted document-map
-    /// user finish, then stops a fresh one from taking the map between our
-    /// queued index writer and the final no-await commit. The index writer is
-    /// polled while the map is held, as in `did_open`, so a document holder
-    /// that follows the canonical `documents -> workspace_index` order is
-    /// already ahead of us rather than deadlocking behind us.
-    async fn live_index_commit_locks_after_alternating_contention(
-        &self,
-        site: &'static str,
-    ) -> LiveIndexCommitLocks<'_> {
-        let admission = self.documents.admission.write().await;
-        let documents = self.documents.lock_without_admission(site).await;
-        let mut index_write = std::pin::pin!(self.workspace_index.write());
-        let mut index = None;
-        std::future::poll_fn(|cx| {
-            if let Poll::Ready(guard) = index_write.as_mut().poll(cx) {
-                index = Some(guard);
-            }
-            Poll::Ready(())
-        })
-        .await;
-        drop(documents);
-        let index = match index {
-            Some(index) => index,
-            None => index_write.await,
-        };
-        let documents = self.documents.lock_without_admission(site).await;
-        let seeds = self.rehomed_source_seeds.lock().await;
-        drop(admission);
-        LiveIndexCommitLocks {
-            documents,
-            index,
-            seeds,
-        }
-    }
-
     /// Mark the matching `didOpen` revision safe for Salsa-backed providers.
     async fn mark_open_salsa_published_if_current(
         &self,
@@ -9243,6 +9047,7 @@ impl Backend {
         version: i32,
         mut seed: FreshAnalysisSeed,
     ) -> bool {
+        let uri_generation = self.live_publication_uri_generation(uri);
         loop {
             let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
             let rehoming_guard = self.rehoming_gate.lock().await;
@@ -9258,31 +9063,44 @@ impl Backend {
                     .await;
                 continue;
             }
-            let LiveIndexCommitLocks {
-                mut documents,
-                mut index,
-                mut seeds,
-            } = self
-                .live_index_commit_locks("did_open_publish_complete")
-                .await;
-            let current = documents
-                .get(uri)
-                .is_some_and(|doc| doc.matches_open_publication(text, dialect, version));
-            if !current {
+            {
+                let documents = self.documents.lock("did_open_index_currency").await;
+                if !documents
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
+                    || self.live_publication_uri_generation(uri) != uri_generation
+                {
+                    return false;
+                }
+            }
+            let mut index = self.workspace_index.write().await;
+            if self.live_publication_uri_generation(uri) != uri_generation {
                 return false;
             }
-            documents.retag("did_open_publish_complete: commit");
-            index.replace_document(uri.as_str(), &seed.analysis);
+            let index_revision = index.replace_document_with_revision(uri.as_str(), &seed.analysis);
+            drop(index);
             // This is a standalone replacement. Invalidate any source-site
             // view marker in the same rehoming transaction so the next
             // workspace query reapplies its qualified views.
-            seeds.remove(uri.as_str());
+            self.rehomed_source_seeds.lock().await.remove(uri.as_str());
+            let mut documents = self.documents.lock("did_open_publish_complete").await;
+            if !documents
+                .get(uri)
+                .is_some_and(|doc| doc.matches_open_publication(text, dialect, version))
+                || self.live_publication_uri_generation(uri) != uri_generation
+            {
+                drop(documents);
+                self.workspace_index
+                    .write()
+                    .await
+                    .remove_document_if_revision(uri.as_str(), index_revision);
+                return false;
+            }
+            documents.retag("did_open_publish_complete: commit");
             documents
                 .get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
                 .publication = DocumentPublication::Indexed;
-            drop(seeds);
-            drop(index);
             drop(documents);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -9299,6 +9117,7 @@ impl Backend {
         revision: u64,
         mut seed: FreshAnalysisSeed,
     ) -> bool {
+        let uri_generation = self.live_publication_uri_generation(uri);
         loop {
             let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
             let rehoming_guard = self.rehoming_gate.lock().await;
@@ -9314,28 +9133,41 @@ impl Backend {
                     .await;
                 continue;
             }
-            let LiveIndexCommitLocks {
-                mut documents,
-                mut index,
-                mut seeds,
-            } = self
-                .live_index_commit_locks("did_change_publish_complete")
-                .await;
-            let current = documents
+            {
+                let documents = self.documents.lock("did_change_index_currency").await;
+                if !documents
+                    .get(uri)
+                    .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
+                    || self.live_publication_uri_generation(uri) != uri_generation
+                {
+                    return false;
+                }
+            }
+            let mut index = self.workspace_index.write().await;
+            if self.live_publication_uri_generation(uri) != uri_generation {
+                return false;
+            }
+            let index_revision = index.replace_document_with_revision(uri.as_str(), &seed.analysis);
+            drop(index);
+            self.rehomed_source_seeds.lock().await.remove(uri.as_str());
+            let mut documents = self.documents.lock("did_change_publish_complete").await;
+            if !documents
                 .get(uri)
-                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision));
-            if !current {
+                .is_some_and(|doc| doc.matches_live_publication(text, dialect, revision))
+                || self.live_publication_uri_generation(uri) != uri_generation
+            {
+                drop(documents);
+                self.workspace_index
+                    .write()
+                    .await
+                    .remove_document_if_revision(uri.as_str(), index_revision);
                 return false;
             }
             documents.retag("did_change_publish_complete: commit");
-            index.replace_document(uri.as_str(), &seed.analysis);
-            seeds.remove(uri.as_str());
             documents
                 .get_mut(uri)
                 .expect("the document cannot disappear while its map is locked")
                 .publication = DocumentPublication::Indexed;
-            drop(seeds);
-            drop(index);
             drop(documents);
             self.live_publication_advanced.notify_waiters();
             return true;
@@ -44148,22 +43980,44 @@ proc p {} {
             .expect("the later reader must not panic");
     }
 
-    /// Fresh automated review of #1854: a publisher that fairly drains the
-    /// document map and then the index must not surrender each turn to traffic
-    /// queued on the other dependency forever.
+    /// #1849: a live index publisher waiting for an existing index reader must
+    /// leave the document map available to that reader. The former
+    /// alternating-contention fallback retained exclusive document admission
+    /// while awaiting the index writer; an earlier reader that next needed the
+    /// document map then formed a permanent cycle and left `didOpen` at Salsa
+    /// readiness forever.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn live_index_commit_closes_alternating_dependency_contention_1854() {
+    async fn open_index_publish_does_not_wedge_an_index_reader_needing_documents_1849() {
         let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///open-index-reader-documents-1849.tcl").unwrap();
+        let text = "proc current {} {}\n";
+        let documents = backend.documents.lock("test_alternating_initial").await;
+        drop(documents);
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let seed = FreshAnalysisSeed {
+            analysis: Arc::new(Analyser::new().analyse(text, "tcl8.6").clone()),
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
+            class_factory_generation: 0,
+        };
         let documents = backend.documents.lock("test_alternating_initial").await;
         let index = backend.workspace_index.read().await;
         let publishing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
+            let uri = uri.clone();
             async move {
-                drop(
-                    backend
-                        .live_index_commit_locks("test_alternating_publisher")
-                        .await,
-                );
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
             }
         });
         crate::rt::timeout(std::time::Duration::from_secs(5), async {
@@ -44171,7 +44025,7 @@ proc p {} {
                 .documents
                 .waiters()
                 .iter()
-                .any(|waiter| waiter.site == "test_alternating_publisher")
+                .any(|waiter| waiter.site == "did_open_index_currency")
             {
                 crate::rt::yield_now().await;
             }
@@ -44185,75 +44039,108 @@ proc p {} {
             }
         })
         .await
-        .expect("the publisher must retain admission while queueing for the index");
+        .expect("the publisher must queue for the index writer");
 
-        let (documents_polled, documents_were_polled) = tokio::sync::oneshot::channel();
-        let (release_documents, documents_release) = tokio::sync::oneshot::channel();
-        let late_documents = crate::rt::spawn({
-            let backend = Arc::clone(&backend);
-            async move {
-                let mut acquisition =
-                    std::pin::pin!(backend.documents.lock("test_alternating_late"));
-                let mut guard = None;
-                std::future::poll_fn(|cx| {
-                    if let Poll::Ready(acquired) = acquisition.as_mut().poll(cx) {
-                        guard = Some(acquired);
-                    }
-                    Poll::Ready(())
-                })
-                .await;
-                let _ = documents_polled.send(());
-                let _guard = match guard {
-                    Some(guard) => guard,
-                    None => acquisition.await,
-                };
-                let _ = documents_release.await;
-            }
-        });
-        documents_were_polled
-            .await
-            .expect("the later document acquisition must be polled");
-        let (index_polled, index_was_polled) = tokio::sync::oneshot::channel();
-        let (release_index, index_release) = tokio::sync::oneshot::channel();
-        let late_index = crate::rt::spawn({
-            let workspace_index = Arc::clone(&backend.workspace_index);
-            async move {
-                let mut acquisition = std::pin::pin!(workspace_index.read());
-                let mut guard = None;
-                std::future::poll_fn(|cx| {
-                    if let Poll::Ready(acquired) = acquisition.as_mut().poll(cx) {
-                        guard = Some(acquired);
-                    }
-                    Poll::Ready(())
-                })
-                .await;
-                let _ = index_polled.send(());
-                let _guard = match guard {
-                    Some(guard) => guard,
-                    None => acquisition.await,
-                };
-                let _ = index_release.await;
-            }
-        });
-        index_was_polled
-            .await
-            .expect("the later index acquisition must be polled");
+        let reader_documents = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("index_reader_followup_1849"),
+        )
+        .await
+        .expect(
+            "an index reader must be able to finish document work while live publication waits \
+             for its index guard (#1849)",
+        );
+        drop(reader_documents);
 
         drop(index);
-        crate::rt::timeout(std::time::Duration::from_secs(2), publishing)
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the publisher must finish once the index reader drains")
+                .expect("the publisher task must not panic"),
+            "the still-current open seed must publish",
+        );
+    }
+
+    /// #1907 automated review: if a newer document revision lands after an
+    /// index replacement but before the final currency check, the obsolete
+    /// publisher must remove its own records instead of leaving stale spans
+    /// visible under the newer buffer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn superseded_open_index_replacement_is_rolled_back_1907() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///superseded-open-index-1907.tcl").unwrap();
+        let text = "proc obsolete {} {}\n";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.to_owned(), "tcl8.6".to_owned(), 1),
+        );
+        backend
+            .documents
+            .lock("test")
             .await
-            .expect("the publisher must commit ahead of both later contenders")
-            .expect("the publisher task must not panic");
-        let _ = release_documents.send(());
-        let _ = release_index.send(());
-        crate::rt::timeout(std::time::Duration::from_secs(5), late_documents)
-            .await
-            .expect("the later document holder must finish after release")
-            .expect("the later document task must not panic");
-        crate::rt::timeout(std::time::Duration::from_secs(5), late_index)
-            .await
-            .expect("the later index reader must finish after release")
-            .expect("the later index task must not panic");
+            .get_mut(&uri)
+            .expect("the open document exists")
+            .publication = DocumentPublication::Salsa;
+        let seed = FreshAnalysisSeed {
+            analysis: Arc::new(Analyser::new().analyse(text, "tcl8.6").clone()),
+            analyser_inputs_epoch: backend.diag_inputs_epoch(),
+            class_factory_generation: 0,
+        };
+
+        let index_reader = backend.workspace_index.read().await;
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .publish_open_index_if_current(&uri, text, "tcl8.6", 1, seed)
+                    .await
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while backend.workspace_index.try_read().is_ok() {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the old publisher must queue behind the index reader");
+
+        let mut documents = backend.documents.lock("test_newer_revision").await;
+        let mut newer =
+            DocumentState::with_version("proc current {} {}\n".to_owned(), "tcl8.6".to_owned(), 2);
+        newer.publication = DocumentPublication::Salsa;
+        documents.insert(uri.clone(), newer);
+        drop(index_reader);
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend
+                    .workspace_index
+                    .try_read()
+                    .is_ok_and(|index| index.workspace_command_exists("::obsolete"))
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the obsolete replacement must reach the index before its final check");
+        drop(documents);
+
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .expect("the obsolete publisher must finish")
+                .expect("the obsolete publisher must not panic"),
+            "the newer document revision must supersede the old publisher",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index.contains_document(uri.as_str()),
+            "the obsolete publisher must roll back its own index revision",
+        );
+        assert!(!index.workspace_command_exists("::obsolete"));
     }
 
     async fn mark_open_buffer_deleted_while_publication_waits_1854(
