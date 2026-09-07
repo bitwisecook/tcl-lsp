@@ -37,9 +37,10 @@ function explorerAssetDirs(): string[] {
   return [
     // When built via Makefile, assets are copied next to the bundle.
     __dirname,
-    // Fallback: the source tree (dev / tsc-watch mode).
-    // __dirname is  editors/vscode/out  →  walk up to repo root.
-    join(__dirname, "..", "..", "..", "tooling", "explorer", "static"),
+    // Fallback: the source tree (dev / tsc-watch mode). __dirname is
+    // editors/vscode/out, so walk up to the repo root and into the
+    // explorer's own static directory (EXPLORER_STATIC in the Makefile).
+    join(__dirname, "..", "..", "..", "rust", "tcl-cli", "gui"),
   ];
 }
 
@@ -51,8 +52,8 @@ function findCoreJs(): string {
     }
   }
   throw new Error(
-    "explorer-core.js not found next to the bundle or in tooling/explorer/static. " +
-      "Run 'make compile' or copy tooling/explorer/static/explorer-core.js to editors/vscode/out/.",
+    "explorer-core.js not found next to the bundle or in rust/tcl-cli/gui. " +
+      "Run 'make compile' or copy rust/tcl-cli/gui/explorer-core.js to editors/vscode/out/.",
   );
 }
 
@@ -837,7 +838,7 @@ body {
 }
 .disasm-diff-unchanged-note { padding: 4px 8px; color: var(--text-dim); font-size: 11px; font-style: italic; }
 /* Generic expand-on-click / Space items (shared explorer-core renderers).
-   Must mirror tooling/explorer/static/index.html so the shared xpand() /
+   Must mirror rust/tcl-cli/gui/index.html so the shared xpand() /
    optimiser-lens markup renders the same in the VS Code webview. */
 .xpand { cursor: pointer; outline: none; border-radius: 4px; }
 .xpand:focus-visible { box-shadow: inset 2px 0 0 var(--accent); background: var(--highlight); }

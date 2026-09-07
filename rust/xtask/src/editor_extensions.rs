@@ -34,7 +34,8 @@
 //!   `src/extension.ts` `LANGUAGE_ID_DIALECTS`, and
 //!   `src/languageIds.ts` `EXTENSION_LANGUAGE_IDS` (marked blocks).
 //! - `JetBrains` `plugin.xml`: the `Tcl` and `iRule` fileType
-//!   `extensions="…"` attributes.
+//!   `extensions="…"` attributes, `TclFileType.SUPPORTED_EXTENSIONS`, and the
+//!   `TextMate` bundle manifest that binds them all to the `source.tcl` grammar.
 //! - Sublime's minimal `LSP-Tcl` helper suffix bridge and Zed's
 //!   `languages/tcl/config.toml` `path_suffixes` (single-syntax editors get
 //!   the full union).
@@ -61,6 +62,7 @@ const VSCODE_LANGUAGE_IDS: &str = "editors/vscode/src/languageIds.ts";
 const JETBRAINS_PLUGIN: &str = "editors/jetbrains/src/main/resources/META-INF/plugin.xml";
 const JETBRAINS_FILETYPE: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt";
+const JETBRAINS_TEXTMATE: &str = "editors/jetbrains/src/main/resources/textmate/package.json";
 const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
 const ZED_CONFIG: &str = "editors/zed/languages/tcl/config.toml";
 const HELIX_README: &str = "editors/helix/README.md";
@@ -617,6 +619,33 @@ fn render_jetbrains_kotlin(original: &str, langs: &[Language]) -> Result<String>
     )
 }
 
+/// The `JetBrains` plugin's `TextMate` bundle manifest claims the same union
+/// again, in the one place the *grammar* is bound to file extensions.
+///
+/// `TextMateService` resolves a grammar by file name, so an extension missing
+/// here opens as a Tcl file that no grammar matches — a plain-text editor with
+/// a language server attached, which is what shipped before the bundle was
+/// registered at all.
+fn render_jetbrains_textmate(original: &str, langs: &[Language]) -> Result<String> {
+    let mut root: Value =
+        serde_json::from_str(original).context("parsing the JetBrains TextMate package.json")?;
+    let extensions: Vec<Value> = all_extensions(langs)
+        .into_iter()
+        .map(|ext| Value::String(format!(".{ext}")))
+        .collect();
+    let languages = root["contributes"]["languages"]
+        .as_array_mut()
+        .context("contributes.languages must be an array")?;
+    let [language] = languages.as_mut_slice() else {
+        bail!(
+            "{JETBRAINS_TEXTMATE} must contribute exactly one language — the plugin \
+             binds every extension to the single `source.tcl` grammar"
+        );
+    };
+    language["extensions"] = Value::Array(extensions);
+    Ok(format!("{}\n", serde_json::to_string_pretty(&root)?))
+}
+
 /// Rewrite a Zed `config.toml`'s `path_suffixes = […]` array.
 fn set_zed_suffixes(original: &str, extensions: &[String]) -> Result<String> {
     let start = original
@@ -887,6 +916,7 @@ fn render_targets() -> Vec<(&'static str, Render)> {
         (VSCODE_RUNTIME, Box::new(render_vscode_runtime)),
         (JETBRAINS_PLUGIN, Box::new(render_jetbrains)),
         (JETBRAINS_FILETYPE, Box::new(render_jetbrains_kotlin)),
+        (JETBRAINS_TEXTMATE, Box::new(render_jetbrains_textmate)),
         (SUBLIME_PLUGIN, Box::new(render_sublime_plugin)),
         (ZED_CONFIG, Box::new(render_zed)),
         (HELIX_README, Box::new(render_helix_readme)),
@@ -1091,6 +1121,7 @@ mod tests {
             VSCODE_RUNTIME,
             JETBRAINS_PLUGIN,
             JETBRAINS_FILETYPE,
+            JETBRAINS_TEXTMATE,
             SUBLIME_PLUGIN,
             ZED_CONFIG,
             HELIX_README,

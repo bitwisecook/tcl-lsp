@@ -80,7 +80,7 @@ fun getCompilerExplorerHtml(): String {
  * of "webview API unavailable", and ensures the `compile` request reaches
  * Kotlin so the IR pane stops showing "Waiting for source from editor...".
  */
-private fun adaptHtmlForJcef(html: String): String {
+internal fun adaptHtmlForJcef(html: String): String {
     var result = html
 
     val shim = """

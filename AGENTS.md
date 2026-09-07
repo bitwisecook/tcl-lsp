@@ -36,7 +36,9 @@ make prep-pr        # format + codegen + lint/typecheck + smoke tier
   for the browser host `make lsp-server-wasm` then `npm run test:web` in
   `editors/vscode`. Emacs runs nowhere in CI — touch `editors/emacs` only
   with `make test-emacs`; its eglot semantic-token repaint failure is an
-  upstream xfail (#333), never chase it.
+  upstream xfail (#333), never chase it. The JetBrains plugin's Kotlin suite
+  runs only in the tag-only `build-jetbrains` job (it needs the multi-GB
+  IntelliJ SDK), so touch `editors/jetbrains` only with `make test-jetbrains`.
 - **Fuzzing is always manual.** Campaigns and fuzz-shaped tests
   (generator-driven or seeded-random bodies) are `#[ignore]`d into
   `make test-exhaustive` regardless of speed; deterministic fixed-input tests

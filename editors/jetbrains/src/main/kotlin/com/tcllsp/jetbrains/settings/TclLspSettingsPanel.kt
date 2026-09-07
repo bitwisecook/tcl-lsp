@@ -20,6 +20,7 @@ package com.tcllsp.jetbrains.settings
 
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBCheckBox
@@ -27,10 +28,83 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import com.tcllsp.jetbrains.TclLspServerSupportProvider
+import java.awt.BorderLayout
+import java.awt.Dimension
+import java.awt.Rectangle
 import javax.swing.*
 
 private val LOG = Logger.getInstance("com.tcllsp.jetbrains.settings.TclLspSettingsPanel")
+
+/**
+ * Width a settings hint wraps at, before HiDPI scaling.
+ *
+ * A hint sits in the form's right-hand column, so this plus the widest label
+ * is most of what the page can never be narrower than. Keep it near a normal
+ * reading measure: wider makes the whole settings pane refuse to shrink.
+ */
+private const val COMMENT_WIDTH = 440
+
+/** Mouse-wheel step for the settings scroll pane, before HiDPI scaling. */
+private const val SCROLL_UNIT = 16
+
+/**
+ * A wrapping hint under a setting.
+ *
+ * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
+ * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
+ * so on a single line it alone asked the settings pane for about 1200px and
+ * ran off the right-hand edge.
+ */
+private fun FormBuilder.addWrappedComment(text: String): FormBuilder =
+    addComponentToRightColumn(
+        JBLabel(
+            "<html><body style='width:${JBUI.scale(COMMENT_WIDTH)}px'>" +
+                StringUtil.escapeXmlEntities(text) + "</body></html>",
+            UIUtil.ComponentStyle.SMALL,
+            UIUtil.FontColor.BRIGHTER,
+        ).apply { border = JBUI.Borders.emptyLeft(10) },
+        1,
+    )
+
+/**
+ * The component the settings dialog is handed, holding the form at the width
+ * of the scroll pane the platform puts around it.
+ *
+ * `ConfigurableCardPanel` wraps whatever `createComponent` returns in its own
+ * `JScrollPane` — unconditionally, unless the configurable implements
+ * `Configurable.NoScroll` — so returning a scroll pane of our own nested one
+ * inside the other. The inner pane was always exactly as large as its content,
+ * so it never scrolled, and it swallowed the wheel events that would otherwise
+ * have reached the outer one: the page could not be scrolled at all.
+ *
+ * Implementing [Scrollable] instead makes the platform's viewport size the
+ * form to its own width, so the content reflows rather than overflowing to the
+ * right, and leaves horizontal scrolling as the fallback for a pane narrower
+ * than the form can honestly be squeezed to.
+ */
+internal class ScrollableForm(form: JComponent) : JPanel(BorderLayout()), Scrollable {
+    init {
+        add(form, BorderLayout.CENTER)
+        isOpaque = false
+    }
+
+    override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
+
+    override fun getScrollableUnitIncrement(visible: Rectangle, orientation: Int, direction: Int): Int =
+        JBUI.scale(SCROLL_UNIT)
+
+    override fun getScrollableBlockIncrement(visible: Rectangle, orientation: Int, direction: Int): Int =
+        if (orientation == SwingConstants.VERTICAL) visible.height else visible.width
+
+    override fun getScrollableTracksViewportWidth(): Boolean {
+        val viewport = parent as? JViewport ?: return false
+        return viewport.width >= minimumSize.width
+    }
+
+    override fun getScrollableTracksViewportHeight(): Boolean = false
+}
 
 class TclLspSettingsPanel {
 
@@ -354,17 +428,17 @@ class TclLspSettingsPanel {
         // General section
         builder.addComponent(TitledSeparator("General"))
         builder.addLabeledComponent(JBLabel("Server path:"), serverPathField)
-        builder.addTooltip("Path to a tcl-lsp checkout root (probes target/{release,debug}/tcl-lsp-server) or directly to a built native binary (dev mode). Leave empty to use the bundled server.")
+        builder.addWrappedComment("Path to a tcl-lsp checkout root (probes target/{release,debug}/tcl-lsp-server) or directly to a built native binary (dev mode). Leave empty to use the bundled server.")
         builder.addLabeledComponent(JBLabel("Dialect:"), dialectCombo)
         builder.addLabeledComponent(JBLabel("Extra commands:"), extraCommandsField)
-        builder.addTooltip("Comma-separated list of additional command names to treat as known.")
+        builder.addWrappedComment("Comma-separated list of additional command names to treat as known.")
         builder.addLabeledComponent(JBLabel("Library paths:"), libraryPathsField)
-        builder.addTooltip("Comma-separated directories to scan for Tcl packages.")
+        builder.addWrappedComment("Comma-separated directories to scan for Tcl packages.")
         builder.addLabeledComponent(
             JBLabel("Signature help disabled commands:"),
             signatureHelpDisabledCommandsField,
         )
-        builder.addTooltip("Comma-separated built-in command names to silence, such as set,incr. Leave Inherit unchecked and this list empty to show every signature. User-defined proc signatures remain enabled.")
+        builder.addWrappedComment("Comma-separated built-in command names to silence, such as set,incr. Leave Inherit unchecked and this list empty to show every signature. User-defined proc signatures remain enabled.")
         builder.addComponent(signatureHelpInheritDisabledCommands)
         signatureHelpInheritDisabledCommands.toolTipText =
             "Use the disabled-command list from config.ini instead of overriding it in the IDE."
@@ -375,25 +449,21 @@ class TclLspSettingsPanel {
 
         // Features section
         builder.addComponent(TitledSeparator("Features"))
-        val featurePanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            val features = listOf(
-                featureHover, featureCompletion, featureDiagnostics,
-                featureSemanticTokens, featureCodeActions, featureDefinition, featureReferences,
-                featureDocumentSymbols, featureFolding, featureRename, featureSignatureHelp,
-                featureWorkspaceSymbols, featureInlayTypeHints, featureInlayParameterHints,
-                featureCallHierarchy,
-                featureDocumentLinks, featureSelectionRange,
-                featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
-                featureImplementation, featureTypeDefinition, featureDeclaration,
-                featureLinkedEditingRange,
-            )
-            // Lay out in a 3-column grid
-            val grid = JPanel(java.awt.GridLayout(0, 3, 8, 2))
-            features.forEach { grid.add(it) }
-            add(grid)
-        }
-        builder.addComponent(featurePanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    featureHover, featureCompletion, featureDiagnostics,
+                    featureSemanticTokens, featureCodeActions, featureDefinition, featureReferences,
+                    featureDocumentSymbols, featureFolding, featureRename, featureSignatureHelp,
+                    featureWorkspaceSymbols, featureInlayTypeHints, featureInlayParameterHints,
+                    featureCallHierarchy,
+                    featureDocumentLinks, featureSelectionRange,
+                    featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
+                    featureImplementation, featureTypeDefinition, featureDeclaration,
+                    featureLinkedEditingRange,
+                ),
+            ),
+        )
 
         // Formatting section
         builder.addComponent(TitledSeparator("Formatting"))
@@ -427,96 +497,116 @@ class TclLspSettingsPanel {
 
         // @generated:diag-ui:begin
         builder.addComponent(TitledSeparator("Diagnostics — Errors"))
-        val diagErrorPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagE001, diagE002, diagE003, diagE005, diagE006, diagE200,
-        ).forEach { diagErrorPanel.add(it) }
-        builder.addComponent(diagErrorPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagE001, diagE002, diagE003, diagE005, diagE006, diagE200,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Style & Best Practice"))
-        val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
-            diagW105, diagW106, diagW107, diagW108, diagW109, diagW110,
-            diagW111, diagW112, diagW113, diagW114, diagW115, diagW116,
-            diagW117, diagW118, diagW120, diagW121, diagW124, diagW125,
-            diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
-            diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
-            diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
-            diagW149, diagW150, diagW151, diagW152, diagW200, diagW201,
-            diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
-            diagW250, diagW308, diagW314, diagW315,
-        ).forEach { diagWarnPanel.add(it) }
-        builder.addComponent(diagWarnPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
+                    diagW105, diagW106, diagW107, diagW108, diagW109, diagW110,
+                    diagW111, diagW112, diagW113, diagW114, diagW115, diagW116,
+                    diagW117, diagW118, diagW120, diagW121, diagW124, diagW125,
+                    diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
+                    diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
+                    diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
+                    diagW149, diagW150, diagW151, diagW152, diagW200, diagW201,
+                    diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
+                    diagW250, diagW308, diagW314, diagW315,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Variables"))
-        val diagVarPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW210, diagW211, diagW212, diagW213, diagW214, diagW215,
-            diagW216, diagW217, diagW218, diagW220,
-        ).forEach { diagVarPanel.add(it) }
-        builder.addComponent(diagVarPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagW210, diagW211, diagW212, diagW213, diagW214, diagW215,
+                    diagW216, diagW217, diagW218, diagW220,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Security"))
-        val diagSecPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
-            diagW303, diagW304, diagW305, diagW306, diagW307, diagW309,
-            diagW313,
-        ).forEach { diagSecPanel.add(it) }
-        builder.addComponent(diagSecPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
+                    diagW303, diagW304, diagW305, diagW306, diagW307, diagW309,
+                    diagW313,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Hints"))
-        val diagHintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagH300, diagH301, diagI230, diagI231, diagW123, diagW242,
-        ).forEach { diagHintPanel.add(it) }
-        builder.addComponent(diagHintPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagH300, diagH301, diagI230, diagI231, diagW123, diagW242,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Shimmer"))
-        val diagShimmerPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagS100, diagS101, diagS102, diagS103, diagS110,
-        ).forEach { diagShimmerPanel.add(it) }
-        builder.addComponent(diagShimmerPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagS100, diagS101, diagS102, diagS103, diagS110,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — Taint"))
-        val diagTaintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagT100, diagT101, diagT102, diagT104, diagT105,
-        ).forEach { diagTaintPanel.add(it) }
-        builder.addComponent(diagTaintPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagT100, diagT101, diagT102, diagT104, diagT105,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — iRules"))
-        val diagIRulePanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
-            diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
-            diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
-            diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
-            diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
-            diagIRULE4004, diagIRULE4005,
-        ).forEach { diagIRulePanel.add(it) }
-        builder.addComponent(diagIRulePanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
+                    diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
+                    diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
+                    diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
+                    diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
+                    diagIRULE4004, diagIRULE4005,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — BIG-IP Configuration"))
-        val diagBigIpPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
-            diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
-            diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
-            diagIAPP7003,
-        ).forEach { diagBigIpPanel.add(it) }
-        builder.addComponent(diagBigIpPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
+                    diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
+                    diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
+                    diagIAPP7003,
+                ),
+            ),
+        )
 
         builder.addComponent(TitledSeparator("Diagnostics — SslicTcl"))
-        val diagSslicTclPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
-            diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
-            diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
-        ).forEach { diagSslicTclPanel.add(it) }
-        builder.addComponent(diagSslicTclPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
+                    diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
+                    diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
+                ),
+            ),
+        )
         // @generated:diag-ui:end
 
         // Style section
@@ -526,16 +616,18 @@ class TclLspSettingsPanel {
         // @generated:opt-ui:begin
         builder.addComponent(TitledSeparator("Optimiser"))
         builder.addComponent(optEnabled)
-        val optPanel = JPanel(java.awt.GridLayout(0, 4, 8, 2))
-        listOf(
-            optO100, optO101, optO102, optO103, optO104, optO105,
-            optO106, optO107, optO108, optO109, optO110, optO111,
-            optO112, optO113, optO114, optO115, optO116, optO117,
-            optO118, optO119, optO120, optO121, optO122, optO123,
-            optO124, optO125, optO126, optO127, optO128, optO129,
-            optO130,
-        ).forEach { optPanel.add(it) }
-        builder.addComponent(optPanel)
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    optO100, optO101, optO102, optO103, optO104, optO105,
+                    optO106, optO107, optO108, optO109, optO110, optO111,
+                    optO112, optO113, optO114, optO115, optO116, optO117,
+                    optO118, optO119, optO120, optO121, optO122, optO123,
+                    optO124, optO125, optO126, optO127, optO128, optO129,
+                    optO130,
+                ),
+            ),
+        )
         // @generated:opt-ui:end
 
         // Shimmer section
@@ -550,29 +642,27 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Runtime Validation"))
         builder.addComponent(runtimeValidation)
         builder.addLabeledComponent(JBLabel("Adapter mode:"), rtAdapter)
-        builder.addTooltip("auto: detect from dialect.  tclsh: use tclsh.  expect: use Expect.")
+        builder.addWrappedComment("auto: detect from dialect.  tclsh: use tclsh.  expect: use Expect.")
         builder.addLabeledComponent(JBLabel("tclsh path:"), rtTclshPath)
-        builder.addTooltip("Path to tclsh interpreter. Leave empty for auto-discovery.")
+        builder.addWrappedComment("Path to tclsh interpreter. Leave empty for auto-discovery.")
         builder.addLabeledComponent(JBLabel("Timeout (ms):"), rtTimeoutMs)
 
         // AI
         builder.addComponent(TitledSeparator("AI"))
         builder.addComponent(aiEnabled)
         builder.addLabeledComponent(JBLabel("Extra prompts (JSON):"), aiExtraPrompts)
-        builder.addTooltip("JSON array of prompt objects for AI-assisted features.")
+        builder.addWrappedComment("JSON array of prompt objects for AI-assisted features.")
 
         // Diagnostic patterns
         builder.addComponent(TitledSeparator("Diagnostic Patterns"))
         builder.addLabeledComponent(JBLabel("Generic variable patterns:"), genericPatternsField)
-        builder.addTooltip("Newline-separated regex patterns for IRULE4002 generic variable detection.")
+        builder.addWrappedComment("Newline-separated regex patterns for IRULE4002 generic variable detection.")
         builder.addLabeledComponent(JBLabel("Exclude files from diagnostics:"), diagnosticsExcludeField)
-        builder.addTooltip("Newline-separated glob patterns (e.g. generated/** or *.gen.tcl); matching files publish no diagnostics. Longer lists are easier to keep in the [diagnostics] exclude key of .tcl-lsp.ini.")
+        builder.addWrappedComment("Newline-separated glob patterns (e.g. generated/** or *.gen.tcl); matching files publish no diagnostics. Longer lists are easier to keep in the [diagnostics] exclude key of .tcl-lsp.ini.")
 
         builder.addComponentFillVertically(JPanel(), 0)
 
-        root = JScrollPane(builder.panel).apply {
-            border = JBUI.Borders.empty()
-        }
+        root = ScrollableForm(builder.panel)
 
         reset()
     }

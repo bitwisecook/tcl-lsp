@@ -26,12 +26,23 @@ kotlin {
 
 dependencies {
     testImplementation(kotlin("test"))
+    // The platform test runner loads through IntelliJ's own PathClassLoader
+    // and touches JUnit 4's `TestRule` while starting, even for a JUnit 5
+    // suite; from the 2024.3 SDK it is no longer on the platform classpath.
+    testRuntimeOnly("junit:junit:4.13.2")
     intellijPlatform {
-        // Compile at the 2024.1 support floor. JCEF is part of the platform at
-        // this version, so the 2025.3.1+ `intellij.platform.ui.jcef` bundled
-        // plugin cannot be added to this compile classpath. plugin.xml carries
-        // the optional compatibility dependency used by newer IDEs instead.
-        intellijIdeaUltimate("2024.1")
+        // Compile at the 2024.3 support floor. 2024.3 is where the LSP API
+        // grew `LspServerDescriptor.lspSemanticTokensSupport`: every published
+        // build of the `lsp` platform module below it — all seventeen 241.x
+        // releases — has no semantic-tokens member at all, so on an older IDE
+        // the host never advertises `textDocument/semanticTokens` and never
+        // asks the server for them, whatever the server offers.
+        //
+        // JCEF is part of the platform at this version, so the 2025.3.1+
+        // `intellij.platform.ui.jcef` bundled plugin cannot be added to this
+        // compile classpath. plugin.xml carries the optional compatibility
+        // dependency used by newer IDEs instead.
+        intellijIdeaUltimate("2024.3")
         bundledPlugin("org.jetbrains.plugins.textmate")
 
         pluginVerifier()
@@ -66,7 +77,7 @@ intellijPlatform {
         """.trimIndent()
 
         ideaVersion {
-            sinceBuild = "241"
+            sinceBuild = "243"
             untilBuild = provider { null }
         }
 
@@ -95,7 +106,7 @@ intellijPlatform {
             // class of binary incompatibility (see the jetbrains-plugin-compat
             // skill). Keep the newest verified stable major here as JetBrains
             // ships it.
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.1")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.3")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.1.7.2")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6.3")
             // First release whose core plugin advertises the JCEF dependency

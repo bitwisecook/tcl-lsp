@@ -4,14 +4,13 @@ IntelliJ Platform plugin providing Tcl language support via the [tcl-lsp](../../
 
 ## Requirements
 
-- IntelliJ IDEA Ultimate 2024.1+ (or other paid JetBrains IDE)
+- IntelliJ IDEA Ultimate 2024.3+ (or other paid JetBrains IDE)
 
 Nothing else — the `.zip` plugin bundles the self-contained native
 `tcl-lsp-server` binary for every supported platform and launches the one
 matching your machine. No Python, runtime, or interpreter is needed.
 
-See the [Installation Guide](../../INSTALL-editors.md) for
-full details on Python setup across platforms.
+See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
 > Starting with IntelliJ IDEA 2025.3, the LSP API will be available to all users,
 > including those without a paid subscription.
@@ -20,7 +19,11 @@ full details on Python setup across platforms.
 
 All features from the tcl-lsp server are supported:
 
-- **Syntax highlighting** via TextMate grammar
+- **Syntax highlighting** via the bundled TextMate grammar, which the
+  plugin registers with the IDE's TextMate service at startup
+- **Semantic highlighting** from the language server's own tokens, layered
+  over the grammar (needs IntelliJ 2024.3, where the LSP API grew
+  `lspSemanticTokensSupport`; toggle it under Features → Semantic tokens)
 - **Diagnostics** with 30+ configurable rules
 - **Auto-completion** for commands, subcommands, variables, and switches
 - **Hover** with command help and proc signatures
@@ -112,7 +115,8 @@ The plugin source lives in `editors/jetbrains/`. It uses:
 
 - **IntelliJ Platform Gradle Plugin 2.x** for building
 - **IntelliJ Platform LSP API** (`ProjectWideLspServerDescriptor`)
-- **TextMate** grammar (shared with VS Code)
+- **TextMate** grammar (shared with VS Code), contributed through
+  `com.intellij.textmate.bundleProvider`
 - **JCEF** browser for the Compiler Explorer webview
 
 ```bash

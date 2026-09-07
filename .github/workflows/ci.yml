@@ -2341,6 +2341,27 @@ jobs:
             editors/jetbrains/*.gradle*
             editors/jetbrains/gradle/wrapper/gradle-wrapper.properties
 
+      # The plugin bundles the spec studio and the compiler explorer webview,
+      # both of which are built from the TypeScript sources. Without a pinned
+      # Node this job used whatever the runner image happened to ship, and the
+      # compiler explorer extraction silently no-opped.
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: corepack enable npm
+
+      # The plugin's Kotlin suite runs nowhere else — it needs the IntelliJ
+      # SDK this job already downloads to build against.
+      - name: Test JetBrains plugin
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
+        run: make test-jetbrains
+
       - name: Build JetBrains plugin (universal — every platform except riscv64)
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false

@@ -301,7 +301,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                 // Pass the timeout explicitly. Omitting it makes Kotlin emit a
                 // call to the synthetic `LspServer.sendRequestSync$default`
                 // bridge, which is bound to the exact class that declared the
-                // method when we compiled (2024.1). In 2026.1+ `sendRequestSync`
+                // method when we compiled (2024.3). In 2026.1+ `sendRequestSync`
                 // moved up to the `LspClient` super-interface, so that bridge no
                 // longer resolves as `LspServer.sendRequestSync$default` and the
                 // plugin fails verification / throws NoSuchMethodError at runtime.
