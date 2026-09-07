@@ -66,7 +66,7 @@ impl OptimisationProfile {
     /// Every profile, in increasing order of aggressiveness.
     ///
     /// This is the list every surface that offers a profile choice is built
-    /// from — the VS Code `enum`, the JetBrains dropdown, the docs table — so
+    /// from — the VS Code `enum`, the `JetBrains` dropdown, the docs table — so
     /// adding a tier here is the only edit needed to reach all of them, and a
     /// generator's `--check` mode fails until each has been regenerated.
     pub const ALL: [Self; 5] = [
