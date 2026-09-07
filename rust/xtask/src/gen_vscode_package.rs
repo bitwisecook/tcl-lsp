@@ -36,7 +36,11 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use serde_json::{Map, Value, json};
+use tcl_compiler::optimiser::profiles::{DEFAULT_EDITOR_PROFILE, OptimisationProfile};
 use tcl_core_types::{DiagCode, DocRow};
+
+/// The profile tiers every editor's picker is built from.
+const PROFILES: [OptimisationProfile; OptimisationProfile::ALL.len()] = OptimisationProfile::ALL;
 
 use crate::util::{repo_root, write_if_changed};
 
@@ -320,15 +324,15 @@ fn optimiser_section(order: usize) -> Value {
             "tclLsp.optimiser.profile",
             json!({
                 "type": "string",
-                "enum": ["off", "readability", "standard", "full", "aggressive"],
-                "default": "readability",
-                "enumDescriptions": [
-                    "All optimisations disabled.",
-                    "Readability improvements only — idiomatic rewrites, no code removal.",
-                    "Readability + constant folding and pattern recognition.",
-                    "All optimisations enabled (single pass).",
-                    "All optimisations with multi-pass to fixpoint.",
-                ],
+                // Both lists come from `OptimisationProfile::ALL`, the same
+                // constant the JetBrains picker is generated from, so a new
+                // tier reaches every editor or none.
+                "enum": PROFILES.iter().map(|p| p.name()).collect::<Vec<_>>(),
+                "default": DEFAULT_EDITOR_PROFILE.name(),
+                "enumDescriptions": PROFILES
+                    .iter()
+                    .map(|p| p.description())
+                    .collect::<Vec<_>>(),
                 "markdownDescription": "Optimisation profile controlling which passes run as diagnostics. Individual `O1xx` toggles below override the profile when explicitly set.",
                 "order": 1,
             })

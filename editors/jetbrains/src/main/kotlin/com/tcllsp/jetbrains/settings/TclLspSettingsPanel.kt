@@ -28,6 +28,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.ThreeStateCheckBox
 import com.intellij.util.ui.UIUtil
 import com.tcllsp.jetbrains.TclLspServerSupportProvider
 import java.awt.BorderLayout
@@ -57,6 +58,28 @@ private const val SCROLL_UNIT = 16
  * so on a single line it alone asked the settings pane for about 1200px and
  * ran off the right-hand edge.
  */
+/**
+ * The stored value a tri-state optimiser box currently represents.
+ *
+ * `null` is the third state, and it is the important one: it means "inherit
+ * from the profile". The server treats a per-code override as beating the
+ * profile in both directions — `true` lifts a code out of the profile's
+ * disabled set, `false` forces it in — so only a real user choice may travel,
+ * and `DONT_CARE` must serialise to no opinion at all rather than to `false`.
+ */
+private fun triState(box: ThreeStateCheckBox): Boolean? = when (box.state) {
+    ThreeStateCheckBox.State.SELECTED -> true
+    ThreeStateCheckBox.State.NOT_SELECTED -> false
+    else -> null
+}
+
+/** The inverse of [triState], for loading a stored value back into the box. */
+private fun threeState(value: Boolean?): ThreeStateCheckBox.State = when (value) {
+    true -> ThreeStateCheckBox.State.SELECTED
+    false -> ThreeStateCheckBox.State.NOT_SELECTED
+    null -> ThreeStateCheckBox.State.DONT_CARE
+}
+
 private fun FormBuilder.addWrappedComment(text: String): FormBuilder =
     addComponentToRightColumn(
         JBLabel(
@@ -381,37 +404,38 @@ class TclLspSettingsPanel {
 
     // @generated:opt-checkboxes:begin
     private val optEnabled = JBCheckBox("Enable optimiser suggestions")
-    private val optO100 = JBCheckBox("O100: Propagate constant variables into expressions and co...")
-    private val optO101 = JBCheckBox("O101: Fold constant integer expressions")
-    private val optO102 = JBCheckBox("O102: Forward a variable's single reaching literal load to...")
-    private val optO103 = JBCheckBox("O103: Fold static procedure calls using interprocedural su...")
-    private val optO104 = JBCheckBox("O104: Fold static string build chains into a single assign...")
-    private val optO105 = JBCheckBox("O105: Propagate constants into variable references and det...")
-    private val optO106 = JBCheckBox("O106: Hoist loop-invariant computations")
-    private val optO107 = JBCheckBox("O107: Eliminate unreachable dead code")
-    private val optO108 = JBCheckBox("O108: Eliminate transitively dead code")
-    private val optO109 = JBCheckBox("O109: Eliminate dead stores")
-    private val optO110 = JBCheckBox("O110: Canonicalise expressions (InstCombine)")
-    private val optO111 = JBCheckBox("O111: Brace expression performance hints (paired with W100)")
-    private val optO112 = JBCheckBox("O112: Eliminate constant-condition compound statements")
-    private val optO113 = JBCheckBox("O113: Strength-reduce expressions (x**2 → x*x, x%8 → x&7)")
-    private val optO114 = JBCheckBox("O114: Recognise incr idiom (set x [expr {\$x + N}] → incr x N)")
-    private val optO115 = JBCheckBox("O115: Remove redundant nested [expr {...}] in expression c...")
-    private val optO116 = JBCheckBox("O116: Fold constant [list a b c] to literal value")
-    private val optO117 = JBCheckBox("O117: Simplify [string length \$s] == 0 → \$s eq \"\"")
-    private val optO118 = JBCheckBox("O118: Fold constant [lindex {a b c} 1] to element")
-    private val optO119 = JBCheckBox("O119: Pack consecutive set literals into lassign/foreach")
-    private val optO120 = JBCheckBox("O120: Prefer eq/ne over ==/!= for string comparisons")
-    private val optO121 = JBCheckBox("O121: Rewrite self-recursive tail calls to tailcall")
-    private val optO122 = JBCheckBox("O122: Convert fully tail-recursive proc to iterative while...")
-    private val optO123 = JBCheckBox("O123: Detect non-tail recursion eligible for accumulator i...")
-    private val optO124 = JBCheckBox("O124: Comment out unused procs in iRules (not called from ...")
-    private val optO125 = JBCheckBox("O125: Sink side-effect-free assignments into the deepest d...")
-    private val optO126 = JBCheckBox("O126: Remove unused variable assignments")
-    private val optO127 = JBCheckBox("O127: Inline single-use variable assignment")
-    private val optO128 = JBCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...")
-    private val optO129 = JBCheckBox("O129: Fold a pure builtin command substitution with consta...")
-    private val optO130 = JBCheckBox("O130: Fold static lappend list build chains into a single ...")
+    private val optProfile = JComboBox(arrayOf("off", "readability", "standard", "full", "aggressive"))
+    private val optO100 = ThreeStateCheckBox("O100: Propagate constant variables into expressions and co...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO101 = ThreeStateCheckBox("O101: Fold constant integer expressions", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO102 = ThreeStateCheckBox("O102: Forward a variable's single reaching literal load to...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO103 = ThreeStateCheckBox("O103: Fold static procedure calls using interprocedural su...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO104 = ThreeStateCheckBox("O104: Fold static string build chains into a single assign...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO105 = ThreeStateCheckBox("O105: Propagate constants into variable references and det...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO106 = ThreeStateCheckBox("O106: Hoist loop-invariant computations", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO107 = ThreeStateCheckBox("O107: Eliminate unreachable dead code", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO108 = ThreeStateCheckBox("O108: Eliminate transitively dead code", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO109 = ThreeStateCheckBox("O109: Eliminate dead stores", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO110 = ThreeStateCheckBox("O110: Canonicalise expressions (InstCombine)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO111 = ThreeStateCheckBox("O111: Brace expression performance hints (paired with W100)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO112 = ThreeStateCheckBox("O112: Eliminate constant-condition compound statements", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO113 = ThreeStateCheckBox("O113: Strength-reduce expressions (x**2 → x*x, x%8 → x&7)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO114 = ThreeStateCheckBox("O114: Recognise incr idiom (set x [expr {\$x + N}] → incr x N)", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO115 = ThreeStateCheckBox("O115: Remove redundant nested [expr {...}] in expression c...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO116 = ThreeStateCheckBox("O116: Fold constant [list a b c] to literal value", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO117 = ThreeStateCheckBox("O117: Simplify [string length \$s] == 0 → \$s eq \"\"", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO118 = ThreeStateCheckBox("O118: Fold constant [lindex {a b c} 1] to element", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO119 = ThreeStateCheckBox("O119: Pack consecutive set literals into lassign/foreach", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO120 = ThreeStateCheckBox("O120: Prefer eq/ne over ==/!= for string comparisons", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO121 = ThreeStateCheckBox("O121: Rewrite self-recursive tail calls to tailcall", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO122 = ThreeStateCheckBox("O122: Convert fully tail-recursive proc to iterative while...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO123 = ThreeStateCheckBox("O123: Detect non-tail recursion eligible for accumulator i...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO124 = ThreeStateCheckBox("O124: Comment out unused procs in iRules (not called from ...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO125 = ThreeStateCheckBox("O125: Sink side-effect-free assignments into the deepest d...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO126 = ThreeStateCheckBox("O126: Remove unused variable assignments", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO127 = ThreeStateCheckBox("O127: Inline single-use variable assignment", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO128 = ThreeStateCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO129 = ThreeStateCheckBox("O129: Fold a pure builtin command substitution with consta...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optO130 = ThreeStateCheckBox("O130: Fold static lappend list build chains into a single ...", ThreeStateCheckBox.State.DONT_CARE)
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -632,6 +656,7 @@ class TclLspSettingsPanel {
         // @generated:opt-ui:begin
         builder.addComponent(TitledSeparator("Optimiser"))
         builder.addComponent(optEnabled)
+        builder.addLabeledComponent(JBLabel("Profile:"), optProfile)
         builder.addComponent(
             ReflowingGrid(
                 listOf(
@@ -643,6 +668,11 @@ class TclLspSettingsPanel {
                     optO130,
                 ),
             ),
+        )
+        builder.addWrappedComment(
+            "The profile chooses which optimisation families run. A per-code box left " +
+                "in its mixed state inherits from the profile; tick or untick one to " +
+                "force that code on or off regardless of the profile.",
         )
         // @generated:opt-ui:end
 
@@ -921,37 +951,38 @@ class TclLspSettingsPanel {
             (styleLineLength.value as Int) != s.styleLineLength ||
             // @generated:opt-dirty:begin
             optEnabled.isSelected != s.optimiserEnabled ||
-            optO100.isSelected != s.optimiserO100 ||
-            optO101.isSelected != s.optimiserO101 ||
-            optO102.isSelected != s.optimiserO102 ||
-            optO103.isSelected != s.optimiserO103 ||
-            optO104.isSelected != s.optimiserO104 ||
-            optO105.isSelected != s.optimiserO105 ||
-            optO106.isSelected != s.optimiserO106 ||
-            optO107.isSelected != s.optimiserO107 ||
-            optO108.isSelected != s.optimiserO108 ||
-            optO109.isSelected != s.optimiserO109 ||
-            optO110.isSelected != s.optimiserO110 ||
-            optO111.isSelected != s.optimiserO111 ||
-            optO112.isSelected != s.optimiserO112 ||
-            optO113.isSelected != s.optimiserO113 ||
-            optO114.isSelected != s.optimiserO114 ||
-            optO115.isSelected != s.optimiserO115 ||
-            optO116.isSelected != s.optimiserO116 ||
-            optO117.isSelected != s.optimiserO117 ||
-            optO118.isSelected != s.optimiserO118 ||
-            optO119.isSelected != s.optimiserO119 ||
-            optO120.isSelected != s.optimiserO120 ||
-            optO121.isSelected != s.optimiserO121 ||
-            optO122.isSelected != s.optimiserO122 ||
-            optO123.isSelected != s.optimiserO123 ||
-            optO124.isSelected != s.optimiserO124 ||
-            optO125.isSelected != s.optimiserO125 ||
-            optO126.isSelected != s.optimiserO126 ||
-            optO127.isSelected != s.optimiserO127 ||
-            optO128.isSelected != s.optimiserO128 ||
-            optO129.isSelected != s.optimiserO129 ||
-            optO130.isSelected != s.optimiserO130 ||
+            optProfile.selectedItem != s.optimiserProfile ||
+            triState(optO100) != s.optimiserO100 ||
+            triState(optO101) != s.optimiserO101 ||
+            triState(optO102) != s.optimiserO102 ||
+            triState(optO103) != s.optimiserO103 ||
+            triState(optO104) != s.optimiserO104 ||
+            triState(optO105) != s.optimiserO105 ||
+            triState(optO106) != s.optimiserO106 ||
+            triState(optO107) != s.optimiserO107 ||
+            triState(optO108) != s.optimiserO108 ||
+            triState(optO109) != s.optimiserO109 ||
+            triState(optO110) != s.optimiserO110 ||
+            triState(optO111) != s.optimiserO111 ||
+            triState(optO112) != s.optimiserO112 ||
+            triState(optO113) != s.optimiserO113 ||
+            triState(optO114) != s.optimiserO114 ||
+            triState(optO115) != s.optimiserO115 ||
+            triState(optO116) != s.optimiserO116 ||
+            triState(optO117) != s.optimiserO117 ||
+            triState(optO118) != s.optimiserO118 ||
+            triState(optO119) != s.optimiserO119 ||
+            triState(optO120) != s.optimiserO120 ||
+            triState(optO121) != s.optimiserO121 ||
+            triState(optO122) != s.optimiserO122 ||
+            triState(optO123) != s.optimiserO123 ||
+            triState(optO124) != s.optimiserO124 ||
+            triState(optO125) != s.optimiserO125 ||
+            triState(optO126) != s.optimiserO126 ||
+            triState(optO127) != s.optimiserO127 ||
+            triState(optO128) != s.optimiserO128 ||
+            triState(optO129) != s.optimiserO129 ||
+            triState(optO130) != s.optimiserO130 ||
             // @generated:opt-dirty:end
             // Shimmer
             shimmerEnabled.isSelected != s.shimmerEnabled ||
@@ -1212,37 +1243,38 @@ class TclLspSettingsPanel {
 
         // @generated:opt-apply:begin
         s.optimiserEnabled = optEnabled.isSelected
-        s.optimiserO100 = optO100.isSelected
-        s.optimiserO101 = optO101.isSelected
-        s.optimiserO102 = optO102.isSelected
-        s.optimiserO103 = optO103.isSelected
-        s.optimiserO104 = optO104.isSelected
-        s.optimiserO105 = optO105.isSelected
-        s.optimiserO106 = optO106.isSelected
-        s.optimiserO107 = optO107.isSelected
-        s.optimiserO108 = optO108.isSelected
-        s.optimiserO109 = optO109.isSelected
-        s.optimiserO110 = optO110.isSelected
-        s.optimiserO111 = optO111.isSelected
-        s.optimiserO112 = optO112.isSelected
-        s.optimiserO113 = optO113.isSelected
-        s.optimiserO114 = optO114.isSelected
-        s.optimiserO115 = optO115.isSelected
-        s.optimiserO116 = optO116.isSelected
-        s.optimiserO117 = optO117.isSelected
-        s.optimiserO118 = optO118.isSelected
-        s.optimiserO119 = optO119.isSelected
-        s.optimiserO120 = optO120.isSelected
-        s.optimiserO121 = optO121.isSelected
-        s.optimiserO122 = optO122.isSelected
-        s.optimiserO123 = optO123.isSelected
-        s.optimiserO124 = optO124.isSelected
-        s.optimiserO125 = optO125.isSelected
-        s.optimiserO126 = optO126.isSelected
-        s.optimiserO127 = optO127.isSelected
-        s.optimiserO128 = optO128.isSelected
-        s.optimiserO129 = optO129.isSelected
-        s.optimiserO130 = optO130.isSelected
+        s.optimiserProfile = optProfile.selectedItem as? String ?: s.optimiserProfile
+        s.optimiserO100 = triState(optO100)
+        s.optimiserO101 = triState(optO101)
+        s.optimiserO102 = triState(optO102)
+        s.optimiserO103 = triState(optO103)
+        s.optimiserO104 = triState(optO104)
+        s.optimiserO105 = triState(optO105)
+        s.optimiserO106 = triState(optO106)
+        s.optimiserO107 = triState(optO107)
+        s.optimiserO108 = triState(optO108)
+        s.optimiserO109 = triState(optO109)
+        s.optimiserO110 = triState(optO110)
+        s.optimiserO111 = triState(optO111)
+        s.optimiserO112 = triState(optO112)
+        s.optimiserO113 = triState(optO113)
+        s.optimiserO114 = triState(optO114)
+        s.optimiserO115 = triState(optO115)
+        s.optimiserO116 = triState(optO116)
+        s.optimiserO117 = triState(optO117)
+        s.optimiserO118 = triState(optO118)
+        s.optimiserO119 = triState(optO119)
+        s.optimiserO120 = triState(optO120)
+        s.optimiserO121 = triState(optO121)
+        s.optimiserO122 = triState(optO122)
+        s.optimiserO123 = triState(optO123)
+        s.optimiserO124 = triState(optO124)
+        s.optimiserO125 = triState(optO125)
+        s.optimiserO126 = triState(optO126)
+        s.optimiserO127 = triState(optO127)
+        s.optimiserO128 = triState(optO128)
+        s.optimiserO129 = triState(optO129)
+        s.optimiserO130 = triState(optO130)
         // @generated:opt-apply:end
 
         s.shimmerEnabled = shimmerEnabled.isSelected
@@ -1519,37 +1551,38 @@ class TclLspSettingsPanel {
 
         // @generated:opt-reset:begin
         optEnabled.isSelected = s.optimiserEnabled
-        optO100.isSelected = s.optimiserO100
-        optO101.isSelected = s.optimiserO101
-        optO102.isSelected = s.optimiserO102
-        optO103.isSelected = s.optimiserO103
-        optO104.isSelected = s.optimiserO104
-        optO105.isSelected = s.optimiserO105
-        optO106.isSelected = s.optimiserO106
-        optO107.isSelected = s.optimiserO107
-        optO108.isSelected = s.optimiserO108
-        optO109.isSelected = s.optimiserO109
-        optO110.isSelected = s.optimiserO110
-        optO111.isSelected = s.optimiserO111
-        optO112.isSelected = s.optimiserO112
-        optO113.isSelected = s.optimiserO113
-        optO114.isSelected = s.optimiserO114
-        optO115.isSelected = s.optimiserO115
-        optO116.isSelected = s.optimiserO116
-        optO117.isSelected = s.optimiserO117
-        optO118.isSelected = s.optimiserO118
-        optO119.isSelected = s.optimiserO119
-        optO120.isSelected = s.optimiserO120
-        optO121.isSelected = s.optimiserO121
-        optO122.isSelected = s.optimiserO122
-        optO123.isSelected = s.optimiserO123
-        optO124.isSelected = s.optimiserO124
-        optO125.isSelected = s.optimiserO125
-        optO126.isSelected = s.optimiserO126
-        optO127.isSelected = s.optimiserO127
-        optO128.isSelected = s.optimiserO128
-        optO129.isSelected = s.optimiserO129
-        optO130.isSelected = s.optimiserO130
+        optProfile.selectedItem = s.optimiserProfile
+        optO100.state = threeState(s.optimiserO100)
+        optO101.state = threeState(s.optimiserO101)
+        optO102.state = threeState(s.optimiserO102)
+        optO103.state = threeState(s.optimiserO103)
+        optO104.state = threeState(s.optimiserO104)
+        optO105.state = threeState(s.optimiserO105)
+        optO106.state = threeState(s.optimiserO106)
+        optO107.state = threeState(s.optimiserO107)
+        optO108.state = threeState(s.optimiserO108)
+        optO109.state = threeState(s.optimiserO109)
+        optO110.state = threeState(s.optimiserO110)
+        optO111.state = threeState(s.optimiserO111)
+        optO112.state = threeState(s.optimiserO112)
+        optO113.state = threeState(s.optimiserO113)
+        optO114.state = threeState(s.optimiserO114)
+        optO115.state = threeState(s.optimiserO115)
+        optO116.state = threeState(s.optimiserO116)
+        optO117.state = threeState(s.optimiserO117)
+        optO118.state = threeState(s.optimiserO118)
+        optO119.state = threeState(s.optimiserO119)
+        optO120.state = threeState(s.optimiserO120)
+        optO121.state = threeState(s.optimiserO121)
+        optO122.state = threeState(s.optimiserO122)
+        optO123.state = threeState(s.optimiserO123)
+        optO124.state = threeState(s.optimiserO124)
+        optO125.state = threeState(s.optimiserO125)
+        optO126.state = threeState(s.optimiserO126)
+        optO127.state = threeState(s.optimiserO127)
+        optO128.state = threeState(s.optimiserO128)
+        optO129.state = threeState(s.optimiserO129)
+        optO130.state = threeState(s.optimiserO130)
         // @generated:opt-reset:end
 
         shimmerEnabled.isSelected = s.shimmerEnabled

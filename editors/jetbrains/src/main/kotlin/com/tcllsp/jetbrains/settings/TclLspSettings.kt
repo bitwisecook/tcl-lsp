@@ -285,37 +285,38 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
 
     // @generated:optimiser-vars:begin
     var optimiserEnabled: Boolean = true
-    var optimiserO100: Boolean = true
-    var optimiserO101: Boolean = true
-    var optimiserO102: Boolean = true
-    var optimiserO103: Boolean = true
-    var optimiserO104: Boolean = true
-    var optimiserO105: Boolean = true
-    var optimiserO106: Boolean = true
-    var optimiserO107: Boolean = true
-    var optimiserO108: Boolean = true
-    var optimiserO109: Boolean = true
-    var optimiserO110: Boolean = true
-    var optimiserO111: Boolean = true
-    var optimiserO112: Boolean = true
-    var optimiserO113: Boolean = true
-    var optimiserO114: Boolean = true
-    var optimiserO115: Boolean = true
-    var optimiserO116: Boolean = true
-    var optimiserO117: Boolean = true
-    var optimiserO118: Boolean = true
-    var optimiserO119: Boolean = true
-    var optimiserO120: Boolean = true
-    var optimiserO121: Boolean = true
-    var optimiserO122: Boolean = true
-    var optimiserO123: Boolean = true
-    var optimiserO124: Boolean = true
-    var optimiserO125: Boolean = true
-    var optimiserO126: Boolean = true
-    var optimiserO127: Boolean = true
-    var optimiserO128: Boolean = true
-    var optimiserO129: Boolean = true
-    var optimiserO130: Boolean = true
+    var optimiserProfile: String = "readability"
+    var optimiserO100: Boolean? = null
+    var optimiserO101: Boolean? = null
+    var optimiserO102: Boolean? = null
+    var optimiserO103: Boolean? = null
+    var optimiserO104: Boolean? = null
+    var optimiserO105: Boolean? = null
+    var optimiserO106: Boolean? = null
+    var optimiserO107: Boolean? = null
+    var optimiserO108: Boolean? = null
+    var optimiserO109: Boolean? = null
+    var optimiserO110: Boolean? = null
+    var optimiserO111: Boolean? = null
+    var optimiserO112: Boolean? = null
+    var optimiserO113: Boolean? = null
+    var optimiserO114: Boolean? = null
+    var optimiserO115: Boolean? = null
+    var optimiserO116: Boolean? = null
+    var optimiserO117: Boolean? = null
+    var optimiserO118: Boolean? = null
+    var optimiserO119: Boolean? = null
+    var optimiserO120: Boolean? = null
+    var optimiserO121: Boolean? = null
+    var optimiserO122: Boolean? = null
+    var optimiserO123: Boolean? = null
+    var optimiserO124: Boolean? = null
+    var optimiserO125: Boolean? = null
+    var optimiserO126: Boolean? = null
+    var optimiserO127: Boolean? = null
+    var optimiserO128: Boolean? = null
+    var optimiserO129: Boolean? = null
+    var optimiserO130: Boolean? = null
     // @generated:optimiser-vars:end
 
     // Shimmer
@@ -607,6 +608,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "optimiser" to mapOf(
                 // @generated:optimiser-map:begin
                 "enabled" to optimiserEnabled,
+                "profile" to optimiserProfile,
                 "O100" to optimiserO100,
                 "O101" to optimiserO101,
                 "O102" to optimiserO102,
