@@ -155,13 +155,15 @@ CI skips only what demonstrably did not change. The rules live in
 - Every skip fails safe: API error or ambiguity → run everything.
 
 Trusted pull requests prefer the self-hosted `tank` runner for `rust-tests`.
-When that serial queue is overloaded, a maintainer may cancel the queued run
-and manually dispatch CI against the same pull-request head branch with
-`rust_tests_runner` set to `hosted`. This changes runner placement only: it does
-not skip a test, alter the nextest filter, or carry forward a result. Fork pull
-requests and runner-policy changes always use hosted capacity. Tank jobs retain
-every pending request and remain serial because its runner registrations share
-one physical host.
+The `channel` job queries every nonterminal workflow state and routes to hosted
+capacity when another active `rust-tests` job already targets `tank`. The API
+snapshot is advisory: simultaneous channel jobs can both observe an idle lane,
+so the non-cancelling `rust-tests-tank` concurrency group remains the final
+one-physical-host safety guard. API errors, malformed data, and incomplete
+pagination fail safely to hosted capacity. Fork, Dependabot, and runner-policy
+pull requests independently force hosted placement. A manual dispatch remains
+an explicit `tank` or `hosted` override. Placement never changes the test
+filter, skips coverage, or carries forward a result.
 
 Keep these properties: skips are **step-level** (jobs still report success so
 required checks and the release `needs:` graph hold), keyed on **content

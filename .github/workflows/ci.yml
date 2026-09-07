@@ -154,6 +154,7 @@ jobs:
       runtime_rust_changed: ${{ steps.paths.outputs.runtime_rust_changed }}
       web_frontends_changed: ${{ steps.paths.outputs.web_frontends_changed }}
       runner_policy_changed: ${{ steps.paths.outputs.runner_policy_changed }}
+      rust_tests_runner: ${{ steps.rust-runner.outputs.runner }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -275,7 +276,7 @@ jobs:
                   web_frontends_changed=true ;;
               esac
               case "$f" in
-                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/test-rust-tests-runner.sh)
+                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)
                   runner_policy_changed=true ;;
               esac
               if scripts/dev/spectcl-compat-path.sh "$f"; then
@@ -325,6 +326,30 @@ jobs:
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
           echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed web_frontends_changed=$web_frontends_changed runner_policy_changed=$runner_policy_changed docs_only=$docs_only"
+
+      - name: Select the broad Rust test runner
+        id: rust-runner
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          RUNNER_POLICY_CHANGED: ${{ steps.paths.outputs.runner_policy_changed }}
+          DISPATCH_RUNNER: ${{ inputs.rust_tests_runner }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request && ("$PR_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" || "$PR_AUTHOR" == 'dependabot[bot]' || "$RUNNER_POLICY_CHANGED" == true) ]]; then
+            runner=hosted
+          elif [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            runner="$DISPATCH_RUNNER"
+          else
+            runner="$(scripts/dev/select-rust-tests-runner.sh "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+          fi
+          case "$runner" in
+            tank | hosted) ;;
+            *) echo "::error::invalid broad Rust runner: $runner"; exit 1 ;;
+          esac
+          echo "runner=$runner" >> "$GITHUB_OUTPUT"
+          echo "broad Rust runner: $runner"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks through the central `make rust-check` contract: root and standalone
@@ -876,19 +901,20 @@ jobs:
     # or execute newly selected dependency code there.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
-    # stay on GitHub-hosted. Trusted PRs prefer `tank`; a maintainer can dispatch
-    # the workflow against the same head with `rust_tests_runner=hosted` when
-    # the tank queue is overloaded. Pushes stay on `tank`, and runner-policy
-    # changes prove themselves on hosted capacity.
+    # and Dependabot stay on GitHub-hosted. Trusted PRs and pushes prefer `tank`
+    # while its logical lane is idle, then spill onto hosted capacity when
+    # another run is already occupying that lane. A manual dispatch remains an
+    # explicit override, and runner-policy changes prove themselves on hosted
+    # capacity.
     needs: [channel]
-    runs-on: ${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.rust_tests_runner == 'hosted')) && 'ubuntu-26.04' || 'tank' }}
+    runs-on: ${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && 'ubuntu-26.04' || 'tank' }}
     # The action starts the sccache server during setup, so the backend must be
     # configured at job scope rather than only on the later Cargo steps.
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
     concurrency:
-      group: rust-tests-${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.rust_tests_runner == 'hosted')) && format('hosted-{0}', github.run_id) || 'tank' }}
+      group: rust-tests-${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && format('hosted-{0}', github.run_id) || 'tank' }}
       queue: max
       cancel-in-progress: false
     steps:

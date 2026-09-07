@@ -33,15 +33,15 @@ case "$(cat "$WORKFLOW")" in
         ;;
 esac
 
+hosted_condition="(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted'"
+
 case "$(cat "$WORKFLOW")" in
-    *'.github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/test-rust-tests-runner.sh)'*) ;;
+    *'.github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)'*) ;;
     *)
         echo "runner and dependency-policy changes must classify themselves for hosted proof" >&2
         exit 1
         ;;
 esac
-
-hosted_condition="(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.rust_tests_runner == 'hosted')"
 
 case "$(cat "$WORKFLOW")" in
     *'rust_tests_runner:'*'type: choice'*'- tank'*'- hosted'*) ;;
@@ -51,10 +51,18 @@ case "$(cat "$WORKFLOW")" in
         ;;
 esac
 
+case "$(cat "$WORKFLOW")" in
+    *'rust_tests_runner: ${{ steps.rust-runner.outputs.runner }}'*) ;;
+    *)
+        echo "the channel job must publish its broad Rust runner decision" >&2
+        exit 1
+        ;;
+esac
+
 case "$rust_tests_job" in
     *"runs-on:"*"($hosted_condition)"*"&& 'ubuntu-26.04' || 'tank'"*) ;;
     *)
-        echo "rust-tests must keep fork, hosted dispatch, and runner-policy PRs off tank" >&2
+        echo "rust-tests must use the channel job's runner decision" >&2
         exit 1
         ;;
 esac
@@ -62,7 +70,7 @@ esac
 case "$rust_tests_job" in
     *"group: rust-tests-"*"($hosted_condition)"*"format('hosted-{0}', github.run_id)"*"|| 'tank'"*) ;;
     *)
-        echo "rust-tests must serialize tank jobs and keep hosted jobs unique" >&2
+        echo "rust-tests must serialize tank jobs and keep load-spilled hosted jobs unique" >&2
         exit 1
         ;;
 esac
@@ -76,5 +84,65 @@ if ! printf '%s\n' "$rust_tests_job" | grep -Fqx '      queue: max'; then
     echo "the tank concurrency group must retain every pending workspace suite" >&2
     exit 1
 fi
+
+selector=$REPO_ROOT/scripts/dev/select-rust-tests-runner.sh
+tmp=${TMPDIR:-/tmp}/tcl-lsp-runner-policy.$$
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+mkdir -p "$tmp"
+
+cat >"$tmp/gh" <<'EOF'
+#!/bin/sh
+set -eu
+endpoint=${2:-}
+case "${SCENARIO:-idle}:$endpoint" in
+    fail:*) exit 1 ;;
+    occupied:*'status=in_progress'*) printf '%s\n' '[{"workflow_runs":[{"id":41,"status":"in_progress"}]}]' ;;
+    hosted:*'status=in_progress'*) printf '%s\n' '[{"workflow_runs":[{"id":42,"status":"in_progress"}]}]' ;;
+    current:*'status=in_progress'*) printf '%s\n' '[{"workflow_runs":[{"id":99,"status":"in_progress"}]}]' ;;
+    waiting:*'status=waiting'*) printf '%s\n' '[{"workflow_runs":[{"id":43,"status":"waiting"}]}]' ;;
+    page2:*'status=pending'*) printf '%s\n' '[{"workflow_runs":[]},{"workflow_runs":[{"id":44,"status":"pending"}]}]' ;;
+    *:*'status='*) printf '%s\n' '[{"workflow_runs":[]}]' ;;
+    occupied:*'/runs/41/jobs'*) printf '%s\n' '[{"jobs":[{"name":"rust-tests","status":"in_progress","labels":["tank"]}]}]' ;;
+    hosted:*'/runs/42/jobs'*) printf '%s\n' '[{"jobs":[{"name":"rust-tests","status":"in_progress","labels":["ubuntu-26.04"]}]}]' ;;
+    waiting:*'/runs/43/jobs'*) printf '%s\n' '[{"jobs":[{"name":"rust-tests","status":"waiting","labels":["tank"]}]}]' ;;
+    page2:*'/runs/44/jobs'*) printf '%s\n' '[{"jobs":[]},{"jobs":[{"name":"rust-tests","status":"pending","labels":["tank"]}]}]' ;;
+    *) printf '%s\n' '[{"jobs":[]}]' ;;
+esac
+EOF
+chmod +x "$tmp/gh"
+
+expect_selection() {
+    scenario=$1
+    expected=$2
+    actual=$(SCENARIO=$scenario GH_BIN="$tmp/gh" "$selector" owner/repo 99)
+    if [ "$actual" != "$expected" ]; then
+        echo "$scenario: expected $expected, got $actual" >&2
+        exit 1
+    fi
+}
+
+expect_selection idle tank
+expect_selection occupied hosted
+expect_selection hosted tank
+expect_selection current tank
+expect_selection waiting hosted
+expect_selection page2 hosted
+expect_selection fail hosted
+
+case "$(cat "$selector")" in
+    *'for status in in_progress queued requested waiting pending; do'*'--paginate --slurp'*) ;;
+    *)
+        echo "the load detector must cover and paginate every active workflow state" >&2
+        exit 1
+        ;;
+esac
+
+case "$(cat "$WORKFLOW")" in
+    *'if [[ "$EVENT_NAME" == pull_request && ("$PR_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" || "$PR_AUTHOR" == '\''dependabot[bot]'\'' || "$RUNNER_POLICY_CHANGED" == true) ]]'*'runner=hosted'*'elif [[ "$EVENT_NAME" == workflow_dispatch ]]'*'runner="$DISPATCH_RUNNER"'*) ;;
+    *)
+        echo "fork, Dependabot, policy-change, and manual-dispatch routing must stay outside the mutable selector" >&2
+        exit 1
+        ;;
+esac
 
 echo "self-hosted Rust test scheduling contract passed"
