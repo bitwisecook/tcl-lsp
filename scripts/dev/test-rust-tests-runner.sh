@@ -25,65 +25,109 @@ if [ -z "$rust_tests_job" ]; then
     exit 1
 fi
 
-case "$(cat "$WORKFLOW")" in
-    *'runner_policy_changed: ${{ steps.paths.outputs.runner_policy_changed }}'*) ;;
-    *)
-        echo "the channel job must publish its runner-policy path decision" >&2
-        exit 1
-        ;;
-esac
+# Parse the workflow rather than searching comments: the fork, Dependabot, and
+# runner-policy guards must be present in the values Actions actually consumes.
+python3 - "$WORKFLOW" <<'PY'
+import sys
 
-hosted_condition="(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted'"
+try:
+    import yaml
+except ModuleNotFoundError as error:
+    raise SystemExit(f"PyYAML is required for the CI contract test: {error}")
 
-case "$(cat "$WORKFLOW")" in
-    *'.github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)'*) ;;
-    *)
-        echo "runner and dependency-policy changes must classify themselves for hosted proof" >&2
-        exit 1
-        ;;
-esac
+with open(sys.argv[1], encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
 
-case "$(cat "$WORKFLOW")" in
-    *'rust_tests_runner:'*'type: choice'*'- tank'*'- hosted'*) ;;
-    *)
-        echo "manual CI dispatch must offer tank and hosted Rust runner choices" >&2
-        exit 1
-        ;;
-esac
 
-case "$(cat "$WORKFLOW")" in
-    *'rust_tests_runner: ${{ steps.rust-runner.outputs.runner }}'*) ;;
-    *)
-        echo "the channel job must publish its broad Rust runner decision" >&2
-        exit 1
-        ;;
-esac
+def require(condition, message):
+    if not condition:
+        raise SystemExit(message)
 
-case "$rust_tests_job" in
-    *"runs-on:"*"($hosted_condition)"*"&& 'ubuntu-26.04' || 'tank'"*) ;;
-    *)
-        echo "rust-tests must use the channel job's runner decision" >&2
-        exit 1
-        ;;
-esac
 
-case "$rust_tests_job" in
-    *"group: rust-tests-"*"($hosted_condition)"*"format('hosted-{0}', github.run_id)"*"|| 'tank'"*) ;;
-    *)
-        echo "rust-tests must serialize tank jobs and keep load-spilled hosted jobs unique" >&2
-        exit 1
-        ;;
-esac
+jobs = workflow.get("jobs", {})
+rust_tests = jobs.get("rust-tests")
+require(isinstance(rust_tests, dict), "ci.yml must define jobs.rust-tests as a mapping")
+require(
+    [name for name, job in jobs.items() if isinstance(job, dict) and "tank" in str(job.get("runs-on", ""))]
+    == ["rust-tests"],
+    "rust-tests must remain the only job that can reach Tank",
+)
+channel = jobs.get("channel")
+require(isinstance(channel, dict), "ci.yml must define jobs.channel as a mapping")
+outputs = channel.get("outputs", {})
+require(outputs.get("runner_policy_changed") == "${{ steps.paths.outputs.runner_policy_changed }}",
+        "channel must publish runner_policy_changed from the paths step")
+require(outputs.get("rust_tests_runner") == "${{ steps.rust-runner.outputs.runner }}",
+        "channel must publish the broad Rust runner decision")
 
-if ! printf '%s\n' "$rust_tests_job" | grep -Fqx '      cancel-in-progress: false'; then
-    echo "a new tank job must not cancel an already-running workspace suite" >&2
-    exit 1
-fi
+channel_steps = channel.get("steps", [])
+paths = next((step for step in channel_steps if step.get("id") == "paths"), {})
+path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)"
+require(path_list in paths.get("run", ""),
+        "runner and dependency-policy changes must classify themselves for hosted proof")
+runner = next((step for step in channel_steps if step.get("id") == "rust-runner"), {})
+runner_script = runner.get("run", "")
+require('"$PR_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY"' in runner_script,
+        "fork pull requests must force hosted Rust tests")
+require('"$PR_AUTHOR" == \'dependabot[bot]\'' in runner_script,
+        "Dependabot pull requests must force hosted Rust tests")
+require('"$RUNNER_POLICY_CHANGED" == true' in runner_script,
+        "runner-policy pull requests must force hosted Rust tests")
+require('elif [[ "$EVENT_NAME" == workflow_dispatch ]]' in runner_script
+        and 'runner="$DISPATCH_RUNNER"' in runner_script,
+        "manual dispatch must remain an explicit runner override")
 
-if ! printf '%s\n' "$rust_tests_job" | grep -Fqx '      queue: max'; then
-    echo "the tank concurrency group must retain every pending workspace suite" >&2
-    exit 1
-fi
+triggers = workflow.get("on") or workflow.get(True, {})
+dispatch = triggers.get("workflow_dispatch", {})
+runner_input = dispatch.get("inputs", {}).get("rust_tests_runner", {})
+require(runner_input.get("type") == "choice", "manual dispatch must choose a Rust runner")
+require(runner_input.get("options") == ["tank", "hosted"],
+        "manual dispatch must offer exactly tank and hosted Rust runner choices")
+
+hosted = ("(github.event_name == 'pull_request' && ("
+          "github.event.pull_request.head.repo.full_name != github.repository || "
+          "github.event.pull_request.user.login == 'dependabot[bot]' || "
+          "needs.channel.outputs.runner_policy_changed == 'true')) || "
+          "needs.channel.outputs.rust_tests_runner == 'hosted'")
+runs_on = rust_tests.get("runs-on", "")
+group = rust_tests.get("concurrency", {}).get("group", "")
+require(hosted in runs_on, "runs-on must include all hosted guards")
+require(hosted in group, "concurrency group must include all hosted guards")
+require("&& 'ubuntu-26.04' || 'tank'" in runs_on, "rust-tests must retain the Tank fallback")
+require("format('hosted-{0}', github.run_id) || 'tank'" in group,
+        "hosted overflow must be unique while Tank remains one logical lane")
+
+concurrency = rust_tests.get("concurrency", {})
+require(concurrency.get("queue") == "max", "Tank concurrency must retain every pending suite")
+require(concurrency.get("cancel-in-progress") is False,
+        "a new Tank job must not cancel an already-running suite")
+
+env = rust_tests.get("env", {})
+require(env.get("CARGO_HOME") == "/home/runner/.cargo",
+        "rust-tests must use the canonical Cargo home")
+require(env.get("RUSTUP_HOME") == "/home/runner/.rustup",
+        "rust-tests must use the canonical rustup home")
+require("CARGO_TARGET_DIR" not in env, "rust-tests must not share CARGO_TARGET_DIR")
+require(env.get("RUSTC_WRAPPER") == "sccache", "rust-tests must retain sccache")
+require(env.get("SCCACHE_GHA_ENABLED") == "true", "rust-tests must enable GHA sccache")
+
+setup = next((step for step in rust_tests.get("steps", []) if step.get("name") == "Set up Rust"), {})
+require(setup.get("uses", "").startswith("actions-rust-lang/setup-rust-toolchain@"),
+        "rust-tests must use setup-rust-toolchain")
+require(setup.get("with", {}).get("cache-key") == "rust-tests",
+        "Rust cache key must stay stable")
+require(setup.get("with", {}).get("cache-targets") is False,
+        "Rust target archives must remain disabled")
+sccache = next((step for step in rust_tests.get("steps", []) if step.get("name") == "Set up sccache"), {})
+require(sccache.get("uses", "").startswith("mozilla-actions/sccache-action@")
+        and sccache.get("with", {}).get("version") == "v0.17.0",
+        "rust-tests must retain the pinned sccache setup")
+stats = next((step for step in rust_tests.get("steps", []) if step.get("name") == "Report sccache statistics"), {})
+require(stats.get("if") == "always()" and "sccache --show-stats" in stats.get("run", ""),
+        "cross-registration sccache reuse must be measured even after a test failure")
+require("SCCACHE_BASEDIRS" not in env,
+        "do not claim cross-checkout Rust remapping without pinned-source support")
+PY
 
 selector=$REPO_ROOT/scripts/dev/select-rust-tests-runner.sh
 tmp=${TMPDIR:-/tmp}/tcl-lsp-runner-policy.$$

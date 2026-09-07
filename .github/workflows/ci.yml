@@ -920,7 +920,18 @@ jobs:
     runs-on: ${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && 'ubuntu-26.04' || 'tank' }}
     # The action starts the sccache server during setup, so the backend must be
     # configured at job scope rather than only on the later Cargo steps.
+    # Self-hosted Tank has several runner registrations on one host. Their
+    # default CARGO_HOME/RUSTUP_HOME point below each registration directory,
+    # and Swatinem/rust-cache hashes those values, fragmenting an otherwise
+    # identical cache. Keep dependency/tool homes stable for Tank and hosted
+    # overflow jobs alike. The runner image contract is that /home/runner is
+    # owned and writable by the runner account; the preflight below proves it
+    # on every registration before setup writes there. Do not set
+    # CARGO_TARGET_DIR: Cargo's default workspace-local target/ remains
+    # isolated per checkout/job and is not shared between worktrees or runners.
     env:
+      CARGO_HOME: /home/runner/.cargo
+      RUSTUP_HOME: /home/runner/.rustup
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
     concurrency:
@@ -934,6 +945,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Verify canonical Rust homes
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=/home/runner
+          test -d "$root" && test -w "$root"
+          test "$(stat -c %u "$root")" = "$(id -u)"
+          for dir in "$CARGO_HOME" "$RUSTUP_HOME"; do
+            mkdir -p "$dir"
+            test ! -L "$dir" && test -w "$dir"
+            test "$(stat -c %u "$dir")" = "$(id -u)"
+            probe=$(mktemp "$dir/.tcl-lsp-write-probe.XXXXXX")
+            rm -f "$probe"
+          done
+
       # Must install `stable` explicitly rather than lean on the runner's
       # preinstalled rustup: the image ships a pinned stable (e.g. 1.96.1) and
       # `rust-toolchain.toml`'s `channel = "stable"` resolves to *that*, not to
@@ -946,11 +972,17 @@ jobs:
         with:
           toolchain: stable
           cache-key: rust-tests
+          # Swatinem's target archive is hundreds of MB and competes with the
+          # per-object sccache backend for the repository cache quota. Cargo
+          # rebuilds absent targets safely; registry/tool caches and sccache
+          # remain enabled for dependency and compiler reuse.
+          cache-targets: false
 
       # rust-cache restores dependency artefacts, but intentionally removes
-      # workspace crates before saving.  This source-aware compiler cache keeps
-      # those expensive compilations reusable across runner registrations and
-      # source revisions without weakening Cargo's freshness checks.
+      # workspace crates before saving. sccache remains source-aware, but the
+      # pinned v0.17 Rust backend does not provide a proven cross-checkout-root
+      # remapping here; measure cross-registration hits rather than assuming
+      # that registrations with different absolute workspace paths share them.
       - name: Set up sccache
         if: needs.channel.outputs.rust_tests_changed == 'true'
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
