@@ -33,6 +33,7 @@ docs/kcs/features
 docs/design/spec-dsl-examples
 docs/references/command-spec
 docs/references/f5_query
+docs/design/contracts/shared-utility-contracts-rust.md
 editors/vscode/package.json
 editors/vscode/src/chat/dialectCatalog.ts
 editors/vscode/src/compilerExplorerHtml.ts
@@ -40,6 +41,7 @@ editors/vscode/src/extension.ts
 editors/vscode/src/generated
 editors/vscode/src/languageIds.ts
 editors/vscode/syntaxes/tcl.tmLanguage.json
+editors/vscode/testFixture/variableContexts.tcl
 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt
 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt
 editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettingsPanel.kt
@@ -63,4 +65,9 @@ rust/tcl-spectcl/data/shipped-pack-dirs.txt
 rust/tcl-spectcl/tests/fixtures
 samples
 specs
+tests/external/backend_constraints.tcl
 tests/fixtures/spec-packs
+rust/bigip-report-gen/python/deploy/github-pages.yml
+rust/bigip-report-gen/python/deploy/report-pyz.yml
+.github/workflows/github-pages.yml
+.github/workflows/report-pyz.yml

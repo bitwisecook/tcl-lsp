@@ -56,6 +56,13 @@ expect_relevant rust/tcl-vm-wasm/Cargo.toml
 expect_relevant rust/tcl-vm-wasm/Cargo.lock
 expect_relevant rust/tcl-vm-wasm/src/lib.rs
 expect_relevant rust/tcl-vm-wasm/verify.mjs
+expect_relevant editors/vscode/testFixture/variableContexts.tcl
+expect_relevant tests/external/backend_constraints.tcl
+expect_relevant docs/design/contracts/shared-utility-contracts-rust.md
+expect_relevant rust/bigip-report-gen/python/deploy/github-pages.yml
+expect_relevant rust/bigip-report-gen/python/deploy/report-pyz.yml
+expect_relevant .github/workflows/github-pages.yml
+expect_relevant .github/workflows/report-pyz.yml
 expect_unrelated README.md
 expect_unrelated docs/design/compiler/wasm-native-lowering-plan.md
 expect_relevant rust/tcl-lsp-server/src/lib.rs
