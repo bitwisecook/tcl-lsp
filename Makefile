@@ -2067,15 +2067,14 @@ verify-jetbrains-resources: $(JB_PLUGIN) ## Fail if the JetBrains plugin is miss
 			exit 1; \
 		fi; \
 		strays=""; \
-		for res in spec-studio/assets/monaco-host.js spec-studio/assets/monaco-host.css; do \
-			for jar in "$$tmp"/*/lib/*.jar; do \
-				[ -f "$$jar" ] || continue; \
-				if unzip -Z1 "$$jar" | grep -qxF "$$res"; then strays="$$strays $$res"; break; fi; \
-			done; \
+		for jar in "$$tmp"/*/lib/*.jar; do \
+			[ -f "$$jar" ] || continue; \
+			hit="$$(unzip -Z1 "$$jar" | grep -E '^spec-studio/(assets/monaco-host\.|lsp/)' || true)"; \
+			[ -z "$$hit" ] || strays="$$strays $$hit"; \
 		done; \
 		if [ -n "$$strays" ]; then \
-			echo "JetBrains plugin ships Monaco, which the IDE-hosted studio never loads:$$strays"; \
-			echo "The staging copy should exclude it — see the rsync in the \$$(JB_PLUGIN) recipe."; \
+			echo "JetBrains plugin ships the standalone studio's Monaco/worker, which it never loads:$$strays"; \
+			echo "The staging copy should exclude them — see the rsync in the \$$(JB_PLUGIN) recipe."; \
 			exit 1; \
 		fi; \
 		echo "==> JetBrains plugin bundles the compiler explorer, spec studio, and TextMate grammar, and no Monaco"

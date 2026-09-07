@@ -21,10 +21,12 @@ package com.tcllsp.jetbrains
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -106,7 +108,10 @@ internal class ExplorerProjections(private val project: Project) {
         val file: LightVirtualFile,
         var projection: ExplorerProjection,
         var origin: VirtualFile?,
-    )
+    ) {
+        /** The caret hook currently attached, so re-opening replaces it rather than stacking. */
+        var caretHook: Pair<Editor, CaretListener>? = null
+    }
 
     /**
      * Open (or refresh) the pane for [view], and focus it.
@@ -129,21 +134,50 @@ internal class ExplorerProjections(private val project: Project) {
         }
         pane.projection = projection
         pane.origin = origin
-        if (pane.file.content.toString() != projection.text) {
-            pane.file.setContent(this, projection.text, false)
-        }
+        refreshText(pane, projection.text)
 
         val editor = FileEditorManager.getInstance(project)
             .openTextEditor(OpenFileDescriptor(project, pane.file), true)
             ?: return
-        // One listener per pane. `EditorFactory` hands out a fresh editor each
-        // time the tab is re-opened, so attaching here — after the open —
-        // covers a pane the user closed and re-opened.
-        editor.caretModel.addCaretListener(object : CaretListener {
+        // One listener per pane. The platform hands out a fresh editor when a
+        // closed tab is re-opened, but returns the existing one when the tab is
+        // already live — so drop the previous hook before attaching, or a
+        // re-render would navigate once per call.
+        pane.caretHook?.let { (previous, hook) ->
+            if (!previous.isDisposed) previous.caretModel.removeCaretListener(hook)
+        }
+        val hook = object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
                 navigate(view, event.newPosition.line)
             }
-        })
+        }
+        editor.caretModel.addCaretListener(hook)
+        pane.caretHook = editor to hook
+    }
+
+    /**
+     * Put [text] into the pane's buffer.
+     *
+     * This goes through the [com.intellij.openapi.editor.Document] rather than
+     * `LightVirtualFile.setContent`: a light file's content change does not
+     * reach an editor that is already open, so a re-render would leave the
+     * visible text stale while the line map moved under it. The pane is
+     * read-only to the user's keystrokes, not to us — lift that for the write
+     * and put it straight back.
+     */
+    private fun refreshText(pane: Pane, text: String) {
+        val document = FileDocumentManager.getInstance().getDocument(pane.file)
+        if (document == null) {
+            pane.file.setContent(this, text, false)
+            return
+        }
+        if (document.text == text) return
+        document.setReadOnly(false)
+        try {
+            WriteCommandAction.runWriteCommandAction(project) { document.setText(text) }
+        } finally {
+            document.setReadOnly(true)
+        }
     }
 
     /** Reveal the source span the pane's [line] points at. */
