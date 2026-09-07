@@ -17,7 +17,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 TestId = tuple[str, str]
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -35,25 +34,25 @@ def _selected(path: Path) -> set[TestId]:
     document = _load(path)
     suites = document.get("rust-suites") if isinstance(document, dict) else None
     if not isinstance(suites, dict):
-        raise ValueError(f"{path}: missing rust-suites object")
+        raise TypeError(f"{path}: missing rust-suites object")
 
     selected: set[TestId] = set()
     seen: set[TestId] = set()
     testcase_count = 0
     for suite_name, suite in suites.items():
         if not isinstance(suite, dict):
-            raise ValueError(f"{path}: suite {suite_name!r} is not an object")
+            raise TypeError(f"{path}: suite {suite_name!r} is not an object")
         binary_id = suite.get("binary-id")
         testcases = suite.get("testcases")
         if not isinstance(binary_id, str) or not binary_id:
             raise ValueError(f"{path}: suite {suite_name!r} has no binary-id")
         if not isinstance(testcases, dict):
-            raise ValueError(f"{path}: suite {suite_name!r} has no testcases object")
+            raise TypeError(f"{path}: suite {suite_name!r} has no testcases object")
 
         for test_name, testcase in testcases.items():
             testcase_count += 1
             if not isinstance(test_name, str) or not isinstance(testcase, dict):
-                raise ValueError(f"{path}: malformed testcase in suite {suite_name!r}")
+                raise TypeError(f"{path}: malformed testcase in suite {suite_name!r}")
             match = testcase.get("filter-match")
             if not isinstance(match, dict) or "status" not in match:
                 raise ValueError(
@@ -118,7 +117,7 @@ def _sha256(path: Path) -> str:
 def _metadata(path: Path) -> dict[str, Any]:
     document = _load(path)
     if not isinstance(document, dict):
-        raise ValueError(f"{path}: metadata must be an object")
+        raise TypeError(f"{path}: metadata must be an object")
     return document
 
 
@@ -167,7 +166,7 @@ def _require_listing_digest(
 ) -> None:
     listings = metadata.get("listings")
     if not isinstance(listings, dict) or not isinstance(listings.get(key), str):
-        raise ValueError(f"{path}: metadata has no digest for {key}")
+        raise TypeError(f"{path}: metadata has no digest for {key}")
     digest = listings[key]
     if not SHA256_RE.fullmatch(digest):
         raise ValueError(f"{path}: listing digest for {key} is not SHA-256")
@@ -446,7 +445,7 @@ def main(argv: list[str]) -> int:
             return 2
         try:
             verify_results(*(Path(arg) for arg in argv[1:]))
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             print(exc, file=sys.stderr)
             return 1
         return 0
@@ -456,7 +455,7 @@ def main(argv: list[str]) -> int:
         return 2
     try:
         verify(*(Path(arg) for arg in argv))
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1
     return 0
