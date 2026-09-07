@@ -77,8 +77,15 @@ def _selected(path: Path) -> set[TestId]:
     return selected
 
 
+def _authoritative_selected(path: Path) -> set[TestId]:
+    selected = _selected(path)
+    if not selected:
+        raise ValueError(f"{path}: authoritative listing selects no tests")
+    return selected
+
+
 def verify(all_path: Path, first_path: Path, second_path: Path) -> None:
-    all_tests = _selected(all_path)
+    all_tests = _authoritative_selected(all_path)
     first = _selected(first_path)
     second = _selected(second_path)
     overlap = first & second
@@ -245,7 +252,7 @@ def verify_results(proof_dir: Path, first_dir: Path, second_dir: Path) -> None:
             raise ValueError(f"{metadata_path}: selected listing digest is not SHA-256")
         _require_digest(listing, digest, "selected listing")
 
-    all_tests = _selected(all_path)
+    all_tests = _authoritative_selected(all_path)
     producer_first = _selected(producer_first_path)
     producer_second = _selected(producer_second_path)
     first = _selected(first_listing)
@@ -332,6 +339,21 @@ def self_test() -> None:
     try:
         assert _selected(path) == expected
         verify(Path("all"), Path("first"), Path("second"))
+
+        empty_fixture = json.loads(json.dumps(all_fixture))
+        for suite in empty_fixture["rust-suites"].values():
+            for testcase in suite["testcases"].values():
+                testcase["filter-match"] = {
+                    "status": "mismatch",
+                    "reason": "default-filter",
+                }
+        fixtures["empty"] = empty_fixture
+        try:
+            verify(Path("empty"), Path("empty"), Path("empty"))
+        except ValueError as exc:
+            assert "authoritative listing selects no tests" in str(exc)
+        else:
+            raise AssertionError("empty authoritative selection passed verification")
     finally:
         globals()["_load"] = original_load
     print(
