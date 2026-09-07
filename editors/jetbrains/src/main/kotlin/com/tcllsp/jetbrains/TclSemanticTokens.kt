@@ -21,6 +21,7 @@ package com.tcllsp.jetbrains
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as Colors
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.platform.lsp.api.customization.LspCustomization
+import com.intellij.platform.lsp.api.customization.LspDiagnosticsCustomizer
 import com.intellij.platform.lsp.api.customization.LspSemanticTokensCustomizer
 import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport
 import com.intellij.psi.PsiFile
@@ -141,6 +142,7 @@ private val SEMANTIC_TOKEN_MODIFIER_COLORS: Map<Pair<String, String>, TextAttrib
  */
 class TclLspCustomization : LspCustomization() {
     override val semanticTokensCustomizer: LspSemanticTokensCustomizer = TclSemanticTokens()
+    override val diagnosticsCustomizer: LspDiagnosticsCustomizer = TclLspDiagnostics()
 }
 
 /**
