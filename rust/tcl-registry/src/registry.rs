@@ -1996,16 +1996,42 @@ impl CommandRegistry {
         specs: &[&'static CommandSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&'static CommandSpec> {
-        specs
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| self.spec_visible(s, dialect))
-            .max_by_key(|&(index, s)| {
-                let scope_tightness =
-                    std::cmp::Reverse(s.surface.map_or(u32::MAX, surface_breadth));
-                (s.surface.is_some(), scope_tightness, index)
-            })
-            .map(|(_, s)| *s)
+        let mut best: Option<(usize, &CommandSpec)> = None;
+        // Breadth only breaks a tie between two scoped candidates. Most names
+        // have one visible spec, so calculating it before a tie is known
+        // repeatedly walks their authored availability windows for no effect.
+        let mut best_breadth: Option<u32> = None;
+
+        for (index, spec) in specs.iter().copied().enumerate() {
+            if !self.spec_visible(spec, dialect) {
+                continue;
+            }
+            let Some((best_index, best_spec)) = best else {
+                best = Some((index, spec));
+                continue;
+            };
+            match (best_spec.surface, spec.surface) {
+                (None, Some(_)) => {
+                    best = Some((index, spec));
+                    best_breadth = None;
+                }
+                (Some(_), None) => {}
+                (None, None) => {
+                    // Equal catch-all scopes still use last registration.
+                    best = Some((index, spec));
+                }
+                (Some(best_rows), Some(rows)) => {
+                    let old_breadth =
+                        *best_breadth.get_or_insert_with(|| surface_breadth(best_rows));
+                    let breadth = surface_breadth(rows);
+                    if breadth < old_breadth || (breadth == old_breadth && index > best_index) {
+                        best = Some((index, spec));
+                        best_breadth = Some(breadth);
+                    }
+                }
+            }
+        }
+        best.map(|(_, spec)| spec)
     }
 
     /// Whether `spec` is visible to any of `providers` — the coarse,
@@ -6183,6 +6209,168 @@ mod tests {
             .get_for_surface("d6_tie", Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("d6_tie resolves");
         assert_eq!(won.arity, Arity::exact(2), "later registration wins ties");
+    }
+
+    fn reference_best_visible(
+        registry: &CommandRegistry,
+        specs: &[&'static CommandSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static CommandSpec> {
+        specs
+            .iter()
+            .enumerate()
+            .filter(|(_, spec)| registry.spec_visible(spec, dialect))
+            .max_by_key(|&(index, spec)| {
+                let scope_tightness =
+                    std::cmp::Reverse(spec.surface.map_or(u32::MAX, surface_breadth));
+                (spec.surface.is_some(), scope_tightness, index)
+            })
+            .map(|(_, spec)| *spec)
+    }
+
+    fn synthetic_spec(
+        name: &'static str,
+        surface: Option<&'static [SpecSurface]>,
+        traits: Traits,
+    ) -> &'static CommandSpec {
+        Box::leak(Box::new(CommandSpec {
+            name,
+            traits,
+            surface,
+            ..CommandSpec::DEFAULT
+        }))
+    }
+
+    fn assert_best_visible_matches_reference(
+        registry: &CommandRegistry,
+        specs: &[&'static CommandSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) {
+        let expected = reference_best_visible(registry, specs, dialect);
+        let actual = registry.best_visible(specs, dialect);
+        assert_eq!(
+            actual.map(|spec| spec.name),
+            expected.map(|spec| spec.name),
+            "optimised selector changed the selected name"
+        );
+        assert_eq!(
+            actual.map(std::ptr::from_ref),
+            expected.map(std::ptr::from_ref),
+            "optimised selector changed the selected spec"
+        );
+    }
+
+    #[test]
+    fn best_visible_matches_reference_for_surface_and_registration_cases() {
+        let registry = CommandRegistry::build_default();
+        let scoped = synthetic_spec(
+            "d6_scoped_singleton",
+            Some(SpecSurface::TCL86),
+            Traits::empty(),
+        );
+        let catch_all = synthetic_spec("d6_catch_all_singleton", None, Traits::empty());
+
+        // A singleton scoped row and a singleton catch-all row are both
+        // visible exactly as the reference selector expects.
+        assert_best_visible_matches_reference(
+            &registry,
+            &[scoped],
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
+        assert_best_visible_matches_reference(&registry, &[catch_all], None);
+
+        let narrow = synthetic_spec("d6_narrow", Some(SpecSurface::TCL86), Traits::empty());
+        let wide = synthetic_spec("d6_wide", Some(SpecSurface::TCL86_PLUS), Traits::empty());
+        let disjoint_old =
+            synthetic_spec("d6_disjoint_old", Some(SpecSurface::TCL85), Traits::empty());
+        let disjoint_new =
+            synthetic_spec("d6_disjoint_new", Some(SpecSurface::TCL90), Traits::empty());
+
+        // Overlapping rows choose the narrow window, while disjoint rows
+        // produce no result when neither row admits the queried release.
+        assert_best_visible_matches_reference(
+            &registry,
+            &[wide, narrow],
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
+        assert_best_visible_matches_reference(
+            &registry,
+            &[disjoint_old, disjoint_new],
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
+
+        let tie_first = synthetic_spec("d6_tie_first", Some(SpecSurface::TCL86), Traits::empty());
+        let tie_last = synthetic_spec("d6_tie_last", Some(SpecSurface::TCL86), Traits::empty());
+        assert_best_visible_matches_reference(
+            &registry,
+            &[tie_first, tie_last],
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
+    }
+
+    #[test]
+    fn best_visible_matches_reference_for_package_rows() {
+        let registry = CommandRegistry::build_default();
+        let package = synthetic_spec("d6_package", Some(SpecSurface::EXPECT), Traits::empty());
+        let core = synthetic_spec("d6_core", Some(SpecSurface::ALL_TCL), Traits::empty());
+        let packages = ["expect"];
+        let with_package = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&packages);
+
+        // Package rows are visible through the package set and are narrower
+        // than the whole core row, so they win the same reference decision
+        // used by the unoptimised implementation.
+        assert_best_visible_matches_reference(&registry, &[core, package], Some(with_package));
+        assert_eq!(
+            registry
+                .best_visible(&[core, package], Some(with_package))
+                .map(|spec| spec.name),
+            Some("d6_package")
+        );
+        assert_best_visible_matches_reference(
+            &registry,
+            &[package],
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
+    }
+
+    #[test]
+    fn best_visible_matches_reference_for_profile_operator_visibility() {
+        let operator_and_core = surface![
+            SpecSurface::core(Family::Tcl),
+            SpecSurface::core(Family::F5Irules),
+        ];
+        let ordinary = synthetic_spec(
+            "d6_profile_ordinary",
+            Some(operator_and_core),
+            Traits::empty(),
+        );
+        let operator = synthetic_spec(
+            "d6_profile_operator",
+            Some(operator_and_core),
+            Traits::OPERATOR_COMMAND,
+        );
+        let specs = [ordinary, operator];
+
+        // iRules does not treat math operators as command heads, so the
+        // earlier ordinary row must remain selected despite the operator row
+        // being registered later. Plain Tcl permits those heads, preserving
+        // the later-registration tie-break.
+        let irules = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        assert_best_visible_matches_reference(irules, &specs, irules.own_surface_query());
+        let plain = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert_best_visible_matches_reference(plain, &specs, plain.own_surface_query());
+        assert_eq!(
+            irules
+                .best_visible(&specs, irules.own_surface_query())
+                .map(|spec| spec.name),
+            Some("d6_profile_ordinary")
+        );
+        assert_eq!(
+            plain
+                .best_visible(&specs, plain.own_surface_query())
+                .map(|spec| spec.name),
+            Some("d6_profile_operator")
+        );
     }
 
     #[test]
