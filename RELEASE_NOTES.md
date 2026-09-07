@@ -1,3 +1,63 @@
+# v2.2.3
+
+This stable patch completes the editor rollout that was blocked during 2.2.2,
+removes a whole-server `didOpen` publication wedge, and includes the compiler,
+runtime, Spec Studio, and CI fixes made since that tag.
+
+## Reliability and editor delivery
+
+- Live document publication no longer holds the edit-order or document locks
+  while waiting for Salsa or the workspace index. Generation-checked,
+  revision-tagged publication now cancels stale work and rolls back only its
+  own obsolete index replacement, keeping unrelated requests responsive and
+  preventing stale spans from crossing document revisions.
+- The native VS Code extension suite now has deterministic coverage for the
+  `didOpen` contention that wedged 2.2.2, including superseding edits, closes,
+  dialect changes, index readers, rehoming, deletion, and workspace-symbol
+  races.
+- JetBrains settings generation gives every diagnostic section a unique Kotlin
+  panel variable, restoring the plugin build and marketplace publication.
+- Browser-host and native extension tests, front-end package gates, runner
+  watchdogs, and targeted Rust smoke selection are more deterministic and
+  cheaper to run.
+
+## Compiler and runtime correctness
+
+- Word values now retain the distinction between source spelling and evaluated
+  value. Escaped substitution markers remain data, braced bracket text remains
+  literal, and live unbraced substitutions in `switch` subjects and patterns
+  contribute their variable and command-binding effects before dispatch.
+- Nested substitutions in assignments and other word-valued operands now
+  invalidate the right compiler facts without evaluating a word twice.
+- Compiled Tcl units are revalidated after command mutation, and procedure
+  bodies can be installed and dispatched as native WASM functions through the
+  shared runtime table while preserving Tcl frame, result, depth, and error
+  semantics.
+- Rename, trace, coroutine, child-interpreter, namespace teardown, welded
+  quote, and numeric-tower behaviour move closer to the corresponding C Tcl
+  releases.
+
+## Spec Studio and SpecTcl
+
+- Spec Studio now treats packs as the top-level unit of work, supports several
+  open commands, provides a focus-following documentation dock and setting
+  examples, and exports the complete pack and generated Rust/stub files in one
+  operation.
+- Open `.tclspec` documents receive declaration outlines, durable loader
+  notices, formatting coverage, include links, and spelling quick fixes from
+  the same registry-backed language services used by the Studio.
+- Exhaustive Rust and SpecTcl rendering still checks all 46,722
+  dialect/command comparisons, but deduplicates shared immutable specs and
+  batched evaluator work, reducing the two focused sweeps by roughly 87% and
+  83% in the recorded warm runs.
+
+## Security and maintenance
+
+- Editor webviews validate message origins and keep paths out of shell command
+  construction; uploaded report paths are contained and closed correctly.
+- Dependency advisories were resolved, release-token scope was narrowed, and
+  generated or vendored JavaScript is excluded from duplicate CodeQL scans.
+
 # v2.2.2
 
 This stable update adds first-class SslicTcl authoring, restores the native

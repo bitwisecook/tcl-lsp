@@ -18,7 +18,7 @@
 
 id = "tcl-lsp"
 name = "Tcl LSP"
-version = "2.2.2"
+version = "2.2.3"
 schema_version = 1
 authors = ["tcl-lsp contributors"]
 description = "Tcl, iRules, iApps, and TMSH language-server support via tcl-lsp"
