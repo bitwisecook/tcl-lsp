@@ -114,10 +114,10 @@ jobs:
           GIT_HASH: ${{ github.sha }}
         run: |
           set -euo pipefail
-          # Pinned: an unpinned install resolves whatever is newest at run
-          # time, so a release cut twice from one tag could be built by two
-          # different maturin/shiv versions.  Bump deliberately.
-          python -m pip install "pip==26.2.1" "maturin==1.15.0" "shiv==1.0.8"
+          # Versions and distribution hashes are locked together, so a release
+          # cut twice from one tag uses the same reviewed build tools.
+          python -m pip install --require-hashes \
+            -r rust/bigip-report-gen/python/deploy/pyz-build-requirements.txt
 
           # Version tag for the filename: the release tag (minus a leading `v`)
           # on a release, else the short commit.

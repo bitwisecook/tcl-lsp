@@ -46,13 +46,12 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
 ignore = [
     # RUSTSEC-2023-0071 — Marvin timing side-channel in the `rsa` crate. No
-    # fixed version exists (a constant-time rewrite is still in progress). It is
-    # pulled only transitively, via `russh`'s RSA host-key support in the
-    # `f5-cli` / `tcl-mcp` SSH fetch transport. The attack requires an adversary
-    # to observe the timing of an RSA *private-key* operation over the network;
-    # our SSH transport is a password-authenticated client that performs no RSA
-    # private-key signing, so the leak is not reachable here. Revisit when the
-    # `rsa` crate ships a constant-time release.
+    # fixed version exists (a constant-time rewrite is still in progress).
+    # `russh` uses it in the password-authenticated SSH client, which performs
+    # no RSA private-key operation. `tcl-sslictcl` only parses a local private
+    # key and derives its public SPKI for an offline equality check; it never
+    # signs or decrypts. Neither path exposes private-operation timing to a
+    # network observer. Revisit with the matching time-bounded OSV exception.
     "RUSTSEC-2023-0071",
 ]
 
