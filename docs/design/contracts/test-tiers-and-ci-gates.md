@@ -169,6 +169,10 @@ CI skips only what demonstrably did not change. The rules live in
   because no sccache executable exists when setup is skipped. This audited
   closure overrides the broad docs-only shape check: an executable or
   test-consumed input under `docs/` or `.claude/` still runs the suite.
+  Validate an unaffected-path change in Actions by checking that the required
+  `rust-tests` job succeeds after checkout while its setup and test steps are
+  absent; a skipped job is not equivalent because it does not report the
+  required successful check.
 - `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
   (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
   crate plus the path-dependency closure its own lockfile resolves. It is its
