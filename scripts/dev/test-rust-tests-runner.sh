@@ -14,6 +14,17 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 WORKFLOW=$REPO_ROOT/.github/workflows/ci.yml
 
+rust_tests_job=$(awk '
+    /^  rust-tests:/ { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests:" { exit }
+    in_job { print }
+' "$WORKFLOW")
+
+if [ -z "$rust_tests_job" ]; then
+    echo "ci.yml must define the rust-tests job" >&2
+    exit 1
+fi
+
 # Parse the workflow without PyYAML or another unprovisioned dependency.  This
 # is a strict parser for the YAML subset used by the contract: mappings,
 # sequences, scalar values, and literal block scalars.  It records paths only
@@ -179,7 +190,7 @@ END {
     paths_step = step("jobs.channel", "id", "paths")
     need(paths_step >= 0, "channel must define the paths step")
     paths_run = "jobs.channel.steps." paths_step ".run"
-    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-runner.sh)"
+    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh)"
     contains(paths_run, path_list, "runner and dependency-policy changes must classify themselves for hosted proof")
 
     runner_step = step("jobs.channel", "id", "rust-runner")
@@ -210,19 +221,50 @@ END {
     need(values["jobs.rust-tests.env.CARGO_HOME"] == "/home/runner/.cargo", "rust-tests must use the canonical Cargo home")
     need(values["jobs.rust-tests.env.RUSTUP_HOME"] == "/home/runner/.rustup", "rust-tests must use the canonical rustup home")
     need(!nodes["jobs.rust-tests.env.CARGO_TARGET_DIR"], "rust-tests must not share CARGO_TARGET_DIR")
-    need(values["jobs.rust-tests.env.RUSTC_WRAPPER"] == "sccache", "rust-tests must retain sccache")
+    need(!nodes["jobs.rust-tests.env.RUSTC_WRAPPER"], "sccache must not be correctness-critical at job scope")
     need(values["jobs.rust-tests.env.SCCACHE_GHA_ENABLED"] == "true", "rust-tests must enable GHA sccache")
+
+    changed = "needs.channel.outputs.rust_tests_changed == '\''true'\''"
+    preflight = step("jobs.rust-tests", "name", "Verify canonical Rust homes")
+    need(preflight >= 0 && values["jobs.rust-tests.steps." preflight ".if"] == changed,
+         "canonical-home preflight must skip with the unaffected root Rust archive")
+    contains("jobs.rust-tests.steps." preflight ".run", "test ! -L \"$root\"",
+             "canonical-home preflight must reject a symlinked root")
+    contains("jobs.rust-tests.steps." preflight ".run", "readlink -f \"$root\"",
+             "canonical-home preflight must resolve to the literal trusted root")
 
     setup = step("jobs.rust-tests", "name", "Set up Rust")
     need(setup >= 0 && index(values["jobs.rust-tests.steps." setup ".uses"], "actions-rust-lang/setup-rust-toolchain@") == 1, "rust-tests must use setup-rust-toolchain")
-    need(values["jobs.rust-tests.steps." setup ".with.cache-key"] == "rust-tests", "Rust cache key must stay stable")
+    need(values["jobs.rust-tests.steps." setup ".if"] == changed,
+         "Rust setup must skip with the unaffected root Rust archive")
+    need(values["jobs.rust-tests.steps." setup ".with.cache-key"] == "rust-tests-v2", "Rust cache key must reject old target-heavy archives")
     need(values["jobs.rust-tests.steps." setup ".with.cache-targets"] == "false", "Rust target archives must remain disabled")
     sccache = step("jobs.rust-tests", "name", "Set up sccache")
     need(sccache >= 0 && index(values["jobs.rust-tests.steps." sccache ".uses"], "mozilla-actions/sccache-action@") == 1 && values["jobs.rust-tests.steps." sccache ".with.version"] == "v0.17.0", "rust-tests must retain the pinned sccache setup")
+    need(values["jobs.rust-tests.steps." sccache ".with.disable_annotations"] == "true",
+         "the resilient statistics step must own cache-degradation warnings")
+    need(values["jobs.rust-tests.steps." sccache ".id"] == "sccache" &&
+         values["jobs.rust-tests.steps." sccache ".if"] == changed &&
+         values["jobs.rust-tests.steps." sccache ".continue-on-error"] == "true",
+         "sccache setup must be observable, gated, and non-fatal")
+    enable = step("jobs.rust-tests", "name", "Enable sccache when available")
+    need(enable > sccache && values["jobs.rust-tests.steps." enable ".if"] == changed,
+         "the compiler wrapper must only be enabled after optional sccache setup")
+    need(values["jobs.rust-tests.steps." enable ".env.SCCACHE_SETUP_OUTCOME"] == "${{ steps.sccache.outcome }}",
+         "wrapper enablement must inspect the sccache setup outcome")
+    contains("jobs.rust-tests.steps." enable ".run", "RUSTC_WRAPPER=sccache",
+             "successful optional setup must enable the compiler cache")
+    contains("jobs.rust-tests.steps." enable ".run", "continuing with uncached compilation",
+             "failed optional setup must report the uncached fallback")
     stats = step("jobs.rust-tests", "name", "Report sccache statistics")
-    # Keep this assertion unconditional on the #1917 base: rust_tests_changed
-    # is introduced by #1918 and can be integrated when that branch rebases.
-    need(stats >= 0 && values["jobs.rust-tests.steps." stats ".if"] == "always()" && index(values["jobs.rust-tests.steps." stats ".run"], "sccache --show-stats") != 0, "cross-registration sccache reuse must be measured even after a test failure")
+    need(stats > enable && values["jobs.rust-tests.steps." stats ".if"] == "always() && " changed,
+         "sccache reuse must be measured after every affected test attempt")
+    contains("jobs.rust-tests.steps." stats ".run", "sccache --show-stats",
+             "cross-registration sccache reuse must be observable")
+    contains("jobs.rust-tests.steps." stats ".run", "cache write errors",
+             "degraded cache writes must emit a workflow warning")
+    contains("jobs.rust-tests.steps." stats ".run", "exit 0",
+             "cache-statistics failures must not change test correctness")
     for (path in nodes) if (path ~ /^jobs\.rust-tests\.env\./ && path ~ /SCCACHE_BASEDIRS$/) fail("do not claim cross-checkout Rust remapping without pinned-source support")
 }
 ' "$WORKFLOW"
@@ -301,7 +343,7 @@ esac
 # toolchains, caches, interpreters, or test binaries when its archive is not
 # in the changed-path closure. These are step-level gates deliberately: a
 # job-level skip would leave the required status absent.
-require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true'" 3
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true'" 5
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'" 2
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')" 1
 case "$(cat "$WORKFLOW")" in

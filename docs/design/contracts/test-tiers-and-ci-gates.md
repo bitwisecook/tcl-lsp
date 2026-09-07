@@ -211,8 +211,13 @@ cache optimisation; only trusted pushes and trusted pull requests may run
 there, while fork, Dependabot, runner-policy, and explicit hosted paths stay
 on hosted capacity. The job's preflight checks ownership, writability, and a
 temporary write on every registration. `CARGO_TARGET_DIR` is deliberately not
-shared. sccache v0.17 is also measured across registrations rather than
-assumed to normalize differing absolute checkout roots.
+shared, and the `rust-tests-v2` dependency-cache generation excludes Cargo
+targets so old target-heavy archives cannot be restored. sccache v0.17 is
+measured across registrations rather than assumed to normalize differing
+absolute checkout roots. Its setup, compiler cache, and statistics are
+performance-only: an unavailable cache falls back to direct rustc, while
+failed statistics and non-zero cache-write errors emit workflow warnings
+without changing the test result.
 
 Keep these properties: skips are **step-level** (jobs still report success so
 required checks and the release `needs:` graph hold), keyed on **content
