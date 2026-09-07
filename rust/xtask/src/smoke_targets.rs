@@ -3796,11 +3796,8 @@ fn literal_include_scanner_self_test() -> Result<()> {
     Ok(())
 }
 
-fn cargo_fixture_self_test_subprocess() -> Result<()> {
-    let cargo_home = Fixture::new()?;
-    let mut command = Command::new(env::current_exe().context("locating xtask executable")?);
+fn configure_cargo_fixture_subprocess(command: &mut Command, cargo_home: &Fixture) {
     command
-        .args(["smoke-targets", "fixture-self-test"])
         .env("CARGO_HOME", cargo_home.root.join("cargo-home"))
         .env("CARGO_MANIFEST_LINKS", "inherited")
         .env("CARGO_BIN_EXE_unrelated", "inherited")
@@ -3821,6 +3818,13 @@ fn cargo_fixture_self_test_subprocess() -> Result<()> {
             command.env_remove(name);
         }
     }
+}
+
+fn cargo_fixture_self_test_subprocess() -> Result<()> {
+    let cargo_home = Fixture::new()?;
+    let mut command = Command::new(env::current_exe().context("locating xtask executable")?);
+    command.args(["smoke-targets", "fixture-self-test"]);
+    configure_cargo_fixture_subprocess(&mut command, &cargo_home);
     command_output(&mut command)?;
     Ok(())
 }
@@ -3832,22 +3836,16 @@ fn cargo_fixture_self_test() -> Result<()> {
 
 #[cfg(test)]
 fn cargo_fixture_self_test() -> Result<()> {
-    // A binary unit test's current executable is libtest, not the xtask CLI.
-    // Ask Cargo to launch the CLI, whose isolated bridge then starts the
-    // fixture under exactly the same scrubbed environment as production.
-    let mut command = Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+    let cargo_home = Fixture::new()?;
+    let mut command = Command::new(env::current_exe().context("locating xtask test executable")?);
     command
         .args([
-            "run",
-            "--quiet",
-            "--locked",
-            "-p",
-            "xtask",
-            "--",
-            "smoke-targets",
-            "fixture-self-test-isolated",
+            "--exact",
+            "cargo_smoke::tests::cargo_fixture_environment_bridge",
+            "--nocapture",
         ])
-        .current_dir(repo_root());
+        .env("TCL_LSP_CARGO_FIXTURE_TEST_BRIDGE", "1");
+    configure_cargo_fixture_subprocess(&mut command, &cargo_home);
     command_output(&mut command)?;
     Ok(())
 }
@@ -4295,6 +4293,13 @@ pub fn run(operation: &str, package: Option<&str>) -> Result<ExitCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cargo_fixture_environment_bridge() {
+        if env::var_os("TCL_LSP_CARGO_FIXTURE_TEST_BRIDGE").is_some() {
+            cargo_fixture_self_test_inner().expect("isolated Cargo fixture self-test");
+        }
+    }
 
     #[test]
     fn target_helpers_cover_static_edge_cases() {
