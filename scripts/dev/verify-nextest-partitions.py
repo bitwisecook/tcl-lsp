@@ -386,7 +386,7 @@ def self_test() -> None:
         listing_paths["2-2.json"].write_text(
             json.dumps(second_fixture), encoding="utf-8"
         )
-        common = {
+        common: dict[str, Any] = {
             "schema": 1,
             "workspace_sha": "abc123",
             "nextest_version": "cargo-nextest 0.9.143",
