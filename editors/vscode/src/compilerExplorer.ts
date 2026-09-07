@@ -92,6 +92,10 @@ export function openCompilerExplorer(): void {
       dialect?: string;
       start?: number;
       end?: number;
+      startLine?: number;
+      startCol?: number;
+      endLine?: number;
+      endCol?: number;
       message?: string;
       stack?: string;
       filename?: string;
@@ -120,7 +124,7 @@ export function openCompilerExplorer(): void {
         msg.start !== undefined &&
         msg.end !== undefined
       ) {
-        highlightSourceRange(msg.start, msg.end);
+        highlightSourceRange(msg);
       } else if (msg.type === "clearHighlight") {
         clearSourceHighlight();
       } else if (msg.type === "coreError") {
@@ -322,15 +326,39 @@ function postSourceUpdate(update: { source: string; dialect: string }): void {
     });
 }
 
-function highlightSourceRange(startOffset: number, endOffset: number): void {
+/**
+ * Highlight the source span the webview is hovering.
+ *
+ * The explorer's `startOffset`/`endOffset` count **bytes** (the payload's
+ * columns come from `LineIndex::position_at`, which returns a byte column),
+ * while `Position` and `positionAt` are UTF-16. Feeding one to the other is
+ * correct only for ASCII and drifts by one position per non-ASCII byte
+ * thereafter, so prefer the UTF-16 line/column pair the payload now carries
+ * and keep the offsets as the fallback for an older payload.
+ */
+function highlightSourceRange(msg: {
+  start?: number;
+  end?: number;
+  startLine?: number;
+  startCol?: number;
+  endLine?: number;
+  endCol?: number;
+}): void {
   const editor = explorerEditor;
   if (!editor) {
     return;
   }
   const doc = editor.document;
-  const start = doc.positionAt(startOffset);
-  const end = doc.positionAt(endOffset);
-  const range = new vscode.Range(start, end);
+  const range =
+    msg.startLine !== undefined &&
+    msg.startCol !== undefined &&
+    msg.endLine !== undefined &&
+    msg.endCol !== undefined
+      ? new vscode.Range(
+          new vscode.Position(msg.startLine, msg.startCol),
+          new vscode.Position(msg.endLine, msg.endCol),
+        )
+      : new vscode.Range(doc.positionAt(msg.start ?? 0), doc.positionAt(msg.end ?? 0));
   editor.setDecorations(highlightDecoration, [range]);
   editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }

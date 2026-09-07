@@ -30,6 +30,49 @@
 
 use serde_json::Value;
 
+/// The source span a view row points at, in the two coordinate systems its
+/// consumers need.
+///
+/// Byte offsets are what the web front-end slices the source string with;
+/// UTF-16 line/column is what an editor host places a caret with. Both come
+/// straight from [`crate::formatters::range_dict`], so neither is re-derived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewRange {
+    /// 0-based start line.
+    pub start_line: u32,
+    /// 0-based start column, in UTF-16 code units.
+    pub start_col_utf16: u32,
+    /// 0-based end line.
+    pub end_line: u32,
+    /// Exclusive end column, in UTF-16 code units.
+    pub end_col_utf16: u32,
+    /// Start byte offset.
+    pub start_offset: u32,
+    /// Exclusive end byte offset.
+    pub end_offset: u32,
+}
+
+impl ViewRange {
+    /// Read a range dict, or `None` when the value is absent or not a range
+    /// (`range_or_null` emits `null` for a statement with no span).
+    #[must_use]
+    pub fn from_value(v: &Value) -> Option<Self> {
+        if !v.is_object() {
+            return None;
+        }
+        let field = |k: &str| v[k].as_u64().map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        Some(Self {
+            start_line: field("startLine")?,
+            start_col_utf16: field("startColUtf16")?,
+            end_line: field("endLine")?,
+            end_col_utf16: field("endColUtf16")?,
+            start_offset: field("startOffset")?,
+            end_offset: field("endOffset")?,
+        })
+    }
+}
+
 /// One expandable row: a summary `label`, a `detail` table, and children.
 ///
 /// `Serialize` is for the differential test harness (compared against
@@ -44,15 +87,30 @@ pub struct ViewNode {
     pub children: Vec<ViewNode>,
     /// Optional style hint (a colour name).
     pub style: Option<String>,
+    /// Where this row points in the source, when it points anywhere.
+    ///
+    /// The `detail` table already carries a human-readable `range` row, but
+    /// that is a formatted string — a consumer that wants to *navigate* had to
+    /// parse `line:col  (start…end)` back out of it. This keeps the structured
+    /// value beside it so navigation reads a field instead.
+    pub range: Option<ViewRange>,
 }
 
 impl ViewNode {
+    /// Attach the source span this row points at, from its range dict.
+    #[must_use]
+    fn with_range(mut self, range: &Value) -> Self {
+        self.range = ViewRange::from_value(range);
+        self
+    }
+
     fn leaf(label: impl Into<String>, detail: Vec<(String, String)>, style: Option<&str>) -> Self {
         Self {
             label: label.into(),
             detail,
             children: Vec::new(),
             style: style.map(str::to_owned),
+            range: None,
         }
     }
 
@@ -67,6 +125,7 @@ impl ViewNode {
             detail,
             children,
             style: style.map(str::to_owned),
+            range: None,
         }
     }
 
@@ -227,7 +286,7 @@ fn ir_nodes(nodes: &[Value]) -> Vec<ViewNode> {
                     )
                 })
                 .collect();
-            ViewNode::branch(s(n, "summary"), detail, children, None)
+            ViewNode::branch(s(n, "summary"), detail, children, None).with_range(&n["range"])
         })
         .collect()
 }
@@ -247,12 +306,15 @@ fn build_ir(d: &Value) -> Vec<ViewNode> {
             let proc = &procs[name];
             let params = arr_to_strings(&proc["params"]).join(" ");
             let header = format!("{name} {{{params}}}");
-            nodes.push(ViewNode::branch(
-                header,
-                vec![det("range", rng(&proc["range"]))],
-                ir_nodes(arr(proc, "body")),
-                Some("cyan"),
-            ));
+            nodes.push(
+                ViewNode::branch(
+                    header,
+                    vec![det("range", rng(&proc["range"]))],
+                    ir_nodes(arr(proc, "body")),
+                    Some("cyan"),
+                )
+                .with_range(&proc["range"]),
+            );
         }
     }
     nodes
@@ -326,14 +388,17 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
                     detail.push(det("uses", fmt_usedef(&st["uses"])));
                     detail.push(det("defs", fmt_usedef(&st["defs"])));
                 }
-                items.push(ViewNode::leaf(s(st, "summary"), detail, None));
+                items.push(ViewNode::leaf(s(st, "summary"), detail, None).with_range(&st["range"]));
             }
             let term = &b["terminator"];
-            items.push(ViewNode::leaf(
-                term_label(term),
-                vec![det("range", rng(&term["range"]))],
-                Some("blue"),
-            ));
+            items.push(
+                ViewNode::leaf(
+                    term_label(term),
+                    vec![det("range", rng(&term["range"]))],
+                    Some("blue"),
+                )
+                .with_range(&term["range"]),
+            );
             let mut tags = String::new();
             if b["isEntry"].as_bool().unwrap_or(false) {
                 tags.push_str(" [entry]");
@@ -986,6 +1051,7 @@ fn build_opt(d: &Value) -> Vec<ViewNode> {
                 ],
                 Some("green"),
             )
+            .with_range(&o["range"])
         })
         .collect();
     if out.is_empty() {
@@ -1126,6 +1192,7 @@ fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
                         ],
                         Some("green"),
                     )
+                    .with_range(&o["range"])
                 })
                 .collect();
             let count = s(p, "count");
@@ -1163,6 +1230,7 @@ fn build_gvn(d: &Value) -> Vec<ViewNode> {
                 ],
                 Some("green"),
             )
+            .with_range(&w["range"])
         })
         .collect();
     if out.is_empty() {
@@ -1193,6 +1261,7 @@ fn build_shimmer(d: &Value) -> Vec<ViewNode> {
                 ],
                 Some("yellow"),
             )
+            .with_range(&w["range"])
         })
         .collect();
     if out.is_empty() {
@@ -1226,11 +1295,14 @@ fn build_taint(d: &Value) -> Vec<ViewNode> {
             detail.push(det("sink command", sink));
         }
         detail.push(det("range", rng(&w["range"])));
-        out.push(ViewNode::leaf(
-            format!("{} {}", s(w, "code"), s(w, "message")),
-            detail,
-            Some("red"),
-        ));
+        out.push(
+            ViewNode::leaf(
+                format!("{} {}", s(w, "code"), s(w, "message")),
+                detail,
+                Some("red"),
+            )
+            .with_range(&w["range"]),
+        );
     }
     if out.is_empty() {
         vec![ViewNode::note("(no tainted data flows)", "dim")]
@@ -1310,32 +1382,38 @@ fn build_irules(d: &Value) -> Vec<ViewNode> {
     for e in arr(d, "eventOrder") {
         let eff =
             e["base_priority"].as_i64().unwrap_or(0) + e["priority_offset"].as_i64().unwrap_or(0);
-        out.push(ViewNode::leaf(
-            format!("{} eff={eff}", s(e, "event")),
-            vec![
-                det("event", s(e, "event")),
-                det("effective priority", eff.to_string()),
-                det("base", s(e, "base_priority")),
-                det("offset", s(e, "priority_offset")),
-                det("multiplicity", {
-                    let m = s(e, "multiplicity");
-                    if m.is_empty() { "once".to_owned() } else { m }
-                }),
-                det("range", rng(&e["range"])),
-            ],
-            Some("blue"),
-        ));
+        out.push(
+            ViewNode::leaf(
+                format!("{} eff={eff}", s(e, "event")),
+                vec![
+                    det("event", s(e, "event")),
+                    det("effective priority", eff.to_string()),
+                    det("base", s(e, "base_priority")),
+                    det("offset", s(e, "priority_offset")),
+                    det("multiplicity", {
+                        let m = s(e, "multiplicity");
+                        if m.is_empty() { "once".to_owned() } else { m }
+                    }),
+                    det("range", rng(&e["range"])),
+                ],
+                Some("blue"),
+            )
+            .with_range(&e["range"]),
+        );
     }
     for w in arr(d, "irulesFlow") {
-        out.push(ViewNode::leaf(
-            format!("{} {}", s(w, "code"), s(w, "message")),
-            vec![
-                det("code", s(w, "code")),
-                det("message", s(w, "message")),
-                det("range", rng(&w["range"])),
-            ],
-            Some("yellow"),
-        ));
+        out.push(
+            ViewNode::leaf(
+                format!("{} {}", s(w, "code"), s(w, "message")),
+                vec![
+                    det("code", s(w, "code")),
+                    det("message", s(w, "message")),
+                    det("range", rng(&w["range"])),
+                ],
+                Some("yellow"),
+            )
+            .with_range(&w["range"]),
+        );
     }
     if out.is_empty() {
         vec![ViewNode::note("(no iRules events)", "dim")]
@@ -1379,6 +1457,7 @@ fn build_event_order(d: &Value) -> Vec<ViewNode> {
                 ],
                 Some("blue"),
             )
+            .with_range(&e["range"])
         })
         .collect();
     if out.is_empty() {
@@ -1402,6 +1481,7 @@ fn build_callouts(d: &Value) -> Vec<ViewNode> {
                 ],
                 None,
             )
+            .with_range(&a["range"])
         })
         .collect();
     if out.is_empty() {
@@ -1647,6 +1727,63 @@ mod tests {
 
     fn data(src: &str) -> Value {
         serialise_result(&run_pipeline(src, "tcl8.6"))
+    }
+
+    /// A row that shows a range must also *carry* it.
+    ///
+    /// The detail table's `range` row is a formatted string; an editor host
+    /// navigating to it would otherwise have to parse `line:col  (start…end)`
+    /// back out. These are the views a host navigates from.
+    #[test]
+    fn rows_that_display_a_range_also_carry_the_structured_one() {
+        let d = data("proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n");
+        for view in ["ir", "cfg", "ssa"] {
+            let nodes = build_view(view, &d);
+            assert!(!nodes.is_empty(), "{view} produced no rows");
+            // `rng` renders a missing span as "?" — a terminator-less block
+            // shows a range row with nothing behind it, and carrying `None`
+            // there is correct.
+            let displayed = |n: &ViewNode| {
+                n.detail
+                    .iter()
+                    .any(|(k, v)| k == "range" && v.as_str() != "?")
+            };
+            let mut checked = 0usize;
+            let mut stack: Vec<&ViewNode> = nodes.iter().collect();
+            while let Some(node) = stack.pop() {
+                if displayed(node) {
+                    assert!(
+                        node.range.is_some(),
+                        "{view} row {:?} shows a range but carries none",
+                        node.label
+                    );
+                    checked += 1;
+                }
+                stack.extend(node.children.iter());
+            }
+            assert!(checked > 0, "{view} showed no range rows at all");
+        }
+    }
+
+    /// The structured range agrees with the payload it came from, in both
+    /// coordinate systems.
+    #[test]
+    fn the_structured_range_matches_the_payload() {
+        let d = data("set x 1\n");
+        let expected = ViewRange::from_value(&d["ir"]["topLevel"][0]["range"])
+            .expect("the payload's top-level statement has a range");
+
+        // The IR view nests its statements under a `top-level` branch, so walk.
+        let mut found = Vec::new();
+        let mut stack: Vec<ViewNode> = build_view("ir", &d);
+        while let Some(node) = stack.pop() {
+            found.extend(node.range);
+            stack.extend(node.children);
+        }
+        assert!(
+            found.contains(&expected),
+            "the statement's range must survive into the view model; got {found:?}"
+        );
     }
 
     #[test]

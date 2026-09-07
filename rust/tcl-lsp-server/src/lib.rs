@@ -2048,7 +2048,7 @@ const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duratio
 /// bound: browsing a large tree retained a full `Vec<Diagnostic>` for every file
 /// the editor ever opened, for the process's life.  Every entry is re-derivable
 /// from disk, so evicting the oldest costs nothing but a recompute on reopen.
-/// Sized well above a realistic "recently visited" working set (VS Code's own
+/// Sized well above a realistic "recently visited" working set (`VS Code`'s own
 /// Problems view is the consumer) yet far below the thousands of files a
 /// workspace walk touches.
 const CLOSED_DIAG_BADGE_CAP: usize = 512;
@@ -2564,7 +2564,7 @@ fn next_pull_diag_result_id() -> String {
 /// How long a `workspace/didChangeConfiguration` leader waits before running
 /// the reload, so the rest of a burst folds into the same generation.
 ///
-/// Long enough to swallow a settings-editor keystroke burst (VS Code emits one
+/// Long enough to swallow a settings-editor keystroke burst (`VS Code` emits one
 /// notification per changed key) and short enough that a single deliberate
 /// toggle still feels immediate.
 const CONFIG_RELOAD_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(150);
@@ -6820,7 +6820,7 @@ pub struct Backend {
     /// `textDocument/semanticTokens/full/delta` answer with a minimal
     /// token-aligned [`core_semantic_tokens::diff`] edit instead of resending
     /// the whole stream, the incremental behaviour rust-analyzer / clangd use.
-    /// Every editor that speaks `full/delta` (VS Code, Zed, Neovim, eglot, …)
+    /// Every editor that speaks `full/delta` (`VS Code`, Zed, Neovim, eglot, …)
     /// benefits: a keystroke transmits a few changed tokens rather than the
     /// entire document, which keeps the client's token round-trip — and, for
     /// eglot, its stale-repaint window (issue #333) — small on large files.
@@ -6863,7 +6863,7 @@ pub struct Backend {
     /// second one. Without this, many cold large tabs finishing their
     /// enriched computation around the same time (e.g. on startup) would
     /// each fire their own workspace-wide refresh, and a client that does
-    /// not coalesce them itself (VS Code does; eglot may not) would re-pull
+    /// not coalesce them itself (`VS Code` does; eglot may not) would re-pull
     /// every open document once per refresh.
     semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicBool>,
     /// URIs with a detached semantic-token convergence continuation in flight
@@ -7560,7 +7560,7 @@ enum FolderGenericPatterns {
 /// value.  In a multi-root workspace each root can
 /// carry its own diagnostics, optimiser, formatting, dialect, and feature
 /// settings.  The other source of a per-folder dialect —
-/// The analyser inputs VS Code declares `"scope": "resource"` — settings whose
+/// The analyser inputs `VS Code` declares `"scope": "resource"` — settings whose
 /// value belongs to the document rather than the session.
 ///
 /// Bundled rather than passed as three more positional arguments because each
@@ -12160,7 +12160,7 @@ impl Backend {
     /// file is not a Tcl document and must not become one: routing it to this
     /// server would put JavaScript through the Tcl analyser, the workspace
     /// index and the diagnostics pipeline, none of which have anything true to
-    /// say about it. The VS Code client instead registers a *second*
+    /// say about it. The `VS Code` client instead registers a *second*
     /// `ReferenceProvider` for `javascript` that calls this and contributes its
     /// answers alongside the JavaScript language service's own — so the editor
     /// shows the Tcl call sites without either provider displacing the other.
@@ -16421,7 +16421,7 @@ impl Backend {
     /// Handle `tcl-lsp.setDialect`: switch the session default dialect and
     /// re-resolve every open document under it (so buffers that fell back to
     /// the default re-analyse immediately).  Returns `{success, dialect}`, or
-    /// `{success: false, error}` for an unknown dialect.  Drives the VS Code
+    /// `{success: false, error}` for an unknown dialect.  Drives the `VS Code`
     /// `tclLsp.selectDialect` command.
     async fn set_dialect_command(
         &self,
@@ -16488,7 +16488,7 @@ impl Backend {
     /// editor language id (`null` where the dialect has none) and the file
     /// extensions it owns, each with its human-facing name.
     ///
-    /// The VS Code extension gets this list projected into its manifest at
+    /// The `VS Code` extension gets this list projected into its manifest at
     /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
     /// for it here, so a dialect picker or status bar never has to hardcode one.
     fn list_dialects_command() -> serde_json::Value {
@@ -17327,7 +17327,7 @@ impl Backend {
     /// `getEffectiveConfig` *reports* for a document cannot drift from what the
     /// providers *do* for it.  It used to: the command reported the global map
     /// while every gate below consulted the folder chain first, which made
-    /// `waitForFeatureToggle` (the VS Code suite's barrier before asserting a
+    /// `waitForFeatureToggle` (the `VS Code` suite's barrier before asserting a
     /// toggle took effect) observe a different fact from the one the provider
     /// would use — issue #1295.
     ///
@@ -17968,7 +17968,7 @@ impl Backend {
     /// server-side — `dialect_from_extension` consults pack routing before the
     /// static catalogue — but an editor learns its associations from a static
     /// manifest written long before the pack existed, so the file never
-    /// associates, the client never attaches, and in VS Code the extension may
+    /// associates, the client never attaches, and in `VS Code` the extension may
     /// not even activate. Advertising the pairs here lets a client that *can*
     /// register at runtime do so.
     ///
@@ -18825,7 +18825,7 @@ impl Backend {
     /// analysis, so O-codes the user had just disabled came back on that
     /// publish and only cleared on the reschedule a moment later.
     ///
-    /// Issue #1651 is that window, seen from the VS Code suite: the
+    /// Issue #1651 is that window, seen from the `VS Code` suite: the
     /// `optimiser.enabled` test failed exactly when its post-toggle edit landed
     /// before the reschedule, which is why a slower local runner reproduced it
     /// and CI (with a shorter pack walk) did not.  Widening the reschedule's
@@ -19382,6 +19382,30 @@ impl Backend {
         // scan here would be the same walk twice.
         if extensions_changed && trigger != ReloadTrigger::Startup {
             self.scan_workspace_folders().await;
+        }
+
+        // Everything a client caches per document and only re-requests on an
+        // edit is now stale, because the registry is what classifies it. A
+        // pack decides whether a command head is a `function` at all, whether
+        // it carries `defaultLibrary`, and — through `arg_role` — whether a
+        // braced word is tokenised as code or as one opaque string. Diagnostics
+        // and hover already recover: the callers re-analyse open documents, and
+        // hover is pulled per request. Semantic tokens, code lenses and folding
+        // ranges do not; without a push they stay on screen exactly as they
+        // were until the user types in the buffer, which is what made a Spec
+        // Studio pack edit leave the sample's colours frozen.
+        //
+        // Here rather than at the `didChangeWatchedFiles` call site because
+        // this is the one place every trigger passes through, and `run_config_reload`
+        // already does the code-lens/folding half for its own path only.
+        // Best-effort: a client without refresh support rejects the request.
+        if changed {
+            self.request_semantic_tokens_retry();
+            let _ = self
+                .client
+                .send_request::<FoldingRangeRefreshRequest>(())
+                .await;
+            let _ = self.client.code_lens_refresh().await;
         }
 
         // Tell the client the reload is finished. A client that reacts to the
@@ -27513,7 +27537,7 @@ fn whole_line_range(
 ///
 /// The canonicalisation starts with `ls_types`' own `from_file_path`, then
 /// [`uri_norm::repair_file_uri_from_path`] gives a leading `//` the authority
-/// shape VS Code's `URI.file` uses on every host and removes Windows-only
+/// shape `VS Code`'s `URI.file` uses on every host and removes Windows-only
 /// extended-length markers. Finally, [`uri_norm::canonical_uri_string`] pins
 /// Windows drive-letter and percent-escape case to the spelling `vscode-uri`
 /// uses on every platform.
@@ -28466,7 +28490,7 @@ fn tcl_source_glob() -> String {
 /// The same extension set as [`tcl_source_glob`], written so it matches **any
 /// casing** — `**/*.{[tT][cC][lL],…}`.
 ///
-/// `workspace/didChangeWatchedFiles` has no `ignoreCase` option, and VS Code
+/// `workspace/didChangeWatchedFiles` has no `ignoreCase` option, and `VS Code`
 /// matches watcher globs against the platform file system: case-insensitively
 /// on Windows and macOS, case-**sensitively** on Linux.  A single-cased glob
 /// therefore missed every external create/change/delete of an `UPPER.TCL` on
@@ -28475,7 +28499,7 @@ fn tcl_source_glob() -> String {
 /// full scan or an explicit open (issue #1215).
 ///
 /// The set is the same one [`is_tcl_source`] case-folds, and the pattern is
-/// built by the registry so the VS Code activation glob
+/// built by the registry so the `VS Code` activation glob
 /// (`cargo xtask gen-vscode-package`) is the same string by construction
 /// (issue #1242).
 fn tcl_source_watch_glob() -> String {
@@ -28607,7 +28631,7 @@ fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
 /// config change flips `features.folding` (the client otherwise keeps its
 /// cached ranges until the next document edit) and once from `initialized`,
 /// so a tab restored before the provider went live recomputes its folding —
-/// and, in VS Code, its sticky-scroll model with it (issue #1122).
+/// and, in `VS Code`, its sticky-scroll model with it (issue #1122).
 enum FoldingRangeRefreshRequest {}
 
 impl tower_lsp_server::ls_types::request::Request for FoldingRangeRefreshRequest {
@@ -31258,7 +31282,7 @@ mod tests {
     /// The shipped `tclLsp.xcDiagnostics.enabled` setting is a dedicated
     /// config *section*, not a `features.*` key — `parse_folder_config` must
     /// still map it onto the `xcDiagnostics` feature toggle so the advertised
-    /// VS Code opt-in actually reaches `xc_diagnostics_enabled`.
+    /// `VS Code` opt-in actually reaches `xc_diagnostics_enabled`.
     #[test]
     fn folder_config_maps_xc_diagnostics_section_to_toggle() {
         let cfg = serde_json::json!({ "xcDiagnostics": { "enabled": true } });
@@ -33539,7 +33563,7 @@ mod tests {
         );
     }
 
-    /// The VS Code extension contributes *undotted* version-pinned language
+    /// The `VS Code` extension contributes *undotted* version-pinned language
     /// ids (`tcl84` … `tcl91`) because a dotted id cannot carry a
     /// `configurationDefaults` override (issue #1122). Every other editor
     /// integration still sends the dotted form, so both spellings must resolve
@@ -39622,7 +39646,7 @@ proc p {} {
     }
 
     /// Issue #1215: `workspace/didChangeWatchedFiles` carries no `ignoreCase`
-    /// option and VS Code matches watcher globs case-**sensitively** on Linux,
+    /// option and `VS Code` matches watcher globs case-**sensitively** on Linux,
     /// so the registration folds case per character instead.
     #[test]
     fn watch_glob_matches_every_casing_of_every_indexed_extension() {

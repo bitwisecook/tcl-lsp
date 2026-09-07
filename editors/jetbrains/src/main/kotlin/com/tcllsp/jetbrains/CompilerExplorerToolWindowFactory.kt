@@ -22,6 +22,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent
@@ -70,11 +71,18 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
     val browser: JBCefBrowser = JBCefBrowser()
     private val jsQuery: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
-    // All three fields are touched only on the EDT (every mutator hops through
+    // All four fields are touched only on the EDT (every mutator hops through
     // invokeLater), so no extra synchronisation is needed.
     private var lastSource: String = ""
     private var pageReady = false
     private var pendingSource: String? = null
+
+    /**
+     * The file whose source the explorer last compiled — what a hover in the
+     * webview refers to. Not the selected tab: the explorer keeps showing one
+     * file while the user moves around the IDE.
+     */
+    private var sourceFile: VirtualFile? = null
 
     init {
         // Tie the native browser, the JS bridge query, and the editor-listener
@@ -169,6 +177,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
             val editor = manager.selectedTextEditor ?: return@invokeLater
             val file = manager.selectedFiles.firstOrNull() ?: return@invokeLater
             if (!TclFileType.isSupported(file)) return@invokeLater
+            sourceFile = file
             dispatchSource(editor.document.text, force)
         }
     }
@@ -178,6 +187,7 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         ApplicationManager.getApplication().invokeLater {
             if (!TclFileType.isSupported(file)) return@invokeLater
             val document = FileDocumentManager.getInstance().getDocument(file) ?: return@invokeLater
+            sourceFile = file
             dispatchSource(document.text, force)
         }
     }
@@ -218,13 +228,19 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                     runCompile(source, dialect)
                 }
                 message.startsWith("highlightSource:") -> {
-                    // Source highlighting in main editor
-                    val payload = message.removePrefix("highlightSource:")
-                    val parts = payload.split(",")
-                    if (parts.size == 2) {
-                        val start = parts[0].toIntOrNull() ?: return
-                        val end = parts[1].toIntOrNull() ?: return
-                        highlightSourceRange(start, end)
+                    // `startLine,startCol,endLine,endCol,startOffset,endOffset`
+                    // — see the shim in CompilerExplorerHtml.kt. The first four
+                    // are UTF-16 and may be empty on an older payload.
+                    val parts = message.removePrefix("highlightSource:").split(",")
+                    if (parts.size == 6) {
+                        highlightSourceRange(
+                            startLine = parts[0].toIntOrNull(),
+                            startCol = parts[1].toIntOrNull(),
+                            endLine = parts[2].toIntOrNull(),
+                            endCol = parts[3].toIntOrNull(),
+                            startOffset = parts[4].toIntOrNull(),
+                            endOffset = parts[5].toIntOrNull(),
+                        )
                     }
                 }
                 message == "clearHighlight" -> {
@@ -348,23 +364,73 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
         )
     }
 
-    private fun highlightSourceRange(startOffset: Int, endOffset: Int) {
-        // Highlight in the main editor — run on EDT
+    /**
+     * Select the source span the webview is hovering, in the file the
+     * explorer actually compiled.
+     *
+     * Two things this gets right that the offset-only version could not.
+     *
+     * The span arrives as a UTF-16 line/column pair, because that is what an
+     * IntelliJ caret is. The explorer's `startOffset`/`endOffset` count
+     * *bytes* — the payload's columns come from `LineIndex::position_at`,
+     * which returns a byte column — so feeding them to `offsetToLogicalPosition`
+     * is right only for ASCII and drifts by one per non-ASCII byte after that.
+     * The offsets remain the fallback for a payload without the UTF-16 pair.
+     *
+     * And it targets [sourceFile] rather than whatever tab happens to be
+     * selected. The explorer compiles one file and keeps showing it while the
+     * user moves around the IDE, so `selectedTextEditor` is simply a different
+     * document as soon as anything else is focused — including any pane the
+     * explorer itself opens.
+     */
+    private fun highlightSourceRange(
+        startLine: Int?,
+        startCol: Int?,
+        endLine: Int?,
+        endCol: Int?,
+        startOffset: Int?,
+        endOffset: Int?,
+    ) {
         ApplicationManager.getApplication().invokeLater {
-            val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
+            val editor = editorForCompiledSource() ?: return@invokeLater
             val document = editor.document
-            if (startOffset < 0 || endOffset > document.textLength) return@invokeLater
+            val start = if (startLine != null && startCol != null) {
+                editor.logicalPositionToOffset(LogicalPosition(startLine, startCol))
+            } else {
+                startOffset ?: return@invokeLater
+            }
+            val end = if (endLine != null && endCol != null) {
+                editor.logicalPositionToOffset(LogicalPosition(endLine, endCol))
+            } else {
+                endOffset ?: return@invokeLater
+            }
+            if (start < 0 || end > document.textLength || start > end) return@invokeLater
 
-            val startPos = editor.offsetToLogicalPosition(startOffset)
-            editor.selectionModel.setSelection(startOffset, endOffset)
-            editor.scrollingModel.scrollTo(startPos, com.intellij.openapi.editor.ScrollType.CENTER_UP)
+            editor.selectionModel.setSelection(start, end)
+            editor.scrollingModel.scrollTo(
+                editor.offsetToLogicalPosition(start),
+                com.intellij.openapi.editor.ScrollType.CENTER_UP,
+            )
         }
+    }
+
+    /**
+     * The open editor for the file the explorer last compiled, or null when
+     * it has been closed. Falls back to the selected editor only when the
+     * explorer has not recorded a file yet.
+     */
+    private fun editorForCompiledSource(): com.intellij.openapi.editor.Editor? {
+        val manager = FileEditorManager.getInstance(project)
+        val file = sourceFile ?: return manager.selectedTextEditor
+        val document = FileDocumentManager.getInstance().getDocument(file) ?: return null
+        return com.intellij.openapi.editor.EditorFactory.getInstance()
+            .getEditors(document, project)
+            .firstOrNull()
     }
 
     private fun clearSourceHighlight() {
         ApplicationManager.getApplication().invokeLater {
-            val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
-            editor.selectionModel.removeSelection()
+            editorForCompiledSource()?.selectionModel?.removeSelection()
         }
     }
 

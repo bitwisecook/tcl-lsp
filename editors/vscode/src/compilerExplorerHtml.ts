@@ -1345,7 +1345,15 @@ function setupHoverHighlighting(container) {
     if (!el) return;
     const start = parseInt(el.dataset.start);
     const end = parseInt(el.dataset.end);
-    vscode.postMessage({ type: 'highlightSource', start, end });
+    // Byte offsets for hosts that still slice bytes; UTF-16 line/column for
+    // placing a caret, which is what an editor position actually is.
+    vscode.postMessage({
+      type: 'highlightSource', start, end,
+      startLine: el.dataset.sl === undefined ? undefined : parseInt(el.dataset.sl),
+      startCol: el.dataset.sc === undefined ? undefined : parseInt(el.dataset.sc),
+      endLine: el.dataset.el === undefined ? undefined : parseInt(el.dataset.el),
+      endCol: el.dataset.ec === undefined ? undefined : parseInt(el.dataset.ec),
+    });
     if (currentHighlighted && currentHighlighted !== el) {
       currentHighlighted.classList.remove('highlighted');
     }

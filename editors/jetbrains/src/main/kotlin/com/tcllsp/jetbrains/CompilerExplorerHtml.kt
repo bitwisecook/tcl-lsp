@@ -97,7 +97,15 @@ internal fun adaptHtmlForJcef(html: String): String {
                     if (msg.type === 'compile' && typeof msg.source === 'string') {
                         window.__tcllspBridge('compile:' + msg.source + '\u0000' + (msg.dialect || ''));
                     } else if (msg.type === 'highlightSource') {
-                        window.__tcllspBridge('highlightSource:' + msg.start + ',' + msg.end);
+                        // Six fields: the UTF-16 line/column pair a caret is
+                        // actually placed with, then the byte offsets as a
+                        // fallback for a payload that predates them. An absent
+                        // field rides as an empty string.
+                        var n = function(v) { return v === undefined ? '' : v; };
+                        window.__tcllspBridge('highlightSource:' +
+                            n(msg.startLine) + ',' + n(msg.startCol) + ',' +
+                            n(msg.endLine) + ',' + n(msg.endCol) + ',' +
+                            n(msg.start) + ',' + n(msg.end));
                     } else if (msg.type === 'clearHighlight') {
                         window.__tcllspBridge('clearHighlight');
                     }
