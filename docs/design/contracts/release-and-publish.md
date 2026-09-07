@@ -41,6 +41,15 @@ generates SBOMs, and attaches everything to a GitHub Release.  The
 publish jobs then push those same signed artefacts to the marketplaces
 behind the approval gate.
 
+The tag-triggered test surface may carry forward a recent proof from the
+release PR when the exact-SHA push proof is not yet available. This is a
+fail-closed content-identity check: GitHub must report exactly one merged PR
+onto `rust` for the tag commit, the PR head and tag commit must have identical
+Git trees, and that PR's successful CI run must be newer than 24 hours. Any
+ambiguous association, changed tree, stale result, or local/API/schema/network
+failure runs the complete test surface. `cargo-deny` remains unconditional so
+new advisories are audited at every release point.
+
 ## The four layers
 
 ```

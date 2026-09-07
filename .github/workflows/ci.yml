@@ -66,22 +66,19 @@ jobs:
   #   already_green  — this exact code already passed this workflow, verified
   #                    against the Actions API.  Fail-safe: any API error, no
   #                    match, or a match older than 24 h → false → full run.
-  #                    True in exactly two shapes:
+  #                    True in exactly these shapes:
   #                      * a v* tag whose commit has a green push run on
   #                        rust — the release flow (make release-tag) tags
   #                        an already-green tip, so the tag-time re-test was
   #                        pure repetition (measured: v2.1.18 re-ran the
   #                        identical 20-job surface on the same SHA 74 minutes
   #                        after it went green);
-  #                      * a push to rust of a merge or squash commit whose
-  #                        tree is byte-identical to the associated PR head
-  #                        with a green PR run — what the merge button produces
-  #                        when the PR was up to date with the base.  Tree
-  #                        equality is the guarantee that matters: identical
-  #                        tree ⇒ identical inputs ⇒ identical verdict, and a
-  #                        merge that DID pick up new base-branch commits gets
-  #                        a different tree and a full re-test — exactly the
-  #                        case where re-testing has value.
+  #                      * a v* tag or push to rust whose commit has exactly
+  #                        one merged PR association onto rust, whose PR head
+  #                        has the identical Git tree, and whose PR run is
+  #                        green within 24 h. The release-tag fallback covers
+  #                        the race where the rust push run has not completed
+  #                        yet (issue #1913).
   #                    The 24 h bound stops the skip compounding into stale
   #                    territory: the floating `stable` toolchain and the
   #                    advisory database both move under an unchanged tree, so
@@ -179,46 +176,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          already=false
-          cutoff="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
-          api="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs"
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # Tag: does this exact SHA have a green push run on rust?
-            n="$(gh api "$api?head_sha=$GITHUB_SHA&event=push&status=success&per_page=20" \
-                  --jq "[.workflow_runs[] | select(.head_branch==\"rust\" and .updated_at > \"$cutoff\")] | length" \
-                  2>/dev/null || echo 0)"
-            [ "${n:-0}" -gt 0 ] && already=true
-          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            # Merge push: find the PR head, then require exact tree equality
-            # before carrying its green result forward. A two-parent merge has
-            # the head locally as HEAD^2. For a squash merge, GitHub records
-            # the association even though the PR head is not an ancestor.
-            pr_heads="$(git rev-parse -q --verify HEAD^2 || true)"
-            if [ -z "$pr_heads" ]; then
-              pr_heads="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
-                --jq ".[] | select(.merged_at != null and .merge_commit_sha == \"$GITHUB_SHA\" and .base.ref == \"rust\") | .head.sha" \
-                2>/dev/null)" || pr_heads=""
-            fi
-            # More than one association is ambiguous even if one candidate
-            # happens to share the tree. Ambiguity must run the complete suite.
-            if [ "$(printf '%s\n' "$pr_heads" | awk 'NF { n += NF } END { print n + 0 }')" -eq 1 ]; then
-              pr_head="$pr_heads"
-              current_tree="$(git rev-parse 'HEAD^{tree}')"
-              pr_tree="$(git rev-parse "$pr_head^{tree}" 2>/dev/null || true)"
-              if [ -z "$pr_tree" ]; then
-                pr_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$pr_head" \
-                  --jq '.tree.sha' 2>/dev/null)" || pr_tree=""
-              fi
-              if [ -n "$pr_tree" ] && [ "$current_tree" = "$pr_tree" ]; then
-                n="$(gh api "$api?head_sha=$pr_head&event=pull_request&status=success&per_page=20" \
-                      --jq "[.workflow_runs[] | select(.updated_at > \"$cutoff\")] | length" \
-                      2>/dev/null || echo 0)"
-                [ "${n:-0}" -gt 0 ] && already=true
-              fi
-            fi
-          fi
-          echo "already_green=$already" >> "$GITHUB_OUTPUT"
-          echo "already_green=$already (ref=$GITHUB_REF sha=$GITHUB_SHA)"
+          # The helper is covered by scripts/dev/test-already-green.sh and
+          # fails closed on every local Git, API, and schema error.
+          bash scripts/dev/already-green.sh
 
       - name: Classify changed paths
         id: paths
