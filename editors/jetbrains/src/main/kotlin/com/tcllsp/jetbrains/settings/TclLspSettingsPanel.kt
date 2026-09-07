@@ -23,6 +23,7 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.ui.TitledSeparator
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -33,6 +34,7 @@ import com.intellij.util.ui.UIUtil
 import com.tcllsp.jetbrains.TclLspServerSupportProvider
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Rectangle
 import javax.swing.*
 
@@ -436,6 +438,14 @@ class TclLspSettingsPanel {
     private val optO128 = ThreeStateCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...", ThreeStateCheckBox.State.DONT_CARE)
     private val optO129 = ThreeStateCheckBox("O129: Fold a pure builtin command substitution with consta...", ThreeStateCheckBox.State.DONT_CARE)
     private val optO130 = ThreeStateCheckBox("O130: Fold static lappend list build chains into a single ...", ThreeStateCheckBox.State.DONT_CARE)
+    private val optCodeBoxes: List<ThreeStateCheckBox> = listOf(
+        optO100, optO101, optO102, optO103, optO104, optO105,
+        optO106, optO107, optO108, optO109, optO110, optO111,
+        optO112, optO113, optO114, optO115, optO116, optO117,
+        optO118, optO119, optO120, optO121, optO122, optO123,
+        optO124, optO125, optO126, optO127, optO128, optO129,
+        optO130,
+    )
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -656,23 +666,13 @@ class TclLspSettingsPanel {
         // @generated:opt-ui:begin
         builder.addComponent(TitledSeparator("Optimiser"))
         builder.addComponent(optEnabled)
-        builder.addLabeledComponent(JBLabel("Profile:"), optProfile)
-        builder.addComponent(
-            ReflowingGrid(
-                listOf(
-                    optO100, optO101, optO102, optO103, optO104, optO105,
-                    optO106, optO107, optO108, optO109, optO110, optO111,
-                    optO112, optO113, optO114, optO115, optO116, optO117,
-                    optO118, optO119, optO120, optO121, optO122, optO123,
-                    optO124, optO125, optO126, optO127, optO128, optO129,
-                    optO130,
-                ),
-            ),
-        )
+        builder.addLabeledComponent(JBLabel("Profile:"), profileRow())
+        builder.addComponent(ReflowingGrid(optCodeBoxes))
         builder.addWrappedComment(
             "The profile chooses which optimisation families run. A per-code box left " +
                 "in its mixed state inherits from the profile; tick or untick one to " +
-                "force that code on or off regardless of the profile.",
+                "force that code on or off regardless of the profile. Reset to profile " +
+                "clears every override and hands the choice back to the profile.",
         )
         // @generated:opt-ui:end
 
@@ -1301,6 +1301,36 @@ class TclLspSettingsPanel {
      * don't need a restart.
      */
     @Suppress("UnstableApiUsage")
+    /**
+     * The profile selector, with the link that clears every per-code override
+     * beside it.
+     *
+     * A function rather than a property: it reads `optProfile` and
+     * `optCodeBoxes`, both generated declarations, and building it while the
+     * form is assembled keeps it independent of the order those initialise in.
+     */
+    private fun profileRow(): JPanel =
+        JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
+            add(optProfile)
+            add(ActionLink("Reset codes to profile") { resetCodesToProfile() })
+        }
+
+    /**
+     * Hand every per-code choice back to the profile.
+     *
+     * The third state is the one that defers, so this resets to "no opinion"
+     * rather than to a set of ticks: without it, a user who explicitly set a
+     * handful of codes has no way to find which, or to undo them short of
+     * clicking each back to mixed.
+     *
+     * Only the controls change — `isModified` then reports the panel dirty and
+     * the usual Apply writes it through, so this is as undoable as any other
+     * edit on the page.
+     */
+    private fun resetCodesToProfile() {
+        optCodeBoxes.forEach { it.state = ThreeStateCheckBox.State.DONT_CARE }
+    }
+
     private fun restartLspServers() {
         for (project in ProjectManager.getInstance().openProjects) {
             if (project.isDisposed) continue

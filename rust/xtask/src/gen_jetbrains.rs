@@ -277,11 +277,12 @@ fn settings(current: &str) -> String {
 
 /// The note under the optimiser grid. A tri-state checkbox is unusual enough
 /// in a settings page that the third state needs saying out loud.
-const PROFILE_LEGEND: [&str; 5] = [
+const PROFILE_LEGEND: [&str; 6] = [
     r#"        builder.addWrappedComment("#,
     r#"            "The profile chooses which optimisation families run. A per-code box left " +"#,
     r#"                "in its mixed state inherits from the profile; tick or untick one to " +"#,
-    r#"                "force that code on or off regardless of the profile.","#,
+    r#"                "force that code on or off regardless of the profile. Reset to profile " +"#,
+    r#"                "clears every override and hands the choice back to the profile.","#,
     r#"        )"#,
 ];
 
@@ -377,20 +378,21 @@ fn panel(current: &str) -> String {
             short_label(code, description)
         );
     }
+    // One named list, so the grid and the "reset to profile" link cannot
+    // disagree about which boxes are per-code overrides.
+    opt_cb.push_str("    private val optCodeBoxes: List<ThreeStateCheckBox> = listOf(\n");
+    let box_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
+    opt_cb.push_str(&six_per_line_at(&box_refs, 8));
+    opt_cb.push_str("    )\n");
     out = replace_block(&out, "opt-checkboxes", &opt_cb);
 
     // opt-ui.
     let mut opt_ui = String::from(
         "        builder.addComponent(TitledSeparator(\"Optimiser\"))\n\
          \x20       builder.addComponent(optEnabled)\n\
-         \x20       builder.addLabeledComponent(JBLabel(\"Profile:\"), optProfile)\n\
-         \x20       builder.addComponent(\n\
-         \x20           ReflowingGrid(\n\
-         \x20               listOf(\n",
+         \x20       builder.addLabeledComponent(JBLabel(\"Profile:\"), profileRow())\n\
+         \x20       builder.addComponent(ReflowingGrid(optCodeBoxes))\n",
     );
-    let opt_refs: Vec<String> = opts.iter().map(|(code, _)| format!("opt{code}")).collect();
-    opt_ui.push_str(&six_per_line_at(&opt_refs, 20));
-    opt_ui.push_str("                ),\n            ),\n        )\n");
     for line in PROFILE_LEGEND {
         let _ = writeln!(opt_ui, "{line}");
     }
