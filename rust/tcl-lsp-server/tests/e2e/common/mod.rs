@@ -18,13 +18,13 @@
 
 //! Shared end-to-end harness for the native `tcl-lsp-server` binary.
 //!
-//! Each test spawns the real `tcl-lsp-server` binary (via
-//! `CARGO_BIN_EXE_tcl-lsp-server`), talks LSP JSON-RPC to it over stdio, and
-//! asserts on the responses — exactly what an editor does. A background reader
-//! thread parses framed messages,
-//! routing responses to blocked requests, buffering notifications (with a
-//! condvar so `await_*` can wait), and auto-answering server-initiated requests
-//! (`workspace/configuration`) so the server never blocks.
+//! Each test spawns the real `tcl-lsp-server` binary via nextest's archived
+//! runtime path, with `CARGO_BIN_EXE_tcl-lsp-server` as the ordinary Cargo
+//! fallback, talks LSP JSON-RPC to it over stdio, and asserts on the responses
+//! — exactly what an editor does. A background reader thread parses framed
+//! messages, routing responses to blocked requests, buffering notifications
+//! (with a condvar so `await_*` can wait), and auto-answering server-initiated
+//! requests (`workspace/configuration`) so the server never blocks.
 //!
 //! The client offers a request / notify / `open_ready` / `await_diagnostics` /
 //! `await_log` contract, XDG isolation per server, and a per-section reply to
@@ -88,11 +88,9 @@ const BARRIER_TIMEOUT_MARKER: &str = "LATENCY-BARRIER-TIMEOUT";
 /// latency failure, categorically distinct from an oracle/content divergence
 /// (those panic with "diverged" / "alignment broke" instead). On CI the
 /// dominant cause is the test process being denied CPU on an oversubscribed
-/// runner, not a server defect: the latency-sensitive e2e stress tests
-/// (`edit_tracking_stress::*` and the semantic-token latency benchmark) can
-/// starve each other, which is exactly why `.config/nextest.toml` isolates them
-/// into a single-slot `heavy-lsp-e2e` group and the dedicated `lsp-e2e` CI job
-/// runs them that way and stays green.
+/// runner, not a server defect. The latency-sensitive stress tests that once
+/// made this common are now contention-resistant or belong to the manual tier;
+/// CI runs the remaining native e2e surface in deterministic hash partitions.
 ///
 /// Rather than leave every investigator to re-derive that from a bare "timed
 /// out" message, we *probe scheduling health at the moment of giving up*: a
