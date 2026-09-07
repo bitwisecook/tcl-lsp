@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+ignoreUntil = 2026-12-31
+reason = "No patched rsa release exists. russh performs no RSA private-key operation, while tcl-sslictcl only derives a public SPKI from a local key for offline comparison; neither exposes private-operation timing to a network observer."
