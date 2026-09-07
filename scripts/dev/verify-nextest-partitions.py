@@ -56,7 +56,9 @@ def _selected(path: Path) -> set[TestId]:
                 raise ValueError(f"{path}: malformed testcase in suite {suite_name!r}")
             match = testcase.get("filter-match")
             if not isinstance(match, dict) or "status" not in match:
-                raise ValueError(f"{path}: testcase {binary_id}:{test_name} has no filter-match.status")
+                raise ValueError(
+                    f"{path}: testcase {binary_id}:{test_name} has no filter-match.status"
+                )
             # Do not infer selection from presence, ignored, or a testcase
             # status: nextest's filter decision is authoritative.  This keeps
             # repository/profile config and --run-ignored semantics intact.
@@ -64,7 +66,9 @@ def _selected(path: Path) -> set[TestId]:
                 continue
             test_id = (binary_id, test_name)
             if test_id in seen:
-                raise ValueError(f"{path}: duplicate selected testcase {binary_id}:{test_name}")
+                raise ValueError(
+                    f"{path}: duplicate selected testcase {binary_id}:{test_name}"
+                )
             seen.add(test_id)
             selected.add(test_id)
 
@@ -88,7 +92,9 @@ def verify(all_path: Path, first_path: Path, second_path: Path) -> None:
             f"  unexpected ({len(unexpected)}): {sorted(unexpected)[:5]}",
         ]
         raise ValueError("\n".join(details))
-    print(f"nextest partition proof: all={len(all_tests)} 1/2={len(first)} 2/2={len(second)}")
+    print(
+        f"nextest partition proof: all={len(all_tests)} 1/2={len(first)} 2/2={len(second)}"
+    )
 
 
 def _sha256(path: Path) -> str:
@@ -110,7 +116,14 @@ def _metadata(path: Path) -> dict[str, Any]:
 
 
 def _require_common(metadata: dict[str, Any], path: Path) -> None:
-    required = ("schema", "workspace_sha", "nextest_version", "package", "filter", "archive_sha256")
+    required = (
+        "schema",
+        "workspace_sha",
+        "nextest_version",
+        "package",
+        "filter",
+        "archive_sha256",
+    )
     missing = [key for key in required if key not in metadata]
     if missing:
         raise ValueError(f"{path}: metadata missing {', '.join(missing)}")
@@ -127,7 +140,9 @@ def _require_common(metadata: dict[str, Any], path: Path) -> None:
 def _require_digest(path: Path, expected: str, label: str) -> None:
     actual = _sha256(path)
     if actual != expected:
-        raise ValueError(f"{path}: {label} digest mismatch (expected {expected}, got {actual})")
+        raise ValueError(
+            f"{path}: {label} digest mismatch (expected {expected}, got {actual})"
+        )
 
 
 def _read_archive_digest(path: Path) -> str:
@@ -140,7 +155,9 @@ def _read_archive_digest(path: Path) -> str:
     return fields[0]
 
 
-def _require_listing_digest(metadata: dict[str, Any], path: Path, listing: Path, key: str) -> None:
+def _require_listing_digest(
+    metadata: dict[str, Any], path: Path, listing: Path, key: str
+) -> None:
     listings = metadata.get("listings")
     if not isinstance(listings, dict) or not isinstance(listings.get(key), str):
         raise ValueError(f"{path}: metadata has no digest for {key}")
@@ -154,7 +171,13 @@ def _matching_metadata(
     producer: dict[str, Any], consumer: dict[str, Any], path: Path, partition: str
 ) -> None:
     _require_common(consumer, path)
-    for key in ("workspace_sha", "nextest_version", "package", "filter", "archive_sha256"):
+    for key in (
+        "workspace_sha",
+        "nextest_version",
+        "package",
+        "filter",
+        "archive_sha256",
+    ):
         if consumer[key] != producer[key]:
             raise ValueError(f"{path}: {key} does not match producer metadata")
     if consumer.get("kind") != "consumer" or consumer.get("partition") != partition:
@@ -170,18 +193,30 @@ def verify_results(proof_dir: Path, first_dir: Path, second_dir: Path) -> None:
     producer_meta_path = proof_dir / "producer-metadata.json"
     producer = _metadata(producer_meta_path)
     _require_common(producer, producer_meta_path)
-    if producer.get("kind") != "producer" or producer.get("partition") != "all" or producer.get("result") != "success":
+    if (
+        producer.get("kind") != "producer"
+        or producer.get("partition") != "all"
+        or producer.get("result") != "success"
+    ):
         raise ValueError(f"{producer_meta_path}: invalid producer metadata")
 
     archive_digest = _read_archive_digest(proof_dir / "archive.sha256")
     if archive_digest != producer["archive_sha256"]:
-        raise ValueError(f"{producer_meta_path}: archive.sha256 does not match producer metadata")
+        raise ValueError(
+            f"{producer_meta_path}: archive.sha256 does not match producer metadata"
+        )
     try:
-        version = (proof_dir / "nextest-version.txt").read_text(encoding="utf-8").strip()
+        version = (
+            (proof_dir / "nextest-version.txt").read_text(encoding="utf-8").strip()
+        )
     except OSError as exc:
-        raise ValueError(f"{proof_dir}: cannot read nextest-version.txt: {exc}") from exc
+        raise ValueError(
+            f"{proof_dir}: cannot read nextest-version.txt: {exc}"
+        ) from exc
     if version != producer["nextest_version"]:
-        raise ValueError(f"{producer_meta_path}: nextest-version.txt does not match metadata")
+        raise ValueError(
+            f"{producer_meta_path}: nextest-version.txt does not match metadata"
+        )
 
     all_path = proof_dir / "all.json"
     producer_first_path = proof_dir / "1-2.json"
@@ -215,13 +250,24 @@ def verify_results(proof_dir: Path, first_dir: Path, second_dir: Path) -> None:
     producer_second = _selected(producer_second_path)
     first = _selected(first_listing)
     second = _selected(second_listing)
-    if producer_first & producer_second or (producer_first | producer_second) != all_tests:
-        raise ValueError("producer hash-partition listings are not a disjoint complete union")
+    if (
+        producer_first & producer_second
+        or (producer_first | producer_second) != all_tests
+    ):
+        raise ValueError(
+            "producer hash-partition listings are not a disjoint complete union"
+        )
     if first & second or (first | second) != all_tests:
-        raise ValueError("consumer hash-partition listings are not a disjoint complete union")
+        raise ValueError(
+            "consumer hash-partition listings are not a disjoint complete union"
+        )
     if first != producer_first or second != producer_second:
-        raise ValueError("consumer selected listings differ from producer partition listings")
-    print(f"transferred nextest proof: all={len(all_tests)} 1/2={len(first)} 2/2={len(second)}")
+        raise ValueError(
+            "consumer selected listings differ from producer partition listings"
+        )
+    print(
+        f"transferred nextest proof: all={len(all_tests)} 1/2={len(first)} 2/2={len(second)}"
+    )
 
 
 def self_test() -> None:
@@ -231,25 +277,41 @@ def self_test() -> None:
             "server": {
                 "binary-id": "tcl-lsp-server",
                 "testcases": {
-                    "ordinary": {"ignored": False, "filter-match": {"status": "matches"}},
-                    "ignored": {"ignored": True, "filter-match": {"status": "mismatch"}},
+                    "ordinary": {
+                        "ignored": False,
+                        "filter-match": {"status": "matches"},
+                    },
+                    "ignored": {
+                        "ignored": True,
+                        "filter-match": {"status": "mismatch"},
+                    },
                     "profile_filtered": {
                         "ignored": False,
-                        "filter-match": {"status": "mismatch", "reason": "default-filter"},
+                        "filter-match": {
+                            "status": "mismatch",
+                            "reason": "default-filter",
+                        },
                     },
                 },
             },
             "other-server": {
                 "binary-id": "other-server",
                 "testcases": {
-                    "ordinary": {"ignored": False, "filter-match": {"status": "matches"}},
+                    "ordinary": {
+                        "ignored": False,
+                        "filter-match": {"status": "matches"},
+                    },
                 },
             },
         }
     }
     first_fixture = json.loads(json.dumps(all_fixture))
-    del first_fixture["rust-suites"]["other-server"]["testcases"]["ordinary"]["filter-match"]
-    first_fixture["rust-suites"]["other-server"]["testcases"]["ordinary"]["filter-match"] = {
+    del first_fixture["rust-suites"]["other-server"]["testcases"]["ordinary"][
+        "filter-match"
+    ]
+    first_fixture["rust-suites"]["other-server"]["testcases"]["ordinary"][
+        "filter-match"
+    ] = {
         "status": "mismatch",
         "reason": "partition",
     }
@@ -264,13 +326,17 @@ def self_test() -> None:
     path = Path("<self-test>")
     # Exercise the same parser and set assertions without creating files.
     original_load = globals()["_load"]
-    globals()["_load"] = lambda current: fixtures["all"] if current == path else fixtures[current.name]
+    globals()["_load"] = lambda current: (
+        fixtures["all"] if current == path else fixtures[current.name]
+    )
     try:
         assert _selected(path) == expected
         verify(Path("all"), Path("first"), Path("second"))
     finally:
         globals()["_load"] = original_load
-    print("nextest partition verifier self-test: ok (ignored/config-filtered cases excluded)")
+    print(
+        "nextest partition verifier self-test: ok (ignored/config-filtered cases excluded)"
+    )
 
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
@@ -281,16 +347,24 @@ def self_test() -> None:
         first_dir.mkdir()
         second_dir.mkdir()
         archive_sha = hashlib.sha256(b"archive").hexdigest()
-        (proof_dir / "archive.sha256").write_text(f"{archive_sha}  lsp-e2e.tar.zst\n", encoding="utf-8")
-        (proof_dir / "nextest-version.txt").write_text("cargo-nextest 0.9.143\n", encoding="utf-8")
+        (proof_dir / "archive.sha256").write_text(
+            f"{archive_sha}  lsp-e2e.tar.zst\n", encoding="utf-8"
+        )
+        (proof_dir / "nextest-version.txt").write_text(
+            "cargo-nextest 0.9.143\n", encoding="utf-8"
+        )
         listing_paths = {
             "all.json": proof_dir / "all.json",
             "1-2.json": proof_dir / "1-2.json",
             "2-2.json": proof_dir / "2-2.json",
         }
         listing_paths["all.json"].write_text(json.dumps(all_fixture), encoding="utf-8")
-        listing_paths["1-2.json"].write_text(json.dumps(first_fixture), encoding="utf-8")
-        listing_paths["2-2.json"].write_text(json.dumps(second_fixture), encoding="utf-8")
+        listing_paths["1-2.json"].write_text(
+            json.dumps(first_fixture), encoding="utf-8"
+        )
+        listing_paths["2-2.json"].write_text(
+            json.dumps(second_fixture), encoding="utf-8"
+        )
         common = {
             "schema": 1,
             "workspace_sha": "abc123",
@@ -305,10 +379,14 @@ def self_test() -> None:
                 "kind": "producer",
                 "partition": "all",
                 "result": "success",
-                "listings": {name: _sha256(path) for name, path in listing_paths.items()},
+                "listings": {
+                    name: _sha256(path) for name, path in listing_paths.items()
+                },
             }
         )
-        (proof_dir / "producer-metadata.json").write_text(json.dumps(producer_metadata), encoding="utf-8")
+        (proof_dir / "producer-metadata.json").write_text(
+            json.dumps(producer_metadata), encoding="utf-8"
+        )
         for directory, partition, fixture in (
             (first_dir, "hash:1/2", first_fixture),
             (second_dir, "hash:2/2", second_fixture),
@@ -325,7 +403,9 @@ def self_test() -> None:
                     "archive_verified": True,
                 }
             )
-            (directory / "result-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+            (directory / "result-metadata.json").write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
         assert not (proof_dir / "lsp-e2e.tar.zst").exists()
         verify_results(proof_dir, first_dir, second_dir)
     print("nextest transferred-artifact self-test: ok (digest/metadata/result cases)")
@@ -337,7 +417,10 @@ def main(argv: list[str]) -> int:
         return 0
     if argv and argv[0] == "--verify-results":
         if len(argv) != 4:
-            print(f"usage: {sys.argv[0]} --verify-results PROOF_DIR FIRST_DIR SECOND_DIR", file=sys.stderr)
+            print(
+                f"usage: {sys.argv[0]} --verify-results PROOF_DIR FIRST_DIR SECOND_DIR",
+                file=sys.stderr,
+            )
             return 2
         try:
             verify_results(*(Path(arg) for arg in argv[1:]))
