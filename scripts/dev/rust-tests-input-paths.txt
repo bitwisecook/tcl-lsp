@@ -12,16 +12,21 @@
 # tcl-vm-wasm directly.
 .cargo/config.toml
 .config/nextest.toml
+.github/dependabot.yml
 .github/workflows/ci.yml
 Cargo.toml
 Cargo.lock
 Makefile
 rust-toolchain.toml
+.claude/skills/fetch-tcl-source/fetch_tcl_source.sh
 scripts/dev/ensure-test-deps.sh
+scripts/dev/already-green.sh
 scripts/dev/changed-paths.sh
 scripts/dev/rust-tests-path.sh
 scripts/dev/rust-tests-package-paths.txt
 scripts/dev/rust-tests-input-paths.txt
+scripts/dev/select-rust-tests-runner.sh
+scripts/dev/test-already-green.sh
 scripts/dev/test-rust-tests-paths.sh
 scripts/dev/test-rust-tests-runner.sh
 scripts/dev/tcl-reference-toolchains.sh

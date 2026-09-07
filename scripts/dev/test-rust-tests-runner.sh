@@ -162,5 +162,13 @@ esac
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true'" 3
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'" 2
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')" 1
+case "$(cat "$WORKFLOW")" in
+    *'if [ "$rust_tests_changed" = "true" ]; then
+              docs_only=false'*) ;;
+    *)
+        echo "root Rust closure must override the broad docs-only path shape" >&2
+        exit 1
+        ;;
+esac
 
 echo "self-hosted Rust test scheduling contract passed"

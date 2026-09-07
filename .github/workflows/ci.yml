@@ -268,6 +268,12 @@ jobs:
                 *) docs_only=false ;;
               esac
             done <<<"$files"
+            # Some apparent documentation inputs are executable or consumed by
+            # root tests. The audited closure is authoritative over the broad
+            # docs-only shape check for those paths.
+            if [ "$rust_tests_changed" = "true" ]; then
+              docs_only=false
+            fi
           fi
           if [ "$ok" != "true" ]; then
             python_changed=true

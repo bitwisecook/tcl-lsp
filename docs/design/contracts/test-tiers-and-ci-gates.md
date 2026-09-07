@@ -164,7 +164,9 @@ CI skips only what demonstrably did not change. The rules live in
   check-rust-tests-paths` checks the manifests against locked Cargo metadata
   and exercises the fail-closed GitHub changed-file parser. The sccache stats
   step uses the same decision because no sccache executable exists when setup
-  is skipped.
+  is skipped. This audited closure overrides the broad docs-only shape check:
+  an executable or test-consumed input under `docs/` or `.claude/` still runs
+  the suite.
 - `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
   (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
   crate plus the path-dependency closure its own lockfile resolves. It is its

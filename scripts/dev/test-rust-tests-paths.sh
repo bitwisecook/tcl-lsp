@@ -46,10 +46,15 @@ expect_relevant rust/tcl-compiler/src/lib.rs
 expect_relevant rust/xtask/src/main.rs
 expect_relevant Cargo.lock
 expect_relevant Makefile
+expect_relevant .github/dependabot.yml
 expect_relevant .github/workflows/ci.yml
+expect_relevant .claude/skills/fetch-tcl-source/fetch_tcl_source.sh
 expect_relevant specs/sdc_base.tclspec
 expect_relevant docs/generated/diagnostic_codes.md
 expect_relevant editors/vscode/src/extension.ts
+expect_relevant scripts/dev/already-green.sh
+expect_relevant scripts/dev/select-rust-tests-runner.sh
+expect_relevant scripts/dev/test-already-green.sh
 expect_relevant scripts/dev/test-rust-tests-runner.sh
 expect_relevant rust/bigip-report-gen/templates/report.html.j2
 expect_relevant rust/tcl-vm-wasm/Cargo.toml
