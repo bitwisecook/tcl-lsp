@@ -49,10 +49,29 @@ case "$archive" in
     *) echo "archive job lost its no-op, pinned nextest, or archive command" >&2; exit 1 ;;
 esac
 
-for required in 'hash:1/2' 'hash:2/2' '--workspace-remap'     'cargo nextest list --archive-file' 'verify-nextest-partitions.py'
+for required in 'hash:1/3' 'hash:2/3' 'hash:3/3' '--workspace-remap' \
+    'cargo nextest list --archive-file' 'verify-nextest-partitions.py'
 do
     case "$archive" in *"$required"*) ;; *) echo "archive job is missing partition proof component $required" >&2; exit 1 ;; esac
 done
+
+for required in 'lsp-e2e-result-1-3' 'lsp-e2e-result-2-3' 'lsp-e2e-result-3-3' 'third'
+do
+    case "$aggregate" in *"$required"*) ;; *) echo "lsp-e2e aggregate is missing $required" >&2; exit 1 ;; esac
+done
+case "$aggregate" in
+    *'--verify-results'*'producer'*'first'*'second'*'third'*) ;;
+    *) echo "lsp-e2e aggregate must verify exactly three consumer results" >&2; exit 1 ;;
+esac
+
+matrix_partitions=$(printf '%s\n' "$partition" | grep -Ec 'partition: "[123]/3"')
+test "$matrix_partitions" -eq 3 || {
+    echo "lsp-e2e matrix must define exactly three hash partitions" >&2
+    exit 1
+}
+case "$partition$archive$aggregate" in
+    *'1/2'*|*'2/2'*) echo "lsp-e2e workflow retains obsolete two-way partitioning" >&2; exit 1 ;;
+esac
 
 case "$partition" in
     *'strategy:'*'fail-fast: false'*'needs: [channel, lsp-e2e-archive]'*'tool: nextest@0.9.143'*'--archive-file'*'--workspace-remap'*'--partition "hash:'*) ;;
