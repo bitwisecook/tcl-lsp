@@ -8,7 +8,7 @@
             <li>Semantic highlighting, diagnostics, and code actions</li>
             <li>Auto-completion for commands, subcommands, variables, and switches</li>
             <li>Hover information with command help and proc signatures</li>
-            <li>Go-to-definition, find references, and rename symbol</li>
+            <li>Go-to-definition, go-to-type-definition, and find references</li>
             <li>Document formatting with configurable style</li>
             <li>Document symbols, workspace symbols, and call hierarchy</li>
             <li>Code folding, inlay hints, and signature help</li>

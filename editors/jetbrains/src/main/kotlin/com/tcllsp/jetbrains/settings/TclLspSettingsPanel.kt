@@ -119,6 +119,17 @@ class TclLspSettingsPanel {
     private val signatureHelpInheritDisabledCommands = JBCheckBox("Inherit from config.ini")
 
     // Feature toggles
+    // Two annotations here, both derived from the published `lsp` platform
+    // module rather than guessed. A dagger marks a server feature no IntelliJ
+    // advertises at all: scanning every class in the module for
+    // `TextDocumentClientCapabilities.set*` / `WorkspaceClientCapabilities.set*`
+    // across 253, 261, 262 and 263 turns up no implementation, declaration,
+    // linkedEditingRange or workspace fileOperations at any of them. A trailing
+    // version marks one the IDE does ask for, but only from that build on —
+    // codeLens lands in 261 and rename in 262, both above our 253 floor.
+    // Note the capability set is assembled by the LSP module in the *user's*
+    // IDE at runtime, so these track the IDE the user is running, not the SDK
+    // this plugin compiles against.
     private val featureHover = JBCheckBox("Hover")
     private val featureCompletion = JBCheckBox("Completion")
     private val featureDiagnostics = JBCheckBox("Diagnostics")
@@ -128,7 +139,7 @@ class TclLspSettingsPanel {
     private val featureReferences = JBCheckBox("Find references")
     private val featureDocumentSymbols = JBCheckBox("Document symbols")
     private val featureFolding = JBCheckBox("Code folding")
-    private val featureRename = JBCheckBox("Rename symbol")
+    private val featureRename = JBCheckBox("Rename symbol (2026.2+)")
     private val featureSignatureHelp = JBCheckBox("Signature help")
     private val featureWorkspaceSymbols = JBCheckBox("Workspace symbols")
     private val featureInlayTypeHints = JBCheckBox("Inlay type hints")
@@ -137,12 +148,12 @@ class TclLspSettingsPanel {
     private val featureDocumentLinks = JBCheckBox("Document links")
     private val featureSelectionRange = JBCheckBox("Selection range")
     private val featureDocumentHighlight = JBCheckBox("Document highlight")
-    private val featureCodeLens = JBCheckBox("Code lens")
-    private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename")
-    private val featureImplementation = JBCheckBox("Go to implementation")
+    private val featureCodeLens = JBCheckBox("Code lens (2026.1+)")
+    private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename \u2020")
+    private val featureImplementation = JBCheckBox("Go to implementation \u2020")
     private val featureTypeDefinition = JBCheckBox("Go to type definition")
-    private val featureDeclaration = JBCheckBox("Go to declaration")
-    private val featureLinkedEditingRange = JBCheckBox("Linked editing range")
+    private val featureDeclaration = JBCheckBox("Go to declaration \u2020")
+    private val featureLinkedEditingRange = JBCheckBox("Linked editing range \u2020")
 
     // Formatting
     private val fmtIndentSize = JSpinner(SpinnerNumberModel(4, 1, 16, 1))
@@ -463,6 +474,11 @@ class TclLspSettingsPanel {
                     featureLinkedEditingRange,
                 ),
             ),
+        )
+        builder.addWrappedComment(
+            "\u2020 Sent to the server, but never requested by any JetBrains IDE: IntelliJ's " +
+                "LSP client does not implement these, so the toggle has no effect here. " +
+                "A version in brackets is the IDE release that starts asking for that feature.",
         )
 
         // Formatting section
