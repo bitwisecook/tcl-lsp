@@ -39,7 +39,9 @@ the source text behind it.
 ### Config parity, with a match column
 
 One query joins each object by full path and prints `OK` / `FAIL` per
-object across virtuals, pools, and iRules:
+object across virtuals, pools, and iRules. A pool is three rows, because
+a pool that keeps its members can still change how it load-balances them
+or what it monitors them with:
 
 ```
 f5 query --name old=old.conf --name new=new.conf --table '$old
@@ -52,9 +54,14 @@ f5 query --name old=old.conf --name new=new.conf --table '$old
          match:(if $o.destination==$n.destination then "OK" else "FAIL" end)} ),
     ( $new.ltm.pool[] as $n | ($n."full-path") as $fp | select(contains($pok,$fp))
       | $old.ltm.pool[$fp] as $o
-      | {check:"pool", object:$fp,
-         old:join([$o.members[].name],","), new:join([$n.members[].name],","),
-         match:(if join([$o.members[].name],",")==join([$n.members[].name],",") then "OK" else "FAIL" end)} ),
+      | join([$o.members[] | basename(.name)+"="+tostring(.address)+"/"+.state+"/"+.ratio],",") as $om
+      | join([$n.members[] | basename(.name)+"="+tostring(.address)+"/"+.state+"/"+.ratio],",") as $nm
+      | ( {check:"monitor", object:$fp, old:$o.monitor, new:$n.monitor,
+           match:(if $o.monitor==$n.monitor then "OK" else "FAIL" end)},
+          {check:"lb-mode", object:$fp, old:$o."load-balancing-mode", new:$n."load-balancing-mode",
+           match:(if $o."load-balancing-mode"==$n."load-balancing-mode" then "OK" else "FAIL" end)},
+          {check:"members", object:$fp, old:$om, new:$nm,
+           match:(if $om==$nm then "OK" else "FAIL" end)} ) ),
     ( $new.ltm.rule[] as $n | ($n."full-path") as $fp | select(contains($rok,$fp))
       | $old.ltm.rule[$fp] as $o
       | {check:"irule", object:$fp,
@@ -64,15 +71,29 @@ f5 query --name old=old.conf --name new=new.conf --table '$old
 ```
 
 ```
-+-------+-----------------------+---------------------------------+---------------------------------+-------+
-| check | object                | old                             | new                             | match |
-+-------+-----------------------+---------------------------------+---------------------------------+-------+
-| VIP   | /Common/web_vs        | /Common/10.0.0.10:80            | /Common/10.0.0.10:80            | OK    |
-| VIP   | /Common/api_vs        | /Common/10.0.0.20:443           | /Common/10.0.0.99:443           | FAIL  |
-| pool  | /Common/web_pool      | /Common/web1:80,/Common/web2:80 | /Common/web1:80,/Common/web2:80 | OK    |
-| irule | /Common/api_auth_rule | 0                               | 0                               | OK    |
-+-------+-----------------------+---------------------------------+---------------------------------+-------+
++---------+-----------------------+-------------------------------------------+-------------------------------------------+-------+
+| check   | object                | old                                       | new                                       | match |
++---------+-----------------------+-------------------------------------------+-------------------------------------------+-------+
+| VIP     | /Common/web_vs        | /Common/10.0.0.10:80                      | /Common/10.0.0.10:80                      | OK    |
+| VIP     | /Common/api_vs        | /Common/10.0.0.20:443                     | /Common/10.0.0.99:443                     | FAIL  |
+| monitor | /Common/web_pool      | /Common/http_health                       | /Common/http_health                       | OK    |
+| lb-mode | /Common/web_pool      | round-robin                               | round-robin                               | OK    |
+| members | /Common/web_pool      | web1:80=10.0.1.10//1,web2:80=10.0.1.11//1 | web1:80=10.0.1.10//1,web2:80=10.0.1.11//1 | OK    |
+| monitor | /Common/api_pool      | /Common/https_health                      | /Common/http_health                       | FAIL  |
+| lb-mode | /Common/api_pool      | least-connections-member                  | round-robin                               | FAIL  |
+| members | /Common/api_pool      | api1:443=10.0.2.10//1                     | api1:443=10.0.2.10//1                     | OK    |
+| irule   | /Common/api_auth_rule | 0                                         | 0                                         | OK    |
++---------+-----------------------+-------------------------------------------+-------------------------------------------+-------+
 ```
+
+`api_pool` above is the case a member-name comparison misses: the same
+member on both sides, a different monitor and a different
+load-balancing mode. Each `members` cell renders one member as
+`name=address/state/ratio` from the projected `.members[]` fields, so a
+re-pointed address, a member left disabled, or a changed weight shows up
+as a `FAIL` rather than hiding behind a matching name; an empty segment
+is a field the config does not set. `basename` keeps the column narrow —
+drop it to see full paths.
 
 Add `| select(.match=="FAIL")` to show only the drift. Run a single
 check by keeping just one arm.
@@ -80,26 +101,41 @@ check by keeping just one arm.
 ### Inventory parity (added or removed objects)
 
 The join above compares objects present in **both** sides. To catch
-objects that appeared or vanished, compare the key sets — an empty
-result means the inventory matches:
+objects that appeared or vanished, compare the key sets. Do it for every
+object kind the parity table covers, plus data groups — a pool or an
+iRule can be added or dropped as easily as a virtual, and only the kinds
+you name here are checked:
 
 ```
 f5 query --name old=old.conf --name new=new.conf --table '$old
-  | [ $old.ltm.virtual[]."full-path" ] as $ok
-  | [ $new.ltm.virtual[]."full-path" ] as $nk
-  | ( $nk[] | select(contains($ok,.)|not) | {object:., status:"ADDED (not in old)"} ),
-    ( $ok[] | select(contains($nk,.)|not) | {object:., status:"REMOVED (gone in new)"} )' \
+  | ["virtual","pool","rule","data-group"][] as $kind
+  | [ $old.ltm[$kind][]."full-path" ] as $ok
+  | [ $new.ltm[$kind][]."full-path" ] as $nk
+  | ( $nk[] | select(contains($ok,.)|not) | {kind:$kind, object:., status:"ADDED (not in old)"} ),
+    ( $ok[] | select(contains($nk,.)|not) | {kind:$kind, object:., status:"REMOVED (gone in new)"} )' \
   old.conf new.conf | awk '/^# ===/{n++} n<2' | grep -v '^#'
 ```
 
 ```
-+------------------------+-----------------------+
-| object                 | status                |
-+------------------------+-----------------------+
-| /Common/vpn_vs_renamed | ADDED (not in old)    |
-| /Common/vpn_vs         | REMOVED (gone in new) |
-+------------------------+-----------------------+
++------------+------------------------+-----------------------+
+| kind       | object                 | status                |
++------------+------------------------+-----------------------+
+| virtual    | /Common/vpn_vs_renamed | ADDED (not in old)    |
+| virtual    | /Common/vpn_vs         | REMOVED (gone in new) |
+| pool       | /Common/cache_pool     | ADDED (not in old)    |
+| pool       | /Common/legacy_pool    | REMOVED (gone in new) |
+| rule       | /Common/cache_rule     | ADDED (not in old)    |
+| rule       | /Common/legacy_rule    | REMOVED (gone in new) |
+| data-group | /Common/cache_hosts    | ADDED (not in old)    |
+| data-group | /Common/legacy_hosts   | REMOVED (gone in new) |
++------------+------------------------+-----------------------+
 ```
+
+An empty result means the inventory matches across all four kinds — and
+only those four. `.ltm[$kind]` takes the object kind from the list, so
+add a kind to the list to widen the sweep, and swap `.ltm` for `.gtm` or
+`.security` to sweep another module; those three are what the projection
+covers.
 
 ### Live checks — does the migrated box answer?
 
@@ -135,8 +171,12 @@ with `curl` instead.
 ## How to tell it worked
 
 Every row in the parity tables reads `OK`, the inventory query
-returns nothing, and every migrated VIP reads `UP`. In a change gate,
-fail the step when any `FAIL` row appears.
+returns nothing for all four kinds, and every migrated VIP reads `UP`.
+In a change gate, fail the step when any `FAIL` row appears, or when the
+inventory query prints at all. The gate is only as wide as the fields
+and kinds the two queries name: a virtual's profiles, rules, and
+persistence are joined by neither, so add an arm for anything else the
+migration was meant to preserve.
 
 ## Operational context
 

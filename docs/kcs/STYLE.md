@@ -250,8 +250,11 @@ issues across platforms.
 ### 11. List the editors and tools the note applies to
 
 Every KCS note must include an `## Applies to` section immediately
-after the audience/type header. It is a **comma-separated plain-text
-list**, not bullet points. Each item is a tag. The build and query
+after the audience/type header — except a Functionality note, where it
+follows `## Summary`, as the
+[Functionality template](templates/kcs-template-functionality.md) lays
+out. It is a **comma-separated plain-text list**, not bullet points.
+Each item is a tag. The build and query
 scripts normalise each tag by lowercasing it and replacing internal
 spaces with a hyphen, so `VS Code` and `vs-code` are the same tag.
 
@@ -524,8 +527,9 @@ Before you merge a KCS note, check:
 
 - [ ] It has a single core question.
 - [ ] It has an `> **Audience:**` / `> **Type:**` blockquote header.
-- [ ] It has an `## Applies to` section immediately after the header,
-  written as a comma-separated plain-text list, not bullets.
+- [ ] It has an `## Applies to` section immediately after the header
+  (after `## Summary` in a Functionality note), written as a
+  comma-separated plain-text list, not bullets.
 - [ ] The filename describes the question in plain words, not an
   internal class or module name (see rule 10). Functionality notes
   are the exception and are named after the feature.
