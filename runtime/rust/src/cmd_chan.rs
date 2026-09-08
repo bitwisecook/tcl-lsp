@@ -22,16 +22,21 @@
 //! `stdout`/`stderr` go through the host's [`StdIo`](tcl_platform::StdIo)
 //! capability (so the browser routes them to a console import). File channels
 //! (`open` → `fileN` ids backed by a buffered reader or a write/append handle)
-//! still use `std::fs` directly — the streaming channel layer over the host
-//! (handle table + buffering + encoding/EOL) is the deferred net-new piece
-//! that needs both the per-interp channel state and a streaming host I/O seam.
-//! `fconfigure` accepts and ignores the translation/encoding/buffering options
-//! (UTF-8 internal; no CRLF translation on Unix) so library channel setup
-//! succeeds.
+//! still use `std::fs` directly. Channel configuration and conversion semantics
+//! come from `tcl-cmd-core`; this adapter owns only handles and raw byte sinks.
 
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Cursor, Read, Seek, Write};
+use std::rc::Rc;
+
+use tcl_cmd_core::channel::{
+    channel_output_error, config_list, config_value, encode_output_bytes, resolve_open_access_mode,
+    set_config_value, ChannelConfig, OpenAccess, StandardChannelConfigs,
+};
+use tcl_cmd_core::CmdError;
+use tcl_platform::SystemEncoding;
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
@@ -48,46 +53,116 @@ pub struct ChanState {
     reader: Option<Box<dyn ReadSeek>>,
     writer: Option<File>,
     eof: bool,
+    config: ChannelConfig,
 }
 
 /// The interpreter's channel table (`fileN` → state) + id counter.
-#[derive(Default)]
 pub struct ChannelTable {
     map: BTreeMap<Vec<u8>, ChanState>,
     next: usize,
+    standard: Rc<RefCell<StandardChannelConfigs>>,
+    system_encoding: Rc<Cell<SystemEncoding>>,
+    owns_process_state: bool,
 }
 
 impl ChannelTable {
+    pub(crate) fn new(version: tcl_dialect::TclVersion, system: SystemEncoding) -> Self {
+        Self {
+            map: BTreeMap::new(),
+            next: 0,
+            standard: Rc::new(RefCell::new(StandardChannelConfigs::new(version, system))),
+            system_encoding: Rc::new(Cell::new(system)),
+            owns_process_state: true,
+        }
+    }
+
+    pub(crate) fn share_process_state_from(&mut self, parent: &Self) {
+        self.standard = Rc::clone(&parent.standard);
+        self.system_encoding = Rc::clone(&parent.system_encoding);
+        self.owns_process_state = false;
+    }
+
+    pub(crate) fn reset_process_state_if_owner(
+        &self,
+        version: tcl_dialect::TclVersion,
+        system: SystemEncoding,
+    ) {
+        if self.owns_process_state {
+            self.system_encoding.set(system);
+            *self.standard.borrow_mut() = StandardChannelConfigs::new(version, system);
+        }
+    }
+
+    pub(crate) fn reset_standard_channels_if_owner(&self, version: tcl_dialect::TclVersion) {
+        if self.owns_process_state {
+            *self.standard.borrow_mut() =
+                StandardChannelConfigs::new(version, self.system_encoding.get());
+        }
+    }
+
+    pub(crate) fn system_encoding(&self) -> SystemEncoding {
+        self.system_encoding.get()
+    }
+
+    pub(crate) fn set_system_encoding(&self, encoding: SystemEncoding) {
+        self.system_encoding.set(encoding);
+    }
+
     pub(crate) fn names(&self) -> Vec<Vec<u8>> {
         self.map.keys().cloned().collect()
     }
 
+    fn config(&self, id: &[u8]) -> Option<ChannelConfig> {
+        if let Ok(name) = core::str::from_utf8(id) {
+            if let Some(config) = self.standard.borrow().get(name) {
+                return Some(config);
+            }
+        }
+        self.map.get(id).map(|state| state.config)
+    }
+
+    fn set_config(&mut self, id: &[u8], config: ChannelConfig) -> bool {
+        if let Ok(name) = core::str::from_utf8(id) {
+            if self.standard.borrow_mut().set(name, config) {
+                return true;
+            }
+        }
+        let Some(state) = self.map.get_mut(id) else {
+            return false;
+        };
+        state.config = config;
+        true
+    }
+
     /// Open `path` for `mode` (`r`/`w`/`a`/`r+`/`w+`/`a+`), returning the id.
-    pub(crate) fn open(&mut self, path: &str, mode: &[u8]) -> std::io::Result<Vec<u8>> {
-        let read = mode.first() == Some(&b'r') || mode.contains(&b'+');
-        let write =
-            mode.first() == Some(&b'w') || mode.first() == Some(&b'a') || mode.contains(&b'+');
-        let append = mode.first() == Some(&b'a');
-        let truncate = mode.first() == Some(&b'w');
-        let create = write;
+    pub(crate) fn open(
+        &mut self,
+        path: &str,
+        access: OpenAccess,
+        version: tcl_dialect::TclVersion,
+    ) -> std::io::Result<Vec<u8>> {
+        let config = ChannelConfig::for_open_access(version, self.system_encoding.get(), access);
         let mut opts = OpenOptions::new();
-        opts.read(read || !write)
-            .write(write)
-            .append(append)
-            .truncate(truncate && !append)
-            .create(create);
+        opts.read(access.is_readable())
+            .write(access.is_writable())
+            .append(access.appends())
+            .truncate(access.truncates())
+            .create(access.creates())
+            .create_new(access.creates() && access.is_exclusive());
         let file = opts.open(path)?;
-        let state = if write {
+        let state = if access.is_writable() {
             ChanState {
                 reader: None,
                 writer: Some(file),
                 eof: false,
+                config,
             }
         } else {
             ChanState {
                 reader: Some(Box::new(BufReader::new(file))),
                 writer: None,
                 eof: false,
+                config,
             }
         };
         Ok(self.insert(state))
@@ -103,11 +178,17 @@ impl ChannelTable {
 
     /// Register a read-only channel over an in-memory buffer (a file read whole
     /// from the host filesystem capability — the VFS read path).
-    fn open_mem(&mut self, bytes: Vec<u8>) -> Vec<u8> {
+    fn open_mem(
+        &mut self,
+        bytes: Vec<u8>,
+        version: tcl_dialect::TclVersion,
+        access: OpenAccess,
+    ) -> Vec<u8> {
         self.insert(ChanState {
             reader: Some(Box::new(Cursor::new(bytes))),
             writer: None,
             eof: false,
+            config: ChannelConfig::for_open_access(version, self.system_encoding.get(), access),
         })
     }
 }
@@ -255,7 +336,13 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Ok(path_s) = core::str::from_utf8(&path) else {
         return interp.set_error(b"invalid file name");
     };
-    let opened = interp.channels.borrow_mut().open(path_s, &mode);
+    let mode_string = String::from_utf8_lossy(&mode);
+    let version = interp.runtime_version();
+    let access = match resolve_open_access_mode(version, &mode_string) {
+        Ok(access) => access,
+        Err(error) => return report_cmd_error(interp, error),
+    };
+    let opened = interp.channels.borrow_mut().open(path_s, access, version);
     match opened {
         Ok(id) => {
             interp.set_result_bytes(&id);
@@ -267,8 +354,7 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // VFS). For read modes, read it whole and back the channel with that
             // buffer. Native is unaffected — `std::fs` succeeded there, or the
             // file genuinely does not exist (the VFS read then fails too).
-            let read_only =
-                mode.first() != Some(&b'w') && mode.first() != Some(&b'a') && !mode.contains(&b'+');
+            let read_only = access.is_readable() && !access.is_writable();
             let vfs_bytes = if read_only {
                 interp
                     .host()
@@ -279,7 +365,10 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             };
             match vfs_bytes {
                 Some(bytes) => {
-                    let id = interp.channels.borrow_mut().open_mem(bytes);
+                    let id = interp
+                        .channels
+                        .borrow_mut()
+                        .open_mem(bytes, version, access);
                     interp.set_result_bytes(&id);
                     Code::Ok
                 }
@@ -436,60 +525,76 @@ pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         [ch, s] => (obj_bytes(*ch), obj_bytes(*s)),
         _ => return interp.wrong_args(usage),
     };
-    // `None` ⇒ no such channel; `Some(Err)` ⇒ write failed. The standard sinks
-    // go through the host's StdIo capability (the browser routes them to a
-    // console import); file channels write their `File` directly (the streaming
-    // channel layer over the host is the deferred net-new piece).
-    let result: Option<std::io::Result<()>> = match chan.as_slice() {
+    let config = interp.channels.borrow().config(&chan);
+    let Some(config) = config else {
+        return no_channel(interp, &chan);
+    };
+    if chan == b"stdin" {
+        return interp.set_error(b"channel \"stdin\" wasn't opened for writing");
+    }
+    let encoded = encode_output_bytes(&string, newline, config);
+    enum RawWrite {
+        Done(std::io::Result<()>),
+        NotWritable,
+        NoChannel,
+    }
+    let write_result = match chan.as_slice() {
         b"stdout" => {
-            write_std(interp, &string, newline, false);
-            Some(Ok(()))
+            write_std(interp, &encoded.bytes, false);
+            RawWrite::Done(Ok(()))
         }
         b"stderr" => {
-            write_std(interp, &string, newline, true);
-            Some(Ok(()))
+            write_std(interp, &encoded.bytes, true);
+            RawWrite::Done(Ok(()))
         }
         _ => {
             let mut channels = interp.channels.borrow_mut();
-            channels
-                .map
-                .get_mut(&chan)
-                .and_then(|s| s.writer.as_mut())
-                .map(|w| write_to(w, &string, newline))
+            match channels.map.get_mut(&chan) {
+                Some(state) => match state.writer.as_mut() {
+                    Some(writer) => RawWrite::Done(writer.write_all(&encoded.bytes)),
+                    None => RawWrite::NotWritable,
+                },
+                None => RawWrite::NoChannel,
+            }
         }
     };
-    match result {
-        None => no_channel(interp, &chan),
-        Some(Err(_)) => interp.set_error(b"error writing to channel"),
-        Some(Ok(())) => {
-            interp.set_result_bytes(b"");
-            Code::Ok
+    let write_result = match write_result {
+        RawWrite::Done(result) => result,
+        RawWrite::NotWritable => {
+            return interp.set_error(
+                format!(
+                    "channel \"{}\" wasn't opened for writing",
+                    String::from_utf8_lossy(&chan)
+                )
+                .as_bytes(),
+            );
         }
+        RawWrite::NoChannel => return no_channel(interp, &chan),
+    };
+    if write_result.is_err() {
+        return interp.set_error(b"error writing to channel");
     }
+    if let Some(error) = encoded.error {
+        return report_cmd_error(interp, channel_output_error(&name_for_error(&chan), error));
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
 }
 
-fn write_to(w: &mut impl Write, bytes: &[u8], newline: bool) -> std::io::Result<()> {
-    w.write_all(bytes)?;
-    if newline {
-        w.write_all(b"\n")?;
-    }
-    Ok(())
+fn name_for_error(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 /// `puts` to a standard sink (`stdout`/`stderr`) via the host's StdIo capability.
 /// Infallible at this layer — a console sink swallows write errors (the prior
 /// `std::io::stdout()` path's `EPIPE` was likewise effectively unobserved).
-fn write_std(interp: &Interp, bytes: &[u8], newline: bool, err: bool) {
-    let mut buf = bytes.to_vec();
-    if newline {
-        buf.push(b'\n');
-    }
+fn write_std(interp: &Interp, bytes: &[u8], err: bool) {
     let host = interp.host();
     let stdio = host.stdio();
     if err {
-        stdio.write_stderr(&buf);
+        stdio.write_stderr(bytes);
     } else {
-        stdio.write_stdout(&buf);
+        stdio.write_stdout(bytes);
     }
 }
 
@@ -538,23 +643,69 @@ fn eof_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// `fconfigure channelId ?option ?value? ...?` — accept + ignore the standard
-/// options (no CRLF translation, UTF-8 encoding); report queried options blank.
+/// `fconfigure channelId ?option ?value? ...?` — the registry resolves the
+/// dialect-specific option surface and the shared command owner applies it.
 fn fconfigure_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"fconfigure channelId ?-option value ...?");
     }
     let id = obj_bytes(argv[1]);
-    if id != b"stdout"
-        && id != b"stderr"
-        && id != b"stdin"
-        && !interp.channels.borrow().map.contains_key(&id)
-    {
+    let Some(mut config) = interp.channels.borrow().config(&id) else {
         return no_channel(interp, &id);
+    };
+    let version = interp.runtime_version();
+    let name = String::from_utf8_lossy(&id);
+    match &argv[2..] {
+        [] => {
+            interp.set_result_bytes(config_list(version, &name, config).as_bytes());
+            Code::Ok
+        }
+        [option] => {
+            let word = obj_bytes(*option);
+            let word = String::from_utf8_lossy(&word);
+            match tcl_registry::commands::tcl::resolve_fconfigure_option(
+                interp.dialect_profile(),
+                &word,
+            ) {
+                Ok(option) => {
+                    interp.set_result_bytes(config_value(option, &name, config).as_bytes());
+                    Code::Ok
+                }
+                Err(error) => report_cmd_error(interp, error),
+            }
+        }
+        pairs if pairs.len() % 2 == 0 => {
+            for pair in pairs.chunks_exact(2) {
+                let option_word = obj_bytes(pair[0]);
+                let option_word = String::from_utf8_lossy(&option_word);
+                let option = match tcl_registry::commands::tcl::resolve_fconfigure_option(
+                    interp.dialect_profile(),
+                    &option_word,
+                ) {
+                    Ok(option) => option,
+                    Err(error) => return report_cmd_error(interp, error),
+                };
+                let value = obj_bytes(pair[1]);
+                let value = String::from_utf8_lossy(&value);
+                let configured = set_config_value(version, &mut config, option, &value);
+                let _ = interp.channels.borrow_mut().set_config(&id, config);
+                if let Err(error) = configured {
+                    return report_cmd_error(interp, error);
+                }
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        _ => interp.wrong_args(b"fconfigure channelId ?-option value ...?"),
     }
-    // A single-option query returns a (blank) value; sets are accepted silently.
-    interp.set_result_bytes(b"");
-    Code::Ok
+}
+
+fn report_cmd_error(interp: &mut Interp, error: CmdError) -> Code {
+    let (message, code) = error.into_parts();
+    match code {
+        Some(code) => interp.error_with_code(message.as_bytes(), code.as_bytes()),
+        None => interp.set_error(message.as_bytes()),
+    }
 }
 
 fn fblocked_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

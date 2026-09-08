@@ -18,10 +18,10 @@
 
 //! Small host/misc commands needed to bootstrap the real library (M2).
 //!
-//! `encoding` is near-trivial because UTF-8 is the internal string rep (the
-//! cross-cutting contract): `convertto`/`convertfrom` pass through, `system` is
-//! `utf-8`, and `dirs` is a no-op store (we don't load encoding files). C ref
-//! `tclEncoding.c`. Non-UTF-8 codecs are a deferred edge translation.
+//! `encoding` keeps UTF-8 as the internal string representation while its
+//! mutable `system` value seeds new channel conversions. `dirs` is a no-op
+//! store because this runtime does not load encoding files. C ref
+//! `tclEncoding.c`.
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
@@ -147,10 +147,33 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        b"system" => {
-            interp.set_result_bytes(b"utf-8");
-            Code::Ok
-        }
+        b"system" => match argv {
+            [_, _] => {
+                interp.set_result_bytes(interp.system_encoding().as_str().as_bytes());
+                Code::Ok
+            }
+            [_, _, value] => {
+                let value = obj_bytes(*value);
+                let value = String::from_utf8_lossy(&value);
+                match tcl_cmd_core::channel::resolve_system_encoding(&value) {
+                    Ok(encoding) => {
+                        interp.set_system_encoding(encoding);
+                        interp.set_result_bytes(b"");
+                        Code::Ok
+                    }
+                    Err(error) => {
+                        let (message, code) = error.into_parts();
+                        match code {
+                            Some(code) => {
+                                interp.error_with_code(message.as_bytes(), code.as_bytes())
+                            }
+                            None => interp.set_error(message.as_bytes()),
+                        }
+                    }
+                }
+            }
+            _ => interp.wrong_args(b"encoding system ?encoding?"),
+        },
         b"names" => {
             interp.set_result_bytes(b"utf-8 unicode ascii iso8859-1");
             Code::Ok

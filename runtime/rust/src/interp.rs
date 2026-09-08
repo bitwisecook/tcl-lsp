@@ -1243,6 +1243,7 @@ impl Interp {
     /// no process-host values are ever installed, even transiently.
     pub fn with_host(host: Rc<dyn tcl_platform::Host>) -> Interp {
         let result = obj::new_obj();
+        let system_encoding = host.system_encoding();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
         let mut guards = GuardManager::default();
@@ -1263,7 +1264,10 @@ impl Interp {
                 DEFAULT_RUNTIME_VERSION,
             )),
             script_stack: RefCell::new(Vec::new()),
-            channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
+            channels: RefCell::new(crate::cmd_chan::ChannelTable::new(
+                DEFAULT_RUNTIME_VERSION,
+                system_encoding,
+            )),
             return_code: Cell::new(Code::Ok),
             return_level: Cell::new(1),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
@@ -1346,7 +1350,11 @@ impl Interp {
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         self.invalidate_interpreter_policy();
+        let system_encoding = host.system_encoding();
         *self.0.host.borrow_mut() = host;
+        self.channels
+            .borrow()
+            .reset_process_state_if_owner(self.runtime_version(), system_encoding);
         let mut interp = self.clone();
         interp.rebootstrap_host_globals();
         if interp.is_safe.get() {
@@ -1410,6 +1418,9 @@ impl Interp {
             .dialect_point
             .set(Some(crate::environment::surface_point(profile)));
         self.0.runtime_version.set(version);
+        self.channels
+            .borrow()
+            .reset_standard_channels_if_owner(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
         self.write_release_globals();
@@ -1424,6 +1435,18 @@ impl Interp {
     #[must_use]
     pub fn runtime_version(&self) -> tcl_dialect::TclVersion {
         self.0.runtime_version.get()
+    }
+
+    /// The mutable `encoding system` value shared by this interpreter tree.
+    #[must_use]
+    pub(crate) fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.channels.borrow().system_encoding()
+    }
+
+    /// Replace the system encoding used to initialise subsequently opened
+    /// channels. Existing channel handles retain their own configuration.
+    pub(crate) fn set_system_encoding(&self, encoding: tcl_platform::SystemEncoding) {
+        self.channels.borrow().set_system_encoding(encoding);
     }
 
     /// The dialect profile this interpreter validates its command surface
@@ -7273,6 +7296,10 @@ impl Interp {
         // The whole profile is inherited, not just the release, so a child's
         // command-surface availability gate agrees too (issue #1463).
         child.set_dialect_profile(self.dialect_profile());
+        child
+            .channels
+            .borrow_mut()
+            .share_process_state_from(&self.channels.borrow());
         // `Interp::new` already gave the child its own predefined globals
         // (`tcl_platform`, `env`, argv, …). The full `init.tcl`
         // (package/auto-load) remains deferred.

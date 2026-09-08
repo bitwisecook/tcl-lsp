@@ -25,11 +25,12 @@
 
 use std::rc::Rc;
 
+use tcl_cmd_core::CmdError;
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
 use crate::error::TclError;
-use crate::interp::{Vm, canonical_ns_name, err, key_holder_and_tail_unrooted, ok};
+use crate::interp::{Vm, canonical_ns_name, err, err_wrong_args, key_holder_and_tail_unrooted, ok};
 use crate::value::Value;
 
 /// A native builtin: receives argv *without* the command name (Tcl's `objv[1..]`).
@@ -1202,7 +1203,7 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match crate::cmd_chan::chan_puts(vm, &channel, &text, newline) {
         Ok(()) => ok(Value::empty()),
-        Err(e) => err(e),
+        Err(error) => completion_from_cmd_error(error),
     }
 }
 
@@ -1374,6 +1375,15 @@ pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> V
 pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
     let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
     Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
+/// Convert a portable command-layer error without losing its Tcl identity.
+pub(crate) fn completion_from_cmd_error(error: CmdError) -> Completion<Value> {
+    let (message, code) = error.into_parts();
+    match code {
+        Some(code) => err_with_code(message, &code),
+        None => err(message),
+    }
 }
 
 /// An `ERROR` completion carrying a structured Tcl lookup error code.
@@ -1710,11 +1720,12 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `encoding subcommand ?arg …?` — matches the tree-walking runtime
-/// (`runtime/rust`): the internal string model is
-/// UTF-8, so `convertto`/`convertfrom` pass the data through unchanged, `system`
-/// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
-/// ignored (no encoding-file search). This is a documented simplification — real
-/// codepage conversion (cp1252, shiftjis, …) is not implemented on either side.
+/// (`runtime/rust`): the internal string model is UTF-8, so
+/// `convertto`/`convertfrom` pass the data through unchanged, `system` reports
+/// the host's typed locale fact, `names` lists the supported channel encodings,
+/// and `dirs` is accepted and ignored (no encoding-file search). This is a
+/// documented simplification — real codepage conversion (cp1252, shiftjis, …)
+/// is not implemented on either side.
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 /// 9.0's table also carries `profiles` and `user`, which need the encoding
 /// machinery this engine does not model; like its other ensembles it names
@@ -1748,7 +1759,23 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     match canon {
         "dirs" => ok(Value::empty()),
-        "system" => ok(Value::string("utf-8")),
+        "system" => match args {
+            [_] => ok(Value::string(vm.system_encoding().as_str())),
+            [_, value] => match tcl_cmd_core::channel::resolve_system_encoding(&value.to_str()) {
+                Ok(encoding) => {
+                    vm.set_system_encoding(encoding);
+                    ok(Value::empty())
+                }
+                Err(error) => {
+                    let (message, code) = error.into_parts();
+                    match code {
+                        Some(code) => err_with_code(message, &code),
+                        None => err(message),
+                    }
+                }
+            },
+            _ => err_wrong_args("encoding system ?encoding?"),
+        },
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
         // Unreachable: `ENCODING_SUBS` has exactly these five names.
         _ => {

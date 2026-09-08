@@ -115,6 +115,9 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tcl-host-native = { path = "../../rust/tcl-host-native" }
 
+[dev-dependencies]
+tcl-test-support = { path = "../../rust/tcl-test-support" }
+
 [lib]
 name = "tcl_runtime"
 # rlib for `cargo test`; cdylib/staticlib for the eventual whole-program link

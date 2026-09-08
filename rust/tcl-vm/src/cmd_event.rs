@@ -343,7 +343,7 @@ fn report_bg_error(vm: &mut Vm, message: &str) {
         return;
     }
     let info = vm.take_error_info().unwrap_or_else(|| message.to_string());
-    eprintln!("{info}\n    (\"after\" script)");
+    vm.report_stderr_text(&format!("{info}\n    (\"after\" script)"));
 }
 
 // -- helpers ---------------------------------------------------------------

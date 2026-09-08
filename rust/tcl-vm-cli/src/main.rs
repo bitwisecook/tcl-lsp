@@ -149,7 +149,13 @@ fn usage() {
 /// Build a VM with the compiler-backed `CompileService` and stdout host
 /// output, at the requested runtime version (`None` keeps the VM default).
 fn new_vm(version: Option<TclVersion>) -> Vm {
-    let mut vm = Vm::with_output(Box::new(Stdout));
+    configure_vm(Vm::with_output(Box::new(Stdout)), version)
+}
+
+/// Attach the compiler/runtime services to an already-created VM. Tests pass
+/// a byte capture here so Tcl-originated REPL results still travel through the
+/// VM's configured standard channel.
+fn configure_vm(mut vm: Vm, version: Option<TclVersion>) -> Vm {
     // Default to the plain-Tcl 9.0 profile; `--tcl-version <x.y>` selects
     // another release's profile. The profile is resolved once and drives
     // BOTH halves (issue #1462): the runtime semantics (below) and the
@@ -211,11 +217,11 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
     match result {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
-            eprintln!("{}", comp.result.to_str());
+            vm.report_stderr_text(&comp.result.to_str());
             1
         }
         Err(e) => {
-            eprintln!("{}", e.message);
+            vm.report_stderr_text(&e.message);
             1
         }
     }
@@ -312,11 +318,15 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
             Ok(comp) if comp.code.is_ok() => {
                 let result = comp.result.to_str();
                 if !result.is_empty() {
-                    let _ = writeln!(out, "{result}");
+                    let _ = vm.write_stdout_text(&result, true);
                 }
             }
-            Ok(comp) => eprintln!("{}", comp.result.to_str()),
-            Err(e) => eprintln!("{}", e.message),
+            Ok(comp) => {
+                vm.report_stderr_text(&comp.result.to_str());
+            }
+            Err(e) => {
+                vm.report_stderr_text(&e.message);
+            }
         }
         buffer.clear();
         let _ = write!(out, "% ");
@@ -330,6 +340,22 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[derive(Clone)]
+    struct Capture(Rc<RefCell<Vec<u8>>>);
+
+    impl Write for Capture {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.borrow_mut().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
 
     /// Drive `repl_loop` over a canned input script and return what it wrote to
     /// `out` (prompts + results), with a fresh compiler-backed VM.
@@ -339,11 +365,14 @@ mod tests {
 
     /// [`drive`] at an explicit runtime version (the `--tcl-version` path).
     fn drive_at(input: &str, version: Option<TclVersion>) -> String {
-        let mut vm = new_vm(version);
+        let bytes = Rc::new(RefCell::new(Vec::new()));
+        let capture = Capture(Rc::clone(&bytes));
+        let mut vm = configure_vm(Vm::with_output(Box::new(capture.clone())), version);
         let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
-        let mut out: Vec<u8> = Vec::new();
+        let mut out = capture;
         repl_loop(&mut vm, &mut reader, &mut out);
-        String::from_utf8(out).expect("utf-8")
+        let output = bytes.borrow().clone();
+        String::from_utf8(output).expect("utf-8")
     }
 
     #[test]
