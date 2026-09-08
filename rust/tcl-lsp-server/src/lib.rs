@@ -1142,7 +1142,10 @@ impl DocumentsHolder {
     /// so the last phase counts like every other one.
     fn close_phase(&mut self, now: crate::rt::Instant) {
         let elapsed = now.duration_since(self.phase_since);
-        if self.longest_phase.is_none_or(|(_, longest)| elapsed > longest) {
+        if self
+            .longest_phase
+            .is_none_or(|(_, longest)| elapsed > longest)
+        {
             self.longest_phase = Some((self.site, elapsed));
         }
     }
@@ -1928,7 +1931,11 @@ struct DocumentsContention {
     /// The last holder's site, how long ago its hold began, and its longest
     /// finished phase — the same third reading the live case reports, kept for
     /// a hold that has already released.
-    last: Option<(&'static str, std::time::Duration, Option<(&'static str, std::time::Duration)>)>,
+    last: Option<(
+        &'static str,
+        std::time::Duration,
+        Option<(&'static str, std::time::Duration)>,
+    )>,
     acquisitions: u64,
 }
 
@@ -41706,7 +41713,11 @@ proc p {} {
         // A later, shorter phase does not displace it.
         held.retag("third-phase");
         assert_eq!(
-            store.holder().expect("still held").longest_phase.map(|(s, _)| s),
+            store
+                .holder()
+                .expect("still held")
+                .longest_phase
+                .map(|(s, _)| s),
             Some("slow-phase"),
         );
     }
@@ -41774,14 +41785,23 @@ proc p {} {
         let one = describe_variable_collision("::a", "::b", &["file:///x.tcl".to_owned()])
             .expect("a collision refuses");
         assert!(one.contains("cannot rename `::a`"), "{one}");
-        assert!(one.contains("`::b` is already declared in file:///x.tcl"), "{one}");
+        assert!(
+            one.contains("`::b` is already declared in file:///x.tcl"),
+            "{one}"
+        );
         assert!(!one.contains("more"), "one document needs no tail: {one}");
 
         let many: Vec<String> = (0..5).map(|i| format!("file:///f{i}.tcl")).collect();
         let listed = describe_variable_collision("::a", "::b", &many).expect("a collision refuses");
-        assert!(listed.contains("file:///f0.tcl, file:///f1.tcl, file:///f2.tcl"), "{listed}");
+        assert!(
+            listed.contains("file:///f0.tcl, file:///f1.tcl, file:///f2.tcl"),
+            "{listed}"
+        );
         assert!(listed.contains("and 2 more"), "{listed}");
-        assert!(!listed.contains("file:///f3.tcl"), "the tail is a count, not a list: {listed}");
+        assert!(
+            !listed.contains("file:///f3.tcl"),
+            "the tail is a count, not a list: {listed}"
+        );
     }
 
     /// A contention snapshot must describe one state, not several.
