@@ -362,9 +362,8 @@ against, and how it stays fast under an editor's keystroke load.
   browser-target build/wiring gaps, the proposed host-import surface, and
   measured module sizes (raw, `wasm-opt`, gzip).
 - [compiler/aot-command-priority.md](compiler/aot-command-priority.md) —
-  real-corpus census (issue #1181) ranking which Tcl commands the AOT
-  WASM compiler should emit directly next, with a breadth-weighted
-  tiering and what is already covered versus what cannot be direct.
+  real-corpus census of Tcl command use, what the WASM backend emits
+  directly, and which forms need host facilities.
 
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced

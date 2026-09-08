@@ -14,15 +14,15 @@ note](../../kcs/codes/kcs-optimisation-o102-load-forwarding.md) for the
 current, corrected description; it is not itself an `[expr {...}]}`-result
 fold, though it frequently feeds one), and O112 (constant condition).
 
-Source: `rust/tcl-compiler/src/sccp.rs` and
-`rust/tcl-compiler/src/type_infer.rs`. Optimiser consumers live under
-`rust/tcl-compiler/src/optimiser/`.
+Source: `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/type_infer.rs`,
+and `rust/tcl-compiler/src/types.rs` (`TypeLattice`). Optimiser consumers
+live under `rust/tcl-compiler/src/optimiser/`.
 
 ### Constant folding via SCCP
 
 **Example — `expr {2 + 3}`:**
 
-1. IR: `IRExprEval(expr=ExprBinary(ADD, ExprLiteral("2"), ExprLiteral("3")))`
+1. IR: `Statement::ExprEval { expr: ExprNode::Binary { op: BinOp::Add, left: Literal("2"), right: Literal("3") }, .. }`
 2. SCCP evaluates: `CONST(2) + CONST(3)` → `CONST(5)`
 3. Bytecode: `push1 "5"; done` — no arithmetic opcodes emitted
 
@@ -34,22 +34,18 @@ Source: `rust/tcl-compiler/src/sccp.rs` and
 
 Note: tclsh emits `loadStk + add` (variables could be modified by traces),
 so the O101 suggestion is a diagnostic hint, not a bytecode transformation.
-The Rust `tcl-compiler` codegen (bytecode VM and WASM emitters) upholds
-this separation structurally — it never reads `fu.sccp`/`LatticeValue`
-directly; it only ever sees whatever source text it is handed, literal or
-not. A traced variable is therefore not independently at risk from
-codegen: the risk is confined to the optimiser's own *suggested source
-rewrite* being wrong (which O100/O101/O102/O103/O109/O112 now gate on
-`Module::traced_variables` / `has_dynamic_variable_trace` /
-memory-SSA-aliasing before ever proposing a forward — see
-`propagation::trace_and_alias_unsafe_names`), not from a separate
-bytecode-level shortcut.
+Codegen (bytecode and WASM) upholds this separation structurally — it never
+reads `fu.sccp`/`LatticeValue`; it only sees the source text it is handed.
+A traced variable is therefore at risk only from the optimiser's *suggested
+source rewrite*, which gates on `Module::traced_variables` /
+`has_dynamic_variable_trace` and memory-SSA aliasing before proposing a
+forward (`optimiser/manager.rs`, `elimination.rs`, `chain_fold.rs`).
 
 ### When folding fails
 
 - **Loop-carried values**: `phi(CONST, ...)` from a loop → `OVERDEFINED`
 - **Impure commands**: result cannot be known at compile time
-- **Unbraced expressions**: `ExprRaw` — cannot parse the AST
+- **Unbraced expressions**: `ExprNode::Raw` — no AST to fold
 - **Variable traces**: tclsh does not fold through variables (observable side
   effects), so our bytecode matches the non-folded output
 
@@ -59,28 +55,32 @@ bytecode-level shortcut.
 UNKNOWN → KNOWN(INT) → SHIMMERED(INT, STRING) → OVERDEFINED
 ```
 
+`TypeLattice` (`types.rs`) is a `TypeKind` — `Unknown` / `Known` /
+`Shimmered` / `Overdefined` — over a bounded set of `TypeShape`s.
+
 | Source | Inferred type |
 |--------|--------------|
 | `"42"` | `KNOWN(INT)` |
 | `"3.14"` | `KNOWN(DOUBLE)` |
 | `"hello"` | `KNOWN(STRING)` |
 | `"true"` / `"1"` | `KNOWN(BOOLEAN)` |
-| `[string length $s]` | `KNOWN(INT)` (from `SubCommand.return_type`) |
+| `[string length $s]` | `KNOWN(INT)` (from `SubCommand::return_type`) |
 | `[HTTP::uri]` | `KNOWN(STRING)` |
 
 ### Return type propagation
 
-Commands with `SubCommand.return_type` or `CommandSpec.return_type` contribute
-known types.  For example, `string length` has `return_type=TclType.INT`, so
-the result of `[string length $s]` is typed as INT.
+Commands with `SubCommand::return_type` or `CommandSpec::return_type`
+contribute known types; a command whose result shape moves with the call
+names a `return_type_hook` instead.  For example, `string length` has
+`return_type: Some(TclType::Int)`, so `[string length $s]` is typed as INT.
 
 ### Shimmer detection
 
 When a value typed as INT is used in a string context (or vice versa),
 the type lattice records `SHIMMERED(from_type, to_type)`.  This triggers:
-- S100: Value accessed as incompatible type
-- S101: Implicit shimmer
-- S102: Cross-command type conflict
+- S100: single shimmer outside a loop
+- S101: shimmer inside a loop body
+- S102: a variable oscillating between two types across iterations
 
 ### Interaction with optimisation passes
 
@@ -108,8 +108,8 @@ the type lattice records `SHIMMERED(from_type, to_type)`.  This triggers:
 
 ## Related docs
 
-- [Examples 3–4 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-3-expr-2--3)
-- [Example 6 — constant condition](../../../docs/design/example-script-walkthroughs.md#example-6-if-1----else----constant-condition)
+- [Examples 3–4 in walkthroughs](../example-script-walkthroughs.md#example-3-expr-2--3)
+- [Example 6 — constant condition](../example-script-walkthroughs.md#example-6-if-1----else----constant-condition)
 - [GLOSSARY.md — SCCP, Lattice, Shimmer](../../GLOSSARY.md#sccp)
-- [kcs-sccp-core-analyses.md](../../../docs/design/compiler/sccp-core-analyses.md)
-- [kcs-optimisation-passes.md](../../../docs/design/compiler/optimisation-passes.md)
+- [sccp-core-analyses.md](sccp-core-analyses.md)
+- [optimisation-passes.md](optimisation-passes.md)

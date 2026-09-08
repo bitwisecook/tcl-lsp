@@ -9,7 +9,7 @@ the pipeline.  The bytecode layout is designed to match tclsh 9.0 exactly,
 including condition-at-bottom loops, fall-through branch ordering, and the
 `nop` / empty-string conventions.
 
-Source: Examples 5–11 in [walkthroughs](../../../docs/design/example-script-walkthroughs.md)
+Source: Examples 5–11 in [walkthroughs](../example-script-walkthroughs.md)
 
 ### `if` / `elseif` / `else`
 
@@ -133,10 +133,9 @@ pattern)`, merging at `switch_end`.
 
 Every other switch stays **opaque**: a single `Statement::Switch` in the
 block, with its arm bodies never lowered, and codegen emits a generic
-`switch` invoke.  A `Glob`/`Regexp` topology cannot be expressed as
-structured control flow and tclsh 9.0 does not compile it either; a
-`-nocase` exact switch would need a case-insensitive test the `STR_EQ`
-dispatch cannot express.  SSA recovers the names such arms read through
+`switch` invoke.  A `Glob`/`Regexp` topology cannot be expressed as the
+`STR_EQ` dispatch, and a `-nocase` exact switch would need a
+case-insensitive test it cannot express either.  SSA recovers the names such arms read through
 `ssa::switch_reads`.
 
 A pattern body of `-` is a fallthrough: the arm shares the next non-`-` arm's
@@ -164,7 +163,7 @@ body, so a handler sees the versions live at the throw point.
 An `on`/`trap` handler body of `-` is a fallthrough — the same mechanism
 `switch` uses — sharing the next non-`-` handler's body. The lowerer marks it
 `TryHandler.fallthrough = true` with an empty body, so the `-` is not mistaken
-for a zero-argument command call (issue #703). `switch` and `try` are the only
+for a zero-argument command call. `switch` and `try` are the only
 two Tcl commands with this `-` fallthrough form.
 
 ### Key bytecode conventions matching tclsh
@@ -193,8 +192,8 @@ two Tcl commands with this `-` fallthrough form.
 
 ## Related docs
 
-- [Examples 5–11 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)
-- [kcs-cfg-construction.md](../../../docs/design/compiler/cfg-construction.md)
-- [kcs-ssa-construction.md](../../../docs/design/compiler/ssa-construction.md)
-- [kcs-codegen-internals.md](../../../docs/design/compiler/codegen-internals.md)
-- [kcs-bytecode-boundary.md](../../../docs/design/compiler/bytecode-boundary.md)
+- [Examples 5–11 in walkthroughs](../example-script-walkthroughs.md#example-5-if-x--set-y-10-)
+- [cfg-construction.md](cfg-construction.md)
+- [ssa-construction.md](ssa-construction.md)
+- [codegen-internals.md](codegen-internals.md)
+- [bytecode-boundary.md](bytecode-boundary.md)

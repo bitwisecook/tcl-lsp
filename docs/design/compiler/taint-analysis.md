@@ -143,7 +143,7 @@ procedure boundaries using `ProcTaintSummary` values:
 3. Propagate callee return taint back to the caller's result variable.
 4. Iterate until fixpoint.
 
-#### What a summary costs, and why (#1187)
+#### What a summary costs, and why
 
 A summary is a **transfer function**, not a single value: a clean base return
 taint, plus — for each parameter — one return taint per colour basis, so a
@@ -175,24 +175,7 @@ value is substitution-bearing)`.  Collapsing that last `17×` needs a different
 representation — one multi-colour symbolic traversal carrying a
 per-`(parameter, basis)` dependency bitset — which changes what the solver
 computes rather than skipping work it can prove redundant, and is not attempted.
-
-**Cost note.** Adding `PATH_JOINED` and `CHANNEL` widens the unpruned transfer
-matrix from `1 + 15P` to `1 + 17P`: at most two additional solves per read
-parameter (about 13% on that inner matrix). The constant-return and unread-
-parameter prunes above still apply unchanged; the historical measurements below
-predate this domain widening and are not presented as a new benchmark.
-
-Measured with `cargo run --release -p tcl-lsp-db --example tail_profile` on
-tcllib's `practcl.tcl` (8,463 lines, 116 functions), same machine, same binary:
-
-| phase | before | after |
-|---|---:|---:|
-| `solve_interprocedural_taints` (whole unit) | 211.5 ms | 143.4 ms |
-| `run_all_checks` | 260.1 ms | 155.9 ms |
-
-The taint solve keeps its place as the dominant phase (about 92% of
-`run_all_checks`); it is simply a third cheaper, and the checks tail as a whole
-drops 40%.
+`cargo run --release -p tcl-lsp-db --example tail_profile` measures the phase.
 
 #### Convergence
 
@@ -213,8 +196,8 @@ Removing it would require *proving* the dependency graph complete, and neither
 source is: `direct_calls` misses nested substitutions, and `resolved_callees`
 scans CFG statements rather than the raw words `word_taint` recurses into.  An
 under-converged fixpoint is a taint **false negative** — a silently missed
-security diagnostic — which is a much worse failure than one extra `O(F)` sweep,
-now that the prunes above have made each inference cheap.
+security diagnostic — a much worse failure than one extra `O(F)` sweep when
+the prunes above make each inference cheap.
 
 ### Worked example — `HTTP::header value Host` → `HTTP::respond`
 
@@ -270,4 +253,4 @@ Every code below is a `DiagCode` variant in
 
 - [Example 12 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-12-taint-analysis--httpheader-to-httprespond-subcommand-flow-and-spec)
 - [GLOSSARY.md — Taint analysis](../../GLOSSARY.md#taint-analysis)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

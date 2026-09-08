@@ -41,7 +41,7 @@ Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaBlock`, `SsaFunc
 
 Phi nodes are placed at dominance frontier blocks — where a variable's
 dominance "ends" — but only for **non-local** names, the semi-pruned rule
-(see [algorithms.md](../../../docs/design/compiler/algorithms.md)).  A name
+(see [algorithms.md](algorithms.md)).  A name
 no block reads before redefining it gets no phi at all, because such a phi
 would have no reader.
 
@@ -133,7 +133,7 @@ fan of a dynamic-key write.  Type inference **joins** across a may-def;
 write-sensitive passes (shimmer oscillation, dead-store) must not count one
 as a real write.  `quoted_uses` is the subset of `uses` carried only by a
 brace-quoted word the statement does not substitute — see
-[def-use-chains.md](../../../docs/design/compiler/def-use-chains.md).
+[def-use-chains.md](def-use-chains.md).
 
 `SsaFunction::trivial` builds an empty shell when the complexity guard
 (`is_complexity_guarded`) declines the expensive build for an oversized
@@ -324,11 +324,10 @@ and how to read it, is registry data —
 
 C Tcl decides whether `upvar`'s level word is present from the **argument
 count parity** (`Tcl_UpvarObjCmd` tests `objc`), never from the word's text.
-Three consumers had each re-derived that by sniffing for digits or `#`, and
-two of them were wrong: `upvar $lvl a b` has three words, so `$lvl` *is* the
-level and `(a, b)` is the pair, but a text sniff sees no level and pairs
-`($lvl, a)` — losing the commonest by-reference binding of all. Pinned on
-tclsh 9.0.4 and 8.6.14, identical:
+A text sniff for digits or `#` gets it wrong: `upvar $lvl a b` has three
+words, so `$lvl` *is* the level and `(a, b)` is the pair, but the sniff sees
+no level and pairs `($lvl, a)` — losing the commonest by-reference binding of
+all. Pinned on tclsh 9.0.4 and 8.6.14, identical:
 
 ```tcl
 proc t3 {} {upvar 1 b; return [catch {set b} e]:$e}
@@ -371,8 +370,8 @@ blinds that procedure's *callers* and leaves its own locals provable.
 
 **The cross-document limit.**  `detect_upvar_procs` takes one `Module`, i.e.
 one file's parse, so a helper defined in another file is invisible however
-the call spells it (issue #923 audit idx 59's real ticklecharts layout:
-`setdef` in `utils.tcl`, 1876 call sites in `options.tcl`).  The summary is
+the call spells it (ticklecharts' layout: `setdef` in `utils.tcl`, its call
+sites in `options.tcl`).  The summary is
 a pure function of a procedure's body plus its parameter list and is
 `Hash`/`Eq`, so the workspace layer *could* intern one per procedure and
 merge the maps before `prepare_cfg_context` runs — no change to the model,
@@ -407,22 +406,22 @@ every hover:
   proc's *source* rather than its lowered IR; if the cross-file interning
   above lands, merging them is the obvious follow-up.
 * `ProcDef::caller_frame_literals` — the analyser side of `literal_targets`
-  (`upvar 1 name name`, audit idx 22/98), which spells its name nowhere at the
-  call site so there is no argument word to key on.  A `name → written-through`
-  map computed by `analyser::param_traits::caller_frame_literal_targets`;
+  (`upvar 1 name name`), which spells its name nowhere at the call site so
+  there is no argument word to key on.  A `name → written-through` map
+  computed by `analyser::param_traits::caller_frame_literal_targets`;
   `caller_frame_bindings` answers for those names with the *call-head word* as
   the binding span.  A fully-qualified target (`upvar ::tk::FocusGrab($i)
-  data`, idx 98) is not a caller-frame variable at all — it names one fixed
-  global cell, which `handle_upvar_command` defines and links directly.
+  data`) is not a caller-frame variable at all — it names one fixed global
+  cell, which `handle_upvar_command` defines and links directly.
 
-One gap remains: cross-document resolution (idx 59) needs the workspace-level
+One gap remains: cross-document resolution needs the workspace-level
 interning described above, which nothing supplies.  A callee reached by
 `next` / `nextto` is also left unanswered — the MRO successor is not named at
 the call site, so those reads keep the abstaining answer rather than a wrong
 one, and the compiler-side dispatch widening keeps the diagnostics honest for
 them.
 
-### A brace-quoted `$`-bearing name is its own variable (issue #1078)
+### A brace-quoted `$`-bearing name is its own variable
 
 Braces suppress every substitution, so a brace-quoted word in a variable-name
 position spells a **literal** name: `set {$n} 1` creates the variable *called*
@@ -485,15 +484,14 @@ All five variable providers resolve their `$ref` cursor through one gate,
 reports `n` for a cursor on the `n` of `set {$n} 1` — that word is
 brace-quoted, so the `$n` is not a reference at all but part of a different
 variable's literal *name*. The gate answers `None` there (it also folds in
-the two `inert_text` proofs, issue #923 idx 24, so no caller re-derives
-them), which lets each provider fall through to its declaration-span
+the two `inert_text` proofs, so no caller re-derives them), which lets each provider fall through to its declaration-span
 search — the same behaviour the `{` column gets. Document-highlight has no
 declaration-span search, so it abstains for a braced cursor exactly as it
-already does for a plain bareword declaration cursor.
+does for a plain bareword declaration cursor.
 
 Rename **refuses** rather than guesses for these cells
-(`rename_safety::literal_name_variable_rename_refusal`, the #1091 typed-refusal
-precedent): the recorded spans cover a word's content, not its delimiters, and
+(`rename_safety::literal_name_variable_rename_refusal`): the recorded spans
+cover a word's content, not its delimiters, and
 the delimiters a *new* name needs are a property of that new name — rewriting
 `{$n}`'s span with `q` would produce `set q} 1`. Renaming the plain `n` is
 unaffected and never touches the `{$n}` word.
@@ -502,7 +500,7 @@ unaffected and never touches the `{$n}` word.
 
 - [Examples 5–9 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)
 - [GLOSSARY.md — SSA, Phi node, Dominator](../../GLOSSARY.md#ssa)
-- [kcs-cfg-ssa-fact-model.md](../../../docs/design/compiler/cfg-ssa-fact-model.md)
-- [kcs-cfg-construction.md](../../../docs/design/compiler/cfg-construction.md)
-- [kcs-def-use-chains.md](../../../docs/design/compiler/def-use-chains.md)
-- [kcs-memory-ssa.md](../../../docs/design/compiler/memory-ssa.md)
+- [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
+- [cfg-construction.md](cfg-construction.md)
+- [def-use-chains.md](def-use-chains.md)
+- [memory-ssa.md](memory-ssa.md)
