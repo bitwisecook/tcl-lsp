@@ -13,11 +13,11 @@ on:
   # having to push a throwaway commit just to re-send the event.
   #
   # NOTE: workflow_dispatch lets you pick any ref, tags included. Release and
-  # publish jobs are gated on `startsWith(github.ref, 'refs/tags/v')`; the one
-  # branch exception is an explicit read-only native-build proof that uploads
-  # only one-day workflow artifacts. Dispatching against a `v*` tag re-runs
-  # create-release and the marketplace publishes. Dispatch against a branch
-  # unless you mean that.
+  # publish jobs are gated on `startsWith(github.ref, 'refs/tags/v')`; the
+  # branch exceptions are explicit read-only native-build proofs. The
+  # sccache proof has no artifact handoff at all. Dispatching against a `v*`
+  # tag re-runs create-release and the marketplace publishes. Dispatch against
+  # a branch unless you mean that.
   workflow_dispatch:
     inputs:
       rust_tests_runner:
@@ -33,9 +33,14 @@ on:
         required: true
         default: false
         type: boolean
+      native_release_sccache_proof:
+        description: Run the Darwin ARM64/server sccache A/B proof only
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof && !startsWith(github.ref, 'refs/tags/v') && 'native-release-proof' || 'ordinary' }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') && (inputs.native_release_sccache_proof && 'native-release-sccache-proof' || inputs.native_release_build_proof && 'native-release-proof') || 'ordinary' }}-${{ github.ref }}
   cancel-in-progress: true
 
 # The repo's own build-hygiene contract (scripts/dev/agent-build-env.sh):
@@ -2488,6 +2493,143 @@ jobs:
             target/*/release/${{ matrix.program.binary }}.exe
           if-no-files-found: error
           retention-days: 1
+
+  # Opt-in performance proof. This is intentionally a separate job rather
+  # than a matrix variant: it has no artifact or release consumers, and its
+  # branch-only dispatch guard keeps normal PR/push/tag graphs unchanged.
+  # The two sccache builds use clean target directories, while the second one
+  # proves a warm compiler cache rather than Cargo incremental reuse.
+  native-release-sccache-proof:
+    if: github.event_name == 'workflow_dispatch' && inputs.native_release_sccache_proof == true && github.ref_type == 'branch'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: 0
+      TCL_LSP_VERSION: v0.0.0-proof
+      SCCACHE_GHA_ENABLED: "true"
+      # A unique run prefix makes the first sccache build genuinely cold;
+      # the clean second target then measures hits within this proof only.
+      SCCACHE_GHA_CACHE_PREFIX: native-release-sccache-darwin-arm64-server-${{ github.run_id }}-${{ github.run_attempt }}-stable-release-thin-lto-cgu1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Require the exact Darwin ARM64 runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_OS}" = macOS
+          test "${RUNNER_ARCH}" = ARM64
+
+      - name: Remove unused runner Homebrew tap
+        run: scripts/dev/prepare-homebrew-ci.sh
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          cache-targets: false
+
+      - name: Build baseline without compiler wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline_target="$GITHUB_WORKSPACE/proof-target-baseline"
+          rm -rf "$baseline_target"
+          mkdir -p "$baseline_target"
+          { time -p env -u RUSTC_WRAPPER CARGO_TARGET_DIR="$baseline_target" \
+              cargo build -p tcl-lsp-server --release --target aarch64-apple-darwin; } \
+              2>&1 | tee baseline-cargo-time.txt
+          mkdir -p baseline-bin
+          cp "$baseline_target/aarch64-apple-darwin/release/tcl-lsp-server" baseline-bin/tcl-lsp-server
+
+      - name: Set up sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Require sccache and reset statistics
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v sccache
+          sccache --version
+          sccache --zero-stats
+
+      - name: Build clean sccache miss
+        shell: bash
+        run: |
+          set -euo pipefail
+          cold_target="$GITHUB_WORKSPACE/proof-target-sccache-cold"
+          rm -rf "$cold_target"
+          mkdir -p "$cold_target"
+          { time -p env RUSTC_WRAPPER=sccache CARGO_TARGET_DIR="$cold_target" \
+              cargo build -p tcl-lsp-server --release --target aarch64-apple-darwin; } \
+              2>&1 | tee sccache-cold-cargo-time.txt
+          mkdir -p cold-bin
+          cp "$cold_target/aarch64-apple-darwin/release/tcl-lsp-server" cold-bin/tcl-lsp-server
+          cold_stats="$(sccache --show-stats)"
+          printf '%s\n' "$cold_stats"
+          cold_misses="$(printf '%s\n' "$cold_stats" | awk '$1 == "Cache" && $2 == "misses" { print $NF; exit }')"
+          test "${cold_misses:-0}" -gt 0
+
+      - name: Build clean sccache hit
+        shell: bash
+        run: |
+          set -euo pipefail
+          warm_target="$GITHUB_WORKSPACE/proof-target-sccache-warm"
+          rm -rf "$warm_target"
+          mkdir -p "$warm_target"
+          sccache --zero-stats
+          { time -p env RUSTC_WRAPPER=sccache CARGO_TARGET_DIR="$warm_target" \
+              cargo build -p tcl-lsp-server --release --target aarch64-apple-darwin; } \
+              2>&1 | tee sccache-warm-cargo-time.txt
+          warm_stats="$(sccache --show-stats)"
+          printf '%s\n' "$warm_stats"
+          warm_hits="$(printf '%s\n' "$warm_stats" | awk '$1 == "Cache" && $2 == "hits" { print $NF; exit }')"
+          test "${warm_hits:-0}" -gt 0
+
+      - name: Prove identical bytes, version, ABI metadata, and smoke test
+        shell: bash
+        env:
+          TCL_LSP_RELEASE_BINARIES: tcl-lsp-server
+        run: |
+          set -euo pipefail
+          baseline=baseline-bin/tcl-lsp-server
+          cold=cold-bin/tcl-lsp-server
+          warm="$GITHUB_WORKSPACE/proof-target-sccache-warm/aarch64-apple-darwin/release/tcl-lsp-server"
+          shasum -a 256 "$baseline" "$cold" "$warm"
+          baseline_sha="$(shasum -a 256 "$baseline" | awk '{print $1}')"
+          cold_sha="$(shasum -a 256 "$cold" | awk '{print $1}')"
+          warm_sha="$(shasum -a 256 "$warm" | awk '{print $1}')"
+          test "$baseline_sha" = "$cold_sha"
+          test "$baseline_sha" = "$warm_sha"
+          cmp "$baseline" "$cold"
+          cmp "$baseline" "$warm"
+          expected="v0.0.0-proof+g${GITHUB_SHA:0:8}"
+          TCL_LSP_RELEASE_BINARIES=tcl-lsp-server scripts/verify-native-versions.sh \
+            "$expected" "$GITHUB_WORKSPACE/baseline-bin"
+          TCL_LSP_RELEASE_BINARIES=tcl-lsp-server scripts/verify-native-versions.sh \
+            "$expected" "$GITHUB_WORKSPACE/cold-bin"
+          TCL_LSP_RELEASE_BINARIES=tcl-lsp-server scripts/verify-native-versions.sh \
+            "$expected" "$GITHUB_WORKSPACE/proof-target-sccache-warm/aarch64-apple-darwin/release"
+          file "$baseline" "$cold" "$warm"
+          for binary in "$baseline" "$cold" "$warm"; do
+            otool -hv "$binary"
+            otool -L "$binary"
+          done
+          mkdir -p target/aarch64-apple-darwin/release
+          cp "$warm" target/aarch64-apple-darwin/release/tcl-lsp-server
+          make server-cross-test
+
+      - name: Clean proof target directories
+        if: always()
+        shell: bash
+        run: rm -rf "$GITHUB_WORKSPACE/proof-target-baseline" "$GITHUB_WORKSPACE/proof-target-sccache-cold" "$GITHUB_WORKSPACE/proof-target-sccache-warm" "$GITHUB_WORKSPACE/baseline-bin" "$GITHUB_WORKSPACE/cold-bin" "$GITHUB_WORKSPACE/baseline-cargo-time.txt" "$GITHUB_WORKSPACE/sccache-cold-cargo-time.txt" "$GITHUB_WORKSPACE/sccache-warm-cargo-time.txt" target
 
   # The per-architecture ELF gates above catch ABI drift at the producer. This
   # fan-in repeats them over the uploaded release bytes, then starts the exact

@@ -243,7 +243,7 @@ if ! printf '%s\n' "$matrix_without_comments" |
 fi
 concurrency_group=$(grep '^  group:' "$WORKFLOW")
 if ! printf '%s\n' "$concurrency_group" | grep -Fqx \
-    "  group: \${{ github.workflow }}-\${{ github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof && !startsWith(github.ref, 'refs/tags/v') && 'native-release-proof' || 'ordinary' }}-\${{ github.ref }}"; then
+    "  group: \${{ github.workflow }}-\${{ github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') && (inputs.native_release_sccache_proof && 'native-release-sccache-proof' || inputs.native_release_build_proof && 'native-release-proof') || 'ordinary' }}-\${{ github.ref }}"; then
     echo "proof and ordinary runs need fixed, unambiguous concurrency discriminators before the ref" >&2
     exit 1
 fi
@@ -329,5 +329,93 @@ if ! printf '%s\n' "$output" | grep -Fq 'unsupported native release binary'; the
     echo "verify-native-versions did not diagnose an unknown matrix binary" >&2
     exit 1
 fi
+
+# The Darwin ARM64 sccache experiment is deliberately opt-in and cannot enter
+# the release graph. Keep its proof surface explicit so a future edit cannot
+# accidentally turn it into a producer or weaken the byte/runtime checks.
+if ! grep -Fq '      native_release_sccache_proof:' "$WORKFLOW"; then
+    echo "workflow_dispatch must expose the native sccache proof input" >&2
+    exit 1
+fi
+proof=$(require_job native-release-sccache-proof)
+if ! printf '%s\n' "$proof" | grep -Fqx "    if: github.event_name == 'workflow_dispatch' && inputs.native_release_sccache_proof == true && github.ref_type == 'branch'"; then
+    echo "native sccache proof must be restricted to explicit branch dispatches" >&2
+    exit 1
+fi
+if ! printf '%s\n' "$proof" | grep -Fqx '    runs-on: macos-latest'; then
+    echo "native sccache proof must use the production Darwin runner image" >&2
+    exit 1
+fi
+darwin_arm64=$(printf '%s\n' "$matrix_without_comments" | awk '
+    /^          - os: macos-latest$/ { platform = $0; next }
+    platform && /^            id: darwin-arm64$/ { found = 1; print platform; print; next }
+    found && /^          - os:/ { exit }
+    found { print }
+')
+if ! printf '%s\n' "$darwin_arm64" | grep -Fqx '          - os: macos-latest' ||
+    ! printf '%s\n' "$darwin_arm64" | grep -Fqx '            id: darwin-arm64' ||
+    ! printf '%s\n' "$darwin_arm64" | grep -Fqx '            target: aarch64-apple-darwin'; then
+    echo "production native matrix must retain the Darwin ARM64 proof mapping" >&2
+    exit 1
+fi
+if printf '%s\n' "$proof" | grep -Eq '^    needs:|actions/(upload|download)-artifact|gh (release|api)|sign-and-upload|attest|GH_TOKEN|id-token:|secrets\.|environment:'; then
+    echo "native sccache proof must have no dependencies, uploads, signing, or release authority" >&2
+    exit 1
+fi
+if ! printf '%s\n' "$proof" | grep -Fq 'TCL_LSP_VERSION: v0.0.0-proof'; then
+    echo "native sccache proof must pin its non-release version" >&2
+    exit 1
+fi
+if ! printf '%s\n' "$proof" | grep -Fq 'SCCACHE_GHA_CACHE_PREFIX: native-release-sccache-darwin-arm64-server-${{ github.run_id }}-${{ github.run_attempt }}-'; then
+    echo "native sccache proof must use a unique run/attempt cache namespace" >&2
+    exit 1
+fi
+if [ "$(printf '%s\n' "$proof" | grep -cF '          cache-targets: false')" -ne 1 ]; then
+    echo "native sccache proof must disable compiled Cargo target caching" >&2
+    exit 1
+fi
+for required in \
+    'test "${RUNNER_OS}" = macOS' \
+    'test "${RUNNER_ARCH}" = ARM64' \
+    '--target aarch64-apple-darwin' \
+    'env -u RUSTC_WRAPPER' \
+    'RUSTC_WRAPPER=sccache' \
+    'sccache --zero-stats' \
+    'sccache --show-stats' \
+    'cold_misses=' \
+    'test "${cold_misses:-0}" -gt 0' \
+    'warm_hits=' \
+    'test "${warm_hits:-0}" -gt 0' \
+    'baseline_target="$GITHUB_WORKSPACE/proof-target-baseline"' \
+    'cold_target="$GITHUB_WORKSPACE/proof-target-sccache-cold"' \
+    'warm_target="$GITHUB_WORKSPACE/proof-target-sccache-warm"' \
+    'baseline-cargo-time.txt' \
+    'sccache-cold-cargo-time.txt' \
+    'sccache-warm-cargo-time.txt' \
+    'test "$baseline_sha" = "$cold_sha"' \
+    'test "$baseline_sha" = "$warm_sha"' \
+    'cmp "$baseline" "$cold"' \
+    'cmp "$baseline" "$warm"' \
+    'verify-native-versions.sh' \
+    'file "$baseline" "$cold" "$warm"' \
+    'otool -hv "$binary"' \
+    'make server-cross-test'; do
+    if ! printf '%s\n' "$proof" | grep -Fq -- "$required"; then
+        echo "native sccache proof is missing required check: $required" >&2
+        exit 1
+    fi
+done
+
+# The experiment must remain an isolated leaf. No production or publishing
+# job may consume it, directly or through a future needs-list refactor.
+for job in $(awk '/^  [A-Za-z0-9_-]+:$/ { sub(/^  /, ""); sub(/:$/, ""); print }' "$WORKFLOW"); do
+    if [ "$job" = native-release-sccache-proof ]; then
+        continue
+    fi
+    if job_needs "$job" | grep -Fqx native-release-sccache-proof; then
+        echo "$job must not depend on the experimental native sccache proof" >&2
+        exit 1
+    fi
+done
 
 echo "release dependency graph contract passed"
