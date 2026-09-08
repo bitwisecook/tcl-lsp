@@ -619,7 +619,11 @@ impl WasmEmitter {
                 // procedure's own frame (issue #1896). The generic invocation
                 // below hands the word to the runtime's `proc`, which evaluates
                 // it at the call site as Tcl does.
-                if !self.facts.literal_proc_definitions.contains(&span_key(span)) {
+                if !self
+                    .facts
+                    .literal_proc_definitions
+                    .contains(&span_key(span))
+                {
                     return false;
                 }
                 let Some(proc) = self.procedures_by_span.get(&span_key(span)).cloned() else {
@@ -1633,7 +1637,9 @@ fn record_operation(
     else {
         return;
     };
-    facts.operations.insert(span_key(span), invocation.operation);
+    facts
+        .operations
+        .insert(span_key(span), invocation.operation);
     if invocation.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Proc)
         && proc_definition_is_written_out(module, span, tokens)
     {
@@ -2549,7 +2555,9 @@ mod tests {
             false,
         );
         assert!(
-            facts.literal_proc_definitions.contains(&span_key(procedure.span)),
+            facts
+                .literal_proc_definitions
+                .contains(&span_key(procedure.span)),
             "the guard must not refuse a definition it should register: {:?}",
             facts.literal_proc_definitions,
         );
