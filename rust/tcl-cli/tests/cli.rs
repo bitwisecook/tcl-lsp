@@ -682,3 +682,32 @@ fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
     std::fs::remove_dir_all(&dir).ok();
     rows
 }
+
+/// The committed `samples/optimiser/` outputs are what the current optimiser
+/// produces, byte for byte.
+///
+/// Nothing compared them to a run, so they spent the Python optimiser's whole
+/// retirement documenting behaviour the toolchain no longer had — down to
+/// showing an `incr` rewrite the Rust optimiser declines and a footer format
+/// that no longer exists (issue #1789). The regeneration loop in
+/// `samples/optimiser/README.md` is exactly this test, so a pass that changes
+/// what any profile emits fails here until the samples are refreshed with it.
+#[test]
+fn samples_optimiser_profiles_are_regenerated() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let input = root.join("samples/optimiser/input.tcl");
+    let input = input.to_str().expect("the sample path is UTF-8");
+    for profile in ["readability", "standard", "full", "aggressive"] {
+        let produced = String::from_utf8(run_tcl(&["opt", "--profile", profile, input]))
+            .expect("tcl opt emits UTF-8");
+        let committed_path = root.join(format!("samples/optimiser/profile_{profile}.tcl"));
+        let committed = std::fs::read_to_string(&committed_path)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", committed_path.display()));
+        assert_eq!(
+            produced, committed,
+            "samples/optimiser/profile_{profile}.tcl no longer matches the optimiser. \
+             Regenerate the four outputs with the loop in samples/optimiser/README.md, \
+             and check the per-profile prose there still describes what they show.",
+        );
+    }
+}

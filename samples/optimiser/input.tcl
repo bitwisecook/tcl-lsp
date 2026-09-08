@@ -7,6 +7,7 @@
 # O114: incr idiom
 set count 0
 set count [expr {$count + 1}]
+puts $count
 
 # O117: string length check -> eq ""
 proc is_empty {s} {

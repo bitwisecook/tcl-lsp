@@ -1,16 +1,17 @@
 # Sample Tcl code exercising all optimisation passes.
 # Used to demonstrate what each profile produces.
-# Run: tcl opt --profile readability samples/optimiser/input.tcl
+# Run: tcl opt samples/optimiser/input.tcl
 
 # --- Readability candidates (O111, O114, O115, O117, O120) ---
 
 # O114: incr idiom
 set count 0
 incr count
+puts $count
 
 # O117: string length check -> eq ""
 proc is_empty {s} {
-    if {${s} eq ""} {
+    if {$s eq ""} {
         return 1
     }
     return 0
@@ -25,7 +26,7 @@ proc greet {name} {
 
 # O115: redundant nested expr
 proc double_expr {x} {
-    return [expr {$x * 2}]
+    return [expr {[expr {$x * 2}]}]
 }
 
 # --- Constant folding candidates (O100, O101, O102, O103, O110, O113, O116, O118) ---
@@ -121,3 +122,10 @@ proc sum_list {lst} {
     }
     return [expr {[lindex $lst 0] + [sum_list [lrange $lst 1 end]]}]
 }
+
+
+# -------------
+# optimised: 3 rewrite(s)
+# O114  Use incr instead of set/expr
+# O117  Simplify string length zero-check
+# O120  Use eq/ne for string comparison
