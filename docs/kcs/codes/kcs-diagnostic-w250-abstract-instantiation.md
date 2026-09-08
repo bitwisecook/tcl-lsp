@@ -70,8 +70,9 @@ set s [Circle new 2]
 
 ## How to suppress
 
-Add `# noqa: W250` on the line **above** the offending command, or disable the code
-via `tclLsp.diagnostics.disabled`.
+Add `# noqa: W250` on the line **above** the offending command, or set
+`tclLsp.diagnostics.W250` to `false` in your editor to turn the code off
+everywhere. See [how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 

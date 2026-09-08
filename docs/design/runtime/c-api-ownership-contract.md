@@ -18,12 +18,11 @@ per function. It is the C-API sibling of
 > implemented yet, because the contract is what an extension compiles against,
 > not what happens to be wired up.
 
-Sources transcribed: `tmp/tcl9.0.3/doc/*.3` (`Tcl_Obj.3`, `Tcl_NewObj.3`,
-`Tcl_SetObjResult.3`, `Tcl_ListObj.3`, `Tcl_GetInt.3`, `Tcl_Eval.3`,
-`Tcl_CreateObjCommand.3`, `Tcl_Alloc.3`, `Tcl_Hash.3`, `Tcl_SetVar.3`,
-`Tcl_CreateChannel.3`, `Tcl_FSRegister.3`, `Tcl_Class.3`, …) cross-checked
-against `tmp/tcl9.0.3/generic/{tclObj.c,tclBasic.c,tclExecute.c,tclCmdIL.c,
-tclIO.c,tclOO.c}`.
+Sources transcribed: `tmp/tcl9.0.4/doc/*.3` (`Object.3`, `StringObj.3`,
+`SetResult.3`, `ListObj.3`, `GetInt.3`, `Eval.3`, `CrtObjCmd.3`, `Alloc.3`,
+`Hash.3`, `SetVar.3`, `CrtChannel.3`, `FileSystem.3`, `Class.3`, …)
+cross-checked against `tmp/tcl9.0.4/generic/{tclObj.c,tclBasic.c,tclExecute.c,
+tclCmdIL.c,tclIO.c,tclOO.c}`.
 
 ---
 
@@ -38,7 +37,7 @@ this document is the whole of what they have.
 ### The `fresh_zero` convention — the subtlety that matters most
 
 In the C Tcl API, **a newly created `Tcl_Obj` has refCount 0**, *not* 1
-(`Tcl_NewObj.3`: "The reference count … is initially 0."). The caller owns
+(`StringObj.3`: "a newly-created value whose ref count is zero"). The caller owns
 nothing until it either calls `Tcl_IncrRefCount`, or hands the object to a
 function that *takes a reference* (`Tcl_SetObjResult`,
 `Tcl_ListObjAppendElement`, …). This is why
@@ -153,7 +152,7 @@ no per-call error channel, hence `no-error` for constructors.
 | `Tcl_NewDoubleObj` | n/a | `fresh_zero` | `no-error` | |
 | `Tcl_NewBooleanObj` | n/a | `fresh_zero` | `no-error` | |
 | `Tcl_NewListObj` | `objv[]` `borrowed→stored` | `fresh_zero` | `no-error` | Retains each element into the new list. |
-| `Tcl_NewBignumObj` | n/a (`value` is `mp_int*` `borrowed`) | `fresh_zero` | `no-error` | Consumes/zeroes the `mp_int` per Tcl 9 semantics — see `Tcl_NewBignumObj.3`. |
+| `Tcl_NewBignumObj` | n/a (`value` is `mp_int*` `borrowed`) | `fresh_zero` | `no-error` | Consumes/zeroes the `mp_int` per Tcl 9 semantics — see `IntObj.3`. |
 | `Tcl_DuplicateObj` | `objPtr` `borrowed` | `fresh_zero` | `no-error` | Deep-copies value + internal rep. |
 
 ### Refcount management
@@ -307,22 +306,30 @@ across the boundary.
 
 ---
 
-## Known gap: no enforcement
+## Enforcement
 
-Nothing mechanically checks that every function this surface declares has a row
-here, or that a row names a function the surface actually declares. Both
-directions matter: a declared function with no row ships an unspecified
-ownership contract, and a row naming nothing is a stale claim.
+`make check-c-api-ownership` (`scripts/check_c_api_ownership.py`, reached from
+`make xtask-check` and so from `make rust-check`) keeps the rows and the
+exported surface in step. Every `#[no_mangle] extern "C"` export in
+`runtime/rust/src/capi.rs` named `Tcl_*` or `mp_*` must have a row here; an
+export without one is a hard failure. The runtime's own bootstrap and test
+scaffolding (`tcl_runtime_*`, `tcl_test_*`) is excluded, as are macros and the
+stub-table data symbols — a macro carries no refcount semantics of its own (it
+is field access or a thin wrapper, documented under the function it expands
+to), and the stub-table data pointers are nominal.
 
-Closing it means a check that collects the declared functions from the header
-surface and the row names from this document and fails on either mismatch —
-with macros and data symbols deliberately excluded, since a macro carries no
-refcount semantics of its own (it is field access or a thin wrapper, documented
-under the function it expands to) and the stub-table data pointers are nominal.
-The same check should cross-reference `runtime/rust/src/capi.rs`'s
-`#[no_mangle] extern "C"` exports, so an export cannot land without an
-ownership annotation. [`refcount-contract.md`](refcount-contract.md) has the
-identical gap and wants the same tool.
+The other direction — a row naming a function the real headers never declared,
+or a header function with no row — needs the C headers, so it runs only when
+asked: `make check-c-api-ownership TCL_SOURCE=tmp/tcl9.0.4` (equivalently
+`--tcl-source`, or `CHECK_C_API_OWNERSHIP_TCL_SOURCE`). Selection is always
+explicit rather than "whichever `tmp/tcl*` tree sorts first": pointing it at an
+8.x tree compares an 8.4 header surface against this Tcl-9.0-era contract and
+reports hundreds of 8.x-only functions as missing rows. The Make target runs
+`--self-test` — the checker's own parsing regressions against synthetic
+fixtures — before the real pass.
+
+The rows in [`refcount-contract.md`](refcount-contract.md) are still
+hand-maintained; extending this checker to them is the remaining half.
 
 The behavioural half is tested independently, for the implemented subset:
 `runtime/rust/src/lib.rs`'s `mod tests` drives the canonical round trip

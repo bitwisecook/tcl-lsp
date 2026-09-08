@@ -241,9 +241,8 @@ entry point, or gate moves without this contract being updated.
   then `ResolvedContext::authoring_query`, as
   `static_document_context_for` returns it). It is what keeps the additive
   `tk` ingress working: the `tk` environment's point names `Tk` among its
-  packages even though the analyser-facing fallback's does not — the union
-  the retired `availability_for_name` used to compute at the string
-  boundary, now a fact of the resolved environment.
+  packages even though the analyser-facing fallback's does not — the union is
+  a fact of the resolved environment, never recomputed at a string boundary.
 
 ### `tcl-lexer` — source-text decoding
 
@@ -358,14 +357,13 @@ entry point, or gate moves without this contract being updated.
   `segmenter.rs` / `ir.rs` `WordExpr` builder. Only one raised C's `missing
   close-bracket`; only one found a `]` without being fooled by a brace,
   quote or comment in the substituted script; only one decoded a literal
-  run's escapes. All four are consumers now: `runtime/rust`, `tcl-vm`, and
-  — since #1785 — the compiler, whose `WordExpr` builder moved out of
-  `ir.rs`'s fragment walk into `word_expr.rs` over `decompose_spanned`.
-  The segmenter keeps what it owns, command and word boundaries; only the
-  within-word breakdown is the owner's. `differential_word_expr` holds a
-  frozen copy of the walk that was replaced and asserts the new production
-  against it across crafted edge cases, the sample corpus and tcllib, so
-  the adoption's behaviour changes are enumerated rather than assumed.
+  run's escapes. All four are consumers: `runtime/rust`, `tcl-vm`, and the compiler, whose
+  `WordExpr` builder lives in `word_expr.rs` over `decompose_spanned` rather
+  than in `ir.rs`'s fragment walk. The segmenter keeps what it owns, command
+  and word boundaries; only the within-word breakdown is the owner's.
+  `differential_word_expr` asserts that production against a frozen reference
+  walk across crafted edge cases, the sample corpus and tcllib, so any
+  behaviour difference is enumerated rather than assumed.
 
   The module sits in `tcl-lexer` because its dependencies already do —
   `braced_var_name_end`, `scan_array_index`, `command_substitution_end`,
@@ -487,8 +485,8 @@ entry point, or gate moves without this contract being updated.
   (rename re-homing, `proc` namespace derivation) are built on them.
   The generic cores cover `current` / `exists` / `parent` / `children`
   (including byte-valued twins and Tcl string-hash enumeration order), the
-  positional `which_request`, import-source validation, `which_command` and,
-  since #1442, `which_variable` (the
+  positional `which_request`, import-source validation, `which_command`, and
+  `which_variable` (the
   `Tcl_FindNamespaceVar` probe — namespace variable tables only, never
   a call frame; its *alternate* global-rooted candidate is the one
   release axis, dropped by 9.0's `flags |= TCL_NAMESPACE_ONLY`) and
@@ -519,14 +517,11 @@ entry point, or gate moves without this contract being updated.
   a comma before `or` even for two entries (`bar, or baz`) — the
   wording `prefix::choice_list` must not be used for.
   Consumers of the scan and of `unknown_subcommand_message`: both
-  engines' script ensembles, and — since #1607 — their built-in `info`
-  and `file` ensembles (the VM's two hand-rolled
-  exact-then-unique-prefix loops and its list-less miss sentence are
-  gone; the runtime's `file` keeps the registry's release-gated name
-  set and borrows only the sentence), plus their `string` and
-  `tcl::prefix` ensembles — `tcl::prefix`'s enumeration used to come
-  from `prefix::choice_list_bytes`, the wrong owner, which happens to
-  agree only because that list has three entries — and their `dict` and
+  engines' script ensembles and their built-in `info` and `file`
+  ensembles (the runtime's `file` keeps the registry's release-gated
+  name set and borrows only the sentence), plus their `string` and
+  `tcl::prefix` ensembles — `tcl::prefix`'s enumeration comes from the
+  ensemble owner, not `prefix::choice_list_bytes` — and their `dict` and
   `array` ensembles, where resolving the word first is also what makes
   `array e a` fire the variable's `array` trace under the canonical
   name — and their `binary`, `binary encode`/`decode` (the one
@@ -575,8 +570,8 @@ entry point, or gate moves without this contract being updated.
   match` `-message`). Consumers: `switch`/`lsort`/`lsearch`/`regexp`/
   `regsub`/`trace`/`string is` option words (this crate), the VM's
   `tcl::prefix match` and `string is`, the WASM runtime's `string`
-  ensemble, `tcl::prefix match`, OO option tables, and — since #1607 —
-  both engines' `interp debug` option word (noun `debug option`),
+  ensemble, `tcl::prefix match`, OO option tables, and both engines'
+  `interp debug` option word (noun `debug option`),
   `interp limit` type word (noun `limit type`), and the `interp`
   ensemble, child-as-command, `interp create` and `interp invokehidden`
   option words. Where an engine advertises only the subcommands it
@@ -769,18 +764,14 @@ entry point, or gate moves without this contract being updated.
    vanishes silently, which is the defect the record shape exists to
    prevent.
 
-   *Retired (redesign §11.1 O2, ruled 2026-08-27).* The per-argument
-   **lifecycle** machinery this point used to describe —
-   `arg_rows: &[VersionedArgRow]` retained beside the slices,
-   `project_arg_rows`, `ArgTables`, `CommandSpec::arg_tables_at`,
-   `CommandRegistry::arg_indices_for_role_at` and `command_prefixes_at` —
-   is deleted. It was declared-and-unpopulated surface: no shipped spec and
-   no pack ever gated an argument row, so every accessor took the
-   `is_empty()` fast path at every call and the only consumers were their
-   own tests. The retired-api gate now holds all seven spellings. Anything
-   that needs a per-argument version gate later comes back **with** its
-   consumer (principle P-C), and the projection point above is where it
-   would attach.
+   There is no per-argument **lifecycle** machinery, and the retired-api gate
+   (`make xtask-retired-api-gate`) bans every spelling of it — `arg_rows`,
+   `VersionedArgRow`, `ProjectedArgs`, `ArgTables`, `arg_tables_at`,
+   `project_arg_rows`, `arg_indices_for_role_at`, `command_prefixes_at`.
+   Declared-and-unpopulated surface costs an `is_empty()` probe on every call
+   and has no consumer but its own tests. A per-argument version gate comes
+   back **with** its consumer (principle P-C), and `ArgRows::seal` above is
+   where it would attach.
 
    The version-gated facts that remain — a *value*'s own `Lifecycle` and
    `versioned_arg_values` — keep the request-time discipline the rest of
@@ -819,16 +810,12 @@ entry point, or gate moves without this contract being updated.
   lookup are hash probes, not tables: only the **join**
   (`prefix::tcloo_choice_list_bytes`) is shared.
 - `glob` is **not** an exception — both engines resolve its option words
-  through `OptionTable` since #1607 — but the two halves landed for
-  different reasons and the record belongs here. The WASM runtime's
-  scan already rejected an unknown option exactly as C does, so its
-  conversion changed no accept/reject decision. The bytecode VM's
-  silently *skipped* any unrecognised `-word`, so `glob -x a` ran and
-  `-types d` leaked its value into the pattern list; converting it makes
-  the VM reject unknown options, which is a deliberate behaviour change
-  ruled on for that sweep rather than an incidental one. Because the
-  table now advertises `-tails` and `-types`, the VM honours them too —
-  no engine may advertise an option it ignores. Both engines' text is
+  through `OptionTable`, and the record belongs here because the VM's
+  rejection of an unknown option is a ruled-on behaviour, not an incidental
+  one: `glob -x a` must error rather than run, and `-types d` must not leak
+  its value into the pattern list. The table advertises `-tails` and
+  `-types`, so the VM honours them — no engine may advertise an option it
+  ignores. Both engines' text is
   tclsh 8.6.16/9.0.4-exact (`bad option "-x": must be -directory, -join,
   -nocomplain, -path, -tails, -types, or --`), pinned in
   `glob_option_words_resolve_like_tcl_get_index_from_obj` on each side.
@@ -884,10 +871,8 @@ helper without reading the rationale:
 - `tcl-cmd-core::ensemble::subcommand_choices` — the **ensemble**
   subcommand enumeration, which C renders with a comma before `or`
   even for two items (`x1, or x2`), unlike `Tcl_GetIndexFromObj`; it
-  must not be collapsed onto `tcl-cmd-core::prefix::choice_list`.
-  (Both runtimes used to keep their own copy — the VM's `oxford_or`
-  and the WASM runtime's `ensemble::must_be`; #1453 moved the quirk
-  into the owner instead of leaving it duplicated.)
+  must not be collapsed onto `tcl-cmd-core::prefix::choice_list`, and
+  neither runtime may keep a private copy of the quirk.
 - The LSP-side matchers (semantic-tokens / minify candidate ranking)
   and `tcl_syntax::boolean` keep their own prefix rules — different
   contracts (ranking, fixed vocabulary with cross-set ambiguity), not
@@ -1059,8 +1044,8 @@ helper without reading the rationale:
   `dialect_divergences_are_pinned` for the two axes the byte scanner is
   deliberately blind to. `make xtask-segmentation-drift` is the
   banned-spelling gate that keeps a *new* consumer from re-deriving
-  either boundary privately — including, since #1787, by collecting C's
-  parse-error messages into a private list instead of asking
+  either boundary privately — including by collecting C's parse-error
+  messages into a private list instead of asking
   `tcl_lexer::first_parse_cut`.
 - `runtime/rust/tests/parse_cut_agreement.rs` — the parse-error cut gate.
   The cut is applied twice on purpose: `first_parse_cut` answers it from
