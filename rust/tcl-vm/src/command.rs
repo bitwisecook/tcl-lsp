@@ -26,6 +26,8 @@
 use std::rc::Rc;
 
 use tcl_cmd_core::CmdError;
+use tcl_runtime_api::completion_options::{self as shared_options, ErrorOptions, OptionValue};
+use tcl_runtime_api::error_stack::{ErrorStackValueError, validate_error_stack};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
@@ -1542,7 +1544,7 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// Shared with the `returnStk` opcode (C `INST_RETURN_STK` →
 /// `Tcl_SetReturnOptions`), which behaves exactly like
 /// `return -options $opts $result`.
-pub(crate) fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Apply one option pair, from a direct argument or an expanded `-options`
     // dict. `-code`/`-level` drive the completion; every other key (`-errorcode`,
     // `-errorinfo`, or a user option like `-foo`) is preserved in the options
@@ -1603,6 +1605,40 @@ pub(crate) fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let extra_refs: Vec<(&str, Value)> =
         extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    if vm.supports_error_stack()
+        && let Some((_, stack)) = extra.iter().find(|(key, _)| key == "-errorstack")
+    {
+        let parts = match validate_error_stack(stack.as_list().map(|parts| parts.as_ref().clone()))
+        {
+            Ok(parts) => parts,
+            Err(ErrorStackValueError::NonList) => {
+                return err_with_code(
+                    format!(
+                        "bad -errorstack value: expected a list but got \"{}\"",
+                        stack.to_str()
+                    ),
+                    "TCL RESULT NONLIST_ERRORSTACK",
+                );
+            }
+            Err(ErrorStackValueError::OddSized) => {
+                return err_with_code(
+                    format!(
+                        "forbidden odd-sized list for -errorstack: \"{}\"",
+                        stack.to_str()
+                    ),
+                    "TCL RESULT ODDSIZEDLIST_ERRORSTACK",
+                );
+            }
+        };
+        if ret_code == Code::Error {
+            vm.seed_error_stack_parts(parts);
+        }
+    }
+    if ret_code == Code::Error
+        && let Some((_, info)) = extra.iter().find(|(key, _)| key == "-errorinfo")
+    {
+        vm.seed_error_info(info.to_str().to_string());
+    }
     let options = options_dict(ret_code, level, &extra_refs);
     // `-level 0` makes the requested `-code` take effect *immediately* (the
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
@@ -1873,6 +1909,90 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 impl Vm {
+    /// Snapshot a completion through the shared standard-options planner.
+    /// `catch`, compiled catch ranges, and `try` all use this adapter, so live
+    /// error metadata and carried return options cannot drift between them.
+    pub(crate) fn completion_options_snapshot(&self, comp: &Completion<Value>) -> Value {
+        let carried = comp.options.as_list().map_or_else(
+            |_| Vec::new(),
+            |items| {
+                items
+                    .as_slice()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| (pair[0].to_str().as_bytes().to_vec(), pair[1].clone()))
+                    .collect()
+            },
+        );
+        let (code, level) = if comp.code == Code::Return {
+            let code = opt_get(&comp.options, "-code")
+                .and_then(|value| value.as_int().ok())
+                .and_then(|value| i32::try_from(value).ok())
+                .map_or(Code::Ok, Code::from_int);
+            let level = opt_get(&comp.options, "-level")
+                .and_then(|value| value.as_int().ok())
+                .unwrap_or(1);
+            (code, level)
+        } else {
+            (comp.code, 0)
+        };
+        let active_error = code == Code::Error && comp.code == Code::Error && level == 0;
+        let error = (code == Code::Error).then(|| ErrorOptions {
+            error_code: Some(resolved_error_code(comp)),
+            error_info: active_error.then(|| {
+                self.error_info_value().map_or_else(
+                    || opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone()),
+                    Value::string,
+                )
+            }),
+            error_stack: active_error
+                .then(|| self.error_stack_for_completion(opt_get(&comp.options, "-errorstack"))),
+            error_line: active_error.then(|| i64::from(self.error_line())),
+            during: None,
+        });
+        let rows = shared_options::plan(
+            self.runtime_version(),
+            code,
+            level,
+            &carried,
+            error.as_ref(),
+        );
+        Value::list(
+            rows.into_iter()
+                .flat_map(|(key, value)| {
+                    let value = match value {
+                        OptionValue::Integer(value) => Value::int(value),
+                        OptionValue::Value(value) => value,
+                    };
+                    [Value::string(String::from_utf8_lossy(&key)), value]
+                })
+                .collect(),
+        )
+    }
+
+    /// Restore a frozen error completion after a successful `finally` body so
+    /// subsequent procedure unwinding extends the original stack.
+    pub(crate) fn restore_completion_error_state(&mut self, comp: &Completion<Value>) {
+        if comp.code != Code::Error {
+            return;
+        }
+        let info = opt_get(&comp.options, "-errorinfo")
+            .unwrap_or_else(|| comp.result.clone())
+            .to_str()
+            .to_string();
+        self.seed_error_info(info);
+        if let Some(stack) = opt_get(&comp.options, "-errorstack") {
+            self.seed_error_stack(&stack);
+        }
+        if let Some(line) = opt_get(&comp.options, "-errorline")
+            .and_then(|value| value.as_int().ok())
+            .and_then(|value| u32::try_from(value).ok())
+        {
+            self.set_error_line(line);
+        }
+    }
+
     /// The `catch` epilogue, shared by the explicit-stack catch frame
     /// ([`crate::exec`]'s `unwind`) and the `invoke_command` / parse-error
     /// fallbacks: from the body's completion `comp`, bind the result and options
@@ -1893,33 +2013,27 @@ impl Vm {
         if self.exit_pending() {
             return comp;
         }
-        let error_meta = if comp.code == Code::Error {
-            let einfo = self.take_error_info().unwrap_or_else(|| {
-                opt_get(&comp.options, "-errorinfo").map_or_else(
-                    || comp.result.to_str().to_string(),
-                    |v| v.to_str().to_string(),
-                )
-            });
-            Some((einfo, resolved_error_code(&comp), self.error_line()))
-        } else {
-            let _ = self.take_error_info();
-            None
-        };
+        let opts = self.completion_options_snapshot(&comp);
+        let error_meta = (comp.code == Code::Error).then(|| {
+            let einfo = opt_get(&opts, "-errorinfo").map_or_else(
+                || comp.result.to_str().to_string(),
+                |value| value.to_str().to_string(),
+            );
+            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(&comp));
+            (einfo, ecode)
+        });
+        let _ = self.take_error_info();
         if let Some(r) = resvar
             && let Err(e) = self.set_var(&r.to_str(), comp.result.clone())
         {
             return e;
         }
-        if let Some(o) = optvar {
-            let opts = match &error_meta {
-                Some((einfo, ecode, eline)) => catch_error_options(&comp, ecode, einfo, *eline),
-                None => completion_options(&comp),
-            };
-            if let Err(e) = self.set_var(&o.to_str(), opts) {
-                return e;
-            }
+        if let Some(o) = optvar
+            && let Err(e) = self.set_var(&o.to_str(), opts)
+        {
+            return e;
         }
-        if let Some((einfo, ecode, _)) = &error_meta {
+        if let Some((einfo, ecode)) = &error_meta {
             self.publish_error(einfo, ecode);
         }
         ok(Value::int(comp.code.as_int()))
@@ -1933,14 +2047,13 @@ impl Vm {
     /// `PUSH_RESULT`/`PUSH_RETURN_CODE`/`PUSH_RETURN_OPTS`.
     pub(crate) fn digest_catch_options(&mut self, comp: &Completion<Value>) -> Value {
         if comp.code == Code::Error {
-            let einfo = self.take_error_info().unwrap_or_else(|| {
-                opt_get(&comp.options, "-errorinfo").map_or_else(
-                    || comp.result.to_str().to_string(),
-                    |v| v.to_str().to_string(),
-                )
-            });
-            let ecode = resolved_error_code(comp);
-            let opts = catch_error_options(comp, &ecode, &einfo, self.error_line());
+            let opts = self.completion_options_snapshot(comp);
+            let einfo = opt_get(&opts, "-errorinfo").map_or_else(
+                || comp.result.to_str().to_string(),
+                |value| value.to_str().to_string(),
+            );
+            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(comp));
+            let _ = self.take_error_info();
             self.publish_error(&einfo, &ecode);
             opts
         } else {
@@ -1948,42 +2061,6 @@ impl Vm {
             completion_options(comp)
         }
     }
-}
-
-/// The options dict `catch` binds for an error completion. C always attaches
-/// `-errorcode`, `-errorinfo`, and `-errorline` to an error's options — even a
-/// bare builtin error such as `catch {llength} m opts` — so
-/// `dict get $opts -errorcode` never fails. The resolved code
-/// and trace already fold in any values a user `error`/`throw`/`return` carried;
-/// any *other* carried option (a custom `-foo`) is preserved verbatim.
-fn catch_error_options(comp: &Completion<Value>, ecode: &Value, einfo: &str, eline: u32) -> Value {
-    let mut items = vec![
-        Value::string("-code"),
-        Value::int(comp.code.as_int()),
-        Value::string("-level"),
-        Value::int(0),
-        Value::string("-errorcode"),
-        ecode.clone(),
-        Value::string("-errorinfo"),
-        Value::string(einfo),
-        Value::string("-errorline"),
-        Value::int(i64::from(eline)),
-    ];
-    if let Ok(carried) = comp.options.as_list() {
-        let mut i = 0;
-        while i + 1 < carried.len() {
-            let k = carried[i].to_str();
-            if !matches!(
-                &*k,
-                "-code" | "-level" | "-errorcode" | "-errorinfo" | "-errorline"
-            ) {
-                items.push(carried[i].clone());
-                items.push(carried[i + 1].clone());
-            }
-            i += 2;
-        }
-    }
-    Value::list(items)
 }
 
 /// `unset ?-nocomplain? ?--? name ...` — remove variables / array elements.

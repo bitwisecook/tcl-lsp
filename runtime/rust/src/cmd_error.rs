@@ -35,6 +35,7 @@ use crate::dict;
 use crate::frame::VarError;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
+use tcl_runtime_api::completion_options::{self, ErrorOptions, OptionValue};
 
 /// Register `catch`, `error`, `try`, and `throw`.
 pub fn install(interp: &mut Interp) {
@@ -123,33 +124,43 @@ pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj
     } else {
         (code, 0)
     };
-    let code_str = eff_code.as_int().to_string();
-    let level_str = level.to_string();
-    let mut pairs: Vec<(*mut TclObj, *mut TclObj)> = vec![
-        (new_string(b"-code"), new_string(code_str.as_bytes())),
-        (new_string(b"-level"), new_string(level_str.as_bytes())),
-    ];
-    if eff_code == Code::Error {
-        // `-errorcode` rides along with any error completion (incl. a pending
-        // `return -code error`). The accumulated trace + stack and the `-during`
-        // chain only exist once the error has actually been raised (level 0).
-        pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
-        if level == 0 {
-            pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
-            // TIP 348: the error stack built as the error unwound.
-            pairs.push((
-                new_string(b"-errorstack"),
-                new_string(&interp.error_stack_value()),
-            ));
-            // TIP 329 exception chaining: when a `try` handler/`finally` threw
-            // over a prior exception, that prior exception's options ride along as
-            // `-during` (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
-            if let Some(during) = interp.during_opts() {
-                pairs.push((new_string(b"-during"), during));
-            }
-        }
-    }
+    let error = (eff_code == Code::Error).then(|| ErrorOptions {
+        error_code: Some(new_string(&interp.error_code())),
+        error_info: (level == 0).then(|| new_string(&interp.error_info())),
+        error_stack: (level == 0 && interp.runtime_version().has_error_stack())
+            .then(|| new_string(&interp.error_stack_value())),
+        error_line: (level == 0).then(|| i64::from(interp.error_line())),
+        during: (level == 0).then(|| interp.during_opts()).flatten(),
+    });
+    let planned = completion_options::plan(
+        interp.runtime_version(),
+        api_code(eff_code),
+        i64::try_from(level).unwrap_or(i64::MAX),
+        &[],
+        error.as_ref(),
+    );
+    let pairs: Vec<(*mut TclObj, *mut TclObj)> = planned
+        .into_iter()
+        .map(|(key, value)| {
+            let value = match value {
+                OptionValue::Integer(value) => new_string(value.to_string().as_bytes()),
+                OptionValue::Value(value) => value,
+            };
+            (new_string(&key), value)
+        })
+        .collect();
     dict::new_dict_obj(&pairs)
+}
+
+fn api_code(code: Code) -> tcl_runtime_api::Code {
+    match code {
+        Code::Ok => tcl_runtime_api::Code::Ok,
+        Code::Error => tcl_runtime_api::Code::Error,
+        Code::Return => tcl_runtime_api::Code::Return,
+        Code::Break => tcl_runtime_api::Code::Break,
+        Code::Continue => tcl_runtime_api::Code::Continue,
+        Code::Other(value) => tcl_runtime_api::Code::Other(value),
+    }
 }
 
 // -- error -----------------------------------------------------------------

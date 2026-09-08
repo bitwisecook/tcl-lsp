@@ -1124,6 +1124,14 @@ pub enum Operand {
     Label(String),
 }
 
+/// Runtime ingredients for a TIP 348 `INNER` context that cannot be
+/// reconstructed from source text after lowering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorStackContext {
+    /// Build `{head <runtime-result>}` for a specialised error command.
+    CommandResult { head: String },
+}
+
 // Instruction
 
 /// Whether an instruction begins an executable source command.
@@ -1185,6 +1193,8 @@ pub struct Instruction {
     pub source_line: u32,
     /// Original command text for `errorInfo`.
     pub source_cmd_text: String,
+    /// Runtime-only recipe for structured error-stack logging.
+    pub error_stack_context: Option<ErrorStackContext>,
     /// Canonical unrooted constructed namespace in which
     /// [`Self::source_cmd_text`] resolves when this instruction is an
     /// executable command boundary. Empty denotes the global namespace.
@@ -1260,6 +1270,7 @@ impl Instruction {
             no_fold: false,
             source_line: 0,
             source_cmd_text: String::new(),
+            error_stack_context: None,
             source_command_namespace: String::new(),
             source_command_boundary: SourceCommandBoundary::None,
             source_span: None,

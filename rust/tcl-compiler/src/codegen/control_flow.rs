@@ -21,6 +21,7 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
+use tcl_bytecode::ErrorStackContext;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
 use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
 
@@ -1118,10 +1119,13 @@ impl CodegenCtx<'_> {
             self.push_lit("");
         }
         self.push_lit(""); // options
-        self.emit(
+        let throw = self.emit(
             Op::RETURN_IMM,
             vec![Operand::Imm(1), Operand::Imm(0)], // code=error, level=0
         );
+        self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
+            head: "error".to_owned(),
+        });
     }
 
     // -- inline try/on error compilation --
@@ -1530,7 +1534,10 @@ impl CodegenCtx<'_> {
                 self.push_lit("");
             }
             self.push_lit("");
-            self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
+            let throw = self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
+            self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
+                head: command.clone(),
+            });
             self.cmd_index += 1;
             return;
         }

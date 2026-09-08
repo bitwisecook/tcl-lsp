@@ -355,3 +355,23 @@ fn upstream_dict_info_definitions_pass_after_real_startup() {
         "missing parseable upstream dict-10 summary: {output:?}"
     );
 }
+
+/// Tcl 9.0.4's array-search mutation tests require `try` to bind the body's
+/// complete error options, including `-errorinfo`.
+#[test]
+fn upstream_var_search_mutation_handlers_receive_errorinfo() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "var.test",
+        "test var-23.10 {",
+        "test var-23.12 {",
+        "tcltest-var-search-mutation",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream var.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t2\tPassed\t2\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream var-23.10/23.11 summary: {output:?}"
+    );
+}

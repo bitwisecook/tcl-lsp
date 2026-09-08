@@ -29,6 +29,7 @@
 
 use crate::frame::{split_array_ref, VarError};
 use crate::interp::{obj_bytes, Code, Interp};
+use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStackValueError};
 // The transient `1` of a tower `incr` is the only fresh object left to drop
 // by hand; every other path now stores through `store_var_result`.
 #[cfg(have_tommath)]
@@ -475,15 +476,18 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_ERRORCODE");
         }
     }
-    if let Some(es) = &errorstack {
-        match crate::parse::split_list(es) {
-            Err(_) => {
+    if let Some(es) = errorstack
+        .as_ref()
+        .filter(|_| interp.runtime_version().has_error_stack())
+    {
+        match validate_error_stack(crate::parse::split_list(es)) {
+            Err(ErrorStackValueError::NonList) => {
                 let mut m = b"bad -errorstack value: expected a list but got \"".to_vec();
                 m.extend_from_slice(es);
                 m.push(b'"');
                 return interp.error_with_code(&m, b"TCL RESULT NONLIST_ERRORSTACK");
             }
-            Ok(parts) if parts.len() % 2 != 0 => {
+            Err(ErrorStackValueError::OddSized) => {
                 let mut m = b"forbidden odd-sized list for -errorstack: \"".to_vec();
                 m.extend_from_slice(es);
                 m.push(b'"');
