@@ -2246,10 +2246,88 @@ struct PullDiagEntry {
 /// [`DiagInputs`] pattern) rather than borrowing `Backend`, since the
 /// continuation runs on a detached `tokio::spawn` task with no lifetime tied to
 /// the originating request.
+/// Which subsystem asked for a `workspace/semanticTokens/refresh`.
+///
+/// The refresh carries no payload, so a client — and a test watching one —
+/// cannot tell a viewport-convergence refresh from a registry-wide one. The
+/// asks are also coalesced, so the answer is a *set*, not a single value.
+/// [`SemanticTokensRefreshCtx::request_refresh_coalesced`] accumulates the
+/// reasons that rode along and names every one of them on the fired marker, so
+/// an observer that owns one reason can tell its own refresh from another's
+/// (issue #1951).
+#[derive(Clone, Copy)]
+enum SemanticTokensRefreshReason {
+    /// A viewport's enriched stream disagreed with the coarse tier served, or a
+    /// cancelled comparison asked for its retry.
+    Convergence,
+    /// The command registry moved under every open document — a spec-pack
+    /// reload. Unrelated to any one viewport, and workspace-wide by nature.
+    PackReload,
+}
+
+impl SemanticTokensRefreshReason {
+    /// This reason's bit in the accumulated pending set.
+    const fn bit(self) -> u8 {
+        match self {
+            Self::Convergence => 0b01,
+            Self::PackReload => 0b10,
+        }
+    }
+
+    /// The word the fired marker prints.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Convergence => "convergence",
+            Self::PackReload => "pack-reload",
+        }
+    }
+}
+
+/// Render an accumulated reason set for the fired marker.
+///
+/// Every reason that rode along is named, `+`-joined in declaration order, so
+/// the marker never attributes a coalesced fire to whichever ask happened to
+/// win the race to schedule it. An empty set cannot reach the marker (a fire is
+/// only scheduled by an ask), but is rendered rather than asserted on: a
+/// diagnostic line must never be the thing that panics the server.
+fn describe_refresh_reasons(bits: u8) -> String {
+    let named: Vec<&str> = [
+        SemanticTokensRefreshReason::Convergence,
+        SemanticTokensRefreshReason::PackReload,
+    ]
+    .into_iter()
+    .filter(|reason| bits & reason.bit() != 0)
+    .map(SemanticTokensRefreshReason::label)
+    .collect();
+    if named.is_empty() {
+        return "none".to_owned();
+    }
+    named.join("+")
+}
+
+/// Emit the marker for a `workspace/semanticTokens/refresh` that is about to be
+/// sent.
+///
+/// The twin of the convergence settled markers, and it exists for the same
+/// reason: an observer needs a message-passing signal for *which* subsystem's
+/// refresh reached the client, rather than a wall-clock guess that any refresh
+/// arriving in its window must be its own (issue #1951).
+async fn log_semantic_tokens_refresh_fired(client: &Client, reasons: u8) {
+    client
+        .log_message(
+            MessageType::LOG,
+            format!(
+                "[timing] semantic_tokens.refresh.fired (reason={})",
+                describe_refresh_reasons(reasons)
+            ),
+        )
+        .await;
+}
+
 struct SemanticTokensRefreshCtx {
     client: Client,
     last_semantic_tokens: SemanticTokensCache,
-    refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    refresh_pending: Arc<std::sync::atomic::AtomicU8>,
     refresh_asked: EnrichedRefreshAsked,
 }
 
@@ -2385,7 +2463,7 @@ fn refresh_if_coalesced(
     if refreshed || !coalesced {
         return refreshed;
     }
-    refresh_ctx.request_refresh_coalesced();
+    refresh_ctx.request_refresh_coalesced(SemanticTokensRefreshReason::Convergence);
     true
 }
 
@@ -2496,7 +2574,7 @@ impl SemanticTokensRefreshCtx {
             }
             asked.insert(uri.clone(), digest);
         }
-        self.request_refresh_coalesced();
+        self.request_refresh_coalesced(SemanticTokensRefreshReason::Convergence);
         true
     }
 
@@ -2528,10 +2606,11 @@ impl SemanticTokensRefreshCtx {
     /// result landing while the RPC itself is in flight schedules a fresh
     /// debounced fire rather than being silently dropped: at worst one extra
     /// fire, never a missed one.
-    fn request_refresh_coalesced(&self) {
+    fn request_refresh_coalesced(&self, reason: SemanticTokensRefreshReason) {
         if self
             .refresh_pending
-            .swap(true, std::sync::atomic::Ordering::AcqRel)
+            .fetch_or(reason.bit(), std::sync::atomic::Ordering::AcqRel)
+            != 0
         {
             return; // a fire is already scheduled — this result rides along.
         }
@@ -2539,7 +2618,13 @@ impl SemanticTokensRefreshCtx {
         let pending = Arc::clone(&self.refresh_pending);
         crate::rt::spawn(async move {
             crate::rt::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE).await;
-            pending.store(false, std::sync::atomic::Ordering::Release);
+            // Taking the set is the same clear-before-send the flag did, and it
+            // is also what makes the marker complete: every reason that rode
+            // along during the window is named, and a reason arriving after
+            // this point schedules its own fire rather than being folded into a
+            // marker already written.
+            let reasons = pending.swap(0, std::sync::atomic::Ordering::AcqRel);
+            log_semantic_tokens_refresh_fired(&client, reasons).await;
             let _ = client.semantic_tokens_refresh().await;
         });
     }
@@ -6971,7 +7056,7 @@ pub struct Backend {
     /// each fire their own workspace-wide refresh, and a client that does
     /// not coalesce them itself (`VS Code` does; eglot may not) would re-pull
     /// every open document once per refresh.
-    semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicBool>,
+    semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicU8>,
     /// URIs with a detached semantic-token convergence continuation in flight
     /// (#1147).  `semantic_tokens_refresh_pending` above coalesces the resulting
     /// *notification*; this bounds the **work**, which is what holds a document
@@ -8280,7 +8365,7 @@ impl Backend {
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
-            semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicU8::new(0)),
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
@@ -19753,7 +19838,7 @@ impl Backend {
         // already does the code-lens/folding half for its own path only.
         // Best-effort: a client without refresh support rejects the request.
         if changed {
-            self.request_semantic_tokens_retry();
+            self.request_semantic_tokens_retry(SemanticTokensRefreshReason::PackReload);
             let _ = self
                 .client
                 .send_request::<FoldingRangeRefreshRequest>(())
@@ -21250,7 +21335,7 @@ impl Backend {
             // cancellation is retryable rather than merely observable (#1854).
             let cancelled = cu.is_none() || analysis.is_none();
             let (refreshed, outcome) = if cancelled {
-                refresh_ctx.request_refresh_coalesced();
+                refresh_ctx.request_refresh_coalesced(SemanticTokensRefreshReason::Convergence);
                 (true, RangeSettleOutcome::Cancelled)
             } else {
                 let enriched = crate::rt::spawn_blocking(move || {
@@ -21285,7 +21370,8 @@ impl Backend {
                         (refreshed, outcome)
                     }
                     Err(_) => {
-                        refresh_ctx.request_refresh_coalesced();
+                        refresh_ctx
+                            .request_refresh_coalesced(SemanticTokensRefreshReason::Convergence);
                         (true, RangeSettleOutcome::Cancelled)
                     }
                 }
@@ -21312,21 +21398,21 @@ impl Backend {
         });
     }
 
-    fn request_semantic_tokens_retry(&self) {
+    fn request_semantic_tokens_retry(&self, reason: SemanticTokensRefreshReason) {
         SemanticTokensRefreshCtx {
             client: self.client.clone(),
             last_semantic_tokens: Arc::clone(&self.last_semantic_tokens),
             refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
             refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
         }
-        .request_refresh_coalesced();
+        .request_refresh_coalesced(reason);
     }
 
     fn retry_cancelled_range(&self, outcome: RangeSettleOutcome) -> bool {
         if !matches!(outcome, RangeSettleOutcome::Cancelled) {
             return false;
         }
-        self.request_semantic_tokens_retry();
+        self.request_semantic_tokens_retry(SemanticTokensRefreshReason::Convergence);
         true
     }
 
@@ -34352,7 +34438,7 @@ mod tests {
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
             class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
-            semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicU8::new(0)),
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
@@ -49435,6 +49521,48 @@ proc p {} {
         assert_eq!(RangeSettleOutcome::Coalesced.as_str(), "coalesced");
     }
 
+    /// A coalesced fire names every reason that rode along, never just the one
+    /// that happened to schedule it.
+    ///
+    /// The whole point of the attribution (issue #1951) is that an observer can
+    /// tell its own refresh from another subsystem's. If a convergence ask
+    /// riding along on a pack-reload-owned fire were reported as `pack-reload`
+    /// alone, a test counting convergence refreshes would miss a real one — the
+    /// attribution would be worse than none.
+    #[test]
+    fn a_coalesced_refresh_names_every_reason_that_rode_along() {
+        assert_eq!(
+            describe_refresh_reasons(SemanticTokensRefreshReason::Convergence.bit()),
+            "convergence"
+        );
+        assert_eq!(
+            describe_refresh_reasons(SemanticTokensRefreshReason::PackReload.bit()),
+            "pack-reload"
+        );
+        assert_eq!(
+            describe_refresh_reasons(
+                SemanticTokensRefreshReason::Convergence.bit()
+                    | SemanticTokensRefreshReason::PackReload.bit()
+            ),
+            "convergence+pack-reload"
+        );
+        assert_eq!(describe_refresh_reasons(0), "none");
+    }
+
+    /// A registry-wide reload's refresh is not the convergence path's.
+    #[tokio::test]
+    async fn a_pack_reload_refresh_is_not_attributed_to_convergence() {
+        let backend = test_backend();
+        backend.request_semantic_tokens_retry(SemanticTokensRefreshReason::PackReload);
+        assert_eq!(
+            backend
+                .semantic_tokens_refresh_pending
+                .load(std::sync::atomic::Ordering::Acquire),
+            SemanticTokensRefreshReason::PackReload.bit(),
+            "a spec-pack reload must schedule its refresh under its own reason",
+        );
+    }
+
     /// Exact-head review of #1854: a cancelled pair of Salsa enrichment reads
     /// is not a terminal coarse result. It schedules the same bounded,
     /// workspace-wide re-pull used by detached convergence.
@@ -49442,11 +49570,13 @@ proc p {} {
     async fn cancelled_range_enrichment_schedules_retry_1854() {
         let backend = test_backend();
         assert!(backend.retry_cancelled_range(RangeSettleOutcome::Cancelled));
-        assert!(
+        assert_eq!(
             backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Acquire),
-            "cancelled range enrichment must schedule a client re-pull",
+            SemanticTokensRefreshReason::Convergence.bit(),
+            "cancelled range enrichment must schedule a client re-pull, \
+             attributed to the convergence path",
         );
     }
 
@@ -49470,17 +49600,19 @@ proc p {} {
 
         // Simulate a fire already scheduled (e.g. by a different document's
         // enriched result landing moments earlier).
-        backend
-            .semantic_tokens_refresh_pending
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        backend.semantic_tokens_refresh_pending.store(
+            SemanticTokensRefreshReason::Convergence.bit(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
 
         // A changed result must ride along with the fire already scheduled,
         // not schedule a second one.
         ctx.deliver_if_changed(&uri, &[1, 2, 3]).await;
-        assert!(
+        assert_ne!(
             backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Relaxed),
+            0,
             "a fire already scheduled must be left untouched, not \
              scheduled a second time",
         );
@@ -49489,24 +49621,26 @@ proc p {} {
         // result schedule its own.
         backend
             .semantic_tokens_refresh_pending
-            .store(false, std::sync::atomic::Ordering::Relaxed);
+            .store(0, std::sync::atomic::Ordering::Relaxed);
         ctx.deliver_if_changed(&uri, &[4, 5, 6]).await;
-        assert!(
+        assert_ne!(
             backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Relaxed),
-            "scheduling a fire must set the flag immediately, before its \
+            0,
+            "scheduling a fire must record its reason immediately, before its \
              debounce window elapses",
         );
 
         // Once the debounce window elapses and the fire completes, the flag
         // must clear so a later change can schedule the next one.
         crate::rt::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE * 2).await;
-        assert!(
-            !backend
+        assert_eq!(
+            backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Relaxed),
-            "the flag must clear once the debounced fire completes, so a \
+            0,
+            "the reason set must clear once the debounced fire completes, so a \
              later change can schedule the next one",
         );
     }
@@ -49555,10 +49689,11 @@ proc p {} {
             refresh_asked: Arc::clone(&backend.semantic_tokens_refresh_asked),
         };
         ctx.deliver_if_changed(&uri, &[9, 9, 9]).await;
-        assert!(
+        assert_ne!(
             backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Relaxed),
+            0,
             "a result landing for a closed document schedules a refresh -- \
              harmless (dataless, workspace-wide), not incorrect",
         );
@@ -49633,10 +49768,11 @@ proc p {} {
             !refresh_if_coalesced(&refresh_ctx, &mut lone, false),
             "a solitary claim that found no difference must not refresh",
         );
-        assert!(
-            !backend
+        assert_eq!(
+            backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Acquire),
+            0,
             "no refresh may have been scheduled",
         );
 
@@ -49651,11 +49787,13 @@ proc p {} {
             refresh_if_coalesced(&refresh_ctx, &mut held, false),
             "a coalesced claim must refresh on behalf of the requests it absorbed",
         );
-        assert!(
+        assert_eq!(
             backend
                 .semantic_tokens_refresh_pending
                 .load(std::sync::atomic::Ordering::Acquire),
-            "the coalesced refresh must actually have been scheduled",
+            SemanticTokensRefreshReason::Convergence.bit(),
+            "the coalesced refresh must actually have been scheduled, \
+             attributed to the convergence path",
         );
         assert!(
             in_flight
