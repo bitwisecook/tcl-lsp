@@ -55,9 +55,10 @@
 //! with `TCL_TOMMATH_DIR` set — `make runtime-rust-test` does — or expect
 //! every expression to fail.
 
-use std::io::Read;
+use std::io::{self, Read, Write};
 
 use tcl_runtime::interp::{Code, Interp};
+use tcl_runtime::{CompletionCode, ScriptCompletion};
 
 /// The recursive tree-walking interpreter uses native stack per Tcl call level,
 /// so honouring the 1000-deep `interp recursionlimit` (a *catchable* error)
@@ -75,6 +76,43 @@ fn main() {
         .join()
         .expect("eval thread panicked");
     std::process::exit(code);
+}
+
+/// Write one byte-valued result as a host line without interpreting it as
+/// UTF-8. The process adapter owns the prefix/newline framing; the runtime API
+/// owns the exact completion bytes.
+fn write_result_line(output: &mut impl Write, prefix: &[u8], result: &[u8]) -> io::Result<()> {
+    output.write_all(prefix)?;
+    output.write_all(result)?;
+    output.write_all(b"\n")
+}
+
+/// Apply the documented dev-runner echo/error policy to a byte completion.
+fn report_completion(completion: &ScriptCompletion, quiet: bool) -> io::Result<i32> {
+    report_completion_to(
+        completion,
+        quiet,
+        &mut std::io::stdout().lock(),
+        &mut std::io::stderr().lock(),
+    )
+}
+
+/// Writer-parameterised core of [`report_completion`], kept separate from the
+/// process handles so the byte contract is testable without descriptor
+/// redirection.
+fn report_completion_to(
+    completion: &ScriptCompletion,
+    quiet: bool,
+    stdout: &mut impl Write,
+    stderr: &mut impl Write,
+) -> io::Result<i32> {
+    if completion.code == CompletionCode::Error {
+        return write_result_line(stderr, b"error: ", &completion.result).map(|()| 1);
+    }
+    if !quiet && !completion.result.is_empty() {
+        write_result_line(stdout, b"", &completion.result)?;
+    }
+    Ok(0)
 }
 
 /// Evaluate the script (or stdin) and return the process exit code. Runs on the
@@ -149,11 +187,18 @@ fn run() -> i32 {
         interp.set_runtime_version(v);
     }
     if init && interp.init_library() == Code::Error {
-        eprintln!(
-            "init error: {}",
-            String::from_utf8_lossy(&interp.result_bytes())
+        return write_result_line(
+            &mut std::io::stderr().lock(),
+            b"init error: ",
+            &interp.result_bytes(),
+        )
+        .map_or_else(
+            |error| {
+                eprintln!("run_script: cannot write completion: {error}");
+                2
+            },
+            |()| 1,
         );
-        return 1;
     }
     // Optionally pre-load tcltest and source the backend-constraint overlay so
     // tests the running backend cannot support are skipped. Loading tcltest
@@ -163,28 +208,60 @@ fn run() -> i32 {
         let pre = format!(
             "package require tcltest\nnamespace import -force ::tcltest::*\nsource {overlay}\n"
         );
-        if interp.eval_str(pre.as_bytes()) == Code::Error {
-            eprintln!(
-                "backend-constraint overlay error: {}",
-                String::from_utf8_lossy(&interp.result_bytes())
+        let completion = interp.eval_completion(pre.as_bytes());
+        if completion.code == CompletionCode::Error {
+            return write_result_line(
+                &mut std::io::stderr().lock(),
+                b"backend-constraint overlay error: ",
+                &completion.result,
+            )
+            .map_or_else(
+                |error| {
+                    eprintln!("run_script: cannot write completion: {error}");
+                    2
+                },
+                |()| 1,
             );
-            return 1;
         }
     }
-    let code = match &path {
-        Some(p) => interp.eval_sourced(&src, p.as_bytes()),
-        None => interp.eval_str(&src),
+    let completion = match &path {
+        Some(p) => interp.eval_sourced_completion(&src, p.as_bytes()),
+        None => interp.eval_completion(&src),
     };
-    let result = interp.result_bytes();
-    if code == Code::Error {
-        eprintln!("error: {}", String::from_utf8_lossy(&result));
-        return 1;
-    }
     // Print the script's final result (if any), like an interactive evaluation
     // — unless `--quiet` asked for `tclsh script.tcl`'s actual non-interactive
     // contract instead (stdout carries only `puts` output).
-    if !quiet && !result.is_empty() {
-        println!("{}", String::from_utf8_lossy(&result));
+    report_completion(&completion, quiet).unwrap_or_else(|error| {
+        eprintln!("run_script: cannot write completion: {error}");
+        2
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{report_completion_to, CompletionCode, ScriptCompletion};
+
+    #[test]
+    fn result_and_error_lines_preserve_non_utf8_bytes() {
+        const VALUE: &[u8] = &[0xff, 0x00, b'A', 0x80];
+
+        let success = ScriptCompletion::new(CompletionCode::Ok, VALUE.to_vec(), Vec::new());
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        assert_eq!(
+            report_completion_to(&success, false, &mut stdout, &mut stderr).unwrap(),
+            0
+        );
+        assert_eq!(stdout, [VALUE, b"\n"].concat());
+        assert!(stderr.is_empty());
+
+        let failure = ScriptCompletion::new(CompletionCode::Error, VALUE.to_vec(), Vec::new());
+        stdout.clear();
+        assert_eq!(
+            report_completion_to(&failure, false, &mut stdout, &mut stderr).unwrap(),
+            1
+        );
+        assert!(stdout.is_empty());
+        assert_eq!(stderr, [b"error: ".as_slice(), VALUE, b"\n"].concat());
     }
-    0
 }

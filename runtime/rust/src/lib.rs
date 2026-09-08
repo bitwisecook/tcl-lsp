@@ -109,6 +109,7 @@ pub mod cmd_zlib;
 // imports (`rust/tcl-compiler` codegen), distinct from `capi`'s `Tcl_*` surface.
 pub mod codegen_abi;
 pub mod codegen_native;
+mod completion;
 pub mod counters;
 pub mod dict;
 // The Tcl 9 stdlib embedded in the binary, seeded into the WASM VFS so the
@@ -147,6 +148,8 @@ mod typed_value;
 pub mod value_ops;
 pub mod vars;
 mod version;
+
+pub use tcl_runtime_api::{Code as CompletionCode, ScriptCompletion};
 
 #[cfg(test)]
 mod tests {

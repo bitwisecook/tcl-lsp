@@ -14,6 +14,15 @@ traits, each generic over an associated `Value`. Both the bytecode VM (`tcl-vm`,
 `Value = Rc<Obj>`) and `runtime/rust` (`Value = *mut TclObj`) satisfy all of
 them, so a consumer generic over the traits drives either runtime:
 
+`ScriptCompletion` is the corresponding host/embedding boundary: a shared
+`Completion<Vec<u8>>` whose result and return-options fields hold exact Tcl
+string-representation bytes. Runtime engines snapshot into it before the
+outermost evaluation publishes Tcl's error globals and resets the live
+exception state, then perform that ordinary publication before returning to a
+host. UTF-8 or another text conversion belongs only in an explicitly textual
+host adapter; native, WASM, CLI, and library consumers do not each invent a
+result/error conversion policy.
+
 | Trait | Surface |
 |-------|---------|
 | `VarStore` | `get`/`set`/`unset`/`exists` + explicit array-element access, addressed by `FrameId`; `unset_command` preserves immutable-cell refusals for command consumers; `ArrayTarget` and the `*_at` rungs preserve a located array cell across callbacks when the runtime has stable `VarId`s |
