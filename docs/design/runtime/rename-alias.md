@@ -45,8 +45,8 @@ infrastructure this runtime has none of — a cancellation flag the eval
 loop polls (C's ``Tcl_CancelEval``) and a channel table shared between
 interpreters — so the ``bad option`` list names only what actually
 dispatches, rather than repeating tclsh's full list and naming three
-subcommands that would then fail with the wrong error (issue #1412
-item 3).  That is a knowing divergence from tclsh's advertised list;
+subcommands that would then fail with the wrong error.  That is a
+knowing divergence from tclsh's advertised list;
 see [`child-interp.md`](child-interp.md) §1.
 
 Covered by sibling documents:
@@ -191,7 +191,7 @@ but about the move itself, and there are exactly three cases:
 - a **rename that would close an alias cycle** — ``cannot define or
   rename alias "X": would create a loop`` (§4.6);
 - a **release-gated builtin**, which the emulated release does not
-  carry and so cannot be moved (#1462 / #1463).
+  carry and so cannot be moved.
 
 ### 3.5 Invalidation
 
@@ -309,8 +309,7 @@ the ``only single-interp aliases`` error from §1.
 closed cycle: dispatching either one would trampoline for ever.  C
 refuses the alias that closes it, at *definition* time, in
 `TclPreventAliasLoop` (``tclInterp.c``); this runtime does the same, and
-so does the bytecode VM (issue #1447 — before the fix the pair installed
-happily and recursed natively until the stack ran out).
+so does the bytecode VM.
 
 The algorithm is C's, ported: **create first, walk the chain, roll back
 on a hit.**
@@ -409,22 +408,21 @@ comparable `Command` enum (`Alias(Rc<Vec<Value>>)` and a `CrossAlias`
 carrying an `InterpId`), and runs the same ``TclPreventAliasLoop`` gate
 on alias creation and rename (§4.6), walking its alias graph across the
 whole interpreter tree by `InterpId` because its aliases really can span
-interpreters.  On the two points this document used to record as
-VM-only, the engines now agree: both refuse a rename onto an occupied
-destination (``can't rename to "X": command already exists``) and both
-re-home a renamed proc, so ``namespace current`` inside the body reports
-the destination.
+interpreters.  Both engines refuse a rename onto an occupied destination
+(``can't rename to "X": command already exists``) and both re-home a
+renamed proc, so ``namespace current`` inside the body reports the
+destination.
 
 The divergences that remain are the VM's, and belong to `rust/tcl-vm`
 rather than here:
 
-- its ``interp`` option list advertises ``cancel`` and ``target`` with
-  no arm behind either, and accepts ``share`` / ``transfer`` as silent
-  no-ops (this runtime implements ``target`` and advertises neither of
-  the other three — §1);
-- its ``$child`` option list advertises ``transfer``, which C's child
-  command object does not, and omits ``debug``, which it does;
-- its ``interp invokehidden`` has no ``-global`` at all and skips
-  ``-namespace ns`` and any unknown flag silently, instead of switching
-  evaluation context and refusing
+- its ``interp`` option list advertises ``share`` / ``transfer`` and
+  accepts them as silent no-ops, and it carries no ``target`` at all
+  (this runtime implements ``target`` and advertises neither of the
+  others — §1);
+- its ``$child`` option list drops ``alias``, ``aliases`` and
+  ``bgerror``, which C's child command object carries;
+- its ``interp invokehidden`` parses ``-global`` / ``-namespace ns`` /
+  ``--`` and refuses an unknown flag, but discards them rather than
+  switching evaluation context
   ([`command-introspection.md`](command-introspection.md) §2.5).

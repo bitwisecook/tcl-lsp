@@ -18,11 +18,12 @@ entirely.
    into commands and words using Tcl grouping rules (braces, quotes,
    backslashes, comments, semicolons) and each directive is dispatched
    directly — no interpreter is instantiated.
-2. Thirteen directives are permitted: `package`, `version`, `description`,
+2. Only these directives are permitted: `package`, `version`, `description`,
    `license`, `author`, `homepage`, `tcl`, `require`, `dev-require`,
-   `replace`, `exclude`, `provides`, `entry`. Any other command is refused
-   with `command not permitted in safe mode: <cmd>`, as a safe interpreter
-   would. `manifest::directive_names()` is the canonical list, cross-checked
+   `replace`, `exclude`, `provides`, `entry`, `build`. Any other command is
+   refused with `command not permitted in safe mode: <cmd>`, as a safe
+   interpreter would. `manifest::directive_names()` is the canonical list,
+   cross-checked
    against the registry's `TCLPKG_MANIFEST_ENV` scoped environment by a drift
    test (`rust/tcl-pkg/tests/manifest_env_drift.rs`).
 3. `package` and `version` are required; everything else is optional. A
@@ -31,6 +32,9 @@ entirely.
 4. `version` is semver 2.0 with Tcl-style pre-release spellings (`a1`, `b2`,
    `rc1`). The `tcl` constraint defaults to `>=8.6`.
 5. `require` / `dev-require` take `name minver ?-source URL?`.
+   `build <script> ?-network?` is a *declaration*: the manifest parser never
+   runs it, and `tcl pkg build` runs it deprivileged only when the operator
+   has both enabled build scripts and trusted the package.
 6. `replace` and `exclude` are honoured **from the root manifest only**;
    transitive occurrences are ignored.
 

@@ -85,9 +85,8 @@ Three conditions bound it, and each abstains rather than guessing:
   this one is written out", and it is applied at the consumer's callback slot,
   inside the built prefix, and again at each `WRAPS_COMMAND_PREFIX` hop:
   `after idle [namespace code {*}[list my tick]]` gives `namespace code` two
-  arguments and errors rather than dispatching anything. The compiler's own
-  prefix scan has gated on this since #978; the navigation scan gained the same
-  gate in #1704.
+  arguments and errors rather than dispatching anything. The compiler's prefix
+  scan and the navigation scan both apply it.
 - **One unambiguous same-scope constant**, for a prefix stored in a variable
   first (`set cb [list [self] tick]; bind .w <Button-1> $cb`). Every write to
   the name is a candidate: more than one write, a dynamic write, a scope alias
@@ -188,8 +187,7 @@ meant — and `ClassHierarchy::mixin_map` carries the owner-resolved mixin edges
 that name the roots.  `WorkspaceIndex`'s `ClassEdges` is the cross-file twin,
 and both dispatch folds
 (`tcl_lsp_core::oo_dispatch::method_dispatch_provider` in-document,
-`WorkspaceIndex::dispatch_chain` across files) read the flag the same way
-(issue #1705).
+`WorkspaceIndex::dispatch_chain` across files) read the flag the same way.
 
 The two dispatch kinds can consequently land on **different classes** for one
 receiver, and consumers must ask separately: with the `MChild` shape above,

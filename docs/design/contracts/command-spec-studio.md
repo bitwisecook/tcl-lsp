@@ -33,6 +33,8 @@ The dist is a **directory**, deployed whole:
 index.html                       the page; studio wasm + glue + CSS + controller inlined
 assets/monaco-host.js            Monaco + the language client (lazy, ~2.7 MB)
 assets/monaco-host.css           its stylesheet, with the codicon font as a data: URI
+assets/native-editor-host.js     the IDE bridge (editor surfaces as native tabs)
+assets/tcl.tmLanguage.json       the shared TextMate grammar, with onig.wasm beside it
 lsp/worker.js                    the language server worker
 lsp/tcl_lsp_server_wasm.js       its wasm-bindgen glue
 lsp/tcl_lsp_server_wasm_bg.wasm  the server (~21 MB raw, ~5.6 MB gzipped)
@@ -53,13 +55,13 @@ Two properties hold this together and must be kept:
 
 ### Content-Security-Policy
 
-`connect-src` is no longer `'none'` — it is `'self'` plus exactly
-`https://api.github.com` and `https://codeload.github.com`, which exist for the
-one opt-in panel described below. Everything else is same-origin: `script-src
-'self' 'unsafe-inline' 'wasm-unsafe-eval'`, `worker-src 'self'` (**not**
-`blob:`), `style-src 'self' 'unsafe-inline'`, `font-src data:`. The page's
-privacy notice names the GitHub panel as the sole exception, and the boot check
-(below) fails if the page reaches GitHub without being asked.
+`connect-src` is `'self'` plus exactly `https://api.github.com` and
+`https://codeload.github.com`, which exist for the one opt-in GitHub release
+panel. Everything else is same-origin: `script-src 'self' 'unsafe-inline'
+'wasm-unsafe-eval'`, `worker-src 'self'` (**not** `blob:`), `style-src 'self'
+'unsafe-inline'`, `font-src data:`, `img-src data: blob:`. The page's privacy
+notice names the GitHub panel as the sole exception, and the boot check fails
+if the page reaches GitHub without being asked.
 
 ## The editors are clients of the real language server
 
@@ -129,12 +131,10 @@ and `studio.ts` writes to both, so the two never disagree.
 
 ### Bundle discipline
 
-The controller (~180 KB, ~42 KB gzipped) is what every visitor loads; the
-editor chunk (~3.2 MB minified, ~830 KB gzipped) and the server wasm (~5.6 MB
-gzipped) load only when an editor tab is opened. The controller grew from
-~113 KB with the pack navigator, the documentation dock and the open-command
-strip — all of which a first paint needs, which is why they are in it rather
-than deferred. esbuild's code splitting cannot express this — it needs
+The controller is what every visitor loads; the editor chunk and the server
+wasm load only when an editor tab is opened. The pack navigator, the
+documentation dock and the open-command strip are in the controller because
+a first paint needs them. esbuild's code splitting cannot express this — it needs
 `format: "esm"` for the whole build and the controller must stay a classic
 script — so `build.mjs` runs two builds and `studio.ts` reaches the second one
 through a dynamic `import()` of a **runtime-built** URL, which is what stops
@@ -145,12 +145,12 @@ comment at the top of the editor chunk.
 
 ## The documentation dock
 
-The form has 137 settings, and each carries a **?** that expands an inline
-panel — which pushes the field being edited out from under the cursor to make
-room for its own explanation, and says nothing about which settings are read
-together. The dock is a third region that documents whatever has focus
-without moving anything. `web/src/docsDock.ts` decides what it shows and how
-a view is named in the URL, as pure functions of the wire schema with no
+Each of the form's settings carries a **?** that expands an inline panel,
+which pushes the field being edited out from under the cursor and says nothing
+about which settings are read together. The dock is a third region that
+documents whatever has focus without moving anything. `web/src/docsDock.ts`
+decides what it shows and how a view is named in the URL, as pure functions
+of the wire schema with no
 DOM; `studio.ts` paints the decision, so the two cannot drift apart.
 
 **A second surface, never a second copy.** The dock and the inline panels
@@ -177,7 +177,7 @@ existed restores as the viewport's default, not as a failure. The body is an
 
 The dock re-targets on `focusin`, `click`, and `change` in the form and on
 `focusin` and `click` in the browser — never on the pointer passing over,
-because a cursor crossing 137 settings must not churn the panel. There are
+because a cursor crossing the form must not churn the panel. There are
 five subjects, one per thing an author can be touching:
 
 | Subject | Recognised by | Decision |
@@ -237,8 +237,8 @@ always do.
 
 **One history, not two.** The visit stack stays the record of which commands
 were opened and in what order; every visit is mirrored as one session-history
-entry tagged `{index, visit}`, and the in-page ◀ ▶ (and `Alt+←`/`Alt+→`) no
-longer open anything themselves. They compute the delta from the entry they
+entry tagged `{index, visit}`, and the in-page ◀ ▶ (and `Alt+←`/`Alt+→`)
+open nothing themselves. They compute the delta from the entry they
 are on to the entry carrying the visit they want and call `history.go`, so
 `popstate` does the opening and the page's buttons and the browser's Back are
 one act rather than two stacks racing. `index` is a *position* in this
@@ -281,11 +281,10 @@ the "opening `index.html` straight off disk still works" promise needs.
 
 ## The open-command strip
 
-A pack is many commands and one deliverable, and the studio had one editing
-slot: `loadDraft` rebuilt the form over whatever was in it, so comparing two
-specs or copying an option table across was a round trip through the browser
-each time. A strip above the workbench tabs now holds the commands that are
-open. `web/src/openTabs.ts` decides what it holds — opening, focus, eviction,
+A pack is many commands and one deliverable, so a strip above the workbench
+tabs holds the commands that are open: two specs can be compared, or an option
+table copied across, without a round trip through the browser.
+`web/src/openTabs.ts` decides what it holds — opening, focus, eviction,
 closing, renaming, persistence — as pure functions of a tab list, and
 `studio.ts` paints the decision, as it does for the dock.
 
@@ -330,9 +329,8 @@ record twelve places nobody went.
 **`flushEdits` exists because of the settle window.** `onDraftChanged`
 debounces the write-back by 120 ms, and `loadDraft` clears `formDirty` when
 it rebuilds the form. Leave a command inside that window and the timer fires
-over a draft it no longer owns: the keystroke is gone. This was always so;
-with one slot it was rare, and with a strip it is the common case.
-`leaveOpenCommand` therefore commits the pending write-back before anything
+over a draft it no longer owns: the keystroke is gone. `leaveOpenCommand`
+therefore commits the pending write-back before anything
 replaces the form, then records the view — and only onto the tab the form is
 still a projection of, since after a close the focused tab is the neighbour.
 
@@ -346,9 +344,7 @@ falls on the left of the strip rather than on whichever row was read first.
 
 ### `/` says where it looked
 
-The palette searched the pack and the registry and labelled neither, while
-the browser's count line has said what it is viewing since packs became its
-top level. `web/src/paletteSearch.ts` now ranks and labels, pure like
+`web/src/paletteSearch.ts` ranks and labels the palette's results, pure like
 `packs.ts`, over three surfaces: the pack under edit, the dialect's shipped
 packs, and the Reference vocabulary — the catalogues and their values, which
 is what `#/ref/…` addresses. Spec fields are left out on purpose: the form
@@ -412,14 +408,13 @@ The stronger property is that a field's example is an example *of that
 field*. `field_template` is an exhaustive keyed table split across
 `examples/fields_core.rs` and `examples/fields_behaviour.rs`, and
 `every_group_and_field_has_a_valid_example` fails by name for a key with no
-entry. There is deliberately no group-level fallback: inheriting the group's
-snippet is how most of the form once shipped illustrating something other
-than itself — every taint sink drew the same line, and the whole Availability
-group showed one `package require`. A group heading keeps its own snippet,
-because a group's **?** is about the group.
+entry. There is deliberately no group-level fallback: a field inheriting its
+group's snippet illustrates something other than itself — every taint sink
+drawing the same line. A group heading keeps its own snippet, because a
+group's **?** is about the group.
 
 Each snippet uses a shipped command that really declares the field, so the
-arrows point at a consequence the analyser draws today: an output sink is
+arrows point at a consequence the analyser draws: an output sink is
 `HTTP::respond`, a log sink is `log local0.`, a network sink is `socket`.
 
 Dropdown values are the same idea one level down. A vocabulary the registry
@@ -428,14 +423,13 @@ owns — `Trait`, `TaintColourAtom`, `SideEffectTarget`, `ArgRole`,
 `ByteArrayEffect`, `PatternType`, `FormatType` — carries a
 `DocumentationExample` per variant, and `variant_example` serialises it. The
 remaining pickers (`bodyKind`, `scriptTiming`, the hook ids, `dialects`, …)
-still introduce a value with their catalogue's snippet. That is the boundary
-today, stated rather than papered over; moving a vocabulary across it is the
-registry change described next.
+still introduce a value with their catalogue's snippet. That is the boundary;
+moving a vocabulary across it is the registry change described next.
 
 #### Where a vocabulary's example lives
 
-Issue #1693 asked whether a trait's worked example should stay beside its
-declaration or move out. Three arrangements were compared:
+A vocabulary's worked example stays beside its declaration. The three
+arrangements considered:
 
 | Arrangement | What it buys | What it costs |
 |---|---|---|
@@ -443,18 +437,17 @@ declaration or move out. Three arrangements were compared:
 | A typed, registry-keyed catalogue elsewhere | Examples get their own file and their own reviewers | The key is a string the exhaustive `match` no longer checks — exactly the drift the `match` exists to prevent — and every consumer needs a projection test to prove nothing was omitted |
 | Generated from doctests or executable fixtures | The program is proven to run | An example's value is the *annotation* — which span carries the fact, in what causal order — which a doctest cannot express; running the snippet proves the wrong thing |
 
-Co-location stays. The second `match` already gives examples the separate
-review lifecycle the split was meant to buy — a change to an example is a
-diff to one arm, next to the semantics it illustrates — and ownership stays
-in the registry, which is the rule everywhere else on this page. The cost is
-the first row's, and it is accepted.
+The second `match` gives examples a separate review lifecycle — a change to
+an example is a diff to one arm, next to the semantics it illustrates — and
+ownership stays in the registry, which is the rule everywhere else on this
+page. The cost is the first row's, and it is accepted.
 
 #### Arrow order is checked, not trusted
 
 Arrows are numbered by their position in the annotation array and drawn as
-numbered steps, so their order is a claim about *when things happen* (issue
-#1714). `causal_order_errors` in `examples.rs` checks that claim against the
-source with three rules:
+numbered steps, so their order is a claim about *when things happen*.
+`causal_order_errors` in `examples.rs` checks that claim against the source
+with three rules:
 
 1. **Numbering runs forwards through the program.** An arrow on an earlier
    line may not be numbered after one on a later line; that tells the reader
@@ -468,10 +461,7 @@ source with three rules:
 3. **Two arrows on a line may not start at the same column.** The browser
    finds a needle with `indexOf` and brackets its first occurrence, so
    `$item` on a line holding `$items` stacks two brackets on one token and
-   at least one label describes something the reader is not shown. This rule
-   found two real defects on landing: `LOOP_LIST_HEADER` had exactly that
-   `$item`, and `FRAME_HASH_BUILTIN` had `set local` nested in
-   `set local value`.
+   at least one label describes something the reader is not shown.
 
 Spans that merely overlap or sit side by side are left alone. Their order is
 the author's knowledge of the flow, and no rule here can recover it.
@@ -481,7 +471,7 @@ the author's knowledge of the flow, and no rule here can recover it.
 A `CommandSpec` field is rarely a standalone switch: `arity` is read against
 `arity_windows`, and setting `pure` while `side_effects` says otherwise is a
 contradiction an author should see rather than meet in a failing gate.
-`relations.rs` names twenty-five clusters of settings that are read together
+`relations.rs` names the clusters of settings that are read together
 (Taint sinks, Effects and purity, Bodies and frames, …), each with one
 sentence saying why it hangs together, and `STANDALONE` names the one field
 that belongs to none — `name` — with its reason.
@@ -545,7 +535,7 @@ key the seeder writes (which, because `render_rs` walks the schema and the WASM
 `Expression` entry's field name must appear in the literal a rendered spec
 emits; and no schema key may be left without a coverage entry.
 
-**Excluded by decision, not by accident.** The only exclusions today are the
+**Excluded by decision, not by accident.** The only exclusions are the
 fields of `DefinitionBodyGrammar`, `MemberBodyCommand`, `ObjectClassSpec`, and
 `CaseListSpec`: each is a shared registry constant that many commands
 reference, so the studio's editor takes the *constant's path*
@@ -581,7 +571,7 @@ surfaced by core Tcl and by iRules but authored once, in `tcl`; `wm` is
 surfaced by the `Tk` package and authored in `tk`. A browser grouped by
 surface would send the author to a directory that does not hold the file.
 
-**Keyed by spec identity, not by name.** Seventeen names are declared in two
+**Keyed by spec identity, not by name.** Some names are declared in two
 or three packs — `close` in `tcl`, `expect` and `irules`; `send` in `tk`,
 `expect` and `irules` — and each dialect registers exactly one of them. A
 by-name table could only pick a fixed winner, and would file the iRules
@@ -639,11 +629,11 @@ what makes the studio a *browser* of the registry as well as an editor.
 
 Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
 `taint_sink_gate`, …) or a reference to a **named** registry descriptor or
-constant (`definition_body`, `case_list`, `object_class`, `body_scope`,
-`frame_effect`, `bpf_op`, `event_requires`, `event_requirement_forms`,
-`data_collection`, `side_switch_target`, `event_handler_priority`, and
-`command_forms`). Rust can observe that such a field is set, but not recover
-the expression — the constant's path — that set it.
+constant (`definition_body`, `case_list`, `body_scope`, `frame_effect`,
+`bpf_op`, `event_requires`, `event_requirement_forms`, `data_collection`,
+`side_switch_target`, `event_handler_priority`, and `command_forms`). Rust
+can observe that such a field is set, but not recover the expression — the
+constant's path — that set it.
 
 Seeding records those keys under `draft::UNRENDERABLE_KEY` (`__unrenderable`).
 The form warns about them and the renderer emits a `TODO` comment naming each
@@ -656,15 +646,18 @@ shows the exact expression shape expected.
 
 A descriptor that is **plain data** is a different case and does round-trip.
 `repeated_args`, `binds_handle`, `byte_array_payload`, `defines_symbol`,
-`oo_context_facts`, and a subcommand's `versioned_arg_values` are still edited
-as one `RustExpr` field, but seeding renders them back out as **full struct
+`oo_context_facts`, and `versioned_arg_values` are still edited as one
+`RustExpr` field, but seeding renders them back out as **full struct
 literals** — every field spelled, never a defaulting constructor like
 `RepeatedArgLayout::strided` that would hide the ones it defaults. Drafting a
 command that sets one and re-rendering it therefore loses nothing, and the
 `Surface::Expression` half of `coverage.rs` is what keeps each literal
 complete: a new field on `HandleBindingSpec` breaks the destructuring, and a
 field the renderer forgets fails the test that looks for it in the emitted
-spec.
+spec. `object_class` is the same case one level deeper — a class name, a
+flag, superclass names, and a method table that *is* `&[SubCommand]` — so it
+is seeded as a JSON object whose methods are ordinary subcommand drafts and
+rendered as `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
 
 One unrecoverable expression is not a top-level field. `OptionArity::Hook`
 holds a function pointer inside an *option row*, so it gets a `hook fn` text
@@ -688,7 +681,7 @@ literals need, hoisted `const` tables for options / forms / subcommands, and a
 Only fields differing from `CommandSpec::DEFAULT` are emitted; the rest come
 from the trailing `..CommandSpec::DEFAULT`, matching every hand-written spec.
 
-Four rules the output must satisfy, each of which a real bug violated:
+Four rules the output must satisfy:
 
 1. **Bitflag unions use `.union(…)`, never `|`.** The option and subcommand
    tables are hoisted into `const` items and `bitflags`' `BitOr` is not
@@ -700,46 +693,39 @@ Four rules the output must satisfy, each of which a real bug violated:
 3. **`Arity::stepped` is an associated function**, taking all three bounds —
    not a builder method off `at_least`.
 4. **An unknown dialect name renders as a comment, not a bare identifier.**
-   `DialectSet::f5-tmsh` is not valid Rust; emitting it silently produced a
-   file that only failed at `cargo build`.
+   `DialectSet::f5-tmsh` is not valid Rust; emitted bare, it fails only at
+   `cargo build`.
 
 ### Verifying the output compiles
 
 `rust/tcl-spec-studio/tests/render_sweep.rs` renders every command in every browsable dialect and
 asserts the structural invariants. Those assertions cannot prove the result is
-valid Rust — all four bugs above passed them. The real check is to render the
-specs into the registry and build it; the procedure is documented at the top
-of that test file. Running it found and fixed all four.
+valid Rust. The real check is to render the specs into the registry and build
+it; the procedure is at the top of that test file.
 
 ### The pack module
 
 `render_rs::render_pack_module` emits `commands/<pack>/mod.rs`: the banner,
 a `mod <stem>;` per command, and a `<pack>_command_specs()` collector
 returning `vec![<stem>::spec(), …]`, stems sorted and deduplicated. It is
-the one file in a pack contribution that is pure bookkeeping, and the one
-[`command-registry.md`](../compiler/command-registry.md#decision-rule) had a
-contributor write by hand — each `mod` line having to match the stem
-`suggested_path` chose for the `.rs`. Two places to get wrong for no
-judgement gained, so one `module_stem` feeds both.
+pure bookkeeping: one `module_stem` feeds both the `.rs` path
+`suggested_path` chooses and the `mod` line, so the two cannot disagree.
 
 `suggested_path` files a command the way the registry's own thousand-odd
 command files do: a namespace `::` is a **double** underscore, every other
 run of punctuation a single one. `IP::ttl` is `ip__ttl.rs` and `ip_ttl` is
 `ip_ttl.rs`, and iRules really ships both. Collapsing every separator run
-to one underscore put four such pairs at one path, where `pack_export`
-wrote one file over the other and `render_pack_module` — which
-deduplicates, because Rust declares a module once — emitted a single `mod`
-line: a command silently missing from the contribution. So the generated
+to one underscore would put such pairs at one path, where `pack_export`
+writes one file over the other and `render_pack_module` — which
+deduplicates, because Rust declares a module once — emits a single `mod`
+line: a command silently missing from the contribution. The generated
 `mod.rs` carries `#![allow(non_snake_case)]`, as an inner attribute above
-the `mod` lines, exactly like the six hand-written packs whose stems have
-the same shape.
+the `mod` lines, exactly like the hand-written packs whose stems have the
+same shape.
 
 The import is `use crate::spec::CommandSpec;`. The file is written *into*
 `tcl-registry`, which does not alias itself, so `use tcl_registry::…` there
-is `E0432` — the file the studio advertised as a drop-in did not compile.
-`rust/tcl-registry/src/commands/*/mod.rs` is the check: thirteen files,
-twelve saying `crate::spec` and one `crate::prelude`, none of them naming
-the crate.
+is `E0432`; no shipped `commands/*/mod.rs` names the crate.
 
 A residual collision survives any naming rule: `a-b` and `a_b` differ only
 in a character no identifier carries, as do the operator commands `+` and
@@ -782,15 +768,9 @@ Both deliveries are rendered on every export; the pane offers one at a time.
 
 ## The export is the pack
 
-The studio's outputs were per-command: a **Rendered .rs** pane and a **Tcl
-stub** pane rendering whichever draft the form held, and a **Files & issue**
-tray fed by an *Add to files* on each. The unit of work is the pack — an
-author builds a library command by command and ships the set — and
-assembling it by opening every command in turn was the transcription the
-studio exists to remove, with the `mod.rs` left to memory.
-
-`pack_export(source, pack, dialect)` renders every artefact one document
-produces, in one call:
+The unit of work is the pack — an author builds a library command by
+command and ships the set — so `pack_export(source, pack, dialect)` renders
+every artefact one document produces, in one call:
 
 | `kind` | Path | Source |
 |---|---|---|
@@ -814,18 +794,15 @@ pack panel, beside the name, because it is about every `.rs` and the
 `mod.rs` rather than the command that happens to be open.
 
 **The directory is seeded from the document, not from a real pack.**
-`#packDir` used to default to the literal `tcl`, which is a populated
-authoring directory: an untouched export therefore offered
-`commands/tcl/mod.rs` holding this document's handful of commands, as a
-drop-in, and named its collector `tcl_command_specs()` however the document
-called itself. It now follows the `speclib` name — `mylib` proposes
-`mylib` — and keeps following it until the author types their own, which is
-the field's whole purpose and stays available. The collector identifier is
+`#packDir` follows the `speclib` name — `mylib` proposes `mylib` — until the
+author types their own. Seeding a populated authoring directory such as
+`tcl` instead would offer `commands/tcl/mod.rs` holding this document's
+handful of commands as a drop-in. The collector identifier is
 the directory with each punctuation run collapsed (`my-lib` →
 `my_lib_command_specs`), because a `speclib` name is free text and an
 identifier is not.
 
-One **Export** tab replaces the two panes. `web/src/packExport.ts` decides
+One **Export** tab shows the result. `web/src/packExport.ts` decides
 — the groups and their order, a kind's label and surface, the summary line,
 which file stays selected — as pure functions of the reply, and `studio.ts`
 paints, as with the dock and the strip. The groups are the order a
@@ -840,23 +817,23 @@ same 120 ms settle as the form's write-back.
 `pack_export_from(&PackStore, …)` is what the wasm facade calls, inside the
 same `with_store` cache every other pack entry point uses. A form edit
 against a **programmed** document leaves `source` untouched and stands as a
-patch pack over it (E-R12), so re-parsing the text exported the pack as it
-was *before* the edit — the Export tab disagreed with the form on screen.
+patch pack over it (E-R12), so re-parsing the text would export the pack as
+it was *before* the edit.
 Each command is rendered at its `effective_draft`, a command the patch
 declares and the document does not is rendered too, and the patch ships as
 its own `<pack>-studio-overrides.tclspec` beside the document. Both halves
 of the studio's state, because that is what the studio holds.
 
-**Two surfaces, not three.** Every artefact is Rust or Tcl, and the two
-read-only editors the old panes used are exactly those: the Rust one has no
+**Two surfaces, not three.** Every artefact is Rust or Tcl, so the tab has
+two read-only editors: the Rust one has no
 language server behind it; the Tcl one opens its document under the
 `spectcl` dialect, so the `.tclspec` is really analysed. `showExportFile`
 swaps `hidden` between them by the file's kind and calls `layout()` only
 when the surface actually changed — Monaco measures a hidden container at
 zero, and this runs on every settled edit.
 
-**Both stub spellings, one row.** The export carries both; `#stubMode` kept
-its id and became a view toggle over which the list offers. Listing both
+**Both stub spellings, one row.** The export carries both; `#stubMode`
+toggles which one the list offers. Listing both
 would invite a choice between two files that say the same thing, and
 staging both would put the same signatures twice in one issue.
 
@@ -868,8 +845,8 @@ The stagger is the load-bearing part: several `click()`s in one task read
 to a browser as one gesture and collapse into a single save. What it costs
 is the browser's "download several files?" prompt, once. **Files & issue**
 is fed by *Stage every file* — the listed set, refreshing paths already in
-the tray — and its own download uses the same helper; the issue composer
-and its `MAX_ISSUE_URL` fallback are unchanged.
+the tray — and its own download uses the same helper; the issue composer keeps its
+`MAX_ISSUE_URL` fallback.
 
 ## Inference contract
 
@@ -914,8 +891,8 @@ history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)).
 | `retired_version` | The first snapshot where a previously-present command is gone — an exclusive bound, matching `tcl_registry::lifecycle` exactly. |
 | `deprecated_version` | Never derived structurally. The first snapshot whose doc comment says "deprecated" becomes a *suggested* version recorded only in the notes. |
 | Option rows | Diffed by name across the snapshots in which the command exists; an option that later disappears keeps its row, carrying its `retired_version`, rather than being dropped. |
-| Closed value sets | Diffed by membership. On a subcommand-shaped draft the result lands in `versioned_arg_values`, the draft vocabulary's existing per-value gate; a command-level value has no field yet, so it becomes a structured `version-gate:` note instead (below). |
-| Arity changes | **Derived** into `arity_windows` (issue #1627): runs of equal shape across the snapshots become windows, each closed where the next shape arrives — the spelling the loader requires, since an unclosed window never ends and two would overlap. A signature that never changed derives none; the plain `arity` already says it. The note naming both releases and both shapes is kept beside the derived field as its evidence. |
+| Closed value sets | Diffed by membership. On a subcommand-shaped draft the result lands in `versioned_arg_values`, the draft vocabulary's existing per-value gate; a command-level value has no field, so it becomes a structured `version-gate:` note instead (below). |
+| Arity changes | **Derived** into `arity_windows`: runs of equal shape across the snapshots become windows, each closed where the next shape arrives — the spelling the loader requires, since an unclosed window never ends and two would overlap. A signature that never changed derives none; the plain `arity` already says it. The note naming both releases and both shapes is kept beside the derived field as its evidence. |
 | Role changes | Reported as a note naming both releases and both shapes, never invented — which argument moved is not recoverable from a count. |
 | A present → absent → present pattern | Leaves the lifecycle unbounded and raises a warning naming the gap; a range cannot describe a hole. |
 
@@ -923,11 +900,9 @@ history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)).
 the derivation cannot infer for itself — see `tcl spec import`'s paired
 `--complete-history`/`--partial-history` flags, off by default.
 
-**`version-gate:` notes.** A fact the draft model has no field for yet —
-today, a command-level closed-value gate — is emitted as a note carrying
-the stable `VERSION_GATE_NOTE` prefix (`version-gate:`) so a later pass
-can mechanically upgrade it into a field once the registry extension
-lands:
+**`version-gate:` notes.** A fact the draft model has no field for — a
+command-level closed-value gate — is emitted as a note carrying the stable
+`VERSION_GATE_NOTE` prefix (`version-gate:`), so it stays machine-findable:
 
 ```text
 version-gate: command=encode arg=0 value=utf-8 introduced=1.2
@@ -974,9 +949,10 @@ it. A registry change is **not complete** until four surfaces move together:
 
 The only sanctioned exception is an explicit entry in `render_spectcl.rs`'s
 `GAPS` table naming the field, its documented spelling, and why it cannot
-round-trip yet (`DraftOpaque` for genuinely opaque function pointers,
-`Excluded` for deliberate design exclusions); a `TODO(spectcl)` comment in
-rendered output is the visible trace. A field native specs can set but a pack
+round-trip yet (`DraftOpaque` for a function pointer or named descriptor the
+draft cannot recover, `LoaderGap` for a documented spelling the loader has no
+reader for yet, `Excluded` for a deliberate design exclusion); a
+`TODO(spectcl)` comment in rendered output is the visible trace. A field native specs can set but a pack
 cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
 the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only
 on meaning changes, and the loader keeps accepting every older vocabulary.

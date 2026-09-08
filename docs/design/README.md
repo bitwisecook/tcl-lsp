@@ -301,8 +301,8 @@ proof, and the entry contract that together gate stable-call CSE (`O105`).
   every exported C entry point must honour.
 - [runtime/c-extension-abi.md](runtime/c-extension-abi.md) — the
   C-Tcl-extension → WASM ABI: how an unmodified C extension is compiled
-  and linked against the runtime, with the spike that validated the
-  mechanism end-to-end.
+  and linked against the runtime. A design contract; nothing in the tree
+  implements it yet.
 - [runtime/tcl-test-tiers.md](runtime/tcl-test-tiers.md) — the capability
   ladder (parsing → interpretation → fundamentals → control flow → I/O →
   platform features) ordering the work toward C tcltest parity.
@@ -338,8 +338,6 @@ against, and how it stays fast under an editor's keystroke load.
   its architecture, and the `reg.test` corpus that validates it.
 - [rust/incremental-analysis.md](rust/incremental-analysis.md) —
   per-item walk with cascade invalidation: the incremental analysis design.
-- [rust/incremental-analysis-experiments.md](rust/incremental-analysis-experiments.md)
-  — experiments, discoveries, and the reasoning behind the incremental plan.
 - [rust/salsa-interned-gc.md](rust/salsa-interned-gc.md) — the salsa
   interned garbage collector that keeps the per-keystroke interned keys in
   `tcl-lsp-db` bounded: how it works, the two ways to disable it by accident
@@ -407,8 +405,8 @@ are its rules, and what are the failure modes". One contract per file.
   — safe per-registration Cargo target reuse on the trusted Tank runner,
   lock-aware cleanup, disk guard, telemetry, and hosted overflow boundaries.
 - [release-and-publish.md](contracts/release-and-publish.md) —
-  the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
-  invariant, and the release flow.
+  the four-layer build/CI/publish model, the marketplace-tokens-only-as-
+  approval-gated-Environment-secrets invariant, and the release flow.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) —
   non-diagnostics LSP provider contracts and failure modes.
 - [lsp-transport-liveness.md](contracts/lsp-transport-liveness.md) — stdin,

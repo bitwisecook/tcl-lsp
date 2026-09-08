@@ -97,8 +97,8 @@ Because the parse tree is lifetime-bound to the script it was parsed from, a
 pointer-keyed cache outliving its buffer is a compile error rather than a
 runtime hazard, and `parse.rs` is `#![forbid(unsafe_code)]`.
 
-The structures that used to be listed here as borrow sites all hold owned
-copies now, which is why they need no discipline of their own:
+The remaining candidate borrow sites all hold owned copies, so they need no
+discipline of their own:
 
 | Site | What it actually holds |
 |---|---|
@@ -107,10 +107,10 @@ copies now, which is why they need no discipline of their own:
 | the `subst` concat pass | builds a fresh `Vec<u8>`; the single-substitution fast path returns the *object* with an owning `+1` |
 | the frame argv used by `info level` | `Frame::words: Vec<Vec<u8>>` — owned byte copies, dropped with the frame |
 
-## What the Rust runtime does not inherit
+## Two hazards this design forecloses
 
-Two structural hazards from earlier designs cannot recur here, and it is worth
-recording why so they are not reintroduced:
+Both are structural, not conventional — reintroducing either needs a deliberate
+change to one of the invariants below.
 
 1. **Allocator incoherence.** A bump allocator growing upward from a fixed
    offset, alongside wasi-libc's dlmalloc growing upward from `__heap_base`,

@@ -39,9 +39,7 @@ One row per profile type (`HTTP`, `CLIENTSSL`, `DNS`, …) carrying:
 |---|---|
 | `layer` | protocol stack layer (`transport`, `tls_shared`, …) |
 | `side` | `client`, `server`, `both`, or `global` |
-| `requires` | parent profiles this one needs |
-| `conflicts` | profiles it is mutually exclusive with |
-| `capabilities` | what it makes available (`sni`, `cipher`, `cert`, …) |
+| `relations` | `ProfileRelation` edges to other profile types: `Infer`-mode edges name the parents BIG-IP attaches for it (`HTTP` ⇒ `TCP`), `Assert`-mode edges the profiles it cannot be stacked with (`FASTL4` ⊥ `HTTP`); `ProfileRegistry::profile_parents` walks the former |
 | `lifecycle` | introduction / deprecation / retirement on the BIG-IP release axis, defaulting to the axis baseline |
 
 Derived predicates read the data rather than restating it:
@@ -132,15 +130,13 @@ minimal and conservative; the extension point for tool-specific commands is
 All boolean and set properties in these tables are expressed in **positive
 form**: `EventProps`'s `flow`, `hot`, `common`, `client_side`, `server_side`,
 and `implied_profiles`; `ProtocolNamespaceSpec`'s `profiles` and
-`side_selectable`; `ProfileSpec`'s `requires`, `conflicts`, and
-`capabilities`. Never `no_flow`, `excluded_dialects`, or `never_inline_body`.
-A positive property means "this thing is true or present", so a consumer
-reads `if props.flow` rather than `if !props.no_flow`, and a negative set
-never has to be stored.
-
-`conflicts` is the one name that reads negative and is not: it is a
-*positive* set of the profiles this profile conflicts with, not a negation of
-`requires`.
+`side_selectable`; `ProfileSpec`'s `relations`. Never `no_flow`,
+`excluded_dialects`, or `never_inline_body`. A positive property means "this
+thing is true or present", so a consumer reads `if props.flow` rather than
+`if !props.no_flow`, and a negative set never has to be stored. A
+mutual-exclusion relation is a *positive* edge to the profiles it excludes,
+carried on the same `relations` list as the parent edges, with the direction
+on the edge's `RelationMode`.
 
 ## Key files
 
