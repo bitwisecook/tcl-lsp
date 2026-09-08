@@ -22,21 +22,28 @@ A chain of assignments that feeds only dead code is itself dead; removing the en
 ## Before
 
 ```tcl
-set a 1
-set b [expr {$a + 1}]
-return $x
+proc report {x} {
+    set a 1
+    set b [expr {$a + 1}]
+    return $x
+}
 ```
 
 ## After
 
 ```tcl
-return $x
+proc report {x} {
+    return $x
+}
 ```
+
+`b` feeds nothing, so `a` feeds nothing either and the whole chain goes.
 
 ## Safety conditions
 
 - Skipped when any statement in the chain has observable side effects.
 - Skipped when a variable in the chain is read by live code elsewhere.
+- Skipped at the top level of a file, where another file or an interactive session can still read the variables.
 
 ## How to disable
 

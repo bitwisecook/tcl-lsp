@@ -18,8 +18,8 @@ Why does the analyser flag `SomeClass new` / `SomeClass create obj` with
 
 ## Why
 
-The class is defined with `oo::abstract`. `TclOO`'s `oo::abstract`
-metaclass *removes* the `new` and `create` constructors from the class, so
+The class is defined with `oo::abstract`, the `TclOO` metaclass added in Tcl
+9.0. It *removes* the `new` and `create` constructors from the class, so
 instantiating it directly is a runtime error:
 
 ```
