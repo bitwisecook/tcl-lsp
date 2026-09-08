@@ -21,7 +21,7 @@ Multiple arguments or an unbraced script concatenate at runtime, creating an inj
 
 ## Symptoms
 
-- A yellow squiggle appears under the `uplevel` call, with the message "uplevel with string-built script".
+- A yellow squiggle appears under the script argument, with the message *"uplevel with an unbraced script argument may cause double substitution. Use braces: uplevel 1 {...}"*. Several arguments instead of one get a message about concatenation.
 
 ## Example that triggers it
 

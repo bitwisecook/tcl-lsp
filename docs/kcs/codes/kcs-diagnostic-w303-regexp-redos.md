@@ -21,7 +21,7 @@ Nested quantifiers like `(a+)+` cause exponential backtracking on crafted input,
 
 ## Symptoms
 
-- A yellow squiggle appears under the regexp pattern, with the message "regexp vulnerable to catastrophic backtracking (ReDoS)".
+- A yellow squiggle appears under the regexp pattern, with the message *"Regular expression may be vulnerable to catastrophic backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential matching time on crafted input."*
 
 ## Example that triggers it
 

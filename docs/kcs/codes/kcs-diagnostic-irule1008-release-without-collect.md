@@ -21,7 +21,9 @@ Releasing data that was never collected is a logic error. At runtime this raises
 
 ## Symptoms
 
-- A red squiggle (error severity) appears on the `release` call, with the message "release without collect".
+- A red squiggle appears on the `release` call, with the message
+  "TCP::release without matching TCP::collect on the client side; no data was
+  collected".
 
 ## Example that triggers it
 

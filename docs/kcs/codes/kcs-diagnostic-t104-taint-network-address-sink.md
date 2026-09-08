@@ -34,7 +34,7 @@ server, so it passes controls a request from the attacker would not.
 
 ```tcl
 set host [gets stdin]
-set ch [socket $host 80]
+socket $host 80
 ```
 
 The analyser reports **`T104`** on `$host`: the value came from an
@@ -52,7 +52,7 @@ switch -- $choice {
   replica { set host db.internal.example }
   default { error "host not permitted" }
 }
-set ch [socket $host 80]
+socket $host 80
 ```
 
 Guarding the value in place — `if {$host ni {…}} {error …}` — does *not*

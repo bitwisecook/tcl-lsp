@@ -17,15 +17,16 @@ Why does the analyser warn that a command option requires a newer package versio
 
 ## Why
 
-Some options are added to a command in a later package release (for example, `entry -placeholder` arrives in Tk 8.7). The registry records that minimum as the option's `min_version`. When the document `package require`s the package at a version whose guaranteed floor is *below* that minimum, passing the option is a runtime error — the older command rejects the unknown switch. Raising the requirement — or dropping the option — avoids the failure.
+Some options are added to a command in a later package release (for example, `entry -placeholder` arrives in Tk 8.7). The registry records that release as the option's introducing [lifecycle](../../GLOSSARY.md#lifecycle-registry) version. When the document `package require`s the package at a version whose guaranteed [floor](../../GLOSSARY.md#version-floor) is *below* it, passing the option is a runtime error — the older command rejects the unknown switch. Raising the requirement — or dropping the option — avoids the failure.
 
 ## Symptoms
 
-- A yellow squiggle under the option token, with a message like "Option '-placeholder' on 'entry' requires Tk 8.7 but `package require` guarantees only 8.6".
+- A yellow squiggle under the option token, with a message like "Option '-placeholder' on 'entry' requires Tk 8.7 but `package require` guarantees only 8.6."
 
 ## Example that triggers it
 
 ```tcl
+# tcl-dialect: tk
 package require Tk 8.6
 entry .e -placeholder "type here"
 ```
@@ -35,6 +36,7 @@ The analyser reports **`W136`** on `-placeholder`: the option needs Tk 8.7.
 ## Fix
 
 ```tcl
+# tcl-dialect: tk
 package require Tk 8.7
 entry .e -placeholder "type here"
 ```

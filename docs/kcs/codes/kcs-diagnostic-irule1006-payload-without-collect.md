@@ -24,7 +24,9 @@ event side, and command call-form rules from the command registry.
 
 ## Symptoms
 
-- A squiggle appears on the payload access command, with the message "payload access without collect".
+- A yellow squiggle appears on the payload command, with the message
+  "'HTTP::payload' without a client HTTP::collect call. The payload buffer will
+  be empty."
 
 ## Example that triggers it
 

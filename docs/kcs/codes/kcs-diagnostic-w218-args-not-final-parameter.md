@@ -21,7 +21,7 @@ In Tcl, `args` collects any remaining arguments **only when it is the final para
 
 ## Symptoms
 
-- A yellow squiggle appears under the `args` parameter name, with the message "`args` here is an ordinary parameter".
+- A yellow squiggle appears under the `args` parameter name, with the message "`args` here is an ordinary parameter — it only has its special collect-the-rest meaning as the final parameter. Move it last, or rename it if a plain parameter is intended."
 - Calls with a variable number of arguments fail with "wrong # args" even though the procedure declares `args`.
 
 ## Example that triggers it

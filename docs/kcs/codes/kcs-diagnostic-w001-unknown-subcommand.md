@@ -25,7 +25,7 @@ W001 also fires on a **Tk/ttk widget's own instance command** — `.t bogus`, `$
 
 ## Symptoms
 
-- A yellow squiggle appears under the subcommand token, with the message "unknown subcommand 'foo' for 'string'" (or "unknown subcommand 'foo' for widget 'listbox'").
+- A yellow squiggle appears under the subcommand token, with the message "Unknown subcommand 'mach' for 'string'; did you mean 'match'?" (or, for a widget instance command, "Unknown subcommand 'bogus' for widget 'ttk::treeview'"). The "did you mean" tail is only added when a close match exists.
 
 ## Example that triggers it
 

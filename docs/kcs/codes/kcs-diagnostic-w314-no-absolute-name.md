@@ -32,13 +32,14 @@ This bites real tooling and real Tcl:
 - Callback qualification (`namespace code`, `interp alias` targets) breaks
   the same way.
 
-The behaviour is identical in Tcl 8.4 through 9.1 (`TclGetNamespaceForQualName`),
-and was verified against tclsh 8.6 and 9.0.
+The behaviour is the same in Tcl 8.4 through 9.1.
 
 ## Symptoms
 
-- A yellow squiggle on the definition name, with the message "has no absolute
-  (fully-qualified) name".
+- A yellow squiggle on the definition name, with a message that starts
+  *"':' has no absolute (fully-qualified) name"* — or, for a namespace,
+  *"namespace ':' has no absolute (fully-qualified) path"* — and goes on to
+  say the definition is reachable only by relative lookup.
 
 ## Example that triggers it
 

@@ -9,7 +9,7 @@ all-editors, diagnostic, taint
 
 ## Profiles
 
-default, irule
+default
 
 ## Question
 
@@ -21,29 +21,40 @@ A value starting with `-` is interpreted as an option, letting the attacker chan
 
 ## Symptoms
 
-- A yellow squiggle appears under the argument, with the message "tainted data in option position without -- terminator".
+- A yellow squiggle under the argument, with the message "Tainted variable
+  $pattern in option position of 'glob' without '--' terminator; risk of
+  option injection".
+- An **Insert '--' option terminator** quick fix on the diagnostic.
 
 ## Example that triggers it
 
 ```tcl
-set path [HTTP::uri]
-file exists $path
+set pattern [gets stdin]
+set matches [glob $pattern]
 ```
 
-The analyser reports **`T102`** because `path` could start with `-`.
+The analyser reports **`T102`** on `$pattern`: the value could start with `-`
+and `glob` scans that position for options.
 
 ## Fix
 
 ```tcl
-set path [HTTP::uri]
-file exists -- $path
+set pattern [gets stdin]
+set matches [glob -- $pattern]
 ```
 
-Add `--` before the argument to end option parsing.
+Add `--` before the argument to end option parsing. The check only looks at
+commands the registry records a `--` terminator for, and only at positions
+still inside the option-scanning region — a value already known to start with
+a path separator, or to be an address, port, or host name, is left alone.
 
 ## How to suppress
 
-Add `# noqa: T102` on the line **above** the offending command.
+Add `# noqa: T102` on the line **above** the offending command. You can also
+turn the code off for a project with `disabled = T102` under `[diagnostics]`
+in `.tcl-lsp.ini`, or in your editor with `tclLsp.diagnostics.T102` set to
+`false`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 
