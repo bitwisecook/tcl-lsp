@@ -19,7 +19,7 @@
 //! The variable resolver (T1.5) — the variable parallel of the command resolver.
 //!
 //! One classification + one link walk, modelled on `tclVar.c:TclLookupSimpleVar`
-//! (`tmp/tcl9.0.3`) and `namespace-tree.md` §5.3. Given a name and the current
+//! (`tmp/tcl9.0.4`) and `namespace-tree.md` §5.3. Given a name and the current
 //! `(frame, namespace)` context, decide which table holds it and follow any
 //! `global`/`variable`/`upvar` links to the concrete cell:
 //!

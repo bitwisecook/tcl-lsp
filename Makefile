@@ -1438,7 +1438,7 @@ rust-deny: ## Audit every locked Rust workspace with cargo-deny (advisories/lice
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Rust, full TS).
-check-all: ## Full lint + typecheck (TS, Rust, Python)
+check-all: ## Full lint + typecheck: TypeScript (extension, report UI, spec studio) + editor settings + installer, Rust fmt/clippy, workflow drift, Python ruff + ty/pyright
 	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust xtask-workflow-sync lint-py typecheck-py
 	@echo "==> check-all: PASSED"
 

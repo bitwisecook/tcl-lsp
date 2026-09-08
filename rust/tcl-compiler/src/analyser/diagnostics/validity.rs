@@ -764,9 +764,9 @@ got {nargs_min}{usage_suffix}",
 
 /// Format the "(available in: …)" suffix for a W002 message from a
 /// command/subcommand's registry-declared dialect restriction — entirely
-/// data-driven from [`tcl_registry::CommandSpec::dialects`] /
-/// [`tcl_registry::SubCommand::dialects`], never a per-command name check.
-/// Empty when `dialects` is `None` (unrestricted) or has no primitive
+/// data-driven from [`tcl_registry::CommandSpec::surface`] /
+/// [`tcl_registry::SubCommand::surface`], never a per-command name check.
+/// Empty when `surface` is `None` (unrestricted) or has no primitive
 /// member (defensive; a restricted spec always has at least one).
 ///
 /// Members print as the profile catalog's `short_name` ("Tcl 8.5",

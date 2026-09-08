@@ -28419,18 +28419,13 @@ fn lift_f5_source_integrity_diagnostics(
 /// Lift the compiler-checks pipeline (GVN redundancies,
 /// shimmer / thunking, taint W2xx / T1xx, iRules control-flow
 /// IRULE1xxx-5xxx, SCCP constant branches) **and** the optimiser
-/// O-codes into LSP diagnostics.  These analyses are implemented in
-/// `tcl-compiler` but were previously only reachable through the
-/// `PyO3` bridge — the native server published nothing from them.
+/// O-codes into LSP diagnostics.
 ///
-/// `dialect` is the resolved per-document dialect string (empty for
-/// plain Tcl); `registry` must already carry that dialect's specs
-/// loaded (the caller resolves it via `registry_for_dialect`).
-///
-/// Note: this builds a `CompilationUnit` for the checks and the
-/// optimiser builds its own internally, so the source is lowered
-/// twice.  That is acceptable because the analyses themselves
-/// dominate the cost.
+/// `diags` arrives already computed: the `compiler_check_diagnostics`
+/// query builds the compilation unit once and runs both the checks and
+/// the optimiser over it, so this function lowers nothing — it filters
+/// (master switch, per-code disables, inline suppressions) and lifts the
+/// survivors into LSP shape.
 fn lift_compiler_diagnostics(
     text: &str,
     diags: &tcl_lsp_db::CompilerDiagnostics,
