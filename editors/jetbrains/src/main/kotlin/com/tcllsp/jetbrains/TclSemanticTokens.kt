@@ -37,13 +37,18 @@ import com.tcllsp.jetbrains.settings.TclLspSettings
  * having no semantic highlighting at all.
  *
  * A key the stock schemes give no foreground to leaves its token in the plain
- * text colour, so the ordinary parts of a Tcl file need a key that is painted
- * everywhere. FUNCTION_CALL, PREDEFINED_SYMBOL, LOCAL_VARIABLE, PARAMETER,
+ * text colour, so the ordinary parts of a Tcl file need a key those schemes
+ * paint. FUNCTION_CALL, PREDEFINED_SYMBOL, LOCAL_VARIABLE, PARAMETER,
  * IDENTIFIER and OPERATION_SIGN are not: they stay unused except where the
  * IDE leaves the same token plain in its own languages too (an `operator`, a
  * bare name in a config file). So every command head — built-in, user proc,
  * method, or iRule event handler — is FUNCTION_DECLARATION, the key the
  * platform's own LSP default gives the `function` type.
+ *
+ * The classic `Default` scheme ("Classic Light") is the one that still leaves
+ * a command head plain, and deliberately: it defines neither function key, so
+ * a Java method name is plain there too. Painting Tcl's commands anyway would
+ * be our colour rather than the scheme author's.
  *
  * The palette is smaller than the legend, so several Tcl types share a key,
  * the same collapsing the VS Code extension does with `semanticTokenScopes`.

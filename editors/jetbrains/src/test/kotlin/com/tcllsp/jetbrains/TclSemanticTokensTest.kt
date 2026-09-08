@@ -9,9 +9,9 @@ import org.w3c.dom.Element
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The colour map is only reachable through [TclSemanticTokens], and the key it
@@ -79,8 +79,9 @@ class TclSemanticTokensTest {
     /**
      * The regression: a key that no stock scheme gives a foreground to paints
      * the token in the plain text colour, so the file looks unhighlighted even
-     * though the server is publishing tokens. Both stock schemes are checked
-     * because several keys are coloured in only one of them.
+     * though the server is publishing tokens. Each scheme is paired with the
+     * core types it is expected to leave plain, so a type quietly losing its
+     * colour fails here whichever scheme drops it.
      */
     @Test
     fun everyCoreTokenIsColouredByTheStockSchemes() {
@@ -88,16 +89,38 @@ class TclSemanticTokensTest {
             "keyword", "function", "variable", "parameter",
             "string", "number", "comment", "escape", "event",
         )
-        for (scheme in listOf(darculaScheme(), intellijLightScheme())) {
-            for (type in core) {
-                val key = assertNotNull(SEMANTIC_TOKEN_COLORS[type], "$type has no colour")
-                assertTrue(
-                    scheme.paints(key),
-                    "the ${scheme.name} scheme leaves $type (${key.externalName}) " +
-                        "in the plain text colour",
-                )
+        val schemes = listOf(
+            darculaScheme() to emptySet(),
+            intellijLightScheme() to emptySet(),
+            // The classic scheme paints no function name in any language;
+            // `classicLightPaintsNoFunctionNameInAnyLanguage` pins that.
+            classicLightScheme() to setOf("function", "event"),
+        )
+        for ((scheme, expectedPlain) in schemes) {
+            val plain = core.filterNot { type ->
+                scheme.paints(assertNotNull(SEMANTIC_TOKEN_COLORS[type], "$type has no colour"))
             }
+            assertEquals(
+                expectedPlain,
+                plain.toSet(),
+                "the ${scheme.name} scheme leaves a different set of core tokens " +
+                    "in the plain text colour than expected",
+            )
         }
+    }
+
+    /**
+     * Why the classic scheme's exception is the scheme's own choice and not a
+     * key chosen badly: it gives a foreground to neither function key, so no
+     * stock key paints a command head there. Colouring one would mean picking
+     * a colour its author deliberately left out.
+     */
+    @Test
+    fun classicLightPaintsNoFunctionNameInAnyLanguage() {
+        val classic = classicLightScheme()
+
+        assertFalse(classic.paints(Colors.FUNCTION_DECLARATION))
+        assertFalse(classic.paints(Colors.FUNCTION_CALL))
     }
 
     /** A stock scheme, resolving an attribute through its parent scheme. */
@@ -179,6 +202,9 @@ class TclSemanticTokensTest {
         }
 
         fun darculaScheme(): Scheme = defaultScheme("Darcula")
+
+        /** The scheme the picker calls "Classic Light". */
+        fun classicLightScheme(): Scheme = defaultScheme("Default")
 
         fun intellijLightScheme(): Scheme {
             val scheme = schemeElements("themes/Light.xml").single()

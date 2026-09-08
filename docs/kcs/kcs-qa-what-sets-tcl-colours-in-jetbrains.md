@@ -40,10 +40,12 @@ Defaults**. Change an entry there and every Tcl token that uses it follows.
 | backslash escape, `format` and `clock` specifier | **String → Escape sequence → Valid** |
 | namespace, BIG-IP pool, monitor, profile | **Classes → Class reference** |
 
-Two entries stay deliberately plain, because the IDE leaves the same tokens
-plain in its own languages: an operator such as `+` uses **Braces and
+Some entries are plain in a stock scheme, because the IDE leaves the same
+tokens plain in its own languages: an operator such as `+` uses **Braces and
 Operators → Operation sign**, and a TclOO class name uses **Classes → Class
-name**. Give either one a foreground on that page if you want it coloured.
+name**. On the **Classic Light** scheme, command names are plain as well —
+that scheme colours no function name in any language, Java included. Give any
+of those entries a foreground on the same page if you want it coloured.
 
 With **Semantic tokens** switched off, only the grammar layer remains.
 Built-in command names and variables then stay in the plain text colour.
