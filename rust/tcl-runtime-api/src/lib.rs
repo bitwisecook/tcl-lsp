@@ -41,6 +41,12 @@ pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
+/// Standard Tcl return-option construction policy.
+pub mod completion_options;
+
+/// Shared TIP 348 structured error-stack state and validation.
+pub mod error_stack;
+
 /// An owned, byte-preserving script completion for host and embedding
 /// boundaries.
 ///

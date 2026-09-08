@@ -29,7 +29,9 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use tcl_bytecode::{ErrorRegion, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
+use tcl_bytecode::{
+    ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
+};
 use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
@@ -531,7 +533,12 @@ enum Tick {
     /// The current frame finished — unwind with this completion.
     Return(Completion<Value>),
     /// Call a proc — push a new activation + call-frame.
-    Call { proc: Rc<ProcDef>, argv: Vec<Value> },
+    Call {
+        proc: Rc<ProcDef>,
+        /// The command spelling before namespace resolution.
+        invoked: Value,
+        argv: Vec<Value>,
+    },
     /// Run a compiled script on the explicit stack — push a *transparent* script
     /// activation ([`Frame::new_script`]). Used by `EVAL_STK` (and the
     /// `eval`/`uplevel`/`apply` builtins routed through it) so a `yield` inside
@@ -1386,7 +1393,11 @@ impl Vm {
             }
             match tick {
                 Tick::Continue => {}
-                Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
+                Tick::Call {
+                    proc,
+                    invoked,
+                    argv,
+                } => match self.enter_proc(&proc, &invoked, &argv) {
                     Ok(()) => self.push_proc_frame(acts, &proc),
                     Err(c) => {
                         // A traced dispatch that failed at proc entry (arity)
@@ -1616,6 +1627,32 @@ impl Vm {
         acts: &mut Vec<Frame>,
         c: Completion<Value>,
     ) -> Option<Completion<Value>> {
+        if c.code == Code::Error
+            && let Some((text, line, context)) = acts.last().and_then(|frame| {
+                frame
+                    .asm
+                    .instructions
+                    .get(frame.pc.saturating_sub(1))
+                    .map(|instruction| {
+                        let context = match instruction.error_stack_context.as_ref() {
+                            Some(ErrorStackContext::CommandResult { head, .. }) => {
+                                Value::list(vec![Value::string(head.as_str()), c.result.clone()])
+                            }
+                            None => Value::string(instruction.source_cmd_text.as_str()),
+                        };
+                        let text = match instruction.error_stack_context.as_ref() {
+                            Some(ErrorStackContext::CommandResult {
+                                error_info_command, ..
+                            }) => error_info_command.clone(),
+                            None => instruction.source_cmd_text.clone(),
+                        };
+                        (text, instruction.source_line, context)
+                    })
+            })
+        {
+            let message = c.result.to_str().to_string();
+            self.log_command_info_with_context(&text, context, &message, line);
+        }
         let c = match self
             .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
         {
@@ -1690,7 +1727,7 @@ impl Vm {
         for r in covering {
             let body_line = self.error_line().saturating_sub(r.line_base).max(1);
             self.append_body_frame_line(&r.label, body_line);
-            self.log_command_info(&r.cmd_text, "", r.cmd_line);
+            self.log_command_info_only(&r.cmd_text, "", r.cmd_line);
         }
     }
 
@@ -1961,6 +1998,8 @@ impl Vm {
     /// return), and on error log the caller's `invoked from
     /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
     fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
+        let body_code = c.code;
+        let call_words = self.frame_argv(self.current_level()).unwrap_or_default();
         // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
         // reaches its boundary with a bare `break`/`continue` — i.e. a
         // `break`/`continue` or `return -level 0 -code break` that produced
@@ -2033,8 +2072,15 @@ impl Vm {
                     .map_or(Code::Ok, Code::from_int);
                 c.options = crate::command::with_return_level(&c.options, 0);
                 c.code = code;
+                if code == Code::Error {
+                    // A carried `-errorinfo` suppresses the `return` command's
+                    // own frame, but the call site that receives the settled
+                    // error must still be appended.
+                    self.clear_error_logged();
+                }
             }
         }
+        self.error_stack_push_proc_call(body_code, c.code, &call_words);
         if c.code == Code::Error
             && let Some((cmd, line)) = acts.last().and_then(|parent| {
                 parent
@@ -2076,16 +2122,23 @@ impl Vm {
     }
 
     /// Push a call-frame and bind `argv` to the proc's parameters.
-    fn enter_proc(&mut self, proc: &ProcDef, argv: &[Value]) -> Result<(), Completion<Value>> {
+    fn enter_proc(
+        &mut self,
+        proc: &ProcDef,
+        invoked: &Value,
+        argv: &[Value],
+    ) -> Result<(), Completion<Value>> {
         // Recursion bound (catchable, not a host stack overflow). Checked before
         // the frame push, matching C's `interp recursionlimit`.
         if self.recursion_depth() >= self.recursion_limit() {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
-        let simple = crate::interp::key_holder_and_tail_unrooted(&proc.name).1;
-        let mut call_argv = Vec::with_capacity(argv.len() + 1);
-        call_argv.push(Value::string(simple));
-        call_argv.extend(argv.iter().cloned());
+        let call_argv = proc.call_identity.clone().unwrap_or_else(|| {
+            let mut words = Vec::with_capacity(argv.len() + 1);
+            words.push(invoked.clone());
+            words.extend(argv.iter().cloned());
+            words
+        });
         self.push_call_frame(Some(proc.name.clone()), call_argv);
 
         let mut i = 0;
@@ -3958,7 +4011,12 @@ impl Vm {
                         let cmd_text = instr.source_cmd_text.clone();
                         let msg = c.result.to_str().to_string();
                         let line = instr.source_line;
-                        self.log_command_info(&cmd_text, &msg, line);
+                        self.log_command_info_with_context(
+                            &cmd_text,
+                            Value::list(words),
+                            &msg,
+                            line,
+                        );
                         return Tick::Return(c);
                     }
                 }
@@ -4008,7 +4066,12 @@ impl Vm {
                         let cmd_text = instr.source_cmd_text.clone();
                         let msg = c.result.to_str().to_string();
                         let line = instr.source_line;
-                        self.log_command_info(&cmd_text, &msg, line);
+                        self.log_command_info_with_context(
+                            &cmd_text,
+                            Value::list(words),
+                            &msg,
+                            line,
+                        );
                         return Tick::Return(c);
                     }
                 }
@@ -4046,7 +4109,12 @@ impl Vm {
                     Err(c) => {
                         let cmd_text = instr.source_cmd_text.clone();
                         let msg = c.result.to_str().to_string();
-                        self.log_command_info(&cmd_text, &msg, instr.source_line);
+                        self.log_command_info_with_context(
+                            &cmd_text,
+                            Value::list(rewritten),
+                            &msg,
+                            instr.source_line,
+                        );
                         return Tick::Return(c);
                     }
                 }
@@ -5129,6 +5197,7 @@ impl Vm {
                 .map_err(crate::command::completion_from_tcl_error)?;
                 Ok(Some(Tick::Call {
                     proc: p,
+                    invoked: words[0].clone(),
                     argv: words[1..].to_vec(),
                 }))
             }
@@ -5514,7 +5583,7 @@ impl Vm {
                     Ok(proc) => proc,
                     Err(error) => return crate::command::completion_from_tcl_error(error),
                 };
-                match self.enter_proc(&p, argv) {
+                match self.enter_proc(&p, &Value::string(name), argv) {
                     Ok(()) => self.run_activation(Frame::new(p.body.clone(), true)),
                     Err(c) => c,
                 }
@@ -5566,7 +5635,8 @@ impl Vm {
         link_vars: &[(String, String)],
         frame: crate::cmd_oo::OoFrame,
     ) -> Completion<Value> {
-        if let Err(c) = self.enter_proc(proc, argv) {
+        let simple = crate::interp::key_holder_and_tail_unrooted(&proc.name).1;
+        if let Err(c) = self.enter_proc(proc, &Value::string(simple), argv) {
             return c;
         }
         for (local, storage) in link_vars {
@@ -5644,7 +5714,11 @@ impl Vm {
                 Some(c)
             }
             Some(parent) => match self.dispatch_words(parent, words) {
-                Ok(Some(Tick::Call { proc, argv })) => match self.enter_proc(&proc, &argv) {
+                Ok(Some(Tick::Call {
+                    proc,
+                    invoked,
+                    argv,
+                })) => match self.enter_proc(&proc, &invoked, &argv) {
                     Ok(()) => {
                         let mut fr = Frame::new(proc.body.clone(), true);
                         if let Some(ctx) = self.pending_exec_leave.take() {

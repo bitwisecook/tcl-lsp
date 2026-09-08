@@ -917,10 +917,12 @@ fn factory(
         return make_class(vm, &name, body, class_key);
     }
 
-    let (obj_key, obj_ns, ctor_args, ctor_usage) = if anon {
+    let (obj_key, obj_ns, ctor_args, ctor_usage, ctor_identity) = if anon {
         // An anonymous object's command *is* its instance namespace (`oo::ObjN`).
         let n = fresh_obj_name(vm);
-        (n.clone(), n, args, format!("{class_invoked} new"))
+        let mut identity = vec![Value::string(class_invoked), Value::string("new")];
+        identity.extend_from_slice(args);
+        (n.clone(), n, args, format!("{class_invoked} new"), identity)
     } else {
         let Some((name, rest)) = args.split_first() else {
             return err(format!(
@@ -934,11 +936,18 @@ fn factory(
         }
         // A named object's instance namespace is still a fresh `oo::ObjN`,
         // decoupled from its command name (C's `oo::Obj` counter).
+        let mut identity = vec![
+            Value::string(class_invoked),
+            Value::string("create"),
+            Value::string(name.as_ref()),
+        ];
+        identity.extend_from_slice(rest);
         (
             vm.qualify_name(&name),
             fresh_obj_name(vm),
             rest,
             format!("{class_invoked} create {name}"),
+            identity,
         )
     };
     if vm.lookup_command(&obj_key).is_some() {
@@ -947,7 +956,15 @@ fn factory(
             display(&obj_key)
         ));
     }
-    oo_new(vm, class_key, &obj_key, &obj_ns, ctor_args, &ctor_usage)
+    oo_new(
+        vm,
+        class_key,
+        &obj_key,
+        &obj_ns,
+        ctor_args,
+        &ctor_usage,
+        ctor_identity,
+    )
 }
 
 /// A fresh `oo::ObjN` name (canonical) for an anonymous object.
@@ -967,6 +984,7 @@ fn oo_new(
     obj_ns: &str,
     ctor_args: &[Value],
     ctor_usage: &str,
+    ctor_identity: Vec<Value>,
 ) -> Completion<Value> {
     let id = vm.oo.counter;
     vm.oo.counter += 1;
@@ -1017,6 +1035,7 @@ fn oo_new(
             false,
             display(obj_key),
             ctor_usage.to_string(),
+            ctor_identity,
         );
         if !res.code.is_ok() && res.code != Code::Return {
             // Tear the half-built object down and re-raise.
@@ -1231,6 +1250,11 @@ fn oo_invoke(
         return unknown_method(vm, obj_key, method, external);
     }
     let usage = format!("{invoked} {method}");
+    let mut call_identity = vec![
+        Value::string(if external { invoked } else { "my" }),
+        Value::string(method),
+    ];
+    call_identity.extend_from_slice(args);
     run_step(
         vm,
         obj_key,
@@ -1241,6 +1265,7 @@ fn oo_invoke(
         external,
         invoked.to_string(),
         usage,
+        call_identity,
     )
 }
 
@@ -1289,6 +1314,7 @@ fn run_step(
     external: bool,
     invoked: String,
     usage_prefix: String,
+    call_identity: Vec<Value>,
 ) -> Completion<Value> {
     if let Err(c) = vm.enter_oo_dispatch() {
         return c;
@@ -1303,6 +1329,7 @@ fn run_step(
         external,
         invoked,
         usage_prefix,
+        call_identity,
     );
     vm.exit_oo_dispatch();
     result
@@ -1319,6 +1346,7 @@ fn run_step_inner(
     external: bool,
     invoked: String,
     usage_prefix: String,
+    call_identity: Vec<Value>,
 ) -> Completion<Value> {
     let step = chain[index].clone();
     // Resolve the method body for this step.
@@ -1412,6 +1440,7 @@ fn run_step_inner(
         body,
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
+        call_identity: Some(call_identity),
     };
     // Refresh through the shared proc owner, then persist the replacement on
     // its defining facet.  Recompiling on every method call after a profile
@@ -1610,6 +1639,8 @@ pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
         return err(format!("no next {kind} implementation"));
     }
+    let mut call_identity = vec![Value::string("next")];
+    call_identity.extend_from_slice(args);
     run_step(
         vm,
         &obj,
@@ -1620,6 +1651,7 @@ pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         external,
         invoked,
         usage,
+        call_identity,
     )
 }
 
@@ -1646,8 +1678,19 @@ pub(crate) fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .enumerate()
         .position(|(i, s)| i > index && !s.is_object && s.provider == target)
     {
+        let mut call_identity = vec![Value::string("nextto")];
+        call_identity.extend_from_slice(args);
         return run_step(
-            vm, &obj, &chain, pos, method, rest, external, invoked, usage,
+            vm,
+            &obj,
+            &chain,
+            pos,
+            method,
+            rest,
+            external,
+            invoked,
+            usage,
+            call_identity,
         );
     }
     err(format!(
@@ -1706,6 +1749,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
             .collect();
         if !chain.is_empty() {
             let d = display(obj_key);
+            let call_identity = vec![Value::string(d.as_str()), Value::string("destroy")];
             let res = run_step(
                 vm,
                 obj_key,
@@ -1716,6 +1760,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
                 false,
                 d.clone(),
                 d,
+                call_identity,
             );
             if !res.code.is_ok() && res.code != Code::Return {
                 result = res;

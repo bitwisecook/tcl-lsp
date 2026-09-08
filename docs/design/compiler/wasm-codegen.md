@@ -295,6 +295,12 @@ entry as well. The runtime owns the `already_logged` protocol, so the innermost
 statement of a nest logs and the rest are no-ops, exactly as C dedups within one
 bytecode frame.
 
+A specialised instruction may need two unwind representations. Its
+`ErrorStackContext` carries the value-oriented TIP 348 inner context separately
+from the failing source command used by `errorInfo`; an inline `catch {error
+boom}` therefore records the same `"error boom"` source frame as the generic
+evaluator without giving up its specialised error-stack context.
+
 ### Binding a compiled body to its procedure
 
 A `proc` statement whose body became one of this module's functions lowers to

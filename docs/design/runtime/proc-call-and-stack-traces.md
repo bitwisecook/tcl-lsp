@@ -312,7 +312,10 @@ by `proc`, `apply`, and every TclOO method:
    `too many nested evaluations (infinite loop?)` rather than a stack overflow.
 3. push the frame (`push` for a normal call, `push_same_level` when the caller
    is redirecting the level) and record the invocation `words` for
-   `info level N`.
+   `info level N`. Those exact words are also TIP 348's procedure-boundary
+   `CALL`: `apply` supplies the public lambda invocation and TclOO supplies the
+   object command, method, and arguments, never an internal implementation
+   proc name.
 4. switch `current_ns` to the proc's defining namespace, pre-link any declared
    instance variables (the TclOO case), then bind positionals left to right —
    supplied argument, else default — with a trailing `args` soaking up the rest.
@@ -499,7 +502,9 @@ bottom-up as an error unwinds, from the same unwinding sites that build
 `reset_error_stack` (C's `iPtr->resetErrorStack`, set by `Tcl_ResetResult`)
 marks the start of a new episode: the *next* logged command rebuilds the stack,
 and the previous contents survive until then, so `info errorstack` after a
-`catch` still reports the error that was caught.
+`catch` still reports the error that was caught. An explicitly seeded error
+that suppresses a new inner log (for example, `return -level 0 -code error
+-errorinfo ...`) exposes that same retained stack in its completion options.
 
 `info errorstack ?interp?` accepts the interpreter argument but only reports the
 current interpreter.

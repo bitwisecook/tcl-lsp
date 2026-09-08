@@ -36,6 +36,7 @@ use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 use tcl_bytecode::{FunctionAsm, ModuleAsm, ProcedureProvenance};
 use tcl_core_types::RecursionLimit;
 use tcl_platform::Host;
+use tcl_runtime_api::error_stack::{ErrorStack, validate_error_stack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
@@ -1188,6 +1189,9 @@ pub struct InterpState {
     /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
     /// the enclosing command logs its own `invoked from within` frame.
     error_logged: bool,
+    /// TIP 348's interpreter-local structured error stack. Its lazy reset
+    /// keeps the last caught stack introspectable until a new error is logged.
+    error_stack: ErrorStack<Value>,
     /// The 1-based source line of the innermost command logged into the current
     /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
     /// line N)` / `("while" body line N)` frames report.
@@ -1368,6 +1372,7 @@ pub(crate) struct ParkedFlow {
     recursion_depth: usize,
     error_info: Option<String>,
     error_logged: bool,
+    error_stack: ErrorStack<Value>,
     error_line: u32,
     invoked_name: Option<String>,
     script_stack: Vec<String>,
@@ -2061,6 +2066,7 @@ impl InterpState {
             eval_cache_plain: HashMap::new(),
             error_info: None,
             error_logged: false,
+            error_stack: ErrorStack::default(),
             error_line: 1,
             invoked_name: None,
             invoked_sidecar: None,
@@ -2084,7 +2090,6 @@ impl InterpState {
             limits: LimitSet::default(),
             commands_run: 0,
             limit_tick: 0,
-            // Keep an unseeded VM deterministic; tests seed explicitly.
             rand_seed: 1,
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
@@ -4385,10 +4390,20 @@ impl Vm {
         if !self.interp_alive(id) {
             return err("could not find interpreter");
         }
-        self.in_interp(id, |vm| match vm.eval_source(script) {
-            Ok(c) => c,
-            Err(e) => err(e.message),
-        })
+        let completion = self.in_interp(id, |vm| {
+            let mut completion = match vm.eval_source(script) {
+                Ok(c) => c,
+                Err(e) => err(e.message),
+            };
+            if completion.code == Code::Error {
+                completion.options = vm.completion_options_snapshot(&completion);
+            }
+            completion
+        });
+        if completion.code == Code::Error {
+            self.restore_completion_error_state(&completion);
+        }
+        completion
     }
 
     /// Evaluate assembled alias-target words (`target prefix… args…`) as one
@@ -8044,8 +8059,14 @@ impl Vm {
                     Err(error) => Some(crate::command::completion_from_tcl_error(error)),
                 };
                 if let Some(mut failure) = failed {
+                    let was_error = failure.code == Code::Error;
                     match op {
                         "write" | "read" | "array" => {
+                            if !was_error {
+                                self.error_stack_restart_with_inner(Value::string(
+                                    command.as_str(),
+                                ));
+                            }
                             // C's `TclCallVarTraces` logs a `(write|read trace
                             // on "name")` frame, then clears ERR_ALREADY_LOGGED
                             // so the command that triggered the trace logs its
@@ -8662,6 +8683,7 @@ impl Vm {
         if target >= self.frames.len() {
             return err(format!("bad level \"{target}\""));
         }
+        let up_delta = self.frames.len() - 1 - target;
         let saved = self.frames.split_off(target + 1);
         // The namespace name/id stacks are kept aligned 1:1 with the call-frame
         // stack (every proc call and `namespace eval` pushes one of each), so the
@@ -8673,7 +8695,15 @@ impl Vm {
         let saved_ns = self.ns_stack.split_off(ns_cut);
         let saved_ns_ids = self.ns_id_stack.split_off(ns_cut);
         let saved_depth = self.recursion_depth;
+        if up_delta != 0 {
+            let target_frame_count = self.frames.len();
+            self.error_stack
+                .enter_shifted_context(target_frame_count, up_delta);
+        }
         let result = self.eval_source(src);
+        if up_delta != 0 {
+            self.error_stack.leave_shifted_context();
+        }
         // Destroy any activation the script left in place through the ordinary
         // lifecycle, then re-attach the frames set aside above.
         self.drain_call_frames_to(target + 1);
@@ -8719,6 +8749,7 @@ impl Vm {
         std::mem::swap(&mut self.recursion_depth, &mut p.recursion_depth);
         std::mem::swap(&mut self.error_info, &mut p.error_info);
         std::mem::swap(&mut self.error_logged, &mut p.error_logged);
+        std::mem::swap(&mut self.error_stack, &mut p.error_stack);
         std::mem::swap(&mut self.error_line, &mut p.error_line);
         std::mem::swap(&mut self.invoked_name, &mut p.invoked_name);
         std::mem::swap(&mut self.script_stack, &mut p.script_stack);
@@ -10354,6 +10385,30 @@ impl Vm {
     /// (`error_logged`) is not re-logged. Command text over 150 bytes is
     /// truncated with `...`, as in C.
     pub(crate) fn log_command_info(&mut self, cmd_text: &str, msg: &str, line: u32) {
+        self.log_command_info_with_context(cmd_text, Value::string(cmd_text), msg, line);
+    }
+
+    /// Value-preserving form of [`Self::log_command_info`]. `cmd_text` remains
+    /// the source spelling for `errorInfo`; `context` is the post-substitution
+    /// operation stored in TIP 348's first `INNER` entry.
+    pub(crate) fn log_command_info_with_context(
+        &mut self,
+        cmd_text: &str,
+        context: Value,
+        msg: &str,
+        line: u32,
+    ) {
+        if self.error_logged {
+            return;
+        }
+        self.error_stack_log_value(context);
+        self.log_command_info_only(cmd_text, msg, line);
+    }
+
+    /// ErrorInfo-only half of command logging. Compiler error regions call this
+    /// while reconstructing synthetic body frames; those are not additional
+    /// Tcl command logs and therefore must not duplicate TIP 348 `UP` entries.
+    pub(crate) fn log_command_info_only(&mut self, cmd_text: &str, msg: &str, line: u32) {
         if self.error_logged {
             return;
         }
@@ -10500,10 +10555,101 @@ impl Vm {
         self.error_logged = true;
     }
 
+    /// Borrow the accumulated `errorInfo` without consuming the error episode.
+    pub(crate) fn error_info_value(&self) -> Option<&str> {
+        self.error_info.as_deref()
+    }
+
+    /// Whether the selected Tcl release exposes TIP 348 error stacks.
+    pub(crate) fn supports_error_stack(&self) -> bool {
+        self.runtime_version().has_error_stack()
+    }
+
+    /// Adopt an explicit, already-validated `return -errorstack` list.
+    pub(crate) fn seed_error_stack_parts(&mut self, parts: Vec<Value>) {
+        let _ = self.error_stack.adopt(parts);
+    }
+
+    /// Adopt an explicit stack stored in a completion options dictionary.
+    pub(crate) fn seed_error_stack(&mut self, stack: &Value) {
+        let Ok(parts) = validate_error_stack(stack.as_list().map(|items| items.as_ref().clone()))
+        else {
+            return;
+        };
+        self.seed_error_stack_parts(parts);
+    }
+
+    /// Add the innermost command context for a new Tcl 8.6+ error episode.
+    pub(crate) fn error_stack_log_value(&mut self, context: Value) {
+        if !self.supports_error_stack() {
+            return;
+        }
+        let _ = self
+            .error_stack
+            .begin_inner(Value::string("INNER"), context);
+        if let Some(delta) = self.error_stack.shifted_context_delta(self.frames.len()) {
+            let delta = i64::try_from(delta).unwrap_or(i64::MAX);
+            let _ = self
+                .error_stack
+                .push_pair(Value::string("UP"), Value::int(delta));
+        }
+    }
+
+    /// Replace the current episode when a non-error trace completion is
+    /// transformed into a new error by the variable subsystem.
+    pub(crate) fn error_stack_restart_with_inner(&mut self, context: Value) {
+        if !self.supports_error_stack() {
+            return;
+        }
+        self.error_stack
+            .restart_inner(Value::string("INNER"), context);
+    }
+
+    /// Append the invocation of a procedure that an error unwound through.
+    pub(crate) fn error_stack_push_proc_call(
+        &mut self,
+        body_code: Code,
+        settled_code: Code,
+        words: &[Value],
+    ) {
+        if !self.supports_error_stack() {
+            return;
+        }
+        let _ = self.error_stack.push_proc_call(
+            body_code,
+            settled_code,
+            Value::string("CALL"),
+            Value::list(words.to_vec()),
+        );
+    }
+
+    /// Return the last TIP 348 stack as a Tcl list value.
+    pub(crate) fn error_stack_value(&self) -> Value {
+        Value::list(self.error_stack.entries().to_vec())
+    }
+
+    /// Prefer the live stack. Before the first runtime log, an explicit carried
+    /// stack wins; otherwise the lazily retained prior stack remains visible.
+    pub(crate) fn error_stack_for_completion(&self, carried: Option<Value>) -> Value {
+        let carried =
+            carried.and_then(|value| value.as_list().ok().map(|items| items.as_ref().clone()));
+        Value::list(self.error_stack.snapshot_or(carried))
+    }
+
+    /// Reset transient metadata for a distinct nested evaluation. The error
+    /// stack itself resets lazily so `info errorstack` retains the last value.
+    fn reset_error_state_for_eval(&mut self) {
+        self.error_stack.mark_reset();
+        self.error_info = None;
+        self.error_logged = false;
+        self.error_line = 1;
+    }
+
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
     /// error — used when `catch` reports an error.
     pub(crate) fn take_error_info(&mut self) -> Option<String> {
         self.error_logged = false;
+        self.error_stack.mark_reset();
         self.error_info.take()
     }
 
@@ -10764,6 +10910,7 @@ impl Vm {
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
+        self.reset_error_state_for_eval();
         let module = self.compile_cached(src)?;
         let comp = self.run_current_module(&module);
         // Crossing back out of a nested script is a frame boundary: clear
@@ -10792,6 +10939,7 @@ impl Vm {
         src: &str,
         namespace: &str,
     ) -> Result<CompiledUnit, TclError> {
+        self.reset_error_state_for_eval();
         let module = self.compile_cached_in_namespace(src, namespace)?;
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
