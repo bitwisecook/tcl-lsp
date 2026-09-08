@@ -88,7 +88,6 @@ validated in the test suite with `readelf`/`llvm-objdump` and an in-repo
 verifier model. The actual `bpf()` kernel load needs root and a live kernel,
 so it runs behind `#[ignore]`d tests. `bpf-tcl plan` resolves the deployment
 plan — programs, pins, attach targets, and kernel features — without touching
-the kernel; performing the attach from a production deployment tool is
-follow-on work. See
+the kernel; `bpf-tcl` does not attach programs itself. See
 [`docs/design/compiler/ebpf-backend.md`](../../design/compiler/ebpf-backend.md)
-for the full architecture and roadmap.
+for the full architecture.

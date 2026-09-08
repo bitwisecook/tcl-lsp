@@ -52,7 +52,7 @@ if you call one.
 
 **Cross-file results on a GitHub repository.** The browser server has no
 filesystem, so the extension reads the workspace itself and hands the files
-over. That hand-off currently only carries files on the `file:` scheme, and
+over. That hand-off only carries files on the `file:` scheme, and
 github.dev serves a repository on a virtual one — so each file you *open* is
 analysed in full, while answers that depend on files you have **not** opened (a
 proc defined in a sibling, `package require` resolution, workspace symbols) are
@@ -65,8 +65,8 @@ file and its definitions resolve.
 `tclLsp.web.workspaceSync.maxFileBytes` (2 MiB per file). Nothing is dropped
 quietly: every skipped file is named in the **Tcl Language Server** output
 channel, with the setting that would include it. Raise the setting, then run
-**Tcl: Restart Server** — the restart rebuilds the server and re-reads the
-workspace under the new limits.
+**Tcl: Restart Language Server** — the restart rebuilds the server and
+re-reads the workspace under the new limits.
 
 **Diagnostics can appear on non-file documents.** A web workspace has no single
 URI scheme to pin to, so Tcl documents are matched on any scheme. A side effect

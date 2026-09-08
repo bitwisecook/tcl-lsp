@@ -103,8 +103,8 @@ Node scripts, run with the corpora checked out beside them:
 | Script | Role |
 |---|---|
 | `01-mine-tricky-tcl-patterns.js` | Walks each corpus and extracts candidate patterns. |
-| `02-differential-audit-tcllib-COMPLETE.js` | Drives the oracle-vs-LSP diff over the tcllib wave. |
-| `03-differential-audit-main105-IN_PROGRESS.js` | The same driver for the main wave. |
+| `02-differential-audit-tcllib-COMPLETE.js` | Drives the oracle-vs-LSP diff over the tcllib candidates. |
+| `03-differential-audit-main105-IN_PROGRESS.js` | The same driver for the other seven corpora. |
 | `04-remaining14-research-IN_PROGRESS.js` | Re-checks a root-cause hint against current code. |
 
 The `IN_PROGRESS` / `COMPLETE` suffixes are historical filenames, not a

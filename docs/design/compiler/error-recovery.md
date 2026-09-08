@@ -10,6 +10,8 @@ Source:
 
 - `rust/tcl-compiler/src/segmenter.rs` — `segment_with_recovery`, the re-lex
   driver.
+- `rust/tcl-compiler/src/parsing/syntax/build.rs` and `segment.rs` —
+  `build_document_with_ghosts` and `segments_from_document`, the re-parse.
 - `rust/tcl-compiler/src/analyser/syntax_checks.rs` — the per-code heuristics
   (`detect_e201` and its `e201_at_comment` / `e201_at_command` / `e201_at_brace`
   candidates, plus the E202 / E203 builders).
@@ -48,7 +50,7 @@ ghosts: {offset → b']'}
    ▼
 build_document_with_ghosts() + segments_from_document()   ← re-lex
    │
-   └── repeat while a pass adds a new ghost (capped at 32 passes)
+   └── repeat while a pass adds a new ghost (`MAX_GHOST_RECOVERY_PASSES`, 32)
 ```
 
 The loop iterates because one re-lex can expose a *further* unterminated `[`
@@ -168,7 +170,7 @@ rules:
   boundary; the whole verbatim `{…}` span is inert for brackets. `"` toggles a
   quoted run (brackets still count inside it; braces are literal).
 - **Inside a `[…]` command substitution** — brace handling is *count-based*, not
-  word-based (mirroring `Lexer::scan_command_substitution`): `{` and `}` adjust
+  word-based (mirroring the lexer's command-substitution scan): `{` and `}` adjust
   the brace level, and a `]` only closes when the brace level is 0 and the
   scanner is not in quotes. So a `]` inside `{…}` inside `[…]` is inert.
 
@@ -244,6 +246,6 @@ re-lex and by the recovery fuzz campaign.
 ## Related docs
 
 - [Example 20 in walkthroughs](../example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)
-- [green-token-tree.md](green-token-tree.md) — the lossless tree the recovered
-  parse feeds.
+- [syntax-tree.md](syntax-tree.md) — the red-green CST the recovered parse
+  feeds.
 - [GLOSSARY.md](../../GLOSSARY.md)

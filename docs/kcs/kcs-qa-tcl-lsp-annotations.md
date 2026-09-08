@@ -78,12 +78,11 @@ the analyser a shape for the call: the argument count is checked, and each
 word is read as the kind of thing its role names rather than as an opaque
 string.
 
-Flags (`-barrier`, `-loop`, `-pure`, `-mutator`, `-unsafe`, `-scope_alias`)
-are parsed and recorded on the `StubCommandDef`, but most of them are
-not yet wired into downstream passes — only `-barrier` is consulted by
-the call-graph scanner. See
+Six flags are accepted — `-barrier`, `-loop`, `-pure`, `-mutator`,
+`-unsafe`, and `-scope_alias`. Only `-barrier` changes analysis: it marks
+the command a dynamic barrier for the call-graph scanner. See
 [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
-for which flags affect analysis today.
+for the full flag reference.
 
 **Worked example — sqlite `eval`:** sqlite's per-row callback is the
 trailing argument, which is a Tcl script:

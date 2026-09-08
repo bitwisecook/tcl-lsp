@@ -693,9 +693,8 @@ only what differs from the base.  Taint metadata is data on the same literal
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "string option arg ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const SUBCOMMANDS: &[SubCommand] = &[

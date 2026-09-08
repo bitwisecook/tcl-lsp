@@ -78,7 +78,7 @@ takes precedence when set:
 - **MSYS2 and Cygwin:** `~/.config/tcl-lsp/config.ini`
 
 Both the global file and the project `.tcl-lsp.ini` use the same INI
-schema. The recognised sections today are `[diagnostics]`,
+schema. The recognised sections are `[diagnostics]`,
 `[optimiser]`, `[shimmer]`, `[xcDiagnostics]`, `[features]`,
 `[formatting]`, `[style]`, plus a location-specific top-level section:
 `[global]` in `config.ini` and `[project]` in `.tcl-lsp.ini`. Keys
