@@ -61,7 +61,12 @@ statement(s) inside the wrong scope.
 
 ## How to suppress
 
-Add `# noqa: E103` on the line **above** the offending command.
+`E103` is an internal parse error: it has no per-code entry in the
+generated editor settings list. Silence it for one file with a
+`# tcl-lsp: disable=E103` directive at the top of the file, or for a
+whole project with `disabled = E103` under `[diagnostics]` in
+`.tcl-lsp.ini`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 

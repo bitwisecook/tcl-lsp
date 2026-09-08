@@ -62,17 +62,8 @@ than a healthy one, even when the starvation probe cannot confirm it.
 ## What the server was doing
 
 Below the three per-question lines is a reading of the server program itself,
-which is what turns a `SERVER WEDGED` verdict from "re-run it" into a diagnosis.
-
-A few words used below, in plain terms. The **process id** is the number the
-operating system uses to identify a running program. **Processor time** is how
-much work the program has actually been given to do, counted in the small fixed
-units the operating system reports. **Standard input** and **standard output**
-are the two channels the editor and the server talk over. A **lock** is a claim
-one part of the program takes so that only it may touch a piece of shared state;
-while it is held, everything else that wants that state waits.
-
-Read the block in this order.
+which is what turns a `SERVER WEDGED` verdict from "re-run it" into a
+diagnosis. Read the block in this order.
 
 1. **`extension host: a 250ms timer woke Nx late`.** The extension host is the
    VS Code process the tests run inside. If the figure is `2x` or more, that
@@ -109,15 +100,10 @@ has not advanced`, stop reading the counters above and read that instead. It is
 the server's own account of the same event, and it names things no external
 measurement can reach.
 
-Two more terms first. The **document-sync barrier** is the queue that makes the
-server apply the editor's edits in the order they were sent: each `didOpen` /
-`didChange` / `didClose` takes a numbered place in line, and every other request
-waits until the edits ahead of it have been applied. A **suspended task** is a
-piece of the server's work that has paused at a point where it is waiting for
-something and given its thread back — it is not running, and it is not stopped
-either, so it appears in no list of what the threads are doing.
-
-The line reads, in order:
+The **document-sync barrier** is the queue that applies the editor's edits in
+the order they were sent: each `didOpen` / `didChange` / `didClose` takes a
+numbered place in line, and every other request waits behind the edits ahead of
+it. The line reads, in order:
 
 1. **`now_serving=N, waiting for M`** — how far the queue has got, and where it
    needs to get to. `M - N` is the number of document-sync notifications piled
@@ -139,10 +125,9 @@ The line reads, in order:
    is. Check it against the phase marker. An old snapshot next to a phase that
    never reached `db_set_source` is a bystander, not the cause.
 
-What the line cannot tell you is why the resumption never came, only where it
-was awaited. A stack trace will not fill that in — a suspended task has no
-thread and so appears in no backtrace, which is the whole reason the phase is
-recorded on the way in.
+The line says where the handler is waiting, not why the resumption never came.
+A stack trace will not fill that in: a suspended task has given its thread back
+and appears in no backtrace, which is why the phase is recorded on the way in.
 
 ## Why the first question carries no file name
 

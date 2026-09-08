@@ -50,7 +50,12 @@ correct it by hand.
 
 ## How to suppress
 
-Add `# noqa: E102` on the line **above** the offending command.
+`E102` is an internal parse error: it has no per-code entry in the
+generated editor settings list. Silence it for one file with a
+`# tcl-lsp: disable=E102` directive at the top of the file, or for a
+whole project with `disabled = E102` under `[diagnostics]` in
+`.tcl-lsp.ini`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 

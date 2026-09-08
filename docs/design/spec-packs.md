@@ -801,7 +801,7 @@ n-paired tails, dynamic arity, and the full documentation / quick-fix /
 analysis-hook surface. No construct enters the frozen syntax until it is
 ticked against a ported example, not against intent.
 
-## Phase 2: the studio becomes the DSL's IDE
+## The studio is the DSL's IDE
 
 The `.tclspec` document is the studio's one authoritative document, with
 the form and the Pack DSL pane as projections of it; the contract is

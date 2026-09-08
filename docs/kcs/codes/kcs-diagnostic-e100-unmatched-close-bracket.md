@@ -41,7 +41,12 @@ Add the missing `[` to form a complete command substitution, or remove the stray
 
 ## How to suppress
 
-Add `# noqa: E100` on the line **above** the offending command.
+`E100` is an internal parse error: it has no per-code entry in the
+generated editor settings list. Silence it for one file with a
+`# tcl-lsp: disable=E100` directive at the top of the file, or for a
+whole project with `disabled = E100` under `[diagnostics]` in
+`.tcl-lsp.ini`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 
