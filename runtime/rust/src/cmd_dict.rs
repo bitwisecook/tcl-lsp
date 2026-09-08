@@ -89,10 +89,14 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // parser only through here, so without the re-wording every
                 // one of them reported the list noun (issue #1573).
                 Err(e) => {
-                    let msg = dict_worded(e.message());
+                    let (message, portable_code) = e.into_parts();
+                    let msg = dict_worded(&message);
                     match dict_parse_error_code(&msg) {
                         Some(code) => interp.error_with_code(msg.as_bytes(), code),
-                        None => interp.set_error(msg.as_bytes()),
+                        None => match portable_code {
+                            Some(code) => interp.error_with_code(msg.as_bytes(), code.as_bytes()),
+                            None => interp.set_error(msg.as_bytes()),
+                        },
                     }
                 }
             };

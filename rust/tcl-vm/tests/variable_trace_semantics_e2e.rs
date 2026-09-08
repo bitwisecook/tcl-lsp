@@ -560,6 +560,24 @@ puts [list $em [dict get $eo -errorcode]]
 }
 
 #[test]
+fn array_content_validation_preserves_structured_error_codes() {
+    let script = r"
+array set a {}
+catch {array set a odd} setMessage setOptions
+catch {array for \{ a {}} forMessage forOptions
+puts [list $setMessage [dict get $setOptions -errorcode] \
+    $forMessage [dict get $forOptions -errorcode]]
+";
+    let expected = "{list must have an even number of elements} {TCL ARGUMENT FORMAT} \
+        {unmatched open brace in list} {TCL VALUE LIST BRACE}";
+
+    assert_eq!(vm_output(script), expected);
+    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+        assert_eq!(oracle, expected, "Tcl 9.0 array validation oracle");
+    }
+}
+
+#[test]
 fn read_and_write_trace_wrappers_publish_their_lookup_error_codes() {
     // Exact Tcl 9.0.4 transcript. Unlike the array operation, scalar
     // read/write wrapping replaces the callback's code with the variable

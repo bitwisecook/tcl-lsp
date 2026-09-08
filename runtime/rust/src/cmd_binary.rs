@@ -255,7 +255,7 @@ fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_byte_array(&out);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(e) => interp.report_cmd_error(e),
     }
 }
 
@@ -274,7 +274,7 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // The unpack grammar is shared; the variable assignment (Family-B) stays here.
     let values = match tcl_cmd_core::binary::scan(&data, &fmt) {
         Ok(v) => v,
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     for (k, val) in values.iter().enumerate() {
         let Some(&var) = vars.get(k) else {

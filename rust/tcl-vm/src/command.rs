@@ -1766,13 +1766,7 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     vm.set_system_encoding(encoding);
                     ok(Value::empty())
                 }
-                Err(error) => {
-                    let (message, code) = error.into_parts();
-                    match code {
-                        Some(code) => err_with_code(message, &code),
-                        None => err(message),
-                    }
-                }
+                Err(error) => completion_from_cmd_error(error),
             },
             _ => err_wrong_args("encoding system ?encoding?"),
         },

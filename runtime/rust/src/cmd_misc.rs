@@ -161,15 +161,7 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         interp.set_result_bytes(b"");
                         Code::Ok
                     }
-                    Err(error) => {
-                        let (message, code) = error.into_parts();
-                        match code {
-                            Some(code) => {
-                                interp.error_with_code(message.as_bytes(), code.as_bytes())
-                            }
-                            None => interp.set_error(message.as_bytes()),
-                        }
-                    }
+                    Err(error) => interp.report_cmd_error(error),
                 }
             }
             _ => interp.wrong_args(b"encoding system ?encoding?"),

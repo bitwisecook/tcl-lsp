@@ -49,7 +49,7 @@ fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the command name to the name-stripped slice the core expects).
     let opts = match core_switch::parse_options(interp, &argv[1..]) {
         Ok(o) => o,
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     let value_idx = 1 + opts.value_index;
     let value = argv[value_idx];
@@ -114,7 +114,7 @@ fn switch_inline_form(
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     // Resolve a `-` fall-through to the next non-`-` body (guaranteed to exist).
     let mut b = matched;
@@ -193,7 +193,7 @@ fn switch_list_form(
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     let mut b = matched;
     while element_value(&list_str, &elems[b * 2 + 1]).as_slice() == b"-" {

@@ -86,6 +86,18 @@ impl ListError {
         }
     }
 
+    /// Tcl's structured `-errorcode` for this list syntax failure.
+    #[must_use]
+    pub fn error_code(self) -> &'static str {
+        match self {
+            ListError::UnmatchedBrace => "TCL VALUE LIST BRACE",
+            ListError::UnmatchedQuote => "TCL VALUE LIST QUOTE",
+            ListError::BraceFollowedByJunk | ListError::QuoteFollowedByJunk => {
+                "TCL VALUE LIST JUNK"
+            }
+        }
+    }
+
     /// The complete Tcl error message for splitting `src` as a list. For the
     /// `…followed by "X" instead of space` cases this surfaces the offending
     /// fragment `X` directly after the closing delimiter (`tclUtil.c`); the other
@@ -904,6 +916,26 @@ mod tests {
         assert_eq!(split_list("\"unmatched"), Err(ListError::UnmatchedQuote));
         assert_eq!(split_list("{a}b"), Err(ListError::BraceFollowedByJunk));
         assert_eq!(split_list("\"a\"b"), Err(ListError::QuoteFollowedByJunk));
+    }
+
+    #[test]
+    fn list_errors_own_their_structured_codes() {
+        assert_eq!(
+            ListError::UnmatchedBrace.error_code(),
+            "TCL VALUE LIST BRACE"
+        );
+        assert_eq!(
+            ListError::UnmatchedQuote.error_code(),
+            "TCL VALUE LIST QUOTE"
+        );
+        assert_eq!(
+            ListError::BraceFollowedByJunk.error_code(),
+            "TCL VALUE LIST JUNK"
+        );
+        assert_eq!(
+            ListError::QuoteFollowedByJunk.error_code(),
+            "TCL VALUE LIST JUNK"
+        );
     }
 
     #[test]

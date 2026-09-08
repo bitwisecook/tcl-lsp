@@ -430,11 +430,10 @@ pub fn resolve_open_access_mode(version: TclVersion, access: &str) -> Result<Ope
     }
 
     let flags = tcl_syntax::list::split_list(access).map_err(|error| {
-        let message = error.full_message(access);
         if version >= TclVersion::V9_0 {
-            CmdError::with_error_code(message, "TCL OPENMODE INVALID")
+            CmdError::with_error_code(error.full_message(access), "TCL OPENMODE INVALID")
         } else {
-            CmdError::with_error_code(message, list_error_code(error))
+            CmdError::list(error, access)
         }
     })?;
     let mut direction = None;
@@ -487,15 +486,6 @@ fn open_mode_error(version: TclVersion, message: String) -> CmdError {
         CmdError::with_error_code(message, "TCL OPENMODE INVALID")
     } else {
         CmdError::new(message)
-    }
-}
-
-fn list_error_code(error: tcl_syntax::list::ListError) -> &'static str {
-    match error {
-        tcl_syntax::list::ListError::UnmatchedBrace => "TCL VALUE LIST BRACE",
-        tcl_syntax::list::ListError::UnmatchedQuote => "TCL VALUE LIST QUOTE",
-        tcl_syntax::list::ListError::BraceFollowedByJunk
-        | tcl_syntax::list::ListError::QuoteFollowedByJunk => "TCL VALUE LIST JUNK",
     }
 }
 

@@ -5186,6 +5186,25 @@ impl Interp {
         Code::Error
     }
 
+    /// Publish a portable command-layer error through this runtime's result
+    /// and exception-state ABI without losing a structured error code.
+    pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        let (message, code) = error.into_parts();
+        match code {
+            Some(code) => self.error_with_code(message.as_bytes(), code.as_bytes()),
+            None => self.set_error(message.as_bytes()),
+        }
+    }
+
+    /// Publish a list parse failure using the shared list owner's message and
+    /// structured code.
+    pub(crate) fn report_list_error(&mut self, source: &[u8], error: parse::ListError) -> Code {
+        self.error_with_code(
+            &parse::list_error_message(source, error),
+            error.error_code(),
+        )
+    }
+
     /// The `interp bgerror` handler command prefix (empty ⇒ default).
     pub(crate) fn bgerror_handler(&self) -> Vec<u8> {
         self.bgerror.borrow().clone()
@@ -8752,17 +8771,8 @@ impl Interp {
                     Ok(prefix) if !prefix.is_empty() => EnsembleUnknown::Prefix(prefix),
                     Ok(_) => EnsembleUnknown::Reparse,
                     Err(e) => {
-                        let error_code: &[u8] = match e {
-                            crate::parse::ListError::UnmatchedBrace => b"TCL VALUE LIST BRACE",
-                            crate::parse::ListError::UnmatchedQuote => b"TCL VALUE LIST QUOTE",
-                            crate::parse::ListError::BraceFollowedByJunk
-                            | crate::parse::ListError::QuoteFollowedByJunk => {
-                                b"TCL VALUE LIST JUNK"
-                            }
-                            crate::parse::ListError::NotUtf8 => b"TCL VALUE LIST",
-                        };
                         let message = crate::parse::list_error_message(&res, e);
-                        let code = self.error_with_code(&message, error_code);
+                        let code = self.error_with_code(&message, e.error_code());
                         self.append_error_info_context(
                             b"while parsing result of ensemble unknown subcommand handler",
                         );

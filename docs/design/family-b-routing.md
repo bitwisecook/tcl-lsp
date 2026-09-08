@@ -122,7 +122,10 @@ Shared in `tcl-cmd-core`:
   `VarStore::array_keys` — the **enumeration** surface the otherwise-listing-free
   state traits expose, returning an array's element keys (or `None` for a
   scalar/unset, the existence signal). `ArrayTarget` is the operation-scoped
-  LocateArray result. A stable-cell runtime retains the cell and its direct
+  LocateArray result. Both adapters select the array-operation trace operand
+  through `InvocationFacts::sole_argument_index_for_roles`; the helper applies
+  the dialect-selected member arity and resolver-first argument roles before
+  returning an argv index. A stable-cell runtime retains the cell and its direct
   binding shell across the command, and routes `exists`/`size`/`names`, the
   key half of `get`, and patterned `unset` through its `VarId`; the shared core
   deliberately re-resolves the spelling for `get` values and whole-array

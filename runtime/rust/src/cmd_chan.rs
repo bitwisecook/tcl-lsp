@@ -35,7 +35,6 @@ use tcl_cmd_core::channel::{
     channel_output_error, config_list, config_value, encode_output_bytes, resolve_open_access_mode,
     set_config_value, ChannelConfig, OpenAccess, StandardChannelConfigs,
 };
-use tcl_cmd_core::CmdError;
 use tcl_platform::SystemEncoding;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -340,7 +339,7 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let version = interp.runtime_version();
     let access = match resolve_open_access_mode(version, &mode_string) {
         Ok(access) => access,
-        Err(error) => return report_cmd_error(interp, error),
+        Err(error) => return interp.report_cmd_error(error),
     };
     let opened = interp.channels.borrow_mut().open(path_s, access, version);
     match opened {
@@ -575,7 +574,7 @@ pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"error writing to channel");
     }
     if let Some(error) = encoded.error {
-        return report_cmd_error(interp, channel_output_error(&name_for_error(&chan), error));
+        return interp.report_cmd_error(channel_output_error(&name_for_error(&chan), error));
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -671,7 +670,7 @@ fn fconfigure_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result_bytes(config_value(option, &name, config).as_bytes());
                     Code::Ok
                 }
-                Err(error) => report_cmd_error(interp, error),
+                Err(error) => interp.report_cmd_error(error),
             }
         }
         pairs if pairs.len() % 2 == 0 => {
@@ -683,28 +682,20 @@ fn fconfigure_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     &option_word,
                 ) {
                     Ok(option) => option,
-                    Err(error) => return report_cmd_error(interp, error),
+                    Err(error) => return interp.report_cmd_error(error),
                 };
                 let value = obj_bytes(pair[1]);
                 let value = String::from_utf8_lossy(&value);
                 let configured = set_config_value(version, &mut config, option, &value);
                 let _ = interp.channels.borrow_mut().set_config(&id, config);
                 if let Err(error) = configured {
-                    return report_cmd_error(interp, error);
+                    return interp.report_cmd_error(error);
                 }
             }
             interp.set_result_bytes(b"");
             Code::Ok
         }
         _ => interp.wrong_args(b"fconfigure channelId ?-option value ...?"),
-    }
-}
-
-fn report_cmd_error(interp: &mut Interp, error: CmdError) -> Code {
-    let (message, code) = error.into_parts();
-    match code {
-        Some(code) => interp.error_with_code(message.as_bytes(), code.as_bytes()),
-        None => interp.set_error(message.as_bytes()),
     }
 }
 
