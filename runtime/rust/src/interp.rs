@@ -2485,15 +2485,7 @@ impl Interp {
     /// level leaves exactly the error state its interpreted twin would.
     pub(crate) fn codegen_activation_leave(&mut self, code: Code) {
         self.eval_depth.set(self.eval_depth.get().saturating_sub(1));
-        if self.eval_depth.get() != 0 {
-            return;
-        }
-        if code == Code::Error {
-            self.publish_error();
-        }
-        if !self.bg_queue.borrow().is_empty() {
-            self.process_bg_errors();
-        }
+        self.finish_outermost_eval(code);
     }
 
     /// Record the activation `Tcl_PushCallFrame` adds to the namespace token a
@@ -2788,10 +2780,14 @@ impl Interp {
         }
     }
 
-    /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
-    /// the script stack (`info script`). A top-level `return` ends the file (the
-    /// return boundary maps `return` → Ok); other codes propagate.
-    pub fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
+    /// Evaluate one source boundary, projecting its completion before an
+    /// outermost error is published and its live return-options state reset.
+    fn eval_sourced_boundary<T>(
+        &mut self,
+        script: &[u8],
+        name: &[u8],
+        project: impl FnOnce(&mut Self, Code) -> T,
+    ) -> T {
         self.script_stack.borrow_mut().push(name.to_vec());
         // A `source`d file is its own `info frame` level: `type source` + the
         // file path, inheriting the enclosing proc/level. Its commands are
@@ -2800,9 +2796,33 @@ impl Interp {
         frame.kind = FrameKind::Source;
         frame.file = Some(Rc::from(name));
         frame.line_base = 0;
-        let code = self.eval_framed(script, frame);
+        let code = self.eval_framed_unpublished(script, frame);
         self.script_stack.borrow_mut().pop();
-        self.settle_return(code)
+        let code = self.settle_return(code);
+        let projected = project(self, code);
+        self.finish_outermost_eval(code);
+        projected
+    }
+
+    /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
+    /// the script stack (`info script`). A top-level `return` ends the file (the
+    /// return boundary maps `return` → Ok); other codes propagate.
+    pub fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
+        self.eval_sourced_boundary(script, name, |_, code| code)
+    }
+
+    /// Evaluate a sourced script and return its owned, byte-preserving
+    /// completion.
+    ///
+    /// The source return boundary is settled before the snapshot. An uncaught
+    /// error is published to Tcl's globals only after its live options,
+    /// including `-during`, have been captured.
+    pub fn eval_sourced_completion(
+        &mut self,
+        script: &[u8],
+        name: &[u8],
+    ) -> tcl_runtime_api::ScriptCompletion {
+        self.eval_sourced_boundary(script, name, crate::completion::capture_bytes)
     }
 
     /// `info script` — the file currently being sourced (empty at top level).
@@ -5885,6 +5905,20 @@ impl Interp {
 
     // -- eval -----------------------------------------------------------------
 
+    /// Evaluate through the common outer boundary, projecting the live
+    /// completion before applying its publication tail.
+    fn eval_str_boundary<T>(
+        &mut self,
+        src: &[u8],
+        project: impl FnOnce(&mut Self, Code) -> T,
+    ) -> T {
+        let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
+        let code = self.eval_script_mode_unpublished(src, owned, false);
+        let projected = project(self, code);
+        self.finish_outermost_eval(code);
+        projected
+    }
+
     /// Evaluate a whole script; the result is left in the interp result. Returns
     /// the completion code of the last command (or `Ok` for an empty script).
     ///
@@ -5894,20 +5928,37 @@ impl Interp {
     /// `cmdFramePtr` level. A proc body / `eval` / `source` body gets its own
     /// frame via [`eval_framed`](Self::eval_framed).
     pub fn eval_str(&mut self, src: &[u8]) -> Code {
-        let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
-        self.eval_script(src, owned)
+        self.eval_str_boundary(src, |_, code| code)
+    }
+
+    /// Evaluate a script and return an owned, byte-preserving completion.
+    ///
+    /// This is the public host/embedding boundary. The result and live return
+    /// options are captured before an outermost error is published and resets
+    /// the exception state; Tcl's error globals are still published before this
+    /// method returns. No text encoding is applied.
+    pub fn eval_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
+        self.eval_str_boundary(script, crate::completion::capture_bytes)
     }
 
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
     /// pushed for the duration). Used by proc calls, `eval`/`uplevel`, and
     /// `source`.
     fn eval_framed(&mut self, src: &[u8], mut frame: CmdFrame) -> Code {
+        frame.proc_line_base = frame.line_base;
+        self.eval_script(src, Some(frame))
+    }
+
+    /// [`Self::eval_framed`] before its outermost publication tail. This is
+    /// reserved for a source boundary, which must settle `return` first and may
+    /// snapshot the resulting completion before publication.
+    fn eval_framed_unpublished(&mut self, src: &[u8], mut frame: CmdFrame) -> Code {
         // A freshly pushed frame is its own `codePtr->source`, so `errorLine` is
         // measured from this body's base (an inline `catch`/`if` body, by
         // contrast, shares the enclosing frame via `eval_shared_located_body` and
         // keeps the proc's `proc_line_base`).
         frame.proc_line_base = frame.line_base;
-        self.eval_script(src, Some(frame))
+        self.eval_script_mode_unpublished(src, Some(frame), false)
     }
 
     /// The shared command loop. If `owned` is `Some`, it is pushed as this
@@ -5925,6 +5976,21 @@ impl Interp {
     /// [`eval_command_subst`](Self::eval_command_subst)); the caller sets up and
     /// restores the shared frame's `line_base`.
     fn eval_script_mode(
+        &mut self,
+        src: &[u8],
+        owned: Option<CmdFrame>,
+        advance_shared: bool,
+    ) -> Code {
+        let code = self.eval_script_mode_unpublished(src, owned, advance_shared);
+        self.finish_outermost_eval(code);
+        code
+    }
+
+    /// The shared command loop through depth/frame unwind, stopping before the
+    /// outermost publication tail. Public result adapters use this seam to
+    /// snapshot live return options; ordinary evaluators immediately pass the
+    /// code to [`Self::finish_outermost_eval`].
+    fn eval_script_mode_unpublished(
         &mut self,
         src: &[u8],
         owned: Option<CmdFrame>,
@@ -5963,19 +6029,26 @@ impl Interp {
             self.cmd_frames.borrow_mut().pop();
         }
         self.eval_depth.set(self.eval_depth.get() - 1);
-        // The outermost eval publishes the accumulated trace to the globals so
-        // an uncaught error leaves `::errorInfo`/`::errorCode` set, exactly as a
-        // `catch` would (`catch` publishes earlier, at depth > 0).
-        if self.eval_depth.get() == 0 && last == Code::Error {
+        last
+    }
+
+    /// Apply the one outermost-evaluation tail after any result/options
+    /// projection has observed the live completion state.
+    fn finish_outermost_eval(&mut self, code: Code) {
+        if self.eval_depth.get() != 0 {
+            return;
+        }
+        // Publish the accumulated trace to the globals so an uncaught error
+        // leaves `::errorInfo`/`::errorCode` set, exactly as a `catch` would.
+        if code == Code::Error {
             self.publish_error();
         }
         // Between top-level commands, drain any queued background errors with the
         // current handler — the event loop's behaviour, so errors from one
         // command don't leak into a later command's intercepted handler.
-        if self.eval_depth.get() == 0 && !self.bg_queue.borrow().is_empty() {
+        if !self.bg_queue.borrow().is_empty() {
             self.process_bg_errors();
         }
-        last
     }
 
     /// A `CmdFrame` for an `eval` body, inheriting the current frame's

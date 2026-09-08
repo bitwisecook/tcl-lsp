@@ -41,6 +41,16 @@ pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
+/// An owned, byte-preserving script completion for host and embedding
+/// boundaries.
+///
+/// `result` is the Tcl result (the error message for [`Code::Error`]) and
+/// `options` is its return-options dict, both projected as their exact Tcl
+/// string-representation bytes. Runtime engines must construct this before a
+/// host adapter chooses any text encoding; a terminal, JavaScript bridge, or
+/// other explicitly textual consumer may decode the byte fields afterwards.
+pub type ScriptCompletion = Completion<Vec<u8>>;
+
 /// A command-level variable removal rejected by the store.
 ///
 /// Storage-only consumers use [`VarStore::unset`] when they have already
