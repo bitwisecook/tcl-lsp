@@ -42,6 +42,24 @@ The extraction now classifies each variable the selection touches:
 | Read, never written | An ordinary value parameter — a copy is correct, nothing writes it back. |
 | Written, and read again after the selection | Passed **by name** and re-bound with `upvar 1`, so the assignment lands in the caller's frame. |
 | Written, and never read again | A proc local. It stops leaking into the caller entirely. |
+| Bound by a loop the selection contains (`foreach n …`, `dict for {k v} …`) | Written, and classified by the two rows above — the caller keeps a loop variable after the loop exactly as it keeps an assignment. |
+
+The classification covers the selection's whole statement tree, so a write
+inside an `if`, `foreach`, `switch` arm, `try`, or `catch` body counts exactly
+as a top-level one does:
+
+```tcl
+set total 0
+foreach n {1 2 3} {
+    set total [expr {$total + $n}]
+}
+puts $total
+```
+
+extracts to a proc that takes `total` by name, not one that takes it by value
+and drops the sum. A body that opens its own variable frame — a nested `proc`,
+`namespace eval`, `uplevel`, or an `apply` lambda — is deliberately not
+counted: what it writes is that frame's variable, not the selection's.
 
 So the example above extracts to:
 
@@ -88,6 +106,14 @@ selection?" question is asked over the innermost enclosing script region
 (a proc body, an `if` branch, a `foreach` body, or the file), found by
 descending registry-resolved `ArgRole::Body` arguments.
 
+Both the selection's own classification and that after-the-selection question
+walk the statement tree through `nested_dispatch_regions`, the shared
+same-frame walker Find All References and the caller-frame scan already use.
+It is registry-driven throughout: `Plain` body arguments, `switch`-style
+clause arms via the registry's own `CaseListSpec`, and `[…]` command
+substitutions are descended, while `Structural` bodies and `apply` lambdas are
+not.
+
 ## Failure modes
 
 - A selection that covers no complete command offers nothing at all.
@@ -99,6 +125,7 @@ descending registry-resolved `ArgRole::Body` arguments.
 ## Test anchors
 
 - `editors/vscode/src/test/refactorActions.test.ts`
+- `rust/tcl-lsp-core/src/refactor/extract_proc.rs` (module tests)
 
 ## Discoverability
 

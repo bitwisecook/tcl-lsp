@@ -40,8 +40,16 @@
 //! # What this transform does instead
 //!
 //! It classifies every variable the selection touches, using the registry's
-//! own [`ArgRole::VarWrite`] / [`ArgRole::VarRead`] roles plus the `$name`
-//! references in the text — never a keyword list:
+//! own [`ArgRole::VarWrite`] / [`ArgRole::VarRead`] / [`ArgRole::LoopVarList`]
+//! roles plus the `$name` references in the text — never a keyword list.  The
+//! classification runs over the selection's whole **statement tree**, not just
+//! its top-level commands: `foreach n {1 2 3} {set total …}` writes `total`
+//! from inside the loop body, and a top-level-only reading of it hands back a
+//! proc that silently drops the assignment.  Which nested words are part of
+//! that tree is [`crate::references::nested_dispatch_regions`]'s answer — the
+//! same same-frame walker Find-References uses — so a `proc` body or an
+//! `apply` lambda inside the selection, which opens a frame of its own, stays
+//! out of it.  The three outcomes are:
 //!
 //! * **read, never written** → an ordinary value parameter.  A copy is
 //!   correct here, because nothing writes it back.
@@ -215,7 +223,8 @@ fn plan_extraction(
     // the wrong release's rule produces a proc built for a variable that
     // does not exist (issue #1605).
     let style = super::braced_var_style(analysis);
-    let roles = classify_variables(source, selected, registry, style)?;
+    let walk = FrameWalk::new(source, analysis);
+    let roles = classify_variables(source, selected, registry, &walk, style)?;
 
     // The selection's own byte range, snapped to the commands it covers.
     let block_start = command_span_offsets(source, selected[0]).0;
@@ -229,14 +238,27 @@ fn plan_extraction(
     let tail = source
         .get(block_end as usize..scope.end as usize)
         .unwrap_or("");
+    // Segmented at its real offset so the same-frame walk below can address
+    // the tail's nested bodies in `source`'s own coordinates.
     let tail_commands: Vec<SegmentedCommand> =
-        segment_commands_with_offset_and_config(tail, 0, config)
+        segment_commands_with_offset_and_config(tail, block_end, config)
             .into_iter()
             .filter(|command| !command.name().is_empty())
             .collect();
     let mut used_after: BTreeSet<String> = variable_references(tail, style);
+    let mut nested_tail = Vec::new();
     for command in &tail_commands {
         used_after.extend(role_named_variables(command, registry));
+        // A read after the selection decides `upvar` versus proc local, so a
+        // role-named read nested in a control-flow body has to count exactly
+        // as a top-level one does: `if {$ok} {incr total}` carries no
+        // `$total` for the text scan to find, and missing it would turn the
+        // selection's write into a proc local and lose the caller's value.
+        nested_tail.clear();
+        nested_same_frame_commands(source, command, &walk, 0, &mut nested_tail);
+        for inner in &nested_tail {
+            used_after.extend(role_named_variables(inner, registry));
+        }
     }
 
     let by_name: Vec<String> = roles
@@ -284,61 +306,191 @@ struct VariableRoles {
     written: BTreeSet<String>,
 }
 
+/// The document facts a same-frame statement walk needs, built once per
+/// extraction.
+///
+/// `nesting` is deliberately the **document's own** registry rather than the
+/// caller's: which nested words are same-frame scripts is a question
+/// [`crate::references::nested_dispatch_regions`] answers from the dialect
+/// profile's registry (a `switch` clause list reaches its arm bodies only
+/// through that registry's `CaseListSpec`), whereas the argument roles this
+/// module classifies stay the caller's to decide.
+struct FrameWalk {
+    dialect: &'static tcl_dialect::DialectProfile,
+    nesting: &'static CommandRegistry,
+    identities: tcl_compiler::realm::CommandBindingRealm,
+    config: LexerConfig,
+}
+
+impl FrameWalk {
+    fn new(source: &str, analysis: &AnalysisResult) -> Self {
+        let dialect = crate::profile_for_dialect(&analysis.dialect);
+        let nesting = crate::registry_for_dialect_profile(dialect);
+        Self {
+            dialect,
+            nesting,
+            identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
+            config: LexerConfig::from_grammar(dialect.grammar),
+        }
+    }
+}
+
+/// Every command nested inside `command` that still runs in `command`'s own
+/// variable frame, appended to `out` innermost-first.
+///
+/// The nesting itself is [`crate::references::nested_dispatch_regions`]'s
+/// answer — the same walker Find-References and the caller-frame scan use for
+/// "which nested scripts run in this frame": an [`ArgRole::Body`] argument
+/// with a `Plain` body kind (`if`, `while`, `foreach`, `try`, `catch`, …), a
+/// `switch`-style clause list flattened through the registry's own
+/// `CaseListSpec`, and every `[…]` command substitution.  A `Structural`
+/// body — `proc`, `namespace eval`, `uplevel`, `oo::define` — and `apply`'s
+/// lambda are deliberately *not* descended: a `set` inside one writes that
+/// frame's variable, not the selection's, so classifying it here would put a
+/// stranger's name in the generated parameter list or, worse, an `upvar`
+/// against a variable the moved code never touches.
+fn nested_same_frame_commands(
+    source: &str,
+    command: &SegmentedCommand,
+    walk: &FrameWalk,
+    depth: u32,
+    out: &mut Vec<SegmentedCommand>,
+) {
+    if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+        return;
+    }
+    for (start, end) in crate::references::nested_dispatch_regions_with_identities(
+        source,
+        walk.dialect,
+        walk.nesting,
+        &walk.identities,
+        command,
+    ) {
+        let Some(text) = source.get(start..end) else {
+            continue;
+        };
+        for nested in segment_commands_with_offset_and_config(
+            text,
+            u32::try_from(start).unwrap_or(0),
+            walk.config,
+        ) {
+            if nested.name().is_empty() {
+                continue;
+            }
+            nested_same_frame_commands(source, &nested, walk, depth + 1, out);
+            out.push(nested);
+        }
+    }
+}
+
 /// Classify the selection's variable use from the registry's argument roles
 /// plus the `$name` references in its text.
 ///
 /// The write set comes from [`ArgRole::VarWrite`], so `set`, `incr`,
 /// `lappend`, `append`, `dict set`, `lassign`, and anything else a spec
-/// declares are all covered without this module naming any of them.
+/// declares are all covered without this module naming any of them — plus
+/// [`ArgRole::LoopVarList`], the names a loop binds on every iteration
+/// (`foreach n …`, `dict for {k v} …`), which the caller's frame keeps after
+/// the loop exactly as an assignment does.
+///
+/// The classification runs over the selection's whole **statement tree**, not
+/// only its top-level commands: a write nested in a control-flow body is
+/// still the caller's write, and reading it as anything else hands back a
+/// proc that silently drops the assignment — `foreach n {1 2 3} {set total …}`
+/// extracted with `total` as a value parameter never updates the caller's
+/// `total` (issue #1201's second half).  [`nested_same_frame_commands`]
+/// decides what "nested" means, so a body that opens its own frame stays out.
 fn classify_variables(
     source: &str,
     selected: &[&SegmentedCommand],
     registry: &CommandRegistry,
+    walk: &FrameWalk,
     style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
-    let mut read = BTreeSet::new();
-    let mut written = BTreeSet::new();
+    let mut roles = VariableRoles {
+        read: BTreeSet::new(),
+        written: BTreeSet::new(),
+    };
+    let mut nested = Vec::new();
     for command in selected {
+        // One text scan per selected command already covers the `$name` reads
+        // of its whole subtree, nested bodies included.
         let (start, end) = command_span_offsets(source, command);
-        read.extend(variable_references(
+        roles.read.extend(variable_references(
             source.get(start as usize..end as usize).unwrap_or(""),
             style,
         ));
-        let head = command.name();
-        if head.contains('$') || head.contains('[') || head.contains('{') {
-            return Err(format!(
-                "the command head `{head}` is computed at run time, so which \
-                 variables the command reads and writes is unknown"
-            ));
-        }
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        for index in registry.arg_indices_for_role(head, &args, ArgRole::VarRead) {
-            if let Some(name) = args.get(index) {
-                read.insert((*name).to_string());
-            }
-        }
-        for index in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
-            let Some(name) = args.get(index) else {
-                continue;
-            };
-            if name.contains('$') || name.contains('[') {
-                return Err(format!(
-                    "'{head}' writes to a variable whose name is computed \
-                     (`{name}`), so the extraction cannot tell which variable \
-                     leaves the selection"
-                ));
-            }
-            if name.contains('(') {
-                return Err(format!(
-                    "'{head}' writes to the array element `{name}`; carrying an \
-                     array element back to the caller needs more than the scalar \
-                     `upvar` protocol this transform uses"
-                ));
-            }
-            written.insert((*name).to_string());
+        classify_command(command, registry, &mut roles)?;
+        nested.clear();
+        nested_same_frame_commands(source, command, walk, 0, &mut nested);
+        for inner in &nested {
+            classify_command(inner, registry, &mut roles)?;
         }
     }
-    Ok(VariableRoles { read, written })
+    Ok(roles)
+}
+
+/// Fold one command's registry-declared variable roles into `roles`.
+fn classify_command(
+    command: &SegmentedCommand,
+    registry: &CommandRegistry,
+    roles: &mut VariableRoles,
+) -> Result<(), String> {
+    let head = command.name();
+    if head.contains('$') || head.contains('[') || head.contains('{') {
+        return Err(format!(
+            "the command head `{head}` is computed at run time, so which \
+             variables the command reads and writes is unknown"
+        ));
+    }
+    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+    for index in registry.arg_indices_for_role(head, &args, ArgRole::VarRead) {
+        if let Some(name) = args.get(index) {
+            roles.read.insert((*name).to_string());
+        }
+    }
+    for index in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
+        let Some(name) = args.get(index) else {
+            continue;
+        };
+        roles.written.insert(carriable_written_name(head, name)?);
+    }
+    // A loop variable-binding word is a *list* of names (`foreach {k v} …`),
+    // so the list owner splits it rather than this module reading it as one.
+    for index in registry.arg_indices_for_role(head, &args, ArgRole::LoopVarList) {
+        let Some(word) = args.get(index) else {
+            continue;
+        };
+        let Ok(names) = tcl_syntax::list::split_list(word) else {
+            // An unparseable list is a syntax error in the document, not a
+            // binding this transform can name.
+            continue;
+        };
+        for name in names {
+            roles.written.insert(carriable_written_name(head, &name)?);
+        }
+    }
+    Ok(())
+}
+
+/// `name` as a variable this transform can carry back to the caller, or the
+/// reason it cannot.
+fn carriable_written_name(head: &str, name: &str) -> Result<String, String> {
+    if name.contains('$') || name.contains('[') {
+        return Err(format!(
+            "'{head}' writes to a variable whose name is computed \
+             (`{name}`), so the extraction cannot tell which variable \
+             leaves the selection"
+        ));
+    }
+    if name.contains('(') {
+        return Err(format!(
+            "'{head}' writes to the array element `{name}`; carrying an \
+             array element back to the caller needs more than the scalar \
+             `upvar` protocol this transform uses"
+        ));
+    }
+    Ok(name.to_string())
 }
 
 /// Refuse a selection containing a command that acts on the call frame.
@@ -838,6 +990,109 @@ mod tests {
     }
 
     // -- TP: caller-frame writes survive via upvar -------------------------
+
+    /// A write nested in a control-flow body is still the caller's write.
+    ///
+    /// The classification used to look only at the selection's *top-level*
+    /// commands, so the `set total` inside the `foreach` body was invisible:
+    /// `total` was read but never seen written, and it left as an ordinary
+    /// value parameter whose assignment the caller never saw.  The loop
+    /// variable was invisible for the mirror reason — a `LoopVarList`
+    /// binding is not a `VarWrite` — so it left as a second value parameter
+    /// and the generated call read a `$n` the caller does not have.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints `6`, the
+    /// extraction below prints `6`, and the pre-fix `proc extracted_proc {n
+    /// total}` / `extracted_proc $n $total` dies with `can't read "n": no
+    /// such variable`.
+    #[test]
+    fn tp_a_write_nested_in_a_loop_body_is_carried_by_upvar() {
+        let src = "set total 0\nforeach n {1 2 3} {\n    set total [expr {$total + $n}]\n}\nputs $total\n";
+        let result = outcome(
+            src,
+            "foreach n {1 2 3} {\n    set total [expr {$total + $n}]\n}",
+        )
+        .unwrap();
+        assert!(
+            result.contains("proc extracted_proc {totalName} {\n    upvar 1 $totalName total\n"),
+            "the nested write must reach the caller's frame: {result}"
+        );
+        assert!(
+            result.contains("extracted_proc total\n"),
+            "the call passes the variable's *name*: {result}"
+        );
+        assert!(
+            !result.contains("extracted_proc $n"),
+            "the loop variable is bound by the loop, not supplied by the caller: {result}"
+        );
+    }
+
+    /// The same nesting through a `switch` clause body, which is not an
+    /// `ArgRole::Body` argument at all: its arms are reached through the
+    /// registry's own `CaseListSpec`, so the walk covers them only because it
+    /// asks the shared same-frame walker rather than descending braces itself.
+    #[test]
+    fn tp_a_write_nested_in_a_switch_arm_is_carried_by_upvar() {
+        let src = "set total 0\nswitch x {\n    x {\n        set total 5\n    }\n}\nputs $total\n";
+        let result = outcome(src, "switch x {\n    x {\n        set total 5\n    }\n}").unwrap();
+        assert!(
+            result.contains("upvar 1 $totalName total"),
+            "a switch arm's write must reach the caller's frame: {result}"
+        );
+        assert!(result.contains("extracted_proc total\n"), "{result}");
+    }
+
+    /// A `dict for` binds its key and value names on every iteration, so they
+    /// are the loop's own locals rather than parameters the caller supplies —
+    /// while the `lappend` target nested in the body still leaves by name.
+    ///
+    /// Oracle: the extraction below prints `a b` on tclsh 8.6.18 and 9.0.4,
+    /// as the original does.
+    #[test]
+    fn tp_a_loops_pair_bindings_are_locals_not_parameters() {
+        let src =
+            "set d {a 1 b 2}\nset out {}\ndict for {k v} $d {\n    lappend out $k\n}\nputs $out\n";
+        let result = outcome(src, "dict for {k v} $d {\n    lappend out $k\n}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {d outName} {\n    upvar 1 $outName out\n"),
+            "only the dictionary is a value parameter: {result}"
+        );
+        assert!(result.contains("extracted_proc $d out"), "{result}");
+    }
+
+    /// The nesting stops at a fresh variable frame.  A `proc` body inside the
+    /// selection writes *that* proc's local, so classifying it as the
+    /// selection's write would emit an `upvar` for a variable the moved code
+    /// never touches.
+    #[test]
+    fn tp_a_nested_procs_own_writes_are_not_the_selections() {
+        let src = "set inner 0\nproc helper {} {\n    set inner 1\n}\nputs $inner\n";
+        let result = outcome(src, "proc helper {} {\n    set inner 1\n}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {} {"),
+            "the nested proc's local is nobody's parameter: {result}"
+        );
+        assert!(
+            !result.contains("upvar"),
+            "no caller-frame write happened here: {result}"
+        );
+    }
+
+    /// The mirror question — "is this variable read *after* the selection?" —
+    /// is asked over the tail's statement tree too.  `incr total` carries no
+    /// `$total` for the text scan to find, so a top-level-only tail scan
+    /// missed it and turned the write into a proc local, losing the caller's
+    /// value.
+    #[test]
+    fn tp_a_role_named_read_nested_after_the_selection_keeps_the_upvar() {
+        let src = "set total 0\nset total 5\nif {1} {\n    incr total\n}\n";
+        let result = outcome(src, "set total 5").unwrap();
+        assert!(
+            result.contains("upvar 1 $totalName total"),
+            "the later nested read makes `total` a live-out: {result}"
+        );
+        assert!(result.contains("extracted_proc total\n"), "{result}");
+    }
 
     #[test]
     fn tp_a_write_read_after_the_selection_is_carried_by_upvar() {
