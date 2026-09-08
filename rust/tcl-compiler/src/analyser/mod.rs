@@ -92,3 +92,9 @@ pub use types::{
     ScopeKind, Severity, StubFlags, SubclassProvidedMethods, UnknownProcInfo, VarDef,
     class_constructor_key, class_destructor_key, class_member_key, class_property_key,
 };
+// The one `# noqa` / `# tcl-lsp: disable=…` suppression contract, beside the
+// pre-scan that builds the map it reads. Every diagnostic surface — the
+// language server's publish path, the `diag` / `lint` / `validate` CLI verbs,
+// the source-style and SslicTcl projections — asks through it, so a directive
+// means the same thing everywhere.
+pub use utils::{FILE_SUPPRESS_KEY, line_suppressed};

@@ -476,6 +476,87 @@ fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
         .stdout
 }
 
+/// `# noqa` silences a diagnostic for `tcl diag` exactly as it does in the
+/// editor (`docs/kcs/kcs-howto-suppress-diagnostics.md`): the directive covers
+/// the analyser families (`W210`) and the compiler-check families (`S100`)
+/// alike, because both surfaces ask the one shared `line_suppressed` helper.
+///
+/// The control is the same fixture with its directive lines stripped: every
+/// code the markers silence must come back, or this test would pass on a
+/// `diag` that had simply stopped reporting.
+#[test]
+fn diag_honours_noqa_directives_the_way_the_editor_does() {
+    let fixture = fixtures_dir().join("noqaSuppression.tcl");
+    let source = std::fs::read_to_string(&fixture).expect("fixture is readable");
+
+    let marked = diag_messages(&["diag", "--json", fixture.to_str().unwrap()]);
+    for silenced in [
+        // `# noqa: W210` — the named analyser code.
+        "suppressedByCode",
+        // bare `# noqa` — every code on the following command.
+        "suppressedByBareNoqa",
+        // `# noqa: S100` — a compiler-check code from the other lift.
+        "dictValue",
+    ] {
+        assert!(
+            !marked.iter().any(|m| m.contains(silenced)),
+            "a preceding noqa must silence the finding on `{silenced}`: {marked:?}"
+        );
+    }
+    assert!(
+        marked.iter().any(|m| m.contains("reportedWithoutAMarker")),
+        "an unmarked W210 must still be reported: {marked:?}"
+    );
+    assert!(
+        marked.iter().any(|m| m.contains("otherDict")),
+        "an unmarked S100 must still be reported: {marked:?}"
+    );
+
+    let unmarked: String = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("# noqa"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let without_markers = diag_messages(&["diag", "--json", "--source", &unmarked]);
+    for reported in [
+        "suppressedByCode",
+        "suppressedByBareNoqa",
+        "reportedWithoutAMarker",
+        "dictValue",
+        "otherDict",
+    ] {
+        assert!(
+            without_markers.iter().any(|m| m.contains(reported)),
+            "without its marker the finding on `{reported}` must fire: {without_markers:?}"
+        );
+    }
+}
+
+/// Every diagnostic message a `diag --json` run reports, across all its files.
+fn diag_messages(args: &[&str]) -> Vec<String> {
+    let report: serde_json::Value =
+        serde_json::from_slice(&run_tcl_allow_failure(args)).expect("diag JSON");
+    report
+        .as_array()
+        .expect("diag reports an array of files")
+        .iter()
+        .flat_map(|file| {
+            file["diagnostics"]
+                .as_array()
+                .expect("diagnostics array")
+                .iter()
+                .map(|d| {
+                    format!(
+                        "{} {}",
+                        d["code"].as_str().unwrap_or_default(),
+                        d["message"].as_str().unwrap_or_default()
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 /// A `.sslictcl` document terminated with lone `\r` must draw the same loader
 /// findings as the `\n` form. `tclsh` ends a command at a bare CR, but the
 /// lexer treats one as horizontal whitespace, so the loader has to read the

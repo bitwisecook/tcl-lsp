@@ -41,6 +41,51 @@ pub use crate::signature_scan::params::{
 /// this.
 const FILE_DIRECTIVE_SCAN_LINES: usize = 100;
 
+/// Sentinel line key for a file-wide suppression directive: a
+/// `# tcl-lsp: disable=…` at the top of the file is recorded against
+/// line `-1` in `suppressed_lines`, alongside the real 0-based lines
+/// an inline `# noqa` covers.
+pub const FILE_SUPPRESS_KEY: i32 = -1;
+
+/// The one suppression contract every diagnostic surface obeys: is
+/// `code` silenced at 0-based `line` by an inline `# noqa` or a
+/// top-of-file `# tcl-lsp: disable=…` directive?
+///
+/// `suppressed` is the analyser's `suppressed_lines` map (see
+/// [`parse_noqa_line_suppressions_for_dialect`] and
+/// [`parse_file_suppression`], whose results
+/// `Analyser::analyse` merges into it). A `"*"` entry silences every
+/// code, and the file-level [`FILE_SUPPRESS_KEY`] bucket applies
+/// document-wide.
+///
+/// The analyser records the map but never filters with it — the
+/// consumer that renders diagnostics does, because only it knows
+/// which line a finding lands on. Both consumers (the language
+/// server's publish path and the `diag` / `lint` / `validate` CLI
+/// verbs) call this, so a `# noqa` means the same thing in the
+/// editor and on the command line; see
+/// `docs/kcs/kcs-howto-suppress-diagnostics.md`.
+///
+/// Generic over both hashers so a caller holding an `FxHashMap` /
+/// `FxHashSet` need not rebuild it as a `std` map to ask.
+#[must_use]
+pub fn line_suppressed<S, T>(
+    code: &str,
+    line: i32,
+    suppressed: &HashMap<i32, HashSet<String, T>, S>,
+) -> bool
+where
+    S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher,
+{
+    let hit = |key: i32| {
+        suppressed
+            .get(&key)
+            .is_some_and(|codes| codes.contains("*") || codes.contains(code))
+    };
+    hit(FILE_SUPPRESS_KEY) || hit(line)
+}
+
 /// Extract file-wide diagnostic suppression from top-of-file
 /// directives.
 ///
@@ -1930,6 +1975,44 @@ mod tests {
         // keyword's own 7-byte check.
         let em_dash_after_colon = "# tcl-lsp: abcdef\u{2014}ghi\nproc foo {} {}\n";
         assert!(parse_file_suppression(em_dash_after_colon).is_empty());
+    }
+
+    #[test]
+    fn line_suppressed_honours_the_named_code_the_wildcard_and_the_file_bucket() {
+        // The one contract every diagnostic surface asks through: an exact code
+        // match on the line, the `"*"` wildcard a bare `# noqa` records, and the
+        // file-wide `-1` bucket a `# tcl-lsp: disable=…` directive fills.
+        let mut map: HashMap<i32, HashSet<String>> = HashMap::new();
+        map.insert(3, std::iter::once("W210".to_owned()).collect());
+        map.insert(4, std::iter::once("*".to_owned()).collect());
+
+        assert!(line_suppressed("W210", 3, &map));
+        assert!(
+            !line_suppressed("W211", 3, &map),
+            "another code on that line"
+        );
+        assert!(!line_suppressed("W210", 2, &map), "another line");
+        assert!(
+            line_suppressed("S100", 4, &map),
+            "the wildcard takes every code"
+        );
+
+        map.insert(
+            FILE_SUPPRESS_KEY,
+            std::iter::once("S100".to_owned()).collect(),
+        );
+        assert!(
+            line_suppressed("S100", 99, &map),
+            "the file bucket applies to every line"
+        );
+        assert!(!line_suppressed("W211", 99, &map));
+    }
+
+    #[test]
+    fn line_suppressed_is_false_for_an_empty_map() {
+        let map: HashMap<i32, HashSet<String>> = HashMap::new();
+        assert!(!line_suppressed("W210", 0, &map));
+        assert!(!line_suppressed("W210", FILE_SUPPRESS_KEY, &map));
     }
 
     #[test]
