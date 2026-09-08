@@ -1,4 +1,4 @@
-# KCS: W200 — Why does the analyser flag a `u` or `s` in my binary format string?
+# KCS: W200 — Why does the analyser flag a `u` in my binary format string?
 
 > **Audience:** User
 > **Type:** Diagnostic
@@ -13,16 +13,21 @@ default
 
 ## Question
 
-Why does the analyser warn about a signed or unsigned modifier in a `binary
-format` or `binary scan` specifier?
+Why does the analyser warn about an unsigned modifier in a `binary format`
+or `binary scan` specifier?
 
 ## Why
 
-The `u` and `s` modifiers on an integer specifier — `iu`, `ss`, `wu`, and the
-rest — arrive in Tcl 8.5. On Tcl 8.4 the same format string is rejected at run
-time. The analyser reads the literal format string and compares each modifier
-against the file's effective Tcl version: the dialect profile, raised by any
-`package require Tcl`.
+The `u` modifier on an integer specifier — `cu`, `su`, `iu`, `wu`, and the
+rest — arrives in Tcl 8.5 (TIP 275). On Tcl 8.4 the same format string is
+rejected at run time with `bad field specifier "u"`. The analyser reads the
+literal format string and compares each modifier against the file's effective
+Tcl version: the dialect profile, raised by any `package require Tcl`.
+
+Known issue: the analyser also reports an `s` that follows an integer
+specifier (`ss`, `is`) as if it were a modifier. Tcl has no `s` modifier — that
+is a second short-integer field on every release — so that report is a false
+positive.
 
 ## Symptoms
 
