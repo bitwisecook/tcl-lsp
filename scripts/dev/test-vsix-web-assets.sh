@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Verify that target-specific VSIX packages cannot reuse assets after inputs move.
 set -euo pipefail
 
@@ -40,6 +45,24 @@ common=(
   -o "$fixture/editors/vscode/out/extension.js"
   "ROOT=$fixture/"
 )
+
+target_rule="$($make_cmd -f "$repo_root/Makefile" -qp 2>/dev/null |
+  awk '/^package-vsix-targets:/ { print; exit }' || :)"
+case " $target_rule " in
+  *" package-vsix-all "*) ;;
+  *)
+    echo "ERROR: package-vsix-targets must reuse the one-producer package-vsix-all path" >&2
+    echo "found: $target_rule" >&2
+    exit 1
+    ;;
+esac
+case " $target_rule " in
+  *" package-vsix "*)
+    echo "ERROR: package-vsix-targets must not perform a separate universal preparation" >&2
+    echo "found: $target_rule" >&2
+    exit 1
+    ;;
+esac
 
 if "$make_cmd" "${common[@]}" _check-vsix-web-assets; then
   echo "ERROR: private VSIX web assets unexpectedly worked without state" >&2

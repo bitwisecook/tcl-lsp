@@ -531,9 +531,10 @@ _verify-vsix: $(VSIX_FILE)
 build-editor-vsix-targets: lint test package-vsix-targets ## Build the six platform-targeted .vsix files (tests must pass first)
 
 # Preserve the universal-before-targeted staging edge for every public local
-# path. CI uses package-vsix-all below to avoid a second preparation pass.
-package-vsix-targets: package-vsix ## Package the six platform-targeted VSIXes (laptop fallback; skips lint/test)
-	@$(MAKE) --no-print-directory _package-vsix-variants
+# path through the same one-producer session CI uses.  Depending on the direct
+# package-vsix target here would prepare the common web payload once for the
+# universal archive and then again for the targeted variants.
+package-vsix-targets: package-vsix-all ## Package the six platform-targeted VSIXes (laptop fallback; skips lint/test)
 
 # Local release parity: one producer prepares the common assets once, then
 # serially stages the universal package and all six targeted packages. Keeping
