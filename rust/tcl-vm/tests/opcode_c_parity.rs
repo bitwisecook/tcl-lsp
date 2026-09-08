@@ -1457,6 +1457,48 @@ fn unset_array_complain_flag_errors() {
     assert_eq!(err_str(&c), "can't unset \"nope(k)\": no such variable");
 }
 
+#[test]
+fn unset_array_trace_only_miss_kind_precedes_callback_mutation() {
+    // Directly exercise unsetArray: Tcl 9.0.4 retains the missing-element
+    // lookup result even when its callback deletes or retypes the parent.
+    let cases = [
+        "unset -nocomplain ::a",
+        "unset -nocomplain ::a; set ::a scalar",
+    ];
+    for action in cases {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(compiler::svc()));
+        let setup = format!(
+            "set fired 0\n\
+             proc U {{action args}} {{incr ::fired; uplevel #0 $action}}\n\
+             array set a {{}}\n\
+             trace add variable a(missing) unset [list U {{{action}}}]\n"
+        );
+        let completion = vm.eval_source(&setup).expect("setup compiles");
+        assert_eq!(completion.code, Code::Ok, "setup failed for {action}");
+
+        let mut asm = Asm::new();
+        let slot = asm.slot("a");
+        asm.push("missing").op(Op::UNSET_ARRAY, &[1, slot]);
+        let completion = run(&mut vm, asm);
+        assert_eq!(
+            err_str(&completion),
+            "can't unset \"a(missing)\": no such element in array",
+            "callback action: {action}"
+        );
+        assert_eq!(
+            err_code(&completion),
+            "TCL UNSET VARNAME",
+            "callback action: {action}"
+        );
+        assert_eq!(
+            vm.get_var("fired").map(|value| value.to_str().to_string()),
+            Some("1".to_owned()),
+            "callback action: {action}"
+        );
+    }
+}
+
 // -- strfind / strrfind ----------------------------------------------------
 
 /// An **empty needle is a miss**. Both C helpers open with

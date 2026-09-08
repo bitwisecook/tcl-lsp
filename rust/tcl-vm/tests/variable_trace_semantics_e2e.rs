@@ -962,6 +962,56 @@ puts $events
 }
 
 #[test]
+fn unsetting_a_trace_only_array_element_fires_then_reports_it_missing() {
+    // Exact Tcl 9.0.4 transcript. A trace materialises the element's variable
+    // cell, but does not give it a value: unset tears the cell down and runs
+    // its callback before reporting that no element existed.
+    let script = r"
+proc U args {incr ::fired}
+proc P {} {
+    array set a {}
+    trace add variable a(missing) unset U
+    set code [catch {unset a(missing)} message options]
+    list $code $message [dict get $options -errorcode]
+}
+set fired 0
+puts [list [P] $fired]
+";
+    assert_eq!(
+        vm_output(script),
+        r#"{1 {can't unset "a(missing)": no such element in array} {TCL UNSET VARNAME}} 1"#
+    );
+}
+
+#[test]
+fn unset_element_miss_kind_survives_parent_mutation_in_its_callback() {
+    // Exact Tcl 9.0.4 transcript. The undefined element is selected before its
+    // callback runs, so deleting or retyping the parent cannot rewrite the
+    // pending lookup failure.
+    let script = r"
+proc U {action args} {
+    incr ::fired
+    uplevel #0 $action
+}
+set fired 0
+set outcomes {}
+array set a {}
+trace add variable a(missing) unset [list U {unset -nocomplain ::a}]
+set code [catch {unset a(missing)} message options]
+lappend outcomes [list $code $message [dict get $options -errorcode]]
+array set b {}
+trace add variable b(missing) unset [list U {unset -nocomplain ::b; set ::b scalar}]
+set code [catch {unset b(missing)} message options]
+lappend outcomes [list $code $message [dict get $options -errorcode]]
+puts [list $outcomes $fired $b]
+";
+    assert_eq!(
+        vm_output(script),
+        r#"{{1 {can't unset "a(missing)": no such element in array} {TCL UNSET VARNAME}} {1 {can't unset "b(missing)": no such element in array} {TCL UNSET VARNAME}}} 2 scalar"#
+    );
+}
+
+#[test]
 fn every_advertised_array_member_validates_arity_before_tracing() {
     // Exact Tcl 9.0.4 transcript for all seven members implemented by the VM.
     // The registry arity check precedes LocateArray, so none reaches its trace.
