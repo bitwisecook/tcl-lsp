@@ -196,8 +196,8 @@ Removing it would require *proving* the dependency graph complete, and neither
 source is: `direct_calls` misses nested substitutions, and `resolved_callees`
 scans CFG statements rather than the raw words `word_taint` recurses into.  An
 under-converged fixpoint is a taint **false negative** — a silently missed
-security diagnostic — which is a much worse failure than one extra `O(F)` sweep,
-now that the prunes above have made each inference cheap.
+security diagnostic — a much worse failure than one extra `O(F)` sweep when
+the prunes above make each inference cheap.
 
 ### Worked example — `HTTP::header value Host` → `HTTP::respond`
 

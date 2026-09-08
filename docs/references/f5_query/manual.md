@@ -4,10 +4,12 @@ The complete reference for the `f5 query` DSL, organised by topic.
 Each section carries a stable `{#anchor-id}` so external tools (the
 MCP server, AI skills, IDE quick-lookups) can deep-link one concept.
 
-`f5 query --help-manual` emits the auto-generated grammar + builtins
-+ examples trio; this file is the curated companion that adds the
-operational context, the probe / audit taxonomy, and the F5 KB
-cross-references the generated content can't carry.
+`f5 query --help-manual` emits the generated trio — grammar, the
+builtin *metadata* catalogue (name / category / arity / flags), and the
+cookbook.  This file is the curated companion that adds the operational
+context, the probe / audit taxonomy, and the F5 KB cross-references the
+generated content can't carry; per-function prose lives in
+[`builtins.md`](builtins.md).
 
 ## Quick lookup index
 
@@ -21,7 +23,7 @@ cross-references the generated content can't carry.
 | Object literals | [Object construction](#object-construction-object-construction) |
 | Conditionals and comma streams | [Control flow](#control-flow-control-flow) |
 | All builtins (alphabetical) | [Builtin catalogue](#builtin-catalogue-builtin-catalogue) |
-| Probes (`url_get`, `tls_handshake`, …) | [Network probes](#network-probes-network-probes) |
+| Probes (`tls_handshake`, `ping`, `dns`, …) | [Network probes](#network-probes-network-probes) |
 | Cert audit shape | [X.509 cert dict shape](#x509-cert-dict-shape-x509-cert-dict-shape) |
 | Reason taxonomy on failed probes | [Reason taxonomy](#reason-taxonomy-reason-taxonomy) |
 | Read-from-file inputs (JSON, JSONL, CSV, f5log) | [External inputs](#external-inputs-external-inputs) |
@@ -182,11 +184,12 @@ Major families:
 - **mutating** — `rename`, `rename_partition`, `rename_prefix`
 - **HTTP-response helpers** — `http_ok`, `http_client_error`,
   `http_header`, `http_body_json`
-- **network probes** (need `--enable-probes`) — `url_get`,
-  `url_head`, `url_options`, `url_post` (not yet implemented —
-  see [Network probes](#network-probes-network-probes)), `tls_handshake`, `ping`,
-  `portping`, `traceroute`.  `dns` / `rev_dns` are ungated (they
-  resolve without `--enable-probes`).
+- **network probes** (need `--enable-probes`) — `tls_handshake`,
+  `ping`, `portping`, `traceroute`, `socket_get`; `url_get`,
+  `url_head`, `url_options`, `url_post` are registered but **not
+  implemented** (see
+  [Network probes](#network-probes-network-probes)).  `dns` /
+  `rev_dns` are ungated (they resolve without `--enable-probes`).
 - **cert / X.509** — `x509_parse`, `cert_load`,
   `x509_from_config`, `x509_eq`
 - **external inputs** — `json_load`, `jsonl_load`, `csv_load`,
@@ -623,8 +626,7 @@ openssl x509 -in server.crt -noout -subject -issuer -dates -fingerprint -sha256
 
 ### Running a self-signed HTTPS server in Python {#python-https}
 
-For the cert-audit `tls_handshake` recipes (`url_get` is not yet
-implemented — see [Network probes](#network-probes-network-probes)):
+For the cert-audit `tls_handshake` recipes:
 
 ```python
 # https_server.py

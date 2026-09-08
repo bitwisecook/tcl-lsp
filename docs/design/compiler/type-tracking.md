@@ -66,7 +66,7 @@ Consequence: `List<T1..Tn>` per-position element types are **faithful to the
 runtime**, not an abstraction — `[list [expr {1+1}] "x y"]` genuinely is
 `List<Int, String>`.
 
-### Shimmer interactions (already locked in by FP-SH-20/21)
+### Shimmer interactions
 
 - Comparison operators probe per-operand without generating a string rep and
   fall back to string comparison — never flagged statically.
@@ -220,7 +220,7 @@ instance/cross-event) are consulted through the element's base, keeping
 FP-SH-13 exclusions remain only for the base symbols they were built
 for; element symbols get full precision.
 
-### Boolean acceptors (companion centralisation)
+### Boolean acceptors
 
 C Tcl's two boolean acceptors live once in `tcl_syntax::boolean`, both
 oracle-table-pinned: `parse_boolean_strict` (`ParseBoolean` — word prefixes

@@ -1,11 +1,11 @@
-# KCS: feature — `f5 query` renderers, builtins, and input formats
+# KCS: feature — `f5-query` renderers, builtins, and input formats
 
 > **Audience:** User
 > **Type:** Functionality
 
 ## Summary
 
-`f5 query` (alias `f5 q`) reaches beyond plain output along three axes —
+The `f5-query query` verb reaches beyond plain output along three axes —
 output renderers that format the result, DSL builtin functions callable
 from the query language, and side-input parsers that read non-BIG-IP
 files into the query.
@@ -16,7 +16,7 @@ tcl-lsp CLI
 
 ## Question
 
-What renderers, builtins, and input formats does `f5 query` offer, and
+What renderers, builtins, and input formats does `f5-query` offer, and
 how do I use them?
 
 ## How to use
@@ -30,17 +30,17 @@ how do I use them?
 
 ```sh
 # Renderers.
-f5 q --help-renderers
-f5 q --render gantt   '<query>' bigip.conf
-f5 q --render mermaid '<query>' bigip.conf --render-opt direction=TB
+f5-query q --help-renderers
+f5-query q --render gantt   '<query>' bigip.conf
+f5-query q --render mermaid '<query>' bigip.conf --render-opt direction=TB
 
 # Input formats — generic --input KIND NAME=PATH.
-f5 q --help-inputs
-f5 q --input csv routes=routes.csv '$routes[].name' bigip.conf
+f5-query q --help-inputs
+f5-query q --input csv routes=routes.csv '$routes[].name' bigip.conf
 
 # Builtins — listed with the rest of the DSL builtins.
-f5 q --help-builtins
-f5 q --raw 'length(.ltm.virtual[])' bigip.conf
+f5-query q --help-builtins
+f5-query q --raw 'length(.ltm.virtual[])' bigip.conf
 ```
 
 ## Options
@@ -89,28 +89,14 @@ f5 q --raw 'length(.ltm.virtual[])' bigip.conf
 The full builtin catalogue (`length`, `select`, `map`, `ip`, `in_cidr`, `refs`,
 `referenced_by`, `url_get`, …) is documented at
 [`docs/references/f5_query/builtins.md`](../../references/f5_query/builtins.md)
-and surfaced via `f5 q --help-builtins`.
+and surfaced via `f5-query q --help-builtins`.
 
 ## Example
 
-### Before — pipe the query output through a sidecar Python script
+Chart every monitor up/down transition in a BIG-IP log:
 
 ```sh
-f5 q --raw '
-    f5log_load("logs/t1-a.log")[]
-    | select(.module == "01340011" or .module == "01340012")
-    | tsv(.timestamp,
-          (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
-          (if .module == "01340011" then "DOWN" else "UP" end))
-  ' bigip.conf \
-  | grep -v '^#' \
-  | python3 sysadmin/monitor_timeline.py
-```
-
-### After — one tool, no glue
-
-```sh
-f5 q --render gantt '
+f5-query q --render gantt '
     f5log_load("logs/t1-a.log")[]
     | select(.module == "01340011" or .module == "01340012")
     | tsv(.timestamp,
@@ -119,7 +105,7 @@ f5 q --render gantt '
   ' bigip.conf
 ```
 
-Both forms produce the same chart:
+This prints:
 
 ```
 members down/up over time (1 char = 5 min)
@@ -134,7 +120,7 @@ t2_c04_vip:443        |                  v#########^
 
 ## Related
 
-- [KCS: how-to — reproduce an HTTP monitor with `f5 query`](../kcs-howto-reproduce-http-monitor-with-query.md)
+- [KCS: how-to — reproduce an HTTP monitor with `f5-query`](../kcs-howto-reproduce-http-monitor-with-query.md)
 - [KCS: how-to — compose query streams](../kcs-howto-compose-query-streams.md)
-- [Design — `f5 query` plugin contract](../../design/f5-query-renderer-contract.md)
+- [Design — `f5-query` plugin contract](../../design/f5-query-renderer-contract.md)
 - [KCS feature index](README.md)

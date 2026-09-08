@@ -337,7 +337,7 @@ the remove-then-add of a publish hands the document straight back the slot it
 just gave up: its position in the workspace-wide order is stable across a
 re-index, and the slot vector stays bounded by the workspace's peak document
 count.  Adding the **same** URI twice without an intervening removal
-accumulates (it does not replace): the M9 source-rehoming pass indexes one
+accumulates (it does not replace): the source-rehoming pass indexes one
 analysis per source-site namespace, and those views are several runtime
 identities of one physical file.
 

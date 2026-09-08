@@ -207,8 +207,8 @@ entry point, or gate moves without this contract being updated.
   hexadecimal digits; a fourteenth digit invalidates the parenthesised form.
   The scanner and value parser share it.
 
-- `tcl_dialect::DialectProfile::find` — the one **catalogue** lookup left on
-  the profile (P1-G): canonical name or registered alias to interned profile,
+- `tcl_dialect::DialectProfile::find` — the one **catalogue** lookup on the
+  profile: canonical name or registered alias to interned profile,
   `None` for everything else. It is what the environment seam and the
   documented per-crate interop twins are built on, and it resolves an
   environment id, never a user-written string. The retired name validators
@@ -406,15 +406,6 @@ entry point, or gate moves without this contract being updated.
   reference, so a surviving bare `$` is data. Modelling that as a flag on
   the shared scan is what keeps the VM on this owner rather than justifying
   a private copy.
-
-  **Not yet adopted: `tcl-compiler::segmenter`.** The fourth copy is still
-  live. The API is shaped for it — `decompose` takes a word's content span
-  plus a `LexerConfig` and returns parts whose byte extents are recoverable
-  from the borrows, which is what `WordExpr` / `WordPart` need to keep
-  their public shape, so `CommandTokens::from_segmented` maps part for
-  part. The segmenter keeps owning *command* and *word* boundaries; only
-  the within-word breakdown moves. Tracked in
-  `docs/design/lanes/wasm-native-lowering.md` § `r10-word-parts`.
 
 - `structural_index::command_boundaries` — the byte-scanned **reparse
   split points**, and, with `script_is_complete` and `reparse_window`, its

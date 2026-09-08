@@ -76,8 +76,7 @@ Adds dead-code elimination, code motion, and recursion transforms:
 - Loop-invariant code hoisted
 - Single-use variables inlined
 
-This profile changes the shape and length of the code. It was the previous
-default for all surfaces.
+This profile changes the shape and length of the code.
 
 ### `aggressive`
 
@@ -118,18 +117,13 @@ fixpoint (no further changes).
 2. **Editor default is `readability`** — 6 non-intrusive hints with no code
    deletion. Users who want more can change to `standard` or `full` in settings.
 
-3. **`aggressive` is a separate profile** — not a `--multi-pass` flag. Keeps
-   the UI simple (single dropdown) and avoids edge cases like multi-pass
-   readability (which would be pointless).
+3. **`aggressive` is a separate profile**, not a `--multi-pass` flag — one
+   dropdown, and no multi-pass readability (which would be pointless).
 
-4. **Descriptive profile names** — `off`/`readability`/`standard`/`full`/
-   `aggressive`. Self-documenting; no compiler background needed.
+4. **Profiles resolve to `disabled_optimisations` sets**, so every consumer
+   keeps using per-code filtering. A profile is a configuration-layer concept.
 
-5. **Profiles resolve to `disabled_optimisations` sets** — all internal
-   plumbing continues using the existing per-code filtering mechanism.
-   Profiles are a configuration-layer concept.
-
-6. **Individual O1xx toggles override profiles** — three-state logic
+5. **Individual O1xx toggles override profiles** — three-state logic
    (`null`/`true`/`false`). `null` means "inherit from profile".
 
 ## Regenerating samples
@@ -141,7 +135,6 @@ for p in readability standard full aggressive; do
 done
 ```
 
-The committed outputs are exactly what that loop produces, and
-`samples_optimiser_profiles_are_regenerated` in `rust/tcl-cli` fails if they
-drift — which is how they came to document the retired Python optimiser for as
-long as they did (issue #1789).
+The committed outputs are exactly what that loop produces;
+`samples_optimiser_profiles_are_regenerated` in `rust/tcl-cli/tests/cli.rs`
+fails if they drift.

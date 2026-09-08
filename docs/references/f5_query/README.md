@@ -44,4 +44,4 @@ dispatch, projection layer, parser AST shape) see
 | How probes / cert audit work | `manual.md#network-probes-network-probes`, `manual.md#x509-cert-dict-shape-x509-cert-dict-shape`. |
 | Why a monitor check fails (response truncation, etc.) | `f5-kb-monitor-articles.md`. |
 | Sample config + cert one-liner | `manual.md#operator-handbook-operator-handbook`. |
-| All-in-one CLI dump | `f5 query --help-manual`. |
+| All-in-one CLI dump | `f5 query --help-manual` — grammar, the builtin *metadata* catalogue, and the cookbook.  Per-function prose stays in `builtins.md`. |

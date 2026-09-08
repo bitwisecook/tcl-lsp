@@ -86,7 +86,7 @@ namespace import ::Shadow::*   ;# -> can't import command "set": already exists
 set counter 1                  ;# reaches the BUILTIN, not ::Shadow::set
 ```
 
-Oracle (tclsh 9.0.4 and 8.6.14, byte-identical): `namespace origin ::set`
+Oracle (tclsh 9.0.4 and 8.6.18, byte-identical): `namespace origin ::set`
 answers `::set`. Note that the import *errors* and still binds the other
 names it matched — `mything` exported alongside `set` is imported — so one
 import statement can produce both outcomes at once.

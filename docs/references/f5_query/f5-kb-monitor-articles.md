@@ -65,7 +65,7 @@ shown are the canonical short ID F5 search recognises.
 
 | Article | Reachable from | How |
 |---|---|---|
-| K3451 (5,120-byte ceiling) | the recipes in [`kcs-howto-reproduce-http-monitor-with-query.md`](../../kcs/kcs-howto-reproduce-http-monitor-with-query.md) | Truncate `body[0:5120]` before testing `recv`. |
+| K3451 (5,120-byte ceiling) | the recipes in [`kcs-howto-reproduce-http-monitor-with-query.md`](../../kcs/kcs-howto-reproduce-http-monitor-with-query.md) | Fetch with `curl`, pipe through `head -c 5120`, then test the monitor's `recv` against that window.  The DSL has no string-slice syntax and cannot fetch a body itself. |
 | K12531 (umbrella triage) | `tls_handshake`'s structured `reason.kind`; `ping` / `portping` / `dns`'s `error` string | Mirrors the failure taxonomy K12531 walks through. |
 | K2167, K3224 (send-string bytes, version mismatch, redirects) | nothing | These need a live HTTP request.  `url_get` / `url_head` / `url_options` / `url_post` are not implemented and return an error dict whatever the target ([`builtins.md`](builtins.md#url_get)). |
 

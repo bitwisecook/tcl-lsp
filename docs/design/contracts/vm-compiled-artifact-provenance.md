@@ -1,9 +1,7 @@
 # TclVM compiled-artifact provenance and invalidation
 
-## Status
-
-Implemented. This contract applies to runtime compilation in `tcl-vm` and to
-every reusable or deferred bytecode activation it creates.
+This contract covers runtime compilation in `tcl-vm` and every reusable or
+deferred bytecode activation it creates.
 
 ## Owner
 

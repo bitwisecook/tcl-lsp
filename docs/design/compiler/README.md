@@ -31,8 +31,6 @@ User-facing compiler troubleshooting and how-tos live in
 - [fp-sweep.md](fp-sweep.md) — the `cargo xtask fp-sweep` false-positive audit
   harness: what it runs, why it is dialect-aware, how firings are grouped, and
   where the paired regression tests live.
-- [command-oracle-audits.md](command-oracle-audits.md) — per-command Tcl
-  oracle queue, evidence availability, and registry verdicts.
 
 ## Pipeline stages
 
@@ -110,8 +108,8 @@ User-facing compiler troubleshooting and how-tos live in
   and offset model for event handlers.
 - [namespace-resolution.md](namespace-resolution.md) — qualified name
   handling.
-- [diagnostics-calculation.md](diagnostics-calculation.md) — two-phase
-  diagnostic architecture.
+- [diagnostics-calculation.md](diagnostics-calculation.md) — the fast and
+  deep diagnostic tiers, suppression, and where a new code belongs.
 - [codegen-internals.md](codegen-internals.md) — LVT, linearisation,
   labels, and peephole optimisation.
 - [wasm-codegen.md](wasm-codegen.md) — shared semantic-to-WASM boundary,
@@ -120,8 +118,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-extensions.md](wasm-extensions.md) — current embedded-script boundary
   and the explicitly future package-driven extension design.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
-  current `rbpf` codegen ABI, event/framework capabilities, verified design
-  issues, real-world use cases, and the production-kernel roadmap.
+  the `rbpf` and kernel codegen ABIs, the event framework and loader
+  lifecycle, and current limitations.
 - [recursive-descent-depth-limits.md](recursive-descent-depth-limits.md) —
   the depth-cap + explicit-stack-budget model every recursive-descent walker
   follows (`RecursionLimit`), the inventory of guarded walkers, and the rules
@@ -194,9 +192,8 @@ User-facing compiler troubleshooting and how-tos live in
   elision), the runtime ABI it adds, the sample tiers and framing budgets,
   and the corpus evidence behind its priorities.
 - [aot-command-priority.md](aot-command-priority.md) — real-corpus census
-  (issue #1181) ranking which Tcl commands the AOT WASM compiler should
-  emit directly next, with a breadth-weighted tiering and what is already
-  covered versus what cannot be direct.
+  of Tcl command use, what the WASM backend emits directly, and which forms
+  need host facilities.
 
 ## Related KCS how-tos
 

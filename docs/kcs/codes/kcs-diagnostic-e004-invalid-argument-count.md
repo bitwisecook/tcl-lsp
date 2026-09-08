@@ -56,7 +56,7 @@ The analyser reports **`E004`** — `No script following "$x" argument` — on
 the condition: there's no body to run.
 
 ```tcl
-if {$x} {puts yes} else extra
+if {$x} {puts yes} else {puts no} extra
 ```
 
 The analyser reports **`E004`** — `Extra words after "else" clause in "if"

@@ -3940,138 +3940,106 @@ detect, their triggers, and example patterns:
 
 ## How diagnostics are calculated
 
-The LSP server produces diagnostics in two phases — a fast synchronous
-phase for immediate feedback and an expensive asynchronous phase for deep
-analysis.  Understanding this architecture explains why some warnings
-appear instantly and others arrive after a brief delay.
+The server runs **one** diagnostic pass — the deep pass — and races it against
+a 40 ms budget (`DIAGNOSTICS_FAST_TIER_BUDGET`).  If it settles in time the
+client sees a single publish.  If it overruns, a **fast tier** publishes the
+workspace-independent subset first and the deep pass replaces it for the same
+document version.  Documents under `DIAGNOSTICS_FAST_TIER_MIN_LINES` (500)
+skip the race entirely.  The currency, cancellation and push-only rules are
+owned by
+[async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md).
 
-### Phase 1 — Basic diagnostics (fast, synchronous)
+### The fast tier
 
-`get_basic_diagnostics()` in
-`rust/tcl-compiler/src/analyser/diagnostics/` runs on every
-keystroke and returns immediately.  It produces:
+Every analyser code no workspace pass can retract — `is_fast_tier`, i.e.
+`!DiagCode::refined_by_workspace()`, which excludes only `W120` and `W123` —
+plus the pure source-style lints:
 
 ```
 Source text
     │
     ▼
 ┌───────────────────────────────────────────────────┐
-│ Semantic Analysis (analyse())                      │
-│   → W100: Unbraced expr body                       │
-│   → W101: Wrong number of arguments                │
-│   → W102: Unknown command                          │
-│   → W103: Variable read before set                 │
-│   → W104: Unused variable                          │
-│   → W200+: iRules event/command warnings           │
-│   → W300+: Deprecation/style warnings              │
+│ Semantic analysis (Analyser::analyse)              │
+│   → E001–E006: subcommand / arity / definition     │
+│   → E100–E207: lexical and unterminated-construct  │
+│   → W001–W004: command warnings                    │
+│   → W100–W152: semantic and style warnings         │
+│   → W200–W250: variable warnings                   │
+│   → W300–W315: security warnings                   │
+│   → IRULE1xxx–6xxx: iRules event and flow checks   │
 └───────────────────────────────┬───────────────────┘
                                 │
                                 ▼
 ┌───────────────────────────────────────────────────┐
-│ Style Checks                                       │
+│ Source-style checks                                │
 │   → W111: Line exceeds configured length            │
 │   → W112: Trailing whitespace                       │
 │   → W115: Backslash-newline continuation in comment │
-│   → W120: Command used without package require      │
 └───────────────────────────────┬───────────────────┘
                                 │
                                 ▼
-                        Basic diagnostics
-                    (published immediately)
+                    Fast-tier diagnostics
+              (published only if the deep pass overruns)
 ```
 
-The semantic analyser (`analyse()`) runs over the AST and produces
-diagnostics for syntax errors, arity violations, unknown commands,
-unused variables, and read-before-set conditions.  Style checks scan
-the raw source text for formatting issues.
+`W120` (command above its `package require`) and `W123` (unresolved command)
+are held back: the workspace refinement can retract either, and the fast tier
+never publishes a diagnostic the deep pass would take away.
 
-### Phase 2 — Deep diagnostics (expensive, background thread)
+### The deep tier
 
-`get_deep_diagnostics()` in
-`rust/tcl-compiler/src/analyser/diagnostics/` runs in a
-background thread via `asyncio.to_thread` to avoid blocking the editor.
-It reuses the `CompilationUnit` from Phase 1 (shared IR, CFG, SSA,
-and analysis results).
+The authoritative pass.  It reuses the `CompilationUnit` (shared IR, CFG, SSA,
+and analysis results) and adds the compiler, optimiser and cross-file
+findings on top of everything above:
 
 ```
 CompilationUnit (shared)
     │
-    ├───► Optimiser (find_optimisations)
+    ├───► Optimiser (optimise_unit)
     │     → O100–O130: All optimisation suggestions
     │     Groups related edits (e.g. O100+O109 for propagate + dead store)
     │
-    ├───► Shimmer detector (find_shimmer_warnings)
-    │     → S100: Value accessed as incompatible type
-    │     → S101: Implicit shimmer (int→string, etc.)
-    │     → S102: Cross-command type conflict
+    ├───► Shimmer detector (find_shimmer_warnings_for_cu)
+    │     → S100: Single shimmer outside a loop
+    │     → S101: Shimmer inside a loop body
+    │     → S102: Variable oscillates between two types across iterations
+    │     → S103, S110: further representation findings
     │
-    ├───► Taint engine (find_taint_warnings)
+    ├───► Taint engine (find_taint_warnings_for_cu)
     │     → T100: Dangerous code-execution sink
     │     → T101: Tainted output
     │     → T102: Option injection (tainted arg without --)
-    │     → T103: Regex injection / ReDoS
+    │     → T103: Regex injection / ReDoS (internal)
     │     → T104: SSRF (network address sink)
     │     → T105: Cross-interpreter code injection
-    │     → T106: Double-encoding (informational)
-    │     → IRULE1007: Collect without release (side-aware, in iRules flow analysis)
-    │     → IRULE1008: Release without collect (side-aware, in iRules flow analysis)
+    │     → T106: Double-encoding (internal)
     │     → IRULE3001: XSS in HTTP response body
     │     → IRULE3002: Header/cookie injection
     │     → IRULE3003: Log injection
     │     → IRULE3004: Open redirect
     │
-    ├───► iRules flow checker (find_irules_flow_warnings)
+    ├───► iRules flow checker (irules_checks.rs)
     │     → IRULE1005: *_DATA handler without matching collect
     │     → IRULE1006: payload access without collect
+    │     → IRULE1007/1008: collect/release imbalance
     │     → IRULE1201: HTTP command after respond/redirect
     │     → IRULE1202: Multiple respond/redirect on different branches
     │     → IRULE4004: Per-request set hoistable to connection scope
     │     → IRULE5002: drop/reject without event disable or return
     │     → IRULE5004: DNS::return without return
     │
-    └───► GVN/CSE (find_redundant_computations)
-          → O105: Redundant pure computation
-          → O106: Loop-invariant computation (LICM)
+    ├───► GVN/CSE (gvn.rs)
+    │     → O105: Redundant pure computation
+    │     → O106: Loop-invariant computation (LICM)
+    │
+    └───► Workspace refinement
+          → W120, W123 settled against the cross-file index
 ```
 
-### Async scheduling and cancellation
-
-The `DiagnosticScheduler` in
-`rust/tcl-lsp-server/src/lib.rs` manages the
-lifecycle of deep diagnostic tasks:
-
-```
-  Document edit (version N)
-      │
-      ├─► Phase 1: get_basic_diagnostics()
-      │     → publish basic diagnostics immediately
-      │
-      └─► DiagnosticScheduler.schedule(uri, version=N, ...)
-            │
-            ├─► Cancel any in-flight deep task for this URI
-            │     (previous version is stale)
-            │
-            └─► asyncio.create_task(_run())
-                  │
-                  └─► asyncio.to_thread(deep_fn)    ← background thread
-                        │
-                        ▼
-                    Deep diagnostics complete
-                        │
-                        ▼
-                    publish_fn(uri, basic + deep, version=N)
-                        │
-                        ▼
-                    Editor shows full diagnostic set
-```
-
-Key properties:
-- **Cancellation**: if the user types another character while deep analysis
-  is running, the stale task is cancelled and a new one starts.
-- **Version tracking**: each task carries a document version; results are
-  discarded if a newer version has been scheduled.
-- **Merge**: the final published diagnostics are `basic + deep`, ensuring
-  a consistent complete set.
+Both tiers pass through the same lifts and `finalise_diagnostics`, so `# noqa`,
+`# tcl-lsp: disable=`, disabled codes, tags and severity overrides cannot
+differ between them.
 
 ### Suppression with `# noqa`
 
@@ -4082,10 +4050,11 @@ set x 42    ;# noqa: O109  — suppress dead store warning
 eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
 ```
 
-The suppression map `suppressed_lines: HashMap<i32, HashSet<String>>` is built
-during semantic analysis and checked by both Phase 1 and Phase 2 before
-emitting any diagnostic.  `# noqa: *` suppresses all codes; `# noqa: O109`
-suppresses only the specified code.
+The suppression map `AnalysisResult::suppressed_lines:
+HashMap<i32, HashSet<String>>` is built during semantic analysis and checked by
+`finalise_diagnostics`, so both tiers see the same suppressions.
+`# noqa: *` suppresses all codes; `# noqa: O109` suppresses only the named
+code.
 
 ### Grouped optimisations
 
@@ -4106,23 +4075,22 @@ edits atomically, keeping the source consistent.
 
 For the taint example (`HTTP::header value Host` → `HTTP::respond`):
 
-1. **Phase 1** (immediate): semantic analysis finds no syntax errors.
-   Basic diagnostics are published with zero warnings.
+1. **Fast tier** (only if the deep pass overruns its budget): semantic
+   analysis finds no syntax errors, so nothing is published.
 
-2. **Phase 2** (background):
+2. **Deep tier**:
    - **Optimiser**: no optimisation opportunities found (the code is
      already efficient).
-   - **Taint engine**:
-     - `ensure_compilation_unit()` → reuses shared `CompilationUnit`.
-     - `_solve_interprocedural_taints()` → propagates taint from
+   - **Taint engine** (`find_taint_warnings_for_cu`):
+     - builds on the shared `CompilationUnit`;
+     - `taint_interproc::solve_interprocedural_taints` propagates taint from
        `HTTP::header value Host` through `string tolower` to
-       `HTTP::respond`.
-     - `_find_taint_sinks()` → detects `IRULE3001` on the
-       `HTTP::respond` line.
+       `HTTP::respond`;
+     - `classify_sink` detects `IRULE3001` on the `HTTP::respond` line.
    - **GVN**: no redundant computations.
 
-3. **Publish**: `basic_diags + deep_diags` → one `IRULE3001` warning
-   at `DiagnosticSeverity.Warning` is published to the editor.
+3. **Publish**: one `IRULE3001` warning at `Severity::Warning` reaches the
+   editor.
 
 ---
 
