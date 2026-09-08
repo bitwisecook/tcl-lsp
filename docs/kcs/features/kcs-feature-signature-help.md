@@ -25,7 +25,7 @@ The provider looks up the command or proc under the text caret and shows the exp
 ## Failure modes
 
 - Wrong parameter highlighted for commands with complex argument patterns.
-- A signature that stays open on comments or blank text inside a proc body indicates that the body was mistaken for the outer `proc` argument. Current releases close it by returning no active signature in those positions.
+- No signature is offered on a comment or on blank text inside a proc body — those positions belong to the body, not to the outer `proc` call.
 
 ## Screenshots
 

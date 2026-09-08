@@ -29,7 +29,7 @@ are loaded by the runtime and do not create a second compiler backend.
 
 ## Future desired state
 
-> **Future desired state — written and reviewed 2026-08-11; not implemented.**
+> **Future desired state — not implemented.**
 
 A package-aware extension system may later:
 

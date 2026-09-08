@@ -55,8 +55,7 @@ The fully-qualified name in the message is the proc's **defining** namespace,
 which for a proc created inside another proc's body is the namespace the
 *enclosing* proc is defined in — not the namespace the `proc` command was
 written in. Tcl resolves the name in the namespace current when the body
-executes, and a proc body executes in the namespace of the proc itself
-(verified identical on tclsh 9.0.4 and 8.6.16):
+executes, and a proc body executes in the namespace of the proc itself:
 
 ```tcl
 namespace eval ::a {}

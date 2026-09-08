@@ -131,6 +131,15 @@ interpreter to drift.
 
 ## Sections
 
+### Top-level keys — `[global]` (user file) / `[project]` (project file)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `dialect` | string | The dialect to analyse the folder as ([dialect-detection.md](dialect-detection.md)) |
+| `libraryPaths` | multi-line or comma-separated paths | Extra directories added to the package search path ([package-loading.md](package-loading.md)) |
+| `entryPoints` | multi-line or comma-separated paths | The project's "main" files; setting them disables the automatic `source`-graph W120 inheritance for the folder ([package-loading.md](package-loading.md)) |
+| `extraCommands` | comma-separated command names | Command names to treat as defined |
+
 ### `[diagnostics]`
 
 | Key | Type | Description |

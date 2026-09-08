@@ -103,11 +103,9 @@ matches tclsh 9.0. The command-level behaviour is covered by
 values captured from real tclsh).
 
 The Rust runtime (`runtime/rust`) also uses it: its `cmd_regex` adapter drives
-`AreEngine` directly. This **replaced** the C Henry-Spencer engine that
-`build.rs` used to compile and link (`have_regex`): the FFI module, the
-`build_regex` step, and the `regex_shim/` C sources are gone. Because the new
-engine is safe Rust with no FFI, `regexp`/`regsub` now work on **wasm32** too
-(they were stubbed out there before, since the C engine could not link).
+`AreEngine` directly. No C regex engine is compiled, vendored, or linked
+anywhere, and because the engine is safe Rust with no FFI, `regexp`/`regsub`
+work on **wasm32** as well as natively.
 
 ### Shimming for C consumers
 

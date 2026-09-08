@@ -7,9 +7,13 @@ own tests pass.
 
 ## Decision rules / contracts
 
-1. Extension behaviour must track LSP server capabilities and command metadata.
-2. Client-side UX changes should preserve stable diagnostics/command expectations.
-3. Extension integration changes require lint + compile + extension test coverage.
+1. The extension renders what the server advertises; it never assumes a
+   capability or a command the server did not declare at `initialize`.
+2. A client-side filter or renderer never drops a diagnostic the server
+   published — masking one here hides a server bug.
+3. An extension change goes through `make lint-ts`, `make typecheck-ts`, and
+   `make test-ext` (plus `npm run test:web` in `editors/vscode` when it
+   touches the browser host).
 4. Settings and command contributions in `package.json` are **generated**
    (`cargo xtask gen-vscode-package` / `gen-editor-settings` /
    `gen-editor-catalogs`) from the server-side declarations, so a new setting
@@ -17,9 +21,11 @@ own tests pass.
 
 ## File-path anchors
 
-- `editors/vscode/src/extension.ts`
-- `editors/vscode/package.json`
-- `editors/vscode/src/test/`
+- `editors/vscode/src/extension.ts` — desktop activation;
+  `extensionBrowser.ts` + `webLspTransport.ts` — the browser host.
+- `editors/vscode/package.json` — contributions (generated sections).
+- `editors/vscode/src/generated/` — the xtask-generated catalogues.
+- `editors/vscode/src/test/` — desktop suites; `src/test/web/` — browser.
 
 ## Failure modes
 

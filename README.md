@@ -900,32 +900,31 @@ these same notes.
 
 ### Every supported dialect
 
-Eighteen dialect profiles, each gating which commands exist, which are
-deprecated, and which options and subcommands are valid. The list below
-mirrors the profile catalog (`DialectProfile`) in `rust/tcl-dialect`, the
-single source of truth — its `display_name` is the second column.
+Each dialect profile gates which commands exist, which are deprecated, and
+which options and subcommands are valid. The list mirrors the profile
+catalogue (`DialectProfile::all`) in `rust/tcl-dialect`.
 
-| Dialect | Language / tooling it models |
+| Dialect | What it models |
 |---|---|
-| `tcl8.4` | Tcl 8.4 |
-| `tcl8.5` | Tcl 8.5 |
-| `tcl8.6` | Tcl 8.6 (the default) |
-| `tcl9.0` | Tcl 9.0 |
-| `tcl9.1` | Tcl 9.1 |
-| `expect` | Expect |
+| `tcl8.4` | Tcl 8.4 core commands |
+| `tcl8.5` | Tcl 8.5 (adds `{*}`, `lassign`, `dict`, …) |
+| `tcl8.6` | Tcl 8.6 (adds `try`/`finally`, `tailcall`, coroutines) — **the default** |
+| `tcl9.0` | Tcl 9.0 (adds `lpop`, zipfs, updated `encoding`) |
+| `tcl9.1` | Tcl 9.1 (superset of 9.0; adds the `unicode` and `timer` ensembles and `subst`'s positive `-backslashes`/`-commands`/`-variables` options) |
+| `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands |
 | `bpf` | BPF-Tcl, the eBPF packet-matching dialect |
-| `spectcl` | SpecTcl command packs (`.tclspec`) |
-| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`) |
-| `f5-irules` | F5 iRules (embedded Tcl 8.4.6) — see [README-f5.md](README-f5.md) |
+| `spectcl` | SpecTcl command packs (`.tclspec`): the declarations that teach the registry a private library |
+| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`): certificates, endpoints, trust programs, and assurance policy, read and never evaluated |
+| `f5-irules` | F5 iRules (embedded Tcl 8.4.6): HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping — see [README-f5.md](README-f5.md) |
 | `f5-iapps` | F5 iApps — iApp templates and implementation scripts |
 | `f5-bigip` | F5 BIG-IP `bigip.conf` / `.scf` objects |
-| `f5-tmsh` | F5 tmsh scripts |
-| `cadence-eda-tcl` | Cadence EDA Tcl |
-| `intel-quartus-eda-tcl` | Intel Quartus EDA Tcl |
-| `mentor-eda-tcl` | Mentor EDA Tcl (ModelSim/Questa) |
-| `microchip-libero-eda-tcl` | Microchip Libero EDA Tcl |
-| `synopsys-eda-tcl` | Synopsys EDA Tcl (incl. the SDC constraint base) |
-| `xilinx-eda-tcl` | Xilinx EDA Tcl (AMD/Xilinx Vivado) |
+| `f5-tmsh` | F5 tmsh scripts: the `tmsh::` surface on a Tcl 8.5 base |
+| `cadence-eda-tcl` | Cadence EDA (Genus, Innovus, Tempus, Xcelium) |
+| `intel-quartus-eda-tcl` | Intel Quartus Prime |
+| `mentor-eda-tcl` | Mentor/Siemens EDA (ModelSim, Questa, Calibre) |
+| `microchip-libero-eda-tcl` | Microchip Libero SoC |
+| `synopsys-eda-tcl` | Synopsys EDA (Design Compiler, PrimeTime, ICC2, Formality), including the SDC constraint base |
+| `xilinx-eda-tcl` | AMD/Xilinx EDA (Vivado, Vitis) |
 
 Pick one per file with a `# tcl-dialect:` comment, per project in
 configuration, or let detection choose — see
@@ -963,16 +962,13 @@ the vocabulary, the open/closed block rule, and the value domains are in
 
 ### Every package in the registry
 
-Commands from these 69 packages are modelled with hover docs,
-completion, arity checking, argument roles, and side-effect classification.
-They activate when their `package require` appears (or ambiently, when a
-dialect ships them):
-
-`argparse`, `base32::core`, `base64`, `bibtex`, `cksum`, `cmdline`, `comm`, `control`, `cookiejar`, `crc16`, `crc32`, `csv`, `debug`, `defer`, `dns`, `f5-irules-cmds`, `fileutil`, `generator`, `hook`, `html`, `http`, `inifile`, `ip`, `Itcl`, `json`, `lambda`, `logger`, `math`, `math::constants`, `math::statistics`, `md4`, `md5`, `md5crypt`, `mime`, `msgcat`, `namespacex`, `ooutil`, `opt`, `otp`, `platform`, `platform::shell`, `processman`, `rc4`, `report`, `safe`, `sha1`, `sha2`, `smtp`, `snit`, `soundex`, `stooop`, `stringprep`, `struct::list`, `struct::queue`, `struct::set`, `struct::stack`, `sum`, `tcl::chan::halfpipe`, `tcl::idna`, `tcltest`, `textutil`, `ticklecharts`, `tie`, `Tk`, `unicode`, `uri`, `uuid`, `websocket`, `yaml`
-
-That includes Tk in full, Itcl, and the whole `tcltest` surface with
-per-version availability (`test -errorCode` only from tcltest 2.5, `bytestring`
-gone under Tcl 9.0). Most of the rest is tcllib — see
+Every package the registry knows — Tk in full, Itcl, the whole `tcltest`
+surface with per-version availability (`test -errorCode` only from tcltest
+2.5, `bytestring` gone under Tcl 9.0), and most of tcllib — has its commands
+modelled with hover docs, completion, arity checking, argument roles, and
+side-effect classification. They activate when their `package require`
+appears (or ambiently, when a dialect ships them). `tcl registry-dump` lists
+them; see
 [tcllib package coverage](docs/kcs/features/kcs-feature-tcllib-package-coverage.md)
 for the module-by-module state, and
 [kcs-howto-add-command-registry-package.md](docs/kcs/kcs-howto-add-command-registry-package.md)
@@ -990,11 +986,7 @@ comes with one shell and not another is then floored — and excused from
 ### Dialect profiles
 
 Switch between Tcl 8.4/8.5/8.6/9.0/9.1, F5 iRules, F5 iApps, F5 tmsh, and EDA
-tooling profiles.  Tk, tcllib, and stdlib commands activate automatically when their
-`package require` appears — including the full `tcltest` surface (`test`,
-`configure`, and the convenience commands) with per-version awareness, so
-`test -errorCode` is offered only for tcltest 2.5+ and `bytestring` disappears
-under Tcl 9.0. F5 iRules metadata follows BIG-IP command/event
+tooling profiles. F5 iRules metadata follows BIG-IP command/event
 source data, including profile aliases used by newer namespaces and events,
 shared TLS helper profiles such as `PERSIST`, and protocol namespace layer
 metadata that stays aligned with the enabling profile stack. The configured
@@ -1033,11 +1025,6 @@ newer than the `::tcl::` namespace's own 8.5 baseline:
 # With dialect = tcl8.6:
 ::tcl::mathop::lt 1 2              ;# W002: disabled in active dialect (available in: tcl9.0, tcl9.1)
 ```
-
-The server ships a registry of command signatures, argument roles, and
-validation rules keyed by dialect.  Switching the dialect profile changes
-which commands are known, which are deprecated, and which event/layer
-constraints apply.
 
 Version-aware diagnostics reach every gateable level of a call, not just
 the command: a subcommand, a second-level operation of a two-level
@@ -1093,41 +1080,6 @@ The dialect is selected automatically using the following priority chain
 Per-file hints (directive, shebang, extension) always take priority over
 the global setting, so different files in the same workspace can target
 different Tcl versions without manual switching.
-
-| Dialect | Description |
-|---------|-------------|
-| `tcl8.4` | Tcl 8.4 core commands |
-| `tcl8.5` | Tcl 8.5 core commands (adds `{*}`, `lassign`, `dict`, etc.) |
-| `tcl8.6` | Tcl 8.6 core commands (adds `try`/`finally`, `tailcall`, coroutines) -- **default** |
-| `tcl9.0` | Tcl 9.0 core commands (adds `lpop`, zipfs, updated `encoding`) |
-| `tcl9.1` | Tcl 9.1 core commands (superset of 9.0; adds the `unicode` and `timer` ensembles and `subst`'s positive `-backslashes`/`-commands`/`-variables` options) |
-| `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
-| `f5-iapps` | F5 iApps template commands |
-| `f5-bigip` | F5 BIG-IP configuration (`bigip.conf` / `.scf`) commands |
-| `f5-tmsh` | F5 tmsh scripts: the `tmsh::` command surface on a Tcl 8.5 base |
-| `synopsys-eda-tcl` | Synopsys EDA commands (Design Compiler, PrimeTime, ICC2, Formality) |
-| `cadence-eda-tcl` | Cadence EDA commands (Genus, Innovus, Tempus, Xcelium) |
-| `xilinx-eda-tcl` | Xilinx/AMD EDA commands (Vivado, Vitis) |
-| `intel-quartus-eda-tcl` | Intel Quartus Prime commands |
-| `mentor-eda-tcl` | Mentor/Siemens EDA commands (ModelSim, Questa, Calibre) |
-| `microchip-libero-eda-tcl` | Microchip Libero SoC EDA commands |
-| `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands for automating interactive programs |
-| `bpf` | BPF-Tcl: the eBPF packet-matching dialect |
-| `spectcl` | SpecTcl command packs (`.tclspec`): the declarations that teach the registry a private library |
-| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`): the certificates, endpoints, trust programs, and assurance policy of a deployment, read and never evaluated |
-
-**Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
-when the corresponding `package require` appears in the file.  No manual
-toggle is needed — the registry activates the relevant command definitions
-per-document.  The tcllib coverage spans the cryptography/hash
-(`md4`, `ripemd`, `crc*`, `aes`/`blowfish`/`des`, …), encoding (`base32`,
-`ascii85`, `uuencode`, `yencode`), maths (`math`, `math::fuzzy`,
-`math::roman`), data/utility (`inifile`, `units`, `counter`, `tie`,
-`lambda`), web/protocol/client (`asn`, `ncgi`, `imap4`, `ldap`, `ftp`,
-`pop3`, `irc`, `rest`, `SASL`, `websocket`, …), format (`png`, `jpeg`,
-`tiff`, `gpx`, `mapproj`, `nmea`), and ensemble (`generator`, `debug`,
-`hook`) package families — see
-[the tcllib coverage note](docs/kcs/features/kcs-feature-tcllib-package-coverage.md).
 
 ### Dialect command stubs
 
@@ -1217,8 +1169,8 @@ document: **[README-f5.md](README-f5.md)**.
 
 It covers the `f5-irules`, `f5-iapps`, `f5-bigip`, and `f5-tmsh` dialects; the
 BIG-IP configuration model and iRule extraction; the `f5` CLI (`query`,
-`cleanup`, `grep`, `irule`, `report`); the jq-shaped
-[query DSL](docs/references/f5_query/dsl.md) and its Python (`f5q`) bindings;
+`cleanup`, `grep`, `explain`, `irule`, …); the jq-shaped
+[query DSL](docs/references/f5_query/dsl.md) and its Python bindings (`f5report`);
 the standalone HTML report generator; iRules-to-XC translation; and the iRule
 Event Orchestrator test framework with fakeCMP multi-TMM simulation.
 
@@ -1262,8 +1214,7 @@ statement, CFG block, or bytecode instruction — rather than raw text, so
 byte offsets, source ranges, sequence indices, and tree-connector glyphs
 that merely shift when the optimiser adds or removes a node are ignored.
 A single rewrite then shows as a single localised change instead of every
-following line being flagged.  The `tcl-explorer` CLI and TUI render the
-same offset-free diff via `--opt diff`.
+following line being flagged.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -1300,22 +1251,22 @@ tcl explore script.tcl
 # Focus on optimiser rewrites only
 tcl explore script.tcl --show opt
 
-# Inline source with optimised output
-tcl explore --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
+# Inline source, optimiser view only
+tcl explore --source 'set a 1; set b [expr {$a + 2}]' --show opt
 
 # Show only IR and CFG
 tcl explore script.tcl --show ir,cfg
 
 # iRules dialect with flow analysis
-tcl explore irule.tcl --dialect bigip --show irules
+tcl explore irule.tcl --dialect f5-irules --show irules
 
 # Serve the embedded web GUI
 tcl explore --serve
 ```
 
-Available views: `ir`, `cfg`, `ssa`, `interproc`, `types`, `opt`, `gvn`,
-`shimmer`, `taint`, `irules`, `callouts`, `asm`, `wasm`.  Groups: `all`,
-`compiler`, `optimiser`.
+Views include `ir`, `cfg`, `ssa`, `interproc`, `types`, `opt`, `gvn`,
+`shimmer`, `taint`, `irules`, `callouts`, `asm`, and `wasm`; `--show` matches
+view names by substring, and `--json` emits every view.
 
 ### Compiler explorer (web GUI)
 
@@ -1526,10 +1477,9 @@ Copilot: generates Tk code with grid layout, button callbacks, and display label
 
 ### Claude Code skills
 
-Twenty purpose-built skills for Claude Code (CLI) that combine LSP static
-analysis with AI reasoning.  The skills are native — each calls the
-`tcl-mcp` MCP server's tools, iterates on diagnostics, and produces clean
-output.
+Purpose-built skills for Claude Code that combine LSP static analysis with
+AI reasoning; each calls the `tcl-mcp` MCP server's tools, iterates on
+diagnostics, and produces clean output.
 
 | Skill | Description |
 |-------|-------------|
@@ -1547,13 +1497,19 @@ output.
 | `irule-migrate` | Convert nginx/Apache/HAProxy config to an iRule |
 | `irule-diagram` | Generate a Mermaid flowchart from compiler IR |
 | `irule-xc` | Translate to F5 XC with Terraform and JSON output |
+| `irule-dataflow` | Def-use chains, memory aliases, and a data-flow diagram from the SSA |
+| `bigip-cleanup` | Generate a `tmsh delete` script for objects no virtual server references |
+| `f5-query` | Turn a question about a BIG-IP config into an `f5 query` and run it |
+| `explain-flow` | Narrate a captured session (pcap) against a BIG-IP config |
 | `tcl-create` | Generate Tcl code from a description, validate until clean |
 | `tcl-explain` | Explain Tcl code with analysis context |
 | `tcl-fix` | Iteratively fix all Tcl diagnostics |
 | `tcl-validate` | Categorised Tcl validation report |
 | `tcl-optimise` | Apply Tcl optimiser suggestions |
+| `tcl-refactor` | Extract/inline variables, if-chain to switch, switch to dict, brace expr |
 | `tk-create` | Generate Tk GUI code with proper widget hierarchy |
 | `spec-author` | Build command specs for a private Tcl library from compiler-inferred evidence |
+| `ai-help` | Show which features and AI tools are available where |
 
 ```sh
 # Example: fix all issues in an iRule
@@ -1572,10 +1528,10 @@ A Model Context Protocol server that exposes tcl-lsp analysis to any
 MCP-compatible client (Claude Code, Claude Desktop, Codex, custom agents).
 
 The server is the **native Rust `tcl-mcp`** binary — a single self-contained
-executable that calls the Rust analysis crates directly (no Python, no PyO3).
-It hosts the full tool surface (46 tools: analysis, LSP features, refactors,
-diagnostics, docstrings, iRule/BIG-IP tools, XC translation, Tk layout, test
-generation, …). Build it with `make rust-mcp`.
+executable that calls the Rust analysis crates directly. It hosts the full
+tool surface — analysis, LSP features, refactors, diagnostics, docstrings,
+iRule/BIG-IP tools, XC translation, Tk layout, test generation, SpecTcl
+authoring — and `make rust-mcp` builds it.
 
 **Install / register.** The installer fetches the prebuilt native binary for
 your platform from the GitHub release (`tcl-mcp-<triple>`), verifies its
@@ -1602,6 +1558,8 @@ with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
 | Tool | Description |
 |------|-------------|
 | `analyze` | Full analysis: diagnostics, symbols, events, and metadata |
+| `detect_dialect` | Detect the Tcl dialect from source (and optional filename) |
+| `help` | Search the KCS feature knowledge base |
 | `validate` | Categorised validation report |
 | `review` | Security-focused diagnostic report |
 | `find-legacy` | Detect legacy patterns eligible for modernisation |
@@ -1612,22 +1570,42 @@ with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
 | `find_references` | Find all references to a symbol |
 | `symbols` | Document symbol hierarchy |
 | `code_actions` | Quick fixes for a source range |
+| `refactor` | List the refactorings available at a selection |
+| `extract_variable` | Extract a selected expression into a `set` binding |
+| `inline_variable` | Inline a single-use variable |
+| `if_to_switch` | Convert an if/elseif chain on one variable to `switch` |
+| `switch_to_dict` | Convert a `switch` whose arms set one variable to a dict lookup |
+| `brace_expr` | Brace an unbraced `expr` argument |
+| `extract_datagroup` | Extract an if/switch over literals into an iRules data-group lookup |
+| `suggest_datagroup_extractions` | Scan for if/switch patterns extractable to data-groups |
 | `format_source` | Format Tcl/iRules source code |
 | `rename` | Rename a symbol throughout the document |
+| `generate_docstring` | Generate a docstring stub for a named proc |
+| `read_proc_docs` | Structured docs for every proc: params, docstring, inferred traits |
+| `update_docstrings` | Insert docstring stubs above every undocumented proc |
+| `unminify_error` | Translate a minified error back to original names and lines |
 | `event_info` | iRules event metadata and valid commands |
 | `command_info` | Command metadata and valid events |
 | `event_order` | Events in canonical firing order |
 | `call_graph` | Build proc call graph with roots and leaves |
 | `symbol_graph` | Build scope/definition/reference graph |
 | `dataflow_graph` | Build taint and side-effect graph |
+| `def_use_chains` | SSA def-use chains and memory-SSA aliases |
+| `memory_aliases` | Memory-SSA alias sets (`upvar`/`global`/`variable`) with reasons |
 | `diagram` | Extract control-flow diagram data from IR |
+| `compile_wasm` | Compile source to a WebAssembly module |
 | `xc_translate` | Translate iRule to XC configuration |
+| `irule_with_context` | Bundle each iRule in a BIG-IP config with the objects it references |
+| `explain_flow` | Narrate a captured session (pcap) against a BIG-IP config |
 | `tk_layout` | Extract Tk widget tree as JSON |
 | `generate_irule_test` | Generate iRule test script with CFG paths and multi-TMM detection |
 | `irule_cfg_paths` | Extract CFG control-flow paths for test planning |
 | `fakecmp_which_tmm` | Look up which TMM a connection tuple maps to |
 | `fakecmp_suggest_sources` | Find client addr/port combos that hit each TMM |
 | `set_dialect` | Set active Tcl dialect for the session |
+| `spectcl_check` | Validate a SpecTcl pack in the deterministic sandbox |
+| `spectcl_expand` | Expand a SpecTcl pack to its canonical straight-line form |
+| `spec_import` | Derive command version ranges from local release snapshots |
 
 ```json
 // Claude Desktop — claude_desktop_config.json (native binary)
@@ -1668,10 +1646,15 @@ A single verb-based CLI that aggregates common local workflows:
 - `highlight` — emit syntax-highlighted source (`ansi` or `html`)
 - `diff` — compare two sources across AST/IR/CFG compiler representations
 - `explore` — run compiler-explorer views (`ir`, `cfg`, `ssa`, `opt`, `asm`, `wasm`, ...)
+- `minify` / `unminify-error` — minify source, and map a minified error back to original names
+- `minimize` — reduce a diagnostic to a minimal reproducer for a bug report
+- `registry-dump` — dump the command registry as JSON
 - `help` — search bundled KCS feature docs from the SQLite help index
-- `pkg` — package management: `init`, `add`, `remove`, `install`, `list`, `tree`, `verify`, `info`, `search`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`
+- `completion` — print a bash / fish / zsh completion script
+- `pkg` — package management: `init`, `discover`, `add`, `remove`, `install`, `list`, `tree`, `verify`, `info`, `search`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`, `freeze`, `policy`, `hooks`, `audit`, `trust`, `build`
 - `venv` — virtual environments: `create`, `delete`, `info`, `activate`, `deactivate`, `list`, `update`, `run`
-- `spec` — author SpecTcl (`.tclspec`) command packs: `import` derives `introduced_version`/`retired_version` ranges for a package's commands from several labelled release snapshots
+- `docker` — generate Dockerfiles and install recipes for Tcl projects
+- `spec` — author SpecTcl (`.tclspec`) command packs: `import` derives `introduced_version`/`retired_version` ranges from several labelled release snapshots, `export` renders a pack's canonical expansion, `upgrade` rewrites a 1.x pack to the current vocabulary
 
 ```sh
 # Optimise everything under src/ into one output script
@@ -1726,7 +1709,7 @@ tcl dis script.tcl
 tcl compwasm script.tcl -o out.wasm --wat-output out.wat
 
 # Emit ANSI-highlighted output (or --format html)
-tcl highlight script.tcl --force-colour
+tcl highlight script.tcl --colour
 
 # Diff two iRules using compiler structure layers
 tcl diff old.irule new.irule --show ast,ir,cfg
@@ -1762,17 +1745,9 @@ tcl lint rules/ --dialect f5-irules
 iRules-specific verbs (`event-order`, `event-info`) live on the separate
 `f5` CLI under the `irule` verb group — see the F5 BIG-IP CLI section.
 
-For source builds, run `make kcs-db` first so the `tcl help` command can query
-the bundled KCS SQLite database.
-
-**Install the `tcl` CLI** — the released artefact is the native `tcl`
-binary; no Python required.
-See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
-installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
-Fedora, source builds, and shell completion (`bash`, `zsh`, `fish`)
-that covers every verb, dialect, optimiser profile, and source-path
-glob — the same indexed-source extension set the server walks, from the
-one catalogue, rather than a list of its own.
+**Install** — [INSTALL-cli.md](INSTALL-cli.md) covers the one-line installer,
+manual install, source builds, and shell completion (`bash`, `zsh`, `fish`)
+for every verb, dialect, optimiser profile, and source-path glob.
 
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
 
@@ -1838,9 +1813,6 @@ require json    1.3.5
 require http    2.9.8
 dev-require tcltest 2.5.5
 ```
-
-The LSP server auto-detects `tclpkg.tcl` projects and venv `lib/` directories,
-and offers an "Install via tclpkg" quick-fix on missing-package diagnostics.
 
 See [docs/kcs/features/kcs-feature-tcl-pkg.md](docs/kcs/features/kcs-feature-tcl-pkg.md) for the
 full architecture and contracts.
@@ -2008,7 +1980,7 @@ file for editor-independent configuration.
 - **Formatter options** —
   [kcs-feature-formatting.md](docs/kcs/features/kcs-feature-formatting.md)
 
-In VS Code, **Tcl: Export Settings** writes your current configuration out as
+In VS Code, **Tcl: Export Settings to Config File** writes your current configuration out as
 an INI file you can commit alongside the project.
 
 ## Screenshots
@@ -2035,11 +2007,10 @@ an INI file you can commit alongside the project.
 
 ## Building and contributing
 
-- A Rust toolchain (current stable) via [rustup](https://rustup.rs/).  The
-  workspace tracks the floating `stable` channel; current stable is 1.98.1,
-  released 2026-09-03.
-- Node.js 24+ with npm (pinned to v12 via `packageManager`; run `corepack enable npm`)
-- VS Code 1.93+
+- A Rust toolchain via [rustup](https://rustup.rs/); the workspace tracks the
+  floating `stable` channel.
+- Node.js 24+ with npm (pinned via `packageManager`; run `corepack enable npm`)
+- VS Code 1.95+
 
 On macOS, run `make ensure-rust-deps` before the Rust/WASM gates. Stock Apple
 clang has no WebAssembly backend, so this installs and selects the pinned
@@ -2057,13 +2028,10 @@ before pushing, how to add a diagnostic or a formatter option, the repository
 layout, and the code-style rules — see **[AGENTS.md](AGENTS.md)** and
 **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-The local smoke gate prefers `cargo nextest` when it is installed. If nextest
-is unavailable, `make smoke` and `make smoke-p P=<crate>` use the checked-in
-manifest at `scripts/dev/smoke-targets.tsv` through `cargo xtask smoke-targets`
-instead. The fallback selects the same smoke sources without changing Cargo's
-workspace feature resolution. Run `cargo xtask smoke-targets check` to inspect
-or validate the ownership manifest; see the [smoke fallback troubleshooting
-note](docs/kcs/kcs-issue-smoke-fallback-does-not-match-nextest.md) if it fails.
+`make smoke` and `make smoke-p P=<crate>` prefer `cargo nextest`; without it
+they fall back to the manifest at `scripts/dev/smoke-targets.tsv` via
+`cargo xtask smoke-targets` (`cargo xtask smoke-targets check` validates it —
+see the [smoke fallback note](docs/kcs/kcs-issue-smoke-fallback-does-not-match-nextest.md)).
 
 Tcl VM conformance work uses the shared C Tcl oracle harness. See
 **[How to run the C tcltest suite through the bytecode VM](docs/kcs/kcs-howto-run-tcltest-bundles.md)**;

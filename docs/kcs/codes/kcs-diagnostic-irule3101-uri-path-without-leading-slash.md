@@ -21,12 +21,14 @@ A relative path breaks HTTP routing and can redirect traffic to unintended desti
 
 ## Symptoms
 
-- A squiggle appears under the `HTTP::uri` or `HTTP::path` setter, with the message "URI path does not start with /".
+- A yellow squiggle appears under the value, with the message "HTTP::uri value
+  must start with '/'" (or "HTTP::path value must start with '/'"). The wording
+  comes from the command's own registry entry.
 
 ## Example that triggers it
 
 ```tcl
-HTTP::uri "newpath"
+when HTTP_REQUEST { HTTP::uri "newpath" }
 ```
 
 The analyser reports **`IRULE3101`** because the value `"newpath"` does not begin with `/`.
@@ -36,7 +38,7 @@ The analyser reports **`IRULE3101`** because the value `"newpath"` does not begi
 Prefix the path with a forward slash:
 
 ```tcl
-HTTP::uri "/newpath"
+when HTTP_REQUEST { HTTP::uri "/newpath" }
 ```
 
 ## How to suppress

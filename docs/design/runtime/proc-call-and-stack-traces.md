@@ -4,7 +4,7 @@
 > carry*, so that stack traces, `info frame` / `info level`, exceptions,
 > `eval` / `uplevel` / `source` / `package`, and **AOT ↔ interpreter interop**
 > all work. Grounded in the C Tcl 9 truth
-> (`tmp/tcl9.0.3/generic/{tclProc,tclBasic,tclCmdMZ,tclResult,tclNamesp}.c`,
+> (`tmp/tcl9.0.4/generic/{tclProc,tclBasic,tclCmdMZ,tclResult,tclNamesp}.c`,
 > `tclInt.h`). Section numbers are cited from `runtime/rust/src/interp.rs`,
 > `cmd_proc.rs`, and `cmd_error.rs`, so keep them stable.
 

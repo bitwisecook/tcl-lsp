@@ -207,11 +207,11 @@ that did attach (`TCL_LSP_NO_VERIFY=1` is the documented escape hatch, and is no
 to recommend).  Fix forward and re-run the failed jobs on the same tag; the
 assets that already uploaded are overwritten in place.
 
-## The 2.1.x pre-release sequence is a program, not a procedure
+## The pre-release sequence is a program, not a procedure
 
-Step 2 above is the *primitive*.  For the `rust` pre-release line there is
-work that must happen before it — the release-notes performance graphs —
-and every part of it used to be a step someone remembered:
+Step 2 above is the *primitive*.  The `rust` line has work that must happen
+before it — the release-notes performance graphs — and
+`scripts/release/rust_release.sh` drives all of it:
 
 ```
 scripts/release/rust_release.sh next patch      # -> the next version
@@ -263,10 +263,9 @@ publication channel. The former Python line is preserved, read-only, on
 This is the VS Code Marketplace
 [odd/even-minor convention](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions):
 from major 2 onward an **odd** minor is a pre-release and an **even**
-minor is stable.  The 2.x rewrite ships its alphas on `2.1.x`
-(`2.1.0`, `2.1.1`, …) and promotes to the stable `2.2.0` when ready.
-The 1.x line predates the convention and is frozen on `legacy-py`; it is not
-tagged again. Open VSX reads the same
+minor is stable.  The line ships stable on `2.2.x` and cuts pre-releases on
+the odd minor below it.  The 1.x line predates the convention and is frozen on
+`legacy-py`; it is not tagged again. Open VSX reads the same
 pre-release channel from the VSIX manifest
 (`Microsoft.VisualStudio.Code.PreRelease`) that `vsce package` bakes in
 at build time — `ovsx publish` ignores `--pre-release` for an
@@ -394,8 +393,8 @@ stored, is a design conversation: it requires updating this contract and
   `release-zed-version`, `release-perf`, `release-notes-perf`, `release-verify`,
   `release-prepare`, `release-rust-tag`.
 - [`scripts/release/rust_release.sh`](../../../scripts/release/rust_release.sh) —
-  the 2.1.x pre-release driver (`next` / `preflight` / `perf` / `notes` /
-  `verify` / `prepare` / `tag`).
+  the release driver (`next` / `preflight` / `perf` / `notes` / `verify` /
+  `prepare` / `tag`).
 - [`scripts/release/zed_version.sh`](../../../scripts/release/zed_version.sh) —
   the shared Zed manifest setter/checker used by preparation, builds, and the
   final tag guard.

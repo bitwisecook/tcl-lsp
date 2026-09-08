@@ -4,14 +4,13 @@
 > code-generation entry point. It selects a semantic plan from executable IR
 > first and records a typed compatibility reason when broad source-compatible
 > emission is still required. The **native tier**
-> (`WasmCompileOptions::native_tier()`, plan §7 row P3) lowers every function
-> through the native lowered IR and emits it natively — every T0 and T1
-> sample but `15_switch` compiles with no `tcl_eval_code` and no
-> `tcl_expr_bool` — but it, the
-> guarded boxed `string length`, and the exact sealed native-i64-add
-> demonstration are all explicitly opt-in; every semantic AOT pass is off by
-> default. `--analysis` still selects the legacy analysis tier; `--native`
-> selects the native tier.
+> (`WasmCompileOptions::native_tier()`; `tcl compwasm --codegen-passes
+> native-tier`) lowers every function it accepts through the native lowered
+> IR and emits it natively — every T0 and T1 sample in `samples/wasm/` but
+> `15_switch` compiles with no `tcl_eval_code` and no `tcl_expr_bool`
+> (`samples/wasm/budgets.tsv`). It, the guarded boxed `string length`, and
+> the sealed native-i64-add demonstration are all opt-in; every semantic AOT
+> pass is off by default.
 
 This document describes the Rust WebAssembly (WASM) compiler and its shared Tcl
 runtime boundary. The target-independent semantic contract is defined in
@@ -187,7 +186,7 @@ package-driven extension selection or linking.
 `CellDemotion` — and routes general mode through
 `tcl_compiler::native_lowering` and `codegen::wasm::native_emit` instead of the
 structured walk. It supersedes the leaf-command path below for every function
-the lowering accepts; the legacy walk remains the path for a function the
+the lowering accepts; the structured walk remains the path for a function the
 lowering declines, with the typed `FunctionDecline` recorded.
 
 ### Lowering
@@ -208,10 +207,9 @@ unchanged. Statements lower by registry descriptor and dispatch proof:
 | every other `Invoke` | `Invoke(argv)` — the prebuilt-argv path | none needed |
 | `ExecuteOpaqueRegion`, a word with expansion, backslashes, a computed name | `EvalSource(text, reason)` — the last rung | — |
 
-Words are evaluated structurally from `WordExpr` only: the `puts` fast path
-that reparsed compatibility text (issue #1772) is gone from every tier, and a
-`[…]` word resolved to `expr` over one braced literal lowers as a native
-expression when the module keeps `expr` bound to its builtin. The one reading
+Words are evaluated structurally from `WordExpr` only; a `[…]` word resolved
+to `expr` over one braced literal lowers as a native expression when the
+module keeps `expr` bound to its builtin. The one reading
 a backend still makes of a `$…` spelling — which cell a variable word names,
 and whether `$a(b)` is an element or a scalar spelt `${a(b)}` — has a single
 owner, `native_lowering::cells::variable_word_place`, built on
@@ -261,8 +259,8 @@ formals by name, and `Interp::run_native_body` holds the activation and the
 `CmdFrame`. Emitting the script prologue there would push a second, nameless
 frame at the *caller's* namespace — `namespace current`, `upvar 1` and `info
 level` all one level out — and halve the recursion depth Tcl allows.
-`argv`/`argc` are the bound call arguments, reserved for P5's native formal
-binder; a P5-lite body reads its formals as named cells.
+`argv`/`argc` are the bound call arguments, reserved for the native formal
+binder (not yet implemented); a body reads its formals as named cells.
 
 A procedure body ends by writing its completion triple into `out` and
 answering `NATIVE_PROC_STATUS_RAN`. A **null** result there is not an omission:
@@ -331,9 +329,9 @@ Lowering keeps the **first** definition of a name (a later `proc p` only
 records a redefinition), so only that statement can name a compiled body and a
 second `proc p` stays a generic invocation — which installs an ordinary
 source-only procedure at run time, which is what makes a mid-script redefinition
-behave. And a module whose `::top` stayed on the legacy path installs nothing at
-all, since the install sequence lives there; every definition it emits passes
-`entry = 0`.
+behave. And a module whose `::top` stayed on the structured walk installs
+nothing at all, since the install sequence lives there; every definition it
+emits passes `entry = 0`.
 
 ### What still declines
 
@@ -437,13 +435,13 @@ statement inside an ordinary `() -> ()` `::top` and consumes the completion
 itself.
 
 What they do share — argv assembly, `tcl_invoke_argv`, and the owned
-result/options release discipline — is currently written twice
-(`finish_semantic_invoke` versus `emit_invoke_node`). The per-statement path is
-also strictly the broader of the two: it proves variable, nested-command, and
-compound words that the whole-function plan declines. Consolidating so the
-whole-function plan builds a `WasmLeafInvokePlan` and reuses the same emission,
-forwarding the adopted handles instead of releasing them, is the intended
-direction; until that lands, a change to one ownership sequence must be
+result/options release discipline — is written twice
+(`finish_semantic_invoke` versus `emit_invoke_node`), and the per-statement
+path is strictly the broader of the two: it proves variable, nested-command,
+and compound words that the whole-function plan declines. The intended
+consolidation is for the whole-function plan to build a `WasmLeafInvokePlan`
+and reuse the same emission, forwarding the adopted handles instead of
+releasing them; until then a change to one ownership sequence must be
 mirrored in the other.
 
 ### What the fallback still costs

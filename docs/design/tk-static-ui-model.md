@@ -1,8 +1,8 @@
 # Static Tk UI model
 
-Status: implementation contract for the Tk preview surface. The model is
-static and conservative; it is not a Tk interpreter and it is not a screenshot
-of a running application.
+The implementation contract for the Tk preview surface. The model is static
+and conservative; it is not a Tk interpreter and it is not a screenshot of a
+running application.
 
 ## Purpose
 
@@ -31,15 +31,10 @@ copy and echoes it in the model; that client compares the echoed digest and its
 current editor text before presenting the response. If an edit wins the race,
 the client discards the response and waits for the model for the newer snapshot.
 
-The design was also checked against the 2026
-[CGI Coffee Tcl/Tk tutorial](https://cgicoffee.com/blog/2026/04/tcl-tk-develop-cross-platform-cli-gui-tools-tutorial-guide):
-its modernized application uses grid layout, input validation, relative/DPI-aware
-sizing, rate-limited canvas resize, namespaces, and event-driven callbacks, while
-its code-as-data discussion calls out the security cost of dynamic evaluation.
-The shipped response is deliberately structural rather than pixel-rendered;
-geometry evidence and uncertainty serve the layout cases, registry timing and
-taint facts serve validation/callbacks, and dynamic code remains an explicit
-abstention instead of being executed for a prettier preview.
+The response is deliberately structural rather than pixel-rendered: geometry
+evidence and uncertainty serve the layout cases, registry timing and taint
+facts serve validation and callbacks, and dynamic code is an explicit
+abstention rather than something executed for a prettier preview.
 
 ## Model contract
 
@@ -81,16 +76,16 @@ the model can represent:
   placements, their registry-declared options, and registry-declared
   `forget`/`remove` releases;
 - nested executable bodies that the shared Tcl walker can visit;
-- registry-recognized widget options whose values are literal Tcl words.
+- registry-recognised widget options whose values are literal Tcl words.
 
 Window-manager commands, row/column configuration, resource creation, and
 other commands may be useful context to a future model, but are not currently
-represented as verified `TkUiModel` facts. Unrecognized options are not
+represented as verified `TkUiModel` facts. Unrecognised options are not
 interpreted by the model; non-literal values are recorded as uncertainty.
 
 The preview is an approximation of structure and declared layout. It does not
-claim pixel accuracy, platform-native painting, font metrics, theme behavior,
-or event-loop behavior.
+claim pixel accuracy, platform-native painting, font metrics, theme behaviour,
+or event-loop behaviour.
 
 ## Abstention and uncertainty
 
@@ -117,7 +112,7 @@ that total rather than implying the retained prefix is the complete set. This
 keeps wrapper-heavy or generated UIs bounded without hiding that the static
 model abstained more often.
 
-The serialized tree is independently capped at 1,000 distinct constructed
+The serialised tree is independently capped at 1,000 distinct constructed
 widget paths plus the implicit root. `widget_count` reports the distinct paths
 represented or omitted, including the root, and `widgets_truncated` reports
 how many constructor facts for new paths were omitted. Duplicate constructors
@@ -161,12 +156,12 @@ as shipped preview facts:
   variables, and channels;
 - event-loop scheduling, timer execution, or callback return values;
 - computed geometry, theme/style resolution, platform window-manager effects,
-  or accessibility behavior;
+  or accessibility behaviour;
 - execution of `source`, packages, network/file operations, or arbitrary Tcl.
 
 The registry already contains callback/body and command-prefix facts. Those
 facts can support future static edges, but a client must not claim that a
-callback graph exists merely because a callback-shaped option was recognized.
+callback graph exists merely because a callback-shaped option was recognised.
 
 ## Security boundary
 
@@ -208,7 +203,7 @@ as `.entry configure -textvariable draft` introduces a fresh, phase-correct
 SSA definition of `draft`. The SpecTcl/Spec Studio option row exposes this as
 `-taints-var-write` / `taints_var_write`, so authored packs and generated Rust
 round-trip the security fact instead of dropping it. `entry -show` changes only presentation: a masked password
-remains untrusted input and is never treated as sanitized.
+remains untrusted input and is never treated as sanitised.
 
 ## Consumers
 

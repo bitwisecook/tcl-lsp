@@ -17,31 +17,39 @@ Why does the analyser warn that a stub command shadows a built-in command?
 
 ## Why
 
-A stub (e.g. from `package ifneeded` or a generated wrapper) that redefines a built-in command can silently alter the behaviour callers expect, causing unpredictable results across the application.
+A stub declares a command so the analyser knows its shape. Declaring one under
+the name of a command the dialect already provides hides the real signature,
+so arity and argument checks on every call now follow your stub instead.
 
 ## Symptoms
 
-- A yellow squiggle appears under the stub name, with the message "stub command 'puts' shadows a built-in".
+- A yellow squiggle under the stub declaration, with the message "Stub command
+  'puts' shadows built-in command."
 
 ## Example that triggers it
 
 ```tcl
-interp alias {} puts {} ::mylog::puts_wrapper
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub puts {channel:channel string}
+# tcl-lsp: stubs-end
 ```
 
-The analyser reports **`W116`** on the alias target `puts`.
+The analyser reports **`W116`** on the stub line.
 
 ## Fix
 
 ```tcl
-interp alias {} log_puts {} ::mylog::puts_wrapper
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub log_puts {channel:channel string}
+# tcl-lsp: stubs-end
 ```
 
-Give the stub a distinct name that does not collide with any built-in.
+Give the stub a name no built-in already uses. A stub that comes from a
+`.tcl.stubs` sidecar rather than an inline block is never flagged.
 
 ## How to suppress
 
-Add `# noqa: W116` on the line **above** the offending command.
+Add `# noqa: W116` on the line **above** the stub declaration.
 
 ## Related
 

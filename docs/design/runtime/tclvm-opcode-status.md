@@ -305,8 +305,8 @@ deliberate divergences; everything else matches C per the parity suites.
   (`land`/`lor`/`lnot`/`strreverse`/`strrepeat`). All fifteen are executed.
   `land`/`lor` are never emitted by codegen
   (`&&`/`||` compile to short-circuit jump sequences instead), but the VM's
-  dispatch `match` is exhaustive over the whole `Op` enum (issue #1411's
-  gate — see `rust/tcl-vm/tests/opcode_dispatch_coverage.rs`), so they carry
+  dispatch `match` is exhaustive over the whole `Op` enum
+  (`rust/tcl-vm/tests/opcode_dispatch_coverage.rs`), so they carry
   real eager-boolean dispatch arms rather than being dead.
 - Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
   families — every family member C Tcl emits is covered.

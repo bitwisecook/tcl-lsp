@@ -1,14 +1,13 @@
 # The C Tcl extension shim
 
-> **Status:** first leg landed (the argument-handling core); the WASM leg is
-> design only. Issue #1372, part of the spec-pack DSL design
-> ([spec-packs.md](spec-packs.md) § "Covering the hooks").
-
-The Tcl extension interface (`tcl-engine-api`) was designed for exactly two
-consumers: the Rust hook host, and a shim that lets a **C Tcl extension** run
-behind the same surface. This document is that shim: crate `rust/tcl-cshim`,
-its C header `include/tclshim.h`, and the rules that keep it a shim rather
-than a second interface.
+The Tcl extension interface (`tcl-engine-api`) has exactly two consumers: the
+Rust hook host, and a shim that lets a **C Tcl extension** run behind the same
+surface. This document is that shim: crate `rust/tcl-cshim`, its C header
+`include/tclshim.h`, and the rules that keep it a shim rather than a second
+interface. It is part of the spec-pack DSL design
+([spec-packs.md](spec-packs.md) § "Covering the hooks"), issue #1372. The
+implemented surface is the argument-handling core; the WASM leg below is
+design only.
 
 ```text
   C extension            compiled against include/tclshim.h
@@ -191,31 +190,27 @@ because the engine holds its own reference for the call. Dropping the
 `InterpState` runs every remaining delete procedure, as deleting a C Tcl
 interpreter does.
 
-### What the interface needed
+### What the interface gives the shim
 
-Three changes, all engine-neutral:
+Three engine-neutral pieces, and nothing else — no interp pointer, no result
+slot, no completion codes:
 
 - **`Engine::remove_command(name) -> Result<bool, EngineError>`** — the
-  other half of `define_command`. Default implementation declines with
+  other half of `define_command`. The default implementation declines with
   `Unsupported`, so an engine that cannot unregister says so rather than
   leaving a command callable; the tclvm engine implements it with
   `Vm::remove_command`.
 - **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the
   registration half of the engine, opened to a host command for the
   duration of its invocation (exactly `define_command` and
-  `remove_command`, nothing that reaches the interpreter). Defaulted, so
-  every existing host command is unchanged; the tclvm engine implements it
-  over the `&mut Vm` its native-command seam already hands over. What it
-  buys is factories: a command that creates commands, which C extensions
-  do routinely and the hook host's emitter verbs never did.
-- **The tclvm engine now passes a host command's `Script { message, code }`
-  error through verbatim**, with the `-errorcode` in the completion options,
-  instead of rendering it as `error: <message>`. A `catch` in Tcl therefore
-  sees exactly what the C code set, which is what byte-for-byte fidelity
-  requires — and what the hook host's own emitter verbs should always have
-  produced.
-
-Nothing else: no interp pointer, no result slot, no completion codes.
+  `remove_command`, nothing that reaches the interpreter). Defaulted, so an
+  ordinary host command is unaffected; the tclvm engine implements it over
+  the `&mut Vm` its native-command seam hands over. This is what buys
+  factories: a command that creates commands, which C extensions do
+  routinely.
+- **Verbatim host-command errors.** The tclvm engine passes a host command's
+  `Script { message, code }` through with the `-errorcode` in the completion
+  options, so a `catch` in Tcl sees exactly what the C code set.
 
 ## The subset, and the order for the rest
 
@@ -315,7 +310,7 @@ loaded against a stub table, so an extension is recompiled against
 
 - `rust/tcl-cshim/include/tclshim.h` — the header.
 - `rust/tcl-cshim/src/{ffi,obj,state,lib}.rs` — the shim.
-- `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`,
+- `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`, `tests/factory.rs`,
   `tests/sandbox_isolation.rs` — the tests.
 - `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
 - `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping and

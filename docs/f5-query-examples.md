@@ -1,166 +1,22 @@
 # `f5 query` — examples cookbook
 
-A walkthrough of the `f5 query` DSL on small, self-contained SCF
-fixtures. Every example shows the input config, the exact command, and
-the literal output from the build.
+A walkthrough of the `f5 query` DSL on the SCF fixtures in
+[`samples/for_f5_query/`](../samples/for_f5_query/).  Every example is
+the exact command and the output it produces against those files; run
+them from that directory.  JSON blocks are re-wrapped for width.
 
-The doc is organised in three layers:
+- `ltm.conf` — nodes, pools, data-groups, five iRules, six virtuals.
+- `gtm.conf` — two datacenters and servers, two GTM pools, two wide-IPs.
+- `apm.conf` — one access policy, its policy items, and the access
+  profile `vpn_vs` attaches.
+
+The doc is in three layers:
 
 1. **LTM** — single-config queries on `ltm.conf`.
 2. **GTM** — `gtm.conf` alone, then **GTM + LTM together** using
    `$ltm` / `$gtm` variables (separate documents, addressed by name).
-3. **APM + LTM merged** — APM access profiles live in their own SCF
-   but are referenced by LTM virtuals; `--merge` unifies the
-   namespace so references walk transparently.
-
----
-
-## Configs used
-
-### `ltm.conf`
-
-```scf
-ltm node /Common/web1    { address 10.0.1.10 }
-ltm node /Common/web2    { address 10.0.1.11 }
-ltm node /Common/api1    { address 10.0.2.20 }
-ltm node /Common/api2    { address 10.0.2.21 }
-ltm node /Common/legacy1 { address 192.168.50.10 }
-
-ltm pool /Common/web_pool {
-    members {
-        /Common/web1:80 { address 10.0.1.10 }
-        /Common/web2:80 { address 10.0.1.11 }
-    }
-    monitor /Common/http
-}
-ltm pool /Common/api_pool {
-    members {
-        /Common/api1:8443 { address 10.0.2.20 }
-        /Common/api2:8443 { address 10.0.2.21 }
-    }
-    monitor /Common/https
-}
-ltm pool /Common/legacy_pool {
-    members {
-        /Common/legacy1:80 { address 192.168.50.10 }
-    }
-    monitor /Common/http
-}
-ltm pool /Common/unused_pool {
-    monitor /Common/tcp
-}
-
-ltm rule /Common/log_rule {
-when HTTP_REQUEST {
-    log local0. "[HTTP::host] [HTTP::uri]"
-}
-}
-ltm rule /Common/maintenance_rule {
-when HTTP_REQUEST {
-    HTTP::respond 503 content "down for maintenance"
-}
-}
-
-ltm virtual /Common/web_vs {
-    destination /Common/10.0.0.10:80
-    pool /Common/web_pool
-    rules { /Common/log_rule }
-}
-ltm virtual /Common/web_secure_vs {
-    destination /Common/10.0.0.10:443
-    pool /Common/web_pool
-}
-ltm virtual /Common/api_vs {
-    destination /Common/10.0.0.20:443
-    pool /Common/api_pool
-    rules { /Common/log_rule }
-}
-ltm virtual /Common/legacy_vs {
-    destination /Common/192.168.50.100:80
-    pool /Common/legacy_pool
-}
-ltm virtual /Common/forwarder_vs {
-    destination /Common/0.0.0.0:0
-}
-ltm virtual /Common/vpn_vs {
-    destination /Common/10.0.0.30:443
-    pool /Common/api_pool
-    profiles { /Common/employee_login_profile { } }
-}
-```
-
-### `gtm.conf`
-
-```scf
-gtm datacenter /Common/dc-east { }
-gtm datacenter /Common/dc-west { }
-
-gtm server /Common/bigip-east {
-    datacenter /Common/dc-east
-    addresses { 10.0.0.1 { } }
-    virtual-servers {
-        /Common/web_vs        { destination 10.0.0.10:80 }
-        /Common/web_secure_vs { destination 10.0.0.10:443 }
-        /Common/api_vs        { destination 10.0.0.20:443 }
-    }
-}
-gtm server /Common/bigip-west {
-    datacenter /Common/dc-west
-    addresses { 10.1.0.1 { } }
-    virtual-servers {
-        /Common/web_vs { destination 10.1.0.10:80 }
-    }
-}
-
-gtm pool a /Common/example_app_pool {
-    members {
-        /Common/bigip-east:/Common/web_vs { order 0 }
-        /Common/bigip-west:/Common/web_vs { order 1 }
-    }
-    monitor /Common/gateway_icmp
-}
-gtm pool a /Common/api_app_pool {
-    members {
-        /Common/bigip-east:/Common/api_vs { order 0 }
-    }
-    monitor /Common/gateway_icmp
-}
-
-gtm wideip a /Common/www.example.com {
-    pools { /Common/example_app_pool { } }
-}
-gtm wideip a /Common/api.example.com {
-    pools { /Common/api_app_pool { } }
-}
-```
-
-### `apm.conf`
-
-```scf
-apm policy policy-item /Common/employee_login_ent          { caption Start ;        agents { } }
-apm policy policy-item /Common/employee_login_logon_page   { caption "Logon Page" ; agents { /Common/employee_login_logon_page_ag   { type logon-page } } }
-apm policy policy-item /Common/employee_login_localdb_auth { caption "LocalDB Auth";agents { /Common/employee_login_localdb_auth_ag { type aaa-localdb } } }
-apm policy policy-item /Common/employee_login_end_allow    { caption Allow ;        agents { } }
-apm policy policy-item /Common/employee_login_end_deny     { caption Deny ;         agents { } }
-
-apm policy access-policy /Common/employee_login {
-    default-ending /Common/employee_login_end_deny
-    items {
-        /Common/employee_login_ent          { }
-        /Common/employee_login_logon_page   { }
-        /Common/employee_login_localdb_auth { }
-        /Common/employee_login_end_allow    { }
-        /Common/employee_login_end_deny     { }
-    }
-    start-item /Common/employee_login_ent
-}
-
-apm profile access /Common/employee_login_profile {
-    access-policy /Common/employee_login
-}
-```
-
-The LTM file's `vpn_vs` attaches the APM profile via its `profiles` list.
+3. **APM + LTM** — APM stanzas have no typed projection, so they are
+   reached by the source-level rewrite engine rather than by path.
 
 ---
 
@@ -249,8 +105,12 @@ $ f5 query '.ltm.virtual[] | select(.pool != "") as $vs
 ]
 ```
 
-JSON output is also `{ name, destination, pool }` — field-name
-shorthand is sugar for `{ name: .name, destination: .destination, ... }`.
+`select(...) as $vs` binds only the values that survive the filter, but
+the stage right after the binding still sees the dropped ones — keep it
+a plain path step (`.pool.members[]`), not `$vs.pool.members[]`.
+
+Field-name shorthand is sugar: `{ name, destination, pool }` means
+`{ name: .name, destination: .destination, pool: .pool }`.
 
 ## L5. VSes listening on port 443
 
@@ -299,6 +159,10 @@ web_vs
 api_vs
 ```
 
+`contains` on a list is exact membership. `.rules` holds bare paths, so
+this works; `.profiles` holds whole `name { … }` strings, so match those
+with `startswith` instead (see LA1).
+
 ## L9. Orphan pools (zero references)
 
 ```
@@ -316,9 +180,13 @@ $ f5 query --raw 'references_to("/Common/web_pool")' ltm.conf
 ```
 
 ```
+/Common/api_router_rule
 /Common/web_secure_vs
 /Common/web_vs
 ```
+
+References inside an iRule body count: `api_router_rule` falls back to
+`pool /Common/web_pool`.
 
 ## L11. Count VSes
 
@@ -338,13 +206,13 @@ $ f5 query '[.ltm.virtual[]] | count' ltm.conf
 $ f5 query '[.ltm.virtual[].pool | select(. != "")] | unique' ltm.conf
 ```
 
-`unique` already returns sorted output (jq parity), so the trailing `| sort` is no longer needed.
-
 ```
 /Common/api_pool
 /Common/legacy_pool
 /Common/web_pool
 ```
+
+`unique` returns sorted output (jq parity), so no trailing `| sort`.
 
 ## L13. Pool sizes as JSON
 
@@ -365,9 +233,9 @@ $ f5 query '.ltm.pool[] | {name, member_count: ([.members[]] | count)}' ltm.conf
 
 ## Rewrites (LTM)
 
-All rewriting examples below print a **unified diff** by default —
-dry-run preview. Pass `--write` to print the rewritten SCF to stdout,
-or `--in-place` to overwrite the input file.
+Rewriting examples print a **unified diff** by default — a dry-run
+preview. Pass `--write` to print the rewritten SCF to stdout, or
+`--in-place` to overwrite the input file.
 
 ## L14. Change a VS port
 
@@ -378,7 +246,8 @@ $ f5 query '.ltm.virtual["/Common/web_vs"].destination |= with_port(., 8080)' lt
 ```diff
 --- ltm.conf
 +++ ltm.conf (modified)
-@@ -57,7 +57,7 @@
+@@ -104,7 +104,7 @@
+ }
  }
  ltm virtual /Common/web_vs {
 -    destination /Common/10.0.0.10:80
@@ -402,21 +271,23 @@ $ f5 query '.ltm.virtual[]
 ```diff
 --- ltm.conf
 +++ ltm.conf (modified)
-@@ -78,6 +78,7 @@
+@@ -125,6 +125,7 @@
          /Common/http { }
          /Common/tcp { }
      }
 +    rules { /Common/log_rule }
  }
  ltm virtual /Common/api_vs {
-@@ -96,6 +97,7 @@
+     destination /Common/10.0.0.20:443
+@@ -146,6 +147,7 @@
      destination /Common/192.168.50.100:80
      ip-protocol tcp
      pool /Common/legacy_pool
 +    rules { /Common/log_rule }
  }
  ltm virtual /Common/forwarder_vs {
-@@ -114,4 +116,5 @@
+     destination /Common/0.0.0.0:0
+@@ -164,4 +166,5 @@
          /Common/http { }
          /Common/tcp { }
      }
@@ -462,13 +333,15 @@ $ f5 query '
 +            address 10.50.50.10
          }
      }
-@@ -93,7 +93,7 @@
+@@ -143,7 +143,7 @@
+     }
  }
  ltm virtual /Common/legacy_vs {
 -    destination /Common/192.168.50.100:80
 +    destination /Common/10.50.50.100:80
      ip-protocol tcp
      pool /Common/legacy_pool
+ }
 ```
 
 Host bits and ports preserved by `ip(net, .)`.
@@ -484,7 +357,7 @@ $ f5 query '.ltm.pool["/Common/web_pool"].name |= with_name(., "web_primary_pool
 All three produce the same diff (stderr first, stdout second):
 
 ```
-renamed '/Common/web_pool' -> '/Common/web_primary_pool' (3 occurrence(s))
+renamed '/Common/web_pool' -> '/Common/web_primary_pool' (4 occurrence(s))
 ```
 
 ```diff
@@ -499,7 +372,16 @@ renamed '/Common/web_pool' -> '/Common/web_primary_pool' (3 occurrence(s))
      members {
          /Common/web1:80 {
              address 10.0.1.10
-@@ -60,7 +60,7 @@
+@@ -91,7 +91,7 @@
+     if { $tgt ne "" } {
+         pool $tgt
+     } else {
+-        pool /Common/web_pool
++        pool /Common/web_primary_pool
+     }
+ }
+ }
+@@ -107,7 +107,7 @@
      destination /Common/10.0.0.10:80
      ip-protocol tcp
      mask 255.255.255.255
@@ -508,18 +390,22 @@ renamed '/Common/web_pool' -> '/Common/web_primary_pool' (3 occurrence(s))
      profiles {
          /Common/http { }
          /Common/tcp { }
-@@ -73,7 +73,7 @@
+@@ -120,7 +120,7 @@
      destination /Common/10.0.0.10:443
      ip-protocol tcp
      mask 255.255.255.255
 -    pool /Common/web_pool
 +    pool /Common/web_primary_pool
+     profiles {
+         /Common/http { }
+         /Common/tcp { }
 ```
 
-Identity-field writes auto-route through the rename engine, so the
-two VS `pool` references follow the header. `rename()` is the most
-direct form; `.name = ...` and `with_name(., ...)` exist for cases
-where you compute the new name as part of a larger pipeline.
+Identity-field writes auto-route through the rename engine, so the two
+VS `pool` references and the one inside `api_router_rule`'s body follow
+the header. `rename()` is the most direct form; `.name = ...` and
+`with_name(., ...)` exist for cases where you compute the new name as
+part of a larger pipeline.
 
 ## L18. Move a family of objects by prefix
 
@@ -528,13 +414,14 @@ $ f5 query 'rename_prefix("/Common/legacy_", "/Legacy/legacy_")' ltm.conf
 ```
 
 ```
-renamed 'prefix /Common/legacy_' -> '/Legacy/legacy_' (3 occurrence(s))
+renamed 'prefix /Common/legacy_' -> '/Legacy/legacy_' (4 occurrence(s))
 ```
 
 ```diff
 --- ltm.conf
 +++ ltm.conf (modified)
 @@ -35,7 +35,7 @@
+     }
      monitor /Common/https
  }
 -ltm pool /Common/legacy_pool {
@@ -542,7 +429,15 @@ renamed 'prefix /Common/legacy_' -> '/Legacy/legacy_' (3 occurrence(s))
      members {
          /Common/legacy1:80 {
              address 192.168.50.10
-@@ -92,10 +92,10 @@
+@@ -64,7 +64,7 @@
+     type string
+     records {
+         /api      { data "/Common/api_pool" }
+-        /legacy   { data "/Common/legacy_pool" }
++        /legacy   { data "/Legacy/legacy_pool" }
+     }
+ }
+@@ -142,10 +142,10 @@
          /Common/log_rule
      }
  }
@@ -555,9 +450,9 @@ renamed 'prefix /Common/legacy_' -> '/Legacy/legacy_' (3 occurrence(s))
  }
 ```
 
-Note `legacy1` (the node) is *not* renamed — the prefix
-`/Common/legacy_` has a trailing underscore, and `legacy1` doesn't
-match. Choose the prefix to fit the boundary you want.
+The data-group record value moves too. `legacy1` (the node) does not —
+the prefix `/Common/legacy_` has a trailing underscore, and `legacy1`
+doesn't match. Choose the prefix to fit the boundary you want.
 
 For whole-partition moves (every object under `/Common/`), use
 `rename_partition("Tenant_A", "Tenant_B")` instead.
@@ -578,7 +473,7 @@ in CI to catch broken queries.
 
 ## Output formats (LTM)
 
-The same rename, four ways:
+The same rename, five ways:
 
 ```
 RENAME='rename("/Common/legacy_pool", "/Common/legacy_app_pool")'
@@ -591,17 +486,26 @@ $ f5 query "$RENAME" ltm.conf
 ```
 
 ```
-renamed '/Common/legacy_pool' -> '/Common/legacy_app_pool' (2 occurrence(s))
+renamed '/Common/legacy_pool' -> '/Common/legacy_app_pool' (3 occurrence(s))
 --- ltm.conf
 +++ ltm.conf (modified)
 @@ -35,7 +35,7 @@
+     }
      monitor /Common/https
  }
 -ltm pool /Common/legacy_pool {
 +ltm pool /Common/legacy_app_pool {
      members {
          /Common/legacy1:80 {
-@@ -95,7 +95,7 @@
+@@ -64,7 +64,7 @@
+     type string
+     records {
+         /api      { data "/Common/api_pool" }
+-        /legacy   { data "/Common/legacy_pool" }
++        /legacy   { data "/Common/legacy_app_pool" }
+     }
+ }
+@@ -145,7 +145,7 @@
  ltm virtual /Common/legacy_vs {
      destination /Common/192.168.50.100:80
      ip-protocol tcp
@@ -616,7 +520,7 @@ renamed '/Common/legacy_pool' -> '/Common/legacy_app_pool' (2 occurrence(s))
 $ f5 query --write "$RENAME" ltm.conf
 ```
 
-Prints the entire rewritten file (117 lines). Original layout,
+Prints the entire rewritten file (167 lines). Original layout,
 whitespace, and comments are preserved — token-bounded rewrite, not a
 re-render. Use `--in-place` to overwrite the file directly.
 
@@ -632,13 +536,13 @@ tmsh modify ltm node /Common/web2 { address 10.0.1.11 }
 tmsh modify ltm node /Common/api1 { address 10.0.2.20 }
 tmsh modify ltm node /Common/api2 { address 10.0.2.21 }
 tmsh modify ltm node /Common/legacy1 { address 192.168.50.10 }
-tmsh modify ltm pool /Common/web_pool { monitor /Common/http members { ... } }
-tmsh modify ltm pool /Common/api_pool { monitor /Common/https members { ... } }
-tmsh modify ltm pool /Common/legacy_app_pool { monitor /Common/http members { /Common/legacy1:80 { address 192.168.50.10 } } }
+tmsh modify ltm data-group internal /Common/banned_ips { type ip records replace-all-with { 10.99.0.0/16 { } 198.51.100.7/32 { } } }
+tmsh modify ltm pool /Common/web_pool { monitor /Common/http members replace-all-with { /Common/web1:80 { address 10.0.1.10 } /Common/web2:80 { address 10.0.1.11 } } }
+tmsh modify ltm pool /Common/legacy_app_pool { monitor /Common/http members replace-all-with { /Common/legacy1:80 { address 192.168.50.10 } } }
 ...
 ```
 
-(26 lines total — every object becomes a `tmsh modify`. Best for
+(54 lines total — every object becomes a `tmsh modify`. Best for
 re-baselining on a device that already has the same skeleton.)
 
 ### L20d. `--format tmsh-delta` — only changed objects
@@ -648,12 +552,12 @@ $ f5 query --write --format tmsh-delta "$RENAME" ltm.conf
 ```
 
 ```
-tmsh create ltm pool /Common/legacy_app_pool { monitor /Common/http members { /Common/legacy1:80 { address 192.168.50.10 } } }
 tmsh modify ltm virtual /Common/legacy_vs { destination /Common/192.168.50.100:80 pool /Common/legacy_app_pool }
 tmsh delete ltm pool /Common/legacy_pool
+tmsh create ltm pool /Common/legacy_app_pool { monitor /Common/http members replace-all-with { /Common/legacy1:80 { address 192.168.50.10 } } }
 ```
 
-A rename is modelled at the tmsh layer as `create new + delete old`;
+A rename is modelled at the tmsh layer as `delete old + create new`;
 the `legacy_vs` whose `pool` ref changed gets a `modify`. The
 unchanged `web_pool`, `api_pool`, etc. are not emitted.
 
@@ -665,9 +569,9 @@ $ f5 query --write --format tmsh-delta --transaction "$RENAME" ltm.conf
 
 ```
 cli transaction
-tmsh create ltm pool /Common/legacy_app_pool { monitor /Common/http members { /Common/legacy1:80 { address 192.168.50.10 } } }
 tmsh modify ltm virtual /Common/legacy_vs { destination /Common/192.168.50.100:80 pool /Common/legacy_app_pool }
 tmsh delete ltm pool /Common/legacy_pool
+tmsh create ltm pool /Common/legacy_app_pool { monitor /Common/http members replace-all-with { /Common/legacy1:80 { address 192.168.50.10 } } }
 submit-transaction
 ```
 
@@ -691,11 +595,11 @@ api.example.com
 
 ## G2. GTM pools and their members
 
-GTM pool members are compound `<server>:<vs>` path strings, not nested
-objects. Stream them and split when you need the parts.
+A GTM pool member is an object whose `name` is the compound
+`<server>:<vs>` path. Stream the members and read `.name`.
 
 ```
-$ f5 query --raw '.gtm.pool[] | tsv(.name, .members[])' gtm.conf
+$ f5 query --raw '.gtm.pool[] | tsv(.name, .members[].name)' gtm.conf
 ```
 
 ```
@@ -725,19 +629,17 @@ without an explicit second lookup.
 
 LTM and GTM are separate ownership domains. The DSL addresses them by
 name: pass each config with `--name <var>=<path>` and reference it as
-`$<var>.<path>`. Each file must also appear as a positional argument
-so the engine has the source text.
+`$<var>.<path>`. Every named file must also appear as a positional
+argument — otherwise the runner has no source text for it and refuses.
 
 > **Caveat.** Without `--merge`, the query is evaluated once per
-> positional input, so output appears twice when both files are
-> positional. Pipe through `sort -u` or use `--merge` when output
-> shape allows.
+> positional input, so output appears once per file with a
+> `# === <uri> ===` banner between the runs.
 
-## LG1. Side-by-side directory of LTM and GTM names
+## LG1. Address one document by name
 
 ```
-$ f5 query --name ltm=ltm.conf --name gtm=gtm.conf --raw \
-    '$gtm.gtm.wideip[].name' gtm.conf
+$ f5 query --name gtm=gtm.conf --raw '$gtm.gtm.wideip[].name' gtm.conf
 ```
 
 ```
@@ -745,8 +647,8 @@ www.example.com
 api.example.com
 ```
 
-(Passing only the file you need as positional avoids the per-file
-duplication for simple inspection queries.)
+Passing only the file you need as positional avoids the per-file
+duplication for simple inspection queries.
 
 ## LG2. Full chain — wideip → GTM pool → LTM VS → LTM pool → pool member
 
@@ -754,18 +656,20 @@ The flagship cross-document join.
 
 ```
 $ f5 query --name ltm=ltm.conf --name gtm=gtm.conf --merge --raw '
-    $gtm.gtm.wideip[] as $w
-    | $w.pools[] as $gp
-    | $gp.members[]
+    $gtm.gtm.wideip[] | .name as $wn
+    | .pools[] | .name as $gpn
+    | .members[].name
     | last(split(., ":")) as $vspath
-    | $ltm.ltm.virtual[]
-    | select(."full-path" == $vspath) as $vs
-    | $vs.pool.members[]
-    | tsv($w.name, $gp.name, $vs.name, $vs.pool, .address, port(.name))
+    | $ltm.ltm.virtual[] | select(."full-path" == $vspath)
+    | .name as $vsname | .pool as $poolpath
+    | $ltm.ltm.pool[] | select(."full-path" == $poolpath)
+    | .members[]
+    | tsv($wn, $gpn, $vsname, $poolpath, .address, port(.name))
   ' ltm.conf gtm.conf | sort -u
 ```
 
 ```
+# === file:///…/samples/for_f5_query/ltm.conf ===
 api.example.com    api_app_pool        api_vs   /Common/api_pool   10.0.2.20    8443
 api.example.com    api_app_pool        api_vs   /Common/api_pool   10.0.2.21    8443
 www.example.com    example_app_pool    web_vs   /Common/web_pool   10.0.1.10    80
@@ -774,20 +678,23 @@ www.example.com    example_app_pool    web_vs   /Common/web_pool   10.0.1.11    
 
 Read top-to-bottom:
 
-1. `$gtm.gtm.wideip[]` streams every wide-IP (named source binding so
-   the query is unambiguous).
-2. `$w.pools[]` auto-derefs from a wide-IP's pool path-ref to the
-   `gtm pool` object — bound to `$gp`.
-3. `$gp.members[]` streams pool members (compound strings like
-   `/Common/bigip-east:/Common/web_vs`).
+1. `$gtm.gtm.wideip[]` streams every wide-IP; `.name as $wn` keeps the
+   wide-IP name for the row.
+2. `.pools[]` auto-derefs from a wide-IP's pool path-ref to the
+   `gtm pool` object.
+3. `.members[].name` streams the compound member strings
+   (`/Common/bigip-east:/Common/web_vs`).
 4. `last(split(., ":"))` peels off the LTM VS path from the compound.
-5. `$ltm.ltm.virtual[] | select(."full-path" == $vspath)` looks the VS
-   up by full path in the LTM document — bound to `$vs`.
-6. `$vs.pool.members[]` walks VS → pool (auto-deref) → pool members.
-7. `tsv(...)` joins every cell across the broadcast stream into one
-   row per LTM pool member.
+5. `select(."full-path" == $vspath)` looks the VS up by full path.
+6. The VS's `.pool` is looked up explicitly in `$ltm.ltm.pool[]` rather
+   than auto-dereffed: a PathRef deref in one document does not resolve
+   after a deref through another, so the chained `.pool.members[]` form
+   yields nothing here.
+7. `tsv(...)` joins every cell across the broadcast stream into one row
+   per LTM pool member.
 
-`sort -u` collapses the per-file-iteration duplication noted above.
+`sort -u` collapses the per-file-iteration duplication; the
+`# === <uri> ===` banner sorts to the top.
 
 ## LG3. Cross-file rename — `--merge` cascades across documents
 
@@ -805,8 +712,8 @@ renamed '/Common/web_vs' -> '/Common/web_primary_vs' (4 occurrence(s))
 ```diff
 --- ltm.conf
 +++ ltm.conf (modified)
-@@ -56,7 +56,7 @@
-     HTTP::respond 503 content "down for maintenance"
+@@ -103,7 +103,7 @@
+     }
  }
  }
 -ltm virtual /Common/web_vs {
@@ -830,7 +737,8 @@ renamed '/Common/web_vs' -> '/Common/web_primary_vs' (4 occurrence(s))
 +        /Common/web_primary_vs {
              destination 10.1.0.10:80
          }
-@@ -34,10 +34,10 @@
+     }
+ }
  gtm pool a /Common/example_app_pool {
      members {
 -        /Common/bigip-east:/Common/web_vs {
@@ -845,76 +753,35 @@ renamed '/Common/web_vs' -> '/Common/web_primary_vs' (4 occurrence(s))
 ```
 
 One command, two files updated. Both the LTM `ltm virtual` header and
-every GTM `server.virtual-servers` / `pool.members` reference in the
-GTM file moves together.
+every GTM `server.virtual-servers` / `pool.members` reference move
+together.
 
 ---
 
-# Part 3 — APM + LTM (merged)
+# Part 3 — APM + LTM
 
-APM access-policies live in their own SCF stanzas, but they're
-attached to LTM virtuals via the `apm profile access` profile name in
-the VS's `profiles { ... }` list. The two documents are tightly
-coupled — `--merge` is the natural mode.
+APM access-policies live in their own SCF stanzas and attach to LTM
+virtuals through the `apm profile access` name in the VS's
+`profiles { ... }` list.
 
-## A1. List access policies
-
-```
-$ f5 query --raw '.apm["access-policy"][].name' apm.conf
-```
-
-```
-employee_login
-```
-
-The container kind has a hyphen, so subscript form is needed:
-`.apm["access-policy"]`.
-
-## A2. Policy items in execution order
-
-```
-$ f5 query --raw '.apm["policy-item"][].name' apm.conf
-```
-
-```
-employee_login_ent
-employee_login_logon_page
-employee_login_localdb_auth
-employee_login_end_allow
-employee_login_end_deny
-```
-
-## A3. Access-policy summary (start item, default ending)
-
-`start-item` is a path-ref; `.start-item.caption` auto-derefs into the
-target `policy-item` and reads its caption field.
-
-```
-$ f5 query --raw '.apm["access-policy"][] | tsv(.name, .start-item.caption, .default-ending)' apm.conf
-```
-
-```
-employee_login    Start   /Common/employee_login_end_deny
-```
-
----
-
-## APM + LTM merged
+Only `ltm`, `gtm`, and `security` have a typed projection, so
+`.apm[...]` does not resolve — `f5 query '.apm["access-policy"][]'`
+errors with `apm: no entry 'access-policy'`. The rename engine works on
+the source text, so it reaches APM stanzas anyway.
 
 ## LA1. Which LTM virtuals use an APM profile?
 
+`.profiles` holds whole `name { … }` entries, so match on the prefix:
+
 ```
-$ f5 query --merge --raw '.ltm.virtual[] | select(contains(.profiles, "/Common/employee_login_profile")) | .name' ltm.conf apm.conf
+$ f5 query --raw '.ltm.virtual[]
+                  | select(any(.profiles[] | startswith(., "/Common/employee_login_profile")))
+                  | .name' ltm.conf
 ```
 
 ```
 vpn_vs
 ```
-
-The query reads `.profiles` (a field of an LTM virtual) and matches a
-name defined in `apm.conf`. With `--merge` the engine treats both
-documents as one namespace so the predicate works without any
-explicit `$ltm`/`$apm` plumbing.
 
 ## LA2. Rename an APM profile — the LTM virtual follows
 
@@ -930,7 +797,7 @@ renamed '/Common/employee_login_profile' -> '/Common/sso_v2_profile' (1 occurren
 ```diff
 --- ltm.conf
 +++ ltm.conf (modified)
-@@ -110,7 +110,7 @@
+@@ -160,7 +160,7 @@
      mask 255.255.255.255
      pool /Common/api_pool
      profiles {
@@ -952,10 +819,8 @@ renamed '/Common/employee_login_profile' -> '/Common/sso_v2_profile' (1 occurren
 ```
 
 The header in `apm.conf` and the VS's `profiles` reference in
-`ltm.conf` both move in one operation.
-
-The two stderr `renamed ...` lines are one event per document — the
-rewrite touched one occurrence in each file.
+`ltm.conf` both move in one operation. The two stderr `renamed ...`
+lines are one event per document.
 
 ## LA3. Rename the access-policy itself
 
@@ -989,8 +854,8 @@ renamed '/Common/employee_login' -> '/Common/employee_sso_v2' (2 occurrence(s))
 ```
 
 The `access-policy` field of the `apm profile access` follows the
-header rename automatically. (The profile name itself didn't change, so
-the LTM VS doesn't need updating in this case.)
+header rename. The profile name itself didn't change, so the LTM VS
+needs no update.
 
 ---
 
@@ -1002,6 +867,8 @@ the LTM VS doesn't need updating in this case.)
 | `--json`       | JSON array output |
 | `--paths-only` | Print only the full-path of each result |
 | `--scf`        | Render results as SCF stanzas when possible |
+| `--table` / `--table-lineart` | ASCII / box-drawing grid |
+| `--render NAME` | Dispatch through a renderer plugin (`--help-renderers`) |
 | `--write`      | For mutating queries: print rewritten config (default = diff) |
 | `--in-place`   | For mutating queries: overwrite the input file |
 | `--strict`     | Fail (exit 2) if a mutating query matched nothing |
@@ -1011,6 +878,7 @@ the LTM VS doesn't need updating in this case.)
 | `--transaction`        | Wrap tmsh output in `cli transaction ... submit-transaction` |
 | `--name N=PATH`        | Bind a positional file to DSL variable `$N` |
 | `--merge`              | Treat all loaded configs as one namespace; refs walk across files |
+| `--input KIND N=PATH`  | Bind a side-input file to `$N` (`--help-inputs`) |
 | `--help-dsl`           | Print the full grammar reference |
 | `--help-builtins [N]`  | Print the builtin catalogue (or one entry) |
 | `--help-examples`      | Print a cookbook of examples |

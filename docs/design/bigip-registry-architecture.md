@@ -27,9 +27,9 @@ consumers are `rust/tcl-bigip` (graph, links, tmsh emission) and
 ## Object kind catalogue
 
 Every object kind is a curated `BigipObjectSpec` entry under
-`rust/tcl-registry/src/bigip/data/`, split into one module per initial
-letter (`a.rs`, `c.rs`, `g.rs`, …) purely to keep each file compilable at a
-sane size. Hundreds of distinct kinds across:
+`rust/tcl-registry/src/bigip/data/`, one module per TMSH module (`ltm.rs`,
+`gtm.rs`, `net.rs`, `security.rs`, `sys.rs`, …). Hundreds of distinct kinds
+across:
 
 - **`ltm.*`** — pool, virtual, monitor (40+ types), profile (60+ types),
   node, rule, persistence, snatpool, policy, data-group, global-settings,
@@ -43,8 +43,9 @@ sane size. Hundreds of distinct kinds across:
   rate-shaping, fdb, packet-filter, …
 - **`sys.*`** — file ssl-cert / ssl-key, management-route, log-config-*,
   crypto-*, ntp / dns / snmp / global-settings, …
-- **`apm.*`**, **`auth.*`**, **`cm.*`**, **`pem.*`**, **`vcmp.*`**,
-  **`cli.*`**, **`api_protection.*`** — full coverage.
+- **`apm.*`**, **`asm.*`**, **`auth.*`**, **`cm.*`**, **`pem.*`**,
+  **`vcmp.*`**, **`cli.*`**, **`ilx.*`**, **`analytics.*`**, **`saas.*`**,
+  **`wam.*`**, **`wom.*`**, **`api_protection.*`** — full coverage.
 
 `BigipRegistry` (built once via `default_registry()`) owns the lookup
 surface:
@@ -111,7 +112,8 @@ reconstructed object compares equal to the parsed one.
 - `Port` (`port.rs`), `PortSet` (`port_set.rs`) — single port and wildcards.
 - `Partition` (`partition.rs`), `Folder` / `ObjectPath` (`folder.rs`) —
   path identity.
-- `RouteDomain` (`route_domain.rs`), `IPRange` (`ip_range.rs`).
+- `RouteDomain` (`route_domain.rs`), `IPRange` (`ip_range.rs`), the
+  address-classification predicates (`ip_class.rs`).
 - `BigipList` / `ListItem` / `ListItemValue` / `ListSyntax` /
   `SourceSpan` (`bigip_list.rs`) — the typed list, one `ListItem` per
   element, each carrying its own source span.

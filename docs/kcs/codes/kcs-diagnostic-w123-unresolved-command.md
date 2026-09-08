@@ -9,7 +9,7 @@ all-editors, diagnostic, command-walk
 
 ## Profiles
 
-default (on in the default profile)
+default
 
 ## Question
 
@@ -21,7 +21,9 @@ A command the analyser cannot find in the registry, user procs, or unknown handl
 
 ## Symptoms
 
-- A blue squiggle (hint) appears under the command name, with the message "unresolved command".
+- A hint underline under the command name, with the message "Unknown command
+  'unknownCmd'; did you mean 'unknown'?" — the "did you mean" tail appears only
+  when a close match exists.
 
 ## Example that triggers it
 

@@ -4,24 +4,23 @@ The contract for how the compiler models Tcl value types. Every claim in the
 oracle corpus below is tclsh-verified (8.6.14, with 9.0 differences noted where
 known) and locked in by a test.
 
-## Goals
+The model:
 
-1. Model Tcl values the way **C Tcl** does — a string with at most one cached
-   internal representation (intrep) — including *purity* (`typePtr == NULL`),
-   the numeric tower (`int` wide / `bignum` / `double` / `booleanString`), and
-   per-element container types.
-2. Carry **multiple potential types** at a lattice node (bounded union), not
-   just a single `Known` type or a `Shimmered` pair.
-3. Compute **implied element types into containers** — `List<T1..Tn>` /
-   `Dict<K,V>` / `Array<...>` — wherever provable, generalising today's
-   object-only `element_class`.
-4. Track **first-use commitment** flow-sensitively: a pure value's first read
-   as type `T` commits intrep `T` at that program point; later reads as `U ≠ T`
-   are genuine shimmers. Push the committed type back to the def site for
-   visibility (hover) when all paths agree.
-5. Give the **analyser and optimiser** leverage: exact from-types for S100/
-   S101, must-vs-may warning policies over unions, list-op specialisation and
-   folding over known element types, exact bignum-aware constant folding.
+1. represents Tcl values the way **C Tcl** does — a string with at most one
+   cached internal representation (intrep) — including *purity*
+   (`typePtr == NULL`), the numeric tower (`int` wide / `bignum` / `double` /
+   `booleanString`), and per-element container types;
+2. carries **multiple potential types** at a lattice node (bounded union),
+   not a single `Known` type or a `Shimmered` pair;
+3. computes **element types of containers** — `List<T1..Tn>` / `Dict<K,V>`
+   — wherever provable;
+4. tracks **first-use commitment** flow-sensitively: a pure value's first
+   read as type `T` commits intrep `T` at that program point; later reads as
+   `U ≠ T` are genuine shimmers, and the committed type is pushed back to the
+   def site (hover) when all paths agree;
+5. gives the **analyser and optimiser** exact from-types for S100/S101,
+   must-vs-may warning policies over unions, list-op folding over known
+   element types, and exact bignum-aware constant folding.
 
 ## Oracle corpus (tclsh 8.6.14, `tcl::unsupported::representation`)
 
@@ -35,7 +34,7 @@ known) and locked in by a test.
 | `set l [list 1 2 3]` | `list` | command results are committed |
 | … then `string length $l` | `string` | committed → different type = genuine shimmer |
 | `set v 5; expr {$v+1}` | `int` | arithmetic commits the numeric intrep |
-| … then `lindex $v 0` | `list` | second conversion = genuine shimmer (currently a known FN) |
+| … then `lindex $v 0` | `list` | second conversion = genuine shimmer |
 | `set s [string trim "a b c"]` | `pure` | string-command results are pure |
 
 ### Numeric tower
@@ -52,11 +51,6 @@ known) and locked in by a test.
 | `expr {-7%2}` | `1` | `int` | floor modulus |
 | `incr b` on a bignum | exact | `bignum` | incr participates in the tower |
 | `set t true; expr {$t && 1}` | — | `booleanString` | word-booleans have their own rep (keeps the spelling); numeric booleans are just `int` |
-
-Current-compiler baseline (verified via `tcl explore` optimisedSource):
-`-7/2 → -4` and `int+double → double` fold correctly; `i64max+1` and `2**64`
-are (soundly) **not** folded — the enhancement is exact bignum folding, not a
-wrapping fix.
 
 ### Containers hold typed objects by reference
 
@@ -84,36 +78,35 @@ runtime**, not an abstraction — `[list [expr {1+1}] "x y"]` genuinely is
 
 ### 1. `TypeShape` — the value-type term
 
+`rust/tcl-compiler/src/types.rs`:
+
 ```text
-TypeShape ::= PureString                       ;# typePtr == NULL (any string)
-            | WideInt | Bignum | Double
-            | BooleanWord                      ;# "true"/"off"… word reps
-            | StringRep                        ;# committed UTF cache
-            | ByteArray
+TypeShape ::= String | Int | Bignum | Double | Boolean | Numeric | ByteArray
             | List(Elements) | Dict(Elements)  ;# element shapes
-            | Object(class) | Channel
-Elements  ::= Exact([TypeShape; n])            ;# small, per-position (n ≤ K)
+            | Object(class?) | Channel
+Elements  ::= Exact([TypeShape?; n])           ;# small, per-position
             | Uniform(TypeShape)               ;# homogeneous, any length
             | Unknown
 ```
 
-`TclType` (registry) stays the coarse public vocabulary; `TypeShape` refines it
-inside the compiler. `Numeric` remains the abstract join of the numeric tower.
+`TclType` (registry) is the coarse public vocabulary; `TypeShape` refines it
+inside the compiler and projects back through `TypeShape::coarse`. `Numeric`
+is the abstract join of the numeric tower. Purity is not a shape: it is the
+commit state below.
 
 ### 2. Union nodes
 
-A lattice node carries a **bounded set** of possible `TypeShape`s (mirroring
-SCCP's `ConstSet`, widening to `Overdefined` beyond the bound). `Shimmered(a,b)`
-becomes the 2-union carrying its provenance; existing consumers read through
-compatibility accessors.
+A lattice node carries a **bounded set** of possible `TypeShape`s
+(`bounded_set::BoundedSet`, cap `MAX_TYPE_UNION`, widening to `Overdefined`
+beyond it). `TypeKind::Known` is a one-member union; `TypeKind::Shimmered` is
+any union of two or more.
 
 Warning policy over unions: *must*-style diagnostics (S100 use-site, W126)
-fire only when **every** member mismatches; *may*-style notes can be introduced
-later where a single risky member justifies it.
+fire only when **every** member mismatches.
 
 ### 3. Purity and first-use commitment (flow-sensitive)
 
-Per program point, per SSA `(sym, ver)`:
+`shimmer::commit` tracks, per program point, per SSA `(sym, ver)`:
 
 ```text
 CommitState ::= Pure | Committed(TypeShape, first_span) | Conflict(a, b)
@@ -123,28 +116,27 @@ CommitState ::= Pure | Committed(TypeShape, first_span) | Conflict(a, b)
   positions are the transfer function (a use at an `expected`-typed position
   moves `Pure → Committed(expected)` when the value is a valid instance).
 - Join: equal commitments survive; differing ones → `Conflict` — a later use
-  matching *neither* side fires (at least one path pays), matching the
-  "multiple different dominator types" analysis.
+  matching *neither* side fires (at least one path pays).
 - Defs reset state (a new SSA version starts from its producer's shape).
 - Def-site pushback: when every use of a version commits the **same** shape,
-  expose `(def_span → shape)` for hover/inlay ("first used as: list").
+  `(def_span → shape)` is exposed for hover/inlay ("first used as: list").
 
 ### 4. Numeric tower in constant folding
 
-`ConstValue` gains exact integer semantics beyond i64 (bignum), folding
-`2**64` and `i64max+1` exactly as C does, keeping floor div/mod, and modelling
-`int⊕double → double` with genuine f64 rounding. Never wrap; never fold what C
-would not.
+`ConstValue` has exact integer semantics beyond i64 (bignum), folding `2**64`
+and `i64max+1` exactly as C does, keeping floor div/mod, and modelling
+`int⊕double → double` with genuine f64 rounding. Nothing wraps; nothing C
+would not fold is folded.
 
-### 5. Consumers and leverage
+### 5. Consumers
 
-| Consumer | Today | With this design |
-|---|---|---|
-| S100/S101 use-site | single Known type; pure-first-conversion free | exact committed from-type + Conflict-aware second-conversion detection |
-| Hover/inlay | dominant single type | purity + committed shape + "first used as" pushback |
-| Optimiser const-fold | i64-bounded | exact bignum folds |
-| List-op passes | no element facts (object `element_class` only) | `lindex` fold on `Exact` elements, `llength` on `Exact(n)`, guard specialisation on `Uniform` |
-| W126/W307/W308 | single type | must-policy over unions (fewer FPs on merged paths) |
+| Consumer | What it reads |
+|---|---|
+| S100/S101 use-site | exact committed from-type; Conflict-aware second-conversion detection |
+| Hover/inlay | purity, committed shape, and the "first used as" pushback |
+| Optimiser const-fold | exact bignum folds |
+| List-op passes | `lindex` fold on `Exact` elements, `llength` on `Exact(n)`, guard specialisation on `Uniform` |
+| W126/W307/W308 | must-policy over unions |
 
 ## The model, part by part
 
@@ -163,10 +155,9 @@ tests, FP-SH-22, and the `commit_dataflow_*` lsp_e2e suite.
 `TypeLattice` is a bounded
 canonical union of `TypeShape`s (`bounded_set::BoundedSet`, cap
 `MAX_TYPE_UNION`); 3+-way merges stay tracked (phi reports every member,
-hover/inlay render full unions), `Shimmered` survives as the ≥2-member
-classification, numeric members collapse per the tower, and W126 runs a
-must-policy over members. SCCP's `ConstSet` and the class lattice keep
-their own storage deliberately — their dedup is not plain equality
+hover/inlay render full unions), numeric members collapse per the tower, and
+W126 runs a must-policy over members. SCCP's `ConstSet` and the class lattice
+keep their own storage deliberately — their dedup is not plain equality
 (`cv_eq` numeric cross-equality; sorted persistent sets) — documented in
 `bounded_set.rs`.
 
@@ -176,9 +167,8 @@ Registry facts
 (`ReturnElements` on `list`/`dict create`/`lindex`/`dict get`/`lrange`,
 `VarElementsEffect` on `lappend`/`dict set/append/lappend`,
 `VarWriteTyping::ElementsOf` on `lassign`/`foreach`/`lmap`) drive
-`type_infer`'s element machinery — the old object-only
-`collection_element_class` / `container_retrieval_object_type`
-command-name matches are deleted. Pure/value-unknown element positions
+`type_infer`'s element machinery; no command is matched by name.
+Pure/value-unknown element positions
 stay agnostic (`None`) so FP-SH-17's pins hold; committed sources carry
 real shapes (`[list [expr {2**20}] x]` is `List<Numeric, ?>`, and
 `lassign` of an object list types its targets).
@@ -192,12 +182,11 @@ string so chained folds re-parse exactly). The operator semantics live
 once in `tcl_syntax::number_tower` (`BigIntOps` backend trait), and every
 backend is pinned by the shared, generic
 `number_tower::conformance::assert_backend` corpus: the compiler and the
-**VM** (`tcl_vm::expr`, adopted — beyond-i128 operands, `dict incr`
-promotion, and the exact `int()`/`wide()`/`entier()`/`abs()`/`double()`
-windows included) run it over `num-bigint`, and the faithful runtime
-runs it over the **real libtommath `mp_int`** (`runtime/rust`'s
-`TowerMp` adapter) — backend swappable with zero semantic drift, now
-proven by one test per backend rather than by review.
+**VM** (`tcl_vm::expr` — beyond-i128 operands, `dict incr` promotion, and
+the exact `int()`/`wide()`/`entier()`/`abs()`/`double()` windows included)
+run it over `num-bigint`, and the faithful runtime runs it over the **real
+libtommath `mp_int`** (`runtime/rust`'s `TowerMp` adapter) — backend
+swappable with zero semantic drift, proven by one test per backend.
 Float edges are oracle-pinned (`tcl_expr_eval::float_edge_oracle_table`):
 NaN comparisons are IEEE-unordered values while NaN operands/results in
 arithmetic decline (C errors), `Inf` propagates, signed zero and
@@ -237,14 +226,9 @@ C Tcl's two boolean acceptors live once in `tcl_syntax::boolean`, both
 oracle-table-pinned: `parse_boolean_strict` (`ParseBoolean` — word prefixes
 plus exactly `0`/`1`; `string is boolean`) and `truthiness`
 (`Tcl_GetBooleanFromObj` — word else any number vs zero; `NaN` is a domain
-error, `±Inf` truthy). Every former hand-rolled word list (`string is`
+error, `±Inf` truthy). Every boolean-word consumer (`string is`
 const-fold, VM `as_bool`, intervals, the folder's boolean contexts, the
-type classifier, expr-simplify's vocabulary) now routes through them; the
-migration fixed two real divergences (VM treated `NaN` as truthy; the
-folder folded `!NaN`).
-
-Each phase lands with its slice of the oracle corpus as tests (unit + FP-SH
-catalogue + lsp_e2e where user-visible).
+type classifier, expr-simplify's vocabulary) routes through them.
 
 ## Cross-links
 

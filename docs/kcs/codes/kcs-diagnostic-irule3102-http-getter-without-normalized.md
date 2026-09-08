@@ -21,7 +21,9 @@ Non-normalised values allow URL evasion attacks using double-encoding, dot-dot s
 
 ## Symptoms
 
-- A squiggle appears under the getter call, with the message "HTTP getter used without -normalized".
+- A yellow squiggle appears under the getter call, with the message "Use
+  'HTTP::path -normalized' for canonicalized request data; non-normalized values
+  may allow URL evasion patterns."
 
 ## Example that triggers it
 
@@ -31,7 +33,10 @@ if {[string match "*admin*" [HTTP::path]]} {
 }
 ```
 
-The analyser reports **`IRULE3102`** because `HTTP::path` is called without `-normalized`.
+The analyser reports **`IRULE3102`** because `HTTP::path` is called without
+`-normalized`. The check is registry-driven: it fires for any getter whose
+command entry declares a `-normalized` option, which today is `HTTP::path`,
+`HTTP::uri`, and `HTTP::query`.
 
 ## Fix
 

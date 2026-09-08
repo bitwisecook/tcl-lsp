@@ -26,6 +26,7 @@ rust/tcl-bigip-query/src/
 │   ├── net.rs, graph.rs, rename.rs, files.rs, f5profile.rs
 │   ├── inputs_load.rs    # json_load / jsonl_load / csv_load / f5log_load
 │   └── extras.rs
+├── probes.rs             # Probe gate and dispatch
 ├── probes/               # Network builtins (gated by --enable-probes)
 │   ├── http.rs
 │   └── tls.rs
@@ -33,7 +34,7 @@ rust/tcl-bigip-query/src/
 ├── value.rs              # Value, ObjectRef, PathRef, FieldSlot
 ├── edit_plan.rs          # EditOp, EditPlan, PrefixRewrite, apply()
 ├── rewrite.rs            # Token-bounded source rewriter (the rename half)
-├── output.rs             # Renderers: auto / scf / raw / paths / json / tmsh / table
+├── output.rs             # Renderers: auto / scf / raw / paths / json / table / table-lineart
 ├── renderers/            # Pluggable output renderers: gantt, ascii-blocks, mermaid
 ├── jsonfmt.rs            # Canonical JSON serialisation of a Value
 ├── architecture.rs       # Multi-device tiering across loaded configs
@@ -367,7 +368,7 @@ The BIG-IP-specific types (`FieldSlot`, `ObjectRef`, and `PathRef` live in
                   │
                   ▼
                 PathRef ── auto-derefs to another ObjectRef on next step
-                  │            via eval::resolve_pathref
+                  │            via projection::resolve_pathref
                   └── carries expected_kind hint to bound the lookup
 
             Stream  (lazy sequence; flatten under `|`, collect with `[ … ]`)
@@ -665,9 +666,7 @@ later splices still need to find.
 - `render_paths` — the `full_path` of each `ObjectRef` / `PathRef`.
 - `render_json` — a JSON array through `jsonfmt.rs`; an `ObjectRef`
   flattens to its field map.
-- `render_table` — an aligned table, optionally with box-drawing line art.
-- The TMSH mode emits `tmsh modify ltm virtual …` command lines, used for
-  the mutation-as-tmsh output.
+- `render_table` — an aligned table, `table-lineart` the box-drawing variant.
 
 The `--output` CLI flag picks the mode; `auto` is the default because it
 produces the most natural form for whatever the query returned. A mode
@@ -806,7 +805,7 @@ into a list.
 `.pool` returns a `PathRef`; `.pool.members` then auto-derefs
 the PathRef to the actual pool `ObjectRef` and indexes its
 `members` field.  Resolution is lazy via
-`eval::resolve_pathref` and uses `PathRef.expected_kind`
+`projection::resolve_pathref` and uses `PathRef.expected_kind`
 when set to keep lookup proportional.
 
 ### Object cache identity
