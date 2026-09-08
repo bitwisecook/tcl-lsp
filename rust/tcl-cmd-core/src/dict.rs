@@ -18,10 +18,11 @@
 
 //! Portable `dict`-family command logic, generic over [`ValueOps`].
 //!
-//! The pure dict operations — read/build dict values without touching
+//! The pure dict operations — read/build/describe dict values without touching
 //! interpreter variables. Keys are compared by string rep ([`ValueOps::as_str`]),
 //! and dicts are canonicalised (last value wins, first-occurrence order) by the
-//! [`ValueOps::dict_pairs`] seam. The variable-mutating members (`dict set`/
+//! [`ValueOps::dict_pairs`] seam. `dict info` also routes through the shared Tcl
+//! hash-table owner. The variable-mutating members (`dict set`/
 //! `unset`/`incr`/`append`/`lappend`/`for`/`update`/`with`) keep per-runtime
 //! adapters that reuse [`upsert`]/[`lookup`] over the same seam.
 //!
@@ -31,6 +32,7 @@ use tcl_syntax::glob::string_match;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
+use crate::namespace::TclStringHashOrder;
 
 /// Re-word a list-codec parse failure as the dict failure C reports.
 ///
@@ -101,6 +103,19 @@ fn index_of_pairs<O: ValueOps>(
         index.insert(ops.as_str(k).to_string(), i);
     }
     index
+}
+
+/// Bucket-array size produced by Tcl's native dict-copy operation.
+///
+/// `DupDictInternalRep` starts from four buckets and reinserts every live key;
+/// it does not inherit deleted-entry history from the source object. Commands
+/// that copy before transforming use this size as their new table's baseline.
+fn copied_hash_bucket_count<O: ValueOps>(ops: &mut O, pairs: &[(O::Value, O::Value)]) -> usize {
+    let mut table = TclStringHashOrder::default();
+    for (key, _) in pairs {
+        table.insert(&ops.as_bytes(key));
+    }
+    table.bucket_count()
 }
 
 /// [`upsert`] against a maintained key→position `index` (last value wins,
@@ -223,6 +238,24 @@ pub fn size<O: ValueOps>(ops: &mut O, dict: &O::Value) -> Result<O::Value, CmdEr
     Ok(ops.new_int(ilen(n)))
 }
 
+/// `dict info dictionary` — the implementation-defined, human-readable hash
+/// table statistics Tcl produces.
+///
+/// The canonical pair seam first validates the value and collapses duplicate
+/// keys. The shared Tcl hash-table owner then supplies both layout and
+/// formatting, so every runtime reports one result for the same dictionary.
+pub fn info<O: ValueOps>(ops: &mut O, dict: &O::Value) -> Result<O::Value, CmdError> {
+    let pairs = ops.dict_pairs(dict)?;
+    let mut table = TclStringHashOrder::default();
+    if let Some(bucket_count) = ops.dict_hash_bucket_count(dict)? {
+        table.retain_bucket_count(bucket_count);
+    }
+    for (key, _) in &pairs {
+        table.insert(&ops.as_bytes(key));
+    }
+    Ok(ops.new_string(table.statistics()))
+}
+
 /// `dict filter dictionary key|value ?globPattern ...?` — keep entries whose key
 /// (or value) matches **any** of the glob patterns (with no patterns, nothing
 /// matches, so the result is empty). The `script` filter type is Family-B (it
@@ -275,11 +308,12 @@ pub fn replace<O: ValueOps>(
         ));
     }
     let mut pairs = ops.dict_pairs(dict)?;
+    let bucket_count = copied_hash_bucket_count(ops, &pairs);
     let mut index = index_of_pairs(ops, &pairs);
     for chunk in kv.as_chunks::<2>().0 {
         upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
     }
-    Ok(ops.new_dict(pairs))
+    Ok(ops.new_dict_with_hash_bucket_count(pairs, bucket_count))
 }
 
 /// `dict remove dictionary ?key ...?` — the dict without the given keys (a
@@ -290,6 +324,7 @@ pub fn remove<O: ValueOps>(
     keys: &[O::Value],
 ) -> Result<O::Value, CmdError> {
     let pairs = ops.dict_pairs(dict)?;
+    let bucket_count = copied_hash_bucket_count(ops, &pairs);
     let drop: Vec<String> = keys.iter().map(|k| ops.as_str(k).to_string()).collect();
     let mut kept: Vec<(O::Value, O::Value)> = Vec::with_capacity(pairs.len());
     for (k, v) in pairs {
@@ -297,7 +332,7 @@ pub fn remove<O: ValueOps>(
             kept.push((k, v));
         }
     }
-    Ok(ops.new_dict(kept))
+    Ok(ops.new_dict_with_hash_bucket_count(kept, bucket_count))
 }
 
 /// `dict getdef`/`getwithdefault dictionary ?key ...? key default` — like
@@ -321,7 +356,9 @@ pub fn getdef<O: ValueOps>(
     Ok(cur)
 }
 
-/// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand.
+/// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand;
+/// `invoked` is the actual command prefix used by `info`'s arity diagnostic
+/// (either `dict info` or a separately invoked/renamed implementation command).
 /// `dict filter`'s type word, in C table order (`filters[]`, `tclDictObj.c`):
 /// `Tcl_GetIndexFromObj(…, "filterType", 0)`, so `k`/`s`/`v` abbreviate and
 /// the empty word — a prefix of all three — is `ambiguous filterType ""`.
@@ -332,6 +369,7 @@ const FILTER_TYPES: crate::prefix::OptionTable<'static> =
 /// caller falls back to its legacy path.
 pub fn dispatch_canon<O: ValueOps>(
     ops: &mut O,
+    invoked: &str,
     sub: &str,
     rest: &[O::Value],
 ) -> Option<Result<O::Value, CmdError>> {
@@ -362,6 +400,10 @@ pub fn dispatch_canon<O: ValueOps>(
         "size" => match rest {
             [d] => Some(size(ops, d)),
             _ => Some(Err(CmdError::wrong_args("dict size dictionary"))),
+        },
+        "info" => match rest {
+            [d] => Some(info(ops, d)),
+            _ => Some(Err(CmdError::wrong_args(&format!("{invoked} dictionary")))),
         },
         "merge" => Some(merge(ops, rest)),
         // `key`/`value` are pure (glob); `script` is Family-B → `None` so the

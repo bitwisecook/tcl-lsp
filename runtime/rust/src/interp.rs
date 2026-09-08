@@ -6531,6 +6531,12 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        // TclEvalObjvInternal resets the interpreter result before execution
+        // traces and command dispatch. This is the central entry used by parsed
+        // commands, canonical-list eval, aliases/ensembles, callbacks and the
+        // native ABI. `argv` owns/borrows its objects independently, so dropping
+        // the prior result here cannot invalidate an argument.
+        self.set_result_bytes(b"");
         self.cmd_count.set(self.cmd_count.get() + 1);
         // Fast path: nothing is registered, so nothing can fire. Being inside a
         // trace callback is *not* a reason to skip: C's
@@ -9512,6 +9518,10 @@ mod tests {
         Code::Ok
     }
 
+    fn resultless_builtin(_interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        Code::Ok
+    }
+
     fn prepare_interpreter_guard(interp: &mut Interp) -> GuardToken {
         interp.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
         interp
@@ -10407,6 +10417,22 @@ mod tests {
         leak_free(|i| {
             assert_eq!(i.eval_str(b"set a 1; set b 2\nset c $a$b"), Code::Ok);
             assert_eq!(i.result_bytes(), b"12");
+        });
+    }
+
+    #[test]
+    fn direct_dispatch_resets_the_prior_result_at_the_central_boundary() {
+        leak_free(|i| {
+            i.register_builtin(b"resultless", resultless_builtin);
+            assert_eq!(i.eval_str(b"set stale prior"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"prior");
+
+            let command = new_string(b"resultless");
+            // `dispatch` borrows argv whose owners retain each object.
+            unsafe { obj::incr_ref_count(command) };
+            assert_eq!(i.dispatch(&[command]), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            unsafe { obj::decr_ref_count(command) };
         });
     }
 

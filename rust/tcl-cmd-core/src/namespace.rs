@@ -607,6 +607,23 @@ impl TclStringHashOrder {
         self.entries == 0
     }
 
+    /// Retain at least `bucket_count` buckets without adding entries.
+    ///
+    /// Dictionary value adapters use this when copying a Tcl hash table: the
+    /// bucket array grows but never shrinks, so rebuilding only from the live
+    /// entries would lose observable `dict info` history after removals.
+    pub fn retain_bucket_count(&mut self, bucket_count: usize) {
+        while self.buckets.len() < bucket_count {
+            self.rebuild();
+        }
+    }
+
+    /// Current bucket-array size (`Tcl_HashTable.numBuckets`).
+    #[must_use]
+    pub fn bucket_count(&self) -> usize {
+        self.buckets.len()
+    }
+
     /// Delete `key` without shrinking or rebuilding the bucket array.
     pub fn remove(&mut self, key: &[u8]) -> bool {
         let bucket = Self::hash(key) & (self.buckets.len() - 1);
@@ -630,6 +647,66 @@ impl TclStringHashOrder {
             .iter()
             .flat_map(|chain| chain.iter().map(Vec::as_slice))
             .collect()
+    }
+
+    /// Render Tcl's human-readable hash-table statistics.
+    ///
+    /// This is the portable owner for `Tcl_HashStats`: `dict info` and any
+    /// other consumer of a Tcl-shaped hash table must report the same bucket
+    /// histogram and average search distance rather than reconstructing the
+    /// table layout or formatting in its runtime adapter.
+    #[must_use]
+    pub fn statistics(&self) -> String {
+        use std::fmt::Write as _;
+
+        const COUNTERS: usize = 10;
+        let mut counts = [0_usize; COUNTERS];
+        let mut overflow = 0_usize;
+        let mut average = 0.0;
+        let total_entries = self
+            .entries
+            .to_string()
+            .parse::<f64>()
+            .expect("usize decimal representation is a finite f64");
+
+        for chain in &self.buckets {
+            let entries = chain.len();
+            if entries < COUNTERS {
+                counts[entries] += 1;
+            } else {
+                overflow += 1;
+            }
+            if self.entries != 0 {
+                // Tcl_HashStats accumulates one `double` contribution per
+                // bucket before formatting with `%.1f`. Preserve that exact
+                // operation order: an exact rational calculation differs at
+                // decimal ties because the preceding additions have already
+                // rounded in binary floating point.
+                let entries = entries
+                    .to_string()
+                    .parse::<f64>()
+                    .expect("usize decimal representation is a finite f64");
+                average += (entries + 1.0) * (entries / total_entries) / 2.0;
+            }
+        }
+
+        let mut result = format!(
+            "{} entries in table, {} buckets\n",
+            self.entries,
+            self.buckets.len()
+        );
+        for (entries, count) in counts.into_iter().enumerate() {
+            writeln!(result, "number of buckets with {entries} entries: {count}")
+                .expect("writing to a String cannot fail");
+        }
+        writeln!(
+            result,
+            "number of buckets with {COUNTERS} or more entries: {overflow}"
+        )
+        .expect("writing to a String cannot fail");
+        write!(result, "average search distance for entry: {average:.1}")
+            .expect("writing to a String cannot fail");
+        result
     }
 
     fn rebuild(&mut self) {
@@ -856,6 +933,74 @@ mod tests {
                 b"a0".as_slice(),
                 b"a3".as_slice(),
             ]
+        );
+    }
+
+    #[test]
+    fn tcl_hash_statistics_match_dict_info_oracles() {
+        let empty = TclStringHashOrder::default();
+        assert_eq!(
+            empty.statistics(),
+            "0 entries in table, 4 buckets\n\
+             number of buckets with 0 entries: 4\n\
+             number of buckets with 1 entries: 0\n\
+             number of buckets with 2 entries: 0\n\
+             number of buckets with 3 entries: 0\n\
+             number of buckets with 4 entries: 0\n\
+             number of buckets with 5 entries: 0\n\
+             number of buckets with 6 entries: 0\n\
+             number of buckets with 7 entries: 0\n\
+             number of buckets with 8 entries: 0\n\
+             number of buckets with 9 entries: 0\n\
+             number of buckets with 10 or more entries: 0\n\
+             average search distance for entry: 0.0"
+        );
+
+        let mut grown = TclStringHashOrder::default();
+        for index in 0..13 {
+            assert!(grown.insert(format!("k{index}").as_bytes()));
+        }
+        assert_eq!(
+            grown.statistics(),
+            "13 entries in table, 16 buckets\n\
+             number of buckets with 0 entries: 6\n\
+             number of buckets with 1 entries: 7\n\
+             number of buckets with 2 entries: 3\n\
+             number of buckets with 3 entries: 0\n\
+             number of buckets with 4 entries: 0\n\
+             number of buckets with 5 entries: 0\n\
+             number of buckets with 6 entries: 0\n\
+             number of buckets with 7 entries: 0\n\
+             number of buckets with 8 entries: 0\n\
+             number of buckets with 9 entries: 0\n\
+             number of buckets with 10 or more entries: 0\n\
+             average search distance for entry: 1.2"
+        );
+
+        // Tcl 9.0.4 oracle: 57 occupied buckets, with three deliberate
+        // one-byte hash collisions. The exact search distance is 1.05, but
+        // Tcl's per-bucket double accumulation lands just above the tie and
+        // `%.1f` therefore prints 1.1 (an exact rational implementation
+        // incorrectly printed 1.0).
+        let mut floating_tie = TclStringHashOrder::default();
+        for byte in (33_u8..=89).chain(97..=99) {
+            assert!(floating_tie.insert(&[byte]));
+        }
+        assert_eq!(
+            floating_tie.statistics(),
+            "60 entries in table, 64 buckets\n\
+             number of buckets with 0 entries: 7\n\
+             number of buckets with 1 entries: 54\n\
+             number of buckets with 2 entries: 3\n\
+             number of buckets with 3 entries: 0\n\
+             number of buckets with 4 entries: 0\n\
+             number of buckets with 5 entries: 0\n\
+             number of buckets with 6 entries: 0\n\
+             number of buckets with 7 entries: 0\n\
+             number of buckets with 8 entries: 0\n\
+             number of buckets with 9 entries: 0\n\
+             number of buckets with 10 or more entries: 0\n\
+             average search distance for entry: 1.1"
         );
     }
 }

@@ -30,9 +30,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::RecursionLimit;
 use tcl_syntax::list;
 use tcl_syntax::number::{self, Number};
+use tcl_syntax::value::canonical_dict_slots;
 
 use crate::error::TclError;
 
@@ -85,6 +87,14 @@ enum IntRep {
     Bool(bool),
     /// A list (`Rc` for O(1) clone + copy-on-write).
     List(Rc<Vec<Value>>),
+    /// A dictionary with its retained Tcl hash-table growth history.
+    Dict(Rc<DictRep>),
+}
+
+#[derive(Clone, Debug)]
+struct DictRep {
+    pairs: Vec<(Value, Value)>,
+    hash_order: TclStringHashOrder,
 }
 
 impl Value {
@@ -128,6 +138,28 @@ impl Value {
     #[must_use]
     pub fn list(items: Vec<Value>) -> Self {
         Self::from_parts(None, IntRep::List(Rc::new(items)))
+    }
+
+    /// A native dictionary value from canonical key/value pairs.
+    #[must_use]
+    pub(crate) fn dict(pairs: Vec<(Value, Value)>) -> Self {
+        Self::dict_with_hash_bucket_count(pairs, None)
+    }
+
+    /// A native dictionary retaining the source table's bucket-array size.
+    #[must_use]
+    pub(crate) fn dict_with_hash_bucket_count(
+        pairs: Vec<(Value, Value)>,
+        bucket_count: Option<usize>,
+    ) -> Self {
+        let mut hash_order = TclStringHashOrder::default();
+        if let Some(bucket_count) = bucket_count {
+            hash_order.retain_bucket_count(bucket_count);
+        }
+        for (key, _) in &pairs {
+            hash_order.insert(key.to_str().as_bytes());
+        }
+        Self::from_parts(None, IntRep::Dict(Rc::new(DictRep { pairs, hash_order })))
     }
 
     /// The string representation, generating and caching it from the typed rep
@@ -177,6 +209,27 @@ impl Value {
                     )
                 }
             }
+            IntRep::Dict(dict) => {
+                if MAX_LIST_TO_STR_DEPTH.exceeded(depth) {
+                    (Rc::from(TOO_DEEPLY_NESTED_PLACEHOLDER), true)
+                } else {
+                    let mut any_past_cap = false;
+                    let parts: Vec<String> = dict
+                        .pairs
+                        .iter()
+                        .flat_map(|(key, value)| [key, value])
+                        .map(|value| {
+                            let (s, capped) = value.to_str_at_depth(depth + 1);
+                            any_past_cap |= capped;
+                            s.to_string()
+                        })
+                        .collect();
+                    (
+                        Rc::from(list::join_list(parts.iter().map(String::as_str)).as_str()),
+                        any_past_cap,
+                    )
+                }
+            }
         };
         if !past_cap {
             *self.0.string.borrow_mut() = Some(Rc::clone(&generated));
@@ -190,7 +243,7 @@ impl Value {
         match &*self.0.intrep.borrow() {
             IntRep::Int(n) => return Ok(*n),
             IntRep::Bool(b) => return Ok(i64::from(*b)),
-            IntRep::Str | IntRep::Double(_) | IntRep::List(_) => {}
+            IntRep::Str | IntRep::Double(_) | IntRep::List(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
         match number::parse_whole(s.trim()) {
@@ -275,7 +328,7 @@ impl Value {
             IntRep::Int(n) => return Ok(*n as f64),
             IntRep::Double(f) => return Ok(*f),
             IntRep::Bool(b) => return Ok(f64::from(i32::from(*b))),
-            IntRep::Str | IntRep::List(_) => {}
+            IntRep::Str | IntRep::List(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
         match number::parse_whole(s.trim()) {
@@ -294,7 +347,7 @@ impl Value {
             IntRep::Bool(b) => return Ok(*b),
             IntRep::Int(n) => return Ok(*n != 0),
             IntRep::Double(f) => return Ok(*f != 0.0),
-            IntRep::Str | IntRep::List(_) => {}
+            IntRep::Str | IntRep::List(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
         let t = s.trim();
@@ -327,12 +380,100 @@ impl Value {
         if let IntRep::List(items) = &*self.0.intrep.borrow() {
             return Ok(Rc::clone(items));
         }
+        let dict = match &*self.0.intrep.borrow() {
+            IntRep::Dict(dict) => Some(Rc::clone(dict)),
+            _ => None,
+        };
+        if let Some(dict) = dict {
+            let items = Rc::new(
+                dict.pairs
+                    .iter()
+                    .flat_map(|(key, value)| [key.clone(), value.clone()])
+                    .collect(),
+            );
+            *self.0.intrep.borrow_mut() = IntRep::List(Rc::clone(&items));
+            return Ok(items);
+        }
         let s = self.to_str();
         let elems = list::split_list(&s).map_err(|e| TclError::new(e.full_message(&s)))?;
         let items: Rc<Vec<Value>> =
             Rc::new(elems.iter().map(|c| Value::string(c.as_ref())).collect());
         *self.0.intrep.borrow_mut() = IntRep::List(Rc::clone(&items));
         Ok(items)
+    }
+
+    /// Canonical key/value pairs, shimmering a string/list value to a native
+    /// dictionary on first access.
+    pub(crate) fn dict_pairs(&self) -> Result<Vec<(Value, Value)>, TclError> {
+        if let IntRep::Dict(dict) = &*self.0.intrep.borrow() {
+            return Ok(dict.pairs.clone());
+        }
+        let items = self.as_list()?;
+        if items.len() % 2 != 0 {
+            return Err(TclError::new("missing value to go with key"));
+        }
+        let keys: Vec<Rc<str>> = items
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|chunk| chunk[0].to_str())
+            .collect();
+        let pairs: Vec<(Value, Value)> = canonical_dict_slots(keys.iter().map(AsRef::as_ref))
+            .into_iter()
+            .map(|(key_slot, value_slot)| {
+                (
+                    items[key_slot * 2].clone(),
+                    items[value_slot * 2 + 1].clone(),
+                )
+            })
+            .collect();
+        let mut hash_order = TclStringHashOrder::default();
+        for (key, _) in &pairs {
+            hash_order.insert(key.to_str().as_bytes());
+        }
+        *self.0.intrep.borrow_mut() = IntRep::Dict(Rc::new(DictRep {
+            pairs: pairs.clone(),
+            hash_order,
+        }));
+        Ok(pairs)
+    }
+
+    /// Retained bucket count of the native dictionary representation.
+    pub(crate) fn dict_hash_bucket_count(&self) -> Result<usize, TclError> {
+        self.dict_pairs()?;
+        match &*self.0.intrep.borrow() {
+            IntRep::Dict(dict) => Ok(dict.hash_order.bucket_count()),
+            _ => unreachable!("dict_pairs installs the dictionary representation"),
+        }
+    }
+
+    /// Hash-table capacity to seed a rebuilt dictionary mutation, plus whether
+    /// this object required Tcl copy-on-write.
+    ///
+    /// An unshared update retains the table's growth history. Tcl's
+    /// `DupDictInternalRep`, however, creates a fresh four-bucket table and
+    /// reinserts only live entries. `owned_references` discounts the handles
+    /// which the immutable VM's current traversal necessarily owns; any
+    /// further handle is a Tcl-level alias.
+    pub(crate) fn dict_mutation_hash_state(
+        &self,
+        owned_references: usize,
+        parent_was_copied: bool,
+    ) -> Result<(Option<usize>, bool), TclError> {
+        self.dict_pairs()?;
+        let copied = parent_was_copied || Rc::strong_count(&self.0) > owned_references;
+        let bucket_count = match &*self.0.intrep.borrow() {
+            IntRep::Dict(_) if copied => None,
+            IntRep::Dict(dict) => Some(dict.hash_order.bucket_count()),
+            _ => unreachable!("dict_pairs installs the dictionary representation"),
+        };
+        Ok((bucket_count, copied))
+    }
+
+    /// Whether two handles refer to the same Tcl value object.
+    #[must_use]
+    pub(crate) fn is_same_object(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
     }
 }
 

@@ -16,37 +16,41 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `dict` ensemble. A dict value is an even-length list; this currently keeps the
-//! list rep (a typed dict intrep is a later optimisation).
+//! The `dict` ensemble over the VM's typed dictionary representation.
 
 use tcl_runtime_api::{Code, Completion};
 
+use crate::command::BuiltinFn;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("dict", cmd_dict);
     // Ensemble member commands the codegen rewrites `dict <sub>` into.
-    vm.register("::tcl::dict::create", |vm, a| dict_op(vm, "create", a));
-    vm.register("::tcl::dict::get", |vm, a| dict_op(vm, "get", a));
-    vm.register("::tcl::dict::exists", |vm, a| dict_op(vm, "exists", a));
-    vm.register("::tcl::dict::keys", |vm, a| dict_op(vm, "keys", a));
-    vm.register("::tcl::dict::values", |vm, a| dict_op(vm, "values", a));
-    vm.register("::tcl::dict::size", |vm, a| dict_op(vm, "size", a));
-    vm.register("::tcl::dict::merge", |vm, a| dict_op(vm, "merge", a));
-    vm.register("::tcl::dict::set", |vm, a| dict_op(vm, "set", a));
-    vm.register("::tcl::dict::unset", |vm, a| dict_op(vm, "unset", a));
-    vm.register("::tcl::dict::for", |vm, a| dict_op(vm, "for", a));
-    vm.register("::tcl::dict::map", |vm, a| dict_op(vm, "map", a));
-    vm.register("::tcl::dict::incr", |vm, a| dict_op(vm, "incr", a));
-    vm.register("::tcl::dict::append", |vm, a| dict_op(vm, "append", a));
-    vm.register("::tcl::dict::lappend", |vm, a| dict_op(vm, "lappend", a));
+    let registry = crate::environment::universal_store();
+    let mut member = |name: &'static str, handler: BuiltinFn| {
+        let spec = registry.get(name).expect("qualified dict member spec");
+        vm.register_spec_builtin(spec, handler);
+    };
+    member("::tcl::dict::create", |vm, a| member_op(vm, "create", a));
+    member("::tcl::dict::get", |vm, a| member_op(vm, "get", a));
+    member("::tcl::dict::exists", |vm, a| member_op(vm, "exists", a));
+    member("::tcl::dict::keys", |vm, a| member_op(vm, "keys", a));
+    member("::tcl::dict::values", |vm, a| member_op(vm, "values", a));
+    member("::tcl::dict::size", |vm, a| member_op(vm, "size", a));
+    member("::tcl::dict::merge", |vm, a| member_op(vm, "merge", a));
+    member("::tcl::dict::set", |vm, a| member_op(vm, "set", a));
+    member("::tcl::dict::unset", |vm, a| member_op(vm, "unset", a));
+    member("::tcl::dict::for", |vm, a| member_op(vm, "for", a));
+    member("::tcl::dict::map", |vm, a| member_op(vm, "map", a));
+    member("::tcl::dict::incr", |vm, a| member_op(vm, "incr", a));
+    member("::tcl::dict::info", |vm, a| member_op(vm, "info", a));
+    member("::tcl::dict::append", |vm, a| member_op(vm, "append", a));
+    member("::tcl::dict::lappend", |vm, a| member_op(vm, "lappend", a));
 }
 
-/// `dict`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it. C's
-/// 9.0 table also carries `info` (per-dict hash statistics), which this engine
-/// does not model; like the rest of its ensembles it names only what it
-/// dispatches.
+/// `dict`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it. The
+/// registry filters this full implemented table for the selected Tcl release.
 const DICT_SUBS: &[&str] = &[
     "append",
     "create",
@@ -57,6 +61,7 @@ const DICT_SUBS: &[&str] = &[
     "getdef",
     "getwithdefault",
     "incr",
+    "info",
     "keys",
     "lappend",
     "map",
@@ -70,6 +75,9 @@ const DICT_SUBS: &[&str] = &[
     "values",
     "with",
 ];
+
+type StringPairs = Vec<(String, Value)>;
+type DictPathFrame = (StringPairs, String, Option<usize>);
 
 /// `dict subcommand ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -99,7 +107,19 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .into_owned(),
         );
     };
-    dict_op(vm, subs[index], rest)
+    let invoked = vm.invoked_name().unwrap_or("dict").to_owned();
+    let usage_prefix = format!("{invoked} {}", subs[index]);
+    dict_op(vm, subs[index], rest, &usage_prefix)
+}
+
+/// Dispatch a separately invocable ensemble implementation command. Its arity
+/// text uses the actual command spelling, including a name installed by
+/// `rename`, rather than reconstructing `dict <subcommand>`.
+fn member_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
+    let invoked = vm
+        .invoked_name()
+        .map_or_else(|| format!("::tcl::dict::{sub}"), str::to_owned);
+    dict_op(vm, sub, args, &invoked)
 }
 
 /// The dict's **canonical** ordered `(key-string, value)` pairs, from the one
@@ -108,17 +128,29 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// (`SetDictFromAny`, tclDictObj.c(9.0.4):589 → `Tcl_DictObjPut`). Decoding the
 /// list rep straight into `chunks_exact(2)` pairs instead leaves both values of
 /// a duplicate key present, so every [`lookup`] reads the *first* (issue #1427).
-pub(crate) fn pairs(vm: &mut Vm, v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
+pub(crate) fn pairs(vm: &mut Vm, v: &Value) -> Result<StringPairs, Completion<Value>> {
     vm.dict_pairs(v)
 }
 
 fn from_pairs(ps: &[(String, Value)]) -> Value {
-    let mut v = Vec::with_capacity(ps.len() * 2);
+    from_pairs_with_hash_bucket_count(ps, None)
+}
+
+fn from_pairs_with_hash_bucket_count(ps: &[(String, Value)], bucket_count: Option<usize>) -> Value {
+    let mut v = Vec::with_capacity(ps.len());
     for (k, val) in ps {
-        v.push(Value::string(k.as_str()));
-        v.push(val.clone());
+        v.push((Value::string(k.as_str()), val.clone()));
     }
-    Value::list(v)
+    Value::dict_with_hash_bucket_count(v, bucket_count)
+}
+
+fn mutation_hash_state(
+    v: &Value,
+    owned_references: usize,
+    parent_was_copied: bool,
+) -> Result<(Option<usize>, bool), Completion<Value>> {
+    v.dict_mutation_hash_state(owned_references, parent_was_copied)
+        .map_err(|e| crate::exec::dict_parse_err(&e.message))
 }
 
 fn lookup<'a>(ps: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
@@ -136,8 +168,12 @@ fn dict_update(
 ) -> Completion<Value> {
     let name = varname.to_str();
     let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
+    let (bucket_count, _) = match mutation_hash_state(&cur, 2, false) {
+        Ok(state) => state,
+        Err(c) => return c,
+    };
     let mut ps = match pairs(vm, &cur) {
-        Ok(p) => p,
+        Ok(pairs) => pairs,
         Err(c) => return c,
     };
     let k = key.to_str();
@@ -146,7 +182,7 @@ fn dict_update(
         Err(e) => return err(e),
     };
     upsert(&mut ps, &k, newv);
-    let result = from_pairs(&ps);
+    let result = from_pairs_with_hash_bucket_count(&ps, bucket_count);
     if let Err(e) = vm.set_var(&name, result.clone()) {
         return e;
     }
@@ -172,19 +208,24 @@ fn set_path(
     keys: &[Value],
     value: Value,
 ) -> Result<Value, Completion<Value>> {
-    let mut frames: Vec<(Vec<(String, Value)>, String)> = Vec::with_capacity(keys.len());
+    let mut frames: Vec<DictPathFrame> = Vec::with_capacity(keys.len());
     let mut node = cur.clone();
+    let mut parent_was_copied = false;
     for key in keys {
+        // `node` has the variable/traversal owner, the caller's root handle and
+        // this loop's handle. Extra references are Tcl-level aliases.
+        let (bucket_count, copied) = mutation_hash_state(&node, 3, parent_was_copied)?;
         let ps = pairs(vm, &node)?;
         let k = key.to_str().to_string();
         let next = lookup(&ps, &k).cloned().unwrap_or_else(Value::empty);
-        frames.push((ps, k));
+        frames.push((ps, k, bucket_count));
         node = next;
+        parent_was_copied = copied;
     }
     let mut new_value = value;
-    for (mut ps, k) in frames.into_iter().rev() {
+    for (mut ps, k, bucket_count) in frames.into_iter().rev() {
         upsert(&mut ps, &k, new_value);
-        new_value = from_pairs(&ps);
+        new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
     }
     Ok(new_value)
 }
@@ -203,11 +244,13 @@ fn set_path(
 /// arm taken). The final key is removed via `retain`, matching the old
 /// leaf case. Rebuild bottom-up via the recorded frames.
 fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
-    let mut frames: Vec<(Vec<(String, Value)>, String)> = Vec::with_capacity(keys.len());
+    let mut frames: Vec<DictPathFrame> = Vec::with_capacity(keys.len());
     let mut node = cur.clone();
+    let mut parent_was_copied = false;
     let mut new_value;
     let mut i = 0;
     loop {
+        let (bucket_count, copied) = mutation_hash_state(&node, 3, parent_was_copied)?;
         let ps = pairs(vm, &node)?;
         let k = keys[i].to_str().to_string();
         if i + 1 == keys.len() {
@@ -215,22 +258,23 @@ fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Complet
             // present (matching `dict unset`'s leaf semantics).
             let mut ps = ps;
             ps.retain(|(pk, _)| pk != &k);
-            new_value = from_pairs(&ps);
+            new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
             break;
         }
         if let Some(sub) = lookup(&ps, &k).cloned() {
-            frames.push((ps, k));
+            frames.push((ps, k, bucket_count));
             node = sub;
+            parent_was_copied = copied;
             i += 1;
         } else {
             // Missing intermediate key: no-op at and below this level.
-            new_value = from_pairs(&ps);
+            new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
             break;
         }
     }
-    for (mut ps, k) in frames.into_iter().rev() {
+    for (mut ps, k, bucket_count) in frames.into_iter().rev() {
         upsert(&mut ps, &k, new_value);
-        new_value = from_pairs(&ps);
+        new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
     }
     Ok(new_value)
 }
@@ -260,18 +304,18 @@ fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completio
 }
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
-fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
+fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<Value> {
     // Pure dict subcommands live in the shared command core; the VM is a thin
     // adapter. Only the variable-*mutating* subcommands fall through to the
     // arms below.
     //
-    // `dispatch_canon` answers `Some` unconditionally for create/get/exists/
-    // keys/values/size/merge, so the VM's own arms for those were unreachable.
+    // `dispatch_canon` answers `Some` unconditionally for the pure subcommands,
+    // including `info`, so the VM's former own arms for those were unreachable.
     // They are gone (issue #1427's cleanup) — and not merely as tidying: the
-    // dead `create` arm still built its result with a plain `Value::list` of
-    // the arguments, so had anything ever routed back to it, it would have
+    // dead `create` arm still built its result with a plain `Value::list` of the
+    // arguments, so had anything ever routed back to it, it would have
     // re-introduced the duplicate-key bug this issue fixes.
-    if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, sub, rest) {
+    if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, invoked, sub, rest) {
         return match result {
             Ok(v) => ok(v),
             // A *value-parse* failure is re-worded to C's dict spelling and
@@ -415,13 +459,24 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
     }
 
+    // These traversal handles are implementation detail. Keep only the
+    // canonical key/value snapshot needed for write-back, so re-reading the
+    // variable below observes actual Tcl aliases rather than our own handles.
+    drop(leaf);
+    drop(root_dict);
     let outcome = vm.eval_source(&body.to_str());
 
     // Reflect the mapped variables back into the dictionary. Re-read the
     // variable first (the body may have replaced it outright); if the body
     // unset it, skip the write-back entirely (matching C).
     if let Some(cur) = vm.get_var(&varname)
+        && let Ok((_, root_was_copied)) = mutation_hash_state(&cur, 2, false)
         && let Ok(cur_leaf) = get_path(vm, &cur, keys)
+        && let Ok((bucket_count, _)) = mutation_hash_state(
+            &cur_leaf,
+            if keys.is_empty() { 3 } else { 2 },
+            root_was_copied,
+        )
         && let Ok(mut new_pairs) = pairs(vm, &cur_leaf)
     {
         for (k, _) in &leaf_pairs {
@@ -430,7 +485,7 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 None => new_pairs.retain(|(pk, _)| pk != k),
             }
         }
-        let new_leaf = from_pairs(&new_pairs);
+        let new_leaf = from_pairs_with_hash_bucket_count(&new_pairs, bucket_count);
         let new_dict = if keys.is_empty() {
             new_leaf
         } else {
@@ -576,13 +631,19 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
         i += 2;
     }
+    // The initial read and decoded snapshot are command-internal handles, not
+    // Tcl-level aliases. Release them before the post-body COW decision.
+    drop(ps);
+    drop(cur);
     let comp = match vm.eval_source(&body.to_str()) {
         Ok(c) => c,
         Err(e) => return err(e.message),
     };
     // Write-back (always, even on error): re-read the dict, apply each variable.
     let cur2 = vm.get_var(&dname).unwrap_or_else(Value::empty);
-    if let Ok(mut ps2) = pairs(vm, &cur2) {
+    if let Ok((bucket_count, _)) = mutation_hash_state(&cur2, 2, false)
+        && let Ok(mut ps2) = pairs(vm, &cur2)
+    {
         let mut i = 0;
         while i + 1 < kv.len() {
             let key = kv[i].to_str().to_string();
@@ -593,7 +654,10 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             }
             i += 2;
         }
-        if let Err(e) = vm.set_var(&dname, from_pairs(&ps2)) {
+        if let Err(e) = vm.set_var(
+            &dname,
+            from_pairs_with_hash_bucket_count(&ps2, bucket_count),
+        ) {
             return e;
         }
     }

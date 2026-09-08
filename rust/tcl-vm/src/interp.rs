@@ -2637,6 +2637,14 @@ impl Vm {
     /// specification, including subcommand and form intrinsics.
     pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
         self.register(spec.name, f);
+        // `register` canonicalises rooted names before installing them. Keep
+        // the registry's spelling as the stable identity so a qualified
+        // builtin such as `::tcl::dict::info` is still filtered by its own
+        // release surface, including after rename/import/hide/expose.
+        self.builtin_identities.insert(
+            spec.name.trim_start_matches("::").to_owned(),
+            spec.name.to_owned(),
+        );
         let identities: BTreeSet<_> = spec
             .intrinsic_ids()
             .into_iter()

@@ -18,8 +18,8 @@
 
 //! The `dict` ensemble (T1.6 + M4) — `create`/`get`/`getdef`/`set`/`replace`/
 //! `remove`/`exists`/`unset`/`size`/`keys`/`values`/`merge`/`filter`/`for`/
-//! `map`/`update`/`with`/`append`/`lappend`/`incr`, over the [`crate::dict`]
-//! value type. (`info` follows.)
+//! `map`/`update`/`with`/`append`/`lappend`/`incr`/`info`, over the
+//! [`crate::dict`] value type.
 //!
 //! `dict set`/`unset`/`update`/`with` mutate a dict **variable** (copy-on-write,
 //! like `lappend`); the rest read dict **values**. `get`/`exists`/`getdef` take
@@ -67,7 +67,11 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // a thin adapter. Variable-mutating subcommands fall through to the legacy
     // match below.
     if let Ok(sub_str) = std::str::from_utf8(sub) {
-        if let Some(result) = tcl_cmd_core::dict::dispatch_canon(interp, sub_str, &argv[2..]) {
+        let invoked = String::from_utf8_lossy(&obj_bytes(argv[0])).into_owned();
+        let usage_prefix = format!("{invoked} {sub_str}");
+        if let Some(result) =
+            tcl_cmd_core::dict::dispatch_canon(interp, &usage_prefix, sub_str, &argv[2..])
+        {
             return match result {
                 Ok(v) => {
                     interp.set_result(v);
@@ -80,10 +84,10 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // `NONE` (dict-4.x) — exactly what the mutating path's
                 // [`bad_dict`] already does from its own `DictError`.
                 //
-                // The read path (`size`/`get`/`keys`/`values`/`exists`/`merge`/
-                // `filter`/`replace`/`remove`/`getdef`) reaches C's parser only
-                // through here, so without the re-wording every one of them
-                // reported the list noun (issue #1573).
+                // The read path (`size`/`info`/`get`/`keys`/`values`/`exists`/
+                // `merge`/`filter`/`replace`/`remove`/`getdef`) reaches C's
+                // parser only through here, so without the re-wording every
+                // one of them reported the list noun (issue #1573).
                 Err(e) => {
                     let msg = dict_worded(e.message());
                     match dict_parse_error_code(&msg) {
@@ -112,7 +116,6 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"append" => append(interp, argv),
         b"lappend" => lappend(interp, argv),
         b"incr" => incr(interp, argv),
-        b"info" => info(interp, argv),
         // Unreachable: every name in `DICT_SUBS` is handled above or by the
         // shared core.
         other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
@@ -214,22 +217,6 @@ fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"0");
     Code::Ok
-}
-
-/// `dict info dictionary` — a human-readable description (its exact form is
-/// unspecified; we report the entry count). Validates the dict first.
-fn info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 3 {
-        return interp.wrong_args(b"dict info dictionary");
-    }
-    match dict::dict_pairs(argv[2]) {
-        Ok(pairs) => {
-            let s = format!("{} entries in table", pairs.len());
-            interp.set_result_bytes(s.as_bytes());
-            Code::Ok
-        }
-        Err(e) => bad_dict(interp, e),
-    }
 }
 
 /// `dict size dictionary`
@@ -1097,36 +1084,13 @@ fn dict_parse_error_code(msg: &str) -> Option<&'static [u8]> {
 /// (`SetDictFromAny`/`FindElement`, type strings `dict`/`DICTIONARY`).
 fn bad_dict(interp: &mut Interp, e: crate::dict::DictError) -> Code {
     use crate::dict::DictError as E;
-    let (msg, code): (Vec<u8>, &[u8]) = match e {
-        E::MissingValue => (
-            b"missing value to go with key".to_vec(),
-            b"TCL VALUE DICTIONARY",
-        ),
-        E::BraceJunk(frag) => {
-            let mut m = b"dict element in braces followed by \"".to_vec();
-            m.extend_from_slice(&frag);
-            m.extend_from_slice(b"\" instead of space");
-            (m, b"TCL VALUE DICTIONARY JUNK")
-        }
-        E::QuoteJunk(frag) => {
-            let mut m = b"dict element in quotes followed by \"".to_vec();
-            m.extend_from_slice(&frag);
-            m.extend_from_slice(b"\" instead of space");
-            (m, b"TCL VALUE DICTIONARY JUNK")
-        }
-        E::UnmatchedBrace => (
-            b"unmatched open brace in dict".to_vec(),
-            b"TCL VALUE DICTIONARY BRACE",
-        ),
-        E::UnmatchedQuote => (
-            b"unmatched open quote in dict".to_vec(),
-            b"TCL VALUE DICTIONARY QUOTE",
-        ),
-        E::NotUtf8 => (
-            b"missing value to go with key".to_vec(),
-            b"TCL VALUE DICTIONARY",
-        ),
+    let code: &[u8] = match &e {
+        E::MissingValue | E::NotUtf8 => b"TCL VALUE DICTIONARY",
+        E::BraceJunk(_) | E::QuoteJunk(_) => b"TCL VALUE DICTIONARY JUNK",
+        E::UnmatchedBrace => b"TCL VALUE DICTIONARY BRACE",
+        E::UnmatchedQuote => b"TCL VALUE DICTIONARY QUOTE",
     };
+    let msg = e.message_bytes();
     interp.error_with_code(&msg, code)
 }
 
@@ -1237,6 +1201,83 @@ mod tests {
         assert_eq!(ok(b"dict size {a 1 b 2 c 3}"), b"3");
         assert_eq!(ok(b"dict exists {a 1 b 2} b"), b"1");
         assert_eq!(ok(b"dict exists {a 1 b 2} z"), b"0");
+    }
+
+    /// The runtime adapter uses the same Tcl-hash layout and formatter as the
+    /// native VM. Exact Tcl 9.0.4 result for this freshly parsed dictionary.
+    #[test]
+    fn info_uses_the_shared_hash_statistics_owner() {
+        assert_eq!(
+            ok(b"dict info {a 1 b 2}"),
+            b"2 entries in table, 4 buckets\n\
+              number of buckets with 0 entries: 2\n\
+              number of buckets with 1 entries: 2\n\
+              number of buckets with 2 entries: 0\n\
+              number of buckets with 3 entries: 0\n\
+              number of buckets with 4 entries: 0\n\
+              number of buckets with 5 entries: 0\n\
+              number of buckets with 6 entries: 0\n\
+              number of buckets with 7 entries: 0\n\
+              number of buckets with 8 entries: 0\n\
+              number of buckets with 9 entries: 0\n\
+              number of buckets with 10 or more entries: 0\n\
+              average search distance for entry: 1.0"
+        );
+
+        let (code, message) = run(b"rename dict d; d info");
+        assert_eq!(code, Code::Error);
+        assert_eq!(message, b"wrong # args: should be \"d info dictionary\"");
+
+        use std::fmt::Write as _;
+
+        let mut retained_script = "set d {};".to_owned();
+        for index in 0..13 {
+            write!(retained_script, "dict set d k{index} {index};")
+                .expect("writing to a String cannot fail");
+        }
+        for index in 0..12 {
+            write!(retained_script, "dict unset d k{index};")
+                .expect("writing to a String cannot fail");
+        }
+        retained_script.push_str("dict info $d");
+        assert_eq!(
+            ok(retained_script.as_bytes()),
+            b"1 entries in table, 16 buckets\n\
+              number of buckets with 0 entries: 15\n\
+              number of buckets with 1 entries: 1\n\
+              number of buckets with 2 entries: 0\n\
+              number of buckets with 3 entries: 0\n\
+              number of buckets with 4 entries: 0\n\
+              number of buckets with 5 entries: 0\n\
+              number of buckets with 6 entries: 0\n\
+              number of buckets with 7 entries: 0\n\
+              number of buckets with 8 entries: 0\n\
+              number of buckets with 9 entries: 0\n\
+              number of buckets with 10 or more entries: 0\n\
+              average search distance for entry: 1.0"
+        );
+
+        let mut cow_script = "set d {};".to_owned();
+        for index in 0..13 {
+            write!(cow_script, "dict set d k{index} {index};")
+                .expect("writing to a String cannot fail");
+        }
+        for index in 0..12 {
+            write!(cow_script, "dict unset d k{index};").expect("writing to a String cannot fail");
+        }
+        cow_script.push_str(
+            "set e $d;dict set d x 1;set f $e;dict unset e k12;\
+             list \
+                 [lindex [split [dict info $d] \\n] 0] \
+                 [lindex [split [dict info $e] \\n] 0] \
+                 [lindex [split [dict info $f] \\n] 0]",
+        );
+        assert_eq!(
+            ok(cow_script.as_bytes()),
+            b"{2 entries in table, 4 buckets} \
+              {0 entries in table, 4 buckets} \
+              {1 entries in table, 16 buckets}"
+        );
     }
 
     #[test]
@@ -1383,7 +1424,7 @@ mod tests {
     /// Issue #1573 — the **read-only** dict path reports value-parse failures
     /// with the dict noun, the junk fragment, and the dict `errorCode`.
     ///
-    /// `size`/`get`/`keys`/`values`/`merge`/`filter`/`replace`/`remove`/
+    /// `size`/`info`/`get`/`keys`/`values`/`merge`/`filter`/`replace`/`remove`/
     /// `getdef` reach C's parser only through `dispatch_canon`, which decodes
     /// with the shared **list** codec. Two things were lost on the way out:
     /// the shared core's message arrived list-worded and was never translated
@@ -1400,6 +1441,7 @@ mod tests {
         const JUNK: &[u8] = b"dict element in braces followed by \"c\" instead of space";
         for sub in [
             &b"dict size $d"[..],
+            &b"dict info $d"[..],
             &b"dict get $d a"[..],
             &b"dict keys $d"[..],
             &b"dict values $d"[..],

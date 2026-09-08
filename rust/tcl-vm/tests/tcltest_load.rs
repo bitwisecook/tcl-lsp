@@ -191,22 +191,22 @@ fn real_tcl_9_0_4_init_discovers_tcltest_via_package_require() {
     );
 }
 
-/// The first upstream `set` definition reaches `cleanupTests` through the
-/// real init/require path and emits the summary that xtask parses.
-#[test]
-fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
+/// Execute a bounded slice of one pinned upstream test file through the real
+/// Tcl 9.0.4 `init.tcl` and `tcltest` package.
+fn run_upstream_definitions(
+    test_file: &'static str,
+    start_marker: &'static str,
+    next_marker: &'static str,
+    thread_name: &'static str,
+) -> Option<(bool, String, String)> {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let Some(source_tree) = locate_source_tree(&repo_root, TclVersion::V9_0, None)
-        .expect("Tcl 9 source tree discovery")
-    else {
-        eprintln!("skipping: no Tcl 9.0.4 source tree available");
-        return;
-    };
+    let source_tree = locate_source_tree(&repo_root, TclVersion::V9_0, None)
+        .expect("Tcl 9 source tree discovery")?;
     assert_eq!(source_tree.patchlevel, "9.0.4", "real-library oracle pin");
 
     let (sender, receiver) = mpsc::sync_channel(1);
     let worker = std::thread::Builder::new()
-        .name("tcltest-set-stem".to_owned())
+        .name(thread_name.to_owned())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
             let bytes = Rc::new(RefCell::new(Vec::new()));
@@ -219,31 +219,27 @@ fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
                     .expect("report init failure");
                 return;
             }
-            let testfile = source_tree.tests_dir().join("set.test");
-            let test_source = fs::read_to_string(&testfile).expect("read pinned set.test");
-            let definition =
-                upstream_test_definition(&test_source, "test set-1.1 {", "test set-1.2 {");
+            let test_path = source_tree.tests_dir().join(test_file);
+            let test_source = fs::read_to_string(&test_path).expect("read pinned upstream test");
+            let definitions = upstream_test_definition(&test_source, start_marker, next_marker);
             let script = format!(
                 "package require tcltest\n\
                  namespace import -force ::tcltest::*\n\
-                 {definition}\n\
+                 {definitions}\n\
                  ::tcltest::cleanupTests\n",
             );
             let run = vm
                 .eval_source(&script)
-                .expect("compile focused upstream stem");
+                .expect("compile focused upstream definitions");
             let output = String::from_utf8_lossy(&bytes.borrow()).into_owned();
             sender
                 .send((run.code.is_ok(), run.result.to_str().to_string(), output))
-                .expect("report focused upstream stem");
+                .expect("report focused upstream definitions");
         })
-        .expect("spawn focused upstream stem");
+        .expect("spawn focused upstream definitions");
 
-    // This in-process, test-profile worker measured 105.80 seconds for the
-    // former whole-stem proof and 145.65 seconds for this extracted definition,
-    // with a contended run exceeding 180 seconds. The sweep's central
-    // 120-second limit applies to its release child process, so retain a
-    // bounded but realistic watchdog here.
+    // Loading real init.tcl/tcltest dominates these small slices and can take
+    // several minutes under a contended test runner.
     let result = match receiver.recv_timeout(Duration::from_secs(300)) {
         Ok(result) => result,
         Err(RecvTimeoutError::Disconnected) => {
@@ -251,14 +247,51 @@ fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
             unreachable!("worker exited without reporting")
         }
         Err(RecvTimeoutError::Timeout) => {
-            panic!("focused upstream set-1.1 did not finish within 300 seconds")
+            panic!("focused upstream {test_file} did not finish within 300 seconds")
         }
     };
     worker.join().expect("focused upstream worker panicked");
-    let (ok, error, output) = result;
+    Some(result)
+}
+
+/// The first upstream `set` definition reaches `cleanupTests` through the
+/// real init/require path and emits the summary that xtask parses.
+#[test]
+fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "set.test",
+        "test set-1.1 {",
+        "test set-1.2 {",
+        "tcltest-set-stem",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
     assert!(ok, "focused upstream set.test failed: {error}\n{output}");
     assert!(
         output.contains("Total\t1\tPassed\t1\tSkipped\t0\tFailed\t0"),
         "missing parseable upstream set-1.1 summary: {output:?}"
+    );
+}
+
+/// The four upstream `dict info` definitions are executed verbatim through
+/// Tcl 9.0.4's real `tcltest` package. They cover a successful result, both
+/// arity errors, and malformed-dictionary validation without restating the
+/// upstream bodies in this harness.
+#[test]
+fn upstream_dict_info_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "dict.test",
+        "test dict-10.1 {",
+        "test dict-11.1 {",
+        "tcltest-dict-info",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream dict.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t4\tPassed\t4\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream dict-10 summary: {output:?}"
     );
 }
