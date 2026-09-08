@@ -173,9 +173,16 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
         // argument list free of nulls across the Gson boundary.
         val args: List<Any> = if (dialect == null) listOf(uri) else listOf(uri, dialect)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val server = LspServerManager.getInstance(project)
-                .getServersForProvider(TclLspServerSupportProvider::class.java)
-                .firstOrNull { it.state == LspServerState.Running } ?: return@executeOnPooledThread
+            // Start the server and wait, rather than give up on one that has
+            // not started yet. The server is launched lazily by the first Tcl
+            // editor, so in a project with no Tcl file already open the studio
+            // is the first thing to want it — and a dropped pin is never
+            // retried, leaving the sample under generic Tcl for the rest of
+            // the session. Same wait the Compiler Explorer has always used.
+            val server = awaitRunningTclLspServer(project) ?: run {
+                SPEC_LOG.warn("No Tcl LSP server to pin the Spec Studio sample dialect on")
+                return@executeOnPooledThread
+            }
             try {
                 server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                     lsp4j.workspaceService.executeCommand(

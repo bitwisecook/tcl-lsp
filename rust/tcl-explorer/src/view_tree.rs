@@ -1032,26 +1032,39 @@ fn build_unit_scope(d: &Value) -> Vec<ViewNode> {
 
 // --- Optimiser / GVN / shimmer / taint / iRules / callouts ---
 
+/// One optimisation's label and details, shared by the flat rewrite list and
+/// the per-pass pipeline.
+///
+/// A `hintOnly` entry carries no replacement: its range spans the whole
+/// consuming statement, so the literal was never a valid edit for it (#1934).
+/// Rendering the usual `code message -> replacement` for one shows advice as a
+/// rewrite to the empty string — a deletion — which is the opposite of what it
+/// means, so the arrow is dropped and the row says what it is.
+fn opt_leaf(o: &Value) -> ViewNode {
+    let hint_only = o.get("hintOnly").and_then(Value::as_bool).unwrap_or(false);
+    let (tail, replacement) = if hint_only {
+        (" (hint only)".to_owned(), "(none — hint only)".to_owned())
+    } else {
+        (format!(" \u{2192} {}", s(o, "replacement")), s(o, "replacement"))
+    };
+    ViewNode::leaf(
+        format!("{} {}{tail}", s(o, "code"), s(o, "message")),
+        vec![
+            det("code", s(o, "code")),
+            det("message", s(o, "message")),
+            det("replacement", replacement),
+            det("range", rng(&o["range"])),
+        ],
+        Some(if hint_only { "yellow" } else { "green" }),
+    )
+    .with_range(&o["range"])
+}
+
 fn build_opt(d: &Value) -> Vec<ViewNode> {
     let out: Vec<ViewNode> = arr(d, "optimisations")
         .iter()
         .map(|o| {
-            ViewNode::leaf(
-                format!(
-                    "{} {} → {}",
-                    s(o, "code"),
-                    s(o, "message"),
-                    s(o, "replacement")
-                ),
-                vec![
-                    det("code", s(o, "code")),
-                    det("message", s(o, "message")),
-                    det("replacement", s(o, "replacement")),
-                    det("range", rng(&o["range"])),
-                ],
-                Some("green"),
-            )
-            .with_range(&o["range"])
+            opt_leaf(o)
         })
         .collect();
     if out.is_empty() {
@@ -1177,22 +1190,7 @@ fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
             let opts: Vec<ViewNode> = arr(p, "optimisations")
                 .iter()
                 .map(|o| {
-                    ViewNode::leaf(
-                        format!(
-                            "{} {} → {}",
-                            s(o, "code"),
-                            s(o, "message"),
-                            s(o, "replacement")
-                        ),
-                        vec![
-                            det("code", s(o, "code")),
-                            det("message", s(o, "message")),
-                            det("replacement", s(o, "replacement")),
-                            det("range", rng(&o["range"])),
-                        ],
-                        Some("green"),
-                    )
-                    .with_range(&o["range"])
+                    opt_leaf(o)
                 })
                 .collect();
             let count = s(p, "count");
@@ -1727,6 +1725,68 @@ mod tests {
 
     fn data(src: &str) -> Value {
         serialise_result(&run_pipeline(src, "tcl8.6"))
+    }
+
+    /// A hint is advice, not an edit, and the row must not read as one.
+    ///
+    /// A `hintOnly` optimisation carries no replacement — its range spans the
+    /// whole consuming statement, so the literal was never a valid edit for it
+    /// (#1934). Rendering the usual `code message -> replacement` gives
+    /// `-> ` with nothing after it, which reads as a rewrite to the empty
+    /// string: a deletion, and the opposite of what the entry means.
+    #[test]
+    fn a_hint_only_optimisation_is_not_rendered_as_a_rewrite() {
+        let d = data("set n 7\nputs \"n=$n\"\n");
+        let hints: Vec<&Value> = d["optimisations"]
+            .as_array()
+            .expect("the opt payload is a list")
+            .iter()
+            .filter(|o| o.get("hintOnly").and_then(Value::as_bool).unwrap_or(false))
+            .collect();
+        assert!(
+            !hints.is_empty(),
+            "the fixture must produce a hint-only entry, else this proves nothing: {:?}",
+            d["optimisations"],
+        );
+
+        for o in hints {
+            let node = opt_leaf(o);
+            assert!(
+                node.label.ends_with("(hint only)"),
+                "a hint must say so: {:?}",
+                node.label,
+            );
+            assert!(
+                !node.label.contains('\u{2192}'),
+                "and must not carry the rewrite arrow: {:?}",
+                node.label,
+            );
+            let replacement = node
+                .detail
+                .iter()
+                .find(|(k, _)| k == "replacement")
+                .map(|(_, v)| v.as_str())
+                .expect("every optimisation row details its replacement");
+            assert!(
+                !replacement.is_empty(),
+                "the detail row must explain the absence rather than show a blank edit",
+            );
+        }
+    }
+
+    /// The ordinary case still renders as a rewrite.
+    #[test]
+    fn an_applicable_optimisation_still_shows_its_replacement() {
+        let o = serde_json::json!({
+            "code": "O100",
+            "message": "Inline the constant",
+            "replacement": "7",
+            "hintOnly": false,
+            "range": Value::Null,
+        });
+        let node = opt_leaf(&o);
+        assert!(node.label.contains("\u{2192} 7"), "{:?}", node.label);
+        assert!(!node.label.contains("hint only"), "{:?}", node.label);
     }
 
     /// A row that shows a range must also *carry* it.
