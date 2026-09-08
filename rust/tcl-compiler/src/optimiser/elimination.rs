@@ -300,31 +300,33 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // emit calls below.
     let proc_index = crate::interprocedural::build_proc_index_from_summaries(&ctx.interproc);
 
-    emit_unreachable(ctx, &cu.top_level);
-    let purity = PurityCtx {
-        registry: ctx.registry,
-        interproc_pure: &interproc_pure,
-        pure_methods: &pure_methods,
-        enclosing_class: None,
-        config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-    };
-    let baseline = emit_dead_stores_and_unused(
-        ctx,
-        &cu.top_level,
-        is_top_level(&cu.top_level),
-        purity,
-        None,
-        &proc_index,
-    );
-    emit_adce(
-        ctx,
-        &cu.top_level,
-        &baseline,
-        &interproc_pure,
-        &pure_methods,
-        None,
-        None,
-    );
+    if deep_analysis_available(&cu.top_level) {
+        emit_unreachable(ctx, &cu.top_level);
+        let purity = PurityCtx {
+            registry: ctx.registry,
+            interproc_pure: &interproc_pure,
+            pure_methods: &pure_methods,
+            enclosing_class: None,
+            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+        };
+        let baseline = emit_dead_stores_and_unused(
+            ctx,
+            &cu.top_level,
+            is_top_level(&cu.top_level),
+            purity,
+            None,
+            &proc_index,
+        );
+        emit_adce(
+            ctx,
+            &cu.top_level,
+            &baseline,
+            &interproc_pure,
+            &pure_methods,
+            None,
+            None,
+        );
+    }
 
     // `manager::build_pass_context` populates this shared safety fact once,
     // before every pass runs. Retain the event-only projection here so plain
@@ -332,6 +334,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let when_cross_event = ctx.cross_event_vars.clone();
     let saved_proc_cross = std::mem::take(&mut ctx.cross_event_vars);
     for (qname, fu) in &cu.procedures {
+        if !deep_analysis_available(fu) {
+            continue;
+        }
         ctx.cross_event_vars = if qname.starts_with("::when::") {
             when_cross_event.clone()
         } else {
@@ -368,6 +373,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // state-mutating `set ivar ...` inside the method body.
     let saved_cross = std::mem::take(&mut ctx.cross_event_vars);
     for (mqname, fu) in &cu.methods {
+        if !deep_analysis_available(fu) {
+            continue;
+        }
         let ir_method = cu.ir_module.methods.get(mqname);
         let enclosing_class = ir_method.map(|m| m.class_name.as_str());
         let execution_namespace = ir_method.map(|m| &m.execution_namespace);
@@ -395,6 +403,31 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         );
     }
     ctx.cross_event_vars = saved_cross;
+}
+
+/// Whether `fu`'s lattices are real facts this pass may read.
+///
+/// A unit the complexity guard excludes from deep analysis
+/// ([`FunctionUnit::trivial_guarded`]) carries trivial SSA, empty def-use
+/// chains, and a `SccpResult::default()` whose executable-block set is empty
+/// because nothing computed one — an absence of facts, not the fact that SCCP
+/// proved every block dead. O107 is the one report in this pass that reads a
+/// *missing* block as a positive fact, so it must not run over such a unit:
+/// every statement in the body would answer "unreachable" and the whole body
+/// would be offered for deletion.
+///
+/// Guarded units are common rather than exotic. `TclOO` method bodies reach
+/// the guard through `ir_helpers::requires_runtime_command_namespace`: a
+/// method runs in the receiver's namespace, chosen at run time, which can
+/// shadow any relative command name, so one unqualified head anywhere in the
+/// body (`return [self class]`, `puts hi`) is enough.
+///
+/// The remaining reports (O108 ADCE, O109 dead stores, O126 unused
+/// assignments) walk def-use chains and so find nothing in a guarded unit
+/// either way. They are skipped alongside O107 so the whole pass honours one
+/// rule rather than three: a guarded unit's lattices are never read as facts.
+fn deep_analysis_available(fu: &FunctionUnit) -> bool {
+    !fu.complexity_guarded
 }
 
 fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {

@@ -45,11 +45,11 @@ defines the running method implementation:
 
 ```tcl
 oo::class create ::ticklecharts::C {
-    method render {} { puts [self class] }
+    method render {} { ::puts [::oo::Helpers::self class] }
 }
 ```
 
-becomes `puts ::ticklecharts::C`. The value is the class whose definition body
+becomes `::puts ::ticklecharts::C`. The value is the class whose definition body
 lexically encloses the method, and real Tcl keeps it that class through
 inheritance, mixins, and `next` — each link of a `next` chain reports its own
 definer, and a mixin-provided method reports the mixin, not the receiver
@@ -60,6 +60,14 @@ the class `oo::define` names) and classes created under `namespace eval`.
 This is registry-driven: `self`'s spec declares which of its words is a frame
 fact (`oo_context_facts`), so the optimiser never matches a command or
 subcommand by name.
+
+**Precondition — every command head in the body must resolve statically.** A
+method runs in the *receiver's* namespace, which is chosen at run time and can
+shadow any relative command name, so a body containing even one unqualified
+head (`puts`, `set`, or `self` itself) is excluded from deep analysis and folds
+nothing. That is why every example here spells its heads absolutely. Written
+the ordinary way — `method render {} { puts [self class] }` — the body is left
+exactly as it stands.
 
 Four shapes deliberately do **not** fold, because the value is either not
 static or not a value at all:
@@ -86,11 +94,11 @@ single O129 rewrite:
 
 ```tcl
 oo::class create ::ticklecharts::Gauge {
-    method render {} { set ns [namespace qualifiers [self class]] }
+    method render {} { ::set ns [::namespace qualifiers [::oo::Helpers::self class]] }
 }
 ```
 
-becomes `set ns ::ticklecharts` (and `namespace tail` would give `Gauge`). The
+becomes `::set ns ::ticklecharts` (and `namespace tail` would give `Gauge`). The
 edge cases are pinned byte-identical on tclsh 9.0.4 and 8.6.14 — `:::` → `{}` /
 `{}`, `a:::b` → `a` / `b`, `::a::b::` → `::a::b` / `{}`, `::x:y` → `{}` /
 `x:y`, and the empty string → `{}` / `{}` — by a unit table in the registry and
