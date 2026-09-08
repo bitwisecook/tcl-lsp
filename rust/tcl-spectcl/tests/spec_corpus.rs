@@ -113,6 +113,7 @@
 use std::cell::Cell;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -633,7 +634,15 @@ fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+enum AnalysisPath {
+    Legacy,
+    Shared,
+    SharedDiagnosticsLegacyOptimiser,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 struct AnalysisOutput {
+    path: AnalysisPath,
     diagnostics: Vec<Diagnostic>,
     optimisations: Vec<Optimisation>,
 }
@@ -650,6 +659,7 @@ fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
     AnalysisOutput {
+        path: AnalysisPath::Legacy,
         diagnostics: result.diagnostics,
         optimisations,
     }
@@ -663,22 +673,60 @@ fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
 /// work is done once, while `optimise_unit_raw` retains the raw (pre-overlap)
 /// optimiser result used by this corpus report.
 fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
-    let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let environment = tcl_registry::model::ingress::resolve_environment(dialect);
     let registry = Arc::clone(
         environment
             .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
             .commands(),
     );
-    let profile = environment.unit_profile();
-    let unit = Arc::new(
-        CompilationUnit::build_for_profile(source, &registry, false, profile)
-            .with_interprocedural(&registry, Some(profile)),
-    );
-    analyser.set_cu_override(Arc::clone(&unit));
-    let result = analyser.analyse(source, dialect);
-    let optimisations = optimise_unit_raw(&unit, &registry, Some(profile));
+    let unit_profile = environment.unit_profile();
+    let optimiser_profile = environment.analyser_profile();
+
+    // `optimise_raw` builds its own unit from the analyser profile. Sharing a
+    // unit with a different profile would therefore change the Tk path (Tk's
+    // unit profile is intentionally distinct from its analyser profile).
+    // Keep the old two-unit path until both entry points can consume the same
+    // profile without losing the Tk grammar contract.
+    if !std::ptr::eq(unit_profile, optimiser_profile) {
+        return analyse_legacy(source, dialect, overlay);
+    }
+
+    // Contain only the shared-unit operations. A malformed corpus document
+    // must not take down the sweep, but a panic in the ordinary legacy path
+    // remains visible to the harness rather than being turned into an empty
+    // report.
+    let Ok(unit) = catch_unwind(AssertUnwindSafe(|| {
+        Arc::new(
+            CompilationUnit::build_for_profile(source, &registry, false, unit_profile)
+                .with_interprocedural(&registry, Some(unit_profile)),
+        )
+    })) else {
+        return analyse_legacy(source, dialect, overlay);
+    };
+
+    let mut analyser = Analyser::new().with_pack_overlay(overlay);
+    let Ok(result) = catch_unwind(AssertUnwindSafe(|| {
+        analyser.set_cu_override(Arc::clone(&unit));
+        analyser.analyse(source, dialect)
+    })) else {
+        return analyse_legacy(source, dialect, overlay);
+    };
+
+    let Ok(optimisations) = catch_unwind(AssertUnwindSafe(|| {
+        optimise_unit_raw(&unit, &registry, Some(optimiser_profile))
+    })) else {
+        // The shared optimiser is an optional consumer of the unit. Keep
+        // diagnostics produced from that unit, and use the established
+        // raw optimiser as the only fallback; do not catch a panic from
+        // this ordinary legacy path.
+        return AnalysisOutput {
+            path: AnalysisPath::SharedDiagnosticsLegacyOptimiser,
+            diagnostics: result.diagnostics,
+            optimisations: optimise_raw(source, &registry, Some(dialect)),
+        };
+    };
     AnalysisOutput {
+        path: AnalysisPath::Shared,
         diagnostics: result.diagnostics,
         optimisations,
     }
@@ -729,6 +777,61 @@ fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
         );
     }
     (shared.diagnostics.len(), shared.optimisations.len())
+}
+
+/// Keep the old and shared pipelines permanently equivalent on a small,
+/// deterministic set of inputs. The full-corpus comparison remains opt-in
+/// (`SPECTCL_CORPUS_DIFF=1`) so the normal performance gate still builds one
+/// unit per document, while this always-run test covers the profile seams and
+/// proves that Tk's distinct unit/analyser profiles take the legacy route.
+#[test]
+fn shared_unit_matches_legacy_for_representative_profiles() {
+    let cases = [
+        (
+            "tcl8.6",
+            "set value [expr {1 + 2}]\nif {$value} {set result yes}\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "tcl9.0",
+            "proc choose {value} { if {$value} { return [string toupper yes] } }\nchoose 1\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "f5-irules",
+            "when HTTP_REQUEST { HTTP::respond 200 }\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "jim",
+            "set value 1\nif {$value} { puts yes }\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "tk",
+            "package require Tk\nbutton .b\npack .b\nset ${a{b}c} 1\n",
+            AnalysisPath::Legacy,
+        ),
+    ];
+
+    for (dialect, source, expected_path) in cases {
+        let legacy = analyse_legacy(source, dialect, 0);
+        let shared = analyse_shared(source, dialect, 0);
+        assert_eq!(&shared.path, &expected_path, "{dialect} analysis route");
+        assert_eq!(
+            shared.diagnostics, legacy.diagnostics,
+            "{dialect} diagnostics"
+        );
+
+        let mut shared_optimisations = shared.optimisations;
+        let mut legacy_optimisations = legacy.optimisations;
+        canonicalise_optimisations(&mut shared_optimisations);
+        canonicalise_optimisations(&mut legacy_optimisations);
+        assert_eq!(
+            shared_optimisations, legacy_optimisations,
+            "{dialect} raw optimisations"
+        );
+    }
 }
 
 /// Every load notice, in the baseline's line format.
