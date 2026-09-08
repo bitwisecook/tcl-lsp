@@ -58,27 +58,26 @@ Grab the artefact for your editor from
 [Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest), or install
 the VS Code extension from the
 [Marketplace](https://marketplace.visualstudio.com/items?itemName=bitwisecook.tcl-lsp).
-Nothing needs Python — the server is a self-contained native binary.
+The server is a self-contained native binary.
 
-While the Rust rewrite is on the pre-release channel, install it from the
-`rust` branch and pin the current pre-release:
+The `tcl`, `f5`, and `tcl-mcp` command-line tools have a one-line installer
+([INSTALL-cli.md](INSTALL-cli.md)):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/install/install.sh \
-  | TCL_LSP_VERSION=v2.1.19 sh
+curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
 ```
 
 ### All editors
 
 | Editor | Type | Setup | Unique extras |
 |--------|------|-------|---------------|
-| [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
-| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/server/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
+| [VS Code](editors/vscode/) | Full extension (.vsix) | Install from the Marketplace or a `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, command-palette tooling |
+| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
 | [Zed](editors/zed/) | LSP extension (TOML + Rust) | Install from Zed extension registry | Downloads the matching native server for macOS, Linux, or Windows |
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
 | [Sublime Text](editors/sublime-text/) | LSP helper package (.sublime-package) | Install LSP and LSP-Tcl from Package Control | Uses Sublime's built-in Tcl syntax and snippets; downloads the matching native server |
-| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA 2025.3+ |
+| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA Ultimate 2025.3+ |
 
 All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 (build it with `make rust-server`, or `cargo build -p tcl-lsp-server`).
@@ -118,10 +117,6 @@ optimisations, for the same file.
 Files named `tclpkg.tcl` are analysed as `tcl pkg` package manifests:
 their directives resolve against the manifest command set instead of
 drawing unknown-command warnings.
-
-Full per-editor instructions, including every VS Code-compatible and generic
-LSP editor, live in **[INSTALL-editors.md](INSTALL-editors.md)**. For the `tcl`
-and `f5` command-line tools, see **[INSTALL-cli.md](INSTALL-cli.md)**.
 
 ### VS Code
 
@@ -167,7 +162,7 @@ limited on a virtual workspace (see
 
 ### Neovim
 
-Copy [`tcl_lsp.lua`](editors/neovim/) to `~/.config/nvim/server/` and enable it
+Copy [`tcl_lsp.lua`](editors/neovim/) to `~/.config/nvim/lsp/` and enable it
 (`vim.lsp.enable('tcl_lsp')`) — no plugin needed on Neovim 0.11+. Point `cmd`
 at your `tcl-lsp-server` binary.
 
@@ -198,8 +193,8 @@ on first use.
 
 **Settings > Plugins > gear > Install Plugin from Disk…**, select
 `tcl-lsp-jetbrains-<version>.zip`, restart. The plugin bundles the native
-server for every platform. Requires IDEA Ultimate 2024.1+ (free editions from
-2025.3).
+server for every platform. Requires IntelliJ IDEA Ultimate 2025.3+ (or
+another paid JetBrains IDE).
 
 ## The seven you will use most
 
@@ -410,8 +405,8 @@ proc ::set {a b} { ... }         ;# W113: 'set' is a genuine core built-in
 
 #### What the analyser checks
 
-Seven families of finding, each code with its own page explaining why the check
-exists, a triggering example, and the fix:
+Each code has its own page explaining why the check exists, a triggering
+example, and the fix:
 
 | Family | Covers |
 |---|---|
@@ -422,6 +417,7 @@ exists, a triggering example, and the fix:
 | **T** | [Taint analysis](docs/kcs/codes/README.md) — untrusted data reaching dangerous sinks, option positions, regex patterns, and network addresses |
 | **O** | [Optimiser](docs/kcs/features/kcs-feature-optimiser.md) suggestions — constant folding, propagation, dead code, LICM, strength reduction, and repeated stable calls whose [dispatch is provably unobserved](docs/design/compiler/dispatch-stability-proof.md) |
 | **IRULE** | iRules-only checks — see [README-f5.md](README-f5.md#irules-diagnostic-codes) |
+| **IAPP**, **BIGIP**, **SSLIC** | iApp cross-file checks, BIG-IP configuration objects, and `.sslictcl` declarations |
 
 Full tables: [diagnostic codes](docs/generated/diagnostic_codes.md) ·
 [optimiser codes](docs/generated/optimisation_codes.md) ·
@@ -431,8 +427,8 @@ Full tables: [diagnostic codes](docs/generated/diagnostic_codes.md) ·
 
 Variables, procs, keywords, and strings are classified using SSA-informed type
 information, giving richer highlighting than a TextMate grammar alone.  The
-server provides 44 token types beyond the standard LSP set, including
-sub-token highlighting inside strings.  Tokens are cached per top-level chunk
+server adds its own token types to the standard LSP set, including sub-token
+highlighting inside strings.  Tokens are cached per top-level chunk
 so only dirty regions are recomputed after an edit, and the server supports
 `textDocument/semanticTokens/full/delta` for bandwidth-efficient incremental
 updates.
@@ -465,8 +461,8 @@ domain-specific token types:
 | **Binary format** | `binarySpec`, `binaryCount`, `binaryFlag` | `binary scan $data su3 x y z` — `s`, `u`, and `3` each highlighted |
 | **Clock format** | `clockPercent`, `clockSpec`, `clockModifier` | `clock format $t -format "%Y-%m-%d"` — `%`, `Y`, `m`, `d` each highlighted |
 | **Escape sequences** | `escape` | `puts "line1\nline2\t${var}"` — `\n`, `\t` highlighted inside strings |
-| **Options** | `decorator`, `optionValue`, `enumMember` | `file delete -force f` and `$chart Xaxis -name x -type value` — switches and their values get their own colours |
-| **BIG-IP config** | `object`, `ipAddress`, `port`, `partition`, `pool`, `monitor`, `profile`, `vlan`, `fqdn`, `routeDomain`, `encrypted`, `interface` | BIG-IP `.conf` files get object-aware highlighting |
+| **Options** | `decorator`, `property`, `enumMember` | `file delete -force f` and `$chart Xaxis -name x -type value` — switches and their values get their own colours |
+| **BIG-IP config** | `object`, `ipAddress`, `port`, `partition`, `pool`, `monitor`, `profile`, `vlan`, `fqdn`, `routeDomain`, `encrypted`, `bigipInterface` | BIG-IP `.conf` files get object-aware highlighting |
 
 Command options are highlighted precisely for commands the registry knows,
 including object methods on a tracked handle — the standard `TclOO` / Tk
@@ -747,10 +743,9 @@ is refused with a reason rather than quietly renaming the command instead.
 
 ### 7. Formatting
 
-Full-document and range formatting with 25 configurable options.  Defaults
-follow the F5 iRules Style Guide.  Supports full-document
-(`textDocument/formatting`) and range (`textDocument/rangeFormatting`)
-requests.
+Full-document (`textDocument/formatting`) and range
+(`textDocument/rangeFormatting`) formatting.  Defaults follow the F5 iRules
+Style Guide; every option is configurable.
 
 ```tcl
 # Before:

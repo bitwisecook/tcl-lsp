@@ -5,22 +5,15 @@
 
 ## Summary
 
-26 slash-command skills for Claude Code providing iRules, Tcl, Tk, and BIG-IP development assistance.
+Slash-command skills for Claude Code providing iRules, Tcl, Tk, and BIG-IP development assistance.
 
 ## Applies to
 
 Claude skill
 
-## Availability
-
-| Context | How |
-|---------|-----|
-| Claude Code CLI | Type the skill name as a slash command |
-| Claude Code Web | Type the skill name as a slash command |
-
 ## How to use
 
-In Claude Code, type the skill name:
+In Claude Code, type the skill name as a slash command:
 
 ### iRules skills
 
@@ -59,7 +52,7 @@ In Claude Code, type the skill name:
 |-------|-------------|
 | `/bigip-cleanup` | Generate a tmsh delete script for unreferenced BIG-IP objects |
 | `/explain-flow` | Trace a PCAP session through a BIG-IP config and explain what the device did |
-| `/f5-query` | Translate a natural-language question into an `f5 query` DSL expression and run it |
+| `/f5-query` | Translate a natural-language question into an `f5-query` DSL expression and run it |
 
 ### Tk skills
 
@@ -72,6 +65,7 @@ In Claude Code, type the skill name:
 | Skill | Description |
 |-------|-------------|
 | `/ai-help` | Show available features and how to use them |
+| `/spec-author` | Build command specs for a private Tcl library |
 
 ## Operational context
 
@@ -81,10 +75,6 @@ Skills call the native `tcl-mcp` MCP tools for analysis, then use AI to interpre
 
 - The `tcl-mcp` binary cannot be found or built (see `scripts/tcl-mcp`).
 - Skills not loaded (check `.claude/` configuration).
-
-## Test anchors
-
-- Manual testing via Claude Code sessions.
 
 ## Example
 

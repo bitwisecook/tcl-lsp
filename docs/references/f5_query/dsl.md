@@ -141,7 +141,7 @@ Deliberate divergences:
 | Object literals `{...}` | yes | yes — `{name, dest: .destination}` bareword keys desugar to `key: .key`; stream-valued fields broadcast element-wise into one row per item |
 | `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
 | `$name` variable | yes (let-binding only) | also names each loaded source — `$ltm`, `$gtm`, ... — for cross-config queries.  Auto-named from filename stem; `--name N=PATH` overrides |
-| String interpolation `"\(.x)"` | yes | not present in v1 |
+| String interpolation `"\(.x)"` | yes | not present |
 | Optional path suffix `?` | yes | yes for path steps (`.foo?`, `.items[]?`, `.[expr]?`); `try-catch` is still absent |
 | `//` / `try-catch` / `reduce` / `foreach` | yes | not present — practical query language, not a jq subset. (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `to_entries` / `from_entries` **are** implemented — see the `value` category in [`builtins.md`](builtins.md).) |
 | Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
@@ -173,7 +173,7 @@ A projected BIG-IP object.  Holds:
   (strings, `PathRef`s, lists, sub-objects).
 - `field_slots` — dict of field name → byte range of the value in the
   source.  Single-line property values land in this map; sub-blocks
-  do not, which makes them non-writable in v1.
+  do not, which makes them non-writable.
 - `stanza_slot` — byte range of the whole stanza (header + body), used
   by `--scf` output and as a fallback for identity-rename verification.
 
@@ -300,10 +300,9 @@ reachable via source-level operations (`rename_partition` cascades,
 `--scf` selection through grep / a real SCF concatenation), but is
 not navigable from the DSL. `net.*`, `sys.*`, `apm.*`, `cm.*`,
 `pem.*`, `auth.*`, `vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`,
-`ilx.*`, `wom.*`, and `analytics.*` currently have **no** typed
-projection at all — `.net.self[]`, `.sys.dns`, `.apm.access-policy`,
-`.cm.device`, and similar paths from earlier (Python-era) revisions
-of this document are not reachable today.
+`ilx.*`, `wom.*`, and `analytics.*` have **no** typed projection:
+`.net.self[]`, `.sys.dns`, `.apm.access-policy` and `.cm.device` are
+not reachable.
 
 The per-kind field construction lives in `project_fields()` and its
 per-kind helpers (`project_virtual`, `project_pool`, …) in the same
@@ -377,7 +376,7 @@ an `EditPlan`.  When evaluation finishes, the planner:
    value, the planner just hands it to `rename_object` like any
    other rename.
 4. Slots field writes by byte range; rejects edits without a
-   `field_slot` (compound sub-block values are not writable in v1).
+   `field_slot` (compound sub-block values are not writable).
 5. Sorts field-write slots by offset, checks for overlaps, raises
    `EditError` on conflict.
 6. Splices the new text in a single forward pass.
@@ -517,7 +516,7 @@ that returns `(partition, address, route_domain, port)`.  Adding new
 partition or RD-aware operations means dispatching that tuple and
 re-joining via `rebuild_destination` — no ad-hoc string slicing.
 
-## iRule sub-tree (v1)
+## iRule sub-tree
 
 `.ltm.rule["/Common/r1"]` exposes:
 
@@ -530,12 +529,12 @@ re-joining via `rebuild_destination` — no ad-hoc string slicing.
   These are the same edges `f5 grep` walks, so the two verbs always
   agree on what an iRule "uses".
 
-Writes inside an iRule body are restricted to those reference slots
-in v1, and they happen via the same `rename_object` text engine so
-the rewrite covers every `pool foo` / `persist add ... foo` / `class
-match ... foo` occurrence.  A general command-argument editor (range
-each arg, allow `.commands[].args[0] |= ...`) is deferred to v2 once
-the iRule parser exports byte-level ranges for every token.
+Writes inside an iRule body are restricted to those reference slots,
+and they happen via the same `rename_object` text engine so the
+rewrite covers every `pool foo` / `persist add ... foo` / `class
+match ... foo` occurrence.  There is no general command-argument
+editor (`.commands[].args[0] |= ...`): it needs byte-level ranges for
+every token, which the iRule parser does not export.
 
 ## Output modes
 

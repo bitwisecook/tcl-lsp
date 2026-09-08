@@ -92,10 +92,11 @@ proc format_name {name} {
 greet "world"
 ```
 
-Placing the cursor on `format_name` and running **Show Call
-Hierarchy** opens a tree view where the **Incoming calls** pane
-lists `greet` and the **Outgoing calls** pane lists `string` —
-click either one to jump to its definition.
+Placing the cursor on `format_name` and running **Show Call Hierarchy**
+opens a tree view whose **Incoming calls** pane lists `greet`; on `greet`,
+**Outgoing calls** lists `format_name`.  Click either to jump to its
+definition.  Built-in commands such as `string` are not edges — only procs
+and `TclOO` members are.
 
 The same works for a class method:
 

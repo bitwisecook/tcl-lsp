@@ -422,7 +422,7 @@ rather than here:
   others — §1);
 - its ``$child`` option list drops ``alias``, ``aliases`` and
   ``bgerror``, which C's child command object carries;
-- its ``interp invokehidden`` has no ``-global`` at all and skips
-  ``-namespace ns`` and any unknown flag silently, instead of switching
-  evaluation context and refusing
+- its ``interp invokehidden`` parses ``-global`` / ``-namespace ns`` /
+  ``--`` and refuses an unknown flag, but discards them rather than
+  switching evaluation context
   ([`command-introspection.md`](command-introspection.md) §2.5).
