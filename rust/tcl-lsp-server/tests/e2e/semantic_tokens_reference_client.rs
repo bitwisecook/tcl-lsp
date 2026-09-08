@@ -322,6 +322,19 @@ fn convergence_lsp() -> Lsp {
 /// whatever the machine's capacity factor turns out to be.
 const ROUND_SETTLE: Duration = Duration::from_secs(20);
 
+/// How long to wait out the server's refresh debounce before concluding that a
+/// refresh was *not* asked for.
+///
+/// Asserting a negative has no message to wait on, so it needs a bound. The
+/// server coalesces refresh asks behind a 50 ms debounce, so a fire scheduled
+/// by the round that just settled is logged strictly after that decision. A
+/// census taken the instant the settled marker arrives therefore proves nothing
+/// — it can miss a genuinely spurious refresh simply by looking too early,
+/// which is why the request census it replaces flaked in both directions rather
+/// than failing loudly (issue #1951). A generous multiple of the debounce,
+/// load-scaled at the call site.
+const REFRESH_QUIET_WINDOW: Duration = Duration::from_secs(2);
+
 /// How long a `refresh=true` decision has to actually produce the
 /// `workspace/semanticTokens/refresh` request.
 ///
@@ -541,6 +554,19 @@ fn converge_via_refresh(
                 "workspace/semanticTokens/refresh",
                 REFRESH_ARRIVAL,
                 req_since,
+            );
+            // And that a refresh attributed to *this* path arrived, not merely
+            // that some workspace refresh did. Both needles, not one plus an
+            // assertion on the first marker found: an unrelated subsystem's
+            // refresh — a spec-pack reload's — legitimately fires in this
+            // window, and picking the first marker races against it. That race
+            // is issue #1951 itself. This is the attribution that lets a
+            // sibling test count only its own refreshes, and it is worth
+            // nothing unless something proves the marker fires.
+            lsp.await_log(
+                &["semantic_tokens.refresh.fired", "convergence"],
+                REFRESH_ARRIVAL,
+                log_since,
             );
             out.refreshes += 1;
         } else if matches!(tier, Tier::Full)
@@ -1193,9 +1219,9 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
 
         // `outcome=compared-equal` proves the forced coarse branch actually
         // compared the recomputed enriched viewport. `refresh=false` is the
-        // race-free primary assertion; the request census is an independent
-        // guard that no workspace-wide refresh reached the client for this
-        // equal round.
+        // race-free primary assertion; the census below is an independent
+        // guard that the decision was honoured end to end — that no refresh
+        // the convergence path owns actually reached the client.
         assert!(
             settled.contains("outcome=compared-equal"),
             "the forced coarse branch must execute its equality comparison: {settled:?}"
@@ -1204,18 +1230,36 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
             settled.contains("refresh=false"),
             "the converged viewport must settle without asking for a refresh: {settled:?}"
         );
-        let refreshes = lsp
-            .server_requests()
+        // Wait out the debounce before counting: a refresh this round scheduled
+        // would be logged after the decision, never with it.
+        std::thread::sleep(scaled_timeout(REFRESH_QUIET_WINDOW));
+        // Counted from the server's own `refresh.fired` markers rather than the
+        // raw `workspace/semanticTokens/refresh` requests: the refresh is
+        // workspace-scoped and carries no payload, so an unrelated subsystem's
+        // legitimate refresh — a spec-pack reload's, which the startup reload
+        // can land inside this window — is indistinguishable from this round's
+        // at the client. The marker names every reason that rode along, so this
+        // counts only the refreshes the convergence path is answerable for
+        // (issue #1951).
+        let convergence_refreshes = lsp
+            .notifications()
             .into_iter()
-            .skip(req_since)
-            .filter(|r| {
-                r.get("method").and_then(|m| m.as_str()) == Some("workspace/semanticTokens/refresh")
+            .skip(log_since)
+            .filter_map(|note| {
+                note.get("params")
+                    .and_then(|p| p.get("message"))
+                    .and_then(|m| m.as_str())
+                    .map(str::to_owned)
+            })
+            .filter(|message| {
+                message.contains("semantic_tokens.refresh.fired") && message.contains("convergence")
             })
             .count();
         assert_eq!(
-            refreshes, 0,
-            "no workspace/semanticTokens/refresh must fire when the coarse and enriched \
-             viewports are identical — a spurious refresh flickers every open document"
+            convergence_refreshes, 0,
+            "no convergence-owned workspace/semanticTokens/refresh must fire when the \
+             coarse and enriched viewports are identical — a spurious refresh flickers \
+             every open document"
         );
         return;
     }
