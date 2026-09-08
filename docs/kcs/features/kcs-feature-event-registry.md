@@ -25,8 +25,8 @@ Two commands cover the event registry:
 ### tcl-lsp CLI
 
 ```
-f5-query irule event-info HTTP_REQUEST
-f5-query irule event-order /path/to/irule.tcl --json
+f5 irule event-info HTTP_REQUEST
+f5 irule event-order /path/to/irule.tcl --json
 ```
 
 ### MCP
@@ -45,7 +45,7 @@ The `/irule-event` skill wraps both lookups.
 ### event-info
 
 ```
-$ f5-query irule event-info HTTP_REQUEST
+$ f5 irule event-info HTTP_REQUEST
 event: HTTP_REQUEST
 known: yes
 lifecycle: available
@@ -60,7 +60,7 @@ valid commands: 800
 ### event-order
 
 ```
-$ f5-query irule event-order my_irule.tcl
+$ f5 irule event-order my_irule.tcl
 event order: 3 event(s)
   1. CLIENT_ACCEPTED (once_per_connection)
   2. HTTP_REQUEST (per_request)

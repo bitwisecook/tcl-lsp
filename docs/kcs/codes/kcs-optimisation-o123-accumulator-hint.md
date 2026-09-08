@@ -22,20 +22,24 @@ Adding an accumulator parameter can make a proc tail-recursive, enabling O121 or
 ## Before
 
 ```tcl
-proc sum {lst} {
-  if {[llength $lst] == 0} { return 0 }
-  expr {[lindex $lst 0] + [sum [lrange $lst 1 end]]}
+proc fact {n} {
+    if {$n <= 1} { return 1 } else { return [expr {$n * [fact [expr {$n - 1}]]}] }
 }
 ```
 
 ## After
 
-Hint suggests adding an `acc` parameter so the proc becomes tail-recursive.
+O123 rewrites nothing. It reports *"Proc 'fact' is a candidate for
+accumulator-style rewriting"* — the recursive call sits inside an expression,
+so adding an accumulator parameter would put it in tail position and let
+[O121](kcs-optimisation-o121-tailcall-rewrite.md) or
+[O122](kcs-optimisation-o122-tail-recursion-to-while.md) take over.
 
 ## Safety conditions
 
 - Skipped when the recursive call is already in tail position.
 - Skipped when the combining operation is not associative, making accumulator introduction unsafe.
+- Skipped for tree recursion — a proc that calls itself more than once per branch is not an accumulator candidate.
 
 ## How to disable
 

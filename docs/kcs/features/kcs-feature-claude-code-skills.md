@@ -52,7 +52,7 @@ In Claude Code, type the skill name as a slash command:
 |-------|-------------|
 | `/bigip-cleanup` | Generate a tmsh delete script for unreferenced BIG-IP objects |
 | `/explain-flow` | Trace a PCAP session through a BIG-IP config and explain what the device did |
-| `/f5-query` | Translate a natural-language question into an `f5-query` DSL expression and run it |
+| `/f5-query` | Translate a natural-language question into an `f5 query` DSL expression and run it |
 
 ### Tk skills
 

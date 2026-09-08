@@ -41,7 +41,7 @@ Use the `/ai-help` skill.
 ## Example
 
 ```
-$ tcl help "fakecmp"
+$ tcl help --limit 1 "fakecmp"
 1 match for 'fakecmp':
 - FakeCMP Tools [MCP Tools]
   Deterministic TMM hash lookup and multi-TMM test distribution planner for iRule testing without hardware.

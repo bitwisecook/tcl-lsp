@@ -5,7 +5,7 @@
 
 ## Summary
 
-The catalogue that tells `f5-query` and the editor what every TMSH object
+The catalogue that tells `f5` and the editor what every TMSH object
 kind is — pools, virtuals, monitors, profiles, firewall policies, GTM
 wide-IPs, and the rest.
 
@@ -32,7 +32,7 @@ and every editor session on a `.conf` / `.scf` file.  What you see:
 ## Example
 
 ```
-$ f5-query query '.ltm.virtual[].pool | .members[]' --paths-only bigip.conf
+$ f5 query '.ltm.virtual[].pool | .members[]' --paths-only bigip.conf
 /Common/n1:80
 ```
 

@@ -5,7 +5,7 @@
 
 ## Summary
 
-`f5-query` CLI verb that finds every BIG-IP object related to a given object name, regex, or CIDR — by walking the same forward-and-reverse reference graph the cleanup analysis uses.  CIDR mode also scans IP literals buried inside iRule script bodies.
+`f5` CLI verb that finds every BIG-IP object related to a given object name, regex, or CIDR — by walking the same forward-and-reverse reference graph the cleanup analysis uses.  CIDR mode also scans IP literals buried inside iRule script bodies.
 
 ## Applies to
 
@@ -17,17 +17,17 @@ How do I find every BIG-IP object that is related to a given object — every po
 
 ## How to use
 
-`grep` parses one or more `bigip.conf` / SCF files and walks the BIG-IP object reference graph from every object whose full path matches the pattern.  The reference graph is the same one [`f5-query cleanup`](kcs-feature-bigip-cleanup.md) walks: configuration-property references plus iRule body references (`pool`, `persist`, `class match ... <data-group>`, `snatpool`, `virtual`, `node`).
+`grep` parses one or more `bigip.conf` / SCF files and walks the BIG-IP object reference graph from every object whose full path matches the pattern.  The reference graph is the same one [`f5 cleanup`](kcs-feature-bigip-cleanup.md) walks: configuration-property references plus iRule body references (`pool`, `persist`, `class match ... <data-group>`, `snatpool`, `virtual`, `node`).
 
 By default the walk runs both directions — *forward* (what the match depends on) and *reverse* (what depends on it) — so one command shows the full neighbourhood.
 
 ```
-f5-query grep /Common/web_pool bigip.conf
-f5-query grep --direction reverse /Common/web1 bigip.conf
-f5-query grep --regex '^/Common/(web|api)_pool$' bigip.conf
-f5-query grep --json --max-depth 2 web_pool bigip.conf
-f5-query grep --cidr 10.0.0.0/8 bigip.conf
-f5-query grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
+f5 grep /Common/web_pool bigip.conf
+f5 grep --direction reverse /Common/web1 bigip.conf
+f5 grep --regex '^/Common/(web|api)_pool$' bigip.conf
+f5 grep --json --max-depth 2 web_pool bigip.conf
+f5 grep --cidr 10.0.0.0/8 bigip.conf
+f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
 ```
 
 `related` is an alias for the same verb.
@@ -64,7 +64,7 @@ ltm virtual /Common/vs {
 }
 ```
 
-### Output (`f5-query grep /Common/web_pool bigip.conf`)
+### Output (`f5 grep /Common/web_pool bigip.conf`)
 
 ```
 # tcl-lsp BIG-IP grep
@@ -102,14 +102,14 @@ when HTTP_REQUEST {
 }
 ```
 
-`f5-query grep --cidr 10.0.0.0/8 bigip.conf` matches `/Common/r_block` because both the literal `10.0.0.5` and the CIDR `10.10.0.0/16` in the iRule body fall inside `10.0.0.0/8`.  This is the only way to surface IP references buried inside Tcl logic — the substring and regex modes only match against an object's full path.
+`f5 grep --cidr 10.0.0.0/8 bigip.conf` matches `/Common/r_block` because both the literal `10.0.0.5` and the CIDR `10.10.0.0/16` in the iRule body fall inside `10.0.0.0/8`.  This is the only way to surface IP references buried inside Tcl logic — the substring and regex modes only match against an object's full path.
 
 ## Out of scope
 
 - The grep verb does not modify the configuration — it only reports.
 - It uses *substring* matching by default; pass `--regex` for a regular expression or `--cidr` for IP/CIDR matching.  There is no glob / shell-style matching.
 - `--cidr` skips any candidate token that does not parse as an address or network — the token regexes are deliberately permissive and the address parser is the source of truth.
-- The reference graph is the same one [`f5-query cleanup`](kcs-feature-bigip-cleanup.md) walks; objects unreachable through that graph are not surfaced even if they share a name pattern.
+- The reference graph is the same one [`f5 cleanup`](kcs-feature-bigip-cleanup.md) walks; objects unreachable through that graph are not surfaced even if they share a name pattern.
 
 ## Related
 

@@ -5,7 +5,7 @@
 
 ## Summary
 
-`f5-query` CLI verb that scans a BIG-IP configuration for objects unreferenced by any virtual server and emits a `tmsh delete` script in deletion-safe order.
+`f5` CLI verb that scans a BIG-IP configuration for objects unreferenced by any virtual server and emits a `tmsh delete` script in deletion-safe order.
 
 ## Applies to
 
@@ -28,40 +28,40 @@ The cleanup feature parses one or more `bigip.conf` / SCF files, treats every `l
    - a JSON metadata report with per-object `kind`, `range`, and `reason`.
 4. Review every line, then paste the script into a `tmsh` shell on the BIG-IP.
 
-### `f5-query` CLI
+### `f5` CLI
 
-`cleanup` is one verb of the [`f5-query`](kcs-feature-f5-cli.md) BIG-IP CLI:
+`cleanup` is one verb of the [`f5`](kcs-feature-f5-cli.md) BIG-IP CLI:
 
 ```
-f5-query cleanup bigip.conf
-f5-query cleanup --json bigip.conf
-f5-query cleanup --keep /Common/important_pool bigip.conf
-f5-query cleanup --no-keep-common bigip.conf
+f5 cleanup bigip.conf
+f5 cleanup --json bigip.conf
+f5 cleanup --keep /Common/important_pool bigip.conf
+f5 cleanup --no-keep-common bigip.conf
 ```
 
 #### Shell completion
 
-`f5-query completion <shell>` prints a ready-to-install completion script for **bash**, **fish**, or **zsh**:
+`f5 completion <shell>` prints a ready-to-install completion script for **bash**, **fish**, or **zsh**:
 
 ```
 # bash (per-user)
 mkdir -p ~/.local/share/bash-completion/completions
-f5-query completion bash > ~/.local/share/bash-completion/completions/f5-query
+f5 completion bash > ~/.local/share/bash-completion/completions/f5
 
 # fish
 mkdir -p ~/.config/fish/completions
-f5-query completion fish > ~/.config/fish/completions/f5-query.fish
+f5 completion fish > ~/.config/fish/completions/f5.fish
 
 # zsh (per-user)
 mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
-f5-query completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5-query"
+f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
 # then add this to ~/.zshrc before compinit:
 #   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
 ```
 
 ### Claude skill
 
-Run `/bigip-cleanup`.  The skill runs `f5-query cleanup` and presents the candidates grouped by kind, plus the ready-to-run script.
+Run `/bigip-cleanup`.  The skill runs `f5 cleanup` and presents the candidates grouped by kind, plus the ready-to-run script.
 
 ## Options
 
@@ -96,7 +96,7 @@ ltm virtual /Common/vs_kept {
 }
 ```
 
-### Output (`f5-query cleanup --no-keep-common bigip.conf`)
+### Output (`f5 cleanup --no-keep-common bigip.conf`)
 
 ```
 # tcl-lsp BIG-IP cleanup

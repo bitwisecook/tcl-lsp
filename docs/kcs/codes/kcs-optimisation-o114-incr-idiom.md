@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, optimisation, const-fold
+all-editors, optimisation, pattern
 
 ## Profiles
 
@@ -22,18 +22,21 @@ What does O114 rewrite, and when does it fire?
 ## Before
 
 ```tcl
+set count 0
 set count [expr {$count + 1}]
 ```
 
 ## After
 
 ```tcl
+set count 0
 incr count
 ```
 
 ## Safety conditions
 
 - Skipped when the increment value is not an integer constant.
+- Skipped when the variable has no reaching definition the optimiser can see — a procedure parameter, or a value read from a call.
 - Skipped when the variable is subject to a [trace](../../GLOSSARY.md#trace) that could observe the difference between `set` and `incr`.
 
 ## How to disable
@@ -44,5 +47,5 @@ Toggle the optimiser profile in your editor settings. See the [optimiser feature
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Constant folding](../../GLOSSARY.md#constant-folding)
+- [Pattern recognition](../../GLOSSARY.md#pattern-recognition)
 - Related codes: `O100`, `O113`, `O120`

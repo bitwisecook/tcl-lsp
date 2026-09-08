@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, optimisation, const-fold
+all-editors, optimisation, lexing
 
 ## Profiles
 
@@ -43,5 +43,5 @@ Toggle the optimiser profile in your editor settings. See the [optimiser feature
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Constant folding](../../GLOSSARY.md#constant-folding)
+- [Lexing](../../GLOSSARY.md#lexing)
 - Related codes: `O100`, `O101`

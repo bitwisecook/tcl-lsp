@@ -5,7 +5,7 @@
 
 ## Summary
 
-`f5-query` CLI verb that runs a small jq-flavoured DSL over a `bigip.conf` / SCF, projecting fields, filtering objects, and rewriting matched values — including readdressing virtual servers, renaming objects everywhere they appear, and adjusting iRule references.
+`f5` CLI verb that runs a small jq-flavoured DSL over a `bigip.conf` / SCF, projecting fields, filtering objects, and rewriting matched values — including readdressing virtual servers, renaming objects everywhere they appear, and adjusting iRule references.
 
 ## Applies to
 
@@ -17,15 +17,15 @@ How do I select or rewrite many BIG-IP objects at once with a single expression,
 
 ## How to use
 
-`f5-query query` parses one or more `bigip.conf` / SCF files into the same object model the rest of the CLI uses, then runs a jq-flavoured expression against each one.  The expression navigates the parsed tree (`.ltm.virtual["/Common/web_vs"].pool`), filters with `select(...)`, and — with `=` / `|=` / `+=` / `-=` — rewrites matched values.  Identity-field writes (assigning to `.name` or `."full-path"`) route through the same engine `f5-query rename` uses, so renaming a pool also moves every reference to it.
+`f5 query` parses one or more `bigip.conf` / SCF files into the same object model the rest of the CLI uses, then runs a jq-flavoured expression against each one.  The expression navigates the parsed tree (`.ltm.virtual["/Common/web_vs"].pool`), filters with `select(...)`, and — with `=` / `|=` / `+=` / `-=` — rewrites matched values.  Identity-field writes (assigning to `.name` or `."full-path"`) route through the same engine `f5 rename` uses, so renaming a pool also moves every reference to it.
 
 By default the verb is a dry-run: read-only queries print their projected values, mutating queries print a unified diff.  Pass `--write` to send the rewritten config to stdout, or `--in-place` to overwrite the input.
 
 ```
-f5-query query '.ltm.virtual[] | .name' bigip.conf
-f5-query query '.ltm.virtual["~/vs_prod_"] | .pool' bigip.conf
-f5-query query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
-f5-query query '.ltm.pool["/Common/old"].name = "/Common/new"' --write bigip.conf > new.conf
+f5 query '.ltm.virtual[] | .name' bigip.conf
+f5 query '.ltm.virtual["~/vs_prod_"] | .pool' bigip.conf
+f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
+f5 query '.ltm.pool["/Common/old"].name = "/Common/new"' --write bigip.conf > new.conf
 ```
 
 `q` is an alias for the same verb.
@@ -88,7 +88,7 @@ ltm virtual /Common/api_vs {
 ### Project every VS's default pool
 
 ```
-$ f5-query query --paths-only '.ltm.virtual[].pool' bigip.conf
+$ f5 query --paths-only '.ltm.virtual[].pool' bigip.conf
 /Common/web_pool
 /Common/web_pool
 ```
@@ -96,7 +96,7 @@ $ f5-query query --paths-only '.ltm.virtual[].pool' bigip.conf
 ### Filter VSes by destination CIDR
 
 ```
-$ f5-query query '.ltm.virtual[] | select(in_cidr(.destination, "10.10.0.0/24")) | .name' bigip.conf
+$ f5 query '.ltm.virtual[] | select(in_cidr(.destination, "10.10.0.0/24")) | .name' bigip.conf
 web_vs
 api_vs
 ```
@@ -104,7 +104,7 @@ api_vs
 ### Readdress every VS, keeping host bits
 
 ```
-$ f5-query query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
+$ f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
 --- bigip.conf
 +++ bigip.conf (modified)
 @@ -3,10 +3,10 @@
@@ -125,7 +125,7 @@ $ f5-query query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigi
 ### Move every object to another partition
 
 ```
-$ f5-query query 'rename_partition("Tenant_A", "Tenant_B")' tenant.conf
+$ f5 query 'rename_partition("Tenant_A", "Tenant_B")' tenant.conf
 renamed 'partition /Tenant_A/' -> '/Tenant_B/' (5 occurrence(s))
 renamed 'auth partition Tenant_A' -> 'auth partition Tenant_B' (1 occurrence(s))
 --- tenant.conf
@@ -158,7 +158,7 @@ follow.
 ### Set a route domain on every destination
 
 ```
-$ f5-query query --write '.ltm.virtual[] | .destination |= with_route_domain(., 7)' bigip.conf
+$ f5 query --write '.ltm.virtual[] | .destination |= with_route_domain(., 7)' bigip.conf
 ltm pool /Common/web_pool {
     members { /Common/n1:80 { address 10.0.0.1 } }
     monitor /Common/http
@@ -180,12 +180,12 @@ readdressing — `%5` survives the subnet rebase.
 
 ### Rename, on its own or combined
 
-`f5-query rename old new file.conf` is a thin shell over the `rename()`
+`f5 rename old new file.conf` is a thin shell over the `rename()`
 builtin, so reach for the builtin when you want a rename plus other
 transforms in one dry-run preview:
 
 ```
-$ f5-query query '
+$ f5 query '
   rename("/Common/web_pool", "/Common/app_pool") ;
   .ltm.pool["/Common/app_pool"].monitor = "/Common/tcp"
 ' bigip.conf
@@ -195,7 +195,7 @@ The two statements run in order against the evolving source.  Assigning to
 `.name` does the same thing:
 
 ```
-$ f5-query query '.ltm.pool["/Common/web_pool"].name = "/Common/app_pool"' --write bigip.conf
+$ f5 query '.ltm.pool["/Common/web_pool"].name = "/Common/app_pool"' --write bigip.conf
 renamed '/Common/web_pool' -> '/Common/app_pool' (3 occurrence(s))
 ltm pool /Common/app_pool {
     members { /Common/n1:80 { address 10.0.0.1 } }
@@ -216,13 +216,13 @@ even when stdout is redirected.
 
 ## Out of scope
 
-- Inside an iRule body, the only writable slots are the reference lists `.refs.pools[]`, `.refs.persists[]`, and `.refs.data-groups[]`, rewritten through the same token-bounded engine `f5-query rename` uses.  General command-argument rewriting is not supported.
+- Inside an iRule body, the only writable slots are the reference lists `.refs.pools[]`, `.refs.persists[]`, and `.refs.data-groups[]`, rewritten through the same token-bounded engine `f5 rename` uses.  General command-argument rewriting is not supported.
 - Compound property values are partially writable.  Per-member fields on a pool member (`.ltm.pool[].members[].address` and siblings) carry real byte-offset slots and accept field edits in place; other sub-block compound values (policy rule actions, persistence body) do not.  Add or remove pool members by editing the pool object directly.
 - There is no user-defined-function syntax.  Compose larger queries with `as` bindings (`expr as $name | body`), comma streams, pipes, and `;`-separated statements.  A top-level `$name` addresses each loaded source by its filename stem.
 
 ## Related
 
 - [BIG-IP Related-Object Grep](kcs-feature-bigip-grep.md) — uses the same reference graph for "which objects touch X?" queries.
-- [BIG-IP Config Cleanup](kcs-feature-bigip-cleanup.md) — pairs with `f5-query query --scf` to emit a tidy projection.
+- [BIG-IP Config Cleanup](kcs-feature-bigip-cleanup.md) — pairs with `f5 query --scf` to emit a tidy projection.
 - [F5 CLI](kcs-feature-f5-cli.md) — the umbrella verb catalogue.
 - [F5 query DSL design](../../references/f5_query/dsl.md) — grammar, value model, and edit pipeline internals.

@@ -1,11 +1,11 @@
-# KCS: feature — `f5-query` CLI overview
+# KCS: feature — `f5` CLI overview
 
 > **Audience:** User
 > **Type:** Functionality
 
 ## Summary
 
-`f5-query` is the native CLI for working with BIG-IP configurations: pull a
+`f5` is the native CLI for working with BIG-IP configurations: pull a
 config from a device, analyse and lint it, transform it (rename, redact,
 split, emit `tmsh`, convert to AS3), share it safely, and push edits back.
 
@@ -15,15 +15,15 @@ tcl-lsp CLI
 
 ## Question
 
-I have a BIG-IP — what can I do with `f5-query`?
+I have a BIG-IP — what can I do with `f5`?
 
 ## Example
 
 ```sh
-f5-query stats bigip.conf
-f5-query explain virtual /Common/vs_app bigip.conf
-f5-query grep --cidr 10.0.0.0/8 bigip.conf
-f5-query validate bigip.conf --format sarif > findings.sarif
+f5 stats bigip.conf
+f5 explain virtual /Common/vs_app bigip.conf
+f5 grep --cidr 10.0.0.0/8 bigip.conf
+f5 validate bigip.conf --format sarif > findings.sarif
 ```
 
 ## How to use
@@ -34,18 +34,18 @@ The verbs group by what you are doing.
 
 | Verb | Purpose |
 | --- | --- |
-| `f5-query fetch` | Pull SCF/UCS from a live device via iControl REST or SSH. |
-| `f5-query extract` (alias `ucs2scf`) | Unpack a local UCS file to SCF text. |
+| `f5 fetch` | Pull SCF/UCS from a live device via iControl REST or SSH. |
+| `f5 extract` (alias `ucs2scf`) | Unpack a local UCS file to SCF text. |
 
 ```sh
 # REST, credentials via env / XDG / prompt
-F5_HOST=bigip01 F5_USER=admin f5-query fetch --transport rest
+F5_HOST=bigip01 F5_USER=admin f5 fetch --transport rest
 
 # SSH with an explicit host and user
-f5-query fetch --transport ssh --host bigip01 --user admin
+f5 fetch --transport ssh --host bigip01 --user admin
 
 # Convert a UCS that was scp'd off a device
-f5-query extract device.ucs > device.scf
+f5 extract device.ucs > device.scf
 ```
 
 `fetch` defaults to caching under `$XDG_CACHE_HOME/f5/<host>/<UTC-timestamp>/`
@@ -56,25 +56,25 @@ with a `latest` symlink alongside.  `--output -` streams the SCF to stdout.
 
 | Verb | Purpose |
 | --- | --- |
-| `f5-query stats` (alias `summary`) | Counts per object kind, partition breakdown, top-references, orphan count. |
-| `f5-query graph` (alias `deps`) | Emit the reference graph as DOT / JSON / Mermaid (with `--seed PATH` for subgraphs). |
-| `f5-query explain {virtual\|pool\|auto} <name>` | Resolve the profile chain, iRule chain, persistence, SNAT, and pool members for one object. |
-| `f5-query diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). Accepts SCF or `tmsh create` / `tmsh modify` scripts on either side. |
-| `f5-query grep` | Find every object related to a name, regex, or CIDR. |
-| `f5-query query` (alias `q`) | jq-flavoured DSL for filtering and projecting object properties; see [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
-| `f5-query cleanup` | Generate `tmsh delete` commands for objects no virtual server references. |
-| `f5-query validate` (alias `lint`) | Best-practice / structural checks (orphan monitors, empty pools, deprecated iRule commands, unknown events, …). |
-| `f5-query explain-flow` | Trace each flow in a PCAP through the config. |
+| `f5 stats` (alias `summary`) | Counts per object kind, partition breakdown, top-references, orphan count. |
+| `f5 graph` (alias `deps`) | Emit the reference graph as DOT / JSON / Mermaid (with `--seed PATH` for subgraphs). |
+| `f5 explain {virtual\|pool\|auto} <name>` | Resolve the profile chain, iRule chain, persistence, SNAT, and pool members for one object. |
+| `f5 diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). Accepts SCF or `tmsh create` / `tmsh modify` scripts on either side. |
+| `f5 grep` | Find every object related to a name, regex, or CIDR. |
+| `f5 query` (alias `q`) | jq-flavoured DSL for filtering and projecting object properties; see [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
+| `f5 cleanup` | Generate `tmsh delete` commands for objects no virtual server references. |
+| `f5 validate` (alias `lint`) | Best-practice / structural checks (orphan monitors, empty pools, deprecated iRule commands, unknown events, …). |
+| `f5 explain-flow` | Trace each flow in a PCAP through the config. |
 
 ```sh
-f5-query stats bigip.conf
-f5-query explain virtual /Common/vs_app bigip.conf
-f5-query diff before.conf after.conf --json
-f5-query graph bigip.conf --seed /Common/vs_app --format mermaid
-f5-query validate bigip.conf --format sarif > findings.sarif
+f5 stats bigip.conf
+f5 explain virtual /Common/vs_app bigip.conf
+f5 diff before.conf after.conf --json
+f5 graph bigip.conf --seed /Common/vs_app --format mermaid
+f5 validate bigip.conf --format sarif > findings.sarif
 ```
 
-`f5-query validate` exits 0 on no findings or info-only, 1 on warning, 2 on
+`f5 validate` exits 0 on no findings or info-only, 1 on warning, 2 on
 error.  Multi-file inputs are merged before rules run, so cross-file
 references do not trigger false-positive orphan findings.
 
@@ -85,37 +85,37 @@ suitable for pasting into a BIG-IP shell; `tmsh-delta` emits only the changed
 objects.  Add `--transaction` to wrap a tmsh script in a `cli transaction`.
 Extractive verbs emit `tmsh create`; in-place rewriters (`rename`, `redact`,
 `unredact`) emit `tmsh modify`.  Both forms are accepted as input by
-`f5-query diff`, so a round-trip is lossless for the fields modelled.
+`f5 diff`, so a round-trip is lossless for the fields modelled.
 
 ### Transform
 
 | Verb | Purpose |
 | --- | --- |
-| `f5-query rename` (alias `mv`) | Rename a full-path and update every reference (dry-run by default). |
-| `f5-query query` (alias `q`) | DSL-driven property edits and identity renames; readdressing, bulk field rewrites, and iRule reference edits all land here.  See [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
-| `f5-query redact` (alias `sanitize`) | Strip secrets and remap public IPs into a configurable CIDR pool. |
-| `f5-query unredact` (alias `unmap`) | Reverse a `redact` using its sidecar map file. |
-| `f5-query encrypt-secrets` (alias `encrypt`) | Encrypt clear-text secrets under the `f5mku` master key.  See [`kcs-feature-f5-secret-crypto.md`](kcs-feature-f5-secret-crypto.md). |
-| `f5-query decrypt-secrets` (alias `decrypt`) | Decrypt `$M$...` secrets with the `f5mku` master key.  See [`kcs-feature-f5-secret-crypto.md`](kcs-feature-f5-secret-crypto.md). |
-| `f5-query pcap-remap` (alias `pcapmap`) | Apply a redaction map to a PCAP capture. |
-| `f5-query split` | Write one `.conf` per partition under a directory (suitable for git). |
-| `f5-query merge` | Concatenate per-partition `.conf`s back into one SCF. |
-| `f5-query convert` | UCS↔SCF and SCF→AS3 declaration. |
-| `f5-query tmsh` (alias `scf2tmsh`) | Emit `tmsh create` / `--modify` commands in dependency order. |
+| `f5 rename` (alias `mv`) | Rename a full-path and update every reference (dry-run by default). |
+| `f5 query` (alias `q`) | DSL-driven property edits and identity renames; readdressing, bulk field rewrites, and iRule reference edits all land here.  See [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
+| `f5 redact` (alias `sanitize`) | Strip secrets and remap public IPs into a configurable CIDR pool. |
+| `f5 unredact` (alias `unmap`) | Reverse a `redact` using its sidecar map file. |
+| `f5 encrypt-secrets` (alias `encrypt`) | Encrypt clear-text secrets under the `f5mku` master key.  See [`kcs-feature-f5-secret-crypto.md`](kcs-feature-f5-secret-crypto.md). |
+| `f5 decrypt-secrets` (alias `decrypt`) | Decrypt `$M$...` secrets with the `f5mku` master key.  See [`kcs-feature-f5-secret-crypto.md`](kcs-feature-f5-secret-crypto.md). |
+| `f5 pcap-remap` (alias `pcapmap`) | Apply a redaction map to a PCAP capture. |
+| `f5 split` | Write one `.conf` per partition under a directory (suitable for git). |
+| `f5 merge` | Concatenate per-partition `.conf`s back into one SCF. |
+| `f5 convert` | UCS↔SCF and SCF→AS3 declaration. |
+| `f5 tmsh` (alias `scf2tmsh`) | Emit `tmsh create` / `--modify` commands in dependency order. |
 
 ```sh
-f5-query rename /Common/old_pool /Common/new_pool bigip.conf --in-place
+f5 rename /Common/old_pool /Common/new_pool bigip.conf --in-place
 
 # Redact + reversible map
-f5-query redact bigip.conf -o bigip.redacted --map-file shared.redact.toml
+f5 redact bigip.conf -o bigip.redacted --map-file shared.redact.toml
 # … later, recover an IP from a support reply
-echo "saw 10.0.0.42 fail" | f5-query unredact shared.redact.toml -
+echo "saw 10.0.0.42 fail" | f5 unredact shared.redact.toml -
 
 # Apply the same map to a packet capture
-f5-query pcap-remap shared.redact.toml capture.pcap capture.redacted.pcap
+f5 pcap-remap shared.redact.toml capture.pcap capture.redacted.pcap
 
 # Recreate a config on a fresh device
-f5-query tmsh bigip.conf > recreate.tmsh
+f5 tmsh bigip.conf > recreate.tmsh
 ```
 
 #### Redaction model
@@ -126,16 +126,16 @@ f5-query tmsh bigip.conf > recreate.tmsh
   RFC1918 + `fd00::/8`).  Two real IPs sharing a `/24` always land in
   the same redacted `/24`.
 - **Reversible**: a sidecar TOML map (`<output>.redact.toml` by
-  default) records every assignment.  `f5-query unredact` walks it in reverse
+  default) records every assignment.  `f5 unredact` walks it in reverse
   over any text — config, support email, log line.
 - **Stable across runs**: passing the same `--map-file` to a later
-  `f5-query redact` reuses every prior assignment, so an IP a customer saw
+  `f5 redact` reuses every prior assignment, so an IP a customer saw
   in week-1 keeps mapping to the same redacted address in week-2.
 - **--shuffle**: per-CIDR Fisher-Yates permutation of host bits hides
   patterns; shuffle keys are recorded in the map so reverse direction
   is exact.
 
-`f5-query pcap-remap` applies the same map to a libpcap file: rewrites IPv4/
+`f5 pcap-remap` applies the same map to a libpcap file: rewrites IPv4/
 IPv6 src/dst, recomputes IP header + TCP/UDP/ICMP/ICMPv6 checksums,
 and **parses** the F5 Ethernet trailer (everything past
 `IP total_length` — what `tcpdump -i 0.0:nnnp` adds), rewriting peer-IP
@@ -154,10 +154,10 @@ bytes are *not* touched.
 
 | Verb | Purpose |
 | --- | --- |
-| `f5-query pull` | GET one object from a device and emit its SCF stanza (or `--json` for raw iControl payload). |
-| `f5-query push` | PUT (replace) or `--create` POST one object via iControl REST. |
-| `f5-query irule extract` | Write each rule body to its own `.tcl` file for editing. |
-| `f5-query irule trace EVENT` | Static event-flow trace from a starting event. |
+| `f5 pull` | GET one object from a device and emit its SCF stanza (or `--json` for raw iControl payload). |
+| `f5 push` | PUT (replace) or `--create` POST one object via iControl REST. |
+| `f5 irule extract` | Write each rule body to its own `.tcl` file for editing. |
+| `f5 irule trace EVENT` | Static event-flow trace from a starting event. |
 
 The rest of the `irule` group covers `event-order`, `event-info`, `lint`,
 `format`, `minify`, and `context`.  `registry-dump` emits the F5 command
@@ -165,10 +165,10 @@ registry and the event / profile / object graphs as JSON, and
 `enrich-pcapng` / `enrich-wireshark` build capture aids from a config.
 
 ```sh
-f5-query pull pool /Common/p1 --host bigip01 --user admin > p1.scf
-f5-query pull pool /Common/p1 --host bigip01 --user admin --json > p1.json
+f5 pull pool /Common/p1 --host bigip01 --user admin > p1.scf
+f5 pull pool /Common/p1 --host bigip01 --user admin --json > p1.json
 # … edit p1.json …
-f5-query push pool p1.json --host bigip01 --user admin
+f5 push pool p1.json --host bigip01 --user admin
 ```
 
 ### Credentials
@@ -190,12 +190,12 @@ to a device:
    port = 8443
    ```
 
-   `f5-query fetch --host lab` resolves to the alias.
+   `f5 fetch --host lab` resolves to the alias.
 4. Interactive prompt on the terminal; pass `--no-prompt` to make missing
    credentials fail instead.
 
 ### Shell completion
 
-`f5-query completion bash|fish|zsh` emits a ready-to-install completion
+`f5 completion bash|fish|zsh` emits a ready-to-install completion
 script.  See [`kcs-feature-bigip-cleanup.md`](kcs-feature-bigip-cleanup.md)
 for installation paths.
