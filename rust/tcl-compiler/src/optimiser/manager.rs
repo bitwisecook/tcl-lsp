@@ -248,6 +248,15 @@ fn elim_target_var(span_text: &str, registry: &CommandRegistry) -> Option<String
 /// appears as `$var` / `${var}` in another *surviving* optimisation's
 /// replacement — the SSA judged the def dead, but a surviving textual rewrite
 /// resurrected a reference to it (FP-OPT-08).
+///
+/// A **group-mate** never resurrects. One group is a single atomic rewrite, so
+/// a code-sinking (O125) insertion carrying the sunk `set x …` *and* the `$x`
+/// that consumes it is the very reason its paired deletion exists; reading it
+/// as a resurrection would keep the assignment in both places. Group-mates are
+/// therefore skipped when scanning for a resurrecting reference, and a
+/// deletion that *is* dropped takes the rest of its group with it — the group
+/// is applied all-or-nothing, never partially, exactly as
+/// [`select_non_overlapping`] guarantees earlier in this tail.
 fn drop_def_elims_resurrected_by_replacements(
     source: &str,
     registry: &CommandRegistry,
@@ -270,13 +279,26 @@ fn drop_def_elims_resurrected_by_replacements(
     let mut drop: Vec<usize> = elims
         .iter()
         .filter(|(i, var)| {
-            selected
-                .iter()
-                .enumerate()
-                .any(|(j, o)| j != *i && count_var_refs(&o.replacement, var) > 0)
+            let group = selected[*i].group;
+            selected.iter().enumerate().any(|(j, o)| {
+                j != *i
+                    && !(group.is_some() && o.group == group)
+                    && count_var_refs(&o.replacement, var) > 0
+            })
         })
         .map(|(i, _)| *i)
         .collect();
+    let dropped_groups: std::collections::HashSet<u32> =
+        drop.iter().filter_map(|i| selected[*i].group).collect();
+    if !dropped_groups.is_empty() {
+        drop.extend(
+            selected
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.group.is_some_and(|g| dropped_groups.contains(&g)))
+                .map(|(i, _)| i),
+        );
+    }
     drop.sort_unstable();
     drop.dedup();
     for idx in drop.into_iter().rev() {
@@ -986,6 +1008,7 @@ pub fn optimise_source_multipass(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_lexer::Span;
 
     fn registry() -> CommandRegistry {
         // `when` is registry-resolved (no
@@ -1390,5 +1413,65 @@ mod tests {
             tcl_opts.iter().all(|o| o.code != DiagCode::O124),
             "O124 should be gated on irules dialect, got {tcl_opts:?}",
         );
+    }
+
+    /// The two members of one O125 sink group over `source`: the deletion of
+    /// the leading assignment, and the insertion that replays it into the
+    /// branch that consumes it.
+    fn sink_group(source: &str) -> Vec<Optimisation> {
+        let set_end = u32::try_from(source.find('\n').expect("two-line source")).unwrap();
+        let body_start =
+            u32::try_from(source.rfind("log $msg").expect("target statement")).unwrap();
+        let mut del =
+            Optimisation::new(DiagCode::O125, "delete original", Span::new(0, set_end), "");
+        del.group = Some(0);
+        let mut ins = Optimisation::new(
+            DiagCode::O125,
+            "prepend in target body",
+            Span::new(body_start, body_start + 8),
+            "set msg \"error\"; log $msg",
+        );
+        ins.group = Some(0);
+        vec![del, ins]
+    }
+
+    #[test]
+    fn group_mate_replacement_does_not_resurrect_a_paired_deletion() {
+        // The insertion's replacement holds both the sunk `set msg …` and the
+        // `$msg` consuming it, so it reads as a resurrection unless group-mates
+        // are exempt. Both members must survive, or the assignment lands twice.
+        let source = "set msg \"error\"\nif {$ok} { return } else { log $msg }";
+        let mut selected = sink_group(source);
+        drop_def_elims_resurrected_by_replacements(source, &registry(), &mut selected);
+        assert_eq!(
+            selected.len(),
+            2,
+            "both grouped members must survive, got {selected:?}",
+        );
+    }
+
+    #[test]
+    fn a_dropped_deletion_takes_its_whole_group_with_it() {
+        // Control for the exemption above: a resurrecting reference from
+        // *outside* the group still drops the deletion, and a group is
+        // all-or-nothing, so its other members go with it.
+        let source = "set msg \"error\"\nif {$ok} { return } else { log $msg }";
+        let mut selected = sink_group(source);
+        selected.push(Optimisation::new(
+            DiagCode::O100,
+            "unrelated rewrite that keeps $msg alive",
+            Span::new(
+                u32::try_from(source.len()).unwrap(),
+                u32::try_from(source.len()).unwrap(),
+            ),
+            "puts $msg",
+        ));
+        drop_def_elims_resurrected_by_replacements(source, &registry(), &mut selected);
+        assert_eq!(
+            selected.len(),
+            1,
+            "the whole O125 group must go, leaving only the unrelated rewrite, got {selected:?}",
+        );
+        assert_eq!(selected[0].code, DiagCode::O100);
     }
 }

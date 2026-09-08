@@ -35,14 +35,23 @@ disabled set comes from `profile_to_disabled`
 O125 does **not** emit a comment.  `emit_sink` produces a grouped pair (or
 group of `n + 1`):
 
-- a **deletion** — an empty replacement over the original ``set`` statement's
-  span;
+- a **deletion** — an empty replacement over the original ``set`` statement
+  together with the separator that follows it, so the surviving text closes up
+  rather than leaving a blank line or a bare `;`;
 - one **prepend** per target — the first using statement of each target
   branch is replaced by `"<original set text>; <that statement's text>"`.
 
 So `set b foo` followed by `if {$a} { puts $b }` yields a deletion of
 `set b foo` and a replacement of `puts $b` with `set b foo; puts $b`.  The
 examples below show the resulting source; the `; ` join is literal.
+
+Every span the pass replays or rewrites is first widened through
+`full_rewrite_span` (`optimiser/helpers/spans.rs`).  An IR statement span
+follows the lexer's inner-end convention, so a statement whose last word is
+quoted, braced, or bracketed stops *on* its closer; replaying the raw span of
+`set msg "error"` would emit `set msg "error`, whose unterminated quote
+swallows the rest of the emitted line.  The deletion extent then comes from
+`statement_delete_rewrite_range`, bounded by the decision's start offset.
 
 When the original statement's source text cannot be recovered from
 `ctx.source` — a proc body lowered with local-offset spans — the pass falls
@@ -318,15 +327,18 @@ at `i + 1` is a decision, and requires all of:
    redefines a variable the RHS reads, and no `if` condition contains a
    command substitution (nor a `switch` subject a `[`) that could write one.
 
-### Known gap — barriers are invisible to the later-use scan
+### Barriers
 
-Condition 7 is intended to include dynamic barriers: a `Statement::Barrier`
-after the decision may observe the variable through `uplevel`, `eval`, or an
-alias, so the definition must stay put.  `statement_uses_var`
-(`rust/tcl-compiler/src/optimiser/code_sinking.rs:584`) answers `false` for
-`Statement::Barrier`, unlike every other consumer of that query, so the
-barrier case is not currently enforced and a sink past a barrier is possible.
-Tracked as issue #1402.
+A `Statement::Barrier` (a dynamic `eval` body, a computed head) or a
+`Statement::UpFrame` can observe any variable, so `statement_uses_var` answers
+`true` for both, matching `propagation`'s `has_intervening_barrier`.  That is
+the blocking answer condition 7 needs: a barrier after the decision keeps the
+definition where it is.
+
+The same answer must not *enable* a sink, so a branch whose first using
+statement is a barrier or an up-frame is declined as a target rather than
+anchored there — anchoring would move the definition past a by-name read the
+textual scan cannot see.
 
 ## Grouped edits
 
@@ -337,11 +349,17 @@ Each sinking produces a **grouped** set of ``Optimisation`` values:
 | Deletion | original ``set`` statement | `""` |
 | Prepend(s) | first using statement of each target body | `"set b foo; puts $b"` |
 
-All parts share a ``group`` id allocated by `PassContext::alloc_group`.
-`select_non_overlapping` (`optimiser/helpers/select.rs`) applies a group
-all-or-nothing: if any member loses an overlap contest, every surviving
-member of the group is dropped too, so a prepend can never land without its
-deletion.
+All parts share a ``group`` id allocated by `PassContext::alloc_group`.  Two
+stages in the manager's whole-module tail apply a group all-or-nothing, so a
+prepend can never land without its deletion:
+
+- `select_non_overlapping` (`optimiser/helpers/select.rs`) — if any member
+  loses an overlap contest, every surviving member of the group goes too.
+- `drop_def_elims_resurrected_by_replacements` (`optimiser/manager.rs`) — the
+  resurrected-reference guard drops a deletion whose variable still appears in
+  a surviving replacement.  A group-mate is exempt from that scan, because the
+  prepend deliberately carries both the sunk `set` and the `$var` consuming
+  it; a deletion the guard does drop takes the rest of its group with it.
 
 ## File-path anchors
 
@@ -363,15 +381,21 @@ deletion.
 
 - Sinking changes observable behaviour because the value expression has
   hidden side effects `sinkable_assignment` does not detect.
-- A sink past a `Statement::Barrier` that can observe the variable — see the
-  known gap above (#1402).
-- Orphaned prepend (deletion dropped by overlap resolution but the prepend
-  survives).  Prevented by the group all-or-nothing rule in
-  `select_non_overlapping`.
+- Orphaned prepend (the deletion dropped, the prepend surviving), which would
+  duplicate the assignment.  Prevented by the group all-or-nothing rule at both
+  stages listed under *Grouped edits*.
+- Emitted text that no longer parses, when a span reaches a consumer without
+  the inner-end widening described under *What the rewrite looks like*.
 
 ## Tests
 
-- `rust/tcl-compiler/src/optimiser/code_sinking.rs` unit tests
+- `rust/tcl-compiler/src/optimiser/code_sinking.rs` — pass unit tests
+- `rust/tcl-compiler/tests/optimiser.rs` — the `code_sinking_o125_*` cases,
+  which pin the emitted source and re-check it through the `tcl diag` surface
+- `rust/tcl-compiler/src/optimiser/manager.rs` — the group all-or-nothing
+  behaviour of the resurrected-reference guard
+- `rust/tcl-compiler/src/optimiser/helpers/select.rs` — the group
+  all-or-nothing behaviour of overlap selection
 
 ## Related KCS notes
 
