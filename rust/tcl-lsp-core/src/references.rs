@@ -2435,7 +2435,7 @@ fn callback_targets_from_command(
         // reference to `compare` — and Rename would rewrite it. The compiler's
         // own prefix scan has gated on this since #978
         // (`signature_scan::command_prefix`); this scan had not.
-        if word_is_expanded(cmd, idx + 1) {
+        if !positions_are_literal_through(cmd, idx + 1) {
             continue;
         }
         if body_tok.kind == TokenType::Var && cmd.single_token_word.get(idx + 1) == Some(&true) {
@@ -2474,15 +2474,26 @@ fn callback_targets_from_command(
     out
 }
 
-/// Whether word `word_idx` of `cmd` is `{*}`-expanded.
+/// Whether every word of `cmd` up to and including `upto` is written out
+/// rather than `{*}`-expanded.
+///
+/// A consumer that reads word *N* is relying on the registry's role indices,
+/// and those describe words. `{*}` splices a value's elements into the
+/// argument list, so one expansion at or before *N* makes every later index
+/// unreliable — not just the expanded word itself. Checking the whole prefix
+/// is what makes `[namespace code {*}[list my tick]]` abstain: the expansion
+/// is at the wrapper's body position, and after it `namespace code` has two
+/// arguments and errors rather than dispatching anything (issue #1704).
 ///
 /// `expand_word` is `None` for the overwhelming majority of commands — no word
 /// uses expansion — and a per-word flag list otherwise.
-fn word_is_expanded(cmd: &tcl_compiler::segmenter::SegmentedCommand, word_idx: usize) -> bool {
+fn positions_are_literal_through(
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    upto: usize,
+) -> bool {
     cmd.expand_word
         .as_ref()
-        .and_then(|flags| flags.get(word_idx).copied())
-        .unwrap_or(false)
+        .is_none_or(|flags| flags.iter().take(upto + 1).all(|expanded| !expanded))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2536,6 +2547,11 @@ fn command_prefix_targets_from_word(
     };
     let traits = invocation.semantics.traits;
 
+    // The built prefix's own words are read by position too, so an expansion
+    // inside it is as disqualifying as one at the consumer's callback slot.
+    if !positions_are_literal_through(builder, 2) {
+        return Vec::new();
+    }
     if traits.contains(Traits::BUILDS_COMMAND_PREFIX) {
         if let (Some(receiver), Some(&method_tok)) = (builder.texts.get(1), builder.argv.get(2))
             && method_tok.kind == TokenType::Esc
@@ -2582,7 +2598,9 @@ fn command_prefix_targets_from_word(
             let Some(&body) = builder.argv.get(idx + 1) else {
                 return Vec::new();
             };
-            if builder.single_token_word.get(idx + 1) == Some(&true) {
+            if builder.single_token_word.get(idx + 1) == Some(&true)
+                && positions_are_literal_through(builder, idx + 1)
+            {
                 command_prefix_targets_from_word(ctx, &body, depth + 1)
             } else {
                 Vec::new()
@@ -6500,6 +6518,12 @@ mod tests {
             "oo::class create C {\n    method compare {a b} { return 0 }\n    method sort {items} {\n        lsort -command {*}[list [self] compare] $items\n    }\n}\n",
             // Same rule for a Body slot, where the arity happens to work out.
             "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle {*}[list [self] tick]\n    }\n}\n",
+            // Codex review on #1957: inside a `WRAPS_COMMAND_PREFIX` wrapper.
+            // `namespace code` then has two arguments and errors rather than
+            // dispatching anything, so there is nothing to reference.
+            "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [namespace code {*}[list my tick]]\n    }\n}\n",
+            // And inside the builder itself: the receiver is no longer word 1.
+            "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list {*}$prefix tick]\n    }\n}\n",
         ] {
             let refs = references(
                 src,

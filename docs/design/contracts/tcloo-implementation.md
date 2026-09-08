@@ -75,13 +75,19 @@ Three conditions bound it, and each abstains rather than guessing:
 - **A sole substitution.** A compound outer word changes the prefix after the
   substitution runs — `[list [self] tick]Suffix` invokes `tickSuffix` — so only
   a whole-word `[…]` is an exact representation of the built command.
-- **Not `{*}`-expanded.** `{*}` splices the value into the argument list, so the
-  registry's role indices no longer describe where anything landed:
-  `lsort -command {*}[list [self] compare] $items` runs the *object command* as
-  the comparator and passes `compare` as an ordinary argument. Reading the word
-  as if it were the callback slot invents a reference — and rename would rewrite
-  it. The compiler's own prefix scan has gated on this since #978; the
-  navigation scan gained the same gate in #1704.
+- **Not `{*}`-expanded, at any level.** `{*}` splices the value into the
+  argument list, so the registry's role indices no longer describe where
+  anything landed: `lsort -command {*}[list [self] compare] $items` runs the
+  *object command* as the comparator and passes `compare` as an ordinary
+  argument. Reading the word as if it were the callback slot invents a
+  reference — and rename would rewrite it. One expansion invalidates every
+  *later* index too, not just its own word, so the check is "every word up to
+  this one is written out", and it is applied at the consumer's callback slot,
+  inside the built prefix, and again at each `WRAPS_COMMAND_PREFIX` hop:
+  `after idle [namespace code {*}[list my tick]]` gives `namespace code` two
+  arguments and errors rather than dispatching anything. The compiler's own
+  prefix scan has gated on this since #978; the navigation scan gained the same
+  gate in #1704.
 - **One unambiguous same-scope constant**, for a prefix stored in a variable
   first (`set cb [list [self] tick]; bind .w <Button-1> $cb`). Every write to
   the name is a candidate: more than one write, a dynamic write, a scope alias
