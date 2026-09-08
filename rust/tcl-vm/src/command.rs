@@ -92,6 +92,10 @@ pub struct ProcDef {
     /// message reads `wrong # args: should be "apply lambdaExpr …"` rather than
     /// leaking the internal temp proc name (apply-4.*).
     pub usage_name: Option<String>,
+    /// Exact invocation words for proc-like adapters whose registered command
+    /// is an implementation detail (`apply` lambdas and `TclOO` method bodies).
+    /// Ordinary procs derive them from the dispatched head and arguments.
+    pub(crate) call_identity: Option<Vec<Value>>,
 }
 
 /// A registered command.
@@ -386,7 +390,11 @@ fn fresh_apply_name() -> String {
 /// activation stack* (a `yield` inside it is then yieldable — the generic
 /// `apply` path evaluates the body through a host-stack re-entry, which a
 /// `yield` cannot cross).
-pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, Completion<Value>> {
+pub(crate) fn build_lambda_proc(
+    vm: &mut Vm,
+    lambda: &Value,
+    call_identity: Vec<Value>,
+) -> Result<String, Completion<Value>> {
     let parts = match lambda.as_list() {
         Ok(p) => p,
         Err(c) => return Err(err(c.message)),
@@ -439,6 +447,7 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         body: body_asm,
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
+        call_identity: Some(call_identity),
     });
     Ok(name)
 }
@@ -460,7 +469,10 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((lambda, call_args)) = args.split_first() else {
         return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
     };
-    let name = match build_lambda_proc(vm, lambda) {
+    let mut call_identity = Vec::with_capacity(args.len() + 1);
+    call_identity.push(Value::string(vm.invoked_name().unwrap_or("apply")));
+    call_identity.extend_from_slice(args);
+    let name = match build_lambda_proc(vm, lambda, call_identity) {
         Ok(n) => n,
         Err(c) => return c,
     };
@@ -1335,6 +1347,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body,
         body_src: body_text.clone(),
         usage_name: None,
+        call_identity: None,
     });
     ok(Value::empty())
 }

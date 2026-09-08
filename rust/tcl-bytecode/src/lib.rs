@@ -1128,8 +1128,13 @@ pub enum Operand {
 /// reconstructed from source text after lowering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorStackContext {
-    /// Build `{head <runtime-result>}` for a specialised error command.
-    CommandResult { head: String },
+    /// Build `{head <runtime-result>}` for TIP 348 while using the failing
+    /// command itself, rather than its containing lowered instruction, for
+    /// `errorInfo`.
+    CommandResult {
+        head: String,
+        error_info_command: String,
+    },
 }
 
 // Instruction

@@ -50,8 +50,9 @@ pub type CarriedOption<V> = (Vec<u8>, V);
 /// Carried options are retained, including custom keys and explicit error
 /// metadata. `-code` and `-level` are always replaced by the settled values;
 /// live level-zero error metadata replaces its carried counterpart. A missing
-/// `-errorcode` is filled for every error. TIP 348 is gated by the selected
-/// Tcl release at this shared seam.
+/// `-errorcode` is filled for every error. Synthesis of TIP 348 metadata is
+/// gated by the selected Tcl release; a carried pre-TIP option with the same
+/// spelling remains an ordinary custom pair.
 #[must_use]
 pub fn plan<V: Clone>(
     version: TclVersion,
@@ -62,11 +63,7 @@ pub fn plan<V: Clone>(
 ) -> Vec<(Vec<u8>, OptionValue<V>)> {
     let mut rows: Vec<(Vec<u8>, OptionValue<V>)> = carried
         .iter()
-        .filter(|(key, _)| {
-            key.as_slice() != b"-code"
-                && key.as_slice() != b"-level"
-                && (version.has_error_stack() || key.as_slice() != b"-errorstack")
-        })
+        .filter(|(key, _)| key.as_slice() != b"-code" && key.as_slice() != b"-level")
         .map(|(key, value)| (key.clone(), OptionValue::Value(value.clone())))
         .collect();
 
@@ -141,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn tip_348_is_release_gated_and_explicit_values_are_preserved() {
+    fn tip_348_synthesis_is_gated_but_pre_tip_custom_spelling_is_preserved() {
         let carried = vec![
             (b"-errorstack".to_vec(), "explicit"),
             (b"-errorinfo".to_vec(), "INFO"),
@@ -151,7 +148,7 @@ mod tests {
             ..ErrorOptions::default()
         };
         let old = plan(TclVersion::V8_5, Code::Error, 1, &carried, Some(&error));
-        assert!(!keys(&old).contains(&b"-errorstack".as_slice()));
+        assert!(keys(&old).contains(&b"-errorstack".as_slice()));
         let modern = plan(TclVersion::V9_0, Code::Error, 1, &carried, Some(&error));
         assert!(keys(&modern).contains(&b"-errorstack".as_slice()));
         assert!(keys(&modern).contains(&b"-errorinfo".as_slice()));

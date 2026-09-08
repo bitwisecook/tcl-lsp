@@ -1635,16 +1635,18 @@ impl Vm {
                     .get(frame.pc.saturating_sub(1))
                     .map(|instruction| {
                         let context = match instruction.error_stack_context.as_ref() {
-                            Some(ErrorStackContext::CommandResult { head }) => {
+                            Some(ErrorStackContext::CommandResult { head, .. }) => {
                                 Value::list(vec![Value::string(head.as_str()), c.result.clone()])
                             }
                             None => Value::string(instruction.source_cmd_text.as_str()),
                         };
-                        (
-                            instruction.source_cmd_text.clone(),
-                            instruction.source_line,
-                            context,
-                        )
+                        let text = match instruction.error_stack_context.as_ref() {
+                            Some(ErrorStackContext::CommandResult {
+                                error_info_command, ..
+                            }) => error_info_command.clone(),
+                            None => instruction.source_cmd_text.clone(),
+                        };
+                        (text, instruction.source_line, context)
                     })
             })
         {
@@ -1725,7 +1727,7 @@ impl Vm {
         for r in covering {
             let body_line = self.error_line().saturating_sub(r.line_base).max(1);
             self.append_body_frame_line(&r.label, body_line);
-            self.log_command_info(&r.cmd_text, "", r.cmd_line);
+            self.log_command_info_only(&r.cmd_text, "", r.cmd_line);
         }
     }
 
@@ -2131,9 +2133,12 @@ impl Vm {
         if self.recursion_depth() >= self.recursion_limit() {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
-        let mut call_argv = Vec::with_capacity(argv.len() + 1);
-        call_argv.push(invoked.clone());
-        call_argv.extend(argv.iter().cloned());
+        let call_argv = proc.call_identity.clone().unwrap_or_else(|| {
+            let mut words = Vec::with_capacity(argv.len() + 1);
+            words.push(invoked.clone());
+            words.extend(argv.iter().cloned());
+            words
+        });
         self.push_call_frame(Some(proc.name.clone()), call_argv);
 
         let mut i = 0;

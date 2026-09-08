@@ -464,7 +464,9 @@ pub(crate) struct CoroContext {
     script_stack: Vec<Vec<u8>>,
     return_code: Code,
     return_level: usize,
+    return_options: Vec<(Vec<u8>, Vec<u8>)>,
     exc: ExceptionState,
+    error_stack: ErrorStack<Vec<u8>>,
     error_line: u32,
     arg_lines: Vec<u32>,
     eval_depth: u32,
@@ -484,7 +486,9 @@ impl CoroContext {
             script_stack: Vec::new(),
             return_code: Code::Ok,
             return_level: 1,
+            return_options: Vec::new(),
             exc: ExceptionState::default(),
+            error_stack: ErrorStack::default(),
             error_line: 1,
             arg_lines: Vec::new(),
             eval_depth: 0,
@@ -813,6 +817,10 @@ pub struct InterpState {
     /// complete with once `-level` boundaries are unwound.
     return_code: Cell<Code>,
     return_level: Cell<usize>,
+    /// Non-control pairs carried by the current `return` completion. Byte
+    /// storage is sufficient at this portable boundary and preserves arbitrary
+    /// pre-TIP/custom option spellings for `catch`, `try`, and host adapters.
+    return_options: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
     /// Variable-trace registry (`trace add|remove|info variable`).
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
     /// The error stack-trace accumulator (PC-4).
@@ -1279,6 +1287,7 @@ impl Interp {
             )),
             return_code: Cell::new(Code::Ok),
             return_level: Cell::new(1),
+            return_options: RefCell::new(Vec::new()),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
             exc: RefCell::new(ExceptionState::default()),
             error_line: Cell::new(1),
@@ -2778,6 +2787,16 @@ impl Interp {
     pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
         self.return_level.set(level);
         self.return_code.set(code);
+    }
+
+    /// Replace the arbitrary option pairs carried by the current `return`.
+    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
+        *self.return_options.borrow_mut() = options;
+    }
+
+    /// Snapshot the current `return`'s non-control option pairs.
+    pub(crate) fn pending_return_options(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.return_options.borrow().clone()
     }
 
     /// The pending `return` `-code`/`-level` (the options a body that completed
@@ -5283,6 +5302,7 @@ impl Interp {
         std::mem::swap(&mut *self.script_stack.borrow_mut(), &mut ctx.script_stack);
         std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
         std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
+        std::mem::swap(&mut *self.error_stack.borrow_mut(), &mut ctx.error_stack);
         self.oo.borrow_mut().swap_exec(&mut ctx.oo);
         let ns = self.current_ns.replace(ctx.current_ns);
         ctx.current_ns = ns;
@@ -5292,6 +5312,10 @@ impl Interp {
         ctx.return_code = rc;
         let rl = self.return_level.replace(ctx.return_level);
         ctx.return_level = rl;
+        std::mem::swap(
+            &mut *self.return_options.borrow_mut(),
+            &mut ctx.return_options,
+        );
         let ed = self.eval_depth.replace(ctx.eval_depth);
         ctx.eval_depth = ed;
         let el = self.error_line.replace(ctx.error_line);
@@ -6594,6 +6618,12 @@ impl Interp {
         // native ABI. `argv` owns/borrows its objects independently, so dropping
         // the prior result here cannot invalidate an argument.
         self.set_result_bytes(b"");
+        // A parsed/direct command starts a new completion. Execution-trace
+        // callbacks run under SaveInterpState semantics and must not erase the
+        // option pairs returned by the command whose leave trace they observe.
+        if self.traces.borrow().exec_firing == 0 {
+            self.return_options.borrow_mut().clear();
+        }
         self.cmd_count.set(self.cmd_count.get() + 1);
         // Fast path: nothing is registered, so nothing can fire. Being inside a
         // trace callback is *not* a reason to skip: C's

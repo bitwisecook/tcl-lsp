@@ -145,6 +145,7 @@ impl Vm {
             body: compiled,
             body_src: Value::string(body),
             usage_name: None,
+            call_identity: None,
         });
         Ok(())
     }

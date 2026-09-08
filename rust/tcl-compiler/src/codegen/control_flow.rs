@@ -995,7 +995,7 @@ impl CodegenCtx<'_> {
         // invoke arm, as do guard failures.
         match self.inline_cmd_subst_hook(body_cmd, body_args) {
             Some(InlineCodegenHookId::Return) => self.emit_catch_return(body_args),
-            Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_args),
+            Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_cmd, body, body_args),
             Some(InlineCodegenHookId::Break) => {
                 self.emit(Op::BREAK, vec![]);
             }
@@ -1112,7 +1112,12 @@ impl CodegenCtx<'_> {
     }
 
     /// Compile `error msg ?info? ?code?` inside a catch body.
-    pub fn emit_catch_error(&mut self, args: &[(String, bool)]) {
+    pub fn emit_catch_error(
+        &mut self,
+        command: &str,
+        source_command: &str,
+        args: &[(String, bool)],
+    ) {
         if let Some(first) = args.first() {
             self.emit_cmd_subst_arg(&first.0, first.1);
         } else {
@@ -1124,7 +1129,8 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(1), Operand::Imm(0)], // code=error, level=0
         );
         self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
-            head: "error".to_owned(),
+            head: command.to_owned(),
+            error_info_command: source_command.trim().to_owned(),
         });
     }
 
@@ -1528,6 +1534,7 @@ impl CodegenCtx<'_> {
                 &args.iter().map(String::as_str).collect::<Vec<_>>(),
             ) == Some(InlineCodegenHookId::Error)
         {
+            let error_info_command = self.source_text(stmt.span());
             if let Some(arg) = args.first() {
                 self.emit_value(arg, false);
             } else {
@@ -1537,6 +1544,7 @@ impl CodegenCtx<'_> {
             let throw = self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
             self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
                 head: command.clone(),
+                error_info_command,
             });
             self.cmd_index += 1;
             return;
@@ -1882,7 +1890,7 @@ mod tests {
     fn catch_error_emits_return_imm() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_catch_error(&[("oops".into(), false)]);
+        ctx.emit_catch_error("error", "error oops", &[("oops".into(), false)]);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::RETURN_IMM));
     }

@@ -374,9 +374,6 @@ fn parse_code(b: &[u8]) -> Option<Code> {
     }
 }
 
-/// `return ?-code code? ?-level n? ?-errorcode list? ?-errorinfo info?
-/// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
-/// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
 /// `exit ?returnCode?` — record the requested exit code and unwind uncatchably.
 ///
 /// The embedded runtime never terminates the host process (that would kill the
@@ -406,13 +403,25 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Error
 }
 
+/// `return ?-code code? ?-level n? ?-errorcode list? ?-errorinfo info?
+/// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
+/// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
 /// by `catch`) seeds the options; explicit flags override it.
 fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    fn set_carried(options: &mut Vec<(Vec<u8>, Vec<u8>)>, key: &[u8], value: &[u8]) {
+        if let Some((_, current)) = options.iter_mut().find(|(candidate, _)| candidate == key) {
+            *current = value.to_vec();
+        } else {
+            options.push((key.to_vec(), value.to_vec()));
+        }
+    }
+
     let mut code = Code::Ok;
     let mut level: usize = 1;
     let mut errorcode: Option<Vec<u8>> = None;
     let mut errorinfo: Option<Vec<u8>> = None;
     let mut errorstack: Option<Vec<u8>> = None;
+    let mut carried: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
 
     let mut i = 1;
     while i + 1 < argv.len() {
@@ -436,33 +445,52 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Some(l) => level = l,
                 None => return interp.set_error(b"bad -level value"),
             },
-            b"-errorcode" => errorcode = Some(obj_bytes(argv[i + 1])),
-            b"-errorinfo" => errorinfo = Some(obj_bytes(argv[i + 1])),
-            b"-errorstack" => errorstack = Some(obj_bytes(argv[i + 1])),
+            b"-errorcode" => {
+                let value = obj_bytes(argv[i + 1]);
+                set_carried(&mut carried, &opt, &value);
+                errorcode = Some(value);
+            }
+            b"-errorinfo" => {
+                let value = obj_bytes(argv[i + 1]);
+                set_carried(&mut carried, &opt, &value);
+                errorinfo = Some(value);
+            }
+            b"-errorstack" => {
+                let value = obj_bytes(argv[i + 1]);
+                set_carried(&mut carried, &opt, &value);
+                errorstack = Some(value);
+            }
             b"-options" => {
-                // Seed code/level/errorcode/errorinfo from the options dict.
+                // Seed control and carried pairs from the options dict.
                 let opts = obj_bytes(argv[i + 1]);
-                if let Ok(d) = crate::parse::split_list(&opts) {
-                    let mut j = 0;
-                    while j + 1 < d.len() {
-                        match d[j].as_slice() {
-                            b"-code" => code = parse_code(&d[j + 1]).unwrap_or(code),
-                            b"-level" => {
-                                level = core::str::from_utf8(&d[j + 1])
-                                    .ok()
-                                    .and_then(|s| s.trim().parse().ok())
-                                    .unwrap_or(level);
-                            }
-                            b"-errorcode" => errorcode = Some(d[j + 1].clone()),
-                            b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
-                            b"-errorstack" => errorstack = Some(d[j + 1].clone()),
-                            _ => {}
+                let Ok(d) = crate::parse::split_list(&opts) else {
+                    return interp.set_error(b"bad -options value: expected a dictionary");
+                };
+                if d.len() % 2 != 0 {
+                    return interp.set_error(b"bad -options value: expected a dictionary");
+                }
+                let mut j = 0;
+                while j + 1 < d.len() {
+                    match d[j].as_slice() {
+                        b"-code" => code = parse_code(&d[j + 1]).unwrap_or(code),
+                        b"-level" => {
+                            level = core::str::from_utf8(&d[j + 1])
+                                .ok()
+                                .and_then(|s| s.trim().parse().ok())
+                                .unwrap_or(level);
                         }
-                        j += 2;
+                        b"-errorcode" => errorcode = Some(d[j + 1].clone()),
+                        b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
+                        b"-errorstack" => errorstack = Some(d[j + 1].clone()),
+                        _ => {}
                     }
+                    if !matches!(d[j].as_slice(), b"-code" | b"-level") {
+                        set_carried(&mut carried, &d[j], &d[j + 1]);
+                    }
+                    j += 2;
                 }
             }
-            _ => break, // not an option → the result word
+            _ => set_carried(&mut carried, &opt, &obj_bytes(argv[i + 1])),
         }
         i += 2;
     }
@@ -514,6 +542,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             errorstack.as_deref(),
         );
     }
+    interp.set_return_options(carried);
     if level == 0 {
         // No unwinding: complete with `code` right here.
         code

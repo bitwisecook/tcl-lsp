@@ -1372,6 +1372,7 @@ pub(crate) struct ParkedFlow {
     recursion_depth: usize,
     error_info: Option<String>,
     error_logged: bool,
+    error_stack: ErrorStack<Value>,
     error_line: u32,
     invoked_name: Option<String>,
     script_stack: Vec<String>,
@@ -2089,7 +2090,6 @@ impl InterpState {
             limits: LimitSet::default(),
             commands_run: 0,
             limit_tick: 0,
-            // Keep an unseeded VM deterministic; tests seed explicitly.
             rand_seed: 1,
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
@@ -8695,7 +8695,15 @@ impl Vm {
         let saved_ns = self.ns_stack.split_off(ns_cut);
         let saved_ns_ids = self.ns_id_stack.split_off(ns_cut);
         let saved_depth = self.recursion_depth;
+        if up_delta != 0 {
+            let target_frame_count = self.frames.len();
+            self.error_stack
+                .enter_shifted_context(target_frame_count, up_delta);
+        }
         let result = self.eval_source(src);
+        if up_delta != 0 {
+            self.error_stack.leave_shifted_context();
+        }
         // Destroy any activation the script left in place through the ordinary
         // lifecycle, then re-attach the frames set aside above.
         self.drain_call_frames_to(target + 1);
@@ -8705,14 +8713,10 @@ impl Vm {
         self.ns_id_stack.truncate(ns_cut);
         self.ns_id_stack.extend(saved_ns_ids);
         self.recursion_depth = saved_depth;
-        let completion = match result {
+        match result {
             Ok(c) => c,
             Err(e) => err(e.message),
-        };
-        if completion.code == Code::Error && up_delta != 0 {
-            self.error_stack_push_up(up_delta);
         }
-        completion
     }
 
     /// Exchange the live per-flow execution context with `p` — the coroutine
@@ -8745,6 +8749,7 @@ impl Vm {
         std::mem::swap(&mut self.recursion_depth, &mut p.recursion_depth);
         std::mem::swap(&mut self.error_info, &mut p.error_info);
         std::mem::swap(&mut self.error_logged, &mut p.error_logged);
+        std::mem::swap(&mut self.error_stack, &mut p.error_stack);
         std::mem::swap(&mut self.error_line, &mut p.error_line);
         std::mem::swap(&mut self.invoked_name, &mut p.invoked_name);
         std::mem::swap(&mut self.script_stack, &mut p.script_stack);
@@ -10397,6 +10402,16 @@ impl Vm {
             return;
         }
         self.error_stack_log_value(context);
+        self.log_command_info_only(cmd_text, msg, line);
+    }
+
+    /// ErrorInfo-only half of command logging. Compiler error regions call this
+    /// while reconstructing synthetic body frames; those are not additional
+    /// Tcl command logs and therefore must not duplicate TIP 348 `UP` entries.
+    pub(crate) fn log_command_info_only(&mut self, cmd_text: &str, msg: &str, line: u32) {
+        if self.error_logged {
+            return;
+        }
         // The innermost logged command's line drives the enclosing `(procedure …
         // line N)` / `("while" body line N)` frames (C's `iPtr->errorLine`).
         if line != 0 {
@@ -10572,6 +10587,12 @@ impl Vm {
         let _ = self
             .error_stack
             .begin_inner(Value::string("INNER"), context);
+        if let Some(delta) = self.error_stack.shifted_context_delta(self.frames.len()) {
+            let delta = i64::try_from(delta).unwrap_or(i64::MAX);
+            let _ = self
+                .error_stack
+                .push_pair(Value::string("UP"), Value::int(delta));
+        }
     }
 
     /// Replace the current episode when a non-error trace completion is
@@ -10602,17 +10623,6 @@ impl Vm {
         );
     }
 
-    /// Append an `UP <delta>` entry at an `uplevel` boundary.
-    pub(crate) fn error_stack_push_up(&mut self, delta: usize) {
-        if !self.supports_error_stack() {
-            return;
-        }
-        let delta = i64::try_from(delta).unwrap_or(i64::MAX);
-        let _ = self
-            .error_stack
-            .push_pair(Value::string("UP"), Value::int(delta));
-    }
-
     /// Return the last TIP 348 stack as a Tcl list value.
     pub(crate) fn error_stack_value(&self) -> Value {
         Value::list(self.error_stack.entries().to_vec())
@@ -10632,7 +10642,7 @@ impl Vm {
         self.error_stack.mark_reset();
         self.error_info = None;
         self.error_logged = false;
-        self.error_line = 0;
+        self.error_line = 1;
     }
 
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next

@@ -50,7 +50,7 @@ entry point, or gate moves without this contract being updated.
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | channel output configuration / encoding | `rust/tcl-platform/src/lib.rs`; `rust/tcl-cmd-core/src/channel.rs`; `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | `SystemEncoding`; `Host::system_encoding`; `ChannelConfig`; `StandardChannelConfigs`; `OpenAccess`; `resolve_open_access_mode`; `ChannelDirection`; `ChannelEncoding`; `EncodingProfile`; `OutputTranslation`; `resolve_fconfigure_option`; `config_list`; `config_value`; `set_config_value`; `encode_output`; `encode_output_bytes`; `EncodedOutput`; `EILSEQ_ERROR_CODE` | system encoding per host locale and interpreter tree; option availability per dialect profile; open-access validation and profile/binary defaults per Tcl release; mutable direction-specific state per channel | none |
-| Tcl completion options / structured error stacks | `rust/tcl-runtime-api/src/completion_options.rs`; `rust/tcl-runtime-api/src/error_stack.rs` | `completion_options::plan`; `completion_options::ErrorOptions`; `completion_options::OptionValue`; `error_stack::ErrorStack`; `error_stack::validate_error_stack`; `error_stack::ErrorStackValueError` | standard option overlay follows completion code/level; TIP 348 `-errorstack` is available from Tcl 8.6 | none |
+| Tcl completion options / structured error stacks | `rust/tcl-runtime-api/src/completion_options.rs`; `rust/tcl-runtime-api/src/error_stack.rs` | `completion_options::plan`; `completion_options::ErrorOptions`; `completion_options::OptionValue`; `error_stack::ErrorStack`; `error_stack::validate_error_stack`; `error_stack::ErrorStackValueError` | standard option overlay follows completion code/level; TIP 348 `-errorstack` is available from Tcl 8.6; shifted contexts use the concrete runtime's frame count | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
@@ -124,7 +124,10 @@ entry point, or gate moves without this contract being updated.
 - `completion_options::plan` owns the standard Tcl return-options overlay.
   Engines supply their concrete values and live error metadata; the owner
   preserves carried custom and explicit return options, replaces `-code` and
-  `-level` with their settled values, and release-gates `-errorstack`.
+  `-level` with their settled values, and release-gates only the synthesis of
+  TIP 348 `-errorstack`. A carried option named `-errorstack` remains an
+  ordinary custom pair on Tcl 8.4/8.5 and must not be deleted or validated as
+  TIP 348 metadata there.
 - `error_stack::ErrorStack` owns TIP 348's flat tag/value shape, lazy reset,
   explicit-stack adoption, and procedure-boundary `CALL` rule. The native VM
   and portable runtime render their own value types but do not reproduce that

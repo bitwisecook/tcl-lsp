@@ -41,6 +41,7 @@ pub fn validate_error_stack<T, E>(
 pub struct ErrorStack<T> {
     entries: Vec<T>,
     reset: bool,
+    shifted_contexts: Vec<(usize, usize)>,
 }
 
 impl<T> Default for ErrorStack<T> {
@@ -48,6 +49,7 @@ impl<T> Default for ErrorStack<T> {
         Self {
             entries: Vec::new(),
             reset: true,
+            shifted_contexts: Vec::new(),
         }
     }
 }
@@ -121,6 +123,26 @@ impl<T> ErrorStack<T> {
         self.push_pair(tag, invocation)
     }
 
+    /// Enter an `uplevel`-style redirect, identified by the concrete runtime's
+    /// target frame count and the logical level delta recorded by TIP 348.
+    pub fn enter_shifted_context(&mut self, frame_count: usize, delta: usize) {
+        self.shifted_contexts.push((frame_count, delta));
+    }
+
+    /// Leave the innermost `uplevel`-style redirect.
+    pub fn leave_shifted_context(&mut self) {
+        let _ = self.shifted_contexts.pop();
+    }
+
+    /// The innermost active shift whose target is the command being logged.
+    #[must_use]
+    pub fn shifted_context_delta(&self, frame_count: usize) -> Option<usize> {
+        self.shifted_contexts
+            .iter()
+            .rev()
+            .find_map(|(target, delta)| (*target == frame_count).then_some(*delta))
+    }
+
     /// Borrow the flat tag/value entries for engine-specific Tcl-list encoding.
     #[must_use]
     pub fn entries(&self) -> &[T] {
@@ -187,5 +209,16 @@ mod tests {
         assert!(!stack.push_proc_call(Code::Return, Code::Error, "CALL", "inner"));
         assert!(stack.push_proc_call(Code::Error, Code::Error, "CALL", "outer"));
         assert_eq!(stack.entries(), &["CALL", "outer"]);
+    }
+
+    #[test]
+    fn shifted_context_uses_the_innermost_matching_target() {
+        let mut stack = ErrorStack::<&str>::default();
+        stack.enter_shifted_context(2, 1);
+        stack.enter_shifted_context(2, 3);
+        assert_eq!(stack.shifted_context_delta(2), Some(3));
+        assert_eq!(stack.shifted_context_delta(1), None);
+        stack.leave_shifted_context();
+        assert_eq!(stack.shifted_context_delta(2), Some(1));
     }
 }

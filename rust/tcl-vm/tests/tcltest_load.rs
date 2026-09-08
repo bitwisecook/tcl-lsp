@@ -375,3 +375,60 @@ fn upstream_var_search_mutation_handlers_receive_errorinfo() {
         "missing parseable upstream var-23.10/23.11 summary: {output:?}"
     );
 }
+
+/// Tcl 9.0.4's canonical shifted-context cases prove that `UP 1` is stamped
+/// where the inner command errors, even when that error is caught before the
+/// surrounding `uplevel` invocation returns.
+#[test]
+fn upstream_error_shifted_context_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "error.test",
+        "test error-4.6 {",
+        "test error-5.1 {",
+        "tcltest-error-shifted-context",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream error.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t3\tPassed\t3\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream error-4.6/4.7/4.8 summary: {output:?}"
+    );
+}
+
+#[test]
+fn upstream_error_stack_reset_preserves_shifted_context() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "error.test",
+        "test error-6.10 {",
+        "test error-7.1 {",
+        "tcltest-error-stack-reset",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream error.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t1\tPassed\t1\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream error-6.10 summary: {output:?}"
+    );
+}
+
+#[test]
+fn upstream_invalid_error_stack_preserves_shifted_context() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "result.test",
+        "test result-6.4 {",
+        "# cleanup",
+        "tcltest-result-error-stack",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream result.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t2\tPassed\t2\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream result-6.4/6.5 summary: {output:?}"
+    );
+}

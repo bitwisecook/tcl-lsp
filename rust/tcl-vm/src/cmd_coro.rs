@@ -221,7 +221,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let is_apply = matches!(&*args[1].to_str(), "apply" | "::apply");
     let mut temp_proc = None;
     let words: Vec<Value> = if args.len() >= 3 && is_apply {
-        match crate::command::build_lambda_proc(vm, &args[2]) {
+        match crate::command::build_lambda_proc(vm, &args[2], args[1..].to_vec()) {
             Ok(lambda_name) => {
                 let mut w = Vec::with_capacity(args.len() - 2);
                 w.push(Value::string(lambda_name.as_str()));

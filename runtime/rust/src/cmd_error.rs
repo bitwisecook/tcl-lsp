@@ -125,18 +125,21 @@ pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj
         (code, 0)
     };
     let error = (eff_code == Code::Error).then(|| ErrorOptions {
-        error_code: Some(new_string(&interp.error_code())),
-        error_info: (level == 0).then(|| new_string(&interp.error_info())),
+        error_code: Some(interp.error_code()),
+        error_info: (level == 0).then(|| interp.error_info()),
         error_stack: (level == 0 && interp.runtime_version().has_error_stack())
-            .then(|| new_string(&interp.error_stack_value())),
+            .then(|| interp.error_stack_value()),
         error_line: (level == 0).then(|| i64::from(interp.error_line())),
-        during: (level == 0).then(|| interp.during_opts()).flatten(),
+        during: (level == 0)
+            .then(|| interp.during_opts().map(obj_bytes))
+            .flatten(),
     });
+    let carried = interp.pending_return_options();
     let planned = completion_options::plan(
         interp.runtime_version(),
         api_code(eff_code),
         i64::try_from(level).unwrap_or(i64::MAX),
-        &[],
+        &carried,
         error.as_ref(),
     );
     let pairs: Vec<(*mut TclObj, *mut TclObj)> = planned
@@ -144,7 +147,7 @@ pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj
         .map(|(key, value)| {
             let value = match value {
                 OptionValue::Integer(value) => new_string(value.to_string().as_bytes()),
-                OptionValue::Value(value) => value,
+                OptionValue::Value(value) => new_string(&value),
             };
             (new_string(&key), value)
         })
@@ -763,6 +766,26 @@ mod tests {
             run(i, b"catch {set x 5} m o");
             assert_eq!(run(i, b"dict get $o -code"), b"0");
             i.eval_str(b"unset m o x ::errorInfo ::errorCode");
+        });
+    }
+
+    /// Pre-TIP runtimes still preserve `-errorstack` as an arbitrary custom
+    /// return option; only synthesis and validation of its TIP 348 meaning are
+    /// release-gated. Other custom pairs take the same shared path.
+    #[test]
+    fn catch_preserves_custom_return_options_on_legacy_releases() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            for version in [TclVersion::V8_4, TclVersion::V8_5] {
+                i.set_runtime_version(version);
+                assert_eq!(run(i, b"catch {return -bar soom} m o"), b"2");
+                assert_eq!(run(i, b"set o"), b"-bar soom -code 0 -level 1");
+
+                assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
+                assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
+            }
+            i.eval_str(b"unset -nocomplain m o");
         });
     }
 }

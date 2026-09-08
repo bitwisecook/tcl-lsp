@@ -2401,6 +2401,50 @@ fn catch_reports_structured_error_stack() {
     );
 }
 
+/// A specialised catch body still logs the failing command, not the enclosing
+/// catch instruction. Its `errorInfo` must be byte-identical to the dynamic
+/// body that reaches the generic evaluator.
+#[test]
+fn inline_and_generic_catch_bodies_report_the_same_errorinfo() {
+    out_eq(
+        "proc inline {} {catch {error boom} m o; dict get $o -errorinfo}\n\
+         proc generic {} {set body {error boom}; catch $body m o; dict get $o -errorinfo}\n\
+         set inlineInfo [inline]\n\
+         set genericInfo [generic]\n\
+         puts [list [expr {$inlineInfo eq $genericInfo}] \
+                    [string match {*while executing*\\\"error boom\\\"*} $inlineInfo]]\n",
+        "1 1\n",
+    );
+}
+
+/// Proc-like adapters carry the exact invocation words into the one procedure
+/// boundary that emits TIP 348 `CALL` entries.
+#[test]
+fn lambda_and_method_error_stacks_preserve_invocation_identity() {
+    out_eq(
+        "catch {apply {{} {error APPLY}}} m o\n\
+         puts [lindex [dict get $o -errorstack] end]\n\
+         oo::class create C {method fail {arg} {error METHOD}}\n\
+         C create named\n\
+         catch {named fail value} m o\n\
+         puts [lindex [dict get $o -errorstack] end]\n\
+         catch {::named fail rooted} m o\n\
+         puts [lindex [dict get $o -errorstack] end]\n",
+        "apply {{} {error APPLY}}\nnamed fail value\n::named fail rooted\n",
+    );
+}
+
+/// An explicit errorInfo starts a real line-one error episode even though the
+/// command itself is already logged.
+#[test]
+fn explicit_return_errorinfo_reports_line_one() {
+    out_eq(
+        "catch {return -level 0 -code error -errorinfo EXPLICIT boom} m o\n\
+         puts [list [dict get $o -errorline] [dict get $o -errorinfo]]\n",
+        "1 EXPLICIT\n",
+    );
+}
+
 #[test]
 fn error_stack_call_preserves_qualified_invocation() {
     out_eq(
