@@ -12,10 +12,12 @@ on:
   # maintainer kick off the same CI graph from the Actions tab instead of
   # having to push a throwaway commit just to re-send the event.
   #
-  # NOTE: workflow_dispatch lets you pick any ref, tags included, and every
-  # release/publish job is gated on `startsWith(github.ref, 'refs/tags/v')`.
-  # Dispatching against a `v*` tag therefore re-runs create-release and the
-  # marketplace publishes. Dispatch against a branch unless you mean that.
+  # NOTE: workflow_dispatch lets you pick any ref, tags included. Release and
+  # publish jobs are gated on `startsWith(github.ref, 'refs/tags/v')`; the one
+  # branch exception is an explicit read-only native-build proof that uploads
+  # only one-day workflow artifacts. Dispatching against a `v*` tag re-runs
+  # create-release and the marketplace publishes. Dispatch against a branch
+  # unless you mean that.
   workflow_dispatch:
     inputs:
       rust_tests_runner:
@@ -26,9 +28,14 @@ on:
         options:
           - tank
           - hosted
+      native_release_build_proof:
+        description: Build the feature-isolated native release matrix without publishing
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof && !startsWith(github.ref, 'refs/tags/v') && 'native-release-proof' || 'ordinary' }}-${{ github.ref }}
   cancel-in-progress: true
 
 # The repo's own build-hygiene contract (scripts/dev/agent-build-env.sh):
@@ -2218,8 +2225,9 @@ jobs:
           gh release upload "$tag" install.sh --clobber
 
   # ---------------------------------------------------------------------
-  # build-server-matrix — compile the four native programs for every supported
-  # platform. Linux x86_64 and aarch64 build natively inside UBI 8 to retain a
+  # build-server-matrix — compile each native program independently for every
+  # supported platform. Linux x86_64 and aarch64 build natively inside UBI 8
+  # to retain a
   # GLIBC_2.28 ABI floor; RISC-V uses an Ubuntu 22.04 container's glibc 2.35
   # cross sysroot because EL8 did not ship a RISC-V architecture. No Zig or
   # separately downloaded libc is involved. Each leg smoke-tests its binary
@@ -2237,18 +2245,18 @@ jobs:
   # Every consumer that attaches these bytes to a Release keeps its explicit
   # `create-release` plus test/portability dependencies below.
   build-server-matrix:
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: native ${{ matrix.platform.id }} / ${{ matrix.program.id }}
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof)
     needs: [channel]
     strategy:
       fail-fast: false
-      # One job per target triple (not per OS): the old 3-leg matrix built up
-      # to 12 binaries serially on one runner (4 bins x 3 Linux triples), so
-      # the whole release waited on the slowest leg.  Per-triple legs make the
-      # wall-clock the slowest SINGLE triple's 4 builds, at the cost of extra
-      # (parallel, cheap) runners.  Keep this list and the Makefile's
-      # SERVER_TARGET_MAP in sync (7 triples total).
+      # Cargo unions dependency features across roots in one invocation. Keep
+      # one program per job so release bytes retain their independently-built
+      # feature graphs, while the runner matrix removes the old four-command
+      # serial critical path. Keep the platform list and the Makefile's
+      # SERVER_TARGET_MAP in sync (7 triples total), and keep all four programs.
       matrix:
-        include:
+        platform:
           - os: macos-latest
             id: darwin-arm64
             target: aarch64-apple-darwin
@@ -2276,7 +2284,20 @@ jobs:
           - os: windows-latest
             id: win32-arm64
             target: aarch64-pc-windows-msvc
-    runs-on: ${{ matrix.os }}
+        program:
+          - package: tcl-lsp-server
+            binary: tcl-lsp-server
+            id: server
+          - package: tcl-mcp
+            binary: tcl-mcp
+            id: mcp
+          - package: tcl-cli
+            binary: tcl
+            id: tcl
+          - package: f5-cli
+            binary: f5-query
+            id: f5
+    runs-on: ${{ matrix.platform.os }}
     permissions:
       contents: read
     steps:
@@ -2296,6 +2317,10 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
+          # Keep registry caching, but never restore compiled target trees here.
+          # A host-built build script can require a newer glibc than UBI 8 and
+          # cannot safely cross the host/container or platform matrix boundary.
+          cache-targets: false
 
       # Use the runner's architecture-matched UBI image, so x86_64 and aarch64
       # both link against the maintained EL8 glibc 2.28 ABI without a cross
@@ -2303,11 +2328,13 @@ jobs:
       # only the distro C toolchain lives in the container. aarch64 overrides
       # the local-development cross-linker from .cargo/config.toml with native
       # `gcc`/`ar`.
-      - name: Build GNU/Linux binaries against glibc 2.28
-        if: matrix.ubi8
+      - name: Build GNU/Linux program against glibc 2.28
+        if: matrix.platform.ubi8
         env:
-          TARGET: ${{ matrix.target }}
-          TCL_LSP_VERSION: ${{ github.ref_name }}
+          TARGET: ${{ matrix.platform.target }}
+          PACKAGE: ${{ matrix.program.package }}
+          BINARY: ${{ matrix.program.binary }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2317,6 +2344,8 @@ jobs:
           export GIT_HASH="${GITHUB_SHA:0:8}"
           docker run --rm \
             --env TARGET \
+            --env PACKAGE \
+            --env BINARY \
             --env TCL_LSP_VERSION \
             --env GIT_HASH \
             --env CARGO_HOME=/cargo \
@@ -2337,12 +2366,9 @@ jobs:
                 export AR_aarch64_unknown_linux_gnu=ar
               fi
               rustup target add "$TARGET"
-              cargo build -p tcl-lsp-server --release --target "$TARGET"
-              cargo build -p tcl-mcp --release --target "$TARGET"
-              cargo build -p tcl-cli --release --target "$TARGET"
-              cargo build -p f5-cli --release --target "$TARGET"
+              cargo build -p "$PACKAGE" --release --target "$TARGET"
               expected="${TCL_LSP_VERSION#v}+g$GIT_HASH"
-              scripts/verify-native-versions.sh \
+              TCL_LSP_RELEASE_BINARIES="$BINARY" scripts/verify-native-versions.sh \
                 "$expected" "target/$TARGET/release"
             '
 
@@ -2350,17 +2376,21 @@ jobs:
       # ships a complete glibc 2.35 cross toolchain. Keep it inside a container
       # rather than pinning the outer GitHub runner to an aging image. The QEMU
       # handshake runs in the same container so it uses that matching sysroot.
-      - name: Build RISC-V GNU/Linux binaries against glibc 2.35
-        if: matrix.riscv_glibc
+      - name: Build RISC-V GNU/Linux program against glibc 2.35
+        if: matrix.platform.riscv_glibc
         env:
-          TARGET: ${{ matrix.target }}
-          TCL_LSP_VERSION: ${{ github.ref_name }}
+          TARGET: ${{ matrix.platform.target }}
+          PACKAGE: ${{ matrix.program.package }}
+          BINARY: ${{ matrix.program.binary }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
         shell: bash
         run: |
           set -euo pipefail
           export GIT_HASH="${GITHUB_SHA:0:8}"
           docker run --rm \
             --env TARGET \
+            --env PACKAGE \
+            --env BINARY \
             --env TCL_LSP_VERSION \
             --env GIT_HASH \
             --env CARGO_HOME=/cargo \
@@ -2385,80 +2415,77 @@ jobs:
               test -f "$(gcc -print-file-name=Scrt1.o)"
               test -f "$(riscv64-linux-gnu-gcc -print-file-name=Scrt1.o)"
               rustup target add "$TARGET"
-              cargo build -p tcl-lsp-server --release --target "$TARGET"
-              cargo build -p tcl-mcp --release --target "$TARGET"
-              cargo build -p tcl-cli --release --target "$TARGET"
-              cargo build -p f5-cli --release --target "$TARGET"
+              cargo build -p "$PACKAGE" --release --target "$TARGET"
               expected="${TCL_LSP_VERSION#v}+g$GIT_HASH"
-              scripts/verify-native-versions.sh \
+              TCL_LSP_RELEASE_BINARIES="$BINARY" scripts/verify-native-versions.sh \
                 "$expected" "target/$TARGET/release" \
                 qemu-riscv64 -L /usr/riscv64-linux-gnu
-              scripts/verify-glibc-baseline.sh 2.35 \
-                "target/$TARGET/release/tcl-lsp-server" \
-                "target/$TARGET/release/tcl-mcp" \
-                "target/$TARGET/release/tcl" \
-                "target/$TARGET/release/f5-query"
-              make server-cross-test
+              if [[ "$BINARY" == tcl-lsp-server ]]; then
+                make server-cross-test
+              fi
             '
 
       # Stamp the release version into every user-facing binary. The
       # tcl-version crate prefers this over `git describe`; without it a tag
       # build would still be correct, but this avoids depending on the checkout
       # having tags fetched.
-      - name: Cross-compile native binaries (server + mcp + CLIs)
-        if: matrix.ubi8 != true && matrix.riscv_glibc != true
+      - name: Cross-compile native program
+        if: matrix.platform.ubi8 != true && matrix.platform.riscv_glibc != true
         env:
-          TCL_LSP_VERSION: ${{ github.ref_name }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
         shell: bash
         run: |
           set -euo pipefail
-          t="${{ matrix.target }}"
-          echo "==> $t"
+          t="${{ matrix.platform.target }}"
+          echo "==> $t / ${{ matrix.program.package }}"
           rustup target add "$t"
-          cargo build -p tcl-lsp-server --release --target "$t"
-          cargo build -p tcl-mcp --release --target "$t"
-          cargo build -p tcl-cli --release --target "$t"
-          cargo build -p f5-cli --release --target "$t"
+          cargo build -p "${{ matrix.program.package }}" --release --target "$t"
+
+      - name: Verify native program version
+        if: >-
+          matrix.platform.ubi8 != true && matrix.platform.riscv_glibc != true &&
+          ((runner.arch == 'X64' && startsWith(matrix.platform.target, 'x86_64-')) ||
+          (runner.arch == 'ARM64' && startsWith(matrix.platform.target, 'aarch64-')))
+        env:
+          BINARY: ${{ matrix.program.binary }}
+          TARGET: ${{ matrix.platform.target }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${TCL_LSP_VERSION#v}+g${GITHUB_SHA:0:8}"
+          TCL_LSP_RELEASE_BINARIES="$BINARY" scripts/verify-native-versions.sh \
+            "$expected" "target/$TARGET/release"
 
       - name: Verify GNU/Linux glibc ABI ceiling
-        if: matrix.glibc_max
+        if: matrix.platform.glibc_max
         shell: bash
         run: |
           set -euo pipefail
-          t="${{ matrix.target }}"
-          scripts/verify-glibc-baseline.sh "${{ matrix.glibc_max }}" \
-            "target/$t/release/tcl-lsp-server" \
-            "target/$t/release/tcl-mcp" \
-            "target/$t/release/tcl" \
-            "target/$t/release/f5-query"
+          t="${{ matrix.platform.target }}"
+          scripts/verify-glibc-baseline.sh "${{ matrix.platform.glibc_max }}" \
+            "target/$t/release/${{ matrix.program.binary }}"
 
       # scripts/test-cross-server.sh tests whatever is already built and skips
       # absent triples loudly, so each per-triple leg smoke-tests just its own
       # binary (natively or under QEMU where runnable).
       - name: Smoke-test built binaries
-        if: matrix.riscv_glibc != true
+        if: matrix.program.id == 'server' && matrix.platform.riscv_glibc != true
         shell: bash
         run: make server-cross-test
 
       - name: Upload server binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          # Per-triple artifact; downstream consumers merge `server-bins-*`
-          # so the per-triple split is invisible to them.
-          name: server-bins-${{ matrix.id }}
+          # Per-triple/program artifacts have disjoint filenames; downstream
+          # consumers merge `server-bins-*` into the original directory shape.
+          name: server-bins-${{ matrix.platform.id }}-${{ matrix.program.id }}
           # Common ancestor of all matched files is `target/`, so the artifact
           # stores `<triple>/release/<exe>` — build-vsix restores tcl-lsp-server
-          # under `target/`; the tcl-mcp / tcl / f5-query binaries ride along for
-          # publish-native-binaries to attach as standalone release assets.
+          # under `target/`; the four independent jobs merge before packaging.
           path: |
-            target/*/release/tcl-lsp-server
-            target/*/release/tcl-lsp-server.exe
-            target/*/release/tcl-mcp
-            target/*/release/tcl-mcp.exe
-            target/*/release/tcl
-            target/*/release/tcl.exe
-            target/*/release/f5-query
-            target/*/release/f5-query.exe
+            target/*/release/${{ matrix.program.binary }}
+            target/*/release/${{ matrix.program.binary }}.exe
           if-no-files-found: error
           retention-days: 1
 
