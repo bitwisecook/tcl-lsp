@@ -44,6 +44,23 @@ fallback=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 RU
 fallback_again=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 RUNNER_NAME=stable-runner bash "$HELPER" prepare tank owner/repo "$ROOT/work-a")
 [ "$fallback" = "$fallback_again" ] || fail "stable runner-name fallback did not reuse the target"
 
+# Two registrations can start their helper at the same instant. The private
+# root lock serialises publication, so exactly one creates the identity and the
+# other reuses the complete target rather than observing partial state.
+TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 \
+    bash "$HELPER" prepare tank owner/repo "$ROOT/work-a" parallel-reg \
+    >"$ROOT/parallel-a.out" 2>"$ROOT/parallel-a.err" &
+parallel_a=$!
+TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 \
+    bash "$HELPER" prepare tank owner/repo "$ROOT/work-a" parallel-reg \
+    >"$ROOT/parallel-b.out" 2>"$ROOT/parallel-b.err" &
+parallel_b=$!
+wait "$parallel_a"
+wait "$parallel_b"
+cmp -s "$ROOT/parallel-a.out" "$ROOT/parallel-b.out" || fail "concurrent prepare selected different targets"
+parallel_states=$(grep -h -o 'state=\(new\|reused\)' "$ROOT/parallel-a.err" "$ROOT/parallel-b.err" | sort)
+[ "$parallel_states" = $'state=new\nstate=reused' ] || fail "concurrent prepare did not publish once and reuse once"
+
 target_a=$(prepare reg-a)
 [ -d "$target_a" ] || fail "new target was not created"
 grep -q 'state=new' "$ROOT/prepare.log" || fail "new state was not reported"
