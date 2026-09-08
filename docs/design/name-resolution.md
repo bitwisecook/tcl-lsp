@@ -113,8 +113,8 @@ command table is **unrooted**). Two rules keep them sound:
    with exactly one `::`, and splits use the construction-inverse helpers
    `naming::key_tail`, `key_holder_and_tail`, `key_segments`, and the VM's
    `key_holder_and_tail_unrooted`. An `rsplit("::")`, a colon trim, or a
-   re-`normalise` of a joined key is how `proc :` used to collapse into the
-   `{}` key and produce an empty `documentSymbol` name.
+   re-`normalise` of a joined key collapses `proc :` into the `{}` key and
+   produces an empty `documentSymbol` name.
 
 For **all-colon keys** the flat encoding is ambiguous, and the helpers
 resolve it by the construction grammar: a rooted key is `"::"` (2 chars)
@@ -294,12 +294,10 @@ namespace, with dynamic elements skipped.
 
 `Analyser::command_resolution_namespace`, built on the shared
 `advance_command_resolution_namespace` per-scope-kind rule, is the *single*
-answer to "which namespace is current here?" for every analyser site; the
-old purely lexical walk (which collected only `ScopeKind::Namespace` names
-and skipped proc/method scopes) is deleted, so a new call site cannot pick
-the wrong one. A definition made inside `proc ::x::mk {…}` therefore homes
-to `::x`, not `::` — where previously it collided with a real global under
-the same `all_procs` key and one silently overwrote the other. The rule
+answer to "which namespace is current here?" for every analyser site, so a
+call site cannot pick a different one. A definition made inside
+`proc ::x::mk {…}` homes to `::x`, not `::`, where it would collide with a
+real global under the same `all_procs` key. The rule
 covers `proc`, `oo::class create`, `oo::define`, `namespace ensemble
 create|configure`, snit `type`/`widget`, itcl `class`, `namespace
 import`/`export`, package import aliases, alias resolution, registry-definer
@@ -538,8 +536,8 @@ merges and rebases the records so the server path agrees.
 A cross-file `oo::define ::C` records a second `::C` index entry with empty
 superclasses. `WorkspaceIndex::resolved_parents_of` unions superclasses and
 mixins across **every** indexed definition of a class, and both method-family
-closures route through it, so an adversarial indexing order can no longer let
-the stub hide the real hierarchy edge. `ClassDef::via_define` marks an
+closures route through it, so no indexing order lets the stub hide the real
+hierarchy edge. `ClassDef::via_define` marks an
 `oo::define` on a locally-uncreated class as an extension stub, and
 cross-document go-to-definition prefers the `oo::class create` site, falling
 back to all sites only when a class is defined solely by `oo::define`.
@@ -737,9 +735,9 @@ hooks (`InterpCreate` / `InterpDelete` / `InterpHide` / `InterpExpose` /
   link machinery while definitions stay separated.
 - **Multi-word scripts.** `interp eval p w1 w2 …` concatenates at run time and
   commands can span word boundaries, so the words are **consumed without
-  walking** — sound isolation. (The old fall-through analysed them in the
-  parent scope, which merged child definitions into the parent namespace.)
-  W312 separately flags the injection-prone shape.
+  walking** — sound isolation. Walking them in the parent scope would merge
+  child definitions into the parent namespace. W312 separately flags the
+  injection-prone shape.
 
 Command-table *mutations* written inside such a body — `rename`, and an
 `interp alias` with an empty (`{}`) path, both of which act on "the
@@ -766,8 +764,8 @@ no namespace, and no user override.
 
 `ExprNode::function_calls` walks the expression AST for every application and
 records each as an invocation, so a user mathfunc proc gets go-to-definition,
-references, rename, and arity, and is no longer flagged unused. Two details
-earn their keep:
+references, rename, and arity, and is not flagged unused. Two details earn
+their keep:
 
 - **The mathfunc shape is a recorded flag, not a string sniff.**
   `SignatureCommandInvocation::is_mathfunc_call` is set once, at record time,

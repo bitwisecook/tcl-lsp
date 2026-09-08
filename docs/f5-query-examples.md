@@ -547,8 +547,10 @@ tmsh modify ltm node /Common/api1 { address 10.0.2.20 }
 tmsh modify ltm node /Common/api2 { address 10.0.2.21 }
 tmsh modify ltm node /Common/legacy1 { address 192.168.50.10 }
 tmsh modify ltm data-group internal /Common/banned_ips { type ip records replace-all-with { 10.99.0.0/16 { } 198.51.100.7/32 { } } }
+tmsh modify ltm data-group internal /Common/api_keys { type string records replace-all-with { deadbeef { } cafebabe { } } }
+tmsh modify ltm data-group internal /Common/routing_map { type string records replace-all-with { /api { } /legacy { } } }
 tmsh modify ltm pool /Common/web_pool { monitor /Common/http members replace-all-with { /Common/web1:80 { address 10.0.1.10 } /Common/web2:80 { address 10.0.1.11 } } }
-tmsh modify ltm pool /Common/legacy_app_pool { monitor /Common/http members replace-all-with { /Common/legacy1:80 { address 192.168.50.10 } } }
+tmsh modify ltm pool /Common/api_pool { monitor /Common/https members replace-all-with { /Common/api1:8443 { address 10.0.2.20 } /Common/api2:8443 { address 10.0.2.21 } } }
 ...
 ```
 
