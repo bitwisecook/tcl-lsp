@@ -9011,4 +9011,53 @@ mod tests {
             );
         }
     }
+
+    /// [`ArgRows::seal`] is the one projection from the authored row form to
+    /// the parallel slices the registry stores, so a row with every column
+    /// set must land in every one of the six vectors. A column added to
+    /// [`ArgRow`] and not projected fails here rather than vanishing.
+    #[test]
+    fn projection_carries_every_row_column() {
+        let values = leak_slice(vec![ArgValue {
+            value: "alnum",
+            ..ArgValue::DEFAULT
+        }]);
+        let rows = ArgRows {
+            rows: vec![ArgRow {
+                index: 3,
+                role: Some(ArgRole::Body),
+                type_hint: Some(ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                }),
+                values,
+                closed: true,
+                presentation: Some(ArgPresentation::InlineScript),
+                appends: Some(AppendedArity::Exactly(2)),
+            }],
+        };
+
+        let sealed = rows.seal();
+
+        assert_eq!(sealed.roles, vec![(3, ArgRole::Body)]);
+        assert_eq!(
+            sealed.types,
+            vec![(
+                3,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                }
+            )]
+        );
+        assert_eq!(sealed.values, vec![(3, values)]);
+        assert_eq!(sealed.closed, vec![3]);
+        assert_eq!(
+            sealed.presentation,
+            vec![(3, ArgPresentation::InlineScript)]
+        );
+        assert_eq!(sealed.prefixes, vec![(3, AppendedArity::Exactly(2))]);
+    }
 }

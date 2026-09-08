@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `scan` — parse a string under a format (the `sscanf` analogue), per
-//! `tmp/tcl9.0.3/generic/tclScan.c` (`Tcl_ScanObjCmd`).
+//! `tmp/tcl9.0.4/generic/tclScan.c` (`Tcl_ScanObjCmd`).
 //!
 //! This is the **pure matching engine**: [`scan_match`] takes the input and
 //! format as code-point slices and returns the scanned values *typed*

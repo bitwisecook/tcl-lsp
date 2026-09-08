@@ -114,7 +114,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W105",
     section: "warning",
     description:
-      "Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
+      "Unbraced code block argument. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
     defaultEnabled: true,
   },
   {
@@ -370,7 +370,8 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "W200",
     section: "warning",
-    description: "`exec` result not captured or binary format modifier requires newer Tcl.",
+    description:
+      "Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
     defaultEnabled: true,
   },
   {

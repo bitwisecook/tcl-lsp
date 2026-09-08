@@ -20,7 +20,7 @@
 //! canonical pair shared by the compiler's const-folder, the LSP, and the
 //! runtime's list value type + `{*}` expansion.
 //!
-//! Re-derived from reference Tcl 9.0 `tmp/tcl9.0.3/generic/tclUtil.c`:
+//! Re-derived from reference Tcl 9.0 `tmp/tcl9.0.4/generic/tclUtil.c`:
 //! `Tcl_SplitList`/`TclFindElement`/`FindElement` for the split (including the
 //! `literal` zero-copy flag and `TclCopyAndCollapse`), and
 //! `Tcl_ScanElement`/`Tcl_ConvertElement` (`ConvertFlags`) for the join.

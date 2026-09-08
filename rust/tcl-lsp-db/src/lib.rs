@@ -7622,8 +7622,8 @@ mod tests {
         // `for_dialect("tcl8.4")`, whose `expand_syntax` differs, so the
         // truncated three-field key interned two entries. Both consumers now
         // lex under the document's own environment, so `tcl8.4` shares one
-        // build like every other environment — the sharing measurement in
-        // `docs/design/lanes/c1-executable-ir-rekey.md` §4 (15/20 → 20/20).
+        // build like every other environment (the sharing measurement went
+        // 15/20 → 20/20).
         let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned(), None);
         let _ = file_analysis_incremental(&db, file84, cfg);
         let _ = compiler_check_diagnostics(&db, file84, cfg);

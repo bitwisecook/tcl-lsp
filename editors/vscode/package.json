@@ -4434,7 +4434,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
+            "markdownDescription": "**W105:** Unbraced code block argument. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
             "order": 6
           },
           "tclLsp.diagnosticSeverity.W105": {
@@ -4455,7 +4455,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W105:** Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
+            "markdownDescription": "Display severity for **W105:** Unbraced code block argument. Escalates to Error when the block provably contains a substitution (double-substitution risk).",
             "order": 6
           },
           "tclLsp.diagnostics.W106": {
@@ -5554,7 +5554,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
+            "markdownDescription": "**W200:** Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
             "order": 46
           },
           "tclLsp.diagnosticSeverity.W200": {
@@ -5575,7 +5575,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
+            "markdownDescription": "Display severity for **W200:** Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
             "order": 46
           },
           "tclLsp.diagnostics.W201": {

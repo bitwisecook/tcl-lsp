@@ -24,7 +24,7 @@
 //! over its own value type. Rendering is **not** here — it is value-type- and
 //! dialect-specific, so each consumer owns it; this module is the one place the
 //! specifier *grammar* lives (reference Tcl 9.0 `Tcl_AppendFormatToObj`,
-//! `tmp/tcl9.0.3/generic/tclStringObj.c`).
+//! `tmp/tcl9.0.4/generic/tclStringObj.c`).
 //!
 //! Arg-driven `*` width/`.*` precision parse into `width_star`/`precision_star`
 //! (the runtime renderer consumes a leading argument; the const-folder declines
