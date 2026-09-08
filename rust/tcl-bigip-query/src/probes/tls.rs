@@ -27,7 +27,7 @@
 //! handshake reached the certificate message, else `null`.
 
 use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::{Arc, Once};
+use std::sync::Arc;
 use std::time::Duration;
 
 use indexmap::IndexMap;
@@ -155,28 +155,20 @@ fn classify_verify_kind(msg: &str) -> String {
     .to_owned()
 }
 
-/// Install the process-level `rustls` crypto provider, once.
+/// Build the probe's `rustls` client config, naming its crypto provider.
 ///
 /// Both providers are linked in — `rustls`'s own default features select
 /// `aws-lc-rs` and `ureq` pulls `ring` — so rustls cannot infer one from the
-/// feature set, and [`rustls::ClientConfig::builder`] panics with "Could not
-/// automatically determine the process-level `CryptoProvider`" until a default
-/// is installed. `aws-lc-rs` is the provider this crate's own `rustls`
-/// dependency asks for, so that is the one installed.
+/// feature set, and the plain [`rustls::ClientConfig::builder`] panics with
+/// "Could not automatically determine the process-level `CryptoProvider`".
 ///
-/// The default is process-wide state rustls owns, not configuration of ours:
-/// [`Once`] keeps two probes from racing the install, and an already-installed
-/// provider — another consumer of the same process got there first — is the
-/// wanted outcome, not a failure.
-fn install_crypto_provider() {
-    static INSTALL: Once = Once::new();
-    INSTALL.call_once(|| {
-        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-    });
-}
-
+/// The provider is therefore passed to *this* config rather than installed as
+/// the process default: a library that calls `install_default` would decide
+/// for the whole process, so an embedder wanting `ring` or its own provider
+/// gets `AlreadyInstalled`, and every other rustls user in the process —
+/// `ureq` included — silently switches to ours. `aws-lc-rs` is what this
+/// crate's own `rustls` dependency asks for, and the choice stops here.
 fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls::Error> {
-    install_crypto_provider();
     let mut roots = rustls::RootCertStore::empty();
     if let Some(path) = ca_bundle {
         if let Ok(pem) = std::fs::read(path) {
@@ -191,9 +183,12 @@ fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls
             let _ = roots.add(cert);
         }
     }
-    Ok(rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth())
+    Ok(rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::aws_lc_rs::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_root_certificates(roots)
+    .with_no_client_auth())
 }
 
 #[cfg(test)]
@@ -201,19 +196,21 @@ mod tests {
     use std::net::TcpListener;
     use std::thread;
 
-    use super::{classify_verify_kind, client_config, handshake, install_crypto_provider};
+    use super::{classify_verify_kind, client_config, handshake};
 
-    /// Without an installed default provider `ClientConfig::builder()` panics
-    /// ("Could not automatically determine the process-level
-    /// `CryptoProvider`"), which is what every `tls_handshake` consumer hit in
-    /// a debug build. Installing twice must be a no-op, not a second install.
+    /// `ClientConfig::builder()` panics here ("Could not automatically
+    /// determine the process-level `CryptoProvider`") because two providers
+    /// are linked in — which is what every `tls_handshake` consumer hit in a
+    /// debug build. Naming the provider per config fixes it without touching
+    /// the process default, so building twice must work with no global
+    /// installed and no `AlreadyInstalled` in between.
     #[test]
-    fn the_crypto_provider_installs_once_and_a_client_config_builds() {
-        install_crypto_provider();
-        install_crypto_provider();
+    fn a_client_config_builds_repeatedly_without_a_process_default() {
+        assert!(client_config(None).is_ok(), "first build");
+        assert!(client_config(None).is_ok(), "second build");
         assert!(
-            client_config(None).is_ok(),
-            "a ClientConfig must build once the provider is installed"
+            rustls::crypto::CryptoProvider::get_default().is_none(),
+            "the probe must not install a process-wide default"
         );
     }
 
