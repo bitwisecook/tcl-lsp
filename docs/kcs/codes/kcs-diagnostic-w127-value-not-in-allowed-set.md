@@ -23,7 +23,9 @@ The check only fires for arguments whose value set is declared *exhaustive*. It 
 
 ## Symptoms
 
-- A yellow squiggle appears under the argument, with the message "Invalid value '…' for '…'; expected one of: …".
+- A yellow squiggle under the argument, with the message "Invalid value '2.0'
+  for 'HTTP::version'; expected one of: 0.9, 1.0, 1.1; did you mean '1.0'?" —
+  the "did you mean" tail appears only when a close match exists.
 
 ## Example that triggers it
 
@@ -57,4 +59,5 @@ Add `# noqa: W127` on the line **above** the offending command.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- Related codes: `W126`, `W001`
+- [command walk](../../GLOSSARY.md#command-walk)
+- Related codes: `W126`, `W141`, `W001`

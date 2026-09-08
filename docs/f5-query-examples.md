@@ -325,6 +325,8 @@ $ f5 query '
 -    address 192.168.50.10
 +    address 10.50.50.10
  }
+ ltm pool /Common/web_pool {
+     members {
 @@ -38,7 +38,7 @@
  ltm pool /Common/legacy_pool {
      members {
@@ -333,6 +335,7 @@ $ f5 query '
 +            address 10.50.50.10
          }
      }
+     monitor /Common/http
 @@ -143,7 +143,7 @@
      }
  }
@@ -437,6 +440,7 @@ renamed 'prefix /Common/legacy_' -> '/Legacy/legacy_' (4 occurrence(s))
 +        /legacy   { data "/Legacy/legacy_pool" }
      }
  }
+ ltm rule /Common/log_rule {
 @@ -142,10 +142,10 @@
          /Common/log_rule
      }
@@ -448,6 +452,8 @@ renamed 'prefix /Common/legacy_' -> '/Legacy/legacy_' (4 occurrence(s))
 -    pool /Common/legacy_pool
 +    pool /Legacy/legacy_pool
  }
+ ltm virtual /Common/forwarder_vs {
+     destination /Common/0.0.0.0:0
 ```
 
 The data-group record value moves too. `legacy1` (the node) does not —
@@ -497,6 +503,7 @@ renamed '/Common/legacy_pool' -> '/Common/legacy_app_pool' (3 occurrence(s))
 +ltm pool /Common/legacy_app_pool {
      members {
          /Common/legacy1:80 {
+             address 192.168.50.10
 @@ -64,7 +64,7 @@
      type string
      records {
@@ -505,6 +512,7 @@ renamed '/Common/legacy_pool' -> '/Common/legacy_app_pool' (3 occurrence(s))
 +        /legacy   { data "/Common/legacy_app_pool" }
      }
  }
+ ltm rule /Common/log_rule {
 @@ -145,7 +145,7 @@
  ltm virtual /Common/legacy_vs {
      destination /Common/192.168.50.100:80
@@ -512,6 +520,8 @@ renamed '/Common/legacy_pool' -> '/Common/legacy_app_pool' (3 occurrence(s))
 -    pool /Common/legacy_pool
 +    pool /Common/legacy_app_pool
  }
+ ltm virtual /Common/forwarder_vs {
+     destination /Common/0.0.0.0:0
 ```
 
 ### L20b. `--write` — full rewritten SCF on stdout
@@ -719,6 +729,8 @@ renamed '/Common/web_vs' -> '/Common/web_primary_vs' (4 occurrence(s))
 -ltm virtual /Common/web_vs {
 +ltm virtual /Common/web_primary_vs {
      destination /Common/10.0.0.10:80
+     ip-protocol tcp
+     mask 255.255.255.255
 --- gtm.conf
 +++ gtm.conf (modified)
 @@ -6,7 +6,7 @@
@@ -729,6 +741,7 @@ renamed '/Common/web_vs' -> '/Common/web_primary_vs' (4 occurrence(s))
 +        /Common/web_primary_vs {
              destination 10.0.0.10:80
          }
+         /Common/web_secure_vs {
 @@ -23,17 +23,17 @@
          10.1.0.1 { }
      }
