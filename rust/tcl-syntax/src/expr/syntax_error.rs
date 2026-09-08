@@ -55,7 +55,9 @@ const MARK: &str = "_@_";
 /// C has arms for `b` and `o` and a `default` that fires only when the second
 /// character is a digit (legacy leading-zero octal). There is deliberately **no
 /// `x` arm**, so a bad hex numeral such as `0xg` keeps the plain `BAREWORD`
-/// code and gets no hint.
+/// code and gets no hint. C's `switch` is over bytes, so the arms are the
+/// lowercase letters alone: `0O8` and `0B2` are numerals the *lexer* accepts
+/// but the hint does not recognise, and they keep `BAREWORD` too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NumberHint {
     /// `0b…` with a non-binary digit.
@@ -98,8 +100,8 @@ impl NumberHint {
             return None;
         }
         match b[1] {
-            b'b' | b'B' => Some(Self::Binary),
-            b'o' | b'O' => Some(Self::Octal),
+            b'b' => Some(Self::Binary),
+            b'o' => Some(Self::Octal),
             c if c.is_ascii_digit() => Some(Self::Octal),
             _ => None,
         }
@@ -873,6 +875,61 @@ mod tests {
                 got_code,
                 format!("TCL PARSE EXPR {code}"),
                 "code for {source}"
+            );
+        }
+    }
+
+    /// The radix hint follows C's `switch (start[1])` exactly
+    /// (`tclCompExpr.c:785-808`), pinned against real `tclsh` output.
+    ///
+    /// Three things the switch does that a "looks like a bad number" guess
+    /// would not: it has no `x` arm at all, so `0xg` stays a plain bareword;
+    /// its arms are lowercase bytes, so `0O8` and `0B2` — spellings the lexer
+    /// accepts as radix prefixes — get no hint either; and the legacy
+    /// leading-zero arm fires only where the release still reads `08` as
+    /// octal, which is up to 8.6.
+    #[test]
+    fn the_radix_hint_matches_c_switch_over_the_prefix_byte() {
+        const OCTAL: &str = " (invalid octal number?)";
+        const BINARY: &str = " (invalid binary number?)";
+        // (expression, dialect, postscript suffix, error code)
+        let vectors = [
+            ("0o8", "tcl9.0", OCTAL, "TCL PARSE EXPR BADNUMBER OCTAL"),
+            ("0b2", "tcl9.0", BINARY, "TCL PARSE EXPR BADNUMBER BINARY"),
+            ("0o", "tcl9.0", OCTAL, "TCL PARSE EXPR BADNUMBER OCTAL"),
+            ("0b", "tcl9.0", BINARY, "TCL PARSE EXPR BADNUMBER BINARY"),
+            // No `x` arm: a bad hex numeral is an ordinary bareword.
+            ("0x", "tcl9.0", "", "TCL PARSE EXPR BAREWORD"),
+            ("0xg", "tcl9.0", "", "TCL PARSE EXPR BAREWORD"),
+            // The arms are lowercase bytes; the uppercase prefixes miss them.
+            ("0O8", "tcl9.0", "", "TCL PARSE EXPR BAREWORD"),
+            ("0B2", "tcl9.0", "", "TCL PARSE EXPR BAREWORD"),
+            // Legacy leading-zero octal, while the release still has it.
+            ("08", "tcl8.6", OCTAL, "TCL PARSE EXPR BADNUMBER OCTAL"),
+            ("09", "tcl8.6", OCTAL, "TCL PARSE EXPR BADNUMBER OCTAL"),
+            ("0O8", "tcl8.6", "", "TCL PARSE EXPR BAREWORD"),
+            // `0d` and `_` are 9.0 spellings; before that they are barewords
+            // with no hint, since neither is a `switch` arm.
+            ("0d9", "tcl8.6", "", "TCL PARSE EXPR BAREWORD"),
+            ("1_0", "tcl8.6", "", "TCL PARSE EXPR BAREWORD"),
+        ];
+        for (source, dialect, suffix, code) in vectors {
+            let error = ExprSyntaxError::diagnose(source, Some(dialect));
+            let message = error.message(source);
+            assert_eq!(
+                error.error_code(),
+                code,
+                "error code for expr {{{source}}} under {dialect}"
+            );
+            assert_eq!(
+                message,
+                format!(
+                    "invalid bareword \"{source}\"\n\
+                     in expression \"{source}\";\n\
+                     should be \"${source}\" or \"{{{source}}}\" \
+                     or \"{source}(...)\" or ...{suffix}"
+                ),
+                "message for expr {{{source}}} under {dialect}"
             );
         }
     }
