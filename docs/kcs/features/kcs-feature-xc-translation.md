@@ -5,11 +5,11 @@
 
 ## Summary
 
-Translate F5 BIG-IP iRules to F5 Distributed Cloud (XC) routes and service policies.
+Translate F5 BIG-IP iRules to F5 Distributed Cloud (XC) Terraform HCL and ves.io JSON, with a coverage report.
 
 ## Applies to
 
-VS Code, Copilot Chat, MCP, Claude skill
+VS Code, JetBrains, Copilot Chat, MCP, Claude skill, transform, lowering
 
 ## Availability
 
@@ -17,24 +17,76 @@ VS Code, Copilot Chat, MCP, Claude skill
 |---------|-----|
 | VS Code command | `Tcl: Translate iRule to F5 XC` |
 | VS Code chat | `@irule /xc` |
+| JetBrains action | `Translate iRule to F5 XC` |
 | MCP | `xc_translate` tool |
 | Claude Code | `/irule-xc` |
+| LSP command | `tcl-lsp.xcTranslate` |
+
+## Question
+
+What does XC translation do, and how do I use it?
 
 ## How to use
 
-- **VS Code**: Open an iRule file and run `Tcl: Translate iRule to F5 XC`. The output shows the equivalent XC configuration.
-- **VS Code chat**: `@irule /xc` translates the current iRule with AI explanations.
-- **MCP**: `xc_translate` tool accepts source code and returns XC config.
-- **Claude Code**: `/irule-xc` translates with detailed commentary.
+Every entry point runs the same static translator and returns the same
+result: a Terraform HCL document, a ves.io JSON API document, a coverage
+percentage, and a per-command list of what was translated, what was only
+partially translated, what has no XC equivalent, and what maps to a
+separate XC feature.
+
+### VS Code
+
+Open an iRule file and run `Tcl: Translate iRule to F5 XC`. Two scratch
+tabs open beside the editor — the Terraform HCL and the JSON API
+configuration — and a notification reports the coverage with the
+translatable and untranslatable counts. Nothing is written to disk; save
+either tab yourself to keep it.
+
+### VS Code chat
+
+`@irule /xc` translates the iRule in the editor, or one you attach or
+paste. It opens the same two scratch tabs, lists the untranslatable and
+advisory constructs in the chat, and when coverage is below 100 % asks
+the model to suggest XC alternatives for the gaps.
+
+### JetBrains
+
+Run the `Translate iRule to F5 XC` action on an open iRule. The result
+opens in a scratch file.
+
+### MCP and Claude Code
+
+The `xc_translate` tool takes `source` and an optional `output_format`
+(`terraform`, `json`, or `both` — the default), and returns both
+documents with the coverage breakdown. `/irule-xc` calls that tool and
+writes `$FILE.tf` and `$FILE.xc.json`.
+
+## Options
+
+- `output_format` — `terraform`, `json`, or `both`. Defaults to `both`;
+  an unrecognised value is treated as `both`. The editor entry points
+  always ask for `both`, because they open a tab per document.
 
 ## Operational context
 
-The translator maps iRule event handlers and commands to XC route and service policy equivalents. Some iRule patterns have no XC equivalent and are flagged as manual migration items.
+The translator walks the lowered IR of each event handler and maps
+commands to XC routes, service policy rules, origin pool references,
+header actions, and WAF exclusion rules. Generated Terraform carries
+`TODO` comments where XC needs a value the iRule cannot supply, such as
+origin server addresses and load-balancer domains. Constructs with no XC
+equivalent are reported as items, never silently dropped, and the same
+analysis drives the XC100-301 diagnostics shown inline on iRule files.
 
 ## Failure modes
 
-- Unsupported iRule patterns silently dropped.
-- XC output not valid YAML/JSON.
+- **Nothing happens on an empty file.** The command needs a non-empty
+  iRule; a blank buffer returns no result.
+- **Coverage below 100 %.** Procedural logic, L4 events, and `table` or
+  `session` state have no static XC equivalent. The items list names
+  each one and its XC-side alternative, such as App Stack, Rate
+  Limiting, or Bot Defence.
+- **The generated Terraform does not apply as-is.** Every `TODO` in the
+  output marks a value you must supply before `terraform apply`.
 
 ## Example
 
@@ -48,22 +100,45 @@ when HTTP_REQUEST {
 }
 ```
 
-### After (XC route policy)
+### After (Terraform HCL, abridged)
 
-```yaml
-routes:
-  - match:
-      path:
-        prefix: /api
-    route_destination:
-      pool:
-        name: api_pool
+```hcl
+resource "volterra_origin_pool" "api_pool" {
+  name      = "api_pool"
+  namespace = "default"
+
+  # TODO: Configure origin servers
+  origin_servers {
+    public_name {
+      dns_name = "example.com"  # TODO: Set actual server address
+    }
+  }
+  port = 80
+}
+
+resource "volterra_http_loadbalancer" "translated-lb" {
+  name      = "translated-lb"
+  namespace = "default"
+
+  simple_route {
+    path {
+      prefix = "/api"
+    }
+    origin_pools {
+      pool {
+        name      = volterra_origin_pool.api_pool.name
+        namespace = volterra_origin_pool.api_pool.namespace
+      }
+    }
+  }
+}
 ```
 
-Patterns without a direct equivalent — for example, a `HTTP::header
-insert` that mutates response headers — are emitted as a comment in
-the YAML output flagged as a manual migration item.
+The JSON API document carries the same route and origin pool under
+`http_loadbalancer` and `origin_pools`, and the run reports
+`Coverage: 100.0% — 2 translatable, 0 partial, 0 untranslatable, 0 advisory`.
 
-## Discoverability
+## Related
 
 - [KCS feature index](README.md)
+- [Glossary](../../GLOSSARY.md)

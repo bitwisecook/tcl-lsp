@@ -16419,6 +16419,53 @@ impl Backend {
         ))
     }
 
+    /// Handle `tcl-lsp.xcTranslate`: statically translate an iRule to F5
+    /// Distributed Cloud constructs and report the result.
+    ///
+    /// Arguments are `[source, output_format?]`, where `output_format` is
+    /// `"terraform"` | `"json"` | `"both"` (default). The payload is
+    /// `f5-xc`'s own reporting shape — the same one the `xc_translate` MCP
+    /// tool returns — so a client renders either source identically:
+    /// `terraform` HCL and `json_api` documents, `coverage_pct` with the
+    /// per-status counts, and the status-tagged `items` list.
+    ///
+    /// Blank source is `null`, not an `{error}` object: there is nothing to
+    /// translate and the editors already refuse to send an empty buffer.
+    async fn xc_translate_command(&self, args: &[serde_json::Value]) -> Option<serde_json::Value> {
+        let source = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        if source.trim().is_empty() {
+            return None;
+        }
+        let output_format =
+            f5_xc::OutputFormat::from_arg(args.get(1).and_then(serde_json::Value::as_str));
+        // Translation lowers the whole document to IR — pure CPU work that
+        // belongs off the LSP event loop.  A panic in the walk is contained
+        // and surfaced as the `{error}` object the clients already render.
+        let registry = self.registry_for_dialect("f5-irules").await;
+        let value = crate::rt::spawn_blocking(move || {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let result = f5_xc::translate_irule_with_registry(&source, &registry);
+                f5_xc::translation_payload(
+                    &result,
+                    f5_xc::DEFAULT_NAMESPACE,
+                    f5_xc::DEFAULT_LB_NAME,
+                    output_format,
+                )
+            }))
+        })
+        .await;
+        match value {
+            Ok(Ok(payload)) => Some(payload),
+            _ => Some(serde_json::json!({
+                "error": "the XC translator failed to analyse the source",
+            })),
+        }
+    }
+
     /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping
     /// **provably semantics-preserving** diagnostic fix, iteratively, until
     /// the source stabilises.
@@ -24359,6 +24406,7 @@ impl LanguageServer for Backend {
             }
             "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
             "tcl-lsp.diagramData" => Ok(self.diagram_data_command(&params.arguments).await),
+            "tcl-lsp.xcTranslate" => Ok(self.xc_translate_command(&params.arguments).await),
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -29182,6 +29230,7 @@ fn build_server_capabilities(
                 "tcl-lsp.describeIruleCommand".to_owned(),
                 "tcl-lsp.listIruleEvents".to_owned(),
                 "tcl-lsp.diagramData".to_owned(),
+                "tcl-lsp.xcTranslate".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),
