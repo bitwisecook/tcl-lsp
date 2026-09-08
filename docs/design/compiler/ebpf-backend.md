@@ -68,11 +68,13 @@ share one `__sk_buff` context and one `SEC(tc)` convention). Likewise
 `kernel-cgroup-sockaddr` accepts either `CGROUP_CONNECT4` or `CGROUP_BIND4`
 (the attach point is chosen at `bpftool cgroup attach` time).
 
-All targets share one lowering strategy:
+Every target shares the stack and relocation steps; the packet prologue
+applies to `rbpf` and to a kernel program that touches the packet:
 
-1. A prologue loads `data` into callee-saved `r6` and `data_end` into `r7` (a
-   verdict-only kernel program that never touches the packet skips the
-   prologue entirely).
+1. On `rbpf`, and on a kernel target whose program reads the packet, a
+   prologue loads `data` into callee-saved `r6` and `data_end` into `r7`. A
+   verdict-only kernel program skips it, and `kernel-cgroup-sockaddr` never
+   emits it because its context has no packet body.
 2. Every BPF-IR slot owns one eight-byte eBPF stack location.
 3. Each instruction reloads operands into scratch registers, computes, and
    writes back to the stack.
