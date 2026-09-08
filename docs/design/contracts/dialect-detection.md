@@ -89,9 +89,10 @@ pack declares — matched case-sensitively, and answered as the resolved
 and detection falls through to the next tier rather than erroring.
 
 `tk` therefore resolves: it is a package plus an environment, never a
-dialect, and the directive selects environments. `KNOWN_DIALECTS` feeds
-the CLI's `--dialect` choices and the MCP `dialect_schema` enum; it does not
-gate the directive.
+dialect, and the directive selects environments. The dialect catalogue
+(`tcl_dialect::KNOWN_DIALECTS`, the same set as `DialectProfile::all()`,
+`spectcl` and `sslictcl` included) is what the CLI's `--dialect` choices and
+the MCP `dialect_schema` enum enumerate; it does not gate the directive.
 
 The directive takes priority over shebang detection.  This allows a file to
 have a generic `#!/usr/bin/tclsh` shebang while still targeting a specific

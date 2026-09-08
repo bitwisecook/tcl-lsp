@@ -38,13 +38,12 @@ one loaded source (below); reads and writes both route to it.
 | Divergence from jq | f5 query |
 |---|---|
 | function args | `,` separated, not `;` |
-| stream concat `,` | absent — use `[ ... ]` lists or `;` statements |
-| `test()` | `match()` is boolean; capture groups via `sub` / `gsub` |
+| stream concat `,` | supported, including inside `[ ... ]`; a comma in a function argument or object entry stays a structural separator, so parenthesise a comma value there |
+| regex | `match()` and `test()` are both boolean; capture groups via `sub` / `gsub` |
 | truthiness | empty string / list / stream / PathRef and numeric 0 are also falsey |
 | object literals | `{name, dest: .destination}` (bareword key = `key: .key`; stream fields broadcast one row per item) |
 | `expr as $x \| body` | supported — streams iterate, plain lists bind whole |
-| string interpolation | not in v1 — concat with `+` (scalars auto-coerce) |
-| `,` inside `[...]` | not in v1 — parse error names the comma |
+| string interpolation | `"\(…)"` is not interpolated — concat with `+` (scalars auto-coerce) |
 
 ## Multi-config queries
 
@@ -126,7 +125,8 @@ source format and reads strict UTF-8), `--write`, `--in-place`,
 
 1. `map(body)` is many-to-many and flattens like the pipe;
    `map(select(...) | .field)` is the filter+transform idiom.
-2. No `,` inside `[ ... ]` — one pipeline expression per bracket.
+2. A comma inside a function argument list or an object entry separates
+   arguments, not streams — parenthesise a comma expression there.
 3. `--in-place --format tmsh` is refused; use `--write` for tmsh.
 4. Field-edit strings are SCF-encoded on write; newlines and braces raise an
    `EditError`.

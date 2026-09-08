@@ -9,8 +9,9 @@
 > result files.
 >
 > **Methodology caveat up front:** only §3 and §4a were run under the E4 probe
-> contract. See [§11](#11-what-the-model-takes-from-this-run) for the exact
-> delta before relying on any other row as E4-conforming evidence.
+> contract ([`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md)
+> §0.2). See [§11](#11-what-the-model-takes-from-this-run) for the exact delta
+> before relying on any other row as E4-conforming evidence.
 
 Measured against a live appliance, not inferred from documentation.
 
@@ -941,8 +942,9 @@ appliance measurement it does not have.
 ### What this run did *not* do
 
 Two runs are described here and they differ in rigour. The **§3 F3 matrix** and
-the **§4a four-context parity probe** were run under the E4 contract —
-`__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
+the **§4a four-context parity probe** were run under the E4 contract
+([`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md)
+§0.2) — `__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
 `EXIT` trap deleting only those names, an absence proof after every delete, an
 explicit "attached to a virtual server?" check, and the APL contexts recorded as
 `Unknown` rather than inferred. The driver is
