@@ -43,6 +43,19 @@ when HTTP_REQUEST {
 }
 ```
 
+The gate clears the diagnostic. What counts as one:
+
+- Any enclosing `if`, `switch`, or loop whose condition reads a `static::`
+  variable — `$static::debug`, `${static::debug}`, or
+  `[info exists static::debug]`.
+- Any enclosing condition that reads a variable set by an event that runs
+  less often than once per request: `set debug 0` in `RULE_INIT` or in
+  `CLIENT_ACCEPTED`, then `if {$debug}`. A flag the request path sets itself
+  does not count — gating on per-request state is not gating.
+
+Nested bodies inherit the gate, so a `log` deeper inside a gated branch stays
+quiet. Every arm of a gating command counts, `else` included.
+
 ## How to suppress
 
 Add `# noqa: IRULE5001` on the line **above** the offending command.
