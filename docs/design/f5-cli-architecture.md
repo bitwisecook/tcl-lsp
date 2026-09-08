@@ -5,8 +5,7 @@
 
 The `f5` CLI is the native `f5-query` binary (crate `rust/f5-cli`), a
 separate top-level binary from the `tcl` binary.  It is a pure-Rust,
-`unsafe`-free binary — no Python, no zipapp — and is built around three
-layers:
+`unsafe`-free binary, built around three layers:
 
 1. **Verb registry** (`rust/f5-cli/src/cli.rs`,
    `rust/f5-cli/src/lib.rs`) — a `clap` derive command tree with no
@@ -98,7 +97,7 @@ one rewrite path.
 [`commands::irule::run_irule`](../../rust/f5-cli/src/commands/irule.rs);
 new sub-groups follow the same nested-`Subcommand` shape. `pgo`
 (profile-guided branch-reorder suggestions) is deliberately not a
-sub-verb here — see the module doc on `commands::irule` and issue #1315.
+sub-verb here — the module doc on `commands::irule` says why.
 
 ## Query DSL
 

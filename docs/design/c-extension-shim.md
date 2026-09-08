@@ -5,7 +5,7 @@ Rust hook host, and a shim that lets a **C Tcl extension** run behind the same
 surface. This document is that shim: crate `rust/tcl-cshim`, its C header
 `include/tclshim.h`, and the rules that keep it a shim rather than a second
 interface. It is part of the spec-pack DSL design
-([spec-packs.md](spec-packs.md) § "Covering the hooks"), issue #1372.
+([spec-packs.md](spec-packs.md) § "Covering the hooks").
 
 ```text
   C extension            compiled against include/tclshim.h

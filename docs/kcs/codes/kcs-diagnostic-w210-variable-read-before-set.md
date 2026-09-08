@@ -21,7 +21,8 @@ Reading an undefined variable causes a runtime error and stops the script.
 
 ## Symptoms
 
-- A yellow squiggle appears under the variable reference, with the message "variable used before being set".
+- A yellow squiggle under the variable reference, with the message "Variable
+  'x' is read before it is set".
 
 ## Example that triggers it
 
@@ -29,7 +30,7 @@ Reading an undefined variable causes a runtime error and stops the script.
 puts $x
 ```
 
-The analyser reports **`W210`** because `x` is never set before it is read.
+The analyser reports **`W210`** on `$x`: nothing sets `x` before the read.
 
 ## Fix
 

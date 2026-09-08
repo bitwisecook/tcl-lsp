@@ -8,7 +8,8 @@ Start here, then follow the reference links.
 Live, in-browser demos (nothing installed, nothing uploaded):
 **[compiler explorer](https://bitwisecook.github.io/tcl-lsp/compiler-explorer/)** ·
 **[BIG-IP report generator](https://bitwisecook.github.io/tcl-lsp/bigip-report-generator/)** ·
-**[example BIG-IP report](https://bitwisecook.github.io/tcl-lsp/bigip-report-demo/)**
+**[example BIG-IP report](https://bitwisecook.github.io/tcl-lsp/bigip-report-demo/)** ·
+**[spec studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/)**
 
 ---
 

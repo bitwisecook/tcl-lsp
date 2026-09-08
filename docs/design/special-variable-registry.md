@@ -9,8 +9,7 @@ inject into every Tcl program — `auto_path`, `env`, `errorInfo`, `tcl_platform
 the command-line `argv`/`argc`/`argv0`, and the F5 iRules `static::` namespace.
 It exists so the analyser, the taint / side-effect passes, and the LSP hover
 provider reason about these variables from one dialect-versioned table instead
-of hardcoding name lists (issue
-[#831](https://github.com/bitwisecook/tcl-lsp/issues/831)).
+of hardcoding name lists.
 
 ## Why a registry
 
@@ -76,8 +75,7 @@ The query helpers take a **point** — one family at one release, plus the
 packages in play — never a dialect string. `surface_query_for_profile` is
 the one door: the LSP/CLI ingress resolves the dialect name once (through
 `tcl_registry::model::ingress`) and threads the resolved
-`&'static DialectProfile`; the name-keyed `resolve_dialect` validator this
-table used to carry is deleted (ledger C2, P1-G).
+`&'static DialectProfile`.
 
 - No profile resolved — an unrecognised name, empty, generic `"tcl"`,
   config-only `"f5-bigip"` — answers the permissive `PLAIN_TCL` profile's

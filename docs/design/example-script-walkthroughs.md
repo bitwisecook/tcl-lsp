@@ -3237,7 +3237,7 @@ Without braces, Tcl performs variable substitution *before* the
 expression is compiled.  The segmenter sees multiple tokens:
 
 ```
-Token(VAR, "a")  Token(ESC, "+")  Token(VAR, "b")  ...
+Token(Var, "$a")  Token(Esc, "+")  Token(Var, "$b")  ...
 ```
 
 These are concatenated into a single text `"${a} + ${b} * 2"`.
@@ -4113,7 +4113,7 @@ Source text  ──────────────────────�
        ▼                                                                 │
   Token stream         SegmentedCommand  Statement::AssignConst      Instruction
   ┌──────────┐        ┌──────────────┐        ┌───────────┐        ┌───────────┐
-  │ type:ESC │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
+  │ kind:Esc │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
   │ text:"set"│       │  ["set",     │        │ value:"42"│        │ operands: │
   │ start:0,0│        │   "x","42"]  │        │ span:...  │        │  (0,)     │
   │ end:0,3  │        │ single:      │        └───────────┘        └───────────┘
