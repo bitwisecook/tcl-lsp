@@ -42,4 +42,3 @@ backend or an out-of-band bundle test path.
 - [WASM code generation](wasm-codegen.md)
 - [Semantic AOT optimisation](semantic-aot-optimisation.md)
 - [WASM runtime boundary](wasm-runtime-primitives.md)
-- [Package command oracle](command-oracle-audits.md)
