@@ -18,7 +18,7 @@
 
 //! **Canonical export** — a loaded snapshot back out as straight-line
 //! `SpecTcl` source (`docs/design/spec-packs.md` § *Authoring rules for
-//! SpecTcl 2.0*).
+//! `SpecTcl` 2.0*).
 //!
 //! The canonical form is the *straight-line subset* of the language: literal
 //! registration calls only, no `proc`, `foreach`, `set`, or computed
