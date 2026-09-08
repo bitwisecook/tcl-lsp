@@ -166,7 +166,7 @@ fn cross_file_call_site_evidence(
     for document in documents {
         let dialect = document.effective_dialect(dialect_override);
         merged.merge_from(&tcl_compiler::unit_scope::scan_source_call_sites(
-            &document.source,
+            &document.analysis_source(),
             &registry_for_dialect(dialect.name),
             dialect,
             &known,
@@ -183,7 +183,7 @@ fn document_proc_names(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<String> {
     tcl_compiler::signature_scan::extract_signatures(
-        &document.source,
+        &document.analysis_source(),
         &registry_for_dialect(dialect.name),
     )
     .procs
@@ -205,23 +205,12 @@ fn collect_rows(
     disabled: &HashSet<String>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> Vec<Row> {
-    // The *analysis* form of the document, not the bytes on disk. A lone `\r`
-    // terminates a command for `tclsh` — `Tcl_OpenFileChannel` reads scripts
-    // under `-translation auto` — but the lexer treats it as horizontal
-    // whitespace, so an unnormalised CR-terminated file parses as one command:
-    // findings are invented, real ones hidden, and `LineIndex` (which starts a
-    // line only after a `\n`) reports every one of them on line 1, column *n*.
-    // The server normalises at every entry point that reaches the analyser
-    // (`DocumentState::normalised_for_analysis`), so without this the CLI and
-    // the editor disagree about the same file (issue #1799).
-    //
-    // Safe to apply here because `normalise_lone_cr` is byte-length preserving:
-    // every span stays valid against the raw text, and
+    // The *analysis* form of the document, not the bytes on disk — see
+    // `InputDocument::analysis_source`. `LineIndex` is built over it too:
     // `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
     // `LineIndex::new_lsp(t)`, so the lexer's line model and the client's
-    // coincide. An LF or CRLF document contains no lone `\r` and comes back
-    // borrowed, so this costs one scan and no allocation for almost every file.
-    let source = tcl_lexer::normalise_lone_cr(document.source.as_str());
+    // coincide (issue #1799).
+    let source = document.analysis_source();
     let source = source.as_ref();
     let line_index = LineIndex::new(source);
     let mut rows: Vec<Row> = Vec::new();

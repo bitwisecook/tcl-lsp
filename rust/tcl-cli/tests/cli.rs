@@ -546,6 +546,85 @@ fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
     );
 }
 
+/// #1799 review — dialect *detection* must read the analysis form too.
+///
+/// `detect_dialect`'s directive, shebang and version-guard tiers scan by line,
+/// and Rust's `lines()` splits on `\n` only, so on the raw form of an old-Mac
+/// document the whole file is line 1 and those tiers see nothing. The document
+/// below is routed to `f5-irules` by its content, and under the wrong dialect
+/// `when` and `HTTP::uri` are unknown commands.
+#[test]
+fn diag_detects_the_dialect_of_a_cr_terminated_document() {
+    let lf = "# ordinary header\nwhen HTTP_REQUEST {\n    set u [HTTP::uri]\n}\n";
+    let cr = lf.replace('\n', "\r");
+
+    let lf_rows = tcl_diag_rows("dialect-lf", lf);
+    let cr_rows = tcl_diag_rows("dialect-cr", &cr);
+
+    assert_eq!(
+        cr_rows, lf_rows,
+        "the dialect a lone-CR document resolves to must match its `\\n` twin"
+    );
+    assert!(
+        !cr_rows.iter().any(|(code, _)| code == "W123"),
+        "resolving as generic Tcl makes the iRules commands unknown: {cr_rows:?}"
+    );
+}
+
+/// #1799 review — the cross-file evidence scans must read the analysis form.
+///
+/// `tcl diag a.tcl b.tcl` is one compilation (#977): the declared-procedure set
+/// and the call-site scan decide what may be folded. On the raw form of a
+/// lone-CR pair both scans parse each file as one command, so the caller in the
+/// second file is invisible and the fold the pair should retract survives.
+///
+/// This is `diag_shares_call_sites_across_inputs` over the same fixtures with
+/// every `\n` rewritten to `\r`.
+#[test]
+fn diag_shares_call_sites_across_cr_terminated_inputs() {
+    let lib = std::fs::read_to_string(fixtures_dir().join("issue977Lib.tcl")).expect("lib fixture");
+    let main =
+        std::fs::read_to_string(fixtures_dir().join("issue977Main.tcl")).expect("main fixture");
+
+    let alone = multi_file_diag_text("cr-alone", &[("issue977Lib.tcl", &lib.replace('\n', "\r"))]);
+    assert!(
+        alone.contains("I230"),
+        "the library alone still has only agreeing callers: {alone}"
+    );
+    let together = multi_file_diag_text(
+        "cr-together",
+        &[
+            ("issue977Lib.tcl", &lib.replace('\n', "\r")),
+            ("issue977Main.tcl", &main.replace('\n', "\r")),
+        ],
+    );
+    assert!(
+        !together.contains("I230"),
+        "the `dev` call in the second file must be visible on the CR form too: {together}"
+    );
+}
+
+/// Write each `(name, text)` into one scratch directory, run `tcl diag` over
+/// all of them in order, and return the combined report text.
+fn multi_file_diag_text(tag: &str, files: &[(&str, &str)]) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("tcl-cli-multi-{tag}-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let mut args: Vec<String> = vec!["diag".to_owned()];
+    for (name, text) in files {
+        let path = dir.join(name);
+        std::fs::write(&path, text).expect("write document");
+        args.push(path.to_str().expect("utf-8 path").to_owned());
+    }
+    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = String::from_utf8(run_tcl_allow_failure(&borrowed)).expect("utf-8 output");
+    std::fs::remove_dir_all(&dir).ok();
+    out
+}
+
 /// Run `tcl diag --json` over one `.tcl` document written to a scratch file and
 /// return every row as a `(code, line)` pair in report order.
 fn tcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {

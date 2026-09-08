@@ -244,12 +244,20 @@ extension, then the `tcl8.6` fallback decide.  This keeps `tcl diag`
 and the editor reporting the same set for the same file — an `.irul`
 input gets full iRules analysis without any flag.
 
-They also read the same *analysis form* of the document. `collect_rows`
-normalises lone `\r` once at the top (`tcl_lexer::normalise_lone_cr`) and
-derives both the line index and the analysis inputs from it, the way the
-server does at every entry point that reaches the analyser. A bare `\r` ends
-a command for `tclsh` but is horizontal whitespace to the lexer, so on the raw
-form an old-Mac document parses as one command — inventing findings, hiding
-real ones — and `LineIndex` (which starts a line only after a `\n`) reports
-whatever survives at line 1. The pass is byte-length preserving, so every span
-stays valid against the raw text (issue #1799).
+They also read the same *analysis form* of the document.
+`InputDocument::analysis_source()` rewrites lone `\r` to `\n`
+(`tcl_lexer::normalise_lone_cr`), and every CLI path that parses, detects or
+analyses reads it rather than `InputDocument::source`:
+
+| consumer | why it must |
+|---|---|
+| `effective_dialect` | `detect_dialect`'s directive, shebang and version-guard tiers scan by line, and `lines()` splits on `\n` only — on the raw form the whole file is line 1 and those tiers see nothing |
+| `collect_rows` | a bare `\r` ends a command for `tclsh` but is horizontal whitespace to the lexer, so the raw form parses as one command: findings invented, real ones hidden |
+| `document_proc_names`, `cross_file_call_site_evidence` | the same mis-parse hides a multi-file compilation's declarations and call sites, so `tcl diag a.tcl b.tcl` draws different conclusions from its `\n` twin |
+
+`source` stays the bytes the caller supplied, because the byte-backed encoding
+diagnostics describe the file on disk. The pass is byte-length preserving, so
+every span stays valid against either form, and
+`LineIndex::new(normalise_lone_cr(t))` is byte-identical to
+`LineIndex::new_lsp(t)` — which is what makes the CLI's line model and the
+client's coincide (issue #1799).
