@@ -74,7 +74,7 @@ new advisories are audited at every release point.
 │ .github/workflows/*.yml                                      │
 │   - pr-gate    fast Rust gate (cargo test lsp_e2e) on PRs    │
 │   - test-ext   VS Code extension tests on push and tags      │
-│   - create-release  + build-vsix + build native binaries     │
+│   - create-release  + build-vsix + native build matrix       │
 │     (tcl / f5-query / tcl-lsp-server / tcl-mcp, cross-matrix) │
 │     + build-claude-skills + build-jetbrains + build-sublime  │
 │     + build-zed + publish-checksums       — tag-only         │
@@ -131,6 +131,32 @@ from the laptop:
 maintainer doesn't have to remember the sequence.  `make publish-vsix` /
 `make publish-openvsx` / `make publish-jetbrains` remain laptop fallbacks if
 a CI publish job fails.
+
+### Native build overlap and release gating
+
+The tag-only `build-server-matrix` job is a read-only producer of short-lived
+workflow artefacts. It starts after `channel`, while the validation jobs and
+`create-release` run in parallel. The producer has only `contents: read`
+permission and no `environment`, `secrets.*`, release upload, or OIDC step, so
+its workflow artefacts cannot become release assets on their own.
+
+The release graph keeps the handoff explicit: `linux-release-portability`
+waits for both `create-release` and the matrix; `publish-native-binaries`,
+`build-vsix`, `build-jetbrains`, and `build-sublime` retain their
+`create-release` and portability dependencies (with the package-specific test
+jobs also listed). The checksum and marketplace jobs consume only those
+validated release-producing jobs. This lets expensive cross-compilation hide
+under validation without allowing a native byte or derived package to publish
+before the release object, required tests, and Linux portability checks exist.
+
+The matrix artefacts use `retention-days: 1`: that bounds storage and is safe
+for the normal same-run handoff, but it is not a recovery store. A tag run
+whose validation or portability fan-in remains paused for more than a day can
+lose its producer artifacts; rerun the tag workflow to rebuild them rather
+than weakening the downstream `needs` lists. Keeping the matrix independent
+also means it may finish before `create-release`; no producer artifact is
+attached to a Release until a consumer with the explicit release and
+validation dependencies runs.
 
 ## Linux release portability is an ABI-floor contract
 
@@ -301,7 +327,7 @@ the secret is reachable by no other job.
   `tcl-lsp-server`, `tcl-mcp`) via the architecture-specific glibc ABI-floor
   jobs described above,
   plus `make build-editor-jetbrains` / `make build-editor-sublime` /
-  `make build-editor-zed` / `make package-vsix package-vsix-targets` and
+  `make build-editor-zed` / `make package-vsix-all` and
   the Claude-skills zip. The VS Code artefact is seven VSIX packages: one
   untargeted universal package bundling every native `tcl-lsp-server`
   binary **plus the WASI module** under `server/wasm/` (the Marketplace's
@@ -310,6 +336,22 @@ the secret is reachable by no other job.
   platform-targeted packages built with `vsce package --target <platform>`,
   each bundling only its own binary and deliberately NOT the module —
   no `.pyz`. `make verify-vsix` asserts both halves of that split.
+  `make package-vsix-all` builds the shared Spec Studio and browser
+  language-server payload once before staging all seven packages. Every
+  package rechecks a manifest covering that payload, `extension.browser.js`,
+  the browser spec-pack inputs, and their source inputs; archive parity then
+  compares the shared Studio/browser/spec payload across all seven packages
+  before release signing. The prepared path is scoped to one temporary
+  session, so it cannot be used to package stale web output directly. The
+  public all-variant target exposes the Studio, browser-server, and extension
+  builders to its parent Make graph before entering the locked packaging
+  session. Parallel `release`, `build-editors`, and `publish-all` invocations
+  therefore share those builders instead of racing a second process against
+  the Studio output directory. The package lock records its PID, host, and
+  start time under
+  `build/stamps/vsix-package.lock/owner`; normal shell exit removes it. After
+  a hard interruption, inspect that owner and remove only its owner file and
+  now-empty lock directory once the recorded process is confirmed dead.
   The bare `tcl-lsp-server-wasi.wasm` is also attached to the Release as a
   signed asset, so a non-VS-Code editor can run it under `wasmtime`; see
   [`../rust/lsp-runtime-and-transports.md`](../rust/lsp-runtime-and-transports.md)

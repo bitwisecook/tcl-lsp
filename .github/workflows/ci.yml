@@ -2170,9 +2170,13 @@ jobs:
   #
   # The triple→bundle-dir mapping lives in the Makefile (SERVER_TARGET_MAP);
   # keep the matrix below and that map in sync (7 triples total).
+  # This producer is deliberately independent of `create-release`: it only
+  # uploads short-lived workflow artefacts and can overlap the release gates.
+  # Every consumer that attaches these bytes to a Release keeps its explicit
+  # `create-release` plus test/portability dependencies below.
   build-server-matrix:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
+    needs: [channel]
     strategy:
       fail-fast: false
       # One job per target triple (not per OS): the old 3-leg matrix built up
@@ -2534,7 +2538,7 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      # `make package-vsix` / `make claude-skills` shell out to `cargo xtask`, so
+      # `make package-vsix-all` / `make claude-skills` shell out to `cargo xtask`, so
       # this job needs a toolchain. The runner image ships a pinned stable
       # (1.96.1) and `rust-toolchain.toml`'s `channel = "stable"` resolves to
       # *that*, not to the newest release, so cargo refuses the workspace's
@@ -2618,15 +2622,12 @@ jobs:
           mkdir -p ../../build/stamps
           touch ../../build/stamps/npm-install
 
-      # Bundle all seven native binaries into one untargeted "universal"
-      # VSIX — the Marketplace's fallback for any client with no dedicated
-      # targeted package below (namely riscv64 Linux — vsce has no --target
-      # string for it), and the artefact for a manual "Install from VSIX"
-      # side-load.  It also stages the WASI module downloaded above, which is
-      # what makes the universal package work on an architecture with no native
-      # binary at all; `verify-vsix` asserts both halves.
-      - name: Build and verify universal VSIX
-        run: make package-vsix BUNDLED_TARGETS="$(make -s print-server-targets-all)"
+      # Package the universal fallback and all six platform-targeted VSIXes in
+      # one locked session. It builds the shared Studio/browser payload once,
+      # rechecks it before each archive, and compares that payload across all
+      # seven archives before any artefact is signed or uploaded.
+      - name: Build and verify all VSIXes
+        run: make package-vsix-all BUNDLED_TARGETS="$(make -s print-server-targets-all)"
 
       - uses: ./.github/actions/sign-and-upload
         with:
@@ -2643,13 +2644,6 @@ jobs:
         with:
           artefact-glob: "rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm"
           artefact-name: wasi-module-signed
-
-      # Six small, single-binary VSIXes, one per vsce --target platform
-      # (win32/linux/darwin x x64/arm64), so the Marketplace serves each
-      # client only its own binary instead of the universal VSIX above. See
-      # package-vsix-targets in the Makefile.
-      - name: Build and verify platform-targeted VSIXes
-        run: make package-vsix-targets
 
       - uses: ./.github/actions/sign-and-upload
         with:

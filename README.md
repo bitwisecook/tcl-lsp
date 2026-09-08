@@ -2054,6 +2054,7 @@ wasi-sdk compiler used for `wasm32-unknown-unknown` C dependencies.
 git clone https://github.com/bitwisecook/tcl-lsp && cd tcl-lsp
 make test                  # the whole suite
 make build-editor-vsix     # build the VS Code .vsix
+make package-vsix-all      # package the universal and six platform-targeted VSIXes
 ```
 
 `make help` lists every target. For the development workflow — the gates to run
