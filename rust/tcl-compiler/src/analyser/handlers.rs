@@ -1785,13 +1785,17 @@ impl Analyser {
                 continue;
             }
             let span = param_spans.get(i).copied().unwrap_or(fallback_tok.span);
-            self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
-    DiagCode::W218,
-    span,
-    "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
-                    .to_string(),
-    super::types::Severity::Warning,
-));
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W218,
+                    span,
+                    "`args` here is an ordinary parameter — it only has its special \
+                     collect-the-rest meaning as the final parameter. Move it last, or \
+                     rename it if a plain parameter is intended."
+                        .to_string(),
+                    super::types::Severity::Warning,
+                ));
         }
     }
 

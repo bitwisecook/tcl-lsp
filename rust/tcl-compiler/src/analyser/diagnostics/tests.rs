@@ -7386,7 +7386,7 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
 // implies `Cls` exists. Confirmed against tclsh 8.6.14 that the
 // constructor call itself fails "invalid command name" first — fixed so
 // the dispatch instead falls back to the conservative "non-literal,
-// cannot statically analyze" (W307), with W123 on `Cls` itself as the
+// cannot statically analyse" (W307), with W123 on `Cls` itself as the
 // real, primary diagnostic.
 //
 // `harvest_constructor_object_types` (the `set x [Cls new]` variable-
