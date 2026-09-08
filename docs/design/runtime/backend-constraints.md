@@ -133,8 +133,8 @@ change.
 
 ## Relationship to the tier ladder
 
-Backend constraints bite hardest at the top of the
-[test-tier ladder](tcl-test-tiers.md): Tier 1–4 (parsing, interpretation,
-fundamentals, control flow) are pure computation and run on every backend;
-Tier 5 (I/O) and Tier 6 (platform features) are where capabilities diverge and
-the overlay does its skipping.
+Backend constraints bite at the top of the
+[test-tier ladder](tcl-test-tiers.md): Tiers 1–8 are the core language and run
+on every backend, so a skip there is a bug in the overlay. Tier 9 (advanced I/O
+and events), Tier 10 (concurrency) and Tier 11 (platform and library features)
+are where host capabilities diverge and the overlay does its skipping.

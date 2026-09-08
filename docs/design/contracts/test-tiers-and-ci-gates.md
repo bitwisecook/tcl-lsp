@@ -9,7 +9,7 @@ behind it.
 | Tier | Runs | What |
 |---|---|---|
 | **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the fail-closed smoke-named function/module and effective Cargo-target subset owned by `scripts/dev/smoke-targets.tsv`, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
-| **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck. Skips only what demonstrably did not change (below). |
+| **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck of `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
 The native `lsp-e2e` surface is produced once as a nextest 0.9.143 archive,
@@ -230,9 +230,12 @@ job. The routing guards above are therefore a security boundary, not merely a
 cache optimisation; only trusted pushes and trusted pull requests may run
 there, while fork, Dependabot, runner-policy, and explicit hosted paths stay
 on hosted capacity. The job's preflight checks ownership, writability, and a
-temporary write on every registration. `CARGO_TARGET_DIR` is deliberately not
-shared, and the `rust-tests-v2` dependency-cache generation excludes Cargo
-targets so old target-heavy archives cannot be restored. sccache v0.17 is
+temporary write on every registration. `CARGO_TARGET_DIR` is never shared between
+registrations, and the `rust-tests-v2` dependency-cache generation excludes
+Cargo targets so old target-heavy archives cannot be restored; the
+per-registration Cargo target Tank does retain lives outside the checkout and
+is validated on every run
+([tank-persistent-cargo-target.md](tank-persistent-cargo-target.md)). sccache v0.17 is
 measured across registrations rather than assumed to normalize differing
 absolute checkout roots. Its setup, compiler cache, and statistics are
 performance-only: an unavailable cache falls back to direct rustc, while
@@ -245,8 +248,8 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 
 ## Suites worth knowing
 
-- `rust/tcl-lsp-server/tests/*_e2e.rs` — native LSP end-to-end (30 suites,
-  `cargo test`).
+- `rust/tcl-lsp-server/tests/e2e.rs` and its `e2e/` module tree — native LSP
+  end-to-end, one module per feature area sharing a single test binary.
 - `rust/tcl-registry/tests/registry_sweep.rs`, `registry_commands.rs` — the
   registry generates real Tcl and iRules and asserts live analysis (arity
   E002/E003, subcommands E001/W001, event scoping IRULE1001/1002, ordering).
