@@ -1,17 +1,15 @@
 # `f5 query` — Comprehensive Reference Manual
 
-The complete reference for the `f5 query` DSL, organised by topic
-so individual items (an operator, a builtin family, a probe
-behaviour, a KB cross-reference) can be looked up directly via
-anchor.  Each section has a stable `{#anchor-id}` so external
-tools (the MCP server, AI skills, IDE quick-lookups) can deep-link
-into a single concept without dragging the whole document.
+The complete reference for the `f5 query` DSL, organised by topic.
+Each section carries a stable `{#anchor-id}` so external tools (the
+MCP server, AI skills, IDE quick-lookups) can deep-link one concept.
 
-This manual is the canonical source.  The `f5 query --help-manual`
-CLI flag emits the auto-generated grammar + builtins + examples
-trio; this file is the curated long-form companion that adds the
-operational context, the probe / audit taxonomy, and the F5 KB
-cross-references that the auto-generated content can't carry.
+`f5 query --help-manual` emits the generated trio — grammar, the
+builtin *metadata* catalogue (name / category / arity / flags), and the
+cookbook.  This file is the curated companion that adds the operational
+context, the probe / audit taxonomy, and the F5 KB cross-references the
+generated content can't carry; per-function prose lives in
+[`builtins.md`](builtins.md).
 
 ## Quick lookup index
 
@@ -25,7 +23,7 @@ cross-references that the auto-generated content can't carry.
 | Object literals | [Object construction](#object-construction-object-construction) |
 | Conditionals and comma streams | [Control flow](#control-flow-control-flow) |
 | All builtins (alphabetical) | [Builtin catalogue](#builtin-catalogue-builtin-catalogue) |
-| Probes (`url_get`, `tls_handshake`, …) | [Network probes](#network-probes-network-probes) |
+| Probes (`tls_handshake`, `ping`, `dns`, …) | [Network probes](#network-probes-network-probes) |
 | Cert audit shape | [X.509 cert dict shape](#x509-cert-dict-shape-x509-cert-dict-shape) |
 | Reason taxonomy on failed probes | [Reason taxonomy](#reason-taxonomy-reason-taxonomy) |
 | Read-from-file inputs (JSON, JSONL, CSV, f5log) | [External inputs](#external-inputs-external-inputs) |
@@ -97,9 +95,9 @@ collection — wrap it: `[.ltm.virtual[].name] | sort`.
 
 | Op | Effect |
 |---|---|
-| `|` | Pass each value on the left into the right. |
+| `\|` | Pass each value on the left into the right. |
 | `=` | Replace the LHS field with the RHS value. |
-| `|=` | Replace the LHS with `RHS` evaluated against the LHS value. |
+| `\|=` | Replace the LHS with `RHS` evaluated against the LHS value. |
 | `+=` | List append; string concat; numeric add. |
 | `-=` | List remove; numeric subtract. |
 | `;` | Sequence statements; each statement sees the SAME root. |
@@ -159,11 +157,12 @@ collection — wrap it: `[.ltm.virtual[].name] | sort`.
 
 ## Builtin catalogue {#builtin-catalogue}
 
-The full alphabetical catalogue lives in the hand-maintained
-[`docs/references/f5_query/builtins.md`](builtins.md), kept in sync
-by hand against the registry in `rust/tcl-bigip-query/src/builtins/`.
+The full alphabetical catalogue lives in
+[`docs/references/f5_query/builtins.md`](builtins.md), hand-written
+prose over the registry in `rust/tcl-bigip-query/src/builtins/`;
+`cargo xtask f5-query-builtins-doc --check` gates the set of names.
 `f5 query --help-builtins` emits a metadata-only summary from the
-same registry (name / category / arity / flags, not the full prose).
+same registry (name / category / arity / flags, not the prose).
 Each builtin has its own anchor in `builtins.md` — to look one up:
 
 - `f5 query --help-builtins NAME` — that builtin's metadata from the
@@ -185,11 +184,12 @@ Major families:
 - **mutating** — `rename`, `rename_partition`, `rename_prefix`
 - **HTTP-response helpers** — `http_ok`, `http_client_error`,
   `http_header`, `http_body_json`
-- **network probes** (need `--enable-probes`) — `url_get`,
-  `url_head`, `url_options`, `url_post` (not yet implemented —
-  see [Network probes](#network-probes-network-probes)), `tls_handshake`, `ping`,
-  `portping`, `traceroute`.  `dns` / `rev_dns` are ungated (they
-  resolve without `--enable-probes`).
+- **network probes** (need `--enable-probes`) — `tls_handshake`,
+  `ping`, `portping`, `traceroute`, `socket_get`; `url_get`,
+  `url_head`, `url_options`, `url_post` are registered but **not
+  implemented** (see
+  [Network probes](#network-probes-network-probes)).  `dns` /
+  `rev_dns` are ungated (they resolve without `--enable-probes`).
 - **cert / X.509** — `x509_parse`, `cert_load`,
   `x509_from_config`, `x509_eq`
 - **external inputs** — `json_load`, `jsonl_load`, `csv_load`,
@@ -205,11 +205,10 @@ network round-trip, so referencing the same probe repeatedly in one
 query repeats the work.
 
 **`url_get` / `url_head` / `url_options` / `url_post` are not
-currently implemented.**  The live HTTP request path was deferred
-(non-deterministic / not golden-testable); every call returns the
-shape below with `status: null` and an explanatory `error`,
-regardless of the target URL.  `tls_handshake`, `dns`, `rev_dns`,
-`ping`, `portping`, and `traceroute` are fully implemented.
+implemented.**  Every call returns the shape below with
+`status: null` and an explanatory `error`, whatever the target URL.
+`tls_handshake`, `dns`, `rev_dns`, `ping`, `portping`, `traceroute`,
+and `socket_get` are implemented.
 
 | Builtin | Returns |
 |---|---|
@@ -225,25 +224,25 @@ regardless of the target URL.  `tls_handshake`, `dns`, `rev_dns`,
 
 ### Reason taxonomy {#reason-taxonomy}
 
-Every HTTPS / TLS probe emits a structured `reason` field describing
-the verification status.  Probes **do not** abort on cert errors —
-they retry with verification disabled so the response body + peer
-cert are always available.  Filter audit results on `reason.kind`:
+`tls_handshake` emits a structured `reason` field describing the
+verification status.  A verification failure is reported, not retried
+with verification disabled: the handshake still reached the
+certificate message, so `peer_cert` is populated.  Filter audit
+results on `reason.kind`:
 
 | `reason.kind` | Meaning | `reason.fatal` |
 |---|---|---|
 | `ok` | Verified clean against the trust store. | `false` |
-| `expired` | `X509_V_ERR_CERT_HAS_EXPIRED` (code 10). | `false` |
-| `not_yet_valid` | `X509_V_ERR_CERT_NOT_YET_VALID` (code 9). | `false` |
-| `self_signed` | `X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT` (codes 18 / 19). | `false` |
-| `untrusted_ca` | Chain doesn't terminate at a trusted CA (codes 20 / 21 / 24). | `false` |
-| `hostname_mismatch` | SNI / SAN doesn't match (code 62). | `false` |
-| `other_verification` | Any other OpenSSL verify code. | `false` |
+| `expired` | Certificate past `not_after`. | `false` |
+| `not_yet_valid` | Certificate before `not_before`. | `false` |
+| `self_signed` | Leaf signs itself. | `false` |
+| `untrusted_ca` | Chain doesn't terminate at a trusted CA. | `false` |
+| `hostname_mismatch` | SNI / SAN doesn't match. | `false` |
+| `other_verification` | Any other verification failure. | `false` |
 | `connection_error` | Connection couldn't complete (DNS, refused, timeout). | `true` |
 
-`reason.message` is the OpenSSL verify-text verbatim so you can
-file a ticket with it untouched.  `reason.fatal == true` is the
-only case where the response body / peer cert may be absent.
+`reason.message` is the underlying rustls error text verbatim.
+`reason.fatal == true` is the only case where `peer_cert` is `null`.
 
 ## X.509 cert dict shape {#x509-cert-dict-shape}
 
@@ -274,22 +273,21 @@ SHA-256 hash (BIG-IP's TMSH surface).
 - `x509_parse(pem)` — parse a PEM string in memory.
 - `cert_load(path[, password])` — read PEM / DER / PKCS#12
   (`.pem`, `.crt`, `.cer`, `.der`, `.pfx`, `.p12`) from disk.
-- `x509_from_config(cert)` — project any BIG-IP config object
-  that carries cert metadata into the same dict shape.  Works
-  on `sys file ssl-cert` (cert / chain / bundle store, the
-  target of every `cert-key-chain` and `ltm monitor https.cert`
-  PathRef) and `cm cert` (device-trust certs, the target of
-  `cm device.cert` / `cm trust-domain.ca-cert`).  For PathRef
-  fields elsewhere (`ltm monitor https.cert`, `cm device.cert`,
-  …), index into the referent first then project.  `sys crypto
-  cert` is a minimal projection without cert metadata — load
-  its PEM with `cert_load` instead.
+- `x509_from_config(cert)` — project a value carrying BIG-IP cert
+  metadata fields (`subject`, `issuer`, `fingerprint`,
+  `subject_alternative_name`, `serial_number`, `key_size`,
+  `version`, …) into the same dict shape.  The DSL projects only
+  `ltm`, `gtm`, and `security` (see
+  [`dsl.md`](dsl.md) § *Tree shape*), so a `sys file ssl-cert` or
+  `cm cert` stanza is not reachable as an object today — feed this
+  builtin a value you built yourself, or read the PEM off disk with
+  `cert_load`.
 - `tls_handshake(host, port).peer_cert` — capture during a live
   TLS handshake.
-- `url_get(url).peer_cert` — always `null` today: the live HTTP
-  request path is not yet implemented (see
-  [Network probes](#network-probes-network-probes)); use `tls_handshake` for a
-  live peer certificate.
+- `url_get(url).peer_cert` — always `null`: the live HTTP request
+  path is not implemented (see
+  [Network probes](#network-probes-network-probes)).  Use
+  `tls_handshake` for a live peer certificate.
 
 ## External inputs {#external-inputs}
 
@@ -320,9 +318,11 @@ f5 query --name dc1=dc1-bigip.conf --name pcap=net-pcap.json \
 | `--paths-only` | Full-paths only (for piping into `xargs`). |
 | `--json` | JSON document per file (no per-file banner). |
 | `--scf` | Re-emit the rewritten config as SCF. |
+| `--table` / `--table-lineart` | ASCII / box-drawing grid. |
+| `--render NAME` | Dispatch through a renderer plugin (`--help-renderers`). |
 | `--in-place` | Overwrite the input file. |
 | `--write` | Print rewritten config to stdout. |
-| `--format scf\|tmsh` | Pick the rendered output dialect. |
+| `--format scf\|tmsh\|tmsh-delta` | Pick the rendered output dialect. |
 
 ## Mutating queries {#mutating-queries}
 
@@ -370,11 +370,11 @@ expanded form.  Quick lookup table:
 
 ## Examples {#examples}
 
-The cookbook ships separately at
-[`docs/references/f5_query/builtins.md`](builtins.md)
-(each builtin carries its own example block) and is also
-available via `f5 query --help-examples`.  The KCS HOW-TOs cover
-the long-form recipes:
+[`docs/f5-query-examples.md`](../../f5-query-examples.md) is the
+worked cookbook; `f5 query --help-examples` prints the short one-liner
+set, and every builtin carries its own example block in
+[`builtins.md`](builtins.md).  The KCS HOW-TOs cover the long-form
+recipes:
 
 - [Bulk readdress virtuals](../../kcs/kcs-howto-readdress-virtuals-with-query.md)
 - [Migrate a partition](../../kcs/kcs-howto-migrate-partition-with-query.md)
@@ -399,27 +399,23 @@ the long-form recipes:
 
 ## Programmatic access
 
-The same content backing every `--help-*` flag is reachable from the
-CLI and from the native `tcl-mcp` MCP server:
-
-- `f5 query --help-dsl` — full grammar reference.
+- `f5 query --help-dsl` — grammar reference.
 - `f5 query --help-builtins [NAME]` — every builtin (or one named
-  function), with category, arity, and dispatch flags — metadata
-  only; for full signatures, prose, and examples see
-  [`builtins.md`](builtins.md).
-- `f5 query --help-examples` — the worked-example cookbook.
-- `f5 query --help-manual` — the whole reference concatenated.
+  function): category, arity, dispatch flags.  Metadata only; the
+  prose is in [`builtins.md`](builtins.md).
+- `f5 query --help-examples` — the one-liner cookbook.
+- `f5 query --help-inputs` / `--help-renderers` — the registered
+  `--input` formats and `--render` plugins.
+- `f5 query --help-manual` — grammar + builtins + examples
+  concatenated.
 
-MCP / agent contexts enumerate every callable and its signature through
-the `tcl-mcp` tool surface (which wraps the same registry), for
-auto-completion or grounded answer-building.
+The native `tcl-mcp` MCP server wraps the same registry, so agent
+contexts can enumerate every callable and its signature.
 
 ## Operator handbook {#operator-handbook}
 
-End-to-end recipes for reproducing a BIG-IP scenario on your
-laptop so the `f5 query` audit queries have something real to
-talk to.  Every recipe is self-contained — copy-paste, run,
-query.
+Recipes for reproducing a BIG-IP scenario on your laptop so the
+audit queries have something real to talk to.
 
 ### Sample SCF / conf fragments {#sample-configs}
 
@@ -630,8 +626,7 @@ openssl x509 -in server.crt -noout -subject -issuer -dates -fingerprint -sha256
 
 ### Running a self-signed HTTPS server in Python {#python-https}
 
-For the cert-audit `tls_handshake` recipes (`url_get` is not yet
-implemented — see [Network probes](#network-probes-network-probes)):
+For the cert-audit `tls_handshake` recipes:
 
 ```python
 # https_server.py
@@ -671,38 +666,27 @@ srv.serve_forever()
 PY
 sleep 1
 
-# 3. Build a tiny SCF with a matching sys file ssl-cert
-cat > /tmp/lab.conf <<'SCF'
-sys file ssl-cert /Common/test.crt {
-    subject "CN=test.local"
-    subject-alternative-name "DNS:test.local"
-    expiration-string "Jan 1 00:00:00 2099 GMT"
-    fingerprint "SHA256/AB:CD"
-    key-size 2048
-    key-type rsa-public
-    serial-number 1
-    version 3
-}
-SCF
-
-# 4. Query: confirm the cert the server is serving matches what
-#    the device thinks it has.
+# 3. Query: confirm the cert the server is serving is the one on disk.
+#    (`--enable-probes` needs a config argument even when the query
+#    never touches it.)
 f5 query --enable-probes '
-  x509_eq(
-    .sys["file-ssl-cert"]["/Common/test.crt"] | x509_from_config(.),
-    tls_handshake("127.0.0.1", 8443).peer_cert)
+  x509_eq(cert_load("/tmp/test.crt"),
+          tls_handshake("127.0.0.1", 8443).peer_cert)
 ' /tmp/lab.conf
-# => false (fingerprints differ — the SCF carries a placeholder
-#    SHA256/AB:CD; the live cert has the real fingerprint).
+# => true
 
-# 5. Inspect the live cert's full shape:
-f5 query --enable-probes '
+# 4. Inspect the live cert's full shape:
+f5 query --enable-probes --json '
   tls_handshake("127.0.0.1", 8443).peer_cert
-' --json /tmp/lab.conf
+' /tmp/lab.conf
 
-# 6. Cleanup
+# 5. Cleanup
 kill %1
 ```
+
+`sys` stanzas are not navigable from the DSL (see [`dsl.md`](dsl.md)
+§ *Tree shape*), so a device-side `sys file ssl-cert` cannot be fed to
+`x509_from_config` from a query — compare against the PEM instead.
 
 ### Probe gating and CA bundles {#probe-controls}
 
@@ -712,56 +696,4 @@ kill %1
 | Pin a CA bundle | `--ca-bundle /path/to/ca.crt` |
 | Result caching | **none** — every probe call is a fresh network round-trip; nothing is cached or memoised across calls in a query |
 | Cert-verification failures | reported, not retried insecurely — `tls_handshake` sets `verify_status` / `reason.kind` and still captures `peer_cert` when the handshake reached the certificate message |
-| Per-call timeout | not configurable — `tls_handshake` hardcodes 5s connect/read/write timeouts; `ping` / `portping` hardcode 2s |
-
-### Per-builtin lookup {#per-builtin-lookup}
-
-To pull a single builtin's full documentation:
-
-```sh
-f5 query --help-builtins x509_parse
-f5 query --help-builtins url_get
-f5 query --help-builtins rename_partition
-```
-
-To dump every builtin at once (for piping into a doc generator
-or model context):
-
-```sh
-f5 query --help-builtins
-```
-
-To see the full self-contained manual (grammar + every builtin +
-every example concatenated with section banners):
-
-```sh
-f5 query --help-manual
-```
-
-The F5 KB cross-reference doc has no dedicated CLI help flag — read it
-directly: [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md).
-
-## 100% coverage map {#coverage-map}
-
-Every behaviour in the query engine has documentation; this table
-is the source-of-truth index for what lives where.
-
-| Behaviour | Canonical reference |
-|---|---|
-| Grammar (parser, precedence, EBNF) | [`dsl.md`](dsl.md) + `f5 query --help-dsl` |
-| Every builtin with examples | [`builtins.md`](builtins.md) + `f5 query --help-builtins NAME` |
-| jq divergences | [`dsl.md`](dsl.md) §"Divergences from jq" |
-| Probe gate + reason taxonomy | [Reason taxonomy](#reason-taxonomy-reason-taxonomy) section above |
-| Cert dict shape | [X.509 cert dict shape](#x509-cert-dict-shape-x509-cert-dict-shape) section above |
-| Mutating-query apply order | [Edit planning](#edit-planning-edit-planning) section above |
-| Stream vs list semantics | [Streams and lists](#streams-and-lists-streams-and-lists) section above |
-| Multi-source / `$name` bindings | [Variables and let-bindings](#variables-and-let-bindings-variables-and-let-bindings) section above |
-| Object literals | [Object construction](#object-construction-object-construction) section above |
-| If / elif / else | [Control flow](#control-flow-control-flow) section above |
-| External inputs (JSON / CSV / f5log) | [External inputs](#external-inputs-external-inputs) section above |
-| Output rendering | [Output modes](#output-modes-output-modes) section above |
-| End-to-end cookbook | [`builtins.md`](builtins.md) + KCS HOW-TOs |
-| Operational recipes (setup, certs, servers) | [Operator handbook](#operator-handbook-operator-handbook) section above |
-| F5 KB articles | [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md) |
-| AI / MCP integration | the native `tcl-mcp` MCP server (`f5-query` skill) |
-| Programmatic / MCP access | [Programmatic access](#programmatic-access) section above |
+| Per-call timeout | not configurable — `tls_handshake` and `socket_get` use 5s; `portping` uses 2s |

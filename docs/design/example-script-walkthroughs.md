@@ -693,9 +693,8 @@ only what differs from the base.  Taint metadata is data on the same literal
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "string option arg ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -1559,7 +1558,7 @@ Function {
         entry_1: Block {
             name: "entry_1",
             statements: [Statement::AssignConst { name: "x", value: "42" }],
-            terminator: None,
+            terminator: Some(Terminator::Goto { target: exit_2 }),
         },
         exit_2: Block {
             name: "exit_2",
@@ -2452,11 +2451,11 @@ as an `invokeStk` call.
 
 **Top-level (proc registration):**
 ```
-  Literals:  0="proc"  1="add"  2="{a b}"  3="{\n    expr {$a + $b}\n}"
+  Literals:  0="proc"  1="add"  2="a b"  3="\n    expr {$a + $b}\n"
 
   (0)  push1 0       # "proc"
   (2)  push1 1       # "add"
-  (4)  push1 2       # "{a b}"
+  (4)  push1 2       # "a b"   — the braces are word delimiters, not content
   (6)  push1 3       # body source
   (8)  invokeStk1 4  # proc add {a b} {...}
   (10) done
@@ -3238,7 +3237,7 @@ Without braces, Tcl performs variable substitution *before* the
 expression is compiled.  The segmenter sees multiple tokens:
 
 ```
-Token(VAR, "a")  Token(ESC, "+")  Token(VAR, "b")  ...
+Token(Var, "$a")  Token(Esc, "+")  Token(Var, "$b")  ...
 ```
 
 These are concatenated into a single text `"${a} + ${b} * 2"`.
@@ -3273,40 +3272,50 @@ precedence as their symbolic counterparts:
 
 ## Example 22: Lowering dispatch — `arg_roles` and command classification
 
-Shows how `_lower_command()` in
-`rust/tcl-compiler/src/lowering/mod.rs` dispatches each command to
-the appropriate IR node using registry metadata.
+Shows how `Lowerer::lower_command()` in
+`rust/tcl-compiler/src/lowering/mod.rs` dispatches each command to the
+appropriate IR node using registry metadata.  **No command is matched by
+name** — the dispatch keys on the typed `LoweringHookId` the registry
+resolves for the invocation.
 
 ### Dispatch hierarchy
 
 ```
-_lower_command(cmd)
+lower_command(seg, namespace)
     │
-    ├─ Check lowering hook on CommandSpec → spec.lowering(lowerer, cmd)
-    │   (e.g. set → lower_set(), incr → lower_incr())
+    ├─ registry.resolve_invocation(cmd_name, args, surface)
+    │      → resolved.semantics.lowering_hook: Option<LoweringHookId>
     │
-    ├─ match cmd_name:
-    │   ├─ "proc"     → extract params, lower body, register Procedure
-    │   ├─ "when"     → lower iRules event handler body
-    │   ├─ "if"       → _lower_if() → Statement::If with IfClause list
-    │   ├─ "for"      → _lower_for() → Statement::For (init, cond, step, body)
-    │   ├─ "while"    → _lower_while() → Statement::While (cond, body)
-    │   ├─ "foreach"  → _lower_foreach() → Statement::Foreach
-    │   ├─ "catch"    → _lower_catch() → Statement::Catch
-    │   ├─ "try"      → _lower_try() → Statement::Try with TryHandler
-    │   ├─ "switch"   → _lower_switch() → Statement::Switch with SwitchArm
-    │   ├─ eval/uplevel/upvar → Statement::Barrier (defeats static analysis)
-    │   │
-    │   └─ default (fallthrough):
-    │       ├─ arg_indices_for_role(BODY) → Statement::Barrier (has body args)
-    │       ├─ arg_indices_for_role(VAR_NAME) → Statement::Call with defs
-    │       └─ else → Statement::Call (generic)
+    ├─ try_dispatch_structured_hook(hook):
+    │   ├─ LoweringHookId::If       → lower_if()      → Statement::If
+    │   ├─ LoweringHookId::For      → lower_for()     → Statement::For
+    │   ├─ LoweringHookId::While    → lower_while()   → Statement::While
+    │   ├─ LoweringHookId::Foreach  → lower_foreach() → Statement::Foreach
+    │   ├─ LoweringHookId::Catch    → lower_catch()   → Statement::Catch
+    │   ├─ LoweringHookId::Try      → lower_try()     → Statement::Try
+    │   ├─ LoweringHookId::Switch   → lower_switch()  → Statement::Switch
+    │   ├─ LoweringHookId::Proc / When / NamespaceEval → definition bodies
+    │   ├─ LoweringHookId::Set / Incr / Expr / Return  → the assign family
+    │   └─ LoweringHookId::Eval / Uplevel / Apply      → inline body, else
+    │                                                     Statement::Barrier
+    │      (a hook that cannot prove its shape returns None and falls
+    │       through — see lowering-dispatch.md)
+    │
+    └─ lower_default (no hook, or the hook declined):
+        ├─ arg_indices_for_role(BODY)     → Statement::Barrier
+        ├─ arg_indices_for_role(VAR_NAME) → Statement::Call with defs
+        └─ else                           → Statement::Call (generic)
 ```
+
+A hook that commits to an argv shape (`hook_commits_to_argv_shape`) refuses a
+`{*}`-expanded call and emits a `structured_expand_barrier` instead, so the
+expansion gate can never name a different command set than the lowerers it
+protects.
 
 ### Example: `lower_set()` — the `set` lowering hook
 
-`set` has a registered lowering hook
-(`rust/tcl-compiler/src/var_refs.rs`).
+`set` carries `LoweringHookId::Set`, handled by `lower_set`
+(`rust/tcl-compiler/src/lowering_hooks.rs`).
 It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
@@ -3669,12 +3678,16 @@ ctx.place_label("entry_1")        → label at instruction 0
   ctx.emit(JUMP_FALSE4, "L_else") # → if_else_4
 
 ctx.place_label("if_then_3")
+  ctx.emit(START_COMMAND, …)      # then-body command frame
   ctx.emit(LOAD_SCALAR1, %v0)     # load n
   ctx.emit(UMINUS)                # negate
   ctx.emit(JUMP4, "L_end")        # → if_end_2
 
 ctx.place_label("L_else")        → if_else_4
-  ctx.emit(LOAD_SCALAR1, %v0)     # just return n
+  ctx.emit(START_COMMAND, …)      # else-body command frame
+  ctx.emit(PUSH1, lit("set"))     # `set n` has no specialised opcode
+  ctx.emit(PUSH1, lit("n"))
+  ctx.emit(INVOKE_STK1, 2)
 
 ctx.place_label("L_end")         → if_end_2
   ctx.emit(DONE)
@@ -3688,10 +3701,10 @@ offset fits in [-128, 127]:
 
 ```
 Pass 1:
-  JUMP_FALSE4 "L_else"  (offset: +12 bytes)
+  JUMP_FALSE4 "L_else"  (offset: +16 bytes)
   → fits in 1 byte → JUMP_FALSE1 "L_else"
 
-  JUMP4 "L_end"  (offset: +4 bytes)
+  JUMP4 "L_end"  (offset: +17 bytes)
   → fits in 1 byte → JUMP1 "L_end"
 ```
 
@@ -3704,54 +3717,66 @@ Final pass assigns concrete byte offsets:
 
 ```
 label_offsets = resolve_layout(instrs, labels)
-# {"entry_1": 0, "if_then_3": 8, "L_else": 14, "L_end": 16}
+# {"entry_1": 0, "if_then_3": 7, "L_else": 21, "L_end": 36}
 ```
 
 Jump operands are patched from label names to relative byte offsets.
 
 ### Step 6 — Peephole optimisation
 
-`_PeepholeMixin` applies tclsh-matching rewrites:
+`rust/tcl-compiler/src/codegen/peephole.rs` applies tclsh-matching
+rewrites, called from `emitter/generate.rs`:
 
-1. **`_remove_trailing_pop()`**: The last statement's result stays on
+1. **`remove_trailing_pop()`**: The last statement's result stays on
    the stack for `done` to return.  Strip `pop; done` → `done`.
 
-2. **`_fold_const_push_pop_nops()`**: Dead constant results (`push; pop`
+2. **`fold_const_push_pop_nops()`**: Dead constant results (`push; pop`
    pairs from folded branches) become `nop; nop; nop` — matching tclsh's
    3-nop pattern for folded constants.
 
-3. **`_dedup_push_literals()`**: After nop-folding, surviving `push`
+3. **`dedup_push_literals()`**: After nop-folding, surviving `push`
    instructions may reference duplicate literal slots.  Deduplicate
    to match tclsh's literal table interning.
 
 ### Step 7 — Literal table construction
 
-The `LiteralTable` interns strings as they are referenced:
+The `LiteralTable` interns strings as they are referenced, in first-use
+order.  A parameter is *not* a literal — `loadScalar1` addresses the LVT
+slot — so the table here holds only the words the body pushes:
 
 ```
 LiteralTable entries:
-  0 = "n"     (parameter name, also used in loadScalar1)
-  1 = "0"     (comparison constant)
+  0 = "0"     (comparison constant)
+  1 = "set"   (the else-body command name)
+  2 = "n"     (its argument word)
 ```
 
-Strings are deduplicated: if `"n"` is referenced twice, both get
-slot 0.
+Strings are deduplicated: a string referenced twice gets one slot.
 
 ### Final bytecode (matches tclsh 9.0)
 
+`set n` is a one-argument read, which has no specialised opcode, so it
+compiles to a generic `invokeStk1` rather than a `loadScalar1`.
+`startCommand` precedes each branch body's command, carrying the
+next-command offset `errorInfo` needs.
+
 ```
   LVT:  %v0="n"
-  Literals:  0="0"
+  Literals:  0="0"  1="set"  2="n"
 
-  (0)  loadScalar1 %v0  # load n
-  (2)  push1 0          # "0"
-  (4)  lt               # n < 0 ?
-  (5)  jumpFalse1 +5    # jump to pc 10
-  (7)  loadScalar1 %v0  # load n (then-body)
-  (9)  uminus           # negate
-  (10) jump1 +3         # jump to pc 13
-  (12) loadScalar1 %v0  # load n (else-body)
-  (14) done
+  (0)  loadScalar1 %v0     # load n
+  (2)  push1 0             # "0"
+  (4)  lt                  # n < 0 ?
+  (5)  jumpFalse1 +16      # → pc 21
+  (7)  startCommand +12 1  # then-body: next cmd at pc 19
+  (16) loadScalar1 %v0     # load n
+  (18) uminus              # negate
+  (19) jump1 +17           # → pc 36
+  (21) startCommand +15 1  # else-body: next cmd at pc 36
+  (30) push1 1             # "set"
+  (32) push1 2             # "n"
+  (34) invokeStk1 2        # set n
+  (36) done
 ```
 
 ---
@@ -3925,138 +3950,106 @@ detect, their triggers, and example patterns:
 
 ## How diagnostics are calculated
 
-The LSP server produces diagnostics in two phases — a fast synchronous
-phase for immediate feedback and an expensive asynchronous phase for deep
-analysis.  Understanding this architecture explains why some warnings
-appear instantly and others arrive after a brief delay.
+The server runs **one** diagnostic pass — the deep pass — and races it against
+a 40 ms budget (`DIAGNOSTICS_FAST_TIER_BUDGET`).  If it settles in time the
+client sees a single publish.  If it overruns, a **fast tier** publishes the
+workspace-independent subset first and the deep pass replaces it for the same
+document version.  Documents under `DIAGNOSTICS_FAST_TIER_MIN_LINES` (500)
+skip the race entirely.  The currency, cancellation and push-only rules are
+owned by
+[async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md).
 
-### Phase 1 — Basic diagnostics (fast, synchronous)
+### The fast tier
 
-`get_basic_diagnostics()` in
-`rust/tcl-compiler/src/analyser/diagnostics/` runs on every
-keystroke and returns immediately.  It produces:
+Every analyser code no workspace pass can retract — `is_fast_tier`, i.e.
+`!DiagCode::refined_by_workspace()`, which excludes only `W120` and `W123` —
+plus the pure source-style lints:
 
 ```
 Source text
     │
     ▼
 ┌───────────────────────────────────────────────────┐
-│ Semantic Analysis (analyse())                      │
-│   → W100: Unbraced expr body                       │
-│   → W101: Wrong number of arguments                │
-│   → W102: Unknown command                          │
-│   → W103: Variable read before set                 │
-│   → W104: Unused variable                          │
-│   → W200+: iRules event/command warnings           │
-│   → W300+: Deprecation/style warnings              │
+│ Semantic analysis (Analyser::analyse)              │
+│   → E001–E006: subcommand / arity / definition     │
+│   → E100–E207: lexical and unterminated-construct  │
+│   → W001–W004: command warnings                    │
+│   → W100–W152: semantic and style warnings         │
+│   → W200–W250: variable warnings                   │
+│   → W300–W315: security warnings                   │
+│   → IRULE1xxx–6xxx: iRules event and flow checks   │
 └───────────────────────────────┬───────────────────┘
                                 │
                                 ▼
 ┌───────────────────────────────────────────────────┐
-│ Style Checks                                       │
+│ Source-style checks                                │
 │   → W111: Line exceeds configured length            │
 │   → W112: Trailing whitespace                       │
 │   → W115: Backslash-newline continuation in comment │
-│   → W120: Command used without package require      │
 └───────────────────────────────┬───────────────────┘
                                 │
                                 ▼
-                        Basic diagnostics
-                    (published immediately)
+                    Fast-tier diagnostics
+              (published only if the deep pass overruns)
 ```
 
-The semantic analyser (`analyse()`) runs over the AST and produces
-diagnostics for syntax errors, arity violations, unknown commands,
-unused variables, and read-before-set conditions.  Style checks scan
-the raw source text for formatting issues.
+`W120` (command above its `package require`) and `W123` (unresolved command)
+are held back: the workspace refinement can retract either, and the fast tier
+never publishes a diagnostic the deep pass would take away.
 
-### Phase 2 — Deep diagnostics (expensive, background thread)
+### The deep tier
 
-`get_deep_diagnostics()` in
-`rust/tcl-compiler/src/analyser/diagnostics/` runs in a
-background thread via `asyncio.to_thread` to avoid blocking the editor.
-It reuses the `CompilationUnit` from Phase 1 (shared IR, CFG, SSA,
-and analysis results).
+The authoritative pass.  It reuses the `CompilationUnit` (shared IR, CFG, SSA,
+and analysis results) and adds the compiler, optimiser and cross-file
+findings on top of everything above:
 
 ```
 CompilationUnit (shared)
     │
-    ├───► Optimiser (find_optimisations)
+    ├───► Optimiser (optimise_unit)
     │     → O100–O130: All optimisation suggestions
     │     Groups related edits (e.g. O100+O109 for propagate + dead store)
     │
-    ├───► Shimmer detector (find_shimmer_warnings)
-    │     → S100: Value accessed as incompatible type
-    │     → S101: Implicit shimmer (int→string, etc.)
-    │     → S102: Cross-command type conflict
+    ├───► Shimmer detector (find_shimmer_warnings_for_cu)
+    │     → S100: Single shimmer outside a loop
+    │     → S101: Shimmer inside a loop body
+    │     → S102: Variable oscillates between two types across iterations
+    │     → S103, S110: further representation findings
     │
-    ├───► Taint engine (find_taint_warnings)
+    ├───► Taint engine (find_taint_warnings_for_cu)
     │     → T100: Dangerous code-execution sink
     │     → T101: Tainted output
     │     → T102: Option injection (tainted arg without --)
-    │     → T103: Regex injection / ReDoS
+    │     → T103: Regex injection / ReDoS (internal)
     │     → T104: SSRF (network address sink)
     │     → T105: Cross-interpreter code injection
-    │     → T106: Double-encoding (informational)
-    │     → IRULE1007: Collect without release (side-aware, in iRules flow analysis)
-    │     → IRULE1008: Release without collect (side-aware, in iRules flow analysis)
+    │     → T106: Double-encoding (internal)
     │     → IRULE3001: XSS in HTTP response body
     │     → IRULE3002: Header/cookie injection
     │     → IRULE3003: Log injection
     │     → IRULE3004: Open redirect
     │
-    ├───► iRules flow checker (find_irules_flow_warnings)
+    ├───► iRules flow checker (irules_checks.rs)
     │     → IRULE1005: *_DATA handler without matching collect
     │     → IRULE1006: payload access without collect
+    │     → IRULE1007/1008: collect/release imbalance
     │     → IRULE1201: HTTP command after respond/redirect
     │     → IRULE1202: Multiple respond/redirect on different branches
     │     → IRULE4004: Per-request set hoistable to connection scope
     │     → IRULE5002: drop/reject without event disable or return
     │     → IRULE5004: DNS::return without return
     │
-    └───► GVN/CSE (find_redundant_computations)
-          → O105: Redundant pure computation
-          → O106: Loop-invariant computation (LICM)
+    ├───► GVN/CSE (gvn.rs)
+    │     → O105: Redundant pure computation
+    │     → O106: Loop-invariant computation (LICM)
+    │
+    └───► Workspace refinement
+          → W120, W123 settled against the cross-file index
 ```
 
-### Async scheduling and cancellation
-
-The `DiagnosticScheduler` in
-`rust/tcl-lsp-server/src/lib.rs` manages the
-lifecycle of deep diagnostic tasks:
-
-```
-  Document edit (version N)
-      │
-      ├─► Phase 1: get_basic_diagnostics()
-      │     → publish basic diagnostics immediately
-      │
-      └─► DiagnosticScheduler.schedule(uri, version=N, ...)
-            │
-            ├─► Cancel any in-flight deep task for this URI
-            │     (previous version is stale)
-            │
-            └─► asyncio.create_task(_run())
-                  │
-                  └─► asyncio.to_thread(deep_fn)    ← background thread
-                        │
-                        ▼
-                    Deep diagnostics complete
-                        │
-                        ▼
-                    publish_fn(uri, basic + deep, version=N)
-                        │
-                        ▼
-                    Editor shows full diagnostic set
-```
-
-Key properties:
-- **Cancellation**: if the user types another character while deep analysis
-  is running, the stale task is cancelled and a new one starts.
-- **Version tracking**: each task carries a document version; results are
-  discarded if a newer version has been scheduled.
-- **Merge**: the final published diagnostics are `basic + deep`, ensuring
-  a consistent complete set.
+Both tiers pass through the same lifts and `finalise_diagnostics`, so `# noqa`,
+`# tcl-lsp: disable=`, disabled codes, tags and severity overrides cannot
+differ between them.
 
 ### Suppression with `# noqa`
 
@@ -4067,10 +4060,11 @@ set x 42    ;# noqa: O109  — suppress dead store warning
 eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
 ```
 
-The suppression map `suppressed_lines: HashMap<i32, HashSet<String>>` is built
-during semantic analysis and checked by both Phase 1 and Phase 2 before
-emitting any diagnostic.  `# noqa: *` suppresses all codes; `# noqa: O109`
-suppresses only the specified code.
+The suppression map `AnalysisResult::suppressed_lines:
+HashMap<i32, HashSet<String>>` is built during semantic analysis and checked by
+`finalise_diagnostics`, so both tiers see the same suppressions.
+`# noqa: *` suppresses all codes; `# noqa: O109` suppresses only the named
+code.
 
 ### Grouped optimisations
 
@@ -4091,23 +4085,22 @@ edits atomically, keeping the source consistent.
 
 For the taint example (`HTTP::header value Host` → `HTTP::respond`):
 
-1. **Phase 1** (immediate): semantic analysis finds no syntax errors.
-   Basic diagnostics are published with zero warnings.
+1. **Fast tier** (only if the deep pass overruns its budget): semantic
+   analysis finds no syntax errors, so nothing is published.
 
-2. **Phase 2** (background):
+2. **Deep tier**:
    - **Optimiser**: no optimisation opportunities found (the code is
      already efficient).
-   - **Taint engine**:
-     - `ensure_compilation_unit()` → reuses shared `CompilationUnit`.
-     - `_solve_interprocedural_taints()` → propagates taint from
+   - **Taint engine** (`find_taint_warnings_for_cu`):
+     - builds on the shared `CompilationUnit`;
+     - `taint_interproc::solve_interprocedural_taints` propagates taint from
        `HTTP::header value Host` through `string tolower` to
-       `HTTP::respond`.
-     - `_find_taint_sinks()` → detects `IRULE3001` on the
-       `HTTP::respond` line.
+       `HTTP::respond`;
+     - `classify_sink` detects `IRULE3001` on the `HTTP::respond` line.
    - **GVN**: no redundant computations.
 
-3. **Publish**: `basic_diags + deep_diags` → one `IRULE3001` warning
-   at `DiagnosticSeverity.Warning` is published to the editor.
+3. **Publish**: one `IRULE3001` warning at `Severity::Warning` reaches the
+   editor.
 
 ---
 
@@ -4120,7 +4113,7 @@ Source text  ──────────────────────�
        ▼                                                                 │
   Token stream         SegmentedCommand  Statement::AssignConst      Instruction
   ┌──────────┐        ┌──────────────┐        ┌───────────┐        ┌───────────┐
-  │ type:ESC │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
+  │ kind:Esc │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
   │ text:"set"│       │  ["set",     │        │ value:"42"│        │ operands: │
   │ start:0,0│        │   "x","42"]  │        │ span:...  │        │  (0,)     │
   │ end:0,3  │        │ single:      │        └───────────┘        └───────────┘

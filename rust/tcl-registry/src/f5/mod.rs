@@ -20,12 +20,9 @@
 //! in which execution context, with what provenance — and the hermetic
 //! conformance corpus that keeps the model honest about it.
 //!
-//! The rulings this implements are in
-//! `docs/design/dialect-and-package-registry-redesign.md` §0.2 (the F5
-//! evidence-review disposition table), the review itself
-//! (`dialect-and-package-registry-redesign-bigip-evidence-review.md`,
-//! findings F1–F8), R11 in
-//! `dialect-and-package-registry-centralisation.md` §4, and the live
+//! The model this implements is the F5 evidence layer and probe contract in
+//! `docs/design/dialect-and-package-registry-redesign.md`, its resolution
+//! rulings in `dialect-and-package-registry-centralisation.md`, and the live
 //! transcript in `docs/design/bigip-irule-parser-measurements.md`. Section
 //! references in this module (`§4a`, `§4b`, `§8`, …) are that measurements
 //! document unless said otherwise.

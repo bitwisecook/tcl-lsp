@@ -129,11 +129,10 @@ TclOO.**
   collection) — the slice the shipping layer addresses.
 - ~11% `cmd-return` — mostly non-object commands that should *abstain*.
 
-Landing the snit self-dispatch and constructor slices moved the corpus
-resolution rate from 6.8% local / 8.1% project to **14.0% local / 16.4%
-project** (see `experiments/tcloo_dispatch/RESULTS.md`), which is what
-confirms the histogram rather than the type theory should drive the order
-of work here. Tk widget paths — the other half of the "unbound" mass — are
+The snit self-dispatch and constructor slices carry the corpus resolution
+rate to **14.0% local / 16.4% project**, against a 6.8% / 8.1% baseline
+without them (`experiments/tcloo_dispatch/RESULTS.md`) — which is why the
+histogram, not the type theory, decides what to model next. Tk widget paths — the other half of the "unbound" mass — are
 handled by their own model; see
 [`tk-widget-instance-typing.md`](tk-widget-instance-typing.md).
 

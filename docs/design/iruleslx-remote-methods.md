@@ -3,8 +3,8 @@
 An iRulesLX plugin has two halves in two languages. The iRule opens a handle
 onto a running Node.js extension and calls a method on it by name; the
 extension registers that name on an `ILXServer`. Nothing in either file names
-the other, so go-to-definition, hover and find-references could not cross the
-boundary (issue #1707).
+the other, so this model is what lets go-to-definition, hover and
+find-references cross the boundary (issue #1707).
 
 ```tcl
 when HTTP_REQUEST {
@@ -229,9 +229,8 @@ directory declared for the plugin under `[iruleslx.rules]`.
 scanned wholesale: a deeper walk of a directory the user did not point at
 would turn one find-references into a tree scan. A declared directory is
 different — it exists precisely because the callers are not in `rules/` — so
-it is walked, under the bounds above. A rule that is in neither is still not
-found, and that is now a configuration the user can make rather than a limit
-of the model.
+it is walked, under the bounds above. A rule in neither is not found, which is a
+configuration the user can make rather than a limit of the model.
 
 Every other file — a sibling rule, the extension's entry point, its
 `package.json` — is read the way the server's own cross-document providers read
@@ -274,9 +273,8 @@ tier therefore starts by turning the request's URI into a path, and a URI that
 is not `file:` has none.
 
 So on the web hosts (vscode.dev / github.dev, where documents are `vscode-vfs:`
-and friends) every ILX tier abstains, and has since the relation landed. The
-browser entry point deliberately does **not** register the JavaScript reference
-provider: it would send a request the server cannot answer. Making this work on
+and friends) every ILX tier abstains. The browser entry point deliberately does
+**not** register the JavaScript reference provider: it would send a request the server cannot answer. Making this work on
 the web means giving the relation a URI-shaped discovery path rather than a
 path-shaped one — extension lookup, entry-point resolution and directory
 listing all over the virtual filesystem — which is its own change, not a

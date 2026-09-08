@@ -13,7 +13,7 @@ never special-case command names: whatever `foreach` or `string` get, they
 get by declaring facts in a spec — so your command can get the same by
 declaring the same facts.
 
-This manual is in two parts:
+This manual is in three parts:
 
 - **[fields.md](fields.md)** — every field of `CommandSpec` and
   `SubCommand`, with its meaning in Tcl terms and the full vocabularies
@@ -165,8 +165,7 @@ influence, with the field that causes or suppresses it.
 - [The Spec Studio](../../kcs/features/kcs-feature-spec-studio.md) — edit
   every field here in a form, with this manual's text behind **?** buttons.
 - [SpecTcl pack design](../../design/spec-packs.md) — the loadable
-  command-pack architecture, discovery tiers, and crash containment, under
-  active design for issue #1363.
+  command-pack architecture, discovery tiers, and crash containment.
 - [How to write a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md)
   — the quickstart: the minimal shape, the three discovery tiers, and how
   the running server picks a saved pack up.

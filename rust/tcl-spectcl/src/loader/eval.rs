@@ -16,9 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **evaluation loader** — design E's executable registration
-//! (`docs/design/spectcl-design-e-deep-dive.md` §1), and since the
-//! `one-loader` lane the *only* way a `.tclspec` source becomes a [`Pack`].
+//! The **evaluation loader** — executable registration
+//! (`docs/design/spec-packs.md` § *The format: a Tcl program, evaluated by
+//! our own toolchain*), and the *only* way a `.tclspec` source becomes a
+//! [`Pack`].
 //!
 //! A pack file is evaluated as a Tcl program in the sandboxed, budgeted,
 //! deterministic `tcl-vm` (`tcl_spec_hooks::pack_eval`). The registration

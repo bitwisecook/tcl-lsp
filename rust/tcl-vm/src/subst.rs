@@ -534,8 +534,8 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // the right one — a blanket decode here fixes the first vector by breaking
     // the second. The fix belongs in the compiler's literal emission for a
     // word nested in a bracket word (`rust/tcl-compiler`), not in the word
-    // decomposer; see `docs/design/lanes/wasm-native-lowering.md`
-    // § `r10-word-parts`.
+    // decomposer; see `docs/design/contracts/shared-utility-contracts-rust.md`
+    // § `tcl-compiler` — nested command-substitution words.
     if !word.contains("${") && !word.contains('[') {
         return Ok(Value::string(word));
     }
