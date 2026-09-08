@@ -35,7 +35,7 @@ Alpine/musl users to build tcl-lsp from source. It installs Tcl (the OS package
 manager for 8.6 on Debian, Alpine, and RHEL families, a source build otherwise),
 downloads the `tcl` binary built for the image's architecture, checks it
 against the release's `SHA256SUMS`, and runs `tcl pkg install --frozen` when a
-`tclpkg.lock` is present. No Python interpreter is installed or needed.
+`tclpkg.lock` is present.
 
 ### Choosing the release
 
@@ -63,7 +63,7 @@ Tcl-only image. `tcl docker info` lists which families can carry the CLI.
 ## Options
 
 - `[IMAGE]` — optional base image; defaults to `debian:bookworm-slim` for glibc.
-- `--tcl-version 8.4|8.5|8.6|9.0` — the Tcl to install (default 8.6).
+- `--tcl-version 8.4|8.5|8.6|9.0` — the Tcl to install (default 8.6). `tcl docker info` lists the families and versions.
 - `-o PATH` / `--force` — output path; overwrite an existing file.
 - `--workdir DIR` — container `WORKDIR` (default `/app`).
 - `--entrypoint SCRIPT` — the script `CMD` runs under `tclsh`.
