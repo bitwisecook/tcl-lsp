@@ -1,16 +1,17 @@
 # Sample Tcl code exercising all optimisation passes.
 # Used to demonstrate what each profile produces.
-# Run: tcl opt --profile standard samples/optimiser/input.tcl
+# Run: tcl opt samples/optimiser/input.tcl
 
 # --- Readability candidates (O111, O114, O115, O117, O120) ---
 
 # O114: incr idiom
 set count 0
 incr count
+puts $count
 
 # O117: string length check -> eq ""
 proc is_empty {s} {
-    if {${s} eq ""} {
+    if {$s eq ""} {
         return 1
     }
     return 0
@@ -25,7 +26,7 @@ proc greet {name} {
 
 # O115: redundant nested expr
 proc double_expr {x} {
-    return [expr {$x * 2}]
+    return [expr {[expr {$x * 2}]}]
 }
 
 # --- Constant folding candidates (O100, O101, O102, O103, O110, O113, O116, O118) ---
@@ -39,20 +40,20 @@ proc passthrough {x} {
 }
 
 set timeout 30
-set half 15
-set threshold 40
-set candidate [expr {$request_count + 3}]
-set route 42
+set half [expr {$timeout / 2}]
+set threshold [expr {$timeout + 10}]
+set candidate [expr {$request_count + 1 + 2}]
+set route [passthrough 42]
 
 # O116: fold constant list
-set colours {red green blue}
+set colours [list red green blue]
 
 # O118: fold constant lindex
-set second beta
+set second [lindex {alpha beta gamma} 1]
 
 # O113: strength reduction
 proc square {r} {
-    return [expr {$r * $r}]
+    return [expr {$r ** 2}]
 }
 
 # --- Pattern recognition (O104, O119) ---
@@ -65,9 +66,7 @@ proc build_banner {} {
 
 # O119: pack consecutive sets into lassign
 proc init_vars {} {
-    set a 1
-    set b 2
-    set c 3
+    lassign {1 2 3} a b c
     list 1 2 3
 }
 
@@ -119,3 +118,25 @@ proc sum_list {lst} {
     }
     return [expr {[lindex $lst 0] + [sum_list [lrange $lst 1 end]]}]
 }
+
+
+# -------------
+# optimised: 18 rewrite(s)
+# O102  Forward literal load of 'count' from its single reaching definition
+# O114  Use incr instead of set/expr
+# O117  Simplify string length zero-check
+# O120  Use eq/ne for string comparison
+# O102  Forward literal load of 'timeout' from its single reaching definition
+# O102  Forward literal load of 'timeout' from its single reaching definition
+# O104  Remove dead intermediate string write
+# O104  Remove dead intermediate string write
+# O104  Fold write-only string build chain
+# O119  Remove packed set (moved to lassign)
+# O119  Remove packed set (moved to lassign)
+# O119  Pack set statements into lassign
+# O102  Forward literal load of 'a' from its single reaching definition
+# O102  Forward literal load of 'b' from its single reaching definition
+# O102  Forward literal load of 'c' from its single reaching definition
+# O102  Forward literal load of 'stale' from its single reaching definition
+# O102  Forward literal load of 'rolling' from its single reaching definition
+# O102  Forward literal load of 'rolling' from its single reaching definition

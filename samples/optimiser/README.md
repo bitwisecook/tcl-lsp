@@ -7,7 +7,7 @@ produces from a single input file.
 
 | File | Description |
 |------|-------------|
-| `input.tcl` | Source file exercising all 28 optimisation passes (O100-O127) |
+| `input.tcl` | Source file exercising the optimisation passes (O100-O130) |
 | `profile_readability.tcl` | Output at **readability** — idiomatic rewrites only |
 | `profile_standard.tcl` | Output at **standard** — readability + constant folding |
 | `profile_full.tcl` | Output at **full** — all passes, single pass |
@@ -22,39 +22,50 @@ All optimisations disabled. Output is identical to `input.tcl`.
 
 ### `readability` (editor default)
 
-**Enabled codes:** O111, O114, O115, O117, O120 (5 codes)
+**Enabled codes:** O111, O114, O115, O117, O120, O128 (6 codes)
 
 Idiomatic Tcl rewrites only — no code removal or restructuring:
 
-- `set x [expr {$x + N}]` &rarr; `incr x N`
-- `[string length $s] == 0` &rarr; `$s eq ""`
-- `==`/`!=` on strings &rarr; `eq`/`ne`
-- Redundant nested `[expr {...}]` removed
-- Unbraced `expr` bodies flagged (paired with W100)
+- `set x [expr {$x + N}]` &rarr; `incr x N` (O114) — the target must be provably
+  `TclType::Int`, since `expr` promotes a float operand where `incr` errors
+- `[string length $s] == 0` &rarr; `$s eq ""` (O117)
+- `==`/`!=` on strings &rarr; `eq`/`ne` (O120)
+- Redundant nested `[expr {...}]` removed (O115)
+- Unbraced `expr` bodies flagged (O111, paired with W100)
+- `end`-relative index rewrites (O128)
 
 These suggestions improve clarity without changing the structure of the code.
-They never delete lines or introduce new variables.
+They never delete lines or introduce new variables. **3 rewrites** on the
+sample input.
 
 ### `standard`
 
-**Enabled codes:** readability + O100-O105, O110, O113, O116, O118, O119 (16 codes)
+**Enabled codes:** readability + O100-O105, O110, O113, O116, O118, O119, O129,
+O130 (19 codes)
 
 Adds constant folding and pattern recognition on top of readability:
 
-- `set timeout 30; set half [expr {$timeout / 2}]` &rarr; `set half 15`
-- `[list red green blue]` &rarr; `{red green blue}`
-- `[lindex {a b c} 1]` &rarr; `b`
-- `expr {$r ** 2}` &rarr; `expr {$r * $r}` (strength reduction)
-- String build chains folded into single `set`
-- Expression canonicalisation (InstCombine)
+- String build chains folded into a single `set` (O104)
+- Consecutive `set`s packed into `lassign` (O119)
+- Expression canonicalisation (O110 InstCombine) and strength reduction (O113).
+  The sample's `# O113` stanza writes its expression as `return [expr {$r ** 2}]`
+  and is **not** rewritten: no expression rewriter visits a `return` body
+  (issue #1962). The same expression in a `set` becomes `$r * $r`.
 
 Shows "this could be simpler" without deleting any code. Dead stores from
 constant propagation remain in the output — the code is simplified but not
-shortened.
+shortened. **18 rewrites** on the sample input.
+
+Note what this profile does *not* do to the sample, because it is a **single**
+pass: `set half [expr {$timeout / 2}]` still reads `$timeout`. Folding it to
+`set half 15` needs the constant propagated first and the arithmetic folded
+after, which is two passes — so those folds appear only under `aggressive`
+below. The summary footer lists the propagations as O102 because they were
+*found*; a hint-only entry is advice, not an applied edit.
 
 ### `full`
 
-**Enabled codes:** all 28 codes, single pass
+**Enabled codes:** all 31 codes, single pass
 
 Adds dead-code elimination, code motion, and recursion transforms:
 
@@ -70,7 +81,7 @@ default for all surfaces.
 
 ### `aggressive`
 
-**Enabled codes:** all 28 codes, multi-pass (up to 5 iterations)
+**Enabled codes:** all 31 codes, multi-pass (up to 5 iterations)
 
 Same passes as `full`, but after applying rewrites, the source is recompiled
 and re-analysed to find opportunities exposed by earlier passes. For example:
@@ -81,10 +92,13 @@ and re-analysed to find opportunities exposed by earlier passes. For example:
 4. Pass 2: The three consecutive `set half 15; set threshold 40; set route 42`
    are packed into `lassign {15 40 42} half threshold route` (O119)
 
-The aggressive profile found **38 optimisations across 3 iterations** vs 31 in
-single-pass `full` for the sample input. Convergence is typically 3-4
-iterations even for large codebases; the multi-pass engine stops early when the
-source text reaches a fixpoint (no further changes).
+The aggressive profile finds **42 rewrites** on the sample input against 24 in
+single-pass `full`. It is the only profile that folds the arithmetic through:
+`set half 15`, `set threshold 40`, `set colours {red green blue}`,
+`set second beta`, and the whole `set count 0; incr count; puts $count` stanza
+down to `puts 1`. Convergence is typically 3-4 iterations even for large
+codebases; the multi-pass engine stops early when the source text reaches a
+fixpoint (no further changes).
 
 ## Defaults per surface
 
@@ -101,7 +115,7 @@ source text reaches a fixpoint (no further changes).
 1. **O111 is in readability** — bracing expressions is an idiomatic Tcl best
    practice and pairs with the W100 diagnostic warning.
 
-2. **Editor default is `readability`** — 5 non-intrusive hints with no code
+2. **Editor default is `readability`** — 6 non-intrusive hints with no code
    deletion. Users who want more can change to `standard` or `full` in settings.
 
 3. **`aggressive` is a separate profile** — not a `--multi-pass` flag. Keeps
@@ -127,7 +141,7 @@ for p in readability standard full aggressive; do
 done
 ```
 
-The committed outputs predate the Rust optimiser and have not been
-regenerated: it is deliberately more conservative on some passes (O114's
-`incr` rewrite, for one, now needs the target proven `TclType::Int`), so
-re-running the loop above will not reproduce them byte-for-byte.
+The committed outputs are exactly what that loop produces, and
+`samples_optimiser_profiles_are_regenerated` in `rust/tcl-cli` fails if they
+drift — which is how they came to document the retired Python optimiser for as
+long as they did (issue #1789).
