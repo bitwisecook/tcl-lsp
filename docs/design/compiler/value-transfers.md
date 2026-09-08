@@ -194,12 +194,14 @@ owns for `NativeLowering::CellReadModifyWrite` — `Increment`, `Append`,
 catalogue names (`DictIncr`, `DictAppend`, `DictListAppend`, `DictSet`,
 `DictUnset`, `ListSet`, `ListPop`). Each variant maps to one registry-owned
 `CellFoldFn` in a new `rust/tcl-registry/src/cell_fold.rs`, beside
-`const_fold.rs`, implemented over the shared cores in `tcl-cmd-core` where
-one exists (`tcl_cmd_core::index`, `tcl_cmd_core::string`,
-`tcl_cmd_core::binary`, `tcl_syntax::list`, the dict canonicaliser) so the
-compile-time answer and the runtime answer come from one implementation.
-That is the Family-B rule ([family-b-routing.md](../family-b-routing.md))
-applied to folding.
+`const_fold.rs`, and each is a call into the shared core the runtimes
+already execute — the value half of `incr` / `append` / `lappend` in
+`tcl-cmd-core`, the dict canonicaliser, `tcl_cmd_core::index` — over the
+compile-time `ConstOps` described in
+[§ Single-source evaluation](#single-source-evaluation-the-cores-the-engines-and-codegen),
+so the compile-time answer and the runtime answer come from one
+implementation. That is the Family-B rule
+([family-b-routing.md](../family-b-routing.md)) applied to folding.
 
 `ValueTransferId` is deliberately small. Its first members are the two
 transfers whose inputs are not literal words: `Expr` (the braced-versus-
@@ -651,6 +653,166 @@ it is not tolerable for a transfer whose purpose is to reach every
 diagnostic. Threading `spec_pack_key` into the `compilation_unit` query is
 a prerequisite of phase 4, and the same edit closes the gap for the 41
 existing folds.
+
+## Single-source evaluation: the cores, the engines, and codegen
+
+Whether a compile-time fold can be *the same code* the runtimes execute has a
+concrete answer in this workspace, because the seam that makes it possible
+already exists: the Family-B contract ([family-b-routing.md](../family-b-routing.md)).
+Today the answer is "partly, and inconsistently"; the design makes it "by
+construction" for the commands the lattice depends on, and "by the engine"
+for the long tail.
+
+### What exists
+
+- **One value seam, two runtimes.** `tcl_syntax::value::ValueOps` is the
+  generic value interface; `tcl-cmd-core` is written once over it; the
+  bytecode VM (`impl ValueOps for Vm`, `rust/tcl-vm/src/value_ops.rs`) and
+  the WASM runtime (`impl ValueOps for Interp`, `runtime/rust/src/value_ops.rs`)
+  both implement it. Both route the `string` ensemble through
+  `tcl_cmd_core::string::dispatch_canon`, `binary format` / `scan` through
+  `tcl_cmd_core::binary`, and `format`, `scan`, `regsub`, list, dict, and
+  the *value half* of `incr` / `append` / `lappend` through the cores; the
+  per-runtime adapter keeps only the store, the write trace, and the
+  const-variable check.
+- **Release axes reach the cores three ways.** Through the implementation
+  (`char_len` is `string_char_len(s, runtime_version)`; `int_add` is the VM's
+  fixed-width `i64` overflow error or the WASM runtime's bignum widen — the
+  two runtimes disagree with each other here, and C Tcl 8.5+ widens);
+  through explicit arguments (`format_cmd_with_syntax(…, NumberSyntax)`,
+  `string_is::class_check(…, NumberSyntax)`, `index::resolve_opt_with`,
+  `binary::signedness_available(profile)`); and in one place not at all —
+  `index::resolve` reads an index numeral under the default grammar, and
+  `string::range` calls it, so both runtimes read `string range $s 010 end`
+  the same way for every release. Both engines are release-pinnable
+  (`Vm::set_runtime_version` / `set_dialect_profile`, `Interp::set_runtime_version`).
+- **The registry's folders are a second implementation.** `fold_range` in
+  `rust/tcl-registry/src/commands/tcl/string_.rs` is an ASCII-only
+  re-implementation beside `tcl_cmd_core::string::range`; `fold_format` is a
+  hand-written subset beside `format_cmd_with_syntax`; `fold_is` classifies
+  with its own code beside `string_is::class_check`; the list folds split
+  through a deliberately conservative `split_list` that bails on any
+  backslash. Two folders already *are* core calls — `fold_regsub`
+  (`tcl_cmd_core::regex::regsub::<AreEngine>`) and `parse_index`
+  (`index::resolve_opt_with`) — so the precedent runs in both directions.
+  The registry's own test module says it plainly: it carries a string-backed
+  `Strs` "so these folds can be cross-checked against the *real*
+  canonicalisation owner rather than against a second copy of my own
+  reasoning". There are three such test-only `ValueOps` implementations
+  (`rust/tcl-syntax/src/value.rs`, two in `tcl-cmd-core`, one in the
+  registry) and no live one.
+- **A third implementation family lives in codegen.**
+  `rust/tcl-compiler/src/codegen/helpers.rs` carries `try_format_fold`
+  (`%s` and `%d` only) and `fold_list_cmd`, reached from codegen and from
+  `sccp.rs`'s name-keyed arms. `format` therefore has four implementations:
+  the core, the registry folder, the codegen helper, and the SCCP arm that
+  calls the codegen helper.
+- **Codegen already emits folded values, guarded.**
+  `try_emit_constant_fold` in `rust/tcl-compiler/src/codegen/values.rs`
+  folds a literal-only `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`,
+  pushes the literal (`VERIFY_DICT` for a dict result), and calls
+  `require_command_binding` for every `CommandBindingIdentity` the fold
+  consumed, inside its own replay boundary; `plain_command_dispatch`
+  disables it. The artefact carries those identities (`command_binding_sites`
+  in the emitter), and the VM revalidates them on a command or trace epoch
+  change ([vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md)
+  § *Invalidation*). So fold semantics are already in emitted bytecode. The
+  guard protects against *rebinding*; nothing protects against the fold and
+  the runtime *disagreeing*, which is what a second implementation permits.
+- **The engine seam.** `tcl_engine_api::Engine` compiles a unit once,
+  invokes it with values, restricts the command surface to a whitelist,
+  and enforces a budget; `TclVmEngine` (`rust/tcl-engine-tclvm/src/lib.rs`)
+  is the only implementation and the trait's documentation anticipates a
+  `"wasm"` sibling. It builds a `Vm` with the default registry at the
+  default release and exposes no release setter, although the VM has one.
+  It reaches the compiler only through the per-thread `pack_hooks` host,
+  which is how the dependency cycle is broken: the compiler calls a
+  function pointer, `tcl-spectcl` installs the host.
+- **The oracle.** `rust/tcl-registry/tests/differential_fold.rs` runs every
+  fold against a real `tclsh9.0`; the fuzzer pairs `tclvm`, `runtime-rust`,
+  and `tclsh`, with the rule that "a two-way native pair has no oracle"
+  ([differential-fuzzing.md](../contracts/differential-fuzzing.md)).
+
+### Three levels of integration
+
+**Level 1 — the fold is the core.** One live, string-backed `ValueOps`
+implementation, `ConstOps`, carrying `Option<TclVersion>`:
+
+- `char_len` answers `string_char_len(s, version)` when the profile names a
+  release, and otherwise the count only where the Tcl 8 and Tcl 9 models
+  agree — the rule the `string length` arm applies today, now inside the
+  seam;
+- `int_add` answers what C Tcl answers: a widened bignum decimal string
+  from 8.5, an abstention for 8.4 and for `None` when the answers differ;
+- `list_elements` uses the canonical `tcl_syntax::list::split_list`, and the
+  registry's conservative splitter becomes a *precondition* on the fold's
+  input (a backslash-free list) rather than a divergent parser;
+- every `ValueError` is `None`.
+
+Every shipped fold and cell evaluator then *is* a core call: `fold_range` is
+`string::range(&mut ops, s, first, last)`; the whole `string` ensemble
+folds through `dispatch_canon`, whose `None` is an abstention; `format` is
+`format_cmd_with_syntax` under the profile's `NumberSyntax`; `string is` is
+`class_check`; `binary format` / `scan` / `encode` / `decode` are
+`tcl_cmd_core::binary`; `Increment`, `Append`, and `ListAppend` are the
+same value computations the runtime adapters call (`int_add`, the
+byte-exact append rung, `list_append`), with the lattice write as the
+compile-time store. `try_format_fold` and `fold_list_cmd` in
+`codegen/helpers.rs` are deleted in favour of the engine. The fold, the
+bytecode VM, and the WASM runtime then execute one function; the registry's
+cross-check tests become tautologies and are replaced by the tclsh
+differential; and a core bug is one bug in one place, which the three-way
+fuzz pair is built to find.
+
+**Level 2 — the engine is the evaluator.** For a `.tclspec` body this is
+already how a fold runs. For a shipped command with no core-backed fold, a
+transfer resolved as `Pure` with no folder can be evaluated by running the
+real command in the sandboxed engine under the target release, memoised by
+`(command, words, release)`. Four things are needed: `Engine::set_release`
+or a `with_profile` constructor, since the VM already supports both; a
+whitelist *derived* from the registry — `ResultStability::ReferentiallyTransparent`,
+declared pure, and outside the determinism-axis table in
+`rust/tcl-spec-hooks/src/pack_eval.rs` — instead of the hand-listed thirty;
+the installer seam on every thread that builds a lattice; and the same
+trust and escape gates as any other transfer. The cost is the measured
+hook cost, about 28 µs uncached and 24.5 ns cached, which is fine per
+statement and, with the memo, paid once per fixpoint. What it buys is the
+long tail: every tcllib, iRules, and EDA command whose runtime handler
+exists for WASM parity folds with no fold code at all. What it costs is
+fidelity to the *engine* rather than to C Tcl: an engine fold inherits the
+engine's bugs, so it follows the engine and consistency with C Tcl still
+comes from the oracle. The recommendation is Level 1 for the commands the
+lattice depends on — they are hot, and the core is the truth — and Level 2
+as the default for everything else, gated by the three-way fuzz.
+
+**Level 3 — codegen and the runtimes see the same value.** Structurally
+true today for the bytecode backend through `try_emit_constant_fold`,
+`require_command_binding`, and epoch revalidation; Level 1 makes it correct
+by construction rather than by the ASCII-subset caution in the folders. For
+WASM, the intrinsic plan and the fold already share `IntrinsicId`, and
+`guard_semantics_key(runtime)` pins the one release-sensitive intrinsic; a
+folded value enters a sealed-program plan only as materialisable-slot
+evidence with a singleton type. The boundary rule stands: a folded value is
+a value, live intrinsic dispatch is a proof, and the first never authorises
+the second.
+
+### What "consistent" can and cannot mean
+
+- **Among the fold, the VM, and the WASM runtime** — achievable by
+  construction at Level 1: one function.
+- **With C Tcl** — an evidence question, not a construction one. The cores
+  are a port; `differential_fold.rs` and the fuzzer's `tclsh` pair are the
+  oracle, and a shared bug is invisible to a two-way native pair. Two
+  divergences are known today: the VM raises on `incr` past `i64` where C
+  Tcl 8.5+ and the WASM runtime widen, and `index::resolve` reads index
+  numerals under one grammar for every release. `ConstOps` sides with C Tcl
+  — widen, and abstain where the grammar would differ — which means a fold
+  can predict a value the VM then fails to compute. That is a VM bug the
+  fold makes visible, not a fold bug, and the fuzzer's three-way pair
+  reports it the same way.
+- **Across releases** — the profile decides; `None` means unanimous or
+  abstain, the rule the cores' explicit `NumberSyntax` arguments already
+  enforce.
 
 ## Where the transfer runs, and what it costs
 
@@ -1394,10 +1556,11 @@ a module "pure-ish" when it declares `pure: true`, `Traits::PURE`,
 Three tiers reach them, and a pack author picks by where the implementation
 lives.
 
-**Tier 1 — a native evaluator over a shared core.** For a command whose
-runtime handler already has a Rust core the registry can reach
-(`tcl-cmd-core`, `tcl-regex`, `tcl-syntax`), the fold is a thin wrapper and
-the differential test proves it. This is the `binary` family, `regexp`,
+**Tier 1 — the shared core itself.** For a command whose runtime handler
+already has a Rust core the registry can reach (`tcl-cmd-core`,
+`tcl-regex`, `tcl-syntax`), the fold *is* the core over `ConstOps`
+([§ Single-source evaluation](#single-source-evaluation-the-cores-the-engines-and-codegen))
+and the differential test proves it. This is the `binary` family, `regexp`,
 `lassign`, `dict incr` / `append` / `lappend` / `set` / `unset`, `lset`,
 and `file join` / `dirname` / `tail` / `extension` / `rootname` /
 `split` (platform-conditional through the profile). For iRules, the
@@ -1415,8 +1578,10 @@ reads versioned world state, and that is the correct answer. Note that
 `b64encode`'s spec today declares only a `Global`-side read effect and no
 purity — the inventory makes such under-declared specs visible.
 
-**Tier 2 — a `.tclspec` body.** For a command implemented in Tcl, or one
-whose pack is already SpecTcl, the pack author writes `const_fold`,
+**Tier 2 — the engine, or a `.tclspec` body.** For a shipped command with
+no core-backed fold, the sandboxed engine evaluates the real command under
+the target release (Level 2 of the same section). For a command implemented
+in Tcl, or one whose pack is already SpecTcl, the pack author writes `const_fold`,
 `cell_fold`, or `destructure_fold` bodies that *call the real command*
 inside the sandbox — `fold [string range $s $first $last]` is the whole
 body, as `string.tclspec` shows — and the pack's corpus gate proves them.
@@ -1505,8 +1670,9 @@ Each phase lands with its tests, its KCS notes for any new or changed code,
 named; each is independently shippable.
 
 1. **The descriptor and the query, behaviour-preserving.** `ValueTransfer`,
-   `value_transfer_for_call`, the derivation, the contract tests, the
-   inventory and its gate, and the SCCP dispatcher re-expressing the five
+   `value_transfer_for_call`, the derivation, the live `ConstOps`, the
+   contract tests, the inventory and its gate, and the SCCP dispatcher
+   re-expressing the five
    fold arms, the `Incr` arm, the `foreach` / `lmap` arm, and the `unset`
    scan as resolved transfers. Every existing `evaluate_def_*` and
    `sccp_with_builtin_folds` test pins byte-identical results. The two
@@ -1514,7 +1680,10 @@ named; each is independently shippable.
    command name; the inventory shows `incr` as `Cell(Increment)` and
    `append` / `lappend` as gaps.
 2. **Cell transfers in the shared lattice.** `cell_fold.rs` with
-   `Increment`, `Append`, `ListAppend`; `CommandTrustSnapshot` in
+   `Increment`, `Append`, `ListAppend` as core calls over `ConstOps`; the
+   shipped `string`, `format`, `string is`, and list folders re-based on
+   their cores and `codegen/helpers.rs`'s two folders retired;
+   `CommandTrustSnapshot` in
    `FnLatticeKey`; `folded_types`; the call-site seed typed through
    `parse_literal_value`; `assignment_safe_to_delete`,
    `fold_tail_statement_under_lattice`, `chain_fold`, `static_loops`, and
@@ -1534,9 +1703,12 @@ named; each is independently shippable.
    reading the engine; the `word_subst` nested-word fold. Exit: program (2)
    folds and is typed `ByteArray`; the literal-only diagnostics in the
    table above read constants.
-5. **SpecTcl.** The `cell_fold` / `destructure_fold` families across the
-   four surfaces; `-native ID` resolution for every body family; the hook
-   sandbox's `tcl::mathfunc::` retention; `spec_pack_key` threaded into
+5. **SpecTcl and the engine.** The `cell_fold` / `destructure_fold`
+   families across the four surfaces; `-native ID` resolution for every
+   body family; the hook sandbox's `tcl::mathfunc::` retention;
+   `Engine::set_release` and the registry-derived whitelist, so a pure
+   shipped command with no core-backed fold evaluates in the engine under
+   the target release; `spec_pack_key` threaded into
    the `compilation_unit` query; the studio picker and body carry-forward
    for subcommands; `spectcl_check` reporting; the `spec-author`
    inference; `transfer_hook_entries`. Exit: the `string.tclspec` port's
@@ -1577,6 +1749,13 @@ refinement, bounded-loop enumeration, and proc-level transfer summaries.
    `native_integer_proof` declines it.
 10. **`spec_pack_key` in the `compilation_unit` query** is accepted as the
     cost of pack hooks reaching diagnostics.
+11. **Folds and cell evaluators are `tcl-cmd-core` calls over one live
+    `ConstOps`**; the registry's hand-written folders and the two folders in
+    `codegen/helpers.rs` are retired, and the conservative list splitter
+    becomes a precondition rather than a second parser.
+12. **`Engine` gains release pinning, and engine evaluation is the default
+    for a pure shipped command with no core-backed fold**, gated by the
+    registry-derived whitelist and the three-way fuzz pair.
 
 ## File-path anchors
 
@@ -1598,6 +1777,11 @@ refinement, bounded-loop enumeration, and proc-level transfer summaries.
 - `rust/tcl-spec-studio/src/coverage.rs`, `render_spectcl.rs`, `schema.rs` — the four-surface gates
 - `rust/tcl-lsp-db/src/lib.rs` — `FnLatticeKey`, the `compilation_unit` and `registry` queries
 - `rust/xtask/src/callback_inventory.rs`, `number_drift.rs`, `owner_resolution.rs` — the gate shapes to copy
+- `rust/tcl-syntax/src/value.rs` — `ValueOps`, the value seam `ConstOps` implements
+- `rust/tcl-cmd-core/src/string.rs`, `binary.rs`, `format.rs`, `string_is.rs`, `index.rs` — the shared cores the folds become calls into
+- `rust/tcl-vm/src/value_ops.rs`, `runtime/rust/src/value_ops.rs` — the two runtime implementations of the seam
+- `rust/tcl-compiler/src/codegen/values.rs`, `rust/tcl-compiler/src/codegen/helpers.rs` — `try_emit_constant_fold` and the two codegen folders to retire
+- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs` — the engine seam and its one implementation
 - `ai/claude/skills/spec-author/SKILL.md` — the inference surface
 
 ## Test anchors
@@ -1627,4 +1811,6 @@ refinement, bounded-loop enumeration, and proc-level transfer summaries.
 - [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md) — the four-surface parity rule
 - [../contracts/shared-utility-contracts-rust.md](../contracts/shared-utility-contracts-rust.md) — the owner manifest
 - [../family-b-routing.md](../family-b-routing.md) — the shared-core rule the native evaluators follow
+- [../contracts/vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md) — how a folded value in bytecode is admitted and invalidated
+- [../contracts/differential-fuzzing.md](../contracts/differential-fuzzing.md) — the engine pairs that are the fold's oracle
 - [compiler design index](README.md), [design docs index](../README.md)
