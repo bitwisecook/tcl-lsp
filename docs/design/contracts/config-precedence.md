@@ -34,8 +34,7 @@ applies a file layer through exactly the code that applies the editor layer.
 
 ## Why project wins over editor
 
-We surveyed how other widely-used language servers handle the same
-question in May 2026:
+How other widely-used language servers handle the same question:
 
 | Tool | Convention | Source |
 |---|---|---|

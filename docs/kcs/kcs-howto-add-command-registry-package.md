@@ -57,7 +57,7 @@ beside the server executable and read by the pack loader
 ([spec-packs.md](../design/spec-packs.md)). Adding or editing an EDA command
 means editing the `.tclspec` file: the syntax is
 [kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md),
-`tcl spec check` validates a pack, and
+`mcp__tcl-lsp__spectcl_check` validates a pack, and
 `rust/tcl-spectcl/tests/eda_loadables.rs` is the gate. None of the steps
 below — no module, no `mod` line, no collector entry, no codegen refresh —
 applies to them.

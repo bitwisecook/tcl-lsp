@@ -14,7 +14,7 @@ how do I add a new platform?
 
 ## Before you start
 
-- A Rust toolchain (rustup, 1.95+) and Node.js with npm installed.
+- A Rust toolchain (rustup, 1.98+) and Node.js with npm installed.
 - Cross-compilation dependencies for your host: run `make
   ensure-server-cross-deps` (adds the rustup targets, and on Linux the
   cross-linkers plus QEMU).

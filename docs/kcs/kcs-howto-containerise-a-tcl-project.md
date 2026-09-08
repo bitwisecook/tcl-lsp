@@ -35,7 +35,7 @@ supplement them with `tcl pkg add`.
 `tcl docker create` writes a Dockerfile that installs Tcl, installs the
 **native `tcl` CLI binary** from a GitHub release, and runs
 `tcl pkg install --frozen` against your lockfile. No Python interpreter is
-installed or needed — the 1.x-era zipapp is gone.
+installed or needed.
 
 ### 1. Pick a Tcl version
 

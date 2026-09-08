@@ -50,7 +50,7 @@ same three lines give a working `::app::helper`.
 
 ### Where the server stays silent
 
-No order at all — so the pre-existing lenient answer stands — when:
+No order at all — so the lenient answer stands — when:
 
 - the two files sit in different `source` trees and neither requires a
   package the other provides;

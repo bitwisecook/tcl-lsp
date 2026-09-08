@@ -51,7 +51,7 @@ case, including all edge cases above).
 | Analyser call-site settlement (`Analyser::finalise_invocation_resolutions`, feeds `resolved_qualified_name` for references / rename / call hierarchy / code lens / symbol graph / minifier) | calls `resolve_command_with` post-walk (call-time semantics: whole-file definitions count) with the namespace's statically-recorded `namespace path` (`handle_namespace_path_command` tracks literal declarations; each replaces the whole path, as in C Tcl) | `tcl-compiler/tests/command_resolution_conformance.rs` (every vector, path-carrying included) |
 | Analyser shadow/arity checks (`resolve_proc_call`), W-code validity (`qualify_candidates`) | shared candidate helper | unit tests in `handlers.rs` / `validity.rs` |
 | Cross-document settlement (`settle_call_against_workspace`, `tcl-lsp-server`) — the **one** lookup shared by go-to-definition, find-references and the diagnostics path (W123 suppression + cross-file E002/E003) | replays the site's recorded `resolution_candidates` in priority order against the workspace index's existence oracle, applying the forced-import, nested-shadow and pending-indirection gates | `tcl-lsp-server/tests/e2e/issue1331_crossfile_diagnostics.rs` + `lib.rs` unit tests; see [cross-file-diagnostics.md](cross-file-diagnostics.md) |
-| Optimiser interprocedural identity (`resolve_internal_call` / `resolve_call_target`), O103 folding (`resolve_proc_qname`) | `resolve_command_with` over the unit's proc table | unit tests in `interprocedural.rs` |
+| Optimiser interprocedural identity (`resolve_internal_call` / `resolve_call_target`), O103 folding (`resolve_proc_qname`) | `resolve_command_with` over the unit's proc table | unit tests in `interprocedural.rs` and `optimiser/propagation.rs` |
 | `uplevel` passthrough inliner (`inline_uplevel.rs`) | `resolve_command_with` over the candidate map | existing inliner tests |
 | Bytecode VM dispatch (`tcl-vm`: `lookup_command` = `resolve_command_fqn` + fetch; also `rename`'s source lookup, alias global anchoring, TclOO forward object-ns anchoring, `namespace unknown` chain, expr mathfunc dispatch) | `resolve_command_with` over the live command table, with the namespace's real `namespace path` | `tcl-vm/tests/command_resolution_conformance.rs` (compiles + executes every vector) + `tcl-vm/tests/tricky_resolution_e2e.rs` (tclsh-pinned alias/forward/mathfunc/unknown/rename interactions) |
 | WASM runtime dispatch (`runtime/rust`: `Namespaces::home_of`) | structural mirror (its store is a namespace *tree*, not a flat map) — same base order, command-existence-checked per base | `cmd_namespace.rs::dispatch_matches_every_conformance_vector` (executes every vector) |
@@ -60,9 +60,10 @@ case, including all edge cases above).
 
 The vector table itself is pinned to C Tcl by
 `tcl-syntax/tests/command_resolution_conformance.rs::vectors_match_real_tclsh`,
-which executes every vector under a real tclsh (`TCL_LSP_TCLSH`, else
-`tclsh9.0` / `tclsh8.6` / `tclsh` on `PATH`; skips when none is
-installed). **Adding a resolution behaviour = adding a vector**: every
+which executes every vector under every real tclsh it can find
+(`TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91`, else `tclsh8.4` … `tclsh9.1` on
+`PATH`; fails when none is installed). **Adding a resolution behaviour =
+adding a vector**: every
 implementation then has to pass it or fail its own suite — drift is a test
 failure, not a code review hope.
 

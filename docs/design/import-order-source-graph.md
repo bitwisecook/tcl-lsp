@@ -13,36 +13,27 @@ their events with it through the two shared decision functions. Sections
 1–5 record the facts and reasoning the design rests on, §6 is the relation
 itself, and §7 is the `package require` half that reuses it.
 
-## 1. The abstention, and what lifted it
+## 1. What the order settles
 
-Both LSP resolution tiers used to order import-lifecycle events by **byte
-offset within one document**, via
-`tcl_compiler::analyser::indirection::in_effect_within`. Across documents
-they ordered nothing, because nothing in a Tcl source tree says which file
-runs first in general. Every cross-file event was passed to the shared
-decision functions (`namespace_import::exported_at_import_site`,
-`namespace_import::alias_live_at`) with `at: None`, and those abstained
-toward *answering*:
+Within one document the tiers order import-lifecycle events by **byte offset**,
+via `tcl_compiler::analyser::indirection::in_effect_within`. Nothing in a Tcl
+source tree says which *file* runs first in general, so across documents the
+order comes from the `source` / `package require` graph:
 
-| Fact in another file | Before | With the `source` order |
-|---|---|---|
-| `namespace export p` | counts (the import may resolve) | counts when the graph proves it ran first; **does not** when it proves it ran later |
-| `namespace export -clear` | revokes nothing | revokes when it provably ran between the export and the import |
-| `namespace import` (an install) | counts | counts, now as a fact |
-| `namespace forget` | revokes nothing | revokes when it provably ran before the call |
-| a second import of the same name | never conflicts (#1116 item 6) | conflicts when its site provably ran first (`cmp_run`) |
+| Fact in another file | With the load order |
+|---|---|
+| `namespace export p` | counts when the graph proves it ran first; **does not** when it proves it ran later |
+| `namespace export -clear` | revokes when it provably ran between the export and the import |
+| `namespace import` (an install) | counts |
+| `namespace forget` | revokes when it provably ran before the call |
+| a second import of the same name | conflicts when its site provably ran first (`cmp_run`) |
 
-Each old row was one-directional leniency. The genuinely-sequenced idiom
-`source lib.tcl ; namespace forget ::lib::p` got *both* halves wrong: the
-install from `lib.tcl` counted (right), and the forget beside it revoked
-nothing (wrong). One relation fixed the whole table at once, which is why it
-was worth doing as one piece of work rather than five.
-
-Everywhere the graph does **not** prove an order — different trees, a
-re-sourced file, a `source` cycle, a computed `source $dir/x.tcl`, or a host
-that installs no resolver — the old column still applies, unchanged and by
-construction: `RunOrder` answers `None`, and `None` folds to exactly the
-abstention `at: None` expressed.
+Where the graph proves no order — different trees, a re-sourced file, a
+`source` cycle, a computed `source $dir/x.tcl`, or a host that installs no
+resolver — `RunOrder` answers `None`, and the shared decision functions
+(`namespace_import::exported_at_import_site`, `namespace_import::alias_live_at`)
+abstain toward *answering*: a foreign export counts, a foreign revocation
+revokes nothing.
 
 ## 2. What is already recorded
 
@@ -75,14 +66,12 @@ lexical `.`/`..` folding, no filesystem access).
 
 ### 2.2 `package require` / `package provide`
 
-- `WorkspacePackageRequire { uri, name }` — **no offset, no version**. It said
-  *that* a file requires a package, not *where*, so it could not sequence
-  anything. §7 added `at` / `enclosing_body` / `conditional` to it, the same
-  three facts `WorkspaceSource` carries.
-- `SignaturePackageProvide { name, version, range }` per document — the other
-  end of the edge, with an offset. §7 lifted it into the index as
-  `WorkspacePackageProvide`, and added `WorkspacePackageIfneeded` for the
-  registrations that make a package's loading non-static.
+- `WorkspacePackageRequire { uri, name, at, enclosing_body, conditional }` —
+  the same three sequencing facts `WorkspaceSource` carries.
+- `WorkspacePackageProvide` (from the per-document
+  `SignaturePackageProvide { name, version, range }`) — the other end of the
+  edge, with an offset. `WorkspacePackageIfneeded` records the registrations
+  that make a package's loading non-static.
 - `SignatureAutoPathEntry { raw, range }` — `auto_path` mutations, one row per
   element, offsets included.
 - `tcl_lsp_core::package_resolver` + the autoload tier resolve a required
@@ -123,11 +112,10 @@ lexical `.`/`..` folding, no filesystem access).
    - a file reachable by **two** paths with different orders relative to the
      query point abstains — the order must be unique to be a fact.
 
-4. **`package require` sequencing (second phase — built, §7).** A
+4. **`package require` sequencing (§7).** A
    `package require` is an ordered statement too, and its package's files load
-   at that point. To use it, `WorkspacePackageRequire` needed the `at` /
-   `enclosing_body` pair `WorkspaceGlobImport` already carries, plus the
-   package→URI mapping recorded in the index rather than consulted ad hoc.
+   at that point. It needs the `at` / `enclosing_body` pair
+   `WorkspaceGlobImport` carries, plus the package→URI mapping in the index;
    `package provide` gives the other end. This is strictly more speculative
    than the `source` half: `auto_path` is mutable at runtime and a package may
    already be loaded, so "the require ran here" does not imply "the package's
@@ -182,33 +170,30 @@ index's public shape) or the order is built lazily behind the same
 argument. The second is the smaller change and matches `live_command_links`'s
 existing pattern.
 
-**What was built:** the resolver is held *on the index* as a plain `fn`
-pointer (`WorkspaceIndex::set_source_resolver`, installed by the server's
+The resolver is held *on the index* as a plain `fn` pointer
+(`WorkspaceIndex::set_source_resolver`, installed by the server's
 `new_workspace_index`), and the order is a `Derived<RunOrder>` view like the
-rest. Taking the resolver as a per-call argument would have meant threading it
-through every caller of `resolve_wildcard_import` and every derived view that
-builds a `WildcardImportIndex` — the order is consulted *inside* the per-call
+rest. A per-call argument would have to be threaded through every caller of
+`resolve_wildcard_import` and every derived view that builds a
+`WildcardImportIndex`, because the order is consulted *inside* the per-call
 import walk, not at its entry point. A `fn` pointer rather than a boxed
 closure keeps the index `Debug + Clone + Default` with no manual impls, and
 the resolver is a pure function of `(parent uri, raw path, is_literal)` in
 every host — `WorkspaceIndex::SourceResolver`, the signature `source_seed_map`
-already took, so one host resolver serves both and the order inherits the M9
-tier's statically-foldable computed-path half for free.
+takes, so one host resolver serves both and the order inherits the M9 tier's
+statically-foldable computed-path half.
 
-An index with **no** resolver installed derives an empty order, and every
-tier then behaves byte-identically to the pre-#1104-item-3 code. That is the
-property the unit suite pins (`without_a_resolver_the_same_workspace_keeps_abstaining`),
-and it is why the change could land without re-baselining the existing
-cross-document tests.
+An index with **no** resolver installed derives an empty order and every tier
+abstains, which is what
+`without_a_resolver_the_same_workspace_keeps_abstaining` pins.
 
-**A trivial subset was considered and rejected for this round.** "Same
-document `source a.tcl` written before an import of a namespace `a.tcl`
-declares" still needs (1) the raw path resolved to a URI, which only the
-server can do, and (2) that resolution reaching into `exports_name_at` /
-`alias_live_at`, i.e. the whole plumbing above. There is no subset that is
-provable without the resolver, so the work does not decompose below §3.1.
+No smaller subset is provable without the resolver. Even "same document
+`source a.tcl` written before an import of a namespace `a.tcl` declares" needs
+the raw path resolved to a URI, which only the server can do, and that
+resolution reaching into `exports_name_at` / `alias_live_at` — the whole
+plumbing above.
 
-## 6. The shape that was built
+## 6. The relation
 
 Keep the discipline the family already has: **one** decision function per
 question, both tiers calling it. The order lives behind a single relation with
@@ -218,9 +203,8 @@ the shape
 fn has_run(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool>
 ```
 
-— `None` meaning "no static order", which is what the old `at: None` event
-encoding expressed. `RunPoint` is the `(uri, at, enclosing_body)` triple every
-event and query point already carried as loose fields.
+— `None` meaning "no static order". `RunPoint` is the
+`(uri, at, enclosing_body)` triple every event and query point carries.
 
 ### 6.1 `has_run` alone is not enough — the fold needs *comparability*
 
@@ -236,13 +220,12 @@ Both functions are **latest-wins folds**, not filters:
 - `namespace_import::alias_live_at` does the same with the latest install and
   the latest removal.
 
-Both maxima are over a *single* `u32` because every ordered event today lives
-in one document. Two events in different documents that `has_run` both admits
-still have to be ranked against **each other**, and a partial order gives no
-`max`. Feeding cross-document events into the current fold with their own
-file's offsets is exactly the bug PR #1115's finding 1 removed (a forget
-revoking an import because its local offset happened to be larger). So the
-event key has to change shape, not just its `Option`-ness: the order needs
+Each maximum is over a *single* `u32`, which orders events within one
+document. Two events in different documents that `has_run` both admits still
+have to be ranked against **each other**, and a partial order gives no `max`.
+Ranking them by their own file's offsets is unsound — a forget would revoke an
+import merely because its local offset is larger — so the event key carries
+more than an `Option`: the order needs
 
 ```rust
 fn cmp_run(&self, a: (uri, at, enclosing_body), b: (uri, at, enclosing_body)) -> Option<Ordering>
@@ -252,12 +235,12 @@ with `None` — incomparable — folding to "abstain toward answering", the same
 direction `at: None` took. `has_run` is then `cmp_run(event, query)`
 against the existing body-leniency rule, so one relation serves both.
 
-**As implemented**, both are thin readings of one private projection,
+Both are thin readings of one private projection,
 `RunOrder::common_frame(a, b) -> Option<(Placed, Placed)>`, which reduces two
 points to positions in their deepest common document. `has_run` then applies
 `indirection::in_effect_within` there and `cmp_run` applies
-`namespace_import::load_order` — the *same* two single-document rules the
-tiers used before, now with a wider domain. The folds do not use `cmp_run` at
+`namespace_import::load_order` — the same two single-document rules, over a
+wider domain. The folds do not use `cmp_run` at
 all: the leniency a removal needs is `has_run`'s, not `load_order`'s (a
 maybe-never-run body statement must not be counted as having definitely run
 *after* an install), so `ran_after(a, b)` is defined as
@@ -288,10 +271,6 @@ This keeps the whole order behind one relation and needs no numeric flattening
 (no rank arithmetic to invalidate per generation): the paths are `O(depth)`,
 and depth is the `source` nesting of a real project.
 
-Every current caller keeps its shape, the shared decision functions gained
-their comparator instead of assuming one, and the abstention table in §1
-shrank without a second rule appearing anywhere.
-
 Two implementation notes on the abstentions:
 
 - **Ambiguity is inherited.** A document below a re-sourced one has no unique
@@ -300,10 +279,9 @@ Two implementation notes on the abstentions:
 - **Two events in one *foreign* file are ranked against each other even
   though neither is ranked against the query.** A file's statements run
   consecutively, so a `namespace export p` followed by a `namespace export
-  -clear` in one other file revokes — a precision win that needs no `source`
-  edge at all, and one the old one-`Option<u32>`-per-event encoding could not
-  express because it collapsed "which file" and "where in it" into a single
-  absent offset.
+  -clear` in one other file revokes — precision that needs no `source` edge at
+  all, and that a single absent offset per event could not express, because it
+  collapses "which file" and "where in it" into one value.
 
 ## 7. The `package require` half (issue #1279)
 
