@@ -80,11 +80,12 @@ fn bi_env(_args: &[Value]) -> Result<Value, QueryError> {
 
 /// `source_file(obj)` → the URI of the source that defined *obj*, or `null`.
 /// `ObjectRef` → its `config_uri`; `PathRef`
-/// → resolved through the projection to its backing object's `config_uri`.
+/// → resolved through the projection to its backing object's `config_uri`,
+/// across every merged root under `--merge`.
 fn bi_source_file(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     match &args[0] {
         Value::ObjectRef(o) => Ok(uri_or_null(&o.config_uri)),
-        Value::PathRef(p) => match crate::projection::resolve_pathref(p, &ctx.root) {
+        Value::PathRef(p) => match ctx.resolve_pathref(p) {
             Some(target) => Ok(uri_or_null(&target.config_uri)),
             None => Ok(Value::Null),
         },

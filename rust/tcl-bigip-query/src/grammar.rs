@@ -144,6 +144,18 @@ PATH ACCESS
                           PathRefs act as strings AND as the referenced
                           object: ``.ltm.virtual[].pool.members[]`` walks
                           VS -> pool -> member transparently.
+                          A deref resolves against the whole view: under
+                          ``--merge`` every loaded config is one namespace,
+                          so each hop of a chain may land in a different
+                          source.  Without ``--merge`` a deref stays inside
+                          the config being iterated.
+                          A path naming an object that is nowhere in the
+                          view is never silent: a field read through it is
+                          an explicit ``null`` (so ``.pool.members`` reads
+                          ``null``, not "a pool with no members"), and
+                          iterating or subscripting through it is an error
+                          naming the path.  An *empty* ref (no pool set at
+                          all) contributes nothing.
 
 MODULES
 

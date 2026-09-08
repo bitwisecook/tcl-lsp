@@ -247,6 +247,35 @@ impl EvalContext {
         *self.merge_graph.borrow_mut() = Some(Rc::clone(&graph));
         graph
     }
+
+    /// Resolve the [`ObjectRef`] a [`PathRef`] points to, against the whole
+    /// view the query is running over.
+    ///
+    /// The iterating root is tried first. Under `--merge` every loaded source
+    /// is one namespace, so a miss falls back across the remaining
+    /// [`merge_roots`]: a GTM wideip's pool reference resolves while the
+    /// iterating root is the LTM config, and each further hop off the
+    /// resolved object resolves the same way — every hop of a chain may land
+    /// in a different source.
+    ///
+    /// JSON side-input roots never produce `PathRef`s, so they are not
+    /// consulted. Non-merge mode stays scoped to the iterating source, which
+    /// is what per-file semantics mean.
+    ///
+    /// [`merge_roots`]: EvalContext::merge_roots
+    #[must_use]
+    pub fn resolve_pathref(&self, reference: &PathRef) -> Option<Rc<ObjectRef>> {
+        if let Some(found) = projection::resolve_pathref(reference, &self.root) {
+            return Some(found);
+        }
+        if !self.merge_mode {
+            return None;
+        }
+        self.merge_roots
+            .iter()
+            .filter(|r| !Rc::ptr_eq(r, &self.root))
+            .find_map(|r| projection::resolve_pathref(reference, r))
+    }
 }
 
 impl EvalContext {
@@ -590,13 +619,21 @@ fn eval_let_binding(
     ctx: &mut EvalContext,
 ) -> Result<Value, QueryError> {
     let source_value = eval(source, current, ctx)?;
+    // `select(...)` yields the `Drop` sentinel for a rejected item, and a
+    // binding short-circuits it exactly as `|` does: the item never binds and
+    // the body never runs. The sentinel is an evaluator internal, so it must
+    // not reach `$name`.
     let (items, is_iterating) = match source_value {
+        Value::Drop => return Ok(Value::Stream(Vec::new())),
         Value::Stream(items) => (items, true),
         other => (vec![other], false),
     };
     let n = items.len();
     let mut out = Vec::new();
     for item in items {
+        if matches!(item, Value::Drop) {
+            continue;
+        }
         let prior = ctx.bindings.insert(name.to_string(), item);
         let result = eval(body, current, ctx);
         match prior {
@@ -730,7 +767,13 @@ fn field_step(value: &Value, name: &str, ctx: &mut EvalContext) -> Result<Vec<Va
     match value {
         Value::PathRef(p) => match resolve_pathref(p, ctx) {
             Some(target) => field_step(&Value::ObjectRef(target), name, ctx),
-            None => Ok(Vec::new()),
+            // An empty reference is "no reference at all" (`pool none`), so
+            // it contributes nothing. A *dangling* one — a path naming an
+            // object that exists nowhere in the view — reads as an explicit
+            // `null`, keeping it distinguishable from a resolved object whose
+            // field is genuinely empty.
+            None if p.full_path.is_empty() => Ok(Vec::new()),
+            None => Ok(vec![Value::Null]),
         },
         Value::Container(c) => Ok(vec![c.lookup(name)?]),
         Value::ObjectRef(o) => match o.fields.get(name) {
@@ -756,8 +799,13 @@ fn subscript_root(value: &Value, ctx: &mut EvalContext) -> Result<Value, QueryEr
     match value {
         Value::PathRef(p) => match resolve_pathref(p, ctx) {
             Some(target) => subscript_root(&Value::ObjectRef(target), ctx),
-            None => Ok(Value::Stream(Vec::new())),
+            None if p.full_path.is_empty() => Ok(Value::Stream(Vec::new())),
+            None => Err(unresolved_ref_error(p, "iterate", ctx)),
         },
+        // Iterating `null` yields nothing — reached when a dangling reference
+        // read as `null` a step earlier (`.pool.members[]` on a virtual whose
+        // pool is not in the view).
+        Value::Null => Ok(Value::List(Vec::new())),
         Value::Container(c) => {
             // Flatten container → container → object until the entries are
             // no longer all containers.
@@ -791,8 +839,10 @@ fn regex_subscript(
     match value {
         Value::PathRef(p) => match resolve_pathref(p, ctx) {
             Some(target) => regex_subscript(&Value::ObjectRef(target), pattern, ctx),
-            None => Ok(Vec::new()),
+            None if p.full_path.is_empty() => Ok(Vec::new()),
+            None => Err(unresolved_ref_error(p, "regex-subscript", ctx)),
         },
+        Value::Null => Ok(Vec::new()),
         Value::Container(c) => {
             let entries = c.entries();
             let keys = c.regex_keys(pattern)?;
@@ -834,10 +884,7 @@ fn subscript_step(
     match value {
         Value::PathRef(p) => match resolve_pathref(p, ctx) {
             Some(target) => subscript_step(&Value::ObjectRef(target), index, ctx),
-            None => Err(QueryError::eval(format!(
-                "cannot subscript unresolved path {}",
-                pyr(&p.full_path)
-            ))),
+            None => Err(unresolved_ref_error(p, "subscript", ctx)),
         },
         Value::Container(c) => match index {
             Value::Str(key) => c.lookup(key),
@@ -931,11 +978,35 @@ fn resolve_index(i: i64, len: usize) -> Option<usize> {
     }
 }
 
-/// Resolve the `ObjectRef` a `PathRef` points to — delegates to the
-/// projection layer against `ctx.root`. JSON roots (which never produce
-/// `PathRef`s) yield `None`.
+/// Resolve the `ObjectRef` a `PathRef` points to — delegates to
+/// [`EvalContext::resolve_pathref`], which spans every merged root under
+/// `--merge`. JSON roots (which never produce `PathRef`s) yield `None`.
 fn resolve_pathref(reference: &Rc<PathRef>, ctx: &mut EvalContext) -> Option<Rc<ObjectRef>> {
-    projection::resolve_pathref(reference, &ctx.root)
+    ctx.resolve_pathref(reference)
+}
+
+/// The error raised when a non-empty `PathRef` names no object anywhere in
+/// the view the query is running over.
+///
+/// Iterating or subscripting a dangling reference is reported rather than
+/// draining the pipeline to an empty stream. Outside `--merge` the target is
+/// usually defined in another loaded source, so the message says so.
+fn unresolved_ref_error(reference: &PathRef, what: &str, ctx: &EvalContext) -> QueryError {
+    let kind = if reference.expected_kind.is_empty() {
+        "object".to_owned()
+    } else {
+        reference.expected_kind.clone()
+    };
+    let hint = if ctx.merge_mode || ctx.named_roots.len() < 2 {
+        String::new()
+    } else {
+        " (pass --merge to resolve references across every loaded source)".to_owned()
+    };
+    QueryError::eval(format!(
+        "cannot {what} through unresolved reference {}: no {kind} with that \
+         path in this config{hint}",
+        pyr(&reference.full_path)
+    ))
 }
 
 // Calls
