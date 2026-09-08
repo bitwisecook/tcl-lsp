@@ -53,11 +53,14 @@ for a command the registry has never heard of.
 
 The registry invariant ([command-registry.md](command-registry.md)) says
 per-command knowledge is a `CommandSpec` fact and the compiler is a generic
-consumer. On the dataflow axis the compiler crate is already close: a whole-
-crate sweep finds 26 live name-keyed sites, and only the ones below touch
-constants, values, or dataflow. They are the inventory the drift gate in
+consumer. On the dataflow axis the compiler's passes are already close: a
+sweep of `rust/tcl-compiler/src/` outside the analyser finds 26 live
+name-keyed sites, and only the ones below touch constants, values, or
+dataflow. They are the inventory the drift gate in
 [§ The drift gate and the generated inventory](#the-drift-gate-and-the-generated-inventory)
-must drive to zero or waive by name.
+must drive to zero or waive by name; the analyser, the remaining passes, and
+the language-server tiers are inventoried in
+[§ Hand-written command knowledge across the tiers](#hand-written-command-knowledge-across-the-tiers).
 
 | Site | Shape | What it encodes |
 |---|---|---|
@@ -1204,7 +1207,170 @@ SSLIC1xxx, and the IRULE event and structure checks not listed above are
 unaffected. They are listed so that "every diagnostic" is answered rather
 than implied.
 
-<!-- value-transfers-tier-inventory -->
+## Hand-written command knowledge across the tiers
+
+The registry invariant makes every consumer generic, and the value axis is
+only one of the axes a consumer can bypass. Four sweeps — the compiler's
+own passes, the analyser directory with lowering and CFG construction, the
+diagnostic and analysis passes outside it, and every language-server,
+tooling, and dialect crate — read each site in context and classified it
+as one of: **dataflow** (this design owns it), **another axis** (migration
+debt on a named existing registry field), **irreducible** (analyser-local
+semantics documented at the call site, the sanctioned exception), or a
+**shape heuristic** (a decision on source text rather than command
+identity). Test modules, message text, and Tcl name grammar (`::`,
+`${…}`, `{*}`) are excluded, as are sites that already dispatch through a
+typed hook ID, a trait, a role, an intrinsic, a `StateTransition`, or a
+registry query.
+
+| Tier | Dataflow | Another axis | Irreducible | Shape heuristic |
+|---|---|---|---|---|
+| `rust/tcl-compiler/src/sccp.rs`, `optimiser/` (the table above) | 7 | 3 | — | — |
+| `rust/tcl-compiler/src/analyser/`, `lowering/`, `cfg_builder/` | 28 | 151 | 24 | 41 |
+| the other compiler passes (`taint.rs`, `irules_checks.rs`, `var_escape/`, `shimmer/`, `interval_bounds.rs`, …) | 17 | 107 | 20 | 19 |
+| `tcl-lsp-core`, `tcl-mcp`, `tcl-cli`, `tcl-diagram`, `tcl-irules`, `tcl-irule-test`, `tcl-bigip`, `tcl-sslictcl`, `tcl-syntax` | 10 | 89 | 17 | 10 |
+
+Four tiers are clean and serve as the reference: `tcl-lsp-db` keys its
+projection and suppression policy on `DiagCode` alone; `tcl-lsp-server`'s
+50,000-line `lib.rs` names no Tcl command outside tests and documents that
+"which commands are deprecated is registry data; there is no command-name
+list here or anywhere else in the server"; `tcl-explorer` and `tcl-lexer`
+key on IR node kinds and grammar bits. Inside the compiler,
+`cfg_builder/global_write_info.rs`, `var_escape/walker.rs`,
+`analyser/diagnostics/const_dispatch.rs`, and `analyser/dispatch.rs` are
+the fully typed implementations the rest should copy.
+
+### The dataflow sites this design owns
+
+Sixty-two sites across the tiers evaluate a command's value by hand, and
+each is a consumer of the descriptor once it exists — the sites are listed
+so that the inventory gate has a starting ledger, not because each needs
+its own migration:
+
+- **Loop-bound readers.** `analyser/bounds_checks.rs` reads `set v INT`
+  and `incr v ?INT?` to seed W240–W242, so `set i $start` silently
+  disables the check; `analyser/irules_event_checks.rs` decides
+  `body_decrements` by substring-scanning the body for `incr`.
+- **`[list …]` evaluators.** `analyser/handlers.rs` and
+  `analyser/commands.rs` (body words and `[list namespace unknown …]`),
+  `lowering/mod.rs` (`eval_list_literal_body`), `value_provenance.rs`,
+  `interval_bounds.rs` (element count), `script_arg.rs`, and two copies in
+  `taint.rs` (callback replay and command-prefix literality) each fold a
+  literal `list` call independently.
+- **Container harvesters.** `analyser/diagnostics/var_command.rs` harvests
+  `set arr(k) …`, `array set arr {…}`, `dict set d k …`, and `dict with`
+  into its own constant sets for W307 / W308; `analyser/diagnostics/helpers.rs`
+  harvests `dict with` / `dict update` keys; `analyser/handlers.rs` folds a
+  two-operand `dict merge` and evaluates `[interp create …]` behind a
+  `set`; `interval_bounds.rs` knows `lset` preserves length.
+- **Object bindings.** `analyser/commands.rs` recognises `set VAR [CLASS
+  new|create …]` and factory returns by the `set` head, four times.
+- **Value-copy tracking.** `analyser/param_traits.rs` tracks `set n $p` as a
+  copy and invalidates it on `incr` / `append` / `lappend` — a two-command
+  approximation of the transfer.
+- **Substitution folders.** `lowering/mod.rs` folds `[subst -nocommands
+  {…}]` and `set var {literal}` into the const map; `specialise_factories.rs`
+  extracts the same `subst` template.
+- **Path folders.** `auto_path_eval.rs` folds `file dirname` /
+  `normalize` / `join` and `info script`; `tcl-lsp-core`'s
+  `document_links.rs` and `package_resolver.rs` each carry a private
+  `[file join …]` folder, the latter recognising only the literal
+  spellings `$dir` / `${dir}`.
+- **Match provers.** `analyser/diagnostics/dataflow.rs` proves a
+  `regexp` / `scan` no-match statically from the exact positional form to
+  drive W210, name-guarded on purpose because "the registry does not
+  model" per-form value semantics — which is precisely what a
+  `Destructure` transfer models.
+- **Private constant environments in the tooling crates.**
+  `tcl-diagram`'s `attach.rs` and `tcl-irules`'s `walker.rs` each carry a
+  `set`-keyed environment to decide whether a `pool $x` argument is
+  statically knowable; neither folds through `append`, `format`, `string
+  map`, `lindex`, or `dict get`.
+- **Literal-only editor features.** `tcl-lsp-core`'s hover
+  (`literal_at_token`), inlay hints (`collect_format_string_hints`), and
+  the regexp / format / clock / binary semantic-token families emit only
+  over a literal word: `set fmt "%-20s %d"; format $fmt …` gets no hover,
+  no `int:` label, and a flat `string` token. These are the first editor
+  consumers of `folded_types` and the lattice — a folded pattern is
+  painted at its definition site with the pattern vocabulary.
+
+### Debt on other axes, by the axis it belongs to
+
+The other-axis rows are outside this design's scope but inside its gate,
+because the same lint finds them. They are grouped by destination so the
+migrations can be planned per axis rather than per file.
+
+| Axis | Rows | Flagship sites |
+|---|---|---|
+| `options` (`OptionSpec::value_word_count`, `ResolvedTerminator`, `option_placement`) | ~72 | at least twenty private `--` / `-nocase` / `-encoding` / `-start` / `-nocomplain` scans; `analyser/handlers.rs`'s bare `o == "-command"` pre-scan thirty lines above the same file's correct `OptionSpec::matches` loop; `analyser/recovery.rs` knowing `-matchvar` / `-indexvar` but not `-exact` / `-glob` / `-regexp` / `-nocase` |
+| `arg_roles` / `arg_role_resolver` / `assigns_variable_at` | ~55 | `rust/tcl-cli/src/commands/minimize.rs`'s `var_target_positions`, a verbatim reimplementation of the role axis for eight commands and wrong for `dict update`, `binary scan`, `regexp -inline`, `scan`, and `foreach`; the W230–W232 index family in `analyser/bounds_checks.rs`; `place_bridge.rs` and `var_scoping.rs` asking for `global` / `variable` / `trace` positions by name |
+| `definition_body` / `MemberKind` | ~32 | `analyser/oo.rs`'s eleven-arm `apply_oo_subcommand` keyword switch and its snit / itcl member tables; `ir.rs`'s `MethodKind::from_str_lossy`; the `constructor` / `destructor` literals spread across ten `tcl-lsp-core` providers |
+| `traits` | ~41 | `var_escape/info_subcommands.rs`'s thirty-two hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in three diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
+| `case_list` / clause grammar | ~30 | five independent `switch` parsers (`analyser/diagnostics/security.rs`, `analyser/recovery.rs`, `analyser/diagnostics/usage.rs`, `lowering/structured.rs`, `analyser/commands.rs`) where `flatten_case_list_clauses` and `CaseMatchMode` already exist; `then` / `elseif` / `else` and `on` / `trap` / `finally` walked by keyword in `lowering/structured.rs`, `signature_scan/walker.rs` (twice), `tcl-lsp-core`'s refactors, and `tcl-mcp`'s `datagroup.rs`; `TryHandler::kind` as a `String` re-matched in `executable_ir.rs` |
+| `return_type` / `format_string_type` / `pattern_type` | ~12 | `type_infer.rs`'s forty-five-name math-function return-type table, a duplicate of `tcl_syntax::expr::mathfunc`; `scan_predicate.rs`'s conversion classes as strings; `analyser/diagnostics/usage.rs` mapping `binary format` / `binary scan` to a format-string index by name |
+| `special_vars` | ~15 | `static::` spelled in six places; `args` in fourteen; `auto_path`, `auto_index`, `$dir` |
+| `events` / `profiles` / `lifecycle` | ~14 | `tcl-mcp`'s `irule_gen.rs` rebuilding `HTTP_EVENTS` / `SSL_EVENTS` / `HOT_EVENTS` and `infer_profiles` beside a `code_actions.rs` that already reads `EventRequires.implied_profiles`; `RULE_INIT` as the init phase in four diagnostics |
+| `side_effects` / `world_effects` / `taint_*` | ~18 | `irules_checks.rs`'s `drop` / `reject` / `discard` and `DNS::return` sets; `tcl-mcp`'s `SECURITY_ACTIONS` / `ROUTING_ACTIONS` / `TAINTED_REFS` where every listed command already carries a `TaintColour`; `tcl-diagram`'s `is_terminal`; the sanitiser bodies `tcl-lsp-core`'s code actions inject by diagnostic code |
+| `frame_effect` / `state_transitions` | ~14 | `interprocedural.rs` parsing `upvar`'s level word as `#0` / `0` where `FrameLevel` documents why that is wrong; `realm.rs`'s `namespace import` scan beside `alias.rs`'s typed transitions; `taint.rs` ordering `interp` before `proc` by name |
+| `abbrev` / `subcommands` / `presentation` / `completion` | ~26 | `tcl-lsp-core`'s `minify.rs` carrying a second unique-prefix table for `string` / `info` / `clock` beside `formatting/keywords.rs`, which computes it from the registry; `snippets.rs`, a sixteen-template catalogue with no registry involvement; `analyser/diagnostics/widget_command.rs` treating `configure` / `cget` as universal because no widget spec models them |
+| a parallel mini-registry | 1 | `rust/tcl-irules/data/irules_ref_specs.json`, the object-reference table `tcl-bigip` and `tcl-diagram` re-match by name |
+
+### Irreducibles worth keeping
+
+The sanctioned exception is real, and the surveys found it stated well at
+about sixty sites. Three shapes recur: a *convention the script author
+chooses* (`analyser/oo.rs`'s saved-`unknown` names — "the saved name is
+chosen by the script author, so no registry can know it"; the tcllib
+`X::import` wrapper suffix), a *question that is the consumer's own*
+(`signature_scan/handlers.rs` on `auto_path`: the registry declares the
+variable, but "is the package auto-load path the workspace indexer must
+resolve" is the indexer's question), and *Tcl grammar* (`--`, the empty
+interpreter path `{}` in `alias.rs`, the variadic `args`). Two sites are
+documented as irreducible but are really dataflow — the `regexp` / `scan`
+no-match proof above and `analyser/diagnostics/security.rs`'s
+`switch`-specific ReDoS scan, which a `pattern_type` conditional on the
+`-regexp` option absorbs — and the gate should reclassify them when the
+transfer lands.
+
+### Heuristics that a constant would replace
+
+A shape heuristic is not debt by itself, but each of these decides
+something a folded value would decide exactly: `analyser/oo.rs` deciding an
+unknown-handler dispatch is case-insensitive because the subject text
+contains `string tolower`; `analyser/diagnostics/var_command.rs` suppressing
+W307 when an array key is *spelled* like a callback slot, with the comment
+that an SCCP-proven value already overrides it; `analyser/diagnostics/dataflow.rs`
+choosing I230 versus I231 by sniffing generated block-name prefixes;
+`compilation_unit.rs`'s `class` / `oo::` / `snit::` substring probe, wrong
+once already (#797); `taint.rs` matching the literal text `[file
+normalize ` on a def; `analyser/state.rs` mapping lexer warning *English*
+to E-codes; `rust/tcl-lsp-server/src/lib.rs` recovering a package name by
+stripping `package require ` from a quick-fix string; and `tcl-irule-test`
+guessing a profile's type from its name.
+
+### What this changes in the design
+
+1. **The lint's scope is every analysis tier**, not `tcl-compiler` alone:
+   `rust/tcl-compiler`, `rust/tcl-lsp-core`, `rust/tcl-mcp`,
+   `rust/tcl-cli`, `rust/tcl-diagram`, `rust/tcl-irules`,
+   `rust/tcl-irule-test`, `rust/tcl-bigip`, `rust/tcl-sslictcl`, and the
+   command-shaped helpers in `rust/tcl-syntax`. The clean tiers stay clean
+   by construction.
+2. **A waiver names its axis.** `// value-transfer-ok: <axis> — <reason>`
+   distinguishes the sanctioned irreducible (`irreducible — the saved name
+   is author-chosen`) from tracked debt (`options — pending
+   value_word_count`), and the generated inventory gains a second table,
+   *hand-written command knowledge outside the registry*, grouped by axis
+   from the waivers. "Tracked, not grandfathered" then has a ledger a
+   reviewer can read, and the pinned-set test fails when a row appears
+   without one.
+3. **The twelve dead sites go first.** `var_escape/handlers.rs` and the
+   test-only half of `var_escape/cfg_propagation/handlers.rs` are already
+   superseded by the typed path and are deleted, not migrated.
+4. **The editor consumers are in phase 4**, with the analyser's
+   literal-only diagnostics: hover, inlay hints, semantic tokens, and
+   document links read `folded_types` and the engine, which is what makes
+   a workspace pack's `cell_fold` *visible* rather than merely correct.
 
 ## Third-party commands
 
@@ -1294,8 +1460,10 @@ family, with three halves in the shape of its neighbours:
    command or subcommand name used to *recognise an invocation* — as the
    operand of `==` / `!=` / `matches!` on a `command`, `canonical_command`,
    `cmd`, `head`, or `sub` binding, as a `match` arm on such a binding, or
-   as a `&str` constant compared against one — anywhere under
-   `rust/tcl-compiler/src/` outside the registry-dispatch owners. A
+   as a `&str` constant compared against one — under `rust/tcl-compiler/src/`
+   and the analysis and language-server crates named in
+   [§ Hand-written command knowledge across the tiers](#hand-written-command-knowledge-across-the-tiers),
+   outside the registry-dispatch owners. A
    reviewed site carries `// value-transfer-ok: <reason>` on the line or
    in the comment block above it; the reason must name the axis the fact
    belongs to or state why it is irreducible. The `rand` / `srand`
