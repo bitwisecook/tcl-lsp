@@ -5,8 +5,8 @@ This is the source catalogue for the external corpus work tracked by
 where to obtain material and why it is useful; it does **not** vendor or cache
 third-party source.  Downloaded checkouts, generated indexes, and experimental
 reductions must stay outside the repository (for example in a temporary
-directory, or `scripts/perf/corpus/` — `fetch_corpus.py`'s default
-destination, which is **not** gitignored: never `git add` it).
+directory, or `scripts/perf/corpus/`, `fetch_corpus.py`'s default
+destination, which `scripts/perf/.gitignore` keeps out of the tree).
 
 `scripts/perf/MANIFEST.toml` is the sole machine-readable benchmark contract:
 it contains the canonical clone URLs and exact commit IDs.  This document must

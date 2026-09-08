@@ -17,24 +17,26 @@ What does O105 rewrite, and when does it fire?
 
 ## Why
 
-Replacing `$var` with its known value reduces runtime work and memory traffic.
-The same optimiser also spots a command result that has already been worked out
-once — but reusing one is only safe when nothing can change which command runs,
-and nothing is watching it run. The optimiser proves that first, and stays
-quiet when it cannot.
+O105 spots a command result that has already been worked out once. Reusing one
+is only safe when nothing can change which command runs, and nothing is
+watching it run. The optimiser proves that first, and stays quiet when it
+cannot.
 
 ## Before
 
 ```tcl
-set endpoint /health
-set copiedEndpoint $endpoint
+llength $items
+llength $items
 ```
 
 ## After
 
+O105 leaves the source exactly as written. It reports the second computation
+as redundant and names the first; hoisting the result into a variable is your
+edit to make:
+
 ```tcl
-set endpoint /health
-set copiedEndpoint /health
+set count [llength $items]
 ```
 
 ## When a repeated command is reported
@@ -50,11 +52,6 @@ Every one of these must hold:
   and no variable whose read could fire a trace; and
 - nothing between the two calls could change or observe how the command is
   dispatched.
-
-```tcl
-llength {a b}
-llength {a b}   ;# O105: this repeats the computation above
-```
 
 ## Safety conditions
 
@@ -76,8 +73,8 @@ following may be true at that point in the script.
 - The code is inside a procedure or other body, which runs after arbitrary
   earlier history the optimiser does not yet summarise across a file.
 
-O105 is an optimiser report, not an automatic editor quick fix. There is no
-rewrite to apply, and the original code is always kept when a proof is missing.
+O105 is a report, not a quick fix: there is never a rewrite to apply, and the
+original code is always kept.
 
 ## How to disable
 

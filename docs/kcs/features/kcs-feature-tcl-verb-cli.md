@@ -55,6 +55,21 @@ tcl venv info .venv
 tcl venv delete .venv
 ```
 
+## Example
+
+```
+$ tcl validate good.tcl
+validation ok
+
+$ tcl validate broken.tcl
+broken.tcl:1:1: error   E002     Too few arguments for 'proc': expected at least 3, got 1 — usage: proc name args body
+broken.tcl:1:6: error   E203     missing close-brace
+validation failed: 2 error(s)
+```
+
+`validate` reports error-severity diagnostics only and exits 1 when it finds
+any, which is the shape a CI step wants.
+
 ![Unified Tcl verb CLI](../../screenshots/30-tcl-verb-cli.png)
 
 ## Operational context

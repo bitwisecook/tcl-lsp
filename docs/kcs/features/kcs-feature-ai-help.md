@@ -41,17 +41,17 @@ Use the `/ai-help` skill.
 ## Example
 
 ```
-$ tcl help --limit 2 "taint"
-2 matches for 'taint':
-- iRule Review [VS Code AI Chat]
-  Security-focused analysis of iRules: filters the full diagnostic set to show only security warnings, taint findings, and thread-safety concerns.
-  file: kcs-feature-irule-review.md
-- Diagnostics [LSP + AI Features]
-  Errors, warnings, security, taint tracking, and style checks shown as you type.
-  file: kcs-feature-diagnostics.md
+$ tcl help "fakecmp"
+1 match for 'fakecmp':
+- FakeCMP Tools [MCP Tools]
+  Deterministic TMM hash lookup and multi-TMM test distribution planner for iRule testing without hardware.
+  file: kcs-feature-fakecmp-tools.md
 ```
 
-Run `tcl help` with no query to list every feature grouped by category.
+Each hit names the feature, the category it is grouped under, its summary, and
+the KCS page to read.  Run `tcl help` with no query to list every feature
+grouped by category, `--limit N` to cap the matches, and `--dialect NAME` to
+filter to one dialect.
 
 ## Related
 
