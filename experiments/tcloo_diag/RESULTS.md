@@ -26,7 +26,7 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
 | cmd-return | 930 | 11.3% | command return-type stubs |
 | param | 374 | 4.5% | interproc param (incl. cross-file) |
 | collection-get | 364 | 4.4% | container element typing (done) |
-| alias | 345 | 4.2% | assignment edge (done, Phase 2) |
+| alias | 345 | 4.2% | assignment edge (done) |
 | method-return | 274 | 3.3% | method return-type summaries |
 | literal | 60 | 0.7% | — (not an object) |
 | proc-return | 23 | 0.3% | proc return typing (done) |
@@ -59,8 +59,8 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
    1035 unresolved receivers (12.6% of the `$var` gap); the `my…`-prefixed snit
    components (`myparser`, `mytree`, `mystackloc`, …) add several hundred more;
    `$hull` and `options(...)` are snit too. **snit support is the single
-   highest-value lever** — and it is data-driven (a dialect model), which is
-   exactly what Phase 3 scoped. `$self` is the snit analogue of `TclOO`'s `my`
+   highest-value lever** — and it is data-driven (a dialect model). `$self` is
+   the snit analogue of `TclOO`'s `my`
    and should resolve the same way (enclosing type known statically).
 
 2. **Tk widget-path dispatch (`$win.c …`) is a separate subsystem.** These are
@@ -70,7 +70,7 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
 3. **Within-CU `TclOO` typing edges are a small slice.** alias (4.2%) +
    method-return (3.3%) + proc-return (0.3%) + collection (4.4%) together are
    ~12% of the `$var` gap, and the reachable, already-typed subset is smaller
-   still. This is why the Phase 2 VTA-lite edges (aliasing + constructor-param),
+   still. This is why the VTA-lite edges (aliasing + constructor-param),
    though *correct* (see below), leave the corpus resolution rate unchanged: the
    patterns they newly resolve barely occur here. They are retained because they
    are sound, cheap, and resolve a real dependency-injection shape — just not the
@@ -78,7 +78,7 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
 
 4. **`cmd-return` (11.3% `$var`, 61.7% `[cmd]`) is unmodelled-command noise.**
    Mostly non-object commands (`string`, `expr`, `format`, callbacks); a
-   signature-stub pass (design-doc Stage 5) would let most of these *abstain
+   signature-stub pass would let most of these *abstain
    explicitly* rather than sit in the denominator, and type the few that do
    return objects.
 
@@ -86,7 +86,7 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
 
 Priority order by corpus impact, highest first:
 
-1. **snit dialect model** (Phase 3) — **done**: `$self`/`$this` self-dispatch
+1. **snit dialect model** — **done**: `$self`/`$this` self-dispatch
    (~doubling the rate), named-constructor typing (`set o [foo create x]`),
    `install NAME using TYPE` components (+131 project sites), and the bare-word
    constructor `set c [Type inst]` gated on snit-family + not-a-typemethod
@@ -101,5 +101,5 @@ Priority order by corpus impact, highest first:
    `rust/tcl-compiler/src/object_types.rs`.
 4. Signature stubs / explicit abstention to deflate the `cmd-return` denominator.
 
-Within-CU proc/ctor/alias edges (Phase 2) are **landed and sound** but are not
-where the corpus mass is; the diagnostic is what established that.
+Within-CU proc/ctor/alias edges are **landed and sound** but are not where the
+corpus mass is; the diagnostic is what established that.

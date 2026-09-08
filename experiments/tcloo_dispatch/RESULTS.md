@@ -21,7 +21,7 @@ Corpus: real TclOO from tcllib (clay, virtchannel, struct, oometa, oodialect),
 tklib (menubar), and georgtree (SpiceGenTcl, tclopt, tclinterp) — ~275 files
 containing `oo::` / `snit::` / `itcl::`.
 
-## Baseline (before the VTA / field-typing work — Phase 2+)
+## Baseline (before any object-flow typing)
 
 | mode | receiver form | resolved | sites | rate |
 |---|---|--:|--:|--:|
@@ -38,7 +38,7 @@ containing `oo::` / `snit::` / `itcl::`.
    (cross-file class index, PR #799's "B") lifts the rate only 5.2% → 5.3%. So
    the receivers are overwhelmingly *not typed at all* — the class can't be
    pinned to the variable — rather than typed-but-unresolvable. This is exactly
-   the gap the VTA-style field + interprocedural typing (Phase 2/3) targets.
+   the gap VTA-style field and interprocedural typing targets.
 
 2. **`my` is the cleanest signal** (a `my` head is almost always a genuine
    object self-dispatch): 24.5% resolved. The unresolved majority is dominated
@@ -51,11 +51,11 @@ containing `oo::` / `snit::` / `itcl::`.
    — so their absolute *resolved counts* (15, 11) and the `my` rate are the
    meaningful signals to move, not the raw `$var`/`[cmd]` percentages.
 
-Target for Phase 2 (field/instance-variable typing + interprocedural summaries):
+Target for field/instance-variable typing plus interprocedural summaries:
 lift the absolute resolved counts materially — instance-variable receivers
 (`variable obj; … $obj m`) and param/return receivers are the reachable wins.
 
-## Phase 2 — VTA-lite object-flow (aliasing + constructor-param edges)
+## VTA-lite object-flow (aliasing + constructor-param edges)
 
 The interprocedural passes were consolidated into a single **VTA-lite fixpoint**
 (`object_types::propagate_object_flow`): a name-keyed, union-join
@@ -80,11 +80,11 @@ aliasing patterns they resolve are essentially **absent from this corpus**.
 The `tcloo_diag` experiment (`experiments/tcloo_diag`) explains why and redirects
 the work: the unresolved mass is **snit** (`$self` 12.6% of the `$var` gap, plus
 `my…` components and `$hull`) and cross-file/Tk, not within-CU `TclOO` typing.
-Phase 2 is retained as sound, cheap, architecturally-correct groundwork (the
-design-doc Stage-3 propagation graph); **snit support (Phase 3) is the measured
-next lever**, not more within-CU edges.
+The edges are retained as sound, cheap, architecturally-correct groundwork
+(the design doc's propagation graph); **snit support is the measured next
+lever**, not more within-CU edges.
 
-## Phase 3 (first slice) — snit / itcl `$self` self-dispatch
+## snit / itcl `$self` self-dispatch
 
 Following the `tcloo_diag` finding, the highest-value lever landed next: inside a
 snit (`snit::type`/`widget`/`widgetadaptor`) or itcl (`itcl::class`) method body,
@@ -107,7 +107,7 @@ diagnostic: measuring *why* receivers were unresolved pointed straight at snit
 `$self` rather than at more `TclOO` VTA edges (which the same corpus proved
 inert).
 
-## Phase 3b — snit named-constructor typing (`set o [foo create x]`)
+## snit named-constructor typing (`set o [foo create x]`)
 
 The signature scan now records snit types (`snit::type`/`widget`/`widgetadaptor`)
 as classes — a pure-snit file contains neither "class" nor "oo::", so the cheap
@@ -124,7 +124,7 @@ A smaller lever than `$self` (the `foo create x` shape is less frequent than
 in-body self-dispatch in this corpus) but sound and free — it also flips the
 `snit_named_object` fixture to Resolve.
 
-## Phase 3c — snit `install NAME using TYPE` component typing
+## snit `install NAME using TYPE` component typing
 
 A snit component installed with `install NAME using TYPE …` types the component
 variable `NAME` as `TYPE`, so `$NAME method …` in the snit body resolves. The
@@ -142,7 +142,7 @@ component classes are overwhelmingly defined in *other files* — exactly the
 cross-file shape the diagnostic predicted. Project mode (the shipping server
 mode) merges the workspace hierarchy, so the component's `TYPE` resolves.
 
-## Phase 3d — snit bare-word constructor (`set c [Type inst]`)
+## snit bare-word constructor (`set c [Type inst]`)
 
 snit creates an instance with `$type $name` (no `create` keyword), e.g.
 `set myparser [pt::rde ${selfns}::ENGINE]` — the dominant component-binding shape

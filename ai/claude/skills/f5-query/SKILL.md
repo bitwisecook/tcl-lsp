@@ -60,9 +60,15 @@ route back; it refuses when two sources define the same `(kind, full-path)`.
 | list virtuals from ltm.conf with gtm.conf loaded | `$ltm.ltm.virtual[].name` |
 | every LTM pool a GTM pool references | `--merge .gtm.pool[] \| refs(.)` |
 | rename a pool in tier1 only | `$tier1.ltm.pool["/Common/old"].name = "/Common/new"` |
-| every object across both tiers | `--merge .ltm[][].name` |
+| every virtual and pool across both tiers | `--merge .ltm.virtual[]."full-path", .ltm.pool[]."full-path"` |
 
 ## Network probes and cert audit
+
+The engine projects objects for the `ltm`, `gtm` and `security` modules
+only; `net`, `sys`, `cm` and `apm` parse but expose no kinds, so
+`.sys["file-ssl-cert"][]` and `.cm.cert[]` raise `no entry`. Until they are
+projected, feed a cert in from a builtin instead — `cert_load(path)`,
+`x509_parse(pem)`, `ucs_cert(...)`, or a live `tls_handshake` / `url_get`.
 
 Live checks need `--enable-probes`. Every cert-emitting builtin returns the
 same dict (`subject`, `issuer`, `serial`, `fingerprint_sha256`, `sans`,
@@ -102,7 +108,7 @@ retry unverified so the audit still gets body and peer cert, and report
 | any iRule referencing the missing pool /Common/X | `any(.ltm.rule[].refs.pools[] \| (. == "/Common/X"))` |
 | each pool's member count | `.ltm.pool[] \| .name + ": " + count(.members)` |
 | persistence profiles inheriting from cookie | `.ltm.persistence[] \| select(."defaults-from" == "/Common/cookie") \| .name` |
-| data-groups whose body contains 'foo' | `.ltm["data-group"][] \| select(contains(.records, "foo")) \| .name` |
+| data-groups whose body contains 'foo' | `.ltm["data-group"][] \| select(any(.records[] \| contains(., "foo"))) \| .name` |
 | every kind of object | `[.[]] \| count` |
 | unreferenced pools | use `f5 cleanup` |
 
