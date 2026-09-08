@@ -57,6 +57,9 @@ grep -q 'janitor_removed=' "$ROOT/prepare.log" || fail "janitor work was not rep
 [ ! -L "$target_a/.tcl-lsp-cargo-target.lock" ] || fail "target lock is a symlink"
 [ "$(stat -c '%u' "$target_a/.tcl-lsp-cargo-target.lock")" = "$(id -u)" ] || fail "target lock owner"
 [ "$(stat -c '%a' "$target_a/.tcl-lsp-cargo-target.lock")" = 600 ] || fail "target lock permissions"
+if find "$TARGET_ROOT" -maxdepth 1 -name '.*.tmp.*' -print -quit | grep -q .; then
+    fail "completed target creation left a staging directory"
+fi
 
 report=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" bash "$HELPER" report "$target_a")
 grep -q 'target_bytes=' <<< "$report" || fail "final target size was not reported"
@@ -127,6 +130,29 @@ bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/preserved.out"
 [ -e "$TARGET_ROOT/unmarked" ] || fail "unmarked target was removed"
 [ -e "$TARGET_ROOT/malformed" ] || fail "malformed target was removed"
 [ -L "$symlink_target" ] || fail "symlinked target was removed"
+
+# The expired target is deliberately sorted after a prefix of fresh,
+# unmarked, and malformed directories. The janitor scans all bounded direct
+# children, so that prefix must not starve the eligible target.
+starved="$TARGET_ROOT/zz-starved"
+mkdir -m 700 "$starved"
+(umask 077 && : > "$starved/.tcl-lsp-cargo-target.lock")
+printf 'version=1\nregistration=starved\nrepository=owner/repo\ncheckout=%s\ntarget=%s\n' "$ROOT/work-a" "$starved" > "$starved/.tcl-lsp-cargo-target"
+chmod 600 "$starved/.tcl-lsp-cargo-target"
+touch -d '30 days ago' "$starved/.tcl-lsp-cargo-target"
+for index in $(seq 1 16); do
+    mkdir -m 700 "$TARGET_ROOT/000-prefix-$index"
+done
+bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/starved.out"
+grep -q 'janitor_removed=1' "$ROOT/starved.out" || fail "expired target behind prefix was starved"
+[ ! -e "$starved" ] || fail "expired target behind prefix survived"
+old_one=$(prepare bounded-one)
+old_two=$(prepare bounded-two)
+touch -d '30 days ago' "$old_one/.tcl-lsp-cargo-target" "$old_two/.tcl-lsp-cargo-target"
+TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_RETENTION_DAYS=14 TCL_LSP_TANK_JANITOR_LIMIT=1 \
+    bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/bounded.out"
+grep -q 'janitor_removed=1' "$ROOT/bounded.out" || fail "janitor removal bound was not enforced"
+[ -e "$old_one" ] || [ -e "$old_two" ] || fail "janitor removed beyond its bound"
 locked=$(prepare locked-reg)
 touch -d '30 days ago' "$locked/.tcl-lsp-cargo-target"
 exec 8>"$locked/.tcl-lsp-cargo-target.lock"
