@@ -21,7 +21,7 @@ A stray closing brace indicates a structural mismatch in the script. It typicall
 
 ## Symptoms
 
-- A red squiggle appears under the stray `}`, with the message "unmatched '}' without opening '{'".
+- A red squiggle appears under the stray `}`, with the message "Unmatched '}' — missing opening '{'?".
 
 ## Example that triggers it
 

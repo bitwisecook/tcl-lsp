@@ -205,6 +205,19 @@ Toggle individual LSP features.  All default to `true`.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `line_length` | int | `120` | W111 line-length threshold |
+| `nonAscii` | `off`/`strict`/`confusables`/`common` | per-dialect auto | W108 non-ASCII detection mode; an unknown value falls back to the auto behaviour |
+
+### `[packages]` / `[packages.provides]`
+
+How the modelled interpreter loads packages: `preferLatest` sets the starting
+`package prefer` mode, and `[packages.provides]` maps a package name onto the
+packages requiring it also loads.  Owned by
+[package-loading.md](package-loading.md).
+
+### `[iruleslx.plugins]` / `[iruleslx.rules]`
+
+The iRulesLX plugin ↔ workspace association, keyed by plugin name.  Owned by
+[iruleslx-remote-methods.md](../iruleslx-remote-methods.md).
 
 ## Example
 

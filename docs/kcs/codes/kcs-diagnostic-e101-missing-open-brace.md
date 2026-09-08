@@ -21,7 +21,8 @@ Without braces around the switch body, Tcl treats each case as a separate argume
 
 ## Symptoms
 
-- A red squiggle appears after the `switch` variable, with the message "missing '{' for switch body".
+- A red squiggle appears just after the `switch` subject word, with the
+  message "Missing '{' after switch — body cases follow without braces".
 
 ## Example that triggers it
 
@@ -30,7 +31,8 @@ switch $x
   1 {puts one}
 ```
 
-The analyser reports **`E101`** on the line following `switch $x`.
+The analyser reports **`E101`** immediately after `switch $x`, where the
+opening brace should have been.
 
 ## Fix
 

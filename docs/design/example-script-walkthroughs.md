@@ -1559,7 +1559,7 @@ Function {
         entry_1: Block {
             name: "entry_1",
             statements: [Statement::AssignConst { name: "x", value: "42" }],
-            terminator: None,
+            terminator: Some(Terminator::Goto { target: exit_2 }),
         },
         exit_2: Block {
             name: "exit_2",

@@ -21,7 +21,7 @@ A stray closing bracket usually means a command substitution was intended but th
 
 ## Symptoms
 
-- A red squiggle appears under the stray `]`, with the message "unmatched ']' without opening '['".
+- A red squiggle appears under the stray `]`, with the message "Unmatched ']' — missing opening '['?".
 
 ## Example that triggers it
 

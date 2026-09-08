@@ -522,18 +522,10 @@ Key types:
   exit version maps, the immediate-dominator map, the dominance frontier, and
   the dominator tree, so downstream passes never recompute dominance
 - `SsaStatement` — an `ir::Statement` plus its `uses` and `defs` version maps,
-  with two refinement sets over them:
-  - `may_defs` — the subset of `defs` that are *synthetic* array-element
-    writes rather than writes the statement performs itself (the base refresh
-    alongside `set arr(k) v`, and the element fan of a dynamic-key write).
-    Type inference **joins** across a may-def; write-sensitive passes
-    (shimmer oscillation, dead-store) must not count one as a real write.
-  - `quoted_uses` — the subset of `uses` classified `UseClass::Quoted`,
-    carried only by a brace-quoted word this statement does not substitute.
-    The use is real for liveness (the text may be evaluated later) but is not
-    a read *here*, so read-before-set (`W210`) must ignore it while
-    liveness / dead-store (`W211`, `W220`) must not.  Filtering at either end
-    breaks the other — see issues #1142 and #1237.
+  with two refinement sets over them, `may_defs` and `quoted_uses`.  What each
+  refines and which pass may read it is specified in
+  [ssa-construction.md](compiler/ssa-construction.md) and
+  [def-use-chains.md](compiler/def-use-chains.md).
 
 ### 8. Core Analyses
 
@@ -575,11 +567,9 @@ flowchart BT
 ```
 
 `ConstSet` is the union of two or more distinct `Const`s — the shape a phi at
-a merge of `if` / `switch` arms produces.  It stays a set only while the union
-has at most `MAX_CONSTSET_SIZE` (32) members; a wider union widens to
-`Overdefined`.  A union that collapses back to one member becomes `Const`
-again, which is a narrowing of *representation*, not of the value set, so
-monotonicity holds.
+a merge of `if` / `switch` arms produces.  The cap, the widening rule and the
+propagation table are in
+[sccp-core-analyses.md](compiler/sccp-core-analyses.md).
 
 Branch conditions are evaluated against the lattice.  If a branch condition
 is `Const`, only the taken edge is added to `SccpResult::executable_edges` —
@@ -778,7 +768,7 @@ flowchart TD
 **File:** `rust/tcl-compiler/src/codegen/emitter/mod.rs` — `codegen_function()`, `codegen_module()`
 
 Takes a pre-SSA `cfg::CfgModule` and emits assembly text matching the format
-produced by `tcl::unsupported::disassemble` in Tcl 9.0.2.
+produced by `tcl::unsupported::disassemble` in Tcl 9.0.
 
 ```mermaid
 flowchart LR
@@ -885,9 +875,9 @@ that table and are easy to confuse:
   `TK###` is `Warning` rather than `Taint` despite the shared `T`.
 - **`DiagSection`** is the finer documentation grouping, declared explicitly
   as the first argument of each row.  `W###` codes deliberately spread across
-  several sections — `W101`–`W103` and `W300`–`W313` sit in `Security`,
-  `W130`–`W134` in `Tclpkg`, `W123` and `W242` in `Hint` — so a code's
-  section cannot be inferred from its number.
+  several sections — `W101`–`W103` and most of `W300`–`W315` sit in `Security`
+  (but not `W308`, `W314`, `W315`), `W130`–`W134` in `Tclpkg`, `W123` and
+  `W242` in `Hint` — so a code's section cannot be inferred from its number.
 
 Two per-row flags qualify a code's status.  `diag_internal(…)` marks a code
 as *internal*: always active and never offered as a user-configurable toggle
@@ -904,7 +894,7 @@ tables.
 | E200–E207 | Unterminated-construct errors | Segmenter / Recovery |
 | H300, I230–I231 | Paste-error and constant-branch hints | Analyser / SCCP |
 | W001–W004 | Command warnings | Analyser |
-| W100–W147 | Semantic & style warnings | Analyser / Diagnostics |
+| W100–W152 | Semantic & style warnings | Analyser / Diagnostics |
 | W130–W134 | `tclpkg` manifest warnings — **reserved**, not yet emitted | — |
 | W200–W250 | Variable & versioning warnings | Analyser |
 | W300–W315 | Security warnings | Analyser |

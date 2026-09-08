@@ -11,8 +11,9 @@ the file(s) they name.
 
 ## Workflow
 
-1. **Input.** `.conf` and `.scf` load directly; `.ucs` needs
-   `f5 ucs-extract` first. No file named → ask.
+1. **Input.** `.conf`, `.scf`, and `.ucs` all load directly (a UCS is
+   decrypted in memory; `f5 extract` converts one to SCF when the user wants
+   the text). No file named → ask.
 2. **Translate** from the recipes below; grammar in
    `docs/references/f5_query/dsl.md` (`f5 query --help-dsl`), every builtin
    in `docs/references/f5_query/builtins.md` (`f5 query --help-builtins
@@ -134,10 +135,10 @@ source format and reads strict UTF-8), `--write`, `--in-place`,
 
 ## Defer to
 
-`f5 cleanup` (orphans, reverse-topological), `f5 lint` (BIG-IP rule
-findings), `f5 grep` (transitive reference graph), `f5 diff`
-(round-trip-aware whole-config diff), `f5 trace` / `f5 explain` (ad-hoc Tcl
-analysis).
+`f5 cleanup` (orphans, reverse-topological), `f5 irule lint` (iRule-only
+lint rules), `f5 grep` (transitive reference graph), `f5 diff`
+(round-trip-aware whole-config diff), `f5 irule trace` (static event-flow
+trace), `f5 explain` (the resolved plan for one virtual or pool).
 
 ## Etiquette
 

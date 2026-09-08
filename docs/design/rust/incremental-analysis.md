@@ -173,6 +173,7 @@ variants, ordered by where the guard sits in the pass:
 | `DuplicateProcInBody` | a body defines an already-defined proc |
 | `ClassFactsCollide` | a body extends a class whose facts already exist |
 | `MethodInstanceReplay` | a method body's object-instance tracking cannot be replayed |
+| `DeclaredTargets` | §5.4 range targeting is declared (configuration pairs or a `# tcl-lsp: supports` directive), whose W150/W151 verdicts read walk-level state the body key does not carry |
 
 `rust/tcl-compiler/examples/per_item_fallbacks.rs` sweeps a corpus (`tmp/`, or
 `ROOT=<dir>`) and reports the distribution weighted three ways — by document, by

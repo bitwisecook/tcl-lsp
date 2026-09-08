@@ -86,10 +86,8 @@ puts [p 1 2]        ;# p got 1 2 — two parameters, decided at run time
 
 Which names such a proc declares, and how many, is a run-time fact, so the
 arity checker **abstains** for it: no `E002`, `E003`, or `E005` on any call to
-`p`. The same applies to `proc q $params {…}`. (Before this abstention the
-unresolved word was read as a single literal parameter, and `p 1 2` drew a
-false `E003`.) A *literal* list — braced, bareword, or a quoted word with no
-substitution in it — is checked as usual.
+`p`. The same applies to `proc q $params {…}`. A *literal* list — braced,
+bareword, or a quoted word with no substitution in it — is checked as usual.
 
 ## Fix
 

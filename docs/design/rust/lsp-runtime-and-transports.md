@@ -259,7 +259,7 @@ forever for diagnostics the server has all the information to produce.
 
 The readiness wait is the crate's entire `unsafe` budget: one call, in
 `src/wasi_poll.rs`, wrapped by a safe function that owns both the subscription
-array and the event array. Verified against wasmtime 47.0.3:
+array and the event array. Verified against the pinned wasmtime (48.0.1):
 
 | Situation | Result |
 |---|---|

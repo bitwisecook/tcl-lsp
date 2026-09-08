@@ -16,13 +16,17 @@ sweep the `.tcl` files; the differential corpus tests additionally sweep the
 |---|--:|--:|---|
 | `tmp/tcl8.4.20` | 40 | 18,009 | Tcl 8.4 stdlib + perf scripts |
 | `tmp/tcl8.5.19` | 46 | 27,613 | Tcl 8.5 stdlib |
-| `tmp/tcl8.6.16` | 66 | 33,772 | Tcl 8.6 stdlib + `tests-perf/` |
-| `tmp/tcl9.0.3` | 91 | 44,258 | Tcl 9.0 stdlib |
+| `tmp/tcl8.6.18` | 66 | 33,791 | Tcl 8.6 stdlib + `tests-perf/` |
+| `tmp/tcl9.0.4` | 91 | 44,224 | Tcl 9.0 stdlib |
 | `tmp/tcllib-2.0/modules` | 794 | 442,121 | tcllib (practcl, snit, math, struct, tepam, …) |
 | **total (.tcl)** | **~1,037** | **~566k** | |
 
+`incr_experiments` sweeps `tcl8.6.18` + `tcllib-2.0/modules` (capped at 600
+files); the corpus differentials sweep the `library/` tree of all four releases
+plus tcllib.
+
 Single large files used for cost measurements: `practcl.tcl` (8,463 lines),
-`tcl9.0.3/library/http/http.tcl`, `tcllib-2.0/modules/tepam/tepam.tcl`.
+`tcl9.0.4/library/http/http.tcl`, `tcllib-2.0/modules/tepam/tepam.tcl`.
 
 This is real, idiomatic, diverse Tcl — deeply nested namespaces, TclOO, procs
 defining procs, dynamic command names — which is why the experiments surface

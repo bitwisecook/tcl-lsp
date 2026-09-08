@@ -21,7 +21,7 @@ An unclosed quote causes the parser to treat all subsequent text — including o
 
 ## Symptoms
 
-- A red squiggle appears at or after the opening `"`, with the message "unterminated '\"' string literal".
+- A red squiggle appears at or after the opening `"`, with the message `missing "`.
 
 ## Example that triggers it
 

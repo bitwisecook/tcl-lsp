@@ -21,7 +21,7 @@ An unclosed bracket causes the parser to absorb all subsequent text as part of t
 
 ## Symptoms
 
-- A red squiggle appears at or after the opening `[`, with the message "unterminated '[' command substitution".
+- A red squiggle appears at or after the opening `[`, with the message "missing close-bracket".
 
 ## Example that triggers it
 

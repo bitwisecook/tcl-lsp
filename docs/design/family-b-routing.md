@@ -9,7 +9,8 @@ close.
 
 ## 1. The contract (`tcl-runtime-api`)
 
-A light leaf crate (depends only on `tcl-core-types`) holding the Family-B role
+A light leaf crate (depends only on `tcl-core-types` and `tcl-dialect`) holding
+the Family-B role
 traits, each generic over an associated `Value`. Both the bytecode VM (`tcl-vm`,
 `Value = Rc<Obj>`) and `runtime/rust` (`Value = *mut TclObj`) satisfy all of
 them, so a consumer generic over the traits drives either runtime:
@@ -53,7 +54,7 @@ Notes:
 
 ## 2. What is shared, and where
 
-The split (architecture §6): **value-shaped** command bodies are shared
+The split: **value-shaped** command bodies are shared
 *concrete code* in `tcl-cmd-core` (generic over `ValueOps`, plus a role trait for
 the stateful ones); **stateful** commands are, in general, *trait calls*, not a
 shared body.
@@ -136,6 +137,12 @@ Shared in `tcl-cmd-core`:
   iteration), with shared storage rungs for physical search keys, live candidate
   existence, and active-search revision. Routing fixed a VM bug: `array unset a` with no pattern now removes
   the **whole array** (was: iterate-and-unset elements, leaving an empty array).
+- `prefix::{OptionTable, scan}` — the `Tcl_GetIndexFromObjStruct` port: one
+  unique-prefix matcher and one `bad <noun> "X": must be …` formatter for every
+  option and subcommand table, static or runtime-built.
+- `ensemble::…` — the `namespace ensemble` option tables (`create` and
+  `configure` do not share one), the subcommand scan over `prefix::scan`, and
+  the ensemble-flavoured `must be …` enumeration wording.
 - `namespace::{tail, qualifiers}` — pure byte ops.
 - `namespace::{current, which_command}` — over `Namespaces` (`current`/`name`/
   `command_name`/`find_command`).
@@ -341,10 +348,9 @@ manipulates list *element values*, never their string rep. This is the
 ## 4. Known contract gaps
 
 - The array-element methods (`get_elem`/`set_elem`/`unset_elem`/`exists_elem`)
-  honour the active frame on both runtimes; the **non-active-frame** element path
-  (`*_from`/`*_at`) is still scalar-only on the VM and ignored by the runtime
-  (the element accessors take `FrameId` but use the active frame). No current
-  consumer needs cross-frame element access.
+  honour the `FrameId` they are given on both runtimes. `VarStore::array_keys`
+  does not: `runtime/rust` resolves it against the active frame regardless of the
+  frame passed. No current consumer needs cross-frame array enumeration.
 - The enumeration surface is complete for the shared listing subcommands:
   `VarStore::array_keys` (array elements), `Namespaces::commands_in`/`procs_in`/
   `vars_in`/`consts_in` (a namespace's commands/procs/variables/constants), and

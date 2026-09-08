@@ -1032,10 +1032,12 @@ helper without reading the rationale:
 - `rust/tcl-vm/tests/language_e2e.rs` —
   `zero_length_array_name_is_an_array_element` and
   `link_commands_reject_element_looking_names` (`split_element_ref`).
-- `rust/tcl-registry/src/spec.rs` —
-  `projection_carries_every_row_column` (rule 6's drift gate) and
-  `a_row_outside_the_floor_is_filtered_from_every_slice`;
-  `rust/tcl-registry/src/arity.rs` —
+- `rust/tcl-spectcl/src/loader.rs` — `ArgRows::seal`, the single projection
+  point rule 6 names; `rust/tcl-registry/src/spec.rs` —
+  `available_arg_values_filters_the_declared_table`,
+  `primary_synopsis_skips_a_form_the_floor_predates` and
+  `sub_subcommand_resolution_honours_the_package_floor` for the request-time
+  floor; `rust/tcl-registry/src/arity.rs` —
   `adjacent_windows_do_not_overlap_but_straddling_ones_do`;
   `rust/tcl-registry/tests/registry_sweep.rs` —
   `arity_window_gate_rejects_each_malformed_shape` (the shipped-spec
@@ -1076,7 +1078,7 @@ helper without reading the rationale:
 
 ## Discoverability
 
-- [KCS index](../README.md)
+- [design docs index](../README.md)
 - [project-layout.md](project-layout.md) — the crate boundaries these
   ownership rules sit inside.
 - [family-b-routing.md](../family-b-routing.md) — the runtime seam this

@@ -72,8 +72,8 @@ new advisories are audited at every release point.
               ↓ invoked by both
 ┌─ CI ─────────────────────────────────────────────────────────┐
 │ .github/workflows/*.yml                                      │
-│   - pr-gate    fast Rust gate (cargo test lsp_e2e) on PRs    │
-│   - test-ext   VS Code extension tests on push and tags      │
+│   - pr-gate    fast Rust gate (`make rust-check`) on PRs     │
+│   - test-ext   VS Code extension tests (PRs, pushes, tags)   │
 │   - create-release  + build-vsix + native build matrix       │
 │     (tcl / f5-query / tcl-lsp-server / tcl-mcp, cross-matrix) │
 │     + build-claude-skills + build-jetbrains + build-sublime  │
@@ -245,9 +245,8 @@ wherever the maintainer ran `prepare` — is the release record.
 `perf.yml` still benchmarks the tag on its own runner for the trend line,
 but renders and attaches the committed result when there is one.
 
-The publish-verify step (`scripts/release/publish_verify.sh`, 239
-lines) checks every publish credential and tool non-destructively — it
-never ships anything.  Designed for a quick pre-flight check the week
+The publish-verify step (`scripts/release/publish_verify.sh`) checks every
+publish credential and tool non-destructively — it never ships anything.  Designed for a quick pre-flight check the week
 before a planned release.
 
 ## Stable vs pre-release channels (odd/even-minor)

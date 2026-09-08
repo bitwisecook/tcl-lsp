@@ -33,7 +33,8 @@ own tests pass.
   packaged extension.
 - `rust/tcl-lsp-server/tests/e2e/` — the server-side behaviour the extension
   renders.
-- `.github/workflows/ci.yml` (`test-ext` job).
+- `.github/workflows/ci.yml` (`test-ext` for the desktop host, `test-ext-web`
+  for the browser host).
 
 ## Discoverability
 

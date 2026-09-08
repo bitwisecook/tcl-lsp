@@ -18,12 +18,17 @@ Why does the analyser flag a constant index passed to `lindex`,
 
 ## Why
 
-In Tcl 9, these commands silently return the empty string, clamp the
-range, or (for `lreplace`) prepend/append instead of replacing when the
-index is out of bounds. That silent behaviour hides real bugs: the
-programmer usually expected an element and will never see the error.
-`linsert` is deliberately excluded — its clamp always produces a
-sensible result, so flagging it would second-guess intent.
+These commands silently return the empty string, clamp the range, or
+(for `lreplace`) prepend/append instead of replacing when the index is
+out of bounds. That silent behaviour hides real bugs: the programmer
+usually expected an element and will never see the error. `linsert` is
+deliberately excluded — its clamp always produces a sensible result, so
+flagging it would second-guess intent.
+
+The list itself must be written as a literal in the same command, so
+the analyser can count its elements. `lindex $xs -1` is never flagged,
+even after `set xs {a b c}` — only `lset` (`W231`) recovers a length
+from a preceding literal `set`.
 
 The analyser checks two constant shapes:
 
@@ -34,9 +39,8 @@ The analyser checks two constant shapes:
 ## Example that triggers it
 
 ```tcl
-set xs {a b c}
-set first [lindex $xs -1]   ;# want end, got ""
-set tail  [lindex $xs end-5] ;# list only has 3 elements -> ""
+set first [lindex {a b c} -1]    ;# want end, got ""
+set tail  [lindex {a b c} end-5] ;# list only has 3 elements -> ""
 set slice [lrange {a b c} 10 20]
 ```
 
@@ -49,8 +53,8 @@ Use `end` for the last element, positive indices inside the range, or
 `llength` to guard the access.
 
 ```tcl
-set first [lindex $xs 0]
-set last  [lindex $xs end]
+set first [lindex {a b c} 0]
+set last  [lindex {a b c} end]
 ```
 
 ## How to suppress

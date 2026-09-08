@@ -21,7 +21,7 @@ An unclosed brace group absorbs all subsequent text as literal content, preventi
 
 ## Symptoms
 
-- A red squiggle appears at or after the opening `{`, with the message "unterminated '{' brace group".
+- A red squiggle appears at or after the opening `{`, with the message "missing close-brace".
 
 ## Example that triggers it
 
