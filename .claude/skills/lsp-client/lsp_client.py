@@ -254,20 +254,11 @@ SYMBOL_KIND = {
 class LspClient:
     """Manages a language server subprocess and JSON-RPC communication."""
 
-    def __init__(self, server_dir: str, launch_cmd: list[str] | None = None) -> None:
+    def __init__(self, server_dir: str, launch_cmd: list[str]) -> None:
         self.server_dir = server_dir
-        #: argv used to spawn the server.  Defaults to the Python server via
-        #: ``uv``; ``launch_cmd`` overrides it (e.g. the native Rust binary).
-        self._launch_cmd = launch_cmd or [
-            "uv",
-            "run",
-            "--directory",
-            server_dir,
-            "--no-dev",
-            "python",
-            "-m",
-            "lsp",
-        ]
+        #: argv used to spawn the server — the native ``tcl-lsp-server``
+        #: binary.  ``server_dir`` is only the workspace root (``rootUri``).
+        self._launch_cmd = list(launch_cmd)
         self.process: subprocess.Popen | None = None
         self._request_id = 0
         self._pending: dict[int, dict] = {}  # id -> {"event": Event, "result": ...}
@@ -660,7 +651,7 @@ class LspClient:
 
 
 def find_native_server(override: str | None = None) -> str:
-    """Locate the native Rust ``tcl-lsp-server`` binary (serverKind=rust).
+    """Locate the native ``tcl-lsp-server`` binary.
 
     Honours ``override`` / ``TCL_LSP_SERVER_BIN`` first, then probes
     ``target/{release,debug}/`` under the project root.
@@ -679,35 +670,6 @@ def find_native_server(override: str | None = None) -> str:
     raise FileNotFoundError(
         "No native tcl-lsp-server binary found — build it with "
         "`cargo build -p tcl-lsp-server` (or `make rust-server`), or pass --server-bin."
-    )
-
-
-def find_server_dir(override: str | None = None) -> str:
-    """Locate the tcl-lsp server directory."""
-    if override:
-        p = Path(override).resolve()
-        if (p / "lsp" / "__main__.py").exists():
-            return str(p)
-        raise FileNotFoundError(f"No server found at {p}")
-
-    # Walk up from script location: .claude/skills/lsp-client/lsp_client.py
-    script_dir = Path(__file__).resolve().parent
-    # Try: script_dir -> .claude/skills/lsp-client
-    #      project root -> script_dir / ../../..
-    #      server -> project_root / tcl-lsp
-    project_root = script_dir.parent.parent.parent
-    server_dir = project_root / "tcl-lsp"
-    if (server_dir / "lsp" / "__main__.py").exists():
-        return str(server_dir)
-
-    # Also try: maybe we're already inside tcl-lsp
-    cwd = Path.cwd()
-    if (cwd / "lsp" / "__main__.py").exists():
-        return str(cwd)
-
-    raise FileNotFoundError(
-        f"Cannot find tcl-lsp server. Tried {server_dir} and cwd={cwd}. "
-        "Use --server-dir to specify the path."
     )
 
 
@@ -1778,17 +1740,12 @@ examples:
 """,
     )
     parser.add_argument(
-        "--server-dir", help="Path to tcl-lsp directory (auto-detected by default)"
-    )
-    parser.add_argument(
-        "--server",
-        choices=["python", "rust"],
-        default=os.environ.get("TCL_LSP_SERVER_KIND", "rust"),
-        help="Which LSP backend to drive: the native Rust binary (default) or the Python server.",
+        "--server-dir",
+        help="Workspace root sent as rootUri (defaults to the current directory)",
     )
     parser.add_argument(
         "--server-bin",
-        help="Path to the native tcl-lsp-server binary (for --server rust; else auto-detected).",
+        help="Path to the native tcl-lsp-server binary (auto-detected by default).",
     )
     parser.add_argument(
         "--scan-timeout",
@@ -1803,7 +1760,7 @@ examples:
             "WORKSPACE_SCAN_FILE_CAP (2000 files) took ~12.3s unloaded / "
             "~15.2s under 4-way CPU contention on a 4-core box in a *debug* "
             "build (a `--release` build did the same scan in ~1.9s), so the "
-            "old 15.0s default left under 20% headroom over the unloaded "
+            "old 15.0s default left under 20%% headroom over the unloaded "
             "debug-build worst case and none at all once loaded. 30.0 keeps "
             "roughly 2x headroom over the worst measured case and matches "
             "the Rust e2e harness's own `DEFAULT_TIMEOUT`."
@@ -1937,20 +1894,15 @@ examples:
 
     args = parser.parse_args()
 
-    # Find server (Python dir or native Rust binary)
-    server_kind = (args.server or "python").strip().lower()
-    launch_cmd: list[str] | None = None
+    # Find the native server binary.
     try:
-        if server_kind == "rust":
-            native = find_native_server(args.server_bin)
-            # rootUri only needs a directory; the binary doesn't need a bundle.
-            server_dir = args.server_dir or str(Path.cwd())
-            launch_cmd = [native]
-        else:
-            server_dir = find_server_dir(args.server_dir)
+        launch_cmd = [find_native_server(args.server_bin)]
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # rootUri only needs a directory; the binary doesn't need a bundle.
+    server_dir = args.server_dir or str(Path.cwd())
 
     # Create client and run
     client = LspClient(server_dir, launch_cmd=launch_cmd)
