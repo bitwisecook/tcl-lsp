@@ -84,14 +84,12 @@ value-identical to the original read, in every one of these senses:
   no trace.
 
 Where these conditions hold and the use is a bare `$var` / `${var}`
-word in a command argument, O102 emits a **precise, applicable** fix
-targeting just that word. Where the use is nested inside a larger
-construct the compiler cannot yet target precisely (a variable
-reference inside a `"..."` interpolated string is handled by the
-related [O100](kcs-optimisation-o100-constant-propagation.md) path
-instead; a reference nested inside an arbitrary command substitution
-falls back to a **hint-only** suggestion covering the whole
-statement, with no automatic fix offered).
+word in a command argument, O102 emits a precise, applicable fix
+targeting just that word. A reference inside a `"..."` interpolated
+string belongs to [O100](kcs-optimisation-o100-constant-propagation.md)
+instead, and one nested inside an arbitrary command substitution falls
+back to a hint-only suggestion covering the whole statement, with no
+fix offered.
 
 A hint-only O102 carries **no replacement text**: its span is the whole
 consuming statement, so the literal would not be a valid replacement for it.

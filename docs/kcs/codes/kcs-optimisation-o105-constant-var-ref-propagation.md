@@ -71,7 +71,7 @@ following may be true at that point in the script.
 - The result is not reproducible — the current clock time, for example — or it
   reads interpreter state that changed between the two calls.
 - The code is inside a procedure or other body, which runs after arbitrary
-  earlier history the optimiser does not yet summarise across a file.
+  earlier history the optimiser cannot summarise across a file.
 
 O105 is a report, not a quick fix: there is never a rewrite to apply, and the
 original code is always kept.
