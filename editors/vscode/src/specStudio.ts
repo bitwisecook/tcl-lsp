@@ -126,6 +126,33 @@ class SpecStudioSession implements vscode.Disposable {
     }
     if (message.type === "surfaceUpdate" && message.surface && typeof message.text === "string") {
       await this.writeSurface(message.surface, message.text);
+      return;
+    }
+    if (message.type === "dialectUpdate") {
+      await this.applySampleDialect(message.dialect);
+    }
+  }
+
+  /**
+   * Pin the sample surface to the studio's selected dialect.
+   *
+   * The sample is always materialised as `test.tcl`, so without this the
+   * server resolves it as generic Tcl however the studio's selector is set,
+   * and a pack whose commands only exist in another dialect shows no
+   * highlighting, completion or hover in the very buffer the studio exists to
+   * give feedback on. The per-document override is the seam that does not
+   * disturb any other open buffer, unlike the two session-global dialect
+   * commands (issue #1931).
+   */
+  private async applySampleDialect(dialect: string | undefined): Promise<void> {
+    const uri = this.documents.get("sample")!;
+    try {
+      await this.client.sendRequest("workspace/executeCommand", {
+        command: "tcl-lsp.setDocumentDialectOverride",
+        arguments: [uri.toString(), dialect ?? null],
+      });
+    } catch (error) {
+      console.error("[spec-studio] could not set the sample document dialect", error);
     }
   }
 
@@ -198,6 +225,7 @@ class SpecStudioSession implements vscode.Disposable {
     this.disposed = true;
     for (const timer of this.saveTimers.values()) clearTimeout(timer);
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
+    void this.applySampleDialect(undefined);
     const pack = this.documents.get("dsl")!;
     const packExisted = fs.existsSync(pack.fsPath);
     void vscode.workspace.fs.delete(this.sessionDir, { recursive: true, useTrash: false }).then(

@@ -15,6 +15,7 @@ fails — it returns `default` when nothing fires.
 
 | Priority | Source | Example |
 |----------|--------|---------|
+| −1 | **Per-document override** | `tcl-lsp.setDocumentDialectOverride(uri, dialect)` — a host naming one exact URI, above everything including the language id |
 | 0 | **Editor language ID / explicit `--dialect`** | Applied by the *caller*, above `detect_dialect`, and overrides everything below |
 | 1 | **Comment directive** | `# tcl-dialect: tcl8.4` in the first 5 lines (`DIALECT_DIRECTIVE_SCAN_LINES`) |
 | 2 | **Shebang** | `#!/usr/bin/env tclsh8.5` or `#!/usr/bin/expect` (first line only) |
@@ -121,6 +122,26 @@ specific dialect and falls through to the next tier. So does a version this
 project does not model (`tclsh8.3`, `tclsh9.2`) — an unmodelled version is an
 abstention, not an error.
 
+## Per-document override (`tcl-lsp.setDocumentDialectOverride`)
+
+`workspace/executeCommand` with `["file:///…/test.tcl", "f5-irules"]` pins one
+document to a dialect; a `null` or absent second argument releases it. The
+override is held in `Backend::document_dialect_overrides`, keyed by URI string,
+and consulted at the very top of `Backend::dialect_for_open_sync` — ahead of
+the language id, the BIG-IP basename and the in-source directive. It survives a
+`didClose`, because the entry belongs to the host session that installed it
+rather than to any one open/close cycle.
+
+It is the strongest tier deliberately. The two older dialect commands
+(`tcl-lsp.setDialect`, `tcl-lsp.setSessionDialectOverride`) are session-global,
+so a host using either to re-tag a *single* buffer re-tags every other open
+buffer with it — the behaviour #1217 moved away from. The Spec Studio's dialect
+selector is the first caller: its sample surface is always materialised as
+`test.tcl`, so without a per-document seam the server resolves it as generic
+Tcl however the selector is set, and a pack whose commands only exist in
+another dialect shows nothing in the very buffer the studio exists to give
+feedback on (issue #1931).
+
 ## User setting (`tclLsp.dialect`)
 
 This setting acts as the default dialect for files that have no per-file
@@ -167,6 +188,7 @@ Dialect is re-evaluated when:
 - Any of the first 5 lines of the active document are edited (covers both
   shebang and comment directive changes).
 - The `tclLsp.dialect` setting changes.
+- A per-document override is installed or released (that one document only).
 
 ## Editor language ID mapping
 

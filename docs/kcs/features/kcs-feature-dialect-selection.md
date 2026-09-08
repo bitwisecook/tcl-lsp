@@ -29,6 +29,16 @@ MCP, all-editors
 
 ## Operational context
 
+A host can also pin **one document** to a dialect, without disturbing any other
+buffer, by calling `tcl-lsp.setDocumentDialectOverride` with the document's URI
+and a dialect name (a `null` or absent second argument releases it). That
+override is the strongest tier — above the language id and the
+`# tcl-dialect:` comment — because a host that names one exact URI has already
+decided. The Spec Studio uses it so its sample buffer follows the studio's own
+dialect selector; the two older commands (`tcl-lsp.setDialect`,
+`tcl-lsp.setSessionDialectOverride`) are session-wide and would re-tag every
+open buffer instead.
+
 The dialect controls which commands are available in completions and hover, which diagnostic rules apply, and which event metadata is loaded. iRules dialects enable iRules-specific commands (HTTP::, IP::, etc.) and event handlers.
 
 ## Failure modes
