@@ -116,7 +116,7 @@ POSIX and they behave the same everywhere.
 ## Related
 
 - [`kcs-howto-audit-server-certs-with-query.md`](kcs-howto-audit-server-certs-with-query.md) — the cert half of the same investigation.
-- [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) — the builtin catalogue.
+- [`builtins.md`](../references/f5_query/builtins.md) — the builtin catalogue.
 - F5 KB:
   - **K2167** — Constructing HTTP requests for use with the HTTP or HTTPS application health monitor (send-string format, CR/LF, basic-auth + NTLM).
   - **K3451** — Content length limits for HTTP and HTTPS health monitors (the 5,120-byte ceiling).

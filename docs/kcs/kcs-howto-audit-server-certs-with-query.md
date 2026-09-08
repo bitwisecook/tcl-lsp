@@ -149,4 +149,4 @@ cert", `==` for "identical projection".
 ## Related
 
 - [`kcs-howto-find-objects-by-query.md`](kcs-howto-find-objects-by-query.md) — the base query patterns.
-- [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) — full builtins reference (`tls_handshake`, `x509_eq`, `cert_load`, …).
+- [`builtins.md`](../references/f5_query/builtins.md) — full builtins reference (`tls_handshake`, `x509_eq`, `cert_load`, …).

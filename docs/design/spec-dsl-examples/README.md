@@ -654,8 +654,7 @@ parameter:
 [`return.tclspec`](return.tclspec) is the port. The whole family
 exists for the `-errorstack` shape — a *fixed* one-word span whose
 **content** needs checking — so its body never varies the span at all;
-it emits `consume 1` three ways and `consume 0` once. Two notes from
-writing it:
+it emits `consume 1` three ways and `consume 0` once. Two notes:
 
 - The sandbox has no `catch`, so the Rust's `split_list_raw` →
   `Ok`/`Err` split is written as `string is list`. The two agree on
@@ -931,7 +930,7 @@ Four notes:
   `MemberSpec` field the snit grammar does not exercise
   (`optional_argument`); its witnesses are the shipped TclOO rows
   `method ?-export|-private|-unexport?` and `definitionnamespace
-  ?-class|-instance?`, read from `definer.rs:1196-1240`. It is a
+  ?-class|-instance?`, read from `definer.rs`. It is a
   sibling row keyed by the member keyword and the fixed position, so
   option-bearing members stay rows rather than growing a nested block.
 
@@ -1065,7 +1064,7 @@ guard by hand and says so in a comment. A residual gap remains for a
 mapping containing a mid-word `"` or brace (`a"b X`, `a}b X`,
 `a{b}c X`): Tcl's list grammar takes those literally, while
 `split_list`'s bare-word scan bails on any of `\` `{` `}` `"`
-(`const_fold.rs:112`), so the Tcl body folds calls the shipped folder
+(`split_list` in `const_fold.rs`), so the Tcl body folds calls the shipped folder
 abstains on. Any equivalence gate must therefore
 compare *folder outputs over a corpus*, not just spec fields; this is the
 one place where "the DSL says the same thing" is not the same as "the DSL

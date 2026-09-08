@@ -43,12 +43,12 @@ Use the `/ai-help` skill.
 ```
 $ tcl help --limit 2 "taint"
 2 matches for 'taint':
-- AI Help [Claude Code Skills]
-  Feature catalogue and full-text search across every tcl-lsp feature, served by the KCS help database.
-  file: kcs-feature-ai-help.md
-- Semantic Graphs [Claude Code Skills]
-  Structured call graph, symbol graph, and data-flow graph extraction from Tcl and iRules source code.
-  file: kcs-feature-semantic-graphs.md
+- iRule Review [VS Code AI Chat]
+  Security-focused analysis of iRules: filters the full diagnostic set to show only security warnings, taint findings, and thread-safety concerns.
+  file: kcs-feature-irule-review.md
+- Diagnostics [LSP + AI Features]
+  Errors, warnings, security, taint tracking, and style checks shown as you type.
+  file: kcs-feature-diagnostics.md
 ```
 
 Run `tcl help` with no query to list every feature grouped by category.
