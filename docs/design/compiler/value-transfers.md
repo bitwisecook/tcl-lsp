@@ -777,8 +777,10 @@ the installer seam on every thread that builds a lattice; and the same
 trust and escape gates as any other transfer. The cost is the measured
 hook cost, about 28 µs uncached and 24.5 ns cached, which is fine per
 statement and, with the memo, paid once per fixpoint. What it buys is the
-long tail: every tcllib, iRules, and EDA command whose runtime handler
-exists for WASM parity folds with no fold code at all. What it costs is
+long tail: every tcllib, iRules, and EDA command the engine can run —
+today that is Tcl-implemented packages the engine can `package require`,
+since no iRules or EDA command has a Rust or WASM runtime handler — folds
+with no fold code at all. What it costs is
 fidelity to the *engine* rather than to C Tcl: an engine fold inherits the
 engine's bugs, so it follows the engine and consistency with C Tcl still
 comes from the oracle. The recommendation is Level 1 for the commands the
@@ -1564,11 +1566,15 @@ and the differential test proves it. This is the `binary` family, `regexp`,
 `lassign`, `dict incr` / `append` / `lappend` / `set` / `unset`, `lset`,
 and `file join` / `dirname` / `tail` / `extension` / `rootname` /
 `split` (platform-conditional through the profile). For iRules, the
-same tier covers the pure functions whose runtime handlers exist for WASM
-parity and should be lifted to a core under the Family-B rule rather than
-duplicated: `b64encode` / `b64decode` (the base64 core exists),
-`crc32`, `md5`, `sha1`, `sha256`, `sha384`, `sha512` (a digest core shared
-with the runtime), `htonl` / `htons` / `ntohl` / `ntohs`, `findstr`,
+same tier covers the pure functions, which have **no** runtime handler in
+`runtime/rust` or `tcl-vm` today — the only executable iRules surface is
+the test harness's Tcl simulator (`rust/tcl-irule-test/tcl/`), whose
+registry-generated stubs return the empty string for them — and which
+should be written once as a core under the Family-B rule and registered
+into the simulator as host commands rather than mocked:
+`b64encode` / `b64decode` (the base64 core in `tcl_cmd_core::binary`
+exists), `crc32`, `md5`, `sha1`, `sha256`, `sha384`, `sha512` (a digest
+core to be shared with the runtimes), `htonl` / `htons` / `ntohl` / `ntohs`, `findstr`,
 `getfield`, `substr`, `domain`, `URI::basename` / `path` / `query` /
 `host` / `port` / `protocol` / `decode` / `encode` / `escape` /
 `compare`, and `IP::addr A equals B` with literal operands. These matter
