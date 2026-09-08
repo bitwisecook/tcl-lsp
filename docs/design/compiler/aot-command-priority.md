@@ -206,7 +206,14 @@ calls are as cheap to compile directly as `string range`.
 the semantic-plan ladder over the unit's executable IR — the guarded boxed
 `string length` region and the sealed constant `add` native pilot — and
 otherwise records a typed decline and uses general structured lowering
-(`backend.rs`). In that tier, `try_emit_typed_statement` handles:
+(`backend.rs`). By default — `tcl compwasm`, the Explorer, and hosted
+compilation all leave every `SemanticOptimisationPassId` off — that general
+lowering receives no analysis facts: `try_emit_typed_statement` returns
+`false` and every resolved call goes through `emit_command`. The direct
+forms below need the `LegacyAnalysisSpecialisation` pass enabled
+(`--codegen-passes`), the opt-in analysis tier that
+[wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) describes. With
+it on, `try_emit_typed_statement` handles:
 
 - **`set NAME LITERAL`** (`Statement::AssignConst` whose span is in the
   unit's `direct_assignments`) — `aot.var_set` at the top level, or
