@@ -22,9 +22,15 @@ See the [Installation Guide](../../INSTALL-editors.md) for full details.
 Everything the IDE's LSP client asks for is supported:
 
 - **Syntax highlighting** via the bundled TextMate grammar, which the
-  plugin registers with the IDE's TextMate service at startup
+  plugin registers with the IDE's TextMate service at startup — it colours
+  keywords, strings, numbers, comments, and `proc` names
 - **Semantic highlighting** from the language server's own tokens, layered
-  over the grammar (toggle it under Features → Semantic tokens)
+  over the grammar (toggle it under Features → Semantic tokens). The colours
+  are your scheme's own, on the **Settings → Editor → Color Scheme → Language
+  Defaults** page: a Tcl built-in, a user proc and an iRule event handler use
+  **Identifiers → Function declaration**, a variable or a parameter uses
+  **Classes → Instance field**, and `proc`, `if` and the other control
+  commands use **Keyword**. Retune those entries to recolour Tcl.
 - **Diagnostics** with 30+ configurable rules
 - **Auto-completion** for commands, subcommands, variables, and switches
 - **Hover** with command help and proc signatures

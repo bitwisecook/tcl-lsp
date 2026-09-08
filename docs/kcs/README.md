@@ -107,6 +107,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   when (and when not) to restart the Tcl Language Server.
 - [kcs-qa-query-vs-grep-vs-rename.md](kcs-qa-query-vs-grep-vs-rename.md) —
   which `f5` verb to pick for filter / find / rename tasks.
+- [kcs-qa-what-sets-tcl-colours-in-jetbrains.md](kcs-qa-what-sets-tcl-colours-in-jetbrains.md)
+  — the two layers that colour a Tcl file in a JetBrains IDE, and which
+  Language Defaults entry each kind of token uses.
 - [kcs-qa-tcl-lsp-annotations.md](kcs-qa-tcl-lsp-annotations.md) — which
   `# tcl-lsp:` and `# noqa` comments the analyser understands.
 - [kcs-qa-does-the-server-follow-rename-and-interp-alias.md](kcs-qa-does-the-server-follow-rename-and-interp-alias.md)
