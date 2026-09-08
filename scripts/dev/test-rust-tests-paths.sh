@@ -58,9 +58,11 @@ expect_relevant scripts/dev/rust-tests-input-paths.txt
 expect_relevant scripts/dev/rust-tests-package-paths.txt
 expect_relevant scripts/dev/rust-tests-path.sh
 expect_relevant scripts/dev/select-rust-tests-runner.sh
+expect_relevant scripts/dev/persistent-cargo-target.sh
 expect_relevant scripts/dev/test-already-green.sh
 expect_relevant scripts/dev/test-rust-tests-paths.sh
 expect_relevant scripts/dev/test-rust-tests-runner.sh
+expect_relevant scripts/dev/test-persistent-cargo-target.sh
 expect_relevant rust/bigip-report-gen/templates/report.html.j2
 expect_relevant rust/tcl-vm-wasm/Cargo.toml
 expect_relevant rust/tcl-vm-wasm/Cargo.lock

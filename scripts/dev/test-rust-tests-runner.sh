@@ -190,7 +190,7 @@ END {
     paths_step = step("jobs.channel", "id", "paths")
     need(paths_step >= 0, "channel must define the paths step")
     paths_run = "jobs.channel.steps." paths_step ".run"
-    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh)"
+    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)"
     contains(paths_run, path_list, "runner and dependency-policy changes must classify themselves for hosted proof")
 
     runner_step = step("jobs.channel", "id", "rust-runner")
@@ -239,6 +239,13 @@ END {
          "Rust setup must skip with the unaffected root Rust archive")
     need(values["jobs.rust-tests.steps." setup ".with.cache-key"] == "rust-tests-v2", "Rust cache key must reject old target-heavy archives")
     need(values["jobs.rust-tests.steps." setup ".with.cache-targets"] == "false", "Rust target archives must remain disabled")
+    target_step = step("jobs.rust-tests", "name", "Prepare persistent Tank Cargo target")
+    need(target_step >= 0 && values["jobs.rust-tests.steps." target_step ".if"] == changed " && needs.channel.outputs.rust_tests_runner == '\''tank'\''",
+         "persistent Cargo target setup must be Tank-only")
+    contains("jobs.rust-tests.steps." target_step ".run", "persistent-cargo-target.sh prepare tank",
+             "Tank setup must use the persistent Cargo target helper")
+    contains("jobs.rust-tests.steps." target_step ".run", "RUNNER_TRACKING_ID",
+             "target identity must include the runner registration fallback")
     sccache = step("jobs.rust-tests", "name", "Set up sccache")
     need(sccache >= 0 && index(values["jobs.rust-tests.steps." sccache ".uses"], "mozilla-actions/sccache-action@") == 1 && values["jobs.rust-tests.steps." sccache ".with.version"] == "v0.17.0", "rust-tests must retain the pinned sccache setup")
     need(values["jobs.rust-tests.steps." sccache ".with.disable_annotations"] == "true",
@@ -256,6 +263,14 @@ END {
              "successful optional setup must enable the compiler cache")
     contains("jobs.rust-tests.steps." enable ".run", "continuing with uncached compilation",
              "failed optional setup must report the uncached fallback")
+    nextest = step("jobs.rust-tests", "name", "cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)")
+    need(nextest >= 0, "rust-tests must retain the broad nextest step")
+    contains("jobs.rust-tests.steps." nextest ".run", "persistent-cargo-target.sh with-lock",
+             "Tank nextest must hold the persistent target lock")
+    doctest = step("jobs.rust-tests", "name", "cargo test --doc")
+    need(doctest >= 0, "rust-tests must retain the workspace doctest step")
+    contains("jobs.rust-tests.steps." doctest ".run", "persistent-cargo-target.sh with-lock",
+             "Tank doctests must hold the persistent target lock")
     stats = step("jobs.rust-tests", "name", "Report sccache statistics")
     need(stats > enable && values["jobs.rust-tests.steps." stats ".if"] == "always() && " changed,
          "sccache reuse must be measured after every affected test attempt")
