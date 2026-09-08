@@ -134,11 +134,28 @@ a CI publish job fails.
 
 ### Native build overlap and release gating
 
-The tag-only `build-server-matrix` job is a read-only producer of short-lived
+For a tag, `build-server-matrix` is a read-only producer of short-lived
 workflow artefacts. It starts after `channel`, while the validation jobs and
-`create-release` run in parallel. The producer has only `contents: read`
-permission and no `environment`, `secrets.*`, release upload, or OIDC step, so
-its workflow artefacts cannot become release assets on their own.
+`create-release` run in parallel. Its platform and program axes run each of
+the four shipping Cargo roots on a separate runner. This removes the serial
+four-build critical path without Cargo unioning one program's dependency
+features into another program's release bytes. The producer has only
+`contents: read` permission and no `environment`, `secrets.*`, release upload,
+or OIDC step, so its workflow artefacts cannot become release assets on their
+own. Cargo registry downloads may be cached, but compiled target directories
+are not: host build scripts cannot safely cross into the UBI 8 environment or
+between platform legs without weakening the release's glibc contract.
+
+A branch `workflow_dispatch` may opt into `native_release_build_proof`. It
+runs that same read-only matrix with a synthetic development version so every
+target's build timing and each architecture-matched binary's reported version
+can be validated before the next tag. A fixed proof-or-ordinary discriminator
+precedes the ref in its concurrency group, so arbitrary branch names cannot
+make ordinary branch CI and the proof cancel each other. Every release,
+portability, packaging, checksum, cleanup, and marketplace consumer remains
+`v*`-gated, so proof artifacts expire after one day and cannot publish.
+On a tag, the proof input does not select that distinct group: a dispatched tag
+retains the normal tag concurrency and publishing semantics described above.
 
 The release graph keeps the handoff explicit: `linux-release-portability`
 waits for both `create-release` and the matrix; `publish-native-binaries`,
@@ -179,8 +196,9 @@ other non-glibc systems are not native-binary targets; their packagers can build
 from source, and the separately published WASI server remains available to
 hosts that choose a WebAssembly runtime.
 
-`scripts/verify-glibc-baseline.sh` inspects the versioned ELF imports for all
-four native programs in every Linux matrix leg and again after artifact fan-in.
+`scripts/verify-glibc-baseline.sh` inspects the selected program's versioned
+ELF imports in each Linux matrix leg, then all four programs again after
+artifact fan-in.
 `scripts/test-linux-distro-compat.sh` then completes an LSP initialize exchange
 with the exact x86_64 release server in a compact matrix spanning Ubuntu,
 Debian, EL8/Oracle, Amazon Linux, openSUSE, Fedora, and Arch. The tag-only
