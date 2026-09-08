@@ -51,8 +51,11 @@ Two things the device handles for you have to be reproduced by hand:
 ```
 f5 query --json '
   . as $cfg
+  | [ $cfg.ltm.monitor[]."full-path" ] as $known
   | .ltm.pool["/Common/web_pool"] as $p
-  | $cfg.ltm.monitor[$p.monitor] as $m
+  | scan($p.monitor, "/[^ {}]+")[] as $ref
+  | select(contains($known, $ref))
+  | $cfg.ltm.monitor[$ref] as $m
   | select($m.type == "http" or $m.type == "https")
   | { pool: $p.name, monitor: $m.name, type: $m.type,
       send: $m.send, recv: $m.recv, disable: $m."recv-disable",
@@ -75,8 +78,17 @@ f5 query --json '
 ```
 
 Drop the `["/Common/web_pool"]` subscript to sweep every pool.
-`.monitor` on a pool is the monitor's full path, and the HTTP or
-HTTPS flavour is the monitor's `type` field.
+
+`.monitor` on a pool is the raw monitor expression, not a path. A pool
+with a single monitor holds `/Common/http_health`, but a pool with a
+compound rule holds `min 1 of { /Common/http_health /Common/tcp_health }`
+or `/Common/http_health and /Common/https_health`. Subscripting
+`.ltm.monitor` with that whole string is an error, so `scan` pulls out
+every `/…` token and each one is looked up on its own — a compound pool
+yields one row per HTTP or HTTPS monitor it names, and its TCP arms fall
+out at the `type` select. `contains($known, $ref)` skips a monitor with
+no stanza, such as the built-in `/Common/http`: there is nothing on the
+device to reproduce, and the subscript would otherwise raise.
 
 ### 2. Fire the same request and truncate the response
 

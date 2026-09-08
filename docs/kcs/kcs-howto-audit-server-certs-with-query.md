@@ -26,18 +26,28 @@ never landed?
 
 ### 1. List every client-SSL virtual and the cert it is configured with
 
-A virtual's `profiles` entries are raw strings, so resolve each one
-against `.ltm.profile` and keep the client-SSL ones:
+A virtual's `profiles` entries are raw strings, and a built-in
+client-SSL profile has no `ltm profile client-ssl` stanza to resolve
+against. Collect the client-SSL stanza paths, name the built-ins, and
+keep a profile that matches either list:
 
 ```
 f5 query --json '
   . as $cfg
+  | [ $cfg.ltm.profile[] | select(.type == "ProfileType.CLIENT_SSL") | ."full-path" ] as $ssl
+  | [ $cfg.ltm.profile[]."full-path" ] as $known
+  | [ "/Common/clientssl", "/Common/clientssl-insecure-compatible",
+      "/Common/clientssl-secure", "/Common/splitsession-default-clientssl",
+      "/Common/wom-default-clientssl", "/Common/crypto-server-default-clientssl" ] as $builtin
   | .ltm.virtual[] as $v
   | $v.profiles[] as $ref
-  | $cfg.ltm.profile[sub($ref, " .*$", "")] as $prof
-  | select($prof.type == "ProfileType.CLIENT_SSL")
+  | sub($ref, " .*$", "") as $name
+  | select(contains($ssl, $name)
+           or contains($builtin, $name)
+           or ((contains($known, $name) | not) and endswith($name, "clientssl")))
   | { vs: $v.name, host: host($v.destination), port: port($v.destination),
-      profile: $prof.name, cert: $prof.cert }
+      profile: $name,
+      cert: (if contains($known, $name) then $cfg.ltm.profile[$name].cert else "(device default)" end) }
 ' bigip.conf
 ```
 
@@ -47,11 +57,29 @@ f5 query --json '
     "vs": "www_vs",
     "host": "10.0.0.1",
     "port": 443,
-    "profile": "my_clientssl",
+    "profile": "/Common/my_clientssl",
     "cert": "/Common/default.crt"
+  },
+  {
+    "vs": "legacy_vs",
+    "host": "10.0.0.2",
+    "port": 443,
+    "profile": "/Common/clientssl",
+    "cert": "(device default)"
   }
 ]
 ```
+
+The filter has three arms: a profile whose stanza projects as
+`ProfileType.CLIENT_SSL`, one of the built-in names, and any name with
+no stanza that ends in `clientssl`. `legacy_vs` above needs the second
+arm — it attaches `/Common/clientssl`, which ships with the device and
+has no stanza, so resolving the reference against `.ltm.profile` and
+selecting on `.type` reads `null` and drops the virtual. Subscripting
+`.ltm.profile` with that path is an error outright, which is why the
+`cert` lookup is guarded by `$known`. A
+built-in carries no `cert` in the config; the device serves its own
+default, so step 2 is the only way to read it.
 
 `host(...)` and `port(...)` split the destination — `.destination` is
 a string, so `.destination.host` is an error.
@@ -64,10 +92,17 @@ cipher, ALPN selection, peer certificate, and a `reason` dict:
 ```
 f5 query --enable-probes --json '
   . as $cfg
+  | [ $cfg.ltm.profile[] | select(.type == "ProfileType.CLIENT_SSL") | ."full-path" ] as $ssl
+  | [ $cfg.ltm.profile[]."full-path" ] as $known
+  | [ "/Common/clientssl", "/Common/clientssl-insecure-compatible",
+      "/Common/clientssl-secure", "/Common/splitsession-default-clientssl",
+      "/Common/wom-default-clientssl", "/Common/crypto-server-default-clientssl" ] as $builtin
   | .ltm.virtual[] as $v
   | $v.profiles[] as $ref
-  | $cfg.ltm.profile[sub($ref, " .*$", "")] as $prof
-  | select($prof.type == "ProfileType.CLIENT_SSL")
+  | sub($ref, " .*$", "") as $name
+  | select(contains($ssl, $name)
+           or contains($builtin, $name)
+           or ((contains($known, $name) | not) and endswith($name, "clientssl")))
   | tls_handshake(host($v.destination), port($v.destination)) as $tls
   | { vs: $v.name,
       subject: $tls.peer_cert.subject,
@@ -91,8 +126,19 @@ identity rather than field-by-field:
 
 ```
 f5 query --enable-probes --json '
-  cert_load("/etc/pki/app.pem") as $baseline
+  . as $cfg
+  | cert_load("/etc/pki/app.pem") as $baseline
+  | [ $cfg.ltm.profile[] | select(.type == "ProfileType.CLIENT_SSL") | ."full-path" ] as $ssl
+  | [ $cfg.ltm.profile[]."full-path" ] as $known
+  | [ "/Common/clientssl", "/Common/clientssl-insecure-compatible",
+      "/Common/clientssl-secure", "/Common/splitsession-default-clientssl",
+      "/Common/wom-default-clientssl", "/Common/crypto-server-default-clientssl" ] as $builtin
   | .ltm.virtual[] as $v
+  | $v.profiles[] as $ref
+  | sub($ref, " .*$", "") as $name
+  | select(contains($ssl, $name)
+           or contains($builtin, $name)
+           or ((contains($known, $name) | not) and endswith($name, "clientssl")))
   | tls_handshake(host($v.destination), port($v.destination)) as $tls
   | select(x509_eq($baseline, $tls.peer_cert) == false)
   | { vs: $v.name,
@@ -103,11 +149,17 @@ f5 query --enable-probes --json '
 ```
 
 Every row is an endpoint serving something other than the cert you
-pushed.
+pushed. The client-SSL filter from step 1 is what keeps that true: a
+plain-HTTP virtual has no peer cert to compare, so probing one reports
+a mismatch that is really an absence. Filter first, then probe.
 
 ## How to tell it worked
 
-Step 1 lists a row per client-SSL virtual with a non-empty `cert`. With
+Step 1 lists a row per client-SSL virtual, `cert` naming the configured
+certificate or reading `(device default)` for a built-in profile. A
+virtual you expect to see and do not attaches a profile that is neither
+a projected client-SSL stanza nor a recognised built-in name — read its
+`profiles` and add the name to `$builtin`. With
 `--enable-probes`, step 2 fills in `subject` and `expires` from the live
 handshake, and `verify` reads `ok` for an endpoint whose chain and
 hostname check out.
@@ -142,7 +194,7 @@ cert", `==` for "identical projection".
 
 | Question | Source |
 |---|---|
-| "What cert is this virtual configured with?" | `.ltm.profile[…].cert` |
+| "What cert is this virtual configured with?" | `.ltm.profile[…].cert`, empty for a built-in profile |
 | "What is the device actually serving?" | `tls_handshake(host, port)` |
 | "What does this PEM on disk contain?" | `cert_load("/path/to/cert.pem")` |
 
