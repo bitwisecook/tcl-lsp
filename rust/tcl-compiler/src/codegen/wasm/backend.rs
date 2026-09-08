@@ -247,6 +247,11 @@ struct FunctionFacts {
     leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
     /// Typed reasons a leaf statement stayed on the source-span eval fallback.
     leaf_declines: HashMap<(u32, u32), WasmLeafInvokeDecline>,
+    /// Spans of `proc` definitions that wrote every word out, so this tier may
+    /// register the definition itself instead of leaving it to the runtime's
+    /// own `proc` (issue #1896). Decided while planning, where the statement's
+    /// structured words are still to hand.
+    literal_proc_definitions: HashSet<(u32, u32)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -606,6 +611,17 @@ impl WasmEmitter {
         };
         match operation {
             SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
+                // Only a definition whose words were all written out. Otherwise
+                // `Procedure` holds the *written* word while the body was
+                // compiled from a value this tier materialised, and registering
+                // that word reports the wrong `info body` and leaves any later
+                // run of the source body evaluating a substitution in the
+                // procedure's own frame (issue #1896). The generic invocation
+                // below hands the word to the runtime's `proc`, which evaluates
+                // it at the call site as Tcl does.
+                if !self.facts.literal_proc_definitions.contains(&span_key(span)) {
+                    return false;
+                }
                 let Some(proc) = self.procedures_by_span.get(&span_key(span)).cloned() else {
                     return false;
                 };
@@ -1464,12 +1480,15 @@ fn function_facts(
             if bindings.is_original_builtin_at(block, stmt_idx, command)
                 && mutations.trusts(bare)
                 && let Some(tokens) = tokens
-                && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-                    resolve_command_tokens(registry, unit.semantic_facts.context(), tokens)
             {
-                facts
-                    .operations
-                    .insert(span_key(statement.span()), invocation.operation);
+                record_operation(
+                    &mut facts,
+                    module,
+                    registry,
+                    unit.semantic_facts.context(),
+                    statement.span(),
+                    tokens,
+                );
             }
             // Generic prebuilt-argv invocation is the normal leaf-command path
             // and needs no binding proof: the runtime resolves the command head
@@ -1593,6 +1612,61 @@ fn plan_leaf_statement(
             );
         }
     }
+}
+
+/// Record the semantic operation a proven statement resolves to, and — for a
+/// `proc` definition — whether this tier may register it itself.
+///
+/// The literal-definition verdict is decided here rather than at emit time
+/// because this is where the statement's structured words are still to hand;
+/// the emitter sees only spans and the surviving [`crate::ir::Procedure`].
+fn record_operation(
+    facts: &mut FunctionFacts,
+    module: &Module,
+    registry: &CommandRegistry,
+    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    span: Span,
+    tokens: &crate::ir::CommandTokens,
+) {
+    let Ok(RegistryInvocationResolution::Resolved(invocation)) =
+        resolve_command_tokens(registry, context, tokens)
+    else {
+        return;
+    };
+    facts.operations.insert(span_key(span), invocation.operation);
+    if invocation.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Proc)
+        && proc_definition_is_written_out(module, span, tokens)
+    {
+        facts.literal_proc_definitions.insert(span_key(span));
+    }
+}
+
+/// Whether the `proc` statement at `span` wrote every word out, against the
+/// [`crate::ir::Procedure`] that survived for it.
+///
+/// The general tier's half of the rule the native tier applies in
+/// `native_lowering::lower::lower_definition`; both call the same predicate so
+/// the two cannot drift (issue #1896).
+fn proc_definition_is_written_out(
+    module: &crate::ir::Module,
+    span: Span,
+    tokens: &crate::ir::CommandTokens,
+) -> bool {
+    let Some(procedure) = module
+        .procedures
+        .values()
+        .find(|procedure| procedure.span == span)
+    else {
+        return false;
+    };
+    let Some(body_source) = procedure.body_source.as_deref() else {
+        return false;
+    };
+    crate::native_lowering::lower::definition_words_are_written_out(
+        tokens.words(),
+        &procedure.params_raw,
+        body_source,
+    )
 }
 
 const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
@@ -2373,6 +2447,125 @@ mod tests {
         let mut declines = facts.leaf_declines.values().copied().collect::<Vec<_>>();
         assert_eq!(declines.len(), 1, "expected exactly one declined statement");
         declines.pop().expect("one decline")
+    }
+
+    /// The `proc` statement inside `unit`, with the tokens the front end kept.
+    fn proc_statement_tokens(unit: &FunctionUnit) -> Vec<(Span, &crate::ir::CommandTokens)> {
+        let mut found = Vec::new();
+        for block in unit.cfg.reverse_postorder() {
+            let Some(cfg_block) = unit.cfg.blocks.get(&block) else {
+                continue;
+            };
+            for statement in &cfg_block.statements {
+                if let Statement::Call {
+                    span,
+                    command,
+                    tokens: Some(tokens),
+                    ..
+                } = statement
+                    && command == "proc"
+                {
+                    found.push((*span, tokens));
+                }
+            }
+        }
+        found
+    }
+
+    /// Issue #1896 — a definition whose body word is a substitution must not be
+    /// registered by this tier.
+    ///
+    /// The reproducer from the issue. `Procedure` records the *written* word
+    /// `${body}` while the body this module compiled came from `return hello`,
+    /// so registering it would report that word as `info body`, and any later
+    /// run of the source body would evaluate the substitution in `p`'s own
+    /// frame, where `body` does not exist.
+    ///
+    /// Asserted against the rule rather than against the emitted module,
+    /// because the emit path is unreachable today: every substituted word in a
+    /// definition also defeats the enclosing function's binding proof, so no
+    /// `StructuredLowering(Proc)` operation is recorded to gate. That is a
+    /// coincidence of two independent proofs, not a design — the point of the
+    /// guard is that it already holds when procedure bodies become proven.
+    #[test]
+    fn a_substituted_definition_body_is_left_to_the_runtimes_own_proc() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "proc make {} { set body {return hello} ; proc p {x} $body }\n",
+            &registry,
+            false,
+        );
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get("::p")
+            .expect("the inner definition survives as a procedure");
+        assert_eq!(
+            procedure.body_source.as_deref(),
+            Some("${body}"),
+            "the fixture must record the written word rather than the compiled \
+             body, else this proves nothing",
+        );
+
+        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
+        let definition = proc_statement_tokens(enclosing)
+            .into_iter()
+            .find(|(span, _)| *span == procedure.span)
+            .expect("the inner `proc` statement kept its tokens");
+        assert!(
+            !proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
+            "a substituted body word must keep the generic invocation",
+        );
+    }
+
+    /// The same proof, on a body that *is* written out, still binds — so the
+    /// rule is about substitution rather than a blanket refusal to register
+    /// anything defined inside a procedure.
+    #[test]
+    fn a_written_out_definition_body_still_binds() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "proc make {} { proc p {x} {return $x} }\n",
+            &registry,
+            false,
+        );
+        let procedure = unit.ir_module.procedures.get("::p").expect("procedure");
+        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
+        let definition = proc_statement_tokens(enclosing)
+            .into_iter()
+            .find(|(span, _)| *span == procedure.span)
+            .expect("the inner `proc` statement kept its tokens");
+        assert!(
+            proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
+            "a written-out definition is exactly what this tier may register",
+        );
+
+        // And the reachable end of it: the fact the emitter consults is set.
+        let facts = function_facts(
+            enclosing,
+            &unit.ir_module,
+            &registry,
+            &unit.command_mutations,
+            false,
+        );
+        assert!(
+            facts.literal_proc_definitions.contains(&span_key(procedure.span)),
+            "the guard must not refuse a definition it should register: {:?}",
+            facts.literal_proc_definitions,
+        );
+    }
+
+    /// A top-level written-out definition is registered too — the guard is
+    /// about the words, not about where the definition sits.
+    #[test]
+    fn a_top_level_written_out_definition_is_registered() {
+        let facts = top_level_facts("proc p {x} {return $x}\n");
+        assert_eq!(
+            facts.literal_proc_definitions.len(),
+            1,
+            "{:?}",
+            facts.literal_proc_definitions,
+        );
     }
 
     /// A leaf command whose words all compile selects a plan and records no

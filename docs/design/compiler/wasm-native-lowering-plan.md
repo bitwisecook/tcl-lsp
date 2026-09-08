@@ -164,6 +164,37 @@ body that ever runs is a `DirectProc` — the single-statement
 `return [expr {$a + $b}]` shape — called directly from top level. Every other
 emitted proc function is dead weight in the module.
 
+### 2.3a A tier may only register a definition it can quote
+
+Both tiers that register a `proc` themselves — the native tier's
+`NativeOp::DefineProc` and the general tier's `tcl_codegen_proc_register` —
+hand the runtime a name, a parameter list and a body text taken from the
+surviving `ir::Procedure`. `Procedure` records the **written** words. Lowering
+may have compiled the body from a value it materialised instead — a
+const-mapped `$body`, or a `[subst -nocommands …]` template — and it records
+the original word beside that compiled body rather than the text it compiled.
+
+Registering the written word in that case is wrong twice over: `info body`
+reports the substitution rather than the body, and any later run of the source
+body — a step trace, or a declined native entry — evaluates that substitution
+**in the procedure's own frame**, where the variables it names do not exist.
+
+The rule is therefore that a tier may register a definition only when the
+statement wrote every word out and wrote the parameter list and body the
+`Procedure` recorded; anything else keeps the generic invocation, where the
+runtime's own `proc` evaluates the word at the call site as Tcl does. It is
+one predicate, `native_lowering::lower::definition_words_are_written_out`,
+called by both tiers — a second copy is a second thing to go out of step,
+which is how the general tier came to have no check at all (#1774 / #1895
+for the native tier, #1896 for the general one).
+
+The general tier's path is unreachable today, and by a stronger coincidence
+than #1896 records: a substituted word in a definition also defeats the
+enclosing function's command-binding proof, so no
+`StructuredLowering(Proc)` operation is recorded for the statement at all.
+That is two independent proofs happening to agree, not a design, and P5's plan
+to make procedure bodies proven removes it.
+
 ### 2.4 The analysis tier is a second, string-keyed proof channel
 
 `function_facts` (`backend.rs`) builds `direct_assignments`, `operations`,
