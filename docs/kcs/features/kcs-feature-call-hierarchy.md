@@ -21,45 +21,30 @@ all-editors, MCP, analyser
 
 The call hierarchy provider traces call relationships between procs, showing which procs call a given proc (incoming) and which procs it calls (outgoing).
 
-For a `TclOO` method, incoming/outgoing edges are intra-class: an edge fires
-on a `my <method>` dispatch site in a sibling method's body, at any nesting
-depth (`[…]` substitutions, `if` / `while` / `foreach` / `switch` / `try` /
-`catch` / `eval` bodies, or any combination). A bare `<method>` call is
-never a `TclOO` dispatch — a method is not a bare-callable command, so a
-bare head errors "invalid command name" at runtime — so it is never treated
-as a call edge, matching real Tcl semantics rather than a look-alike shape.
-A method also gets outgoing edges to plain procs it calls bare, same as a
-proc-to-proc edge. External `$obj method` dispatch (a different class or
-document calling in) is not part of the method call graph — it is a Find
-References concern instead.
+For a `TclOO` **method**, edges are intra-class: one fires on a `my <method>`
+dispatch site in a sibling method's body, at any nesting depth. A bare
+`<method>` head is never a dispatch — real Tcl answers "invalid command name"
+— so it is never an edge. A method also gets outgoing edges to plain procs it
+calls bare. External `$obj method` dispatch from another class or document is
+a Find References concern, not a call-hierarchy edge.
 
-A `classmethod` is different: it is dispatched on the class's own command,
-`ClassName <method>`, so that shape is a call edge too. A class command is
-an ordinary global command, so the edge fires wherever the call is written
-— inside another classmethod, inside an instance method, inside a plain
-proc, or at the top level (the caller is then shown as `<top-level>`) — and
-that includes bodies that shift frame, such as a `namespace eval` body or an
-`apply` lambda body, where a `$obj method` dispatch would *not* count. The
-edge is symmetric in both directions: the classmethod's Incoming Calls lists
-the calling proc, and the proc's Outgoing Calls lists the classmethod.
-Because it is a real command call, `Factory make` where `Factory` happens
-to be an ordinary proc is a call to *that proc*, not to any class's
-same-named classmethod, and no method edge is created for it.
+A **classmethod** dispatches on the class's own command, `ClassName <method>`,
+which is an ordinary global command, so the edge fires wherever the call is
+written — in another classmethod, an instance method, a plain proc, or at the
+top level (shown as `<top-level>`) — including frame-shifting bodies such as
+`namespace eval` or an `apply` lambda, where `$obj method` would not count.
+`Factory make` where `Factory` is an ordinary proc is a call to *that proc*,
+and creates no method edge.
 
-An instance `method` and a `classmethod` sharing a name (rare, but `TclOO`
-keeps them in independent tables, so it's legal) never cross-link: `my
-<word>` dispatch scope depends on which table the *caller's own body*
-belongs to (`self` is the class object inside a `classmethod`'s body, the
-instance everywhere else), so a `my` edge only ever connects two members of
-the same kind. The `ClassName <method>` shape reaches only the class
-object's own table, so it never edges to a same-named instance method. A
-caller that dispatches both — `my make` and `C make` in one body — gets two
-separate callee entries, each pointing at its own declaration, because
-edges are grouped by declaration identity rather than by display name.
+An instance `method` and a `classmethod` sharing a name never cross-link.
+`my <word>` resolves against the table the caller's own body belongs to, and
+`ClassName <method>` reaches only the class object's table. A caller that
+writes both — `my make` and `C make` — gets two callee entries, each pointing
+at its own declaration, because edges are grouped by declaration rather than
+by display name.
 
-The callers of a classmethod are listed by their qualified names —
-`::util::helper` for a proc, `::Factory::build` for a method — so the two
-kinds read consistently in the same list.
+Callers are listed by qualified name — `::util::helper` for a proc,
+`::Factory::build` for a method — so both kinds read consistently.
 
 ## Failure modes
 

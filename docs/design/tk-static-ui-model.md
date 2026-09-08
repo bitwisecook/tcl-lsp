@@ -78,9 +78,8 @@ the model can represent:
 - nested executable bodies that the shared Tcl walker can visit;
 - registry-recognised widget options whose values are literal Tcl words.
 
-Window-manager commands, row/column configuration, resource creation, and
-other commands may be useful context to a future model, but are not currently
-represented as verified `TkUiModel` facts. Unrecognised options are not
+Window-manager commands, row/column configuration, and resource creation are
+not represented as verified `TkUiModel` facts. Unrecognised options are not
 interpreted by the model; non-literal values are recorded as uncertainty.
 
 The preview is an approximation of structure and declared layout. It does not
@@ -143,13 +142,12 @@ error that rejected the placement.
 
 The official [grid manual](https://www.tcl-lang.org/man/tcl8.6/TkCmd/grid.htm)
 and [pack manual](https://www.tcl-lang.org/man/tcl8.6/TkCmd/pack.htm) describe
-the manager/container relationship. `rowconfigure` and `columnconfigure`
-remain useful future model inputs, but the current schema does not record them.
+the manager/container relationship. The schema does not record `rowconfigure`
+or `columnconfigure`.
 
-## What is intentionally not in the current model
+## What the model does not contain
 
-The following are useful future graph inputs, but are not currently promised
-as shipped preview facts:
+None of the following is a preview fact:
 
 - a complete callback/event graph;
 - resource lifetime and reachability graphs for images, fonts, menus,
@@ -159,9 +157,9 @@ as shipped preview facts:
   or accessibility behaviour;
 - execution of `source`, packages, network/file operations, or arbitrary Tcl.
 
-The registry already contains callback/body and command-prefix facts. Those
-facts can support future static edges, but a client must not claim that a
-callback graph exists merely because a callback-shaped option was recognised.
+The registry contains callback/body and command-prefix facts, but a client
+must not claim that a callback graph exists merely because a callback-shaped
+option was recognised.
 
 ## Security boundary
 
@@ -169,12 +167,10 @@ Static preview never invokes `tclsh`, `wish`, packages, callbacks, or user
 code. It must not read arbitrary files or use a workspace-provided interpreter
 as part of rendering.
 
-A future runtime preview would be a separate, explicit feature with a distinct
-request and result type. It would require opt-in, process isolation, strict
-timeouts and cancellation, constrained filesystem/network access, a clean
-environment, and a clear warning that the program is being executed. Runtime
-preview must not be silently substituted for the static model when static
-analysis abstains.
+Executing the program is a separate feature with its own request and result
+type — opt-in, process-isolated, timed out and cancellable, with constrained
+filesystem and network access and a clear warning — and must never be
+silently substituted for the static model when static analysis abstains.
 
 Tk's user-editable state is also an input boundary for ordinary taint
 analysis. Registry instance-method metadata marks value getters for `entry`,

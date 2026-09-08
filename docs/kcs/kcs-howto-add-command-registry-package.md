@@ -146,9 +146,9 @@ fail if they are stale.
   `sqlite3 db :memory:` no longer draws an unresolved-command diagnostic
   on `sqlite3`.
 - Hovering `sqlite3` shows the synopsis from your `HoverSnippet`.
-- `tcl callgraph` on a sqlite-using file shows edges into row callbacks
-  *without* a `# tcl-lsp: stub` block in the source — the registry now
-  knows the command shape directly.
+- `tcl diag` reports an arity or subcommand error when you call `sqlite3`
+  wrongly — the registry now knows the command shape directly, with no
+  `# tcl-lsp: stub` block in the source.
 
 ## Related
 

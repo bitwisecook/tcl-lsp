@@ -168,29 +168,58 @@ interpreter to drift.
 
 ### `[features]`
 
-Toggle individual LSP features.  All default to `true`.
+Toggle individual LSP features.  The key list is `FeatureToggles::KEYS` in
+`rust/tcl-lsp-server/src/lib.rs` plus `willSaveWaitUntil`; a key that is not
+one of these is stored and never read.  Most default on; the opt-in ones are
+`FeatureToggles::DEFAULT_OFF`, marked below.  In VS Code several of the
+default-on keys inherit from the matching `editor.*` setting when unset.
 
-| Key | Description |
-|-----|-------------|
-| `hover` | Hover information |
-| `completion` | Code completion |
-| `diagnostics` | Inline diagnostics |
-| `formatting` | Document formatting |
-| `semanticTokens` | Semantic token highlighting |
-| `codeActions` | Quick fixes and refactorings |
-| `definition` | Go to definition |
-| `references` | Find references |
-| `documentSymbols` | Document symbol outline |
-| `folding` | Code folding |
-| `rename` | Rename symbol |
-| `signatureHelp` | Function signature help |
-| `workspaceSymbols` | Workspace symbol search |
-| `inlayTypeHints` | Inferred-type inlay hints (variables, format specifiers) |
-| `inlayParameterHints` | Parameter-name inlay hints at proc/method call sites |
-| `callHierarchy` | Call hierarchy |
-| `documentLinks` | Document links |
-| `selectionRange` | Smart selection |
-| `crossFileResolution` | Broader, bare-name workspace W123 inference — off by default (independent of `[xcDiagnostics]`, which is F5 XC Migration-specific). Exact C Tcl command candidates, including their cross-file E002/E003 arity checks, resolve without it; the opt-in setting only adds a deliberately lossier fallback. A workspace-injected `::tcl::mathfunc` override also resolves without it: that namespace is one table per interpreter, so the suppression is a language fact, not a cross-file inference |
+| Key | Default | Description |
+|-----|---------|-------------|
+| `hover` | on | Hover information |
+| `completion` | on | Code completion |
+| `diagnostics` | on | Inline diagnostics |
+| `semanticTokens` | on | Semantic token highlighting |
+| `codeActions` | on | Quick fixes and refactorings |
+| `definition` | on | Go to definition |
+| `declaration` | on | Go to declaration |
+| `implementation` | on | Go to implementation (TclOO method overrides) |
+| `typeDefinition` | on | Go to type definition |
+| `references` | on | Find references |
+| `documentSymbols` | on | Document symbol outline |
+| `workspaceSymbols` | on | Workspace symbol search |
+| `documentHighlight` | on | Occurrence highlighting |
+| `documentLinks` | on | Document links |
+| `linkedEditingRange` | on | Linked editing range |
+| `codeLens` | on | Code lens (inline reference counts, test runners) |
+| `folding` | on | Code folding |
+| `rename` | on | Rename symbol |
+| `signatureHelp` | on | Function signature help |
+| `selectionRange` | on | Smart selection |
+| `callHierarchy` | on | Call hierarchy |
+| `workspaceFileOps` | on | Workspace file operations (rewrite source paths on rename) |
+| `inlayTypeHints` | **off** | Inferred-type inlay hints (variables, format specifiers).  The retired `inlayHints` key is accepted as an alias for it |
+| `inlayParameterHints` | **off** | Parameter-name inlay hints at proc/method call sites |
+| `willSaveWaitUntil` | **off** | Format on save via `textDocument/willSaveWaitUntil` |
+| `xcDiagnostics` | **off** | F5 XC translatability diagnostics; the same flag the `[xcDiagnostics]` section sets |
+| `crossFileResolution` | **off** | Broader, bare-name workspace W123 inference (independent of `xcDiagnostics`, which is F5 XC Migration-specific). Exact C Tcl command candidates, including their cross-file E002/E003 arity checks, resolve without it; the opt-in setting only adds a deliberately lossier fallback. A workspace-injected `::tcl::mathfunc` override also resolves without it: that namespace is one table per interpreter, so the suppression is a language fact, not a cross-file inference |
+
+Document formatting is not a feature toggle — there is no `formatting` key.
+
+### `[diagnosticSeverity]`
+
+One `CODE = severity` entry per diagnostic whose severity you want to
+override:
+
+```ini
+[diagnosticSeverity]
+W111 = hint
+E002 = warning
+```
+
+Accepted values are `error`, `warning`, `information`, `info` and `hint`,
+case-insensitively.  An unrecognised value is skipped and leaves the code's
+emitted severity untouched.
 
 ### `[signatureHelp]`
 
@@ -207,7 +236,21 @@ Toggle individual LSP features.  All default to `true`.
 | `brace_style` | string | `k_and_r` | Brace placement style |
 | `max_line_length` | int | `120` | Hard line length limit |
 | `goal_line_length` | int | `100` | Soft wrapping target |
-| … | | | every field of `FormatterConfig` is a key |
+| `continuation_indent` | int | `4` | Indent for a continued line |
+| `blank_lines_between_procs` | int | `1` | |
+| `blank_lines_between_blocks` | int | `1` | |
+| `max_consecutive_blank_lines` | int | `2` | |
+| `line_ending` | string | `auto` | |
+| `space_between_braces` | bool | `true` | |
+| `space_after_comment_hash` | bool | `true` | |
+| `trim_trailing_whitespace` | bool | `true` | |
+| `enforce_braced_variables` | bool | `false` | |
+| `ensure_final_newline` | bool | `true` | |
+| `expand_single_line_bodies` | bool | `false` | |
+
+These sixteen are the whole INI surface (`insert_formatting` in
+`config_ini.rs`); `FormatterConfig` carries further fields an editor can set
+through `tclLsp.formatting.*` but the INI parser does not read.
 
 ### `[style]`
 

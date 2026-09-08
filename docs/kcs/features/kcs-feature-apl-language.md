@@ -75,8 +75,8 @@ directory.  Resolution is recursive with circular-include protection.
 
 ### tmsh:: commands
 
-30+ `tmsh::` namespace commands and 4 `script::` commands are registered in
-the `f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
+The `tmsh::` and `script::` namespace commands are registered in the
+`f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
 validation.
 
 ## Failure modes

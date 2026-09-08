@@ -62,7 +62,7 @@ with a `latest` symlink alongside.  `--output -` streams the SCF to stdout.
 | `f5-query diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). Accepts SCF or `tmsh create` / `tmsh modify` scripts on either side. |
 | `f5-query grep` | Find every object related to a name, regex, or CIDR. |
 | `f5-query query` (alias `q`) | jq-flavoured DSL for filtering and projecting object properties; see [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
-| `f5-query cleanup` | Generate `tmsh delete` commands for objects no virtual references. |
+| `f5-query cleanup` | Generate `tmsh delete` commands for objects no virtual server references. |
 | `f5-query validate` (alias `lint`) | Best-practice / structural checks (orphan monitors, empty pools, deprecated iRule commands, unknown events, …). |
 | `f5-query explain-flow` | Trace each flow in a PCAP through the config. |
 

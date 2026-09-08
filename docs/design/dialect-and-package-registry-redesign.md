@@ -809,7 +809,7 @@ vocabulary below is what those registration commands accept.
 ### 6.1 Compatibility contract
 
 **Reading older packs stays maximal; degrading newer packs fails closed.**
-The loader keeps a single reader — every word ever ratified is readable
+The loader keeps a single reader — every word ever admitted is readable
 forever, and where 2.0 changes *meaning*, the change is a **new word plus
 a translation of the legacy word**, never per-version dispatch:
 
@@ -934,8 +934,8 @@ These hold across the tree:
 ## 11. The open-questions ledger
 
 **Everything this programme has not closed, in one place.** Each row says
-*what it is*, *what it blocks*, and *what would resolve it*. Where a phase,
-ruling, or ledger row elsewhere says "still open", it points here.
+*what it is*, *what it blocks*, and *what would resolve it*. Where any
+other document says "still open", it points here.
 
 Deliberately **not** in this ledger: items the owner ruled out (a
 per-major `tcl` family split; `tcl8`/`tcl9` named-range sugar; contraction
@@ -947,7 +947,7 @@ of a programmed pack back into a program; an ahead-of-time `.tclspec` →
 
 | # | What it is | What it blocks | What would resolve it |
 |---|---|---|---|
-| O3 | **Standing studio overrides are not yet visible.** The `StudioOverride` patch-pack tier is ratified with an amendment: a studio indicator, and a `spectcl_check` warning once a patch has outlived a threshold, so an override reads as a staging area rather than a home. `PackStore::standing_overrides` is the queryable report; neither surface reads it yet | Nothing about correctness | The indicator and the warning |
+| O3 | **Standing studio overrides are not yet visible.** The `StudioOverride` patch-pack tier owes two surfaces: a studio indicator, and a `spectcl_check` warning once a patch has outlived a threshold, so an override reads as a staging area rather than a home. `PackStore::standing_overrides` is the queryable report; neither surface reads it yet | Nothing about correctness | The indicator and the warning |
 | O4 | **`spectcl_check` has no tier parameter.** It evaluates the pack as trusted (the author's own file) and appends the `Tier::Workspace` provenance verdict as a notice. The ruling wants an explicit tier defaulting to the tier the pack would actually install at, with the trusted view available on request | A check that predicts a user-tier install exactly | The parameter and its default |
 | O5 | **The iRules surface as a pack.** Six of the seven prerequisite words have loader readers, so the deferral is a standing choice rather than a blocked one | The iRules command surface stays compiled Rust. The dialect (grammar, structure) and the closed-world policy stay compiled either way, so nothing about correctness rides on it | An owner decision to schedule it |
 | O7 | **`primary` for a multi-target project.** The primary is the environment's, always; a declared range never moves it | Multi-target projects cannot choose which release assistance answers under. Compatibility checking evaluates the whole set, so this is an assistance-quality gap | An owner answer plus the settings/directive surface to carry it |
@@ -982,7 +982,7 @@ answer without them it abstains explicitly.
 | V1 | **The two APL contexts** (`IAppPresentationApl`, `IAppPresentationTclCallback`). Never exercised; both answer `Unknown` through both evidence doors | An APL `tcl` callback has no family, no build profile and no surface, and the model must keep refusing to copy `IAppImplementation`'s row into it. Also blocks a typed **embedded-range descriptor** for APL's `tcl` clauses — a document/range concern for the compiler and server | E4 step 6: exercise a non-interactive presentation renderer on an appliance |
 | V2 | **A second and third BIG-IP build** (one supported 17.x, one older), same suites | Every "since when" question about the F5 tree is `Unknown`: nearest-known assistance answers cannot become interpolation, and the `f5-tcl` ladder's post-fork deltas stay hypothesis | Two more appliance runs |
 | V3 | **A restricted-role tmsh column.** The probe corpus was run as the SSH login user, so the command surface carries no role annotation | The tmsh role/visibility overlay has no measured input and cannot be wired honestly | One appliance run under a restricted role, with `systemauth.disablebash` and the other policy settings captured |
-| V4 | **The E4 re-run of the §5–§9 suites.** The 85-builtin surface, the 120-cell event matrix and the traffic lab are consumed as `e4_conforming: false` | ~180 corpus vectors stay "strong transcript" rather than ratified evidence. §11 of the measurements says the re-run is mechanical — `lib/runner.sh` needs a prefix change and a pre-create absence check | Re-run under the E4 contract |
+| V4 | **The E4 re-run of the §5–§9 suites.** The 85-builtin surface, the 120-cell event matrix and the traffic lab are consumed as `e4_conforming: false` | ~180 corpus vectors stay "strong transcript" rather than accepted evidence. §11 of the measurements says the re-run is mechanical — `lib/runner.sh` needs a prefix change and a pre-create absence check | Re-run under the E4 contract |
 | V5 | **`matches` precedence and semantics.** `expr {"abc" matches "abc"}` is a single-operator expression and exercises no binding power, and the same probe is exact equality and discriminates none of the equality/containment/glob readings | The VM answers string equality — the one reading the measured cell exercises — and the compiler refuses to constant-fold it | Two probes: `expr {"abcd" matches "bc"}` and `expr {1 or 0 matches 0}` |
 | V6 | **The realm scope of `tmsh::modify cli version active`.** Script-, tmsh-process-, session-, or system-scoped? | Where the tmsh-syntax transition's state lives; wired with `scope_is_measured: false` | One appliance probe |
 | V7 | **The runtime half of the six deliberate `RULE_INIT` divergences.** Does calling an `HTTP::*` command in `RULE_INIT` always fail at runtime, or only when it touches connection state? | Nothing in the model — the rows are meant to diverge. Confirming it would sharpen the divergence reason from policy to fact | A per-cell runtime re-probe in the traffic lab |
@@ -996,4 +996,4 @@ answer without them it abstains explicitly.
 
 | # | The claim | The code | Disposition |
 |---|---|---|---|
-| E3 | §6.3 once promised a loader-side direction to the round-trip gate, "so a ratified word without a loader arm fails CI instead of silently dropping" | No such gate exists. `bpf_op` is documented, unread, and nothing fails | **Open** (D3 is its live instance). The golden-snapshot gate, the static-fast-path gate and the export gates are real, but none exercises a *documented-but-unimplemented* word |
+| E3 | §6.3 once promised a loader-side direction to the round-trip gate, "so a documented word without a loader arm fails CI instead of silently dropping" | No such gate exists. `bpf_op` is documented, unread, and nothing fails | **Open** (D3 is its live instance). The golden-snapshot gate, the static-fast-path gate and the export gates are real, but none exercises a *documented-but-unimplemented* word |

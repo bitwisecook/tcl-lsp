@@ -55,8 +55,10 @@ proc main {} {
 }
 ```
 
-After this, `tcl callgraph` reports `::main → ::on_row`, and the `script`
-argument is recognised as a Tcl script rather than an opaque string.
+After this, `db_eval` stops being reported as an unknown command and its
+`script` argument is marked script-shaped rather than an opaque string. The
+call graph does not follow it: `tcl callgraph` still reports no edge from
+`::main` to `::on_row`.
 
 ### Sidecar stubs file (whole workspace)
 
@@ -143,11 +145,10 @@ an operator when you leave it out.
 
 ## How to tell it worked
 
-- Run `tcl callgraph <file>` and check that the callback procs declared in
-  the stubbed command's body argument appear as outgoing edges from the
-  caller.
-- Open the file in your editor and confirm that the stubbed command no
-  longer raises the "unresolved command" hint.
+- Run `tcl diag <file>` and confirm the `W123 Unknown command` hint on the
+  stubbed command is gone.
+- Open the file in your editor and confirm the stubbed command no longer
+  raises the "unresolved command" hint.
 - For a sidecar, confirm the filename matches the dialect the file is
   analysed under — a mismatch is the most common reason a sidecar appears to
   be ignored.
