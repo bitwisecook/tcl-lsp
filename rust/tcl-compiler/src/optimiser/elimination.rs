@@ -763,7 +763,11 @@ fn build_adce_consumers(fu: &FunctionUnit) -> (ConsumerMap, HashSet<(String, u32
         let key = chain.key.clone();
         for use_site in &chain.uses {
             match use_site.kind {
-                UseKind::Operand => {
+                // A name position consumes the value exactly as an operand
+                // does — `incr a` reads `a` — so it keeps the feeding store
+                // alive at the statement that names it. Only *rewriting*
+                // passes have to tell the two apart (issue #1934).
+                UseKind::Operand | UseKind::VariableName => {
                     if let Ok(idx) = usize::try_from(use_site.statement_index) {
                         consumer_stmt_keys
                             .entry(key.clone())
@@ -1739,9 +1743,12 @@ mod tests {
             "proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }",
             &registry(),
         );
+        // Scoped to the payload-bearing rewrites: a hint-only O102 spans the
+        // whole consuming statement and deliberately carries no replacement
+        // (issue #1934), so it cannot conflate anything.
         assert!(
             opts.iter()
-                .all(|o| o.code != DiagCode::O102 || o.replacement == "1"),
+                .all(|o| o.code != DiagCode::O102 || o.hint_only || o.replacement == "1"),
             "a forwarded a(k) load must carry a(k)'s value, got {opts:?}",
         );
         // A non-constant element value cannot be forwarded, so the store

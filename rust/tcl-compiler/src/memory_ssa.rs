@@ -1104,6 +1104,7 @@ mod tests {
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
                 quoted_uses: std::collections::HashSet::new(),
+                name_only_uses: std::collections::HashSet::new(),
             });
         }
         let entry = BlockId(0);
@@ -1271,6 +1272,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         let mut defs = HashMap::new();
         defs.insert(shared, 1);
@@ -1280,6 +1282,7 @@ mod tests {
             defs,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         let mut uses = HashMap::new();
         uses.insert(shared, 1);
@@ -1289,6 +1292,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
 
         ssa.blocks.insert(
@@ -1345,6 +1349,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         let mut defs1 = HashMap::new();
         defs1.insert(shared, 1);
@@ -1354,6 +1359,7 @@ mod tests {
             defs: defs1,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         let mut uses = HashMap::new();
         uses.insert(shared, 1);
@@ -1365,6 +1371,7 @@ mod tests {
             defs: defs2,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         ssa.blocks.insert(
             entry,

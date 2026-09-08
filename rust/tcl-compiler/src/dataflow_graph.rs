@@ -527,6 +527,7 @@ mod tests {
             defs,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -663,6 +664,7 @@ mod tests {
             defs: ydefs,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         ssa.blocks.insert(entry_id, entry);
 

@@ -281,20 +281,40 @@ fn run_load_forwarding(
         let Some(def_stmt) = block.statements.get(idx) else {
             continue;
         };
-        let literal = match def_stmt {
-            Statement::AssignConst { value, .. } => value.clone(),
+        // Which code claims the rewrite follows from *why* the value is known,
+        // and the two contracts are different: O102 forwards a variable whose
+        // single reaching definition is written out as a literal, O100 inlines
+        // a constant SCCP proved. `set a 1; incr a` is the second — the
+        // defining statement computes its value — so it is folded, not
+        // forwarded (issue #1934).
+        let (code, literal) = match def_stmt {
+            Statement::AssignConst { value, .. } => (DiagCode::O102, value.clone()),
             Statement::AssignValue { value, .. }
                 if !value.contains(['$', '[', '\\', '"']) && !value.is_empty() =>
             {
-                value.clone()
+                (DiagCode::O102, value.clone())
             }
-            _ => continue,
+            // The name-keyed projection `sccp_constants_for` the other O100
+            // forms read cannot answer here: it drops any variable whose
+            // versions hold different constants, which is every variable that
+            // is ever reassigned — precisely this shape. A def-use consumer
+            // already knows which version it is inlining, so it can index the
+            // lattice by `(symbol, version)` and get an answer where the
+            // name-keyed map has none. Every guard above this point still
+            // applies.
+            _ => match sccp_value_literal(fu, var_name, chain.key.1) {
+                Some(text) => (DiagCode::O100, text),
+                None => continue,
+            },
         };
         if !is_value_safe_bare_word(&literal) {
             continue;
         }
-        let message =
-            format!("Forward literal load of '{var_name}' from its single reaching definition");
+        let message = if code == DiagCode::O102 {
+            format!("Forward literal load of '{var_name}' from its single reaching definition")
+        } else {
+            format!("Inline the constant value of '{var_name}' proved at this read")
+        };
         for use_site in &chain.uses {
             if use_site.kind != UseKind::Operand {
                 continue;
@@ -327,7 +347,7 @@ fn run_load_forwarding(
             if has_intervening_barrier(fu, &chain.definition.block, idx, &use_site.block, use_idx) {
                 continue;
             }
-            report_load_forward(ctx, fu, use_stmt, var_name, &message, &literal);
+            report_load_forward(ctx, fu, use_stmt, code, var_name, &message, &literal);
         }
     }
 }
@@ -409,6 +429,7 @@ fn report_load_forward(
     ctx: &mut PassContext<'_>,
     fu: &crate::compilation_unit::FunctionUnit,
     use_stmt: &Statement,
+    code: DiagCode,
     var_name: &str,
     message: &str,
     literal: &str,
@@ -434,7 +455,7 @@ fn report_load_forward(
                 continue;
             }
             ctx.report(Optimisation::new(
-                DiagCode::O102,
+                code,
                 message.to_owned(),
                 tcl_lexer::word_span_at(ctx.source, fu.abs_span(*argv_span)),
                 literal.to_owned(),
@@ -445,11 +466,19 @@ fn report_load_forward(
     if emitted_applicable {
         return;
     }
+    // No operand word was found to target, so the span is the whole consuming
+    // statement — and `literal` is not a valid replacement for it. Record the
+    // hint with no replacement rather than a payload that would corrupt the
+    // statement if anything ever applied it: `set a 1; incr a` once recorded
+    // `1` over the whole of `incr a`, which reads as a one-click rewrite to a
+    // bare `1` in command position wherever a surface shows the payload
+    // without the flag (issue #1934). The appliers already filter `hint_only`;
+    // this makes the data model agree with them.
     let mut opt = Optimisation::new(
-        DiagCode::O102,
+        code,
         message.to_owned(),
         fu.abs_span(use_stmt.span()),
-        literal.to_owned(),
+        String::new(),
     );
     opt.hint_only = true;
     ctx.report(opt);
@@ -2999,6 +3028,28 @@ fn render_propagation_word(value: &str) -> String {
     }
 }
 
+/// The SCCP-proved constant for one exact SSA value, rendered as source text.
+///
+/// The per-value counterpart of [`sccp_constants_for`]'s name-keyed map: that
+/// projection answers "is this *name* always this constant", which is the
+/// question a by-name source substitution has to ask, and it necessarily
+/// abstains for a name whose versions hold different constants. A def-use
+/// consumer already knows which version it is forwarding, so it can ask the
+/// stronger question and get an answer where the map has none.
+fn sccp_value_literal(
+    fu: &FunctionUnit,
+    var_name: &str,
+    version: crate::ssa::Version,
+) -> Option<String> {
+    use super::helpers::literals::format_constant;
+
+    let sym = fu.ssa.var_symbol(var_name)?;
+    match fu.sccp.values.get(&(sym, version))? {
+        LatticeValue::Const(cv) => format_constant(cv),
+        _ => None,
+    }
+}
+
 pub(super) fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
     sccp_constants_from(&fu.sccp, &fu.ssa)
 }
@@ -3714,6 +3765,96 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O102),
             "expected O102 load-forwarding, got {opts:?}",
+        );
+    }
+
+    /// Issue #1934 — a definition whose value SCCP proved still forwards.
+    ///
+    /// `set a 1; incr a` leaves `a` provably `2`, and that is what a use of it
+    /// should see. O102 only ever recognised a *syntactic* literal as a
+    /// reaching definition, so the chain stopped at the `incr` and the whole
+    /// snippet optimised to nothing. The name-keyed `sccp_constants_for`
+    /// projection cannot rescue it either: `a` holds `1` at one version and
+    /// `2` at another, so that map drops the variable entirely.
+    #[test]
+    fn a_computed_definition_forwards_the_constant_sccp_proved() {
+        for (source, want) in [
+            ("set a 1\nincr a\nputs \"$a\"\n", "2"),
+            ("set a 1\nincr a\nputs $a\n", "2"),
+            ("set a 1\nincr a 5\nputs $a\n", "6"),
+        ] {
+            let opts = run_pass(source);
+            assert!(
+                opts.iter()
+                    .any(|o| o.code == DiagCode::O100 && !o.hint_only && o.replacement == want),
+                "expected an applicable O100 inlining {want:?} for {source:?}, got {opts:?}",
+            );
+        }
+    }
+
+    /// A hint-only forward records no replacement.
+    ///
+    /// Its span is the whole consuming statement, so the literal is not a
+    /// valid replacement for it — recording one anyway is what let a hint on
+    /// `incr a` read as a one-click rewrite to a bare `1`.
+    #[test]
+    fn a_hint_only_forward_carries_no_replacement() {
+        let opts = run_pass("set n 7\nputs \"n=$n\"\n");
+        let hints: Vec<&Optimisation> = opts.iter().filter(|o| o.hint_only).collect();
+        assert!(!hints.is_empty(), "expected a hint-only O102, got {opts:?}");
+        assert!(
+            hints.iter().all(|o| o.replacement.is_empty()),
+            "a hint with no sub-span target must carry no payload, got {hints:?}",
+        );
+    }
+
+    /// Issue #1934 — a variable-*name* argument is not an operand, so no
+    /// propagation code may target it.
+    ///
+    /// `set a 1; incr a` has one reaching literal for `a`, and `incr a`'s only
+    /// mention of `a` names the cell it mutates. Forwarding the literal there
+    /// produced `O102 … → 1` over the whole of `incr a`: a rewrite that
+    /// destroys the increment and leaves `1` in command position, where tclsh
+    /// answers `invalid command name "1"`. It was unreachable behind the
+    /// `hint_only` guard, but it was a wrong payload sitting one guard away
+    /// from being applied, and wrong advice about the statement either way.
+    #[test]
+    fn no_o1xx_targets_a_variable_name_argument() {
+        // One row per registry role that names a variable rather than passing
+        // a value: `VarWrite` read-modify-write, `VarRead`, and the
+        // destroying form. Each is the *only* mention of the variable in its
+        // statement, so any O1xx on that line is targeting the name.
+        for source in [
+            "set a 1\nincr a\n",
+            "set a 1\nappend a x\n",
+            "set a 1\nlappend a x\n",
+            "set a 1\ndict incr a k\n",
+            "set a 1\ninfo exists a\n",
+            "set a 1\nunset a\n",
+            "set a 1\nbinary scan xy c a\n",
+            "set a 1\nregexp {(x)} xy -> a\n",
+        ] {
+            let opts = run_pass(source);
+            let forwarded: Vec<&Optimisation> = opts
+                .iter()
+                .filter(|o| o.code.as_str().starts_with("O1") && o.replacement == "1")
+                .collect();
+            assert!(
+                forwarded.is_empty(),
+                "no O1xx may forward the literal into a variable-name position \
+                 of {source:?}, got {forwarded:?}",
+            );
+        }
+    }
+
+    /// The guard is about the *position*, not the command: the same commands
+    /// still forward into a genuine operand word beside the name.
+    #[test]
+    fn a_value_operand_beside_a_name_argument_still_forwards() {
+        let opts = run_pass("set n 7\nset a {}\nlappend a $n\n");
+        assert!(
+            opts.iter().any(|o| o.code == DiagCode::O102),
+            "the `$n` operand is still an operand, got {opts:?}",
         );
     }
 

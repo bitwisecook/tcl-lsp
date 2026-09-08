@@ -1311,6 +1311,12 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
                 "message": o.message,
                 "range": range_dict(o.span, li, source),
                 "replacement": o.replacement,
+                // Informational rather than actionable, and its span is the
+                // whole consuming statement rather than a sub-word. Without
+                // this the view is indistinguishable from an applicable
+                // rewrite — which is how a hint-only O102 came to be read as a
+                // one-click fix (issue #1934). The LSP has always sent it.
+                "hintOnly": o.hint_only,
             })
         })
         .collect();
@@ -1342,6 +1348,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
                     "message": o.message,
                     "range": range_dict(o.span, li, source),
                     "replacement": o.replacement,
+                    "hintOnly": o.hint_only,
                 })
             })
             .collect();
@@ -1740,6 +1747,7 @@ fn def_kind_label(kind: tcl_compiler::def_use::DefKind) -> &'static str {
 fn use_kind_label(kind: tcl_compiler::def_use::UseKind) -> &'static str {
     match kind {
         tcl_compiler::def_use::UseKind::Operand => "operand",
+        tcl_compiler::def_use::UseKind::VariableName => "variable-name",
         tcl_compiler::def_use::UseKind::PhiIncoming => "phi-incoming",
         tcl_compiler::def_use::UseKind::Terminator => "terminator",
     }
@@ -1749,6 +1757,7 @@ fn use_class_label(class: tcl_compiler::ssa::UseClass) -> &'static str {
     match class {
         tcl_compiler::ssa::UseClass::Substituted => "substituted",
         tcl_compiler::ssa::UseClass::Quoted => "quoted",
+        tcl_compiler::ssa::UseClass::Name => "name",
     }
 }
 

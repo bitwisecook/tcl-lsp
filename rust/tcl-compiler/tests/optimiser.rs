@@ -703,6 +703,70 @@ fn branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word() {
     );
 }
 
+/// Issue #1934 — a constant reaching an `incr` folds through it and the whole
+/// snippet collapses.
+///
+/// `incr` is not a *load* of its target, it names the cell it mutates, and
+/// O102 only ever recognised a syntactic literal as a reaching definition. So
+/// the chain stopped dead at the `incr`: nothing folded, and the one thing the
+/// optimiser did emit was a hint on `incr a` whose recorded payload (`1` over
+/// the whole statement) would have produced a bare `1` in command position.
+///
+/// SCCP has always proved the value — `Statement::Incr` is a transfer function
+/// there. What was missing was a consumer asking it per SSA value: the
+/// name-keyed projection the other O100 forms read drops any variable whose
+/// versions hold different constants, which is exactly a counter.
+#[test]
+fn incr_of_a_constant_folds_through_to_its_reads() {
+    let registry = static_context_for(TCL).commands();
+    for (src, single, fixpoint) in [
+        (
+            "set a 1\nincr a\nputs \"$a\"",
+            "set a 1\nincr a\nputs 2",
+            "puts 2",
+        ),
+        (
+            "set a 1\nincr a\nputs $a",
+            "set a 1\nincr a\nputs 2",
+            "puts 2",
+        ),
+        (
+            "set a 1\nincr a 5\nputs $a",
+            "set a 1\nincr a 5\nputs 6",
+            "puts 6",
+        ),
+    ] {
+        assert_eq!(optimised(src, TCL), single, "single pass over {src:?}");
+        let (fixed, opts) = optimise_source_multipass(src, registry, None, 5);
+        // Deletion leaves the blank lines behind, as every other multipass
+        // case in this file does; what matters is that the feeding statements
+        // are gone and the read carries the folded value.
+        assert_eq!(fixed.trim(), fixpoint, "fixpoint over {src:?}");
+        assert!(
+            !fixed.contains("incr"),
+            "the dead `incr` survived: {fixed:?}"
+        );
+        assert!(
+            !fixed.contains("set a"),
+            "the dead store survived: {fixed:?}"
+        );
+        let codes: Vec<&str> = opts.iter().map(|o| o.code.as_str()).collect();
+        assert!(
+            codes.contains(&"O100"),
+            "the fold is an O100 (a constant SCCP proved), not an O102 (a \
+             written-out literal forwarded): {codes:?}",
+        );
+    }
+}
+
+/// The counterpart: a target whose value SCCP cannot prove folds nothing, and
+/// the `incr` survives untouched.
+#[test]
+fn incr_of_an_unproven_value_folds_nothing() {
+    let src = "proc f {n} {\n    incr n\n    puts $n\n}";
+    assert_eq!(optimised(src, TCL), src, "a parameter is not a constant");
+}
+
 #[test]
 fn constant_propagation_into_commands_o100() {
     // tclsh: x=42 ⇒ `puts 42`. (The single-def literal is forwarded via O102 and

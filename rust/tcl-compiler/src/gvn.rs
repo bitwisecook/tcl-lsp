@@ -2865,6 +2865,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         };
         let occurrences =
             statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
@@ -2886,6 +2887,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         };
         assert!(
             statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa()).is_empty()
@@ -2943,6 +2945,7 @@ mod tests {
             defs: Map::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -3185,6 +3188,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         };
         let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
@@ -3207,6 +3211,7 @@ mod tests {
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         };
         let occ = statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
         assert_eq!(occ.len(), 1);
@@ -3453,6 +3458,7 @@ mod tests {
             defs,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         // llength $i — uses map tracks `i`, not `x`.
         let mut uses_i = Map::new();
@@ -3463,6 +3469,7 @@ mod tests {
             defs: Map::new(),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         });
         ssa.blocks.insert(header, h);
         ssa.blocks.insert(body, b);

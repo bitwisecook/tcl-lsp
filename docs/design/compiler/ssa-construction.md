@@ -166,6 +166,37 @@ Phi nodes participate in def-use chains in two roles:
 - **As uses**: Each incoming edge `(pred_block, incoming_ver)` is a
   `UseKind::PhiIncoming` use of the incoming version.
 
+#### Operand uses and name uses are different facts
+
+A statement can reach a variable two ways, and the chains record which:
+
+| `UseKind` | shape | who counts it |
+|---|---|---|
+| `Operand` | a substituted `$a` word — `puts $a`, `expr {$a + 1}` | liveness **and** rewriting passes |
+| `VariableName` | a variable-*name* argument — `incr a`, `append a x`, `info exists a`, `unset a` | liveness only |
+
+Both are genuine reads: `incr a` really does read `a`, and dropping the use
+would make the feeding store look dead. What separates them is that a name
+position has **no word to rewrite**. A pass that splices a value over one
+destroys the statement — forwarding `a`'s reaching literal `1` into `incr a`
+leaves `1` in command position, which tclsh answers with `invalid command
+name "1"` (issue #1934).
+
+The classification is produced during the SSA scan as
+`ssa::UseClass::Name` — the registry's `ArgRole::VarRead` positions, its
+`READS_BEFORE_WRITE` targets, `DESTROYS_VARIABLE` targets, and
+`Statement::Incr`'s own target — carried on `SsaStatement::name_only_uses`
+and stamped onto the use site by `build_def_use_chains`. A name reached
+*both* ways in one statement (`lappend a $a`) is `Operand`: the definite
+operand is the stronger fact, the same way `Substituted` already outranks
+`Quoted`.
+
+The rule for a consumer is mechanical: match `Operand | VariableName`
+wherever the question is "is this value consumed", and match `Operand` alone
+wherever the question is "may I rewrite this use". `UseKind` is matched
+exhaustively everywhere it is consumed, so a new variant cannot be added
+without every consumer deciding.
+
 ### Memory-SSA for aliases
 
 Variables aliased into another frame or namespace — through `upvar`,
