@@ -118,6 +118,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
@@ -1259,6 +1260,60 @@ fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackR
     run_pack_with_mode(pack, root, corpus, AnalysisMode::Shared)
 }
 
+/// Run independent overlays concurrently while preserving inventory order in
+/// the returned report. The default is capped at four workers; set to `1` for
+/// the serial control, or `2`/`4` to measure the bounded overlay sweep.
+fn pack_worker_count() -> usize {
+    let default = std::thread::available_parallelism().map_or(1, |count| count.get().min(4));
+    std::env::var("SPECTCL_CORPUS_PACK_THREADS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+        .clamp(1, 4)
+}
+
+fn run_packs(packs: &[ShippedPackFile], root: &Path, corpus: &[CorpusFile]) -> Vec<PackReport> {
+    let worker_count = pack_worker_count().min(packs.len());
+    if worker_count <= 1 {
+        return packs
+            .iter()
+            .map(|pack| run_pack(pack, root, corpus))
+            .collect();
+    }
+
+    let next = AtomicUsize::new(0);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut reports: Vec<Option<PackReport>> = (0..packs.len()).map(|_| None).collect();
+    std::thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let tx = tx.clone();
+            let next = &next;
+            std::thread::Builder::new()
+                .name("spectcl-corpus-pack".to_owned())
+                .stack_size(32 * 1024 * 1024)
+                .spawn_scoped(scope, move || {
+                    loop {
+                        let index = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(pack) = packs.get(index) else {
+                            break;
+                        };
+                        tx.send((index, run_pack(pack, root, corpus)))
+                            .expect("collect pack report");
+                    }
+                })
+                .expect("spawn pack worker");
+        }
+        drop(tx);
+        for (index, report) in rx {
+            reports[index] = Some(report);
+        }
+    });
+    reports
+        .into_iter()
+        .map(|report| report.expect("every pack produced a report"))
+        .collect()
+}
+
 fn run_pack_with_mode(
     pack: &ShippedPackFile,
     root: &Path,
@@ -1532,10 +1587,7 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
                 packs.len()
             );
 
-            let reports: Vec<PackReport> = packs
-                .iter()
-                .map(|pack| run_pack(pack, &root, &corpus_files))
-                .collect();
+            let reports = run_packs(&packs, &root, &corpus_files);
 
             // This is the before/after proof for #1940. Keep it opt-in because
             // it runs the exact gate twice.
