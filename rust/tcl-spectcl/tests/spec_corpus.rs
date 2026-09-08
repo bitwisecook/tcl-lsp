@@ -98,6 +98,11 @@
 //! the opt-in to the big corpus, and the report names which corpora were drawn
 //! on either way.
 //!
+//! Set `SPECTCL_CORPUS_DIFF=1` to run the pre-#1940 two-unit path alongside the
+//! shared-unit path through the exact gate and compare a deterministic semantic
+//! snapshot of every per-pack report. This doubles the gate and its watchdog
+//! budget intentionally; the normal run remains single-path.
+//!
 //! ## Containment
 //!
 //! [`a_hostile_pack_degrades_to_abstention_and_never_hangs`] is the negative
@@ -109,13 +114,16 @@
 use std::cell::Cell;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-use tcl_compiler::analyser::Analyser;
-use tcl_compiler::optimiser::manager::optimise_raw;
+use tcl_compiler::analyser::{Analyser, types::Diagnostic};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::optimiser::{Optimisation, optimise_raw, optimise_unit_raw};
 use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Value};
 use tcl_engine_tclvm::TclVmEngine;
 use tcl_registry::arg_role::ArgRole;
@@ -500,9 +508,20 @@ struct PackReport {
     synthesised_calls: usize,
     diagnostics: usize,
     optimisations: usize,
+    analysis_snapshots: Vec<AnalysisSnapshot>,
+    analysis_fallbacks: Vec<String>,
     load: Duration,
     analysis: Duration,
     unresolved: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AnalysisSnapshot {
+    /// A corpus path, or the deterministic range of synthesised calls in the
+    /// analysed batch.
+    input: String,
+    diagnostics: Vec<Diagnostic>,
+    optimisations: Vec<Optimisation>,
 }
 
 impl PackReport {
@@ -554,7 +573,7 @@ fn require_live_hook_execution(report: &PackReport, failures: &mut Vec<String>) 
 }
 
 const HEADER: &str = "\
-| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | succeeded/attempted | errors | quar | crash | corpus | synth | load ms | analyse ms |
+| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | VM invocations successful/attempted | errors | quar | crash | corpus | synth | load ms | analyse ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
 
 fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
@@ -599,7 +618,7 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     let _ = write!(
         out,
         "\n{} packs, {commands} commands declared, {bodies} hook bodies, \
-         {successes}/{attempts} successful/attempted hook invocations, \
+         {successes}/{attempts} successful/attempted VM hook invocations, \
          {diagnostics} diagnostics, \
          {optimisations} optimisations.\n\
          load {:.1} ms, analysis {:.1} ms, total {:.1} ms.\n\
@@ -626,10 +645,26 @@ fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
     (set, started.elapsed())
 }
 
-/// Analyse `source` under `dialect` with `packs` overlaid, and run the
-/// optimiser over it too — the const-fold families answer there, not in the
-/// analyser.
-fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnalysisPath {
+    Legacy,
+    Shared,
+    SharedProfileMismatch,
+    SharedBuildFallback,
+    SharedAnalyserFallback,
+    SharedDiagnosticsLegacyOptimiser,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct AnalysisOutput {
+    path: AnalysisPath,
+    diagnostics: Vec<Diagnostic>,
+    optimisations: Vec<Optimisation>,
+}
+
+/// The pre-#1940 path: the analyser and raw optimiser each build their own
+/// whole-file compilation unit.
+fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let result = analyser.analyse(source, dialect);
     let registry = std::sync::Arc::clone(
@@ -638,7 +673,384 @@ fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
             .commands(),
     );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
-    (result.diagnostics.len(), optimisations.len())
+    AnalysisOutput {
+        path: AnalysisPath::Legacy,
+        diagnostics: result.diagnostics,
+        optimisations,
+    }
+}
+
+/// Analyse and optimise one source file from the same compilation unit.
+///
+/// `build_for_profile` + `with_interprocedural` deliberately mirrors the
+/// optimiser's typed entry point.  Supplying that unit through the analyser's
+/// CFG/SSA seam means the expensive lowering, CFG, SSA and interprocedural
+/// work is done once, while `optimise_unit_raw` retains the raw (pre-overlap)
+/// optimiser result used by this corpus report.
+fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let registry = Arc::clone(
+        environment
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .commands(),
+    );
+    let unit_profile = environment.unit_profile();
+    let optimiser_profile = environment.analyser_profile();
+
+    // `optimise_raw` builds its own unit from the analyser profile. Sharing a
+    // unit with a different profile would therefore change the Tk path (Tk's
+    // unit profile is intentionally distinct from its analyser profile).
+    // Keep the old two-unit path until both entry points can consume the same
+    // profile without losing the Tk grammar contract.
+    if !std::ptr::eq(unit_profile, optimiser_profile) {
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedProfileMismatch;
+        return output;
+    }
+
+    // Contain only the shared-unit operations. A malformed corpus document
+    // must not take down the sweep, but a panic in the ordinary legacy path
+    // remains visible to the harness rather than being turned into an empty
+    // report.
+    let Ok(unit) = catch_unwind(AssertUnwindSafe(|| {
+        Arc::new(
+            CompilationUnit::build_for_profile(source, &registry, false, unit_profile)
+                .with_interprocedural(&registry, Some(unit_profile)),
+        )
+    })) else {
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedBuildFallback;
+        return output;
+    };
+
+    let mut analyser = Analyser::new().with_pack_overlay(overlay);
+    let Ok(result) = catch_unwind(AssertUnwindSafe(|| {
+        analyser.set_cu_override(Arc::clone(&unit));
+        analyser.analyse(source, dialect)
+    })) else {
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedAnalyserFallback;
+        return output;
+    };
+
+    let Ok(optimisations) = catch_unwind(AssertUnwindSafe(|| {
+        optimise_unit_raw(&unit, &registry, Some(optimiser_profile))
+    })) else {
+        // The shared optimiser is an optional consumer of the unit. Keep
+        // diagnostics produced from that unit, and use the established
+        // raw optimiser as the only fallback; do not catch a panic from
+        // this ordinary legacy path.
+        return AnalysisOutput {
+            path: AnalysisPath::SharedDiagnosticsLegacyOptimiser,
+            diagnostics: result.diagnostics,
+            optimisations: optimise_raw(source, &registry, Some(dialect)),
+        };
+    };
+    AnalysisOutput {
+        path: AnalysisPath::Shared,
+        diagnostics: result.diagnostics,
+        optimisations,
+    }
+}
+
+fn canonicalise_optimisations(optimisations: &mut [Optimisation]) {
+    optimisations.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            a.code,
+            &a.message,
+            &a.replacement,
+            a.group,
+            a.hint_only,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                b.code,
+                &b.message,
+                &b.replacement,
+                b.group,
+                b.hint_only,
+            ))
+    });
+}
+
+fn canonicalise_diagnostics(diagnostics: &mut [Diagnostic]) {
+    diagnostics.sort_by(|a, b| {
+        a.span
+            .start()
+            .cmp(&b.span.start())
+            .then_with(|| a.span.end().cmp(&b.span.end()))
+            .then_with(|| a.code.cmp(&b.code))
+            .then_with(|| a.severity.as_str().cmp(b.severity.as_str()))
+            .then_with(|| a.message.cmp(&b.message))
+            .then_with(|| format!("{:?}", a.fixes).cmp(&format!("{:?}", b.fixes)))
+    });
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnalysisMode {
+    Legacy,
+    Shared,
+}
+
+fn analyse_with_mode(
+    source: &str,
+    dialect: &str,
+    overlay: u64,
+    mode: AnalysisMode,
+) -> AnalysisOutput {
+    match mode {
+        AnalysisMode::Legacy => analyse_legacy(source, dialect, overlay),
+        AnalysisMode::Shared => analyse_shared(source, dialect, overlay),
+    }
+}
+
+/// Keep the old and shared pipelines permanently equivalent on a small,
+/// deterministic set of inputs. The full-corpus report comparison remains
+/// opt-in (`SPECTCL_CORPUS_DIFF=1`) so the normal performance gate still builds
+/// one unit per document, while this always-run test covers the profile seams
+/// and proves that Tk's distinct unit/analyser profiles take the legacy route.
+#[test]
+fn shared_unit_matches_legacy_for_representative_profiles() {
+    let cases = [
+        (
+            "tcl8.6",
+            "set value [expr {1 + 2}]\nif {$value} {set result yes}\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "tcl9.0",
+            "proc choose {value} { if {$value} { return [string toupper yes] } }\nchoose 1\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "f5-irules",
+            "when HTTP_REQUEST { HTTP::respond 200 }\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "jim",
+            "set value 1\nif {$value} { puts yes }\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "tk",
+            "package require Tk\nbutton .b\npack .b\nset ${a{b}c} 1\n",
+            AnalysisPath::SharedProfileMismatch,
+        ),
+    ];
+
+    for (dialect, source, expected_path) in cases {
+        let legacy = analyse_legacy(source, dialect, 0);
+        let shared = analyse_shared(source, dialect, 0);
+        assert_eq!(&shared.path, &expected_path, "{dialect} analysis route");
+        assert_eq!(
+            shared.diagnostics, legacy.diagnostics,
+            "{dialect} diagnostics"
+        );
+
+        let mut shared_optimisations = shared.optimisations;
+        let mut legacy_optimisations = legacy.optimisations;
+        canonicalise_optimisations(&mut shared_optimisations);
+        canonicalise_optimisations(&mut legacy_optimisations);
+        assert_eq!(
+            shared_optimisations, legacy_optimisations,
+            "{dialect} raw optimisations"
+        );
+    }
+}
+
+#[test]
+fn shared_analysis_fallbacks_are_never_silent() {
+    let cases = [
+        (AnalysisPath::Shared, false),
+        (AnalysisPath::SharedProfileMismatch, false),
+        (AnalysisPath::SharedBuildFallback, true),
+        (AnalysisPath::SharedAnalyserFallback, true),
+        (AnalysisPath::SharedDiagnosticsLegacyOptimiser, true),
+    ];
+
+    for (path, expected_fallback) in cases {
+        let mut summary = AnalysisSummary::default();
+        record_analysis(
+            &mut summary,
+            "fixture.tcl".to_owned(),
+            AnalysisOutput {
+                path,
+                diagnostics: Vec::new(),
+                optimisations: Vec::new(),
+            },
+            AnalysisMode::Shared,
+        );
+        assert_eq!(
+            !summary.fallbacks.is_empty(),
+            expected_fallback,
+            "{path:?} fallback classification"
+        );
+    }
+}
+
+/// The semantic part of a corpus report. Wall-clock timings are intentionally
+/// absent: they are useful telemetry, but cannot be expected to match between
+/// two sequential runs. Everything else is an observable gate result and is
+/// compared, including the selected file list and the full notices/errors.
+/// Hook attempt/success counters are deliberately telemetry-only: sharing the
+/// unit is expected to remove repeated hook calls while preserving their
+/// answers, and #1940's performance result is measured by that reduction.
+#[derive(Debug, PartialEq, Eq)]
+struct PackSnapshot {
+    file: String,
+    pack: String,
+    dialect: &'static str,
+    declared: usize,
+    installed: usize,
+    gated_out: usize,
+    collisions: usize,
+    notices: Vec<String>,
+    hook_bodies: usize,
+    hook_slots: usize,
+    hook_errors: Vec<String>,
+    quarantined: usize,
+    crashes: Vec<CrashRecord>,
+    corpus_files: usize,
+    corpus_paths: Vec<String>,
+    synthesised_calls: usize,
+    diagnostics: usize,
+    optimisations: usize,
+    analysis_snapshots: Vec<AnalysisSnapshot>,
+    analysis_fallbacks: Vec<String>,
+    unresolved: Vec<String>,
+}
+
+impl PackReport {
+    fn snapshot(&self) -> PackSnapshot {
+        PackSnapshot {
+            file: self.file.clone(),
+            pack: self.pack.clone(),
+            dialect: self.dialect,
+            declared: self.declared,
+            installed: self.installed,
+            gated_out: self.gated_out,
+            collisions: self.collisions,
+            notices: self.notices.clone(),
+            hook_bodies: self.hook_bodies,
+            hook_slots: self.hook_slots,
+            hook_errors: self.hook_errors.clone(),
+            quarantined: self.quarantined,
+            crashes: self.crashes.clone(),
+            corpus_files: self.corpus_files,
+            corpus_paths: self.corpus_paths.clone(),
+            synthesised_calls: self.synthesised_calls,
+            diagnostics: self.diagnostics,
+            optimisations: self.optimisations,
+            analysis_snapshots: self.analysis_snapshots.clone(),
+            analysis_fallbacks: self.analysis_fallbacks.clone(),
+            unresolved: self.unresolved.clone(),
+        }
+    }
+}
+
+/// Compare the exact semantic report emitted by the shared and pre-#1940
+/// paths. Sorting by pack file makes this a deterministic snapshot even if a
+/// future inventory implementation changes its traversal order.
+fn assert_report_snapshots_equal(shared: &[PackReport], legacy: &[PackReport]) {
+    let mut shared_snapshots: Vec<PackSnapshot> = shared.iter().map(PackReport::snapshot).collect();
+    let mut legacy_snapshots: Vec<PackSnapshot> = legacy.iter().map(PackReport::snapshot).collect();
+    shared_snapshots.sort_by(|a, b| a.file.cmp(&b.file));
+    legacy_snapshots.sort_by(|a, b| a.file.cmp(&b.file));
+    assert_eq!(
+        shared_snapshots, legacy_snapshots,
+        "shared compilation-unit corpus report differs from the pre-#1940 report"
+    );
+}
+
+/// Run the legacy path only when the caller asks for the full before/after
+/// proof. Both reports use the exact inventory, corpus and host lifecycle.
+fn compare_legacy_report(
+    packs: &[ShippedPackFile],
+    root: &Path,
+    corpus: &[CorpusFile],
+    shared: &[PackReport],
+) {
+    if std::env::var_os("SPECTCL_CORPUS_DIFF").is_none() {
+        return;
+    }
+    let legacy: Vec<PackReport> = packs
+        .iter()
+        .map(|pack| run_pack_with_mode(pack, root, corpus, AnalysisMode::Legacy))
+        .collect();
+    assert_report_snapshots_equal(shared, &legacy);
+}
+
+fn validate_reports(reports: &[PackReport]) -> Vec<String> {
+    let mut failures = Vec::new();
+    for report in reports {
+        if report.installed + report.gated_out != report.declared {
+            failures.push(format!(
+                "{}: installed ({}) + gated ({}) does not account for {} declared commands",
+                report.file, report.installed, report.gated_out, report.declared
+            ));
+        }
+        if report.collisions > report.declared {
+            failures.push(format!(
+                "{}: {} collision notices exceed {} declared commands",
+                report.file, report.collisions, report.declared
+            ));
+        }
+        if report.corpus_paths.len() != report.corpus_files {
+            failures.push(format!(
+                "{}: report lists {} selected files but counts {}",
+                report.file,
+                report.corpus_paths.len(),
+                report.corpus_files
+            ));
+        }
+        if report.hook_successes > report.hook_attempts {
+            failures.push(format!(
+                "{}: {} successful hook calls exceed {} attempts",
+                report.file, report.hook_successes, report.hook_attempts
+            ));
+        }
+        if report.quarantined > 0 {
+            failures.push(format!(
+                "{}: {} hook(s) quarantined — a shipped pack must never crash \
+                 or outspend its budget",
+                report.file, report.quarantined
+            ));
+        }
+        for crash in &report.crashes {
+            failures.push(format!(
+                "{}: crash record: {}",
+                report.file,
+                crash.headline()
+            ));
+        }
+        if report.hook_slots != report.hook_bodies {
+            failures.push(format!(
+                "{}: {} declared hook bodies but only {} got a slot — the \
+                 per-family slot budget is exhausted",
+                report.file, report.hook_bodies, report.hook_slots
+            ));
+        }
+        require_live_hook_execution(report, &mut failures);
+        if !report.unresolved.is_empty() {
+            failures.push(format!(
+                "{}: installed but unresolvable in the registry: {}",
+                report.file,
+                report.unresolved.join(", ")
+            ));
+        }
+        if !report.analysis_fallbacks.is_empty() {
+            failures.push(format!(
+                "{}: shared compilation-unit analysis unexpectedly fell back for {}",
+                report.file,
+                report.analysis_fallbacks.join(", ")
+            ));
+        }
+    }
+    failures
 }
 
 /// Every load notice, in the baseline's line format.
@@ -776,32 +1188,83 @@ fn corpus_and_synthesis<'c>(
     (selected, synthesised)
 }
 
+#[derive(Debug, Default)]
+struct AnalysisSummary {
+    diagnostics: usize,
+    optimisations: usize,
+    snapshots: Vec<AnalysisSnapshot>,
+    fallbacks: Vec<String>,
+}
+
+fn record_analysis(
+    summary: &mut AnalysisSummary,
+    input: String,
+    mut output: AnalysisOutput,
+    mode: AnalysisMode,
+) {
+    if mode == AnalysisMode::Shared
+        && !matches!(
+            output.path,
+            AnalysisPath::Shared | AnalysisPath::SharedProfileMismatch
+        )
+    {
+        summary
+            .fallbacks
+            .push(format!("{input}: {:?}", output.path));
+    }
+    canonicalise_diagnostics(&mut output.diagnostics);
+    canonicalise_optimisations(&mut output.optimisations);
+    summary.diagnostics += output.diagnostics.len();
+    summary.optimisations += output.optimisations.len();
+    summary.snapshots.push(AnalysisSnapshot {
+        input,
+        diagnostics: output.diagnostics,
+        optimisations: output.optimisations,
+    });
+}
+
 /// Analyse and optimise every selected corpus file and every synthesised
-/// script, returning the diagnostic and optimisation counts and the wall clock
-/// it took.
+/// script, retaining canonical records so the differential proof can compare
+/// the actual results rather than only aggregate counts.
 fn analyse_all(
     selected: &[&CorpusFile],
     synthesised: &[String],
+    root: &Path,
     dialect: &str,
     overlay: u64,
-) -> (usize, usize, Duration) {
-    let (mut diagnostics, mut optimisations) = (0usize, 0usize);
+    mode: AnalysisMode,
+) -> (AnalysisSummary, Duration) {
+    let mut summary = AnalysisSummary::default();
     let started = Instant::now();
     for file in selected {
-        let (diags, opts) = analyse(&file.text, dialect, overlay);
-        diagnostics += diags;
-        optimisations += opts;
+        let output = analyse_with_mode(&file.text, dialect, overlay, mode);
+        record_analysis(&mut summary, relative(&file.path, root), output, mode);
     }
-    for chunk in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT) {
+    for (chunk_index, chunk) in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT).enumerate() {
         let script = format!("{}\n", chunk.join("\n"));
-        let (diags, opts) = analyse(&script, dialect, overlay);
-        diagnostics += diags;
-        optimisations += opts;
+        let output = analyse_with_mode(&script, dialect, overlay, mode);
+        let start = chunk_index * SYNTHESISED_CALLS_PER_SCRIPT;
+        let end = start + chunk.len();
+        record_analysis(
+            &mut summary,
+            format!("synthesised[{start}..{end}]"),
+            output,
+            mode,
+        );
     }
-    (diagnostics, optimisations, started.elapsed())
+    (summary, started.elapsed())
 }
 
 fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackReport {
+    run_pack_with_mode(pack, root, corpus, AnalysisMode::Shared)
+}
+
+fn run_pack_with_mode(
+    pack: &ShippedPackFile,
+    root: &Path,
+    corpus: &[CorpusFile],
+    mode: AnalysisMode,
+) -> PackReport {
     let (mut set, load) = load_one(pack);
     let profile = tcl_spectcl::environment::profile_for_dialect(pack.dialect);
     let notices = notice_lines(&set, root);
@@ -833,8 +1296,8 @@ fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackR
     let (installed, gated_out, unresolved) = installation_of(&set, profile, &registry);
 
     let (selected, synthesised) = corpus_and_synthesis(&set, corpus, corpus_family(pack.dialect));
-    let (diagnostics, optimisations, analysis) =
-        analyse_all(&selected, &synthesised, pack.dialect, set.key);
+    let (analysis_summary, analysis) =
+        analyse_all(&selected, &synthesised, root, pack.dialect, set.key, mode);
 
     let quarantined = slots
         .iter()
@@ -868,8 +1331,10 @@ fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackR
             .map(|file| relative(&file.path, root))
             .collect(),
         synthesised_calls: synthesised.len(),
-        diagnostics,
-        optimisations,
+        diagnostics: analysis_summary.diagnostics,
+        optimisations: analysis_summary.optimisations,
+        analysis_snapshots: analysis_summary.snapshots,
+        analysis_fallbacks: analysis_summary.fallbacks,
         load,
         analysis,
         unresolved,
@@ -1010,6 +1475,26 @@ fn with_watchdog<T: Send + 'static>(
     }
 }
 
+fn corpus_watchdog_budget(include_tmp: bool, differential: bool) -> Duration {
+    let per_sweep = if include_tmp {
+        Duration::from_mins(30)
+    } else {
+        Duration::from_mins(10)
+    };
+    per_sweep.saturating_mul(if differential { 2 } else { 1 })
+}
+
+#[test]
+fn corpus_watchdog_scales_with_work_requested() {
+    assert_eq!(
+        corpus_watchdog_budget(false, false),
+        Duration::from_mins(10)
+    );
+    assert_eq!(corpus_watchdog_budget(false, true), Duration::from_mins(20));
+    assert_eq!(corpus_watchdog_budget(true, false), Duration::from_mins(30));
+    assert_eq!(corpus_watchdog_budget(true, true), Duration::from_mins(60));
+}
+
 // The tests
 
 /// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
@@ -1024,11 +1509,10 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
     // The watchdog bounds the work asked for, so it scales with the corpus
     // asked for: the samples-only default is seconds, the opt-in sweep is
     // hundreds of real-world files per pack.
-    let budget = if opted_into_tmp_corpus() {
-        Duration::from_mins(30)
-    } else {
-        Duration::from_mins(10)
-    };
+    let budget = corpus_watchdog_budget(
+        opted_into_tmp_corpus(),
+        std::env::var_os("SPECTCL_CORPUS_DIFF").is_some(),
+    );
     let (report, failures) = with_watchdog(
         "spectcl-corpus",
         budget,
@@ -1052,6 +1536,10 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
                 .iter()
                 .map(|pack| run_pack(pack, &root, &corpus_files))
                 .collect();
+
+            // This is the before/after proof for #1940. Keep it opt-in because
+            // it runs the exact gate twice.
+            compare_legacy_report(&packs, &root, &corpus_files, &reports);
 
             let mut failures: Vec<String> = Vec::new();
 
@@ -1084,37 +1572,7 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
                 }
             }
 
-            for report in &reports {
-                if report.quarantined > 0 {
-                    failures.push(format!(
-                        "{}: {} hook(s) quarantined — a shipped pack must never crash \
-                     or outspend its budget",
-                        report.file, report.quarantined
-                    ));
-                }
-                for crash in &report.crashes {
-                    failures.push(format!(
-                        "{}: crash record: {}",
-                        report.file,
-                        crash.headline()
-                    ));
-                }
-                if report.hook_slots != report.hook_bodies {
-                    failures.push(format!(
-                        "{}: {} declared hook bodies but only {} got a slot — the \
-                     per-family slot budget is exhausted",
-                        report.file, report.hook_bodies, report.hook_slots
-                    ));
-                }
-                require_live_hook_execution(report, &mut failures);
-                if !report.unresolved.is_empty() {
-                    failures.push(format!(
-                        "{}: installed but unresolvable in the registry: {}",
-                        report.file,
-                        report.unresolved.join(", ")
-                    ));
-                }
-            }
+            failures.extend(validate_reports(&reports));
 
             (render(&reports, tmp), failures)
         },
