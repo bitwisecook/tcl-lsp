@@ -30,7 +30,10 @@ Idiomatic Tcl rewrites only — no code removal or restructuring:
   `TclType::Int`, since `expr` promotes a float operand where `incr` errors
 - `[string length $s] == 0` &rarr; `$s eq ""` (O117)
 - `==`/`!=` on strings &rarr; `eq`/`ne` (O120)
-- Redundant nested `[expr {...}]` removed (O115)
+- Redundant nested `[expr {...}]` removed (O115) — in a **branch condition**.
+  `try_unwrap_expr_in_expr` is reached from branch folding, so the sample's
+  `return [expr {[expr {$x * 2}]}]` is left alone at this profile; only
+  `aggressive` reaches it
 - Unbraced `expr` bodies flagged (O111, paired with W100)
 - `end`-relative index rewrites (O128)
 
@@ -72,7 +75,12 @@ Adds dead-code elimination, code motion, and recursion transforms:
 - Dead stores removed (`set stale 1` before `set stale 2`)
 - Unreachable `if {0} { ... }` blocks removed
 - Unused variable assignments removed
-- Tail-recursive procs converted to `while` loops
+- Tail-recursive procs rewritten to `tailcall` (O121). The **O122** loop
+  conversion wants a bare self-call in tail position; the sample's `factorial`
+  recurses as `return [factorial …]`, so it stops at `tailcall` here. Making it
+  fire would mean discarding the recursive call's value, which is not what the
+  proc does, so the sample keeps the honest shape and the limit is recorded
+  instead (issue #1966)
 - Loop-invariant code hoisted
 - Single-use variables inlined
 
@@ -89,8 +97,14 @@ and re-analysed to find opportunities exposed by earlier passes. For example:
 1. Pass 1: Constant propagation replaces `$timeout` with `30` in expressions
 2. Pass 1: Expression folding simplifies `30 / 2` to `15`
 3. Pass 1: Dead store elimination removes the now-unused `set timeout 30`
-4. Pass 2: The three consecutive `set half 15; set threshold 40; set route 42`
-   are packed into `lassign {15 40 42} half threshold route` (O119)
+4. Pass 2: `set second beta` and `set colours {red green blue}` fold, now that
+   their arguments are literals
+
+The three folded assignments (`half`, `threshold`, `route`) are **not** packed
+into a `lassign`: O119 packs consecutive `set`s of *literals as written*, and
+these become literals only after folding, with `set route 42` separated from
+the others by the intervening `set colours`. The `lassign` in the committed
+output is the O119 stanza's own `set a 1; set b 2; set c 3`.
 
 The aggressive profile finds **42 rewrites** on the sample input against 24 in
 single-pass `full`. It is the only profile that folds the arithmetic through:

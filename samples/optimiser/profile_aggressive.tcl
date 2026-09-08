@@ -1,6 +1,9 @@
 # Sample Tcl code exercising all optimisation passes.
 # Used to demonstrate what each profile produces.
-# Run: tcl opt samples/optimiser/input.tcl
+# Run: tcl opt --profile PROFILE samples/optimiser/input.tcl
+#      (PROFILE is one of readability / standard / full / aggressive; each
+#      committed profile_*.tcl carries this header, so follow it with that
+#      file's own profile to reproduce it.)
 
 # --- Readability candidates (O111, O114, O115, O117, O120) ---
 
@@ -24,7 +27,9 @@ proc greet {name} {
     }
 }
 
-# O115: redundant nested expr
+# O115: redundant nested expr.  Only `aggressive` rewrites this: O115 as
+# implemented unwraps a nested `[expr …]` in a *branch condition*, and this one
+# is a `return` body (see the note in README.md).
 proc double_expr {x} {
     return [expr {$x * 2}]
 }
@@ -99,7 +104,10 @@ proc format_name {first last} {
 
 # --- Recursion transforms (O121, O122, O123) ---
 
-# O121 + O122: tail-recursive proc -> tailcall -> while loop
+# O121 only: the recursion is `return [factorial …]`, which O121 rewrites to
+# `tailcall`.  O122's loop conversion wants a bare self-call in tail position,
+# so it does not fire here — and making it fire would mean discarding the
+# recursive call's value, which is not what this proc does (see README.md).
 proc factorial {n {acc 1}} {
     if {$n <= 1} {
         return $acc
