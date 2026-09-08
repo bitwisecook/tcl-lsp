@@ -1,15 +1,15 @@
 proc handle_method {method} {
     switch -exact -- $method {
-        "GET" {
+        GET {
             set action read
         }
-        "POST" {
+        POST {
             set action create
         }
-        "PUT" {
+        PUT {
             set action update
         }
-        "DELETE" {
+        DELETE {
             set action remove
         }
         default {
