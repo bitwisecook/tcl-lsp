@@ -926,9 +926,9 @@ jobs:
     # identical cache. Keep dependency/tool homes stable for Tank and hosted
     # overflow jobs alike. The runner image contract is that /home/runner is
     # owned and writable by the runner account; the preflight below proves it
-    # on every registration before setup writes there. Do not set
-    # CARGO_TARGET_DIR: Cargo's default workspace-local target/ remains
-    # isolated per checkout/job and is not shared between worktrees or runners.
+    # on every registration before setup writes there. Hosted jobs keep the
+    # workspace-local Cargo target. Tank sets its validated per-registration
+    # target only after Rust/cache setup has completed.
     env:
       CARGO_HOME: /home/runner/.cargo
       RUSTUP_HOME: /home/runner/.rustup
