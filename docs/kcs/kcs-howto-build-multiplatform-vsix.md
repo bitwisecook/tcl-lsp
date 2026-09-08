@@ -169,7 +169,7 @@ package — it should list exactly one `server/<dir>/` entry and no
 `server/wasm/`). After installing any of the seven `.vsix` files, the
 **Tcl Language Server** output channel shows `Using native
 tcl-lsp-server: .../server/<platform>-<arch>/tcl-lsp-server`, and
-diagnostics and hovers work with no Python on the `PATH`.
+diagnostics and hovers work.
 
 ## Related
 

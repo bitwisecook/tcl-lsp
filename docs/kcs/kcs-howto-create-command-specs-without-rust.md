@@ -23,7 +23,7 @@ built-in's own spec does.
 
 ## Answer
 
-Two ways to write a pack today:
+Two ways to write a pack:
 
 1. **By hand.** A `.tclspec` file is its own dialect, so it gets full
    editor support out of the box — highlighting, completion, and
@@ -52,10 +52,9 @@ on the source text.
 **Contributing** a pack is the same file you wrote for yourself: attach it
 to a GitHub issue instead of dropping it in your config directory.
 
-Loading a pack automatically — so it lights your commands up in the editor
-the moment you save it — already works: see [how to write a SpecTcl
-pack](kcs-howto-write-a-tclspec-pack.md) for how discovery and reload
-work.
+The server picks a pack up the moment you save it: see [how to write a
+SpecTcl pack](kcs-howto-write-a-tclspec-pack.md) for how discovery and
+reload work.
 
 ## How to tell it worked
 

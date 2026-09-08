@@ -42,16 +42,19 @@ command.
 
 ## Example
 
+Debugging a three-line accumulator, breaking inside the loop:
+
 ```
-$ tcl-debug script.tcl
-b 12
-break 12
+$ tcl-debug sum.tcl
+stopped at line 1 [Entry]: set total 0
+b 3
+breakpoints: [3]
 c
+stopped at line 3 [Breakpoint]: incr total $n
 p total
-total = 42
+total = 0
 bt
-  #0 sum_list (line 12)
-  #1 <toplevel> (line 20)
+  #0 global (line 3)
 q
 ```
 

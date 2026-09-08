@@ -29,6 +29,7 @@ set x [double 21]
 ## After
 
 ```tcl
+proc double {n} { expr {$n * 2} }
 set x 42
 ```
 

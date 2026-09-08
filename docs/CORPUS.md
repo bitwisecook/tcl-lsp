@@ -248,7 +248,7 @@ repositories to benchmark wholesale.
 | [Tcl Wiki: Tk & Ttk Integration](https://wiki.tcl-lang.org/page/Tk%2B%26%2BTtk%2BIntegration) | Community page updated 2011; checked 2026-08-24 | Cross-style fixture for option database versus ttk styles, `<<ThemeChanged>>` bindings, class-specific configuration and live theme propagation. |
 | [TIP 21](https://core.tcl-lang.org/tips/doc/trunk/tip/21.md) and [TIP 518](https://core.tcl-lang.org/tips/doc/trunk/tip/518.md) | TIP 21 final for Tk 8.4; TIP 518 final from the Tk 8.7/9.0 development era; canonical archive checked 2026-08-24 | Geometry fixtures for asymmetric external padding and `<<NoManagedChild>>`, the lifecycle event produced when the last managed child is forgotten, removed or destroyed. |
 | [TIP 248](https://core.tcl-lang.org/tips/doc/trunk/tip/248.md) | Final for Tcl/Tk 8.5; canonical archive checked 2026-08-24 | Primary Ttk integration and release-axis fixture, including the additional `::tk::*` names for classic widget constructors and the themed-widget command surface. |
-| [TIP 556: Tko](https://core.tcl-lang.org/tips/doc/trunk/tip/556.md) and [TIP 560: TclOO megawidget configuration](https://core.tcl-lang.org/tips/doc/main/tip/560.md) | Deferred/draft Tk 9 proposals created 2019–2020; canonical branches and documents checked 2026-08-25 | Proposed Tk 9 / TclOO dialect, not shipped core behaviour | Research fixtures for OO-like widget constructors, class/object option mutation, wrapped hull commands, callback-valued options and the distinction between object command names and widget paths.  Keep these explicitly future/proposal-gated. |
+| [TIP 556: Tko](https://core.tcl-lang.org/tips/doc/trunk/tip/556.md) and [TIP 560: TclOO megawidget configuration](https://core.tcl-lang.org/tips/doc/main/tip/560.md) | Deferred/draft Tk 9 proposals created 2019–2020; canonical branches and documents checked 2026-08-25 | Proposed Tk 9 / TclOO dialect, **not** shipped core behaviour.  Research fixtures for OO-like widget constructors, class/object option mutation, wrapped hull commands, callback-valued options and the distinction between object command names and widget paths.  Keep these explicitly future/proposal-gated. |
 | [TclOO: Past, Present and Future](https://www.tclcommunityassociation.org/wub/proceedings/Proceedings-2009/proceedings/tcloo/TclOO_Past_Present_Future.pdf) and [Adventures in TclOO](https://www.tclcommunityassociation.org/wub/proceedings/Proceedings-2010/DonalFellows/Adventures-in-TclOO.pdf) | 2009/2010 conference papers, archival sources | Historical TclOO idioms worth reducing to fixtures, not copying wholesale. |
 | [F5 Community iRulesLX search](https://community.f5.com/search?q=iRulesLX+ILX+call), [Getting Started part 3](https://community.f5.com/kb/technicalarticles/getting-started-with-irules-lx-part-3-coding--exception-handling/276218), and [Twilio paired example](https://community.f5.com/kb/codeshare/send-an-one-time-password-otp-via-the-twilio-sms-gateway/291444) | Material from 2016 onward; search and pages checked 2026-08-24 | Real paired Tcl/Node snippets, timeout/error handling, the payload limit, and event-context usage.  Search hits mentioning that `ILXServer.listen()` receives both call and notify traffic are not evidence of a Tcl `ILX::notify` call. |
 | [F5 iRulesLX API reference](https://clouddocs.f5.com/api/irules-lx/APIReference.html), [`ILX::call`](https://clouddocs.f5.com/api/irules/ILX__call.html), and [`ILX::notify`](https://clouddocs.f5.com/api/irules/ILX__notify.html) | Product documentation updated in 2026; commands introduced in BIG-IP 12.0/available generally in 12.1 and deprecated in BIG-IP Next 20.0.1 | Primary semantic oracle for RPC direction, timeout option, return shapes, payload limits, availability and deprecation; use Community/GitHub only for usage patterns. |
@@ -319,16 +319,16 @@ argue against treating every list or string as executable.  Analysis should
 start at registry-declared sinks and builders, memoize decoded prefix spans,
 and use a bounded backward slice for stored prefixes.
 
-The most important registry gap is a typed prefix-result descriptor.  The
-current `BUILDS_COMMAND_PREFIX` flag says that builder argument zero becomes
-the returned command head; that is false for TclOO `callback`/`mymethod`, snit
-`mymethod`/`myproc`/`mytypemethod`, and `itcl::code`, where an object or family
-dispatcher is implicit.  A boolean flag would therefore create incorrect
-navigation.  A future descriptor needs to distinguish direct head arguments,
-current-object methods, snit instance/type methods, and Itcl object/method
-forms.  Callback slots also need an invocation-phase axis separate from
-argument shape: immediate/reentrant, stored/deferred, conditionally deferred,
-blocking external RPC, and fire-and-forget external dispatch.
+`BUILDS_COMMAND_PREFIX` alone says that builder argument zero becomes the
+returned command head, which is false wherever an object or family dispatcher
+is implicit.  `CommandPrefixTarget` (`tcl-registry`) carries the typed outcome
+instead — `DirectCommandHead`, `CurrentObjectExternalMethod`,
+`CurrentObjectInternalMethod` — and `WRAPS_COMMAND_PREFIX` covers the
+`namespace code` wrapper.  Still unmodelled: snit `mymethod` / `myproc` /
+`mytypemethod`, `itcl::code`, and TclOO `callback`.  Callback slots also need
+an invocation-phase axis separate from argument shape: immediate/reentrant,
+stored/deferred, conditionally deferred, blocking external RPC, and
+fire-and-forget external dispatch.
 
 Additional high-confidence audits are HTTP/WebSocket callback options,
 tcllib's cron/FTP/RC4/textutil-patch/uevent/namespacex handlers, Tk subcommand
@@ -355,34 +355,14 @@ agility-lab ILX material is documentation rather than source.  Registry-owned
 command-to-event provenance is tracked separately from Tcl callback-prefix
 analysis.
 
-## Callback-pattern coverage for #1701
+## Adding a source
 
-The #1701 regression is a deliberately narrow, statically knowable
-list-built command prefix whose receiver is `[self]` or `[self object]`.
-It is recognised in registry-declared `ArgRole::Body` and
-`ArgRole::CommandPrefix` positions.  The wider corpus taxonomy is role-based:
-candidate callback positions must be declared as **`ArgRole::Body` or
-`ArgRole::CommandPrefix`**, never inferred from a command spelling.  The
-following matrix keeps future corpus searches honest about what has and has not
-been covered; composed, wrapped, stored, quoted, and dynamically constructed
-prefixes remain research targets unless a corresponding registry contract and
-regression are landed.
+Candidate callback positions must be declared as **`ArgRole::Body` or
+`ArgRole::CommandPrefix`**, never inferred from a command spelling.  Composed,
+wrapped, stored, quoted, and dynamically constructed prefixes remain research
+targets until a registry contract and a regression land for each.
 
-| Pattern | Registry role / form | Fixture/corpus search status | Expected static treatment |
-| --- | --- | --- | --- |
-| `bind $w <Event> [list [self] method %x %y]` | `ArgRole::Body` | #1701 regression | Reference to a public method; rename/find-references must include it. |
-| `[list [self object] method ...]` | `ArgRole::Body` | #1701 regression parity | Same as `[self]`. |
-| `lsort -command [list [self] compare] ...` | `ArgRole::CommandPrefix` | #1701 regression parity | Same exact list-built object-method target; the consumer appends arguments. |
-| Other generic command-prefix consumers (`socket -server`, widget `-command`, trace, hook) | `ArgRole::CommandPrefix`, as declared | Search candidates/Wiki/TIPs | The exact #1701 shape is recognised when both the role and builder trait prove it; audit registry coverage and composed forms separately. |
-| `namespace code [list my method ...]` | Wrapper around Body/CommandPrefix semantics | TclOO callback source collection | Separate wrapper/prefix form; add a focused fixture when resolver semantics are modelled. |
-| `callback` / `mymethod` helper APIs | Deferred-method builder semantics, not a consumer slot | Corpus search target | Do not infer from a helper name; require a registry-owned target descriptor or a proven wrapper model. |
-| Quoted script, `bind ... +script`, or additive/concatenated prefix | Body or CommandPrefix, but not a single list-built prefix | Wiki/TIP 419 search target | Not equivalent to the #1701 form; remain conservative until represented. |
-| Stored then later invoked/mutated prefix (`set cb [list ...]`, `lappend`, `eval`, `{*}$cb`) | Value/data-flow, not a direct role-local form | Corpus search target | Data-flow problem; not a direct reference unless a future analysis proves it. |
-| Inert list value (`set x [list [self] method]`) | Not Body/CommandPrefix | #1701 negative regression | Not a callback reference. |
-| Shadowed `list` command | Body/CommandPrefix position but wrong resolved builder | #1701 negative regression | Not a list-builder reference; command identity must be registry-resolved. |
-| Unexported/private target captured through object command | `ArgRole::Body` | #1701 negative regression | Not externally dispatchable; do not claim it as a callback reference. |
-
-When adding a result from any row above to #1181, state: canonical source,
+When proposing a source for #1181, state: canonical source,
 commit/release used, licence check, intended dialect, discovered pattern,
 whether it duplicates an existing source, and whether it is proposed as a
 micro-fixture, a manual sweep input, or a benchmark-pin change.

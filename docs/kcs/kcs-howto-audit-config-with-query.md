@@ -176,7 +176,7 @@ Save the queries you care about in a file and run with `-f`:
 $ f5 query -f audits.fq bigip.conf
 ```
 
-Each statement is evaluated against the evolving source.  In the current runner only the final statement's values are surfaced as output (earlier statements run for their side-effects — edits and the audit information they print to stderr).  For a categorised audit report, run each predicate as its own `f5 query` invocation and prefix the output yourself:
+Each statement is evaluated against the evolving source, and their results are concatenated in order — so the output is one flat list with no indication of which predicate produced which line.  For a categorised report, run each predicate as its own invocation and label it yourself:
 
 ```
 $ for q in \

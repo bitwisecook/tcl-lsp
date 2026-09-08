@@ -1956,8 +1956,8 @@ In a project with an "entry" file that runs the `package require`s and then
 Every code has its own page — what it means, why the check exists, a
 triggering example, and the fix:
 
-- [Diagnostic codes](docs/generated/diagnostic_codes.md) — the E, W, S, T, and
-  IRULE families
+- [Diagnostic codes](docs/generated/diagnostic_codes.md) — every family except
+  the optimiser's
 - [Optimiser codes](docs/generated/optimisation_codes.md) — the O family
 - [Per-code KCS pages](docs/kcs/codes/README.md) — one note per code
 

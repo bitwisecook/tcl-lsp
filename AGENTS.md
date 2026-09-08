@@ -1,13 +1,13 @@
 # AGENTS.md — development guide for AI agents
 
 tcl-lsp is a Tcl language server and toolchain: a native Rust workspace under
-`rust/` (~45 crates; `[workspace] members` in `Cargo.toml` is the list) that
-builds four binaries — `tcl-lsp-server`, `tcl`, `f5-query`, `tcl-mcp` — plus
+`rust/` (`[workspace] members` in `Cargo.toml` is the list) that builds the
+released binaries — `tcl-lsp-server`, `tcl`, `f5-query`, `tcl-mcp` — plus
 editor integrations under `editors/` (VS Code, Zed, JetBrains, Neovim, Emacs,
 Helix, Sublime) and the WASM runtime the compiler targets under
 `runtime/rust/`. It covers Tcl 8.4–9.1, F5 iRules/iApps, and the EDA dialects.
-Python is retired on this branch. `rust` is the only active branch;
-`legacy-py` is a locked archive — never branch, merge, or tag from it.
+`rust` is the only active branch; `legacy-py` is a locked archive — never
+branch, merge, or tag from it.
 
 Orientation: the crate map and dependency direction in
 [project-layout.md](docs/design/contracts/project-layout.md); the compiler
@@ -27,8 +27,7 @@ make prep-pr        # format + codegen + lint/typecheck + smoke tier
 
 - `rust-check` is the minimum for Rust-only changes; `prep-pr` is the gate
   before every `git push`. Fix failures, never skip them; commit the
-  formatting `prep-pr` applies and re-run. Every "pr-gate bounced on a
-  trivial lint" on this repo was a push that skipped this.
+  formatting `prep-pr` applies and re-run.
 - **CI carries the deep suites.** Rebase on `rust`, run `prep-pr`, open the
   PR, subscribe to its activity, fix forward. Do not block on the full suite
   locally. To reproduce a deep-tier failure: `make test` (workspace,

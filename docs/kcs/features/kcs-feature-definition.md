@@ -35,9 +35,7 @@ Resolves proc calls, variable references, namespace-qualified names, and BIG-IP 
   aliases some other frame, so its call site defines nothing where you are
   reading and no location is reported.
 
-## Screenshots
-
-- `15-definition` — peek definition inline
+## Example
 
 ![peek definition inline](../screenshots/15-definition.png)
 

@@ -13,8 +13,8 @@ How do I use tcl-lsp in the browser, on vscode.dev or github.dev?
 
 ## Before you start
 
-- A browser. Nothing else — there is no binary to download and no Python,
-  and the extension works on a machine where you cannot install software.
+- A browser. Nothing else: there is no binary to download, so the extension
+  works on a machine where you cannot install software.
 - A GitHub repository with Tcl in it, or any folder you can open in
   <https://vscode.dev>.
 

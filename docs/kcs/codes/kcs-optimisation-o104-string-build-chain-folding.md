@@ -29,7 +29,7 @@ append s " world"
 ## After
 
 ```tcl
-set s "hello world"
+set s {hello world}
 ```
 
 ## Safety conditions

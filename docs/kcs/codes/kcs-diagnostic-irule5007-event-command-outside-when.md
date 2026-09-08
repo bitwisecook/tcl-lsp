@@ -21,12 +21,14 @@ iRules top level is a declaration surface. Only `when`, `proc`, `timing`, and `p
 
 ## Symptoms
 
-- A squiggle appears under an executable top-level command.
+- A yellow squiggle appears under the command, with the message "'set' is
+  executable and cannot appear at iRules top level — use it inside a `when`
+  block or a top-level `proc`."
 
 ## Example that triggers it
 
 ```tcl
-set uri [HTTP::uri]
+set uri [HTTP::uri -normalized]
 ```
 
 The analyser reports **`IRULE5007`** because `set` is executable and appears at the declaration-only top level.
@@ -37,7 +39,7 @@ Move executable code into an appropriate `when` block:
 
 ```tcl
 when HTTP_REQUEST {
-  set uri [HTTP::uri]
+  set uri [HTTP::uri -normalized]
 }
 ```
 
