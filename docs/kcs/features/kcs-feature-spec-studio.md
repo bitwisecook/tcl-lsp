@@ -384,7 +384,7 @@ JetBrains its sample is materialised as a real `test.tcl` under
 `.tcl-lsp/.spec-studio/`, which the language server would otherwise resolve as
 generic Tcl however the selector is set — so a pack whose commands only exist
 in, say, `f5-irules` would show no highlighting, completion or hover in the one
-buffer you are testing it with. Changing the selector now pins that document to
+buffer you are testing it with. Changing the selector pins that document to
 the chosen dialect through `tcl-lsp.setDocumentDialectOverride`, and closing the
 studio releases it. Only the sample is pinned: every other buffer you have open
 keeps the dialect it resolved on its own.
@@ -397,7 +397,7 @@ silently missing.
 
 ### Tk input, callback, geometry, and method metadata
 
-The studio preserves seven Tk-relevant registry facts added in SpecTcl 1.2:
+The studio preserves seven Tk-relevant registry facts from SpecTcl 1.2:
 
 - For a value-taking option, **external input link** sets
   `OptionArg.taints_var_write`. Use it only when the named variable can receive
