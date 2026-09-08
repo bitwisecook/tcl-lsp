@@ -2445,6 +2445,21 @@ fn explicit_return_errorinfo_reports_line_one() {
     );
 }
 
+/// Tcl retains the prior TIP 348 stack when an explicit `-errorinfo` suppresses
+/// logging a new inner command during a lazily reset error episode.
+#[test]
+fn explicit_return_errorinfo_retains_the_prior_error_stack() {
+    out_eq(
+        "catch {error first} m o\n\
+         set prior [dict get $o -errorstack]\n\
+         catch {return -level 0 -code error -errorinfo I second} m o\n\
+         puts [list [expr {$prior ne {}}] \
+                    [expr {[dict get $o -errorstack] eq $prior}] \
+                    [expr {[info errorstack] eq $prior}]]\n",
+        "1 1 1\n",
+    );
+}
+
 #[test]
 fn error_stack_call_preserves_qualified_invocation() {
     out_eq(

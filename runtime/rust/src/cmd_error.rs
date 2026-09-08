@@ -769,6 +769,26 @@ mod tests {
         });
     }
 
+    #[test]
+    fn explicit_errorinfo_retains_the_prior_error_stack() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"catch {error first} m o"), b"1");
+            let prior = run(i, b"dict get $o -errorstack");
+            assert!(!prior.is_empty());
+
+            assert_eq!(
+                run(
+                    i,
+                    b"catch {return -level 0 -code error -errorinfo I second} m o"
+                ),
+                b"1"
+            );
+            assert_eq!(run(i, b"dict get $o -errorstack"), prior);
+            assert_eq!(run(i, b"info errorstack"), prior);
+            i.eval_str(b"unset -nocomplain m o ::errorInfo ::errorCode");
+        });
+    }
+
     /// Pre-TIP runtimes still preserve `-errorstack` as an arbitrary custom
     /// return option; only synthesis and validation of its TIP 348 meaning are
     /// release-gated. Other custom pairs take the same shared path.

@@ -502,7 +502,9 @@ bottom-up as an error unwinds, from the same unwinding sites that build
 `reset_error_stack` (C's `iPtr->resetErrorStack`, set by `Tcl_ResetResult`)
 marks the start of a new episode: the *next* logged command rebuilds the stack,
 and the previous contents survive until then, so `info errorstack` after a
-`catch` still reports the error that was caught.
+`catch` still reports the error that was caught. An explicitly seeded error
+that suppresses a new inner log (for example, `return -level 0 -code error
+-errorinfo ...`) exposes that same retained stack in its completion options.
 
 `info errorstack ?interp?` accepts the interpreter argument but only reports the
 current interpreter.

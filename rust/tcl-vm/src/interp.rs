@@ -10628,8 +10628,8 @@ impl Vm {
         Value::list(self.error_stack.entries().to_vec())
     }
 
-    /// Prefer the live stack, while retaining an explicit carried stack before
-    /// the first runtime log.
+    /// Prefer the live stack. Before the first runtime log, an explicit carried
+    /// stack wins; otherwise the lazily retained prior stack remains visible.
     pub(crate) fn error_stack_for_completion(&self, carried: Option<Value>) -> Value {
         let carried =
             carried.and_then(|value| value.as_list().ok().map(|items| items.as_ref().clone()));

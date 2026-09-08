@@ -157,11 +157,12 @@ impl<T> ErrorStack<T> {
 }
 
 impl<T: Clone> ErrorStack<T> {
-    /// Snapshot the active stack, or a carried explicit stack before logging.
+    /// Snapshot the active stack, an explicit carried stack, or the retained
+    /// prior stack when a reset episode supplies no new inner context.
     #[must_use]
     pub fn snapshot_or(&self, carried: Option<Vec<T>>) -> Vec<T> {
         if self.reset {
-            carried.unwrap_or_default()
+            carried.unwrap_or_else(|| self.entries.clone())
         } else {
             self.entries.clone()
         }
@@ -184,6 +185,22 @@ mod tests {
         assert_eq!(stack.entries(), &["INNER", "first", "CALL", "p"]);
         assert!(stack.begin_inner("INNER", "second"));
         assert_eq!(stack.entries(), &["INNER", "second"]);
+    }
+
+    #[test]
+    fn reset_snapshot_retains_prior_entries_until_a_new_inner_context() {
+        let mut stack = ErrorStack::default();
+        assert!(stack.begin_inner("INNER", "first"));
+        stack.mark_reset();
+
+        assert_eq!(stack.snapshot_or(None), ["INNER", "first"]);
+        assert_eq!(
+            stack.snapshot_or(Some(vec!["INNER", "explicit"])),
+            ["INNER", "explicit"]
+        );
+
+        assert!(stack.begin_inner("INNER", "second"));
+        assert_eq!(stack.snapshot_or(None), ["INNER", "second"]);
     }
 
     #[test]
