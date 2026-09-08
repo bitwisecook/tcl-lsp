@@ -109,12 +109,30 @@ for pem in "$RAW"/pem/*.pem; do
         fingerprint="$(sha256_digest "$der")"
         der_base64="$(base64_file "$der")"
         spki_sha256="$(openssl x509 -in "$cert" -pubkey -noout | openssl pkey -pubin -outform DER 2>/dev/null | sha256_digest)"
-        subject_key_id="$(openssl x509 -in "$cert" -noout -ext subjectKeyIdentifier 2>/dev/null | awk '/Subject Key Identifier/{getline; gsub(/[^0-9A-Fa-f]/, ""); print tolower($0)}')"
-        not_before_text="$(openssl x509 -in "$cert" -noout -startdate | sed 's/^notBefore=//')"
-        not_after_text="$(openssl x509 -in "$cert" -noout -enddate | sed 's/^notAfter=//')"
+        # Fetch the textual fields in one OpenSSL invocation.  These values
+        # are independent of the DER output above, and parsing them together
+        # avoids four process launches for every certificate while retaining
+        # the same fail-closed handling for malformed certificates.
+        metadata="$TMP/metadata"
+        metadata_errors="$TMP/metadata-errors"
+        if ! openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 \
+            -startdate -enddate -ext subjectKeyIdentifier > "$metadata" 2> "$metadata_errors"; then
+            cat "$metadata_errors" >&2
+            exit 1
+        fi
+        IFS=$'\t' read -r subject not_before_text not_after_text subject_key_id <<< "$(awk '
+            /^subject=/ {subject = $0; sub(/^subject=/, "", subject)}
+            /^notBefore=/ {not_before = $0; sub(/^notBefore=/, "", not_before)}
+            /^notAfter=/ {not_after = $0; sub(/^notAfter=/, "", not_after)}
+            /Subject Key Identifier:/ {
+                getline
+                gsub(/[^0-9A-Fa-f]/, "")
+                subject_key_id = tolower($0)
+            }
+            END {printf "%s\t%s\t%s\t%s\n", subject, not_before, not_after, subject_key_id}
+        ' "$metadata")"
         not_before="$(date_to_epoch "$not_before_text")"
         not_after="$(date_to_epoch "$not_after_text")"
-        subject="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 | sed 's/^subject=//')"
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fingerprint" "$der_base64" "$spki_sha256" "$subject_key_id" "$not_before" "$not_after" "$subject" >> "$MATERIAL_TSV"
     done
 done
