@@ -31,6 +31,10 @@ classifier and manifests from the PR base commit. An incomplete changed-file
 list, malformed closure, or absent base-copy runs the whole archive lane. The
 required aggregate job always reports a status; when the closure is unaffected,
 only its archive, partition, and proof-transfer steps are skipped.
+Validate that no-op path in Actions with a change outside both committed
+closures: the archive producer and all three partition jobs must succeed
+without building, uploading, downloading, or running the archive, and the
+required aggregate must still succeed after checking every upstream result.
 
 ## Decision rules / contracts
 
