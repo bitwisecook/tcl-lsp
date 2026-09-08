@@ -196,3 +196,71 @@ fn a_possible_emission_is_not_reported_as_definite() {
          nothing at the call site distinguishes the two",
     );
 }
+
+/// A call the runtime rejects outright raises nothing.
+///
+/// The form matcher sees only the `request` prefix, so without an argument
+/// count check `TCP::notify request extra` would put an unreachable
+/// `USER_REQUEST` handler into every consumer's reachability set.
+#[test]
+fn an_arity_invalid_call_raises_no_edge() {
+    let invalid = r#"
+when CLIENT_ACCEPTED {
+    TCP::notify request extra
+}
+when USER_REQUEST {
+    log local0. "not reachable from a call that cannot run"
+}
+"#;
+    assert!(
+        edge_targets(invalid).is_empty(),
+        "the surplus argument breaks TCP::notify's arity: {:?}",
+        edge_targets(invalid),
+    );
+    assert!(
+        !reaches(invalid, "CLIENT_ACCEPTED", "log"),
+        "and the handler it would have raised stays out of the closure",
+    );
+    assert_eq!(
+        edge_targets(NOTIFY_REQUEST),
+        vec!["USER_REQUEST"],
+        "the same call at a valid arity still raises the event",
+    );
+}
+
+/// A procedure emits on behalf of every event that calls it.
+///
+/// The whole-file executable inventory reaches each procedure once, so the
+/// retained event would otherwise be whichever handler appears first in the
+/// source — a silent loss of one of the two real edges.
+#[test]
+fn a_procedure_called_from_two_events_emits_under_both() {
+    let source = r#"
+proc helper { } {
+    NAME::lookup "example.com"
+}
+when CLIENT_ACCEPTED {
+    call helper
+}
+when HTTP_REQUEST {
+    call helper
+}
+when NAME_RESOLVED {
+    log local0. "resolved"
+}
+"#;
+    let mut provenance: Vec<(String, &'static str)> =
+        irules_event_emission_edges(source, &registry())
+            .into_iter()
+            .map(|edge| (edge.from_event, edge.to_event))
+            .collect();
+    provenance.sort_unstable();
+    assert_eq!(
+        provenance,
+        vec![
+            ("CLIENT_ACCEPTED".to_owned(), "NAME_RESOLVED"),
+            ("HTTP_REQUEST".to_owned(), "NAME_RESOLVED"),
+        ],
+        "both callers own an edge to the resolved handler",
+    );
+}

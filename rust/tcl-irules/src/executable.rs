@@ -172,15 +172,48 @@ pub struct IrulesEventEmissionEdge {
 /// Every registry-declared event emission among the file's executable
 /// commands.
 ///
-/// Built from the whole-file executable closure, so an emitting command
-/// contributes an edge exactly when it is itself reachable — a
-/// `TCP::notify request` in a dormant or invalid region contributes nothing.
+/// An emitting command contributes an edge exactly when it is itself
+/// reachable — a `TCP::notify request` in a dormant or invalid region
+/// contributes nothing.
+///
+/// The closure is rebuilt once per distinct top-level event rather than once
+/// for the whole file, because a procedure emits on behalf of *every* event
+/// that calls it. The whole-file walk reaches a procedure only once and keeps
+/// whichever handler happened to reach it first, so a helper called from both
+/// `CLIENT_ACCEPTED` and `HTTP_REQUEST` would silently lose one of its two
+/// edges to handler source order.
 #[must_use]
 pub fn irules_event_emission_edges(
     source: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesEventEmissionEdge> {
-    emission_edges(&irules_executable_commands(source, registry), registry)
+    let lexing = InventoryLexing::for_registry(registry);
+    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
+    let ctx = InventoryContext {
+        registry,
+        identities: &identities,
+        lexing,
+    };
+    let mut event_bodies = Vec::new();
+    let mut procedures = HashMap::<String, Token>::new();
+    collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
+    let mut events: Vec<String> = Vec::new();
+    for (event, _) in &event_bodies {
+        if !events.iter().any(|seen| seen.eq_ignore_ascii_case(event)) {
+            events.push(event.clone());
+        }
+    }
+    let mut edges = Vec::new();
+    for event in events {
+        let roots: Vec<(String, Token)> = event_bodies
+            .iter()
+            .filter(|(candidate, _)| candidate.eq_ignore_ascii_case(&event))
+            .cloned()
+            .collect();
+        let closure = event_rooted_closure(source, &ctx, roots, &procedures);
+        edges.extend(emission_edges(&closure, registry));
+    }
+    edges
 }
 
 /// The emission edges carried by an already-built closure.
@@ -199,6 +232,13 @@ fn emission_edges(
             continue;
         };
         let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+        // A form prefix can match a call the runtime rejects outright:
+        // `TCP::notify request extra` carries the `request` prefix but breaks
+        // the command's declared arity, so it raises nothing and must not put
+        // an unreachable handler into a consumer's reachability set.
+        if arity_is_definitely_wrong(spec, &args) {
+            continue;
+        }
         let Some(emission) = spec.event_emission_for_args(&args) else {
             continue;
         };
@@ -213,6 +253,28 @@ fn emission_edges(
         }
     }
     edges
+}
+
+/// Whether the registry declares this call's argument count outright invalid.
+///
+/// Deliberately one-sided: `true` only when the count alone settles it, so an
+/// emission edge is dropped only for a call that cannot run. A
+/// release-dependent, form-owned, subcommand-owned, option-bearing or
+/// structurally checked shape — or a word-expanding call, whose count is only
+/// a lower bound — is undecidable from the count here and stays the
+/// analyser's arity diagnostic to report, rather than costing a real edge on
+/// a guess.
+fn arity_is_definitely_wrong(spec: &tcl_registry::CommandSpec, args: &[&str]) -> bool {
+    if !spec.arity_windows.is_empty()
+        || !spec.subcommands.is_empty()
+        || !spec.command_forms.is_empty()
+        || !spec.options.is_empty()
+        || spec.traits.contains(Traits::STRUCTURALLY_CHECKED_ARITY)
+        || args.iter().any(|arg| arg.starts_with("{*}"))
+    {
+        return false;
+    }
+    u16::try_from(args.len()).is_ok_and(|count| !spec.arity.accepts(count))
 }
 
 /// The executable closure of `event`, widened by the events its commands can

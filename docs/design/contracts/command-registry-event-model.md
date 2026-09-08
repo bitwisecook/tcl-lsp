@@ -71,6 +71,20 @@ compiled-in one — the loader builds the same `CommandSpec`.
     - **Only literal forms select.** A computed subcommand matches no
       `argument_prefix` and an unresolved head declares nothing, so neither
       invents an edge.
+    - **A call that cannot run raises nothing.** A form prefix can match an
+      invocation the runtime rejects outright — `TCP::notify request extra`
+      carries the `request` prefix but breaks the command's declared arity —
+      so a definite argument-count failure drops the edge rather than putting
+      an unreachable handler into a consumer's reachability set. Only a
+      *definite* failure: a release-dependent, form-owned, subcommand-owned,
+      option-bearing or structurally checked shape is undecidable from the
+      count and keeps its edge, since a wrong verdict would silently lose a
+      real one.
+    - **Every calling event owns its edge.** A procedure emits on behalf of
+      each event that reaches it, so `irules_event_emission_edges` walks one
+      closure per top-level event; a helper called from `CLIENT_ACCEPTED` and
+      `HTTP_REQUEST` yields two edges, not whichever handler the file happens
+      to declare first.
 
 ## File-path anchors
 
