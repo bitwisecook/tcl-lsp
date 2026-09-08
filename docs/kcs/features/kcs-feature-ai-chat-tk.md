@@ -40,10 +40,6 @@ executes generated Tcl.
 - `tk_layout` or the static preview model is unavailable; in that case the
   assistant must say that it has not verified the widget tree.
 
-## Test anchors
-
-- `editors/vscode/src/test/chatUtilities.test.ts`
-
 ## Example
 
 A prompt in the Copilot Chat panel:

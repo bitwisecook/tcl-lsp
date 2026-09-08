@@ -95,9 +95,9 @@ collection — wrap it: `[.ltm.virtual[].name] | sort`.
 
 | Op | Effect |
 |---|---|
-| `|` | Pass each value on the left into the right. |
+| `\|` | Pass each value on the left into the right. |
 | `=` | Replace the LHS field with the RHS value. |
-| `|=` | Replace the LHS with `RHS` evaluated against the LHS value. |
+| `\|=` | Replace the LHS with `RHS` evaluated against the LHS value. |
 | `+=` | List append; string concat; numeric add. |
 | `-=` | List remove; numeric subtract. |
 | `;` | Sequence statements; each statement sees the SAME root. |

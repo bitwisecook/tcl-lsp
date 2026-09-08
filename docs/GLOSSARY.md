@@ -47,11 +47,11 @@ right character. Implemented by `Lexer` in `tcl_lexer::lexer`.
 ```mermaid
 flowchart LR
     SRC["set x $y"] --> L["Lexer"]
-    L --> T1["WORD 'set'"]
-    L --> T2["SEP"]
-    L --> T3["WORD 'x'"]
-    L --> T4["SEP"]
-    L --> T5["VAR_SUB '$y'"]
+    L --> T1["Esc 'set'"]
+    L --> T2["Sep"]
+    L --> T3["Esc 'x'"]
+    L --> T4["Sep"]
+    L --> T5["Var 'y'"]
 
     style L fill:#e1f5fe
 ```

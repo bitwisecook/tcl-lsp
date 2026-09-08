@@ -19,7 +19,20 @@ Why do I see a red squiggle saying a command was called with too few arguments?
 
 Calling a command with fewer arguments than it requires will always raise a runtime error. Catching this statically prevents unexpected failures in production.
 
-This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity — and, if the old name is later re-declared as a fresh `proc`, the *new* declaration's own arity, not the original's), TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method), and reachable TclOO manufacturer calls (`ClassName new ?args?` / `ClassName create name ?args?`, checked against the nearest explicit `constructor` in the class's inheritance chain — a class with no `constructor` anywhere in its hierarchy is never checked, since `TclOO`'s built-in default constructor accepts any number of arguments). `createWithNamespace` has its own registry layout but is unexported in C Tcl; ordinary class-command calls are therefore not treated as successful construction. The check also covers `next`/`nextto` calls inside a method body (checked against the resolved next-in-MRO method or `nextto`'s named target — see the TclOO section below), and direct calls to an inline `apply {{params} body} ?args?` lambda.
+The check is not limited to builtin commands. It also covers:
+
+- Same-file `proc` calls.
+- `interp alias` targets, shifted by any prepended arguments.
+- `rename`d commands, which keep the original's arity — or, if the old name is
+  later re-declared as a fresh `proc`, that new declaration's arity.
+- TclOO methods and `forward`s, including `forward NAME my TARGET ?ARG…?`.
+- TclOO manufacturer calls (`ClassName new ?args?` / `ClassName create name
+  ?args?`), checked against the nearest explicit `constructor` in the class's
+  inheritance chain. A class with no `constructor` anywhere in its hierarchy is
+  never checked: TclOO's default constructor accepts any number of arguments.
+- `next` / `nextto` inside a method body, checked against the resolved
+  next-in-MRO method or `nextto`'s named target.
+- Direct calls to an inline `apply {{params} body} ?args?` lambda.
 
 ## Symptoms
 
@@ -69,14 +82,11 @@ Fix by giving the extra parameters defaults (`{a b {c 0}}`) or removing them so
 the callback matches the appended-argument count. (A callback whose appended
 count is open-ended — `AtLeast(n)` — never draws `E002`.)
 
-**This check also works across files by default** when the call site's exact
-C Tcl resolution candidate names the proc. The server then reads the same
-project-wide signature table used by navigation. `crossFileResolution` is
-only needed for its broader, deliberately lossy bare-name workspace inference.
-Every other E002 case on this page (same-file `proc`/alias/`rename`/TclOO
-calls, `next`/`nextto`, constructors, `apply`) is likewise unconditional.
-`crossFileResolution` is independent of `xcDiagnostics` (the unrelated,
-f5-irules-only XC100-301 translatability diagnostics).
+**This check works across files by default** when the call site's exact C Tcl
+resolution candidate names the proc; the server reads the same project-wide
+signature table that navigation uses. `crossFileResolution` widens that to
+bare-name workspace inference. Every other E002 case on this page is
+unconditional.
 
 ## TclOO `next` / `nextto` context
 

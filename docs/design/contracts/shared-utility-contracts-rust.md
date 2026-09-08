@@ -813,9 +813,9 @@ entry point, or gate moves without this contract being updated.
 - `tcl_registry::abbrev::KeywordTable` is a fourth prefix matcher (it
   supports `min_abbrev` and carries the ambiguous candidates), reached
   through `CommandSpec::resolve_subcommand_word` by the WASM runtime's
-  `file` dispatch and the VM's `namespace`. It is out of scope for the
-  "new command modules MUST resolve through `OptionTable`" rule above;
-  reconciling the two matchers is its own piece of work (#1607).
+  `file` dispatch. It answers a registry-authored keyword set rather than an
+  `OptionTable`, so the "new command modules MUST resolve through
+  `OptionTable`" rule above does not reach it.
 
 Each of these is a *documented* divergence — keep the comment at the
 site pointing back here, and do not "fix" them onto the canonical

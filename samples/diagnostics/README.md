@@ -286,5 +286,6 @@ diagnostics/
 ├── W304_missing_double_dash/example.tcl
 ├── W306_regexp_substitution/example.tcl
 ├── W307_non_literal_command/example.tcl
-└── W313_file_delete_path/example.tcl
+├── W313_file_delete_path/example.tcl
+└── W314_no_absolute_name/example.tcl
 ```

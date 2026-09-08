@@ -35,10 +35,6 @@ Uses the same analysis engine as `@irule` but with general Tcl system prompts an
 - AI features disabled (`tclLsp.ai.enabled` is false).
 - Copilot extension not installed.
 
-## Test anchors
-
-- `editors/vscode/src/test/chatUtilities.test.ts`
-
 ## Example
 
 Typing the following into the Copilot Chat panel asks `@tcl` to

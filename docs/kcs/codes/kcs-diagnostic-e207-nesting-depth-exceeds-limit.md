@@ -48,7 +48,7 @@ There is nothing to fix in the sense of a bug — this is expected behaviour on 
 
 ## How to suppress
 
-`E207` is an internal parse-guard code: it has no per-code entry in the generated editor settings list, so there is no `tclLsp.diagnostics.E207` to switch off. Silence it for one file with a `# tcl-lsp: disable=E207` directive at the top of the file, for a whole project with `disabled = E207` under `[diagnostics]` in `.tcl-lsp.ini`, or for one CLI run with `--disable E207`. See [how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
+`E207` is internal: it is always active and has no per-code entry in the generated editor settings list, so there is no `tclLsp.diagnostics.E207` to switch off and no `# noqa` route. Silence it for one file with a `# tcl-lsp: disable=E207` directive at the top of the file, for a whole project with `disabled = E207` under `[diagnostics]` in `.tcl-lsp.ini`, or for one CLI run with `--disable E207`. See [how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 

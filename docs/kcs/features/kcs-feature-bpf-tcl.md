@@ -56,7 +56,7 @@ Key contracts to know:
   signed truncated-toward-zero division, which diverges from Tcl floor division
   only when exactly one operand is negative.
 
-### Example
+## Example
 
 ```tcl
 # Drop TCP traffic to port 22, accept everything else.

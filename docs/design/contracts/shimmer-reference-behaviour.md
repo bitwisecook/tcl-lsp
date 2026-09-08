@@ -286,11 +286,10 @@ resolves a nested expression's variables against the versions live at the
 statement rather than through that map; that reconstruction is a workaround for
 the gap, not a design.
 
-The correct fix is to lower a nested substitution as a command, so its words
-receive the same role-driven classification every statement's words already
-get, and every consumer of `uses` becomes correct with no per-consumer code.
-That change reaches lowering, SSA, codegen and the optimiser, so it is tracked
-separately.
+Closing the gap means lowering a nested substitution as a command, so its
+words receive the same role-driven classification every statement's words get
+and every consumer of `uses` becomes correct with no per-consumer code. That
+reaches lowering, SSA, codegen and the optimiser.
 
 Two narrower residual gaps remain in the interp-alias handling (see the
 doc comment on `shimmer::use_site::check_invocation`): an alias that

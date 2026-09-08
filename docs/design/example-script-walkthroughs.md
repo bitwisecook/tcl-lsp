@@ -3272,40 +3272,50 @@ precedence as their symbolic counterparts:
 
 ## Example 22: Lowering dispatch — `arg_roles` and command classification
 
-Shows how `_lower_command()` in
-`rust/tcl-compiler/src/lowering/mod.rs` dispatches each command to
-the appropriate IR node using registry metadata.
+Shows how `Lowerer::lower_command()` in
+`rust/tcl-compiler/src/lowering/mod.rs` dispatches each command to the
+appropriate IR node using registry metadata.  **No command is matched by
+name** — the dispatch keys on the typed `LoweringHookId` the registry
+resolves for the invocation.
 
 ### Dispatch hierarchy
 
 ```
-_lower_command(cmd)
+lower_command(seg, namespace)
     │
-    ├─ Check lowering hook on CommandSpec → spec.lowering(lowerer, cmd)
-    │   (e.g. set → lower_set(), incr → lower_incr())
+    ├─ registry.resolve_invocation(cmd_name, args, surface)
+    │      → resolved.semantics.lowering_hook: Option<LoweringHookId>
     │
-    ├─ match cmd_name:
-    │   ├─ "proc"     → extract params, lower body, register Procedure
-    │   ├─ "when"     → lower iRules event handler body
-    │   ├─ "if"       → _lower_if() → Statement::If with IfClause list
-    │   ├─ "for"      → _lower_for() → Statement::For (init, cond, step, body)
-    │   ├─ "while"    → _lower_while() → Statement::While (cond, body)
-    │   ├─ "foreach"  → _lower_foreach() → Statement::Foreach
-    │   ├─ "catch"    → _lower_catch() → Statement::Catch
-    │   ├─ "try"      → _lower_try() → Statement::Try with TryHandler
-    │   ├─ "switch"   → _lower_switch() → Statement::Switch with SwitchArm
-    │   ├─ eval/uplevel/upvar → Statement::Barrier (defeats static analysis)
-    │   │
-    │   └─ default (fallthrough):
-    │       ├─ arg_indices_for_role(BODY) → Statement::Barrier (has body args)
-    │       ├─ arg_indices_for_role(VAR_NAME) → Statement::Call with defs
-    │       └─ else → Statement::Call (generic)
+    ├─ try_dispatch_structured_hook(hook):
+    │   ├─ LoweringHookId::If       → lower_if()      → Statement::If
+    │   ├─ LoweringHookId::For      → lower_for()     → Statement::For
+    │   ├─ LoweringHookId::While    → lower_while()   → Statement::While
+    │   ├─ LoweringHookId::Foreach  → lower_foreach() → Statement::Foreach
+    │   ├─ LoweringHookId::Catch    → lower_catch()   → Statement::Catch
+    │   ├─ LoweringHookId::Try      → lower_try()     → Statement::Try
+    │   ├─ LoweringHookId::Switch   → lower_switch()  → Statement::Switch
+    │   ├─ LoweringHookId::Proc / When / NamespaceEval → definition bodies
+    │   ├─ LoweringHookId::Set / Incr / Expr / Return  → the assign family
+    │   └─ LoweringHookId::Eval / Uplevel / Apply      → inline body, else
+    │                                                     Statement::Barrier
+    │      (a hook that cannot prove its shape returns None and falls
+    │       through — see lowering-dispatch.md)
+    │
+    └─ lower_default (no hook, or the hook declined):
+        ├─ arg_indices_for_role(BODY)     → Statement::Barrier
+        ├─ arg_indices_for_role(VAR_NAME) → Statement::Call with defs
+        └─ else                           → Statement::Call (generic)
 ```
+
+A hook that commits to an argv shape (`hook_commits_to_argv_shape`) refuses a
+`{*}`-expanded call and emits a `structured_expand_barrier` instead, so the
+expansion gate can never name a different command set than the lowerers it
+protects.
 
 ### Example: `lower_set()` — the `set` lowering hook
 
-`set` has a registered lowering hook
-(`rust/tcl-compiler/src/var_refs.rs`).
+`set` carries `LoweringHookId::Set`, handled by `lower_set`
+(`rust/tcl-compiler/src/lowering_hooks.rs`).
 It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |

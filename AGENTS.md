@@ -162,8 +162,8 @@ trust it rather than re-deriving.
 
 ### Lexer, lowering, LSP
 
-- A stray `}` or `]` is `TokenType::ESC`; check `tok.kind`, not just
-  `tok.text` — a `}` typed `STR` is structural.
+- A stray `}` or `]` is `TokenType::Esc`; check `tok.kind`, not just
+  `tok.text` — a `}` typed `Str` is structural.
   [lexing-segmentation.md](docs/design/compiler/lexing-segmentation.md).
 - A lowering hook that cannot safely specialise a construct falls through to
   the generic call IR: the compiler only inlines what it can prove is safe,

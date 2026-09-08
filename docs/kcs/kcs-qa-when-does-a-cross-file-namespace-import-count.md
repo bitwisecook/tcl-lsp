@@ -114,8 +114,8 @@ Tcl. The gate reads each document's own analysed dialect.
 
 *Known imprecision:* a command a **package** provides (`::csv::split`) is
 treated as present whether or not the script `package require`s it — the
-registry carries no "needs a `package require`" marker yet. Reaching that
-case means importing into a package's own namespace.
+registry carries no "needs a `package require`" marker. Reaching that case
+means importing into a package's own namespace.
 
 For the relation itself, its proofs, and its measured effect on real
 code, see the
