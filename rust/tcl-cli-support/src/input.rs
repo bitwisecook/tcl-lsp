@@ -88,6 +88,31 @@ pub struct InputDocument {
 }
 
 impl InputDocument {
+    /// The document as everything that *analyses* it must read it: lone `\r`
+    /// rewritten to `\n`.
+    ///
+    /// A bare `\r` terminates a command in `tclsh` — scripts are read under
+    /// `-translation auto` — but the lexer treats it as horizontal whitespace,
+    /// so on the raw form an old-Mac document parses as one command. That
+    /// breaks more than the diagnostics: `detect_dialect` scans by *line* for
+    /// its directive, shebang and version-guard tiers, and Rust's `lines()`
+    /// splits on `\n` only, so the whole file reads as line 1 and those tiers
+    /// see nothing.
+    ///
+    /// The server normalises at every entry point that reaches the analyser
+    /// (`DocumentState::normalised_for_analysis`), and detection there runs on
+    /// the normalised text. This is the CLI's one place to do the same, so a
+    /// verb gets it by asking rather than by remembering (issue #1799).
+    ///
+    /// [`Self::source`] stays the bytes the caller supplied — the byte-backed
+    /// encoding diagnostics describe the file on disk and must not be
+    /// rewritten. The pass is byte-length preserving, so a span computed
+    /// against this text is equally valid against `source`.
+    #[must_use]
+    pub fn analysis_source(&self) -> std::borrow::Cow<'_, str> {
+        tcl_lexer::normalise_lone_cr(&self.source)
+    }
+
     /// The analysis dialect for this document.
     ///
     /// An explicitly-passed `--dialect` wins; otherwise the registry's
@@ -108,7 +133,7 @@ impl InputDocument {
         // lands (ledger row T4, P1) — resolving it here would change what
         // an unstated document is analysed as.
         crate::environment::profile_for_dialect(tcl_registry::dialects::detect_dialect(
-            &self.source,
+            &self.analysis_source(),
             self.filename(),
             "tcl8.6",
         ))
