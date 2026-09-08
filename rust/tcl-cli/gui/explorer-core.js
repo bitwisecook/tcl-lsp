@@ -532,12 +532,23 @@ function renderInterproc() {
 }
 
 // Optimiser
+// The replacement cell for one optimisation.
+//
+// A `hintOnly` entry carries no replacement: its range spans the whole
+// consuming statement, so the literal was never a valid edit for it (#1934).
+// Rendering the usual arrow-and-value for one shows advice as an edit to an
+// empty string — a deletion — which is the opposite of what it means.
+function optReplacementHtml(o) {
+  if (o.hintOnly) return '<span class="opt-repl opt-hint">hint only</span>';
+  return '<span class="opt-repl">\u2192 ' + esc(o.replacement) + '</span>';
+}
+
 function renderOpt() {
   var pane = $('#pane-opt');
   if (!data.optimisations.length) { pane.innerHTML = '<div class="empty-state">No optimiser rewrites</div>'; return; }
   var html = '<div class="section-header">Rewrites</div>';
   for (var o of data.optimisations) {
-    html += '<div class="opt-item"' + sourceRangeAttrs(o.range) + '><span class="opt-code">' + esc(o.code) + '</span><span class="opt-msg">' + esc(o.message) + ' <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(o.range) + ']</span></span><span class="opt-repl">\u2192 ' + esc(o.replacement) + '</span></div>';
+    html += '<div class="opt-item"' + sourceRangeAttrs(o.range) + '><span class="opt-code">' + esc(o.code) + '</span><span class="opt-msg">' + esc(o.message) + ' <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(o.range) + ']</span></span>' + optReplacementHtml(o) + '</div>';
   }
   if (data.optimisedSource) { html += '<div class="section-header">Source Diff</div>' + buildOptDiffView(); }
   pane.innerHTML = html;
@@ -560,7 +571,7 @@ function renderOptimiserPasses() {
       continue;
     }
     for (var o of p.optimisations) {
-      html += '<div class="opt-item"' + sourceRangeAttrs(o.range) + '><span class="opt-code">' + esc(o.code) + '</span><span class="opt-msg">' + esc(o.message) + ' <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(o.range) + ']</span></span><span class="opt-repl">→ ' + esc(o.replacement) + '</span></div>';
+      html += '<div class="opt-item"' + sourceRangeAttrs(o.range) + '><span class="opt-code">' + esc(o.code) + '</span><span class="opt-msg">' + esc(o.message) + ' <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(o.range) + ']</span></span>' + optReplacementHtml(o) + '</div>';
     }
   }
   pane.innerHTML = html;

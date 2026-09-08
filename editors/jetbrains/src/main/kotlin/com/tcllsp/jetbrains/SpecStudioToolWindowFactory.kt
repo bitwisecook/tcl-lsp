@@ -34,6 +34,7 @@ import org.eclipse.lsp4j.FileEvent
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Comparator
+import java.util.concurrent.atomic.AtomicLong
 
 private val SPEC_LOG = Logger.getInstance("com.tcllsp.jetbrains.SpecStudio")
 
@@ -62,6 +63,23 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
         "stub" to sessionDir.resolve("generated-stub.tcl"),
     )
     private var disposed = false
+
+    /**
+     * Which sample-dialect pin is the studio's current intent.
+     *
+     * Each pin now waits for the lazily-started LSP server, so two can be in
+     * flight at once — the one sent when the studio mounts, and one from a
+     * picker change made while that is still waiting.  They are independent
+     * pooled tasks with no ordering between them, so without this the initial
+     * dialect could be applied *after* the newer selection and leave the sample
+     * disagreeing with the UI until the user changed it again (PR #1960
+     * review).  A pin claims a generation before it is dispatched and rechecks
+     * it before sending, so only the newest intent reaches the server.
+     */
+    private val dialectPinGeneration = AtomicLong()
+
+    /** Serialises the recheck with the send it guards. */
+    private val dialectPinLock = Any()
 
     init {
         Disposer.register(this, browser)
@@ -172,18 +190,37 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
         // the server reads an absent dialect as a clear, and this keeps the
         // argument list free of nulls across the Gson boundary.
         val args: List<Any> = if (dialect == null) listOf(uri) else listOf(uri, dialect)
+        // Claimed here, not inside the task: the order pins are *requested* in
+        // is the studio's intent, and the order the pooled tasks happen to run
+        // in is not.
+        val generation = dialectPinGeneration.incrementAndGet()
         ApplicationManager.getApplication().executeOnPooledThread {
-            val server = LspServerManager.getInstance(project)
-                .getServersForProvider(TclLspServerSupportProvider::class.java)
-                .firstOrNull { it.state == LspServerState.Running } ?: return@executeOnPooledThread
-            try {
-                server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
-                    lsp4j.workspaceService.executeCommand(
-                        ExecuteCommandParams("tcl-lsp.setDocumentDialectOverride", args)
-                    )
+            // Start the server and wait, rather than give up on one that has
+            // not started yet. The server is launched lazily by the first Tcl
+            // editor, so in a project with no Tcl file already open the studio
+            // is the first thing to want it — and a dropped pin is never
+            // retried, leaving the sample under generic Tcl for the rest of
+            // the session. Same wait the Compiler Explorer has always used.
+            val server = awaitRunningTclLspServer(project) ?: run {
+                SPEC_LOG.warn("No Tcl LSP server to pin the Spec Studio sample dialect on")
+                return@executeOnPooledThread
+            }
+            // Recheck under the lock rather than before it: a bare check
+            // leaves the window between the check and the send, which is
+            // exactly where a newer pin would overtake this one.
+            synchronized(dialectPinLock) {
+                if (dialectPinGeneration.get() != generation) {
+                    return@executeOnPooledThread
                 }
-            } catch (error: Exception) {
-                SPEC_LOG.warn("Could not set the Spec Studio sample dialect", error)
+                try {
+                    server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
+                        lsp4j.workspaceService.executeCommand(
+                            ExecuteCommandParams("tcl-lsp.setDocumentDialectOverride", args)
+                        )
+                    }
+                } catch (error: Exception) {
+                    SPEC_LOG.warn("Could not set the Spec Studio sample dialect", error)
+                }
             }
         }
     }

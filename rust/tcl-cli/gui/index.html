@@ -472,6 +472,8 @@ textarea#source::placeholder { color: var(--text-dim); }
 .opt-item .opt-code { font-weight: 600; color: var(--green); flex-shrink: 0; min-width: 32px; }
 .opt-item .opt-msg { color: var(--text); flex: 1; }
 .opt-item .opt-repl { color: var(--green); font-size: 11px; }
+/* A hint is advice, not an edit: it must not read as a green rewrite. */
+.opt-item .opt-repl.opt-hint { color: var(--text-dim); font-style: italic; }
 .shimmer-item {
   padding: 4px 6px;
   border-radius: 4px;

@@ -89,6 +89,16 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   for (const surface of Object.keys(texts) as Surface[]) {
     bridge.postMessage({ type: "surfaceUpdate", surface, text: texts[surface] });
   }
+  // The selection the studio mounts with, not just the ones it changes to.
+  //
+  // `setDialect` is called from the picker's change handler alone, so without
+  // this the host never hears the initial dialect — the default, or one
+  // restored from a previous session — and the sample is materialised as
+  // `test.tcl` and analysed as generic Tcl until the user touches the selector.
+  // The Monaco host has no equivalent gap: it sets the language id when it
+  // builds the model. Sent with the opening surface texts because it is the
+  // same kind of fact: the state the surfaces start in.
+  bridge.postMessage({ type: "dialectUpdate", dialect: options.dialect });
   options.report("using the IDE's native file editor beside Spec Studio", "ok");
 
   return {
