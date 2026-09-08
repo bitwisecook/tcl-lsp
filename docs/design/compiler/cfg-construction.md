@@ -12,11 +12,10 @@ terminators (`Terminator::Goto`, `Terminator::Branch`,
 `Terminator::Return`).  Each block is a straight-line sequence of IR
 statements with no branches except at the end.
 
-Source: `rust/tcl-compiler/src/cfg_builder/mod.rs` (`build_cfg` at line 1700),
+Source: `rust/tcl-compiler/src/cfg_builder/mod.rs` (`build_cfg`),
 `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` (the per-construct
-`lower_*` methods), `rust/tcl-compiler/src/cfg.rs` (the data structures —
-`Terminator` at line 69, `Block` at line 144, `Function` at line 208,
-`CfgModule` at line 496)
+`lower_*` methods), `rust/tcl-compiler/src/cfg.rs` (`Terminator`, `Block`,
+`Function`, `CfgModule`)
 
 ### Block identity
 
@@ -183,6 +182,7 @@ block is `entry_1`).  The prefixes are:
   into an orphan block with no incoming edge so SCCP marks it unreachable
   and O107 can flag it
 - `if_then`, `if_next`, `if_end`
+- `inline_block_body`, `inline_block_end` — an inlined `Statement::Block`
 - `while_header`, `while_body`, `while_end`
 - `for_header`, `for_body`, `for_step`, `for_end`
 - `foreach_header`, `foreach_body`, `foreach_latch`, `foreach_end`
@@ -247,7 +247,7 @@ The back-edge creates a cycle that the SSA builder handles with phi nodes.
 
 ## Related docs
 
-- [Examples 5–10 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)
+- [Examples 5–10 in walkthroughs](../example-script-walkthroughs.md#example-5-if-x--set-y-10-)
 - [GLOSSARY.md — Basic block, CFG](../../GLOSSARY.md#basic-block)
-- [kcs-cfg-ssa-fact-model.md](../../../docs/design/compiler/cfg-ssa-fact-model.md)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

@@ -1,8 +1,8 @@
 # Common semantic compiler and target-family lowering
 
-> **Status:** implementation contract. The migration is additive: existing
-> bytecode, WASM, and BPF output remains the behavioural baseline until each
-> consumer has moved onto the common facts described here.
+> Implementation contract. Existing bytecode, WASM, and BPF output remains
+> the behavioural baseline until each consumer has moved onto the common
+> facts described here.
 
 ## Purpose
 
@@ -34,9 +34,7 @@ already-selected target plan.
 
 ## Current implementation boundary
 
-This document is the destination contract, not a claim that every layer in the
-diagram is connected. The current additive implementation has these deliberate
-limits:
+The diagram is the destination; the implementation has these limits:
 
 - the function-owned semantic sidecar builds an executable graph from retained
   source-faithful IR and attaches registry resolution plus executable
@@ -45,7 +43,7 @@ limits:
   and generic invocation. A sequence may contain more than one statement;
 - already-lowered assignments, increments, expressions, and returns retain a
   registry-owned `LoweringHookId`, their exact `Statement`, `NodeId`, and source
-  provenance as `ExecuteLowered` operations. Each now also carries a
+  provenance as `ExecuteLowered` operations. Each also carries a
   `LoweredFootprint`: the cells it writes, the cells it reads, whether its reads
   are unbounded, whether an operand can run nested commands, and its completion
   set — `{Ok}` for a constant assignment to a statically named cell,
@@ -83,7 +81,7 @@ limits:
 - the sidecar complements the existing scalar SSA and optional memory SSA. It
   does not yet replace every legacy CFG, SSA, SCCP, GVN, lattice, optimiser, or
   LSP consumer; and
-- resolved invocations now carry registry-declared result stability,
+- resolved invocations carry registry-declared result stability,
   representation effects, literal-argument validation, state transitions, and
   live-dispatch dependencies. These facts improve diagnostics immediately,
   but they are not interchangeable optimisation proofs. In particular, common
@@ -97,7 +95,7 @@ limits:
 - backend contracts, representation types, and proof tokens are legality
   scaffolding. They do not by themselves enable specialisation.
 
-Two explicitly enabled WASM pilots now consume common evidence. A guarded
+Two explicitly enabled WASM pilots consume common evidence. A guarded
 boxed `string length` region uses a live runtime identity/domain guard and the
 same prebuilt argv for generic fallback. The exact sealed four-statement
 constant `add` demonstration proves two native i64 operands, elides that
@@ -391,11 +389,11 @@ The completed common graph must make `catch`, `try`, `finally`, loop control,
 procedure return, trace callbacks, and fallback invocation real executable CFG
 edges. Analysis-only exception reachability is not sufficient for executable
 optimisation. Loop control, `catch`, `try`, `finally`, and procedure return are
-now executable edges: a completion produced anywhere inside a loop body is
+executable edges: a completion produced anywhere inside a loop body is
 dispatched to that loop's break or continue target, a completion produced
 inside a `catch`/`try` body joins its handler through a completion-φ, a `try`'s
 `finally` runs on the normal, handled, and unhandled edges alike, and a plain
-retained `return` still terminates the compatibility sequence but now carries
+retained `return` still terminates the compatibility sequence but carries
 the completion set `{Return}` — or `{Error, Return}` when its operand can fail.
 Trace callbacks and fallback invocation are not yet executable edges: a cell
 write records a *use* of the variable-trace domain, and whether a callback runs
@@ -490,36 +488,3 @@ Analysis cache keys include the command-registry profile/fingerprint and
 semantic ABI. Runtime mutation epochs are normally emitted guards, not static
 compiler cache keys. A sealed-environment snapshot may be part of a cache key
 when the compilation policy explicitly requests one.
-
-## Migration stages
-
-The numbered stages are sequencing constraints, not a completion ledger. The
-current boundary is recorded above; later entries remain design work until a
-consumer is connected and differential tests cover its Tcl surfaces.
-
-1. Add stable node identity, source provenance, and structured words behind
-   compatibility adapters.
-2. Add target-neutral resolved invocation and registry-derived semantic/effect
-   descriptors without removing existing backend hooks.
-3. Introduce structured target contracts and machine-readable decline reasons.
-4. Build exact executable completion flow and generic argv invocation.
-5. Promote variable places to common cell SSA and add world/effect SSA.
-6. Add flow-sensitive binding, namespace, TclOO, interpreter, and trace state.
-7. Replace boolean-heavy interprocedural summaries with structured effects.
-8. Move SCCP, GVN, motion, DCE, taint, and escape consumers onto the common
-   operation and state facts.
-9. Widen the first guarded boxed intrinsic into general guarded semantic
-   specialisation and explicit materialisation, while keeping every transform
-   disabled until its differential tests prove it sound.
-10. Migrate TclVM and WASM selection to backend registries, preserving emitted
-    bytecode and runtime behaviour during the transition.
-11. Feed resolved operations and common facts directly into BPF-Tcl's existing
-    typed BPF IR; retain its verifier-specific lattice and emitter.
-12. Widen native CPU lowering beyond the exact sealed i64-add demonstration
-    only after the runtime ABI, completion, ownership, and deoptimisation
-    contracts are stable. GPU and FPGA work begins with host/device region
-    extraction, not a full Tcl interpreter on the device.
-
-Every stage adds registry drift tests, focused compiler tests, differential
-runtime tests, and LSP consumer tests. No stage adds a command-name special
-case outside registry data, and no stage adds a Clippy allowance.

@@ -36,11 +36,11 @@ Source: `rust/tcl-compiler/src/ir.rs`,
 
 The key distinction: does the lowerer know the value at compile time?
 
-- `set x 42` → `argv[2].kind == ESC` and the text is a simple literal →
-  `Statement::AssignConst { name: "x", value: "42", .. }`
-- `set x $y` → `argv[2].kind == VAR` →
+- `set x 42` → `argv[2].kind == Esc` and the text is a canonical decimal
+  integer → `Statement::AssignConst { name: "x", value: "42", .. }`
+- `set x $y` → `argv[2].kind == Var` →
   `Statement::AssignValue { name: "x", value: "${y}", .. }`
-- `set x {hello}` → `argv[2].kind == STR` →
+- `set x {hello}` → `argv[2].kind == Str` →
   `Statement::AssignConst { name: "x", value: "hello", .. }`
 
 ### `Statement::Call`'s `defs` — variable definitions from commands
@@ -95,7 +95,7 @@ The AST lives inside `Statement::AssignExpr`'s and `Statement::ExprEval`'s
 ## Decision rule
 
 - Use `Statement::AssignConst` only when the value is a compile-time constant
-  (single-token `ESC` or `STR` with no interpolation).
+  (single-token `Esc` or `Str` with no interpolation).
 - If a new command needs a special statement, set `lowering_hook` on its
   `CommandSpec` rather than dispatching on the command name in the lowerer.
 - Commands with `ArgRole::Body` arguments that no hook handles produce
@@ -106,5 +106,5 @@ The AST lives inside `Statement::AssignExpr`'s and `Statement::ExprEval`'s
 
 - [Examples 1–4 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
 - [Data structure reference — IR types](data-structure-reference.md#stage-3--ir-types-irrs)
-- [kcs-lowering-dispatch.md](../../../docs/design/compiler/lowering-dispatch.md)
-- [kcs-lowering-contracts.md](../../../docs/design/compiler/lowering-contracts.md)
+- [lowering-dispatch.md](lowering-dispatch.md)
+- [lowering-contracts.md](lowering-contracts.md)
