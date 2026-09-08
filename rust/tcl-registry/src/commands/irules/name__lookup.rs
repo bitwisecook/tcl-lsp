@@ -32,6 +32,14 @@ pub const fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        // The lookup returns immediately and the answer arrives later, so the
+        // handler is reachable but is not a continuation of this call —
+        // `NAME::response` reads the result there (issue #1708). Declared at
+        // the command level because every form behaves this way.
+        event_emits: Some(EventEmission {
+            events: &["NAME_RESOLVED"],
+            certainty: EventEmissionCertainty::Asynchronous,
+        }),
         forms: &[FormSpec {
             synopsis: "NAME::lookup",
             ..FormSpec::DEFAULT

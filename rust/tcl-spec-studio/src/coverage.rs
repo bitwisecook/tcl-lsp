@@ -220,6 +220,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         closed_value_args: _,
         event_requires: _,
         event_requirement_forms: _,
+        event_emits: _, event_emission_forms: _,
         data_collection: _,
         side_switch_target: _,
         event_handler_priority: _,
@@ -372,6 +373,8 @@ pub const COMMAND_SPEC: &[Field] = &[
         "event_requirement_forms",
         Surface::Key("event_requirement_forms"),
     ),
+    f("event_emits", Surface::Key("event_emits")),
+    f("event_emission_forms", Surface::Key("event_emission_forms")),
     f("data_collection", Surface::Key("data_collection")),
     f("side_switch_target", Surface::Key("side_switch_target")),
     f(

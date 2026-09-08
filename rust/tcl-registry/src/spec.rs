@@ -1652,6 +1652,21 @@ pub struct CommandSpec {
     /// have different legal event surfaces without a compiler-side name check.
     pub event_requirement_forms: &'static [EventRequirementForm],
 
+    /// The iRules events this command raises, for its ordinary form.
+    ///
+    /// The mirror of [`Self::event_requires`]: that says where a command may
+    /// be *written*, this says what running it *starts*. Consumers building
+    /// event-rooted reachability follow this rather than growing a table of
+    /// command names (issue #1708). `None` means the command raises no event.
+    pub event_emits: Option<crate::events::EventEmission>,
+
+    /// Argument-prefix-specific emissions, overriding [`Self::event_emits`]
+    /// for a matching literal call form.
+    ///
+    /// `TCP::notify` needs all three: `request` and `response` raise a user
+    /// event, `eom` only marks a message boundary.
+    pub event_emission_forms: &'static [crate::events::EventEmissionForm],
+
     /// Data-collection lifecycle fact for an iRules protocol command.
     ///
     /// Consumers use this descriptor rather than inferring behaviour from a
@@ -2308,6 +2323,8 @@ impl CommandSpec {
         closed_value_args: &[],
         event_requires: None,
         event_requirement_forms: &[],
+        event_emits: None,
+        event_emission_forms: &[],
         data_collection: None,
         side_switch_target: None,
         event_handler_priority: None,
@@ -2880,6 +2897,22 @@ impl CommandSpec {
                     matched_form: true,
                 },
             )
+    }
+
+    /// Resolve which iRules events this invocation raises, from its literal
+    /// argument words. The most-specific matching form wins; a dynamic or
+    /// otherwise unmatched call falls back to the command-level fact.
+    ///
+    /// A matched form with no events is a positive "raises nothing" and stops
+    /// the fallback — which is the whole point of declaring `TCP::notify eom`.
+    /// `None` means the command declares no emission at all.
+    #[must_use]
+    pub fn event_emission_for_args(&self, args: &[&str]) -> Option<crate::events::EventEmission> {
+        self.event_emission_forms
+            .iter()
+            .filter(|form| form.matches(args))
+            .max_by_key(|form| form.argument_prefix.len())
+            .map_or(self.event_emits, |form| Some(form.emission))
     }
 
     /// Declared option / switch names valid in `dialect`, in

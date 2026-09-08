@@ -68,6 +68,7 @@ require_helper_text "the protected base-branch restriction" '.base.ref == \"rust
 require_helper_text "fail-closed ambiguous association handling" 'pr_count" -eq 1'
 require_helper_text "the PR-head tree lookup" 'git/commits/$pr_head'
 require_helper_text "local current-tree identity" "git rev-parse 'HEAD^{tree}'"
+require_helper_text "quiet verified local PR-head tree lookup" 'git rev-parse -q --verify "$pr_head^{tree}"'
 require_helper_text "exact tree equality" '[ "$current_tree" = "$pr_tree" ]'
 require_helper_text "successful PR workflow lookup" 'head_sha=$pr_head&event=pull_request&status=success'
 require_helper_text "workflow response shape validation" '.workflow_runs | type'
@@ -100,7 +101,7 @@ mkdir -p "$fake_bin"
     printf '%s\n' 'case "$*" in'
     printf '%s\n' '    *"HEAD^2"*) [ -n "${ALREADY_GREEN_MERGE_HEAD:-}" ] && printf "%s\\n" "$ALREADY_GREEN_MERGE_HEAD" || exit 1 ;;'
     printf '%s\n' '    *"HEAD^{tree}"*) printf "%s\\n" "$ALREADY_GREEN_CURRENT_TREE" ;;'
-    printf '%s\n' '    *"^{tree}"*) [ "${ALREADY_GREEN_LOCAL_PR_TREE:-}" != missing ] && printf "%s\\n" "$ALREADY_GREEN_PR_TREE" || exit 1 ;;'
+    printf '%s\n' '    *"^{tree}"*) if [ "${ALREADY_GREEN_LOCAL_PR_TREE:-}" = missing ]; then case "$*" in *"-q --verify"*) exit 1 ;; *) for arg do unresolved=$arg; done; printf "%s\\n" "$unresolved"; exit 128 ;; esac; else printf "%s\\n" "$ALREADY_GREEN_PR_TREE"; fi ;;'
     printf '%s\n' '    *) exit 1 ;;'
     printf '%s\n' 'esac'
 } > "$fake_bin/git"
@@ -149,6 +150,9 @@ run_fixture tag-after-green-pr true \
         ALREADY_GREEN_ASSOCIATIONS="$pr_sha"
 run_fixture exact-sha-push true \
     env ALREADY_GREEN_PUSH_COUNT=1 ALREADY_GREEN_PR_COUNT=0
+run_fixture missing-local-pr-tree-uses-api true \
+    env ALREADY_GREEN_PUSH_COUNT=0 ALREADY_GREEN_PR_COUNT=1 \
+        ALREADY_GREEN_ASSOCIATIONS="$pr_sha" ALREADY_GREEN_LOCAL_PR_TREE=missing
 run_fixture changed-tree false \
     env ALREADY_GREEN_PUSH_COUNT=0 ALREADY_GREEN_PR_COUNT=1 \
         ALREADY_GREEN_ASSOCIATIONS="$pr_sha" ALREADY_GREEN_CURRENT_TREE=dddddddddddddddddddddddddddddddddddddddd

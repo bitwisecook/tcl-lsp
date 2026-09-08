@@ -40,6 +40,34 @@ pub const fn spec() -> CommandSpec {
             also_in: &["SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"],
             flow: false,
         }),
+        // The two uses F5 documents are unrelated, and only two of the three
+        // subcommands raise anything. `request`/`response` are *possible*
+        // rather than definite: with an mblb profile applied the same call
+        // marks a message boundary instead, and nothing at the call site says
+        // which (issue #1708).
+        event_emission_forms: &[
+            EventEmissionForm {
+                argument_prefix: &["request"],
+                emission: EventEmission {
+                    events: &["USER_REQUEST"],
+                    certainty: EventEmissionCertainty::Possible,
+                },
+            },
+            EventEmissionForm {
+                argument_prefix: &["response"],
+                emission: EventEmission {
+                    events: &["USER_RESPONSE"],
+                    certainty: EventEmissionCertainty::Possible,
+                },
+            },
+            EventEmissionForm {
+                argument_prefix: &["eom"],
+                emission: EventEmission {
+                    events: &[],
+                    certainty: EventEmissionCertainty::Definite,
+                },
+            },
+        ],
         forms: &[FormSpec {
             synopsis: "TCP::notify (request | response | eom)",
             ..FormSpec::DEFAULT
