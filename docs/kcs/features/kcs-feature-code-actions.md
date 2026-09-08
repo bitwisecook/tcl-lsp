@@ -67,7 +67,7 @@ gated automatically.
 
 ## Example
 
-![quick fix lightbulb menu](../screenshots/04-quickfix.png)
+![quick fix lightbulb menu](../../screenshots/04-quickfix.png)
 
 ## Discoverability
 

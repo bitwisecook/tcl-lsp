@@ -37,7 +37,7 @@ the other.
 
 - `21-inlay-hints` — inline hints alongside code
 
-![inline hints alongside code](../screenshots/21-inlay-hints.png)
+![inline hints alongside code](../../screenshots/21-inlay-hints.png)
 
 ## Discoverability
 

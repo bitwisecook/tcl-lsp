@@ -31,7 +31,7 @@ The provider looks up the command or proc under the text caret and shows the exp
 
 - `19-signature-help` — parameter hints popup
 
-![parameter hints popup](../screenshots/19-signature-help.png)
+![parameter hints popup](../../screenshots/19-signature-help.png)
 
 ## Discoverability
 

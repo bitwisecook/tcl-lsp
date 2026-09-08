@@ -80,7 +80,7 @@ than one form helps:
 - A short code snippet plus a plain-English pointer to what the user
   sees on which token, line, or range, for analysers (diagnostics,
   hover, completions, inlay hints, signature help, semantic tokens).
-- A screenshot from [`../screenshots/`](../screenshots/) with a short
+- A screenshot from [`../../screenshots/`](../../screenshots/) with a short
   caption, for panels, webviews, and visual features (compiler explorer,
   call hierarchy, debugger).
 

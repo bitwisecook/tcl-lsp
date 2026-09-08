@@ -437,14 +437,6 @@ Distilled from the trickiest scars in the WASM runtime history
   `::tcl::mathfunc`; the binding lattice that gates compile-time
   resolution (the command-layer parallel of the variable-frame model).
 
-## Differential audits
-
-- [issue-923-differential-audit/README.md](issue-923-differential-audit/README.md)
-  — the three-way differential method (mine a corpus, reduce to a minimal
-  repro, compare a real `tclsh` oracle against the LSP), the oracle-environment
-  recipe, and the eight-corpus inventory, alongside the raw findings data and
-  the orchestration scripts that produced them.
-
 ## Agent lanes
 
 - [lanes/README.md](lanes/README.md) — the lane protocol: tracking

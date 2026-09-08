@@ -55,7 +55,7 @@ O126 removes `set` statements for variables that are never read anywhere in the 
 
 - `22-optimiser` — optimiser suggestions in the editor
 
-![optimiser suggestions in the editor](../screenshots/22-optimiser.png)
+![optimiser suggestions in the editor](../../screenshots/22-optimiser.png)
 
 ## Discoverability
 
