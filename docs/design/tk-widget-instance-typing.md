@@ -137,10 +137,9 @@ resolves it with no widget-specific code at all.
 2. **Widget-command identity is a registry query**, not a name list:
    `Analyser::is_widget_command` (`analyser/tk_checks.rs`) asks
    `creates_instance_at.is_some() && required_package == Some("Tk")`. A
-   hardcoded list is not an option here — the previous one had drifted to
-   naming `ttk::scrollbar` and `ttk::labelframe`, neither of which has a
-   registered `CommandSpec`. One source of truth removes the drift class,
-   not just one instance of it.
+   hardcoded list would drift against the registry — it is the registry that
+   knows whether a name such as `ttk::scrollbar` has a `CommandSpec` at
+   all — so there is one source of truth and no drift class.
 3. **Nothing downstream of `creates_instance_at` / `object_class` is
    widget-specific.** `commands.rs::record_registry_factory_instance` and
    `object_types.rs::harvest_unit` read those two fields generically (they

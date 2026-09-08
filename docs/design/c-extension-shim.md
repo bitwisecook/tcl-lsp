@@ -1,14 +1,11 @@
 # The C Tcl extension shim
 
-> **Status:** first leg landed (the argument-handling core); the WASM leg is
-> design only. Issue #1372, part of the spec-pack DSL design
-> ([spec-packs.md](spec-packs.md) § "Covering the hooks").
-
-The Tcl extension interface (`tcl-engine-api`) was designed for exactly two
-consumers: the Rust hook host, and a shim that lets a **C Tcl extension** run
-behind the same surface. This document is that shim: crate `rust/tcl-cshim`,
-its C header `include/tclshim.h`, and the rules that keep it a shim rather
-than a second interface.
+The Tcl extension interface (`tcl-engine-api`) has exactly two consumers: the
+Rust hook host, and a shim that lets a **C Tcl extension** run behind the same
+surface. This document is that shim: crate `rust/tcl-cshim`, its C header
+`include/tclshim.h`, and the rules that keep it a shim rather than a second
+interface. It is part of the spec-pack DSL design
+([spec-packs.md](spec-packs.md) § "Covering the hooks").
 
 ```text
   C extension            compiled against include/tclshim.h
@@ -18,7 +15,7 @@ than a second interface.
   state.rs    Tcl_Interp: result slot, error code, command table, packages
   Interp<E>   owns an engine; publishes C commands as HostCommands
  ------------------------ tcl-engine-api ------------------------
-  tcl-vm engine (tcl-engine-tclvm)   |   Tcl->WASM codegen engine (later)
+  tcl-vm engine (tcl-engine-tclvm)
 ```
 
 The three interface rules from the spec-pack design hold here by
@@ -62,8 +59,7 @@ The rest of the model follows from what packs and hooks are:
   compiled-in Rust; the shim binds a Tcl command name to C code that answers
   with a result. Unifying them — a `-native` identifier that resolves to a
   shimmed C command — would need an engine-neutral reason and a trust story
-  for the identifier table; it is noted as possible future work only, and
-  not proposed.
+  for the identifier table, and neither exists.
 
 **Containment stops where fuel stops.** A hook body is bytecode with a
 command budget, a wall-clock cap, and a value-size cap. C code has none of
@@ -191,33 +187,29 @@ because the engine holds its own reference for the call. Dropping the
 `InterpState` runs every remaining delete procedure, as deleting a C Tcl
 interpreter does.
 
-### What the interface needed
+### What the interface gives the shim
 
-Three changes, all engine-neutral:
+Three engine-neutral pieces, and nothing else — no interp pointer, no result
+slot, no completion codes:
 
 - **`Engine::remove_command(name) -> Result<bool, EngineError>`** — the
-  other half of `define_command`. Default implementation declines with
+  other half of `define_command`. The default implementation declines with
   `Unsupported`, so an engine that cannot unregister says so rather than
   leaving a command callable; the tclvm engine implements it with
   `Vm::remove_command`.
 - **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the
   registration half of the engine, opened to a host command for the
   duration of its invocation (exactly `define_command` and
-  `remove_command`, nothing that reaches the interpreter). Defaulted, so
-  every existing host command is unchanged; the tclvm engine implements it
-  over the `&mut Vm` its native-command seam already hands over. What it
-  buys is factories: a command that creates commands, which C extensions
-  do routinely and the hook host's emitter verbs never did.
-- **The tclvm engine now passes a host command's `Script { message, code }`
-  error through verbatim**, with the `-errorcode` in the completion options,
-  instead of rendering it as `error: <message>`. A `catch` in Tcl therefore
-  sees exactly what the C code set, which is what byte-for-byte fidelity
-  requires — and what the hook host's own emitter verbs should always have
-  produced.
+  `remove_command`, nothing that reaches the interpreter). Defaulted, so an
+  ordinary host command is unaffected; the tclvm engine implements it over
+  the `&mut Vm` its native-command seam hands over. This is what buys
+  factories: a command that creates commands, which C extensions do
+  routinely.
+- **Verbatim host-command errors.** The tclvm engine passes a host command's
+  `Script { message, code }` through with the `-errorcode` in the completion
+  options, so a `catch` in Tcl sees exactly what the C code set.
 
-Nothing else: no interp pointer, no result slot, no completion codes.
-
-## The subset, and the order for the rest
+## The implemented subset
 
 Every declaration in `include/tclshim.h` is implemented — the header is
 honest by rule. What is in it is the argument-handling core the spec-author
@@ -253,14 +245,12 @@ Three header conventions carry the C-side mangling:
   is the one source change the header can demand, and the compiler reports
   it.
 
-The order for the rest, driven by what real extensions use next: string
-building (`Tcl_AppendToObj`, `Tcl_AppendStringsToObj`, `Tcl_ObjPrintf`,
-`Tcl_NewByteArrayObj`); the dict API; variables (`Tcl_SetVar2Ex`,
-`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`), which the interface would need a
-variable door for; then evaluation (`Tcl_EvalObjEx`, `Tcl_EvalEx`), which
-needs the engine reachable *during* an invocation and is therefore an
-interface question before it is a shim one. Each step extends the header
-only with what it implements.
+An extension that needs string building (`Tcl_AppendToObj`,
+`Tcl_ObjPrintf`, `Tcl_NewByteArrayObj`), the dict API, variables
+(`Tcl_SetVar2Ex`, `Tcl_ObjSetVar2` — which the interface has no variable
+door for) or evaluation (`Tcl_EvalObjEx`, which needs the engine reachable
+*during* an invocation) does not compile against the shim. The header
+extends only with what it implements.
 
 ## Testing
 
@@ -285,26 +275,9 @@ defined in Rust through the same exports (`src/lib.rs` tests, and the
 trust-posture proof in `tests/sandbox_isolation.rs`), so every platform,
 Windows included, runs it. The smoke tier has one test in each file.
 
-## The WASM leg (design only — not built)
-
-The Tcl→WASM codegen engine will host the same C code the same way: the
-C source is compiled to `wasm32-wasi` with wasi-sdk (the shim's header
-already passes `clang --target=wasm32-wasi -fsyntax-only` over `pkga.c`),
-and the shim's exports become the module's **imports** — the module calls
-`Tcl_CreateObjCommand` and friends as host functions the Rust shim
-provides, with `Tcl_Obj *` and `Tcl_Interp *` as handles into the shim's
-tables rather than raw addresses, and `objv` as a handle array copied into
-linear memory for the call. `Obj`, `InterpState`, and `ShimCommand` are
-unchanged; only `ffi.rs`'s signatures gain a memory-and-handle adapter.
-That leg also gives the shim what native cannot: fuel and memory limits on
-the C code, from the WASM engine, which would let a WASM-hosted extension
-sit under a budget. None of this is built, and this document does not
-promise its shape beyond the sentence above.
-
 ## Out of scope
 
-Not shimmed, and not planned as part of this leg: `Tcl_Channel` and the I/O
-API; the event loop and notifier (`Tcl_DoOneEvent`, `Tcl_CreateFileHandler`,
+Not shimmed: `Tcl_Channel` and the I/O API; the event loop and notifier (`Tcl_DoOneEvent`, `Tcl_CreateFileHandler`,
 timers); threads (`Tcl_CreateThread`, mutexes, thread-specific data);
 `Tcl_Eval*` (an interface question first, see above); and **stubs-table
 binary compatibility** with real `libtcl` builds — the shim is linked, not
@@ -315,7 +288,7 @@ loaded against a stub table, so an extension is recompiled against
 
 - `rust/tcl-cshim/include/tclshim.h` — the header.
 - `rust/tcl-cshim/src/{ffi,obj,state,lib}.rs` — the shim.
-- `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`,
+- `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`, `tests/factory.rs`,
   `tests/sandbox_isolation.rs` — the tests.
 - `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
 - `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping and

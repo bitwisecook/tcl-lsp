@@ -1,17 +1,17 @@
 # BIG-IP iRule parser measurements ([#1631](https://github.com/bitwisecook/tcl-lsp/issues/1631))
 
-> **Purpose.** Live evidence for
-> [`dialect-and-package-registry-redesign-bigip-evidence-review.md`](dialect-and-package-registry-redesign-bigip-evidence-review.md),
-> whose §E3 recorded the appliance transcript as *pending*. This document
-> supplies that transcript and answers §F3's discriminating matrix directly.
+> **Purpose.** The appliance transcript behind the F5 rows of
+> [`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md),
+> including the answer to its F3 discriminating matrix.
 >
 > **Probe corpus:** [`scripts/dev/bigip-probes/`](../../scripts/dev/bigip-probes/)
 > — 378 iRules, the drivers that ran them, the stock-Tcl controls, and the raw
 > result files.
 >
-> **Methodology caveat up front:** this run predates and does **not** implement
-> the §E4 probe contract. See [§11](#11-relationship-to-the-evidence-review) for
-> the exact delta before relying on any row here as E4-conforming evidence.
+> **Methodology caveat up front:** only §3 and §4a were run under the E4 probe
+> contract ([`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md)
+> §0.2). See [§11](#11-what-the-model-takes-from-this-run) for the exact delta
+> before relying on any other row as E4-conforming evidence.
 
 Measured against a live appliance, not inferred from documentation.
 
@@ -913,7 +913,7 @@ claims because they differ only through this asymmetry.
 
 ---
 
-## 11. Relationship to the evidence review
+## 11. What the model takes from this run
 
 ### What this closes
 
@@ -942,8 +942,9 @@ appliance measurement it does not have.
 ### What this run did *not* do
 
 Two runs are described here and they differ in rigour. The **§3 F3 matrix** and
-the **§4a four-context parity probe** were run under the E4 contract —
-`__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
+the **§4a four-context parity probe** were run under the E4 contract
+([`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md)
+§0.2) — `__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
 `EXIT` trap deleting only those names, an absence proof after every delete, an
 explicit "attached to a virtual server?" check, and the APL contexts recorded as
 `Unknown` rather than inferred. The driver is

@@ -34,128 +34,38 @@ rules for the KCS/documentation split live in
 - [tk-static-ui-model.md](tk-static-ui-model.md) — the conservative,
   registry-driven widget-tree and geometry model shared by editor and MCP
   previews, including its abstention, size-bound, and stale-document rules.
-- [dialect-profile-model.md](dialect-profile-model.md) — the compositional
-  `DialectProfile` model: one profile per dialect owning both command/feature
-  availability and runtime/behaviour semantics (octal, expr/lexer grammar,
-  versioned libraries keyed by base/BIG-IP/tool version), replacing
-  per-consumer `DialectSet` arithmetic across the whole stack.
-  **Superseded in part by #1631 and still shipping**: the string-boundary
-  resolvers it describes are deleted and gated at zero references, but the
-  interned catalogue itself survives as retirement-ledger row C1. Read it
-  for how the shipping catalogue behaves; read the registry redesign below
-  for the model it answers to.
-- [eda-library-packages.md](eda-library-packages.md) — the migration from the
-  5 EDA vendor-bit dialects (`XILINX`/`SYNOPSYS`/`CADENCE`/`QUARTUS`/`MENTOR`)
-  to a base-Tcl-version dialect plus `required_package`-gated per-tool command
-  libraries (a shared `sdc` pack + per-tool vendor packages). Carries the
-  21-package taxonomy, the `is_available` package-loaded gate, detection
-  hardening, and base-version reconciliation.
-The seven documents below are one cluster (issue #1631 — the
-dialect/package/environment redesign). Read them in this order: the
+- [dialect-profile-model.md](dialect-profile-model.md) — the interned
+  `DialectProfile` catalogue the lexer is keyed on; user-written names
+  resolve through the environment model in the registry redesign.
+- [eda-library-packages.md](eda-library-packages.md) — the six EDA shells
+  as base-Tcl profiles plus `required_package`-gated tool packages (`sdc`,
+  `upf`, and the per-tool vendor packs, shipped as bundled `.tclspec` packs
+  with `environment` blocks).
+
+The dialect, package, and environment model is four documents. Read the
 **redesign** for the model and, in its §11, the only list of what is still
-open; the **centralisation** companion for the seam-by-seam audit and the
-retirement ledger; the **two reviews** for why the model has the shape it
-has; the **measurements** for the live F5 evidence that rewrote its F5
-half; and the **two SpecTcl documents** for the authoring surface the
-model's declarations are written in.
+open; the **centralisation** companion for the resolution contract and the
+retirement ledger; the **measurements** for the F5 evidence the model rests
+on; and **spec-packs** for the authoring surface its declarations are
+written in.
 
 - [dialect-and-package-registry-redesign.md](dialect-and-package-registry-redesign.md)
-  — **the #1631 model, revision 2, implemented through P6 (2026-08-27) —
-  start here.** The four-layer model — core profiles (family × release ×
-  build), packages as providers of SpecTcl surface declarations, dynamic
-  environments (definitions + overlays with a fixed editor-identity set),
-  and realm-scoped binding knowledge; the axis-typed `VersionSet` algebra
-  replacing `DialectSet`, version-range targeting, SpecTcl 2.0 with
-  fail-closed semantic vocabulary and trust-aware provenance, and the
-  migration plan with **every phase carrying its final status** (§8).
-  Revision 2 accepts all thirteen blocking findings of the adversarial
-  review (§0.1) and all eight of the F5 evidence review (§0.2). §9 records
-  what became of each research defect, §10 what became of each owner
-  question, and **§11 is the single open-questions ledger for the whole
-  programme** — owner decisions never ratified, deferred model items,
-  evidence gaps, and the doc-versus-code divergences the closing sweep
-  found. If you want to know what is still outstanding anywhere in this
-  cluster of documents, read §11 and nothing else.
+  — the model as built: the four layers, the `VersionSet` algebra, range
+  targeting, the SpecTcl 2.0 vocabulary and trust, the F5 evidence layer and
+  probe contract, the invariants (§8), and §11, the single ledger of what
+  is still open.
 - [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
-  — **the audit of record and the retirement ledger, companion** to the
-  registry redesign; every ledger row carries its final state (done /
-  partial-with-reason / open-gated-on-X) and every open row is repeated in
-  the redesign's §11. Read it for *why* a mechanism was retired and what
-  gate proves it. The end-to-end audit of
-  every registration and resolution seam (front end, compiler, analyser,
-  backends, runtimes/VMs, tooling) against the revision-2 model — the single
-  registration pipeline and five-question resolution stack, the complete
-  retirement ledger (no shims; old systems deleted), the gap rulings, the
-  proving gates, the `tcl spec upgrade` 1.x→2.0 specification that
-  discharges the sole backwards-compatibility exception, and the
-  name-resolution oracle programme grounding namespaces, variables,
-  procs/commands, and packages in the C Tcl test suites, the stdlib's
-  executable specifications, tcllib, Tk, and the corpus — with the
-  consumer conformance lattice as the completion checklist.
-- [dialect-and-package-registry-redesign-adversarial-review.md](dialect-and-package-registry-redesign-adversarial-review.md)
-  — **request-changes review, all thirteen findings accepted and built**
-  (disposition banner at its head; table in the redesign's §0.1). Kept
-  verbatim as the record of why the model has four layers rather than one.
-  Grounded in immutable Tcl,
-  Tk, JimTcl, picol, tcllib, ticklecharts, pave, and SpiceGenTcl sources plus
-  reproducible interpreter/build experiments. It identifies the blocking
-  separation between provider catalogues and per-interpreter live bindings,
-  then specifies corrected version-set, build-profile, trust, lifetime,
-  editor-identity, and behavioural-parity contracts.
-- [spectcl-syntax-alternatives.md](spectcl-syntax-alternatives.md) —
-  **decided (owner, 2026-08-26): design E.** Retained as the comparison
-  record; the deep dive supersedes its recommendation section as the basis
-  of the decision. Six authoring-surface designs answering the "SpecTcl is
-  not very Tcl-like" complaint — synopsis-first, proc-mirror,
-  namespace-native, pure-dict, executable registration, and annotated
-  stubs — each on one identical worked example over the same internal
-  model, with a rubric, comparison matrix, and hybrid recommendation for
-  the owner to weigh.
-- [spectcl-design-e-deep-dive.md](spectcl-design-e-deep-dive.md) —
-  **adopted** (owner, 2026-08-26) and **implemented** (2026-08-27): design
-  E — executable registration — is the SpecTcl 2.0 authoring surface,
-  together with this document's §1 execution model and rulings E-R1–E-R9.
-  The evaluation loader, `tcl spec export`, `spectcl_expand`, the studio on
-  the eval loader, canonical-2.0 rendering and StudioOverride patch-pack
-  editing all shipped; §14's table now carries a per-ruling status column
-  and §15.4 the tick list. E-R11–E-R13 were implemented as proposed and
-  await formal ratification (redesign §11, O3). Stress-tests E
-  against the widest real surfaces — the
-  pinned execution model (frozen snapshots, determinism,
-  target-independence, provenance), literal-driven typing via
-  `format`/`scan`/`binary`, iRules against the profile and event graph,
-  TclOO/Tk, tcllib, the EDA shells, tcl-bpf, SpecTcl self-hosting, and
-  corpus-chosen oddities — collecting numbered `E-R` ruling candidates
-  and the feedback each walk sends into the Rust model.
+  — the registration and resolution contract every consumer is held to,
+  the ledger of retired mechanisms still in the tree, the gap rulings, the
+  `tcl spec upgrade` specification, and the name-resolution oracle
+  programme.
 - [bigip-irule-parser-measurements.md](bigip-irule-parser-measurements.md) —
-  **measured evidence** (owner, live appliance), and the document that
-  rewrote the F5 half of the model: it proved the three BIG-IP contexts are
-  **one parser**, forcing the `f5-tcl` trunk with `f5-irules` as a dialect
-  offshoot, and falsified the iApps/tmsh 8.5 rows. Its §12 names exactly
-  what a next appliance run must answer. The E3 transcript the
-  BIG-IP evidence review recorded as pending — 378 probes against
-  BIG-IP 21.1.0.1 with same-host stock-Tcl controls. Answers F3's
-  six-row matrix (the `}{` separator is generic and lexical, gated on
-  the word starting with `{` or `"`; `{*}` must not be implemented),
-  discovers a second independent divergence (brace-line continuation,
-  the N-rules), measures the 31-disabled command surface, 16
-  discriminating 8.4-vs-8.5 features, four Tcl contexts on one
-  appliance, event-context compile-time validity, and rule priority
-  order. Probe corpus in `scripts/dev/bigip-probes/`; the model consumes
-  it through the evidence layer in `rust/tcl-registry/src/f5/`
-  (`BigIpExecutionContext`, `EmbeddedRuntimeEvidence`, and 205 hermetic
-  conformance vectors).
-- [dialect-and-package-registry-redesign-bigip-evidence-review.md](dialect-and-package-registry-redesign-bigip-evidence-review.md)
-  — **F5 evidence review, all eight findings accepted; its E3 transcript
-  has since run and falsified the iApps/tmsh 8.5 hypothesis outright**
-  (both report 8.4.6 and carry the fork grammar). Read it with the
-  measurements document beside it. Of the fixed iRules, tmsh, and iApps
-  Tcl-version
-  assumptions left in #1631 revision 2, separating TMM iRules, tmsh CLI
-  scripts, iApp implementation Tcl, presentation APL and its embedded Tcl
-  callbacks, and host Tcl. It combines upstream parser evidence, official F5
-  interfaces, stock-Tcl controls, and an isolated live-appliance probe contract,
-  with required provenance and conformance gates.
+  live-appliance measurements behind the F5 half of the model: the three
+  BIG-IP contexts are one parser (the `f5-tcl` trunk with `f5-irules` as
+  an offshoot), the `}{` separator and brace-continuation rules, the
+  disabled-command surface, the 8.4-versus-8.5 discriminators, and rule
+  priority order. Probe corpus in `scripts/dev/bigip-probes/`; consumed
+  through `rust/tcl-registry/src/f5/`.
 
 ## Name resolution
 
@@ -456,26 +366,17 @@ are its rules, and what are the failure modes". One contract per file.
 - [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
   registry-derived executable/callback coverage, the audited external/dynamic
   catalogue, and the generated JSON/Markdown drift gate.
-- [spec-packs.md](spec-packs.md) — SpecTcl, the Tcl-DSL command database
-  for private libraries: the runtime loader, discovery, and hook
-  execution that have landed; the version-ranges lifecycle model at every
-  gateable level; and the vocabulary-tolerance policy that avoids
-  per-release rebuilds.
+- [spec-packs.md](spec-packs.md) — SpecTcl: the loader, discovery tiers,
+  hook host, compatibility policy, version ranges, and the 2.0 authoring
+  rules and `environment` / `include from` vocabulary.
 - [c-extension-shim.md](c-extension-shim.md) — the C Tcl extension shim
   (`tcl-cshim`): the trust model for shimmed native code, `Tcl_Obj` to
-  structured-value marshalling, the `_Init` registration story, the C API
-  subset shimmed first, and the unbuilt WASM leg.
+  structured-value marshalling, the `_Init` registration story, and the
+  C API subset it shims.
 - [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
   — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
   aliasing, TclOO corners, real-world options, paired tails, hooks)
   each ticked against a ported example during review.
-- [spec-dsl-examples/external/README.md](spec-dsl-examples/external/README.md)
-  — the external-library census (ticklecharts, apave, SpiceGenTcl,
-  uncovered tcllib): per-library command-shape findings and the
-  frequency-ranked DSL requirements with their gap catalogue.
-- [spec-dsl-examples/external/corpus-expansion.md](spec-dsl-examples/external/corpus-expansion.md)
-  — the wider corpus hunt behind the #1181 additions, plus sixteen
-  hook-pattern exemplars quoted from cloned sources.
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)
@@ -541,26 +442,18 @@ Distilled from the trickiest scars in the WASM runtime history
 
 ## Differential audits
 
-- [kcs-codes-drift-audit-2026-08-12.md](kcs-codes-drift-audit-2026-08-12.md)
-  — source-verified audit of the per-code diagnostic pages: missing
-  pages, behaviour contradictions, and the now-closed `safe_on_uninit`
-  wiring gap it surfaced.
 - [issue-923-differential-audit/README.md](issue-923-differential-audit/README.md)
   — the three-way differential method (mine a corpus, reduce to a minimal
   repro, compare a real `tclsh` oracle against the LSP), the oracle-environment
   recipe, and the eight-corpus inventory, alongside the raw findings data and
   the orchestration scripts that produced them.
 
-## In-flight agent lanes
+## Agent lanes
 
-- [lanes/README.md](lanes/README.md) — the lane protocol (tracking
-  document, checkpoint commits, explicit-path staging, orchestrator pushes)
-  and one tracking document per in-flight agent lane. A file there means a
-  lane is either in flight or was interrupted; each is removed when its
-  lane lands.
-- [lanes/wasm-native-lowering.md](lanes/wasm-native-lowering.md) — the WASM
-  native-lowering programme: one section per sub-lane (P0–P3, R3–R10) with
-  decisions, ABI additions, and status.
+- [lanes/README.md](lanes/README.md) — the lane protocol: tracking
+  document, checkpoint commits, explicit-path staging, orchestrator pushes.
+  A tracking file in that folder means a lane is in flight or was
+  interrupted; it is removed when the lane lands.
 
 ## Templates
 

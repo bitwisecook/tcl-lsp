@@ -1,6 +1,6 @@
 # Name resolution — the C algorithm and the 8.4 → 9.1 matrix
 
-**Status:** current reference. This document extracts the *real*
+This document extracts the *real*
 name-resolution algorithm from the C Tcl sources for all four name kinds —
 command, variable, class/method, and expr function — and states what actually
 changed for resolution across 8.4 → 8.5 → 8.6 → 9.0 → 9.1. It is the
@@ -227,7 +227,7 @@ rewrites the index to `::tcl::mathfunc::NAME`
 | Feature / rule | Introduced or changed | C evidence | How it is modelled |
 |---|---|---|---|
 | **`namespace path` command tier** in `Tcl_FindCommand` | 8.5 (TIP 229) | `changes:6483`; absent `tcl8.4.20/tclNamesp.c:1961-2050`, present `tcl8.5.19/tclNamesp.c:2447` | Analyser gates at the *recording* site (a pre-8.5 dialect records no path entry, so every consumer skips the tier); the VM gates at *resolution* time, since its version knob is mutable |
-| **Unqualified variable global fallback** | **removed 9.0** (TIP-less; `changes.md:189`) | `tcl8.6.16/tclVar.c:918-925` (fallback) vs `tcl9.0.4/tclVar.c:936-937`, `tcl9.1b0/tclVar.c:976-977` | One registry knob, `DialectSet::namespace_var_global_fallback`, derived from the dialect's runtime base version; honoured by the analyser, the VM (`RuntimeVersion`), and the WASM runtime. Vectored through the VM at both versions *and* under real `tclsh8.6` / `tclsh9.0` |
+| **Unqualified variable global fallback** | **removed 9.0** (TIP-less; `changes.md:189`) | `tcl8.6.16/tclVar.c:918-925` (fallback) vs `tcl9.0.4/tclVar.c:936-937`, `tcl9.1b0/tclVar.c:976-977` | One registry knob, `DialectProfile::namespace_var_global_fallback`, derived from the dialect's runtime base version; honoured by the analyser, the VM (`RuntimeVersion`), and the WASM runtime. Vectored through the VM at both versions *and* under real `tclsh8.6` / `tclsh9.0` |
 | **`::tcl::mathfunc`** (functions as commands) | 8.5 (TIP 232); 8.4 = fixed C table | `tcl8.5.19/tclBasic.c:707`; 8.4 `tclExecute.c:427` | `tcl_syntax::expr::mathfunc::added_in` is the single source of truth for the name set and its per-release ceiling; the const-folder and W002 both read `math_func_ceiling_for_dialect`; W123 additionally gates the *command-wrapper* form at 8.5+ |
 | **`namespace unknown`** | 8.5 (TIP 181) | `changes:6686`; absent 8.4 | `TCL85_PLUS`, matching its sibling `namespace path` |
 | **`namespace upvar`** (4th `VAR_LINK` linker) | 8.5 (TIP 250) | `changes:6684`; `NamespaceUpvarCmd tcl8.5.19/tclNamesp.c:203, 2809` | `TCL85_PLUS` |
@@ -295,8 +295,8 @@ Faithfulness is asserted by execution, not by review:
   flags a new namespace-blind simple-name scan appearing outside the
   sanctioned helpers.
 
-Fetch the C trees with `make fetch-tcl-source` (or the `fetch-tcl-source`
-skill) before re-checking anything here.
+Fetch the C trees with the `fetch-tcl-source` skill before re-checking
+anything here.
 
 ## Related
 
