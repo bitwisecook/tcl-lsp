@@ -58,6 +58,46 @@ go-to-definition, and call-hierarchy resolve them across files through the
 workspace index — and rename and references can never disagree about a
 `superclass` / `mixin` / `inherit` site.
 
+### Callback prefixes that name a method (`references.rs`)
+
+A method reached through a callback prefix — `after 0 [list [self] tick]`,
+`fileevent $s readable [namespace code [list my read]]`, `socket -server
+[namespace code [list my connect]] $port` — is a method reference, and the four
+navigation providers resolve it through one owner
+(`tcl_lsp_core::references::callback_targets_from_command`). Recognition is
+registry data throughout: the *slot* is an `ArgRole::Body` or
+`ArgRole::CommandPrefix` position, the *builder* carries
+`BUILDS_COMMAND_PREFIX` (`list`), and the *wrapper* carries
+`WRAPS_COMMAND_PREFIX` (`namespace code`). No consumer names a command.
+
+Three conditions bound it, and each abstains rather than guessing:
+
+- **A sole substitution.** A compound outer word changes the prefix after the
+  substitution runs — `[list [self] tick]Suffix` invokes `tickSuffix` — so only
+  a whole-word `[…]` is an exact representation of the built command.
+- **Not `{*}`-expanded, at any level.** `{*}` splices the value into the
+  argument list, so the registry's role indices no longer describe where
+  anything landed: `lsort -command {*}[list [self] compare] $items` runs the
+  *object command* as the comparator and passes `compare` as an ordinary
+  argument. Reading the word as if it were the callback slot invents a
+  reference — and rename would rewrite it. One expansion invalidates every
+  *later* index too, not just its own word, so the check is "every word up to
+  this one is written out", and it is applied at the consumer's callback slot,
+  inside the built prefix, and again at each `WRAPS_COMMAND_PREFIX` hop:
+  `after idle [namespace code {*}[list my tick]]` gives `namespace code` two
+  arguments and errors rather than dispatching anything. The compiler's own
+  prefix scan has gated on this since #978; the navigation scan gained the same
+  gate in #1704.
+- **One unambiguous same-scope constant**, for a prefix stored in a variable
+  first (`set cb [list [self] tick]; bind .w <Button-1> $cb`). Every write to
+  the name is a candidate: more than one write, a dynamic write, a scope alias
+  in the frame, or a qualified or array name and the variable is omitted, so
+  reassignment, branch joins and parameters abstain without a target.
+
+A class system whose definer the analyser does not model records no `ClassDef`
+at all, so none of this is reachable in such a file however well-formed its
+callbacks are — `::clay::define` is the corpus example (#1956).
+
 ### LSP analysis layer (`rust/tcl-compiler/src/analyser/`)
 
 The analyser (`oo.rs`, `class_hierarchy.rs`) recognises `oo::class create` /
