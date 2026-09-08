@@ -562,7 +562,7 @@ fn require_live_hook_execution(report: &PackReport, failures: &mut Vec<String>) 
 }
 
 const HEADER: &str = "\
-| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | succeeded/attempted | errors | quar | crash | corpus | synth | load ms | analyse ms |
+| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | VM invocations successful/attempted | errors | quar | crash | corpus | synth | load ms | analyse ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
 
 fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
@@ -607,7 +607,7 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     let _ = write!(
         out,
         "\n{} packs, {commands} commands declared, {bodies} hook bodies, \
-         {successes}/{attempts} successful/attempted hook invocations, \
+         {successes}/{attempts} successful/attempted VM hook invocations, \
          {diagnostics} diagnostics, \
          {optimisations} optimisations.\n\
          load {:.1} ms, analysis {:.1} ms, total {:.1} ms.\n\
