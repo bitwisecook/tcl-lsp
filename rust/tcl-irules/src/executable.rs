@@ -9,7 +9,9 @@ use std::cell::Cell;
 use tcl_compiler::realm::{CommandBindingRealm, document_realm_bindings_with_config};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, Token, TokenType};
-use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
+use tcl_registry::events::{
+    EventEmissionCertainty, IrulesCommandPlacement, IrulesExecutionContext,
+};
 use tcl_registry::expr_surface::RuntimeExprSurface;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -140,6 +142,180 @@ pub fn irules_event_executable_closure(
             .collect(),
         &procedures,
     )
+}
+
+/// One registry-declared edge from a reachable command to an event it raises.
+///
+/// The single owner of the command-to-event relation (issue #1708): every
+/// consumer that wants cross-event reachability, a diagram edge, or a
+/// data-flow path reads this rather than growing its own table of command
+/// names. The edge exists because the registry says the *form* raises the
+/// event — `TCP::notify request` does, `TCP::notify eom` does not — so a
+/// dynamic subcommand matches no form and produces nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrulesEventEmissionEdge {
+    /// The emitting command's span.
+    pub span: tcl_lexer::Span,
+    /// The event this command runs under — directly, or on behalf of the
+    /// event that reached its procedure.
+    pub from_event: String,
+    /// The resolved command head.
+    pub command: String,
+    /// The event it can raise.
+    pub to_event: &'static str,
+    /// How sure the emission is. **Not** an ordering claim: an
+    /// [`EventEmissionCertainty::Asynchronous`] edge means the handler runs
+    /// later on another stack, never that it continues this one.
+    pub certainty: EventEmissionCertainty,
+}
+
+/// Every registry-declared event emission among the file's executable
+/// commands.
+///
+/// An emitting command contributes an edge exactly when it is itself
+/// reachable — a `TCP::notify request` in a dormant or invalid region
+/// contributes nothing.
+///
+/// The closure is rebuilt once per distinct top-level event rather than once
+/// for the whole file, because a procedure emits on behalf of *every* event
+/// that calls it. The whole-file walk reaches a procedure only once and keeps
+/// whichever handler happened to reach it first, so a helper called from both
+/// `CLIENT_ACCEPTED` and `HTTP_REQUEST` would silently lose one of its two
+/// edges to handler source order.
+#[must_use]
+pub fn irules_event_emission_edges(
+    source: &str,
+    registry: &CommandRegistry,
+) -> Vec<IrulesEventEmissionEdge> {
+    let lexing = InventoryLexing::for_registry(registry);
+    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
+    let ctx = InventoryContext {
+        registry,
+        identities: &identities,
+        lexing,
+    };
+    let mut event_bodies = Vec::new();
+    let mut procedures = HashMap::<String, Token>::new();
+    collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
+    let mut events: Vec<String> = Vec::new();
+    for (event, _) in &event_bodies {
+        if !events.iter().any(|seen| seen.eq_ignore_ascii_case(event)) {
+            events.push(event.clone());
+        }
+    }
+    let mut edges = Vec::new();
+    for event in events {
+        let roots: Vec<(String, Token)> = event_bodies
+            .iter()
+            .filter(|(candidate, _)| candidate.eq_ignore_ascii_case(&event))
+            .cloned()
+            .collect();
+        let closure = event_rooted_closure(source, &ctx, roots, &procedures);
+        edges.extend(emission_edges(&closure, registry));
+    }
+    edges
+}
+
+/// The emission edges carried by an already-built closure.
+fn emission_edges(
+    commands: &[IrulesExecutableCommand],
+    registry: &CommandRegistry,
+) -> Vec<IrulesEventEmissionEdge> {
+    let mut edges = Vec::new();
+    for command in commands {
+        // An unresolved head — a dynamic spelling, or an alias the registry
+        // does not know — declares nothing, so it raises nothing we can name.
+        let Some(spec) = registry.get(&command.command) else {
+            continue;
+        };
+        let Some(event) = command.event.as_ref() else {
+            continue;
+        };
+        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+        // A form prefix can match a call the runtime rejects outright:
+        // `TCP::notify request extra` carries the `request` prefix but breaks
+        // the command's declared arity, so it raises nothing and must not put
+        // an unreachable handler into a consumer's reachability set.
+        if arity_is_definitely_wrong(spec, &args) {
+            continue;
+        }
+        let Some(emission) = spec.event_emission_for_args(&args) else {
+            continue;
+        };
+        for to_event in emission.events {
+            edges.push(IrulesEventEmissionEdge {
+                span: command.span,
+                from_event: event.clone(),
+                command: command.command.clone(),
+                to_event,
+                certainty: emission.certainty,
+            });
+        }
+    }
+    edges
+}
+
+/// Whether the registry declares this call's argument count outright invalid.
+///
+/// Deliberately one-sided: `true` only when the count alone settles it, so an
+/// emission edge is dropped only for a call that cannot run. A
+/// release-dependent, form-owned, subcommand-owned, option-bearing or
+/// structurally checked shape — or a word-expanding call, whose count is only
+/// a lower bound — is undecidable from the count here and stays the
+/// analyser's arity diagnostic to report, rather than costing a real edge on
+/// a guess.
+fn arity_is_definitely_wrong(spec: &tcl_registry::CommandSpec, args: &[&str]) -> bool {
+    if !spec.arity_windows.is_empty()
+        || !spec.subcommands.is_empty()
+        || !spec.command_forms.is_empty()
+        || !spec.options.is_empty()
+        || spec.traits.contains(Traits::STRUCTURALLY_CHECKED_ARITY)
+        || args.iter().any(|arg| arg.starts_with("{*}"))
+    {
+        return false;
+    }
+    u16::try_from(args.len()).is_ok_and(|count| !spec.arity.accepts(count))
+}
+
+/// The executable closure of `event`, widened by the events its commands can
+/// raise — transitively, and cycle-safely.
+///
+/// [`irules_event_executable_closure`] answers "what does this handler run".
+/// This answers "what can running this handler reach", which is the question a
+/// cross-event data-flow or reachability consumer asks: a `TCP::notify
+/// request` in `CLIENT_ACCEPTED` makes a `when USER_REQUEST` handler — and
+/// everything that handler calls — reachable from it.
+///
+/// Following a `Possible` or `Asynchronous` edge is correct here and is not a
+/// claim about ordering or certainty: reachability is the union of what *may*
+/// run. A consumer that needs the distinction reads
+/// [`irules_event_emission_edges`], which keeps the certainty on every edge.
+#[must_use]
+pub fn irules_event_reachable_closure(
+    source: &str,
+    event: &str,
+    registry: &CommandRegistry,
+) -> Vec<IrulesExecutableCommand> {
+    let mut out = irules_event_executable_closure(source, event, registry);
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(event.to_ascii_uppercase());
+    let mut pending: VecDeque<&'static str> = emission_edges(&out, registry)
+        .into_iter()
+        .map(|edge| edge.to_event)
+        .collect();
+    while let Some(next) = pending.pop_front() {
+        if !visited.insert(next.to_ascii_uppercase()) {
+            continue;
+        }
+        let reached = irules_event_executable_closure(source, next, registry);
+        pending.extend(
+            emission_edges(&reached, registry)
+                .into_iter()
+                .map(|e| e.to_event),
+        );
+        out.extend(reached);
+    }
+    out
 }
 
 /// Build an executable closure from already-proven event roots.

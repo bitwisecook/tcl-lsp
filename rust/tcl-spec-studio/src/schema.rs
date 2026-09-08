@@ -921,6 +921,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Argument-prefix-specific iRules event contracts that override the command-level requirements.",
     ),
     f(
+        "event_emits",
+        "Event emissions",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(EventEmission { .. })",
+        },
+        "The iRules events this command raises. The mirror of event_requires: that says where a command may be written, this says what running it starts.",
+    ),
+    f(
+        "event_emission_forms",
+        "Event emission forms",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "&[EventEmissionForm { .. }]",
+        },
+        "Argument-prefix-specific emissions that override the command-level one. A form declaring no events is a positive fact, not an absence.",
+    ),
+    f(
         "data_collection",
         "Data collection",
         ADVANCED,

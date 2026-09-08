@@ -840,6 +840,76 @@ impl EventRequirementForm {
     }
 }
 
+/// How sure a command's declared event emission is.
+///
+/// Kept explicit rather than collapsed to a boolean because the three cases
+/// need different treatment by a reachability model: only [`Self::Definite`]
+/// licenses "this event will run", and [`Self::Asynchronous`] must never be
+/// read as same-frame fall-through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventEmissionCertainty {
+    /// The form always raises the event.
+    Definite,
+    /// The form may raise the event; something outside the call decides.
+    ///
+    /// `TCP::notify request` raises `USER_REQUEST` *unless* an mblb
+    /// message-boundary context consumes it instead, and nothing at the call
+    /// site distinguishes the two.
+    Possible,
+    /// The form raises the event later, on another stack.
+    ///
+    /// `NAME::lookup` returns immediately and `NAME_RESOLVED` fires when the
+    /// DNS answer arrives, so the handler is reachable but is not a
+    /// continuation of the caller.
+    Asynchronous,
+}
+
+/// The iRules events one command form can raise.
+///
+/// Separate from [`EventRequires`], which answers the opposite question:
+/// whether a command is legal *inside* the event it is written in.
+///
+/// An empty [`Self::events`] is a positive fact — "this form raises nothing" —
+/// not an absence. `TCP::notify eom` declares it so that the form cannot
+/// inherit a broader form's emission, which is exactly the mistake a
+/// consumer-side command-name table would make.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventEmission {
+    /// Target event names. Every name must exist in the event registry; a
+    /// drift test enforces that, so a typo cannot silently emit nothing.
+    pub events: &'static [&'static str],
+    /// How sure the emission is.
+    pub certainty: EventEmissionCertainty,
+}
+
+/// Event emission for one literal command-argument prefix.
+///
+/// The same selection rule as [`EventRequirementForm`]: longest matching
+/// literal prefix wins, and a command whose forms differ (`TCP::notify
+/// request` / `response` / `eom`) describes each in registry data rather than
+/// leaving consumers to match the subcommand by name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventEmissionForm {
+    /// Literal leading words after the command name that select this form.
+    pub argument_prefix: &'static [&'static str],
+    /// What the selected form raises.
+    pub emission: EventEmission,
+}
+
+impl EventEmissionForm {
+    /// Whether `args` begins with this form's literal selector.
+    /// An empty selector is the exact no-argument form, not a wildcard —
+    /// the whole-command fact is [`crate::spec::CommandSpec::event_emits`].
+    #[must_use]
+    pub fn matches(&self, args: &[&str]) -> bool {
+        if self.argument_prefix.is_empty() {
+            args.is_empty()
+        } else {
+            args.starts_with(self.argument_prefix)
+        }
+    }
+}
+
 /// The effective event contract for one resolved command call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedEventRequirements<'a> {

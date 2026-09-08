@@ -279,6 +279,8 @@ pub const CLUSTERS: &[Cluster] = &[
         members: &[
             "event_requires",
             "event_requirement_forms",
+            "event_emits",
+            "event_emission_forms",
             "data_collection",
             "side_switch_target",
             "event_handler_priority",

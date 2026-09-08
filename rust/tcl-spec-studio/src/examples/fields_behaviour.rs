@@ -576,6 +576,42 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "event_emits",
+        Example {
+            code: "when CLIENT_ACCEPTED {\n    NAME::lookup \"example.com\"\n}\nwhen NAME_RESOLVED {\n    set answer [NAME::response]\n}",
+            focuses: &[
+                focus(
+                    1,
+                    "NAME::lookup",
+                    "returns at once and raises NAME_RESOLVED when the answer arrives",
+                ),
+                focus(
+                    3,
+                    "NAME_RESOLVED",
+                    "reachable from the lookup, but on another stack — not a continuation",
+                ),
+            ],
+        },
+    ),
+    (
+        "event_emission_forms",
+        Example {
+            code: "when CLIENT_ACCEPTED {\n    TCP::notify request\n    TCP::notify eom\n}\nwhen USER_REQUEST {\n    log local0. \"raised by the request form\"\n}",
+            focuses: &[
+                focus(
+                    1,
+                    "notify request",
+                    "may raise USER_REQUEST — an mblb profile can consume it instead",
+                ),
+                focus(
+                    2,
+                    "notify eom",
+                    "declares no emission, so it cannot inherit the form above",
+                ),
+            ],
+        },
+    ),
+    (
         "data_collection",
         Example {
             code: "when HTTP_REQUEST {\n    HTTP::collect 1024\n}\nwhen HTTP_REQUEST_DATA {\n    set body [HTTP::payload]\n    HTTP::release\n}",

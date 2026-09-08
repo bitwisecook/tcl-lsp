@@ -2525,3 +2525,61 @@ fn sweep_closed_referentially_transparent_dispatch_resolves_to_base() {
          command spec"
     );
 }
+
+/// Issue #1708 — every declared event emission names an event the registry
+/// knows.
+///
+/// The descriptor's whole point is that consumers follow registry data instead
+/// of growing command-name tables, so a typo in a target name would not fail
+/// anywhere: the edge would simply never be built, and the reachability model
+/// would quietly under-report. This is the drift gate the issue asks for.
+///
+/// It also pins the shape of the two seeded commands, because
+/// `TCP::notify eom` declaring *no* events is a positive fact — it stops the
+/// form inheriting a broader emission — and an empty list is exactly what an
+/// accidental deletion looks like.
+#[test]
+fn declared_event_emissions_name_known_events() {
+    // registry-metadata / f5-dialect: iRules events have no tclsh analogue.
+    let registry = registry_for_dialect("f5-irules");
+    let events = tcl_registry::events::EventRegistry::build();
+    let known: BTreeSet<String> = events
+        .all_event_names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert!(
+        known.contains("USER_REQUEST"),
+        "the event table must be loaded for this check to mean anything",
+    );
+
+    let mut declaring = BTreeSet::new();
+    for name in registry
+        .command_names()
+        .map(str::to_owned)
+        .collect::<Vec<_>>()
+    {
+        for spec in registry.specs(&name) {
+            let declared = spec
+                .event_emits
+                .into_iter()
+                .chain(spec.event_emission_forms.iter().map(|form| form.emission));
+            for emission in declared {
+                declaring.insert(name.clone());
+                for event in emission.events {
+                    assert!(
+                        known.contains(*event),
+                        "{name} declares an emission of `{event}`, which is not in the \
+                         event registry — a target that cannot be resolved builds no \
+                         edge and silently under-reports reachability",
+                    );
+                }
+            }
+        }
+    }
+
+    assert!(
+        declaring.contains("TCP::notify") && declaring.contains("NAME::lookup"),
+        "the seeded commands must still declare an emission; got {declaring:?}",
+    );
+}

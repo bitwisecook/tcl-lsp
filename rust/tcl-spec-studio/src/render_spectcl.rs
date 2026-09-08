@@ -244,6 +244,16 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::DraftOpaque,
     },
     Gap {
+        key: "event_emits",
+        spelling: "event_emits {E …} ?-possible|-async?",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        key: "event_emission_forms",
+        spelling: "event_emission_form {word …} {E …} ?-possible|-async?",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
         key: "side_switch_target",
         spelling: "side_switch_target Client|Server",
         kind: GapKind::DraftOpaque,
@@ -2504,6 +2514,8 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     // --- iRules ------------------------------------------------------------
     gap_todo(out, ctx, draft, "event_requires");
     gap_todo(out, ctx, draft, "event_requirement_forms");
+    gap_todo(out, ctx, draft, "event_emits");
+    gap_todo(out, ctx, draft, "event_emission_forms");
     gap_todo(out, ctx, draft, "data_collection");
     gap_todo(out, ctx, draft, "side_switch_target");
     gap_todo(out, ctx, draft, "event_handler_priority");
