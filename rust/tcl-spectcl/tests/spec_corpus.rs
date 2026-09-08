@@ -98,6 +98,10 @@
 //! the opt-in to the big corpus, and the report names which corpora were drawn
 //! on either way.
 //!
+//! Set `SPECTCL_CORPUS_DIFF=1` to run the pre-#1940 two-unit path alongside the
+//! shared-unit path and assert identical diagnostics and raw optimisations for
+//! every corpus input.
+//!
 //! ## Containment
 //!
 //! [`a_hostile_pack_degrades_to_abstention_and_never_hangs`] is the negative
@@ -111,11 +115,13 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-use tcl_compiler::analyser::Analyser;
-use tcl_compiler::optimiser::manager::optimise_raw;
+use tcl_compiler::analyser::{Analyser, types::Diagnostic};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::optimiser::{Optimisation, optimise_raw, optimise_unit_raw};
 use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Value};
 use tcl_engine_tclvm::TclVmEngine;
 use tcl_registry::arg_role::ArgRole;
@@ -626,10 +632,15 @@ fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
     (set, started.elapsed())
 }
 
-/// Analyse `source` under `dialect` with `packs` overlaid, and run the
-/// optimiser over it too — the const-fold families answer there, not in the
-/// analyser.
-fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
+#[derive(Debug, PartialEq, Eq)]
+struct AnalysisOutput {
+    diagnostics: Vec<Diagnostic>,
+    optimisations: Vec<Optimisation>,
+}
+
+/// The pre-#1940 path: the analyser and raw optimiser each build their own
+/// whole-file compilation unit.
+fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let result = analyser.analyse(source, dialect);
     let registry = std::sync::Arc::clone(
@@ -638,7 +649,86 @@ fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
             .commands(),
     );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
-    (result.diagnostics.len(), optimisations.len())
+    AnalysisOutput {
+        diagnostics: result.diagnostics,
+        optimisations,
+    }
+}
+
+/// Analyse and optimise one source file from the same compilation unit.
+///
+/// `build_for_profile` + `with_interprocedural` deliberately mirrors the
+/// optimiser's typed entry point.  Supplying that unit through the analyser's
+/// CFG/SSA seam means the expensive lowering, CFG, SSA and interprocedural
+/// work is done once, while `optimise_unit_raw` retains the raw (pre-overlap)
+/// optimiser result used by this corpus report.
+fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
+    let mut analyser = Analyser::new().with_pack_overlay(overlay);
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let registry = Arc::clone(
+        environment
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .commands(),
+    );
+    let profile = environment.unit_profile();
+    let unit = Arc::new(
+        CompilationUnit::build_for_profile(source, &registry, false, profile)
+            .with_interprocedural(&registry, Some(profile)),
+    );
+    analyser.set_cu_override(Arc::clone(&unit));
+    let result = analyser.analyse(source, dialect);
+    let optimisations = optimise_unit_raw(&unit, &registry, Some(profile));
+    AnalysisOutput {
+        diagnostics: result.diagnostics,
+        optimisations,
+    }
+}
+
+fn canonicalise_optimisations(optimisations: &mut [Optimisation]) {
+    optimisations.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            a.code,
+            &a.message,
+            &a.replacement,
+            a.group,
+            a.hint_only,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                b.code,
+                &b.message,
+                &b.replacement,
+                b.group,
+                b.hint_only,
+            ))
+    });
+}
+
+/// Analyse through the shared-unit path by default.  The opt-in differential
+/// mode runs the old path alongside it for every corpus input, making the
+/// report-count equality a full-corpus assertion without doubling the normal
+/// gate's runtime.
+fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
+    let shared = analyse_shared(source, dialect, overlay);
+    if std::env::var_os("SPECTCL_CORPUS_DIFF").is_some() {
+        let legacy = analyse_legacy(source, dialect, overlay);
+        assert_eq!(
+            shared.diagnostics, legacy.diagnostics,
+            "shared compilation-unit path changed diagnostics for {dialect} overlay {overlay}"
+        );
+        let mut shared_optimisations = shared.optimisations.clone();
+        let mut legacy_optimisations = legacy.optimisations;
+        canonicalise_optimisations(&mut shared_optimisations);
+        canonicalise_optimisations(&mut legacy_optimisations);
+        assert_eq!(
+            shared_optimisations, legacy_optimisations,
+            "shared compilation-unit path changed raw optimisations for {dialect} overlay {overlay}"
+        );
+    }
+    (shared.diagnostics.len(), shared.optimisations.len())
 }
 
 /// Every load notice, in the baseline's line format.
