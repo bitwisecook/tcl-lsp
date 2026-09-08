@@ -895,28 +895,15 @@ impl<'a> Lowerer<'a> {
         // A body the front end never captured (a synthetic or dynamic one)
         // has nothing for the runtime to bind; keep the generic invocation.
         let body_source = procedure.body_source.clone()?;
-        // The runtime's `proc` still owns every error this form can raise, so
-        // only the exact `proc name params body` shape is taken.
-        let [head, name, params, body] = invoke.original_words.as_slice() else {
-            return None;
-        };
-        let _ = head;
         // Every word this hands the runtime has to be the word the statement
-        // actually writes. `Procedure` records the *written* name, parameter
-        // list and body text, but lowering may have compiled the body from a
-        // value it materialised instead — a const-mapped `$body`, or a
-        // `[subst -nocommands …]` template — and it records the original word
-        // beside that compiled body, not the text it compiled. Registering
-        // that word would report the wrong `info body`, and any later run of
-        // the source body (a step trace, or a declined entry) would evaluate
-        // the substitution *in the procedure's own frame*, where its operands
-        // do not exist. A substituted word therefore keeps the generic
-        // invocation, and the runtime's own `proc` — which evaluates the word
-        // at the call site, as Tcl does — defines the procedure.
-        if !is_written_literal(name) || !word_is_literally(params, &procedure.params_raw) {
-            return None;
-        }
-        if !word_is_literally(body, &body_source) {
+        // actually writes; a substituted one keeps the generic invocation, and
+        // the runtime's own `proc` — which evaluates the word at the call site,
+        // as Tcl does — defines the procedure.
+        if !definition_words_are_written_out(
+            &invoke.original_words,
+            &procedure.params_raw,
+            &body_source,
+        ) {
             return None;
         }
         self.emit(NativeOp::DefineProc {
@@ -2003,6 +1990,38 @@ fn word_is_literally(word: &WordExpr, recorded: &str) -> bool {
         WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => text == recorded,
         _ => false,
     }
+}
+
+/// Whether a `proc name params body` statement wrote every word out, and wrote
+/// the parameter list and body the surviving [`crate::ir::Procedure`] recorded.
+///
+/// The condition under which a tier may register a definition itself rather
+/// than leave it to the runtime's own `proc`. `Procedure` records the
+/// *written* name, parameter list and body text, but a lowering may have
+/// compiled the body from a value it materialised instead — a const-mapped
+/// `$body`, or a `[subst -nocommands …]` template — recording the original
+/// word beside that compiled body rather than the text it compiled.
+/// Registering that word would report the wrong `info body`, and any later run
+/// of the source body (a step trace, or a declined native entry) would
+/// evaluate the substitution *in the procedure's own frame*, where its
+/// operands do not exist.
+///
+/// Shared by the native tier and the general wasm tier because it is one rule:
+/// a second copy is a second thing to go out of step, and the general tier had
+/// no check at all (issue #1896).
+pub(crate) fn definition_words_are_written_out(
+    words: &[WordExpr],
+    params_raw: &str,
+    body_source: &str,
+) -> bool {
+    // The runtime's `proc` owns every error the other shapes can raise, so
+    // only the exact four-word form is taken.
+    let [_head, name, params, body] = words else {
+        return false;
+    };
+    is_written_literal(name)
+        && word_is_literally(params, params_raw)
+        && word_is_literally(body, body_source)
 }
 
 /// The 1-based line of `offset` within the body that opens at `origin`.
