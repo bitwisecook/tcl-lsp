@@ -479,9 +479,9 @@ Explorer detector reports unread SSA stores, O109 decides source deletability,
 and slot allocation computes name-level interference. They may share lower
 level primitives, but each must retain its distinct conservative contract.
 
-## Implemented first tier and widening order
+## The sealed native-add tier
 
-The first native procedure tier implements this deliberately narrow subset:
+The sealed native procedure tier implements this deliberately narrow subset:
 
 1. one ordinary procedure with required scalar parameters only;
 2. exact live procedure, `expr`, `return`, `set`, and output-boundary operation
@@ -498,13 +498,9 @@ by itself prove that top-level `d` and `e` may disappear, that `add` need not be
 registered, that its frame is unobservable, or that Tcl integer addition cannot
 produce a bignum. Those are separate obligations above.
 
-The common plan now proves those separate obligations for the exact sealed
+The common plan proves those separate obligations for the exact sealed
 demonstration only. A proof miss declines before native emission; there is no
-guarded or deoptimising native activation in this tier. Widening should proceed
-through checked boxed overflow fallback, non-constant machine-range operands,
-general materialisation edges, default parameters and `args`, mixed
-numeric/string values, namespace-relative procedures, safe/child interpreters,
-and finally TclOO dispatch.
+guarded or deoptimising native activation in this tier.
 
 ## Verification matrix
 

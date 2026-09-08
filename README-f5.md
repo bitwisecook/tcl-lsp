@@ -61,8 +61,8 @@ and warning when a support milestone is within one year or has passed.
 
 The report's **Security** tab runs a small, offline set of high-confidence
 checks — factory/default `root`/`admin` credentials (verified against the
-stored password hash with no platform `crypt(3)` call, so the native, wasm,
-and any future backend agree), default/weak SNMP communities, disabled or
+stored password hash with no platform `crypt(3)` call, so the native and
+wasm backends agree), default/weak SNMP communities, disabled or
 weak password-policy enforcement, plaintext secrets, unprotected private-key
 material, and non-administrative shell access — and lists each as a
 stable-id, severity-ranked finding with remediation guidance. Detection never
@@ -338,7 +338,7 @@ build with `make report-wasm`.
 Passwords, keys, and other secret material in a config are treated as secrets
 throughout: findings never quote a password, hash, or salt, and the report's
 credential checks verify against the stored hash without calling the platform
-`crypt(3)`, so the native, WASM, and any future backend agree. See
+`crypt(3)`, so the native and WASM backends agree. See
 [kcs-feature-f5-secret-crypto.md](docs/kcs/features/kcs-feature-f5-secret-crypto.md).
 
 ## APL (iApp Presentation Language)

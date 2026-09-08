@@ -190,9 +190,9 @@ User-facing compiler troubleshooting and how-tos live in
   WASM: the capability matrix, browser-target build/wiring gaps, the
   proposed host-import surface, and measured module sizes.
 - [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) — the native
-  lowering architecture (NLIR, representation and framing lattices, framing
-  elision), the runtime ABI it adds, the sample tiers, and the phases still
-  to land.
+  lowering architecture (NLIR, representation and cell lattices, framing
+  elision), the runtime ABI it adds, the sample tiers and framing budgets,
+  and the corpus evidence behind its priorities.
 - [aot-command-priority.md](aot-command-priority.md) — real-corpus census
   (issue #1181) ranking which Tcl commands the AOT WASM compiler should
   emit directly next, with a breadth-weighted tiering and what is already

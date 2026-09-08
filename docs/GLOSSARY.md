@@ -189,57 +189,52 @@ KCS tag: `lowering`.
 
 Intermediate Representation — a structured, typed representation of Tcl
 commands between parsing and code generation.  Defined in
-`tcl_compiler::ir`; the union type `Statement` covers all statement
-kinds.
+`tcl_compiler::ir`; the `Statement` enum covers every statement kind,
+and each variant carries the source `Span` diagnostics point at.
 
 ```mermaid
 classDiagram
-    class IRStatement {
-        <<union>>
+    class Statement {
+        <<enum>>
     }
-    class IRAssignConst {
-        +name: str
-        +value: str
+    class AssignConst {
+        +name: String
+        +value: String
     }
-    class IRAssignExpr {
-        +name: str
+    class AssignExpr {
+        +name: String
         +expr: ExprNode
     }
-    class IRAssignValue {
-        +name: str
-        +value: str
+    class Call {
+        +command: String
+        +args: Vec~String~
+        +defs: Vec~String~
     }
-    class IRCall {
-        +command: str
-        +args: tuple
-        +defs: tuple
+    class Barrier {
+        +command: String
+        +reason: String
     }
-    class IRBarrier {
-        +reason: str
-        +command: str
+    class If {
+        +clauses: Vec~IfClause~
+        +else_body: Option~Script~
     }
-    class IRIf {
-        +clauses: tuple~IRIfClause~
-        +else_body: IRScript
-    }
-    class IRWhile {
-        +condition: ExprNode
-        +body: IRScript
-    }
-    class IRFor {
-        +init: IRScript
-        +condition: ExprNode
-        +next: IRScript
-        +body: IRScript
-    }
-    IRStatement <|-- IRAssignConst
-    IRStatement <|-- IRAssignExpr
-    IRStatement <|-- IRAssignValue
-    IRStatement <|-- IRCall
-    IRStatement <|-- IRBarrier
-    IRStatement <|-- IRIf
-    IRStatement <|-- IRWhile
-    IRStatement <|-- IRFor
+    Statement <|-- AssignConst
+    Statement <|-- AssignExpr
+    Statement <|-- AssignValue
+    Statement <|-- Incr
+    Statement <|-- ExprEval
+    Statement <|-- Call
+    Statement <|-- Return
+    Statement <|-- Barrier
+    Statement <|-- Block
+    Statement <|-- UpFrame
+    Statement <|-- If
+    Statement <|-- For
+    Statement <|-- While
+    Statement <|-- Foreach
+    Statement <|-- Catch
+    Statement <|-- Try
+    Statement <|-- Switch
 ```
 
 See also: [IR types and lowering](design/compiler/ir-types-lowering.md).

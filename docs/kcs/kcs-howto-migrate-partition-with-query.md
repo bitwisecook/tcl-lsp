@@ -15,7 +15,7 @@ How do I migrate every object from one partition into another — including the 
 
 - A `bigip.conf` / SCF that contains the partition you want to move.
 - The destination partition name (must match `[A-Za-z0-9_.-]+`).
-- A clear idea of whether you want the **whole partition** to move (everything in `/Common/`) or only **specific kinds** (just the pools, just the virtuals).
+- A clear idea of whether you want the **whole partition** to move or only **specific kinds** (just the pools, just the virtuals).
 
 ## Answer
 

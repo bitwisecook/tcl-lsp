@@ -27,21 +27,15 @@ The compiler owns the user module. The runtime owns command registration,
 package state, embedded files, and interpreter dispatch. Optional script files
 are loaded by the runtime and do not create a second compiler backend.
 
-## Future desired state
+## Package-driven extensions (not implemented)
 
-> **Future desired state — not implemented.**
-
-A package-aware extension system may later:
-
-1. scan retained `package require` facts from `CompilationUnit` through generic
-   package metadata;
-2. resolve requested runtime features against an explicit extension registry;
-3. build or select compatible runtime/extension artefacts; and
-4. link them with the canonical `WasmModule` while preserving the shared memory,
-   object ownership, completion, and capability contracts.
-
-That work must add a Rust implementation and tests first. It must not add a
-second compiler backend or an out-of-band bundle test path.
+A package-aware extension system would scan retained `package require` facts
+from `CompilationUnit` through generic package metadata, resolve requested
+runtime features against an explicit extension registry, build or select
+compatible runtime/extension artefacts, and link them with the canonical
+`WasmModule` while preserving the shared memory, object ownership,
+completion, and capability contracts. It must not add a second compiler
+backend or an out-of-band bundle test path.
 
 ## Related
 

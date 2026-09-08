@@ -25,8 +25,8 @@ Two commands cover the event registry:
 ### tcl-lsp CLI
 
 ```
-f5 irule event-info HTTP_REQUEST
-f5 irule event-order /path/to/irule.tcl --json
+f5-query irule event-info HTTP_REQUEST
+f5-query irule event-order /path/to/irule.tcl --json
 ```
 
 ### MCP
@@ -45,25 +45,26 @@ The `/irule-event` skill wraps both lookups.
 ### event-info
 
 ```
-$ f5 irule event-info HTTP_REQUEST
-=== Event Info ===
-  Event: HTTP_REQUEST
-  Deprecated: no
-  Multiplicity: per_request
-  Side: client-side
-  Transport: tcp
-  Profiles: FASTHTTP, HTTP
-  Valid commands: 1236
+$ f5-query irule event-info HTTP_REQUEST
+event: HTTP_REQUEST
+known: yes
+lifecycle: available
+multiplicity: per_request
+description: Fires when request headers are fully parsed (pre-LB). On keep-alive connections, fires once per HTTP transaction. Pipeline: L7 iRules layer.
+side: client-side
+transport: tcp
+profiles: FASTHTTP, HTTP
+valid commands: 800
 ```
 
 ### event-order
 
 ```
-$ f5 irule event-order my_irule.tcl
-=== Event Firing Order (3 events) ===
-  1. CLIENT_ACCEPTED  (per_connection)
-  2. HTTP_REQUEST     (per_request)
-  3. HTTP_RESPONSE    (per_request)
+$ f5-query irule event-order my_irule.tcl
+event order: 3 event(s)
+  1. CLIENT_ACCEPTED (once_per_connection)
+  2. HTTP_REQUEST (per_request)
+  3. HTTP_RESPONSE (per_request)
 ```
 
 ## Related

@@ -145,8 +145,8 @@ an interpreter-fallback path, or an explicit not-required classification.
 on an unclassified command; a real gap goes on `KNOWN_UNBACKED` in
 `rust/xtask/src/command_backing.rs` until it gains a handler. The
 `wasm_stdlib` feature embeds Tcl scripts and the Tcl-level `tcltest` package
-in the runtime VFS; it is not a port of the C `test*` commands, and
-package-driven extension bundling is future state only. Pipeline:
+in the runtime VFS; it is not a port of the C `test*` commands and does not
+bundle package-driven extensions. Pipeline:
 [wasm-codegen.md](docs/design/compiler/wasm-codegen.md); extensions:
 [wasm-extensions.md](docs/design/compiler/wasm-extensions.md).
 
@@ -214,7 +214,7 @@ glossary, and screenshot updates in the same PR
 
 ## Long-running lanes
 
-A lane keeps a tracking document under `docs/design/lanes/`, commits at every
-compiling milestone as `wip(<lane>):` with explicitly staged paths, never
-pushes (the orchestrator does), and never deletes `.git/index.lock`.
-Protocol: [lanes/README.md](docs/design/lanes/README.md).
+A lane keeps a tracking document under `docs/design/lanes/`, commits each
+coherent, compiling state as `wip(<lane>):` with explicitly staged paths,
+never pushes (the orchestrator does), and waits rather than deleting
+`.git/index.lock`. Rules: [lanes/README.md](docs/design/lanes/README.md).

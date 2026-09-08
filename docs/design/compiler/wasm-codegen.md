@@ -438,11 +438,8 @@ What they do share — argv assembly, `tcl_invoke_argv`, and the owned
 result/options release discipline — is written twice
 (`finish_semantic_invoke` versus `emit_invoke_node`), and the per-statement
 path is strictly the broader of the two: it proves variable, nested-command,
-and compound words that the whole-function plan declines. The intended
-consolidation is for the whole-function plan to build a `WasmLeafInvokePlan`
-and reuse the same emission, forwarding the adopted handles instead of
-releasing them; until then a change to one ownership sequence must be
-mirrored in the other.
+and compound words that the whole-function plan declines. A change to one
+ownership sequence must be mirrored in the other.
 
 ### What the fallback still costs
 

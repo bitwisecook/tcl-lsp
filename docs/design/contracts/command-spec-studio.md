@@ -414,7 +414,7 @@ drawing the same line. A group heading keeps its own snippet, because a
 group's **?** is about the group.
 
 Each snippet uses a shipped command that really declares the field, so the
-arrows point at a consequence the analyser draws today: an output sink is
+arrows point at a consequence the analyser draws: an output sink is
 `HTTP::respond`, a log sink is `log local0.`, a network sink is `socket`.
 
 Dropdown values are the same idea one level down. A vocabulary the registry
@@ -424,8 +424,7 @@ owns — `Trait`, `TaintColourAtom`, `SideEffectTarget`, `ArgRole`,
 `DocumentationExample` per variant, and `variant_example` serialises it. The
 remaining pickers (`bodyKind`, `scriptTiming`, the hook ids, `dialects`, …)
 still introduce a value with their catalogue's snippet. That is the boundary
-today, stated rather than papered over; moving a vocabulary across it is the
-registry change described next.
+; moving a vocabulary across it is the registry change described next.
 
 #### Where a vocabulary's example lives
 
@@ -536,7 +535,7 @@ key the seeder writes (which, because `render_rs` walks the schema and the WASM
 `Expression` entry's field name must appear in the literal a rendered spec
 emits; and no schema key may be left without a coverage entry.
 
-**Excluded by decision, not by accident.** The only exclusions today are the
+**Excluded by decision, not by accident.** The only exclusions are the
 fields of `DefinitionBodyGrammar`, `MemberBodyCommand`, `ObjectClassSpec`, and
 `CaseListSpec`: each is a shared registry constant that many commands
 reference, so the studio's editor takes the *constant's path*
@@ -892,7 +891,7 @@ history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)).
 | `retired_version` | The first snapshot where a previously-present command is gone — an exclusive bound, matching `tcl_registry::lifecycle` exactly. |
 | `deprecated_version` | Never derived structurally. The first snapshot whose doc comment says "deprecated" becomes a *suggested* version recorded only in the notes. |
 | Option rows | Diffed by name across the snapshots in which the command exists; an option that later disappears keeps its row, carrying its `retired_version`, rather than being dropped. |
-| Closed value sets | Diffed by membership. On a subcommand-shaped draft the result lands in `versioned_arg_values`, the draft vocabulary's existing per-value gate; a command-level value has no field yet, so it becomes a structured `version-gate:` note instead (below). |
+| Closed value sets | Diffed by membership. On a subcommand-shaped draft the result lands in `versioned_arg_values`, the draft vocabulary's existing per-value gate; a command-level value has no field, so it becomes a structured `version-gate:` note instead (below). |
 | Arity changes | **Derived** into `arity_windows`: runs of equal shape across the snapshots become windows, each closed where the next shape arrives — the spelling the loader requires, since an unclosed window never ends and two would overlap. A signature that never changed derives none; the plain `arity` already says it. The note naming both releases and both shapes is kept beside the derived field as its evidence. |
 | Role changes | Reported as a note naming both releases and both shapes, never invented — which argument moved is not recoverable from a count. |
 | A present → absent → present pattern | Leaves the lifecycle unbounded and raises a warning naming the gap; a range cannot describe a hole. |
@@ -901,11 +900,9 @@ history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)).
 the derivation cannot infer for itself — see `tcl spec import`'s paired
 `--complete-history`/`--partial-history` flags, off by default.
 
-**`version-gate:` notes.** A fact the draft model has no field for yet —
-today, a command-level closed-value gate — is emitted as a note carrying
-the stable `VERSION_GATE_NOTE` prefix (`version-gate:`) so a later pass
-can mechanically upgrade it into a field once the registry extension
-lands:
+**`version-gate:` notes.** A fact the draft model has no field for — a
+command-level closed-value gate — is emitted as a note carrying the stable
+`VERSION_GATE_NOTE` prefix (`version-gate:`), so it stays machine-findable:
 
 ```text
 version-gate: command=encode arg=0 value=utf-8 introduced=1.2

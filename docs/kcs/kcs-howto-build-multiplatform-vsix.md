@@ -52,8 +52,7 @@ package must contain it, a targeted package must not.
 ### What is in a package, and why it is large
 
 The universal package unpacks to roughly **430 MiB** and downloads as roughly
-**120-130 MiB**. That is expected, and it is worth knowing where it goes
-before someone tries to "fix" it:
+**120-130 MiB**. Where that goes:
 
 - Seven native `tcl-lsp-server` binaries, about 47 MiB each (13 MiB
   compressed) — the bulk of the package.
