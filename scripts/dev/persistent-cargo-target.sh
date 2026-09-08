@@ -153,7 +153,15 @@ valid_lock() {
     [ -f "$lock" ] || return 1
     [ ! -L "$lock" ] || return 1
     [ "$(stat -c '%u' -- "$lock")" = "$(id -u)" ] || return 1
-    [ "$(stat -c '%a' -- "$lock")" = 600 ]
+    [ "$(stat -c '%a' -- "$lock")" = 600 ] || return 1
+    [ "$(stat -c '%h' -- "$lock")" = 1 ]
+}
+
+opened_lock_ok() {
+    local fd=$1 lock=$2 opened
+    opened=$(readlink -f -- "/proc/${BASHPID}/fd/$fd") || return 1
+    [ "$opened" = "$lock" ] || return 1
+    valid_lock "$opened"
 }
 
 janitor() {
@@ -197,6 +205,11 @@ janitor() {
             fi
             if ! exec 9<>"$lock"; then
                 unsafe=$((unsafe + 1))
+                continue
+            fi
+            if ! opened_lock_ok 9 "$lock"; then
+                unsafe=$((unsafe + 1))
+                exec 9>&-
                 continue
             fi
             if ! flock -n 9; then
@@ -255,6 +268,10 @@ prepare() {
         valid_marker "$target" "$expected" || die "target identity marker mismatch: $target"
         valid_lock "$target/$LOCK" || die "target lock is missing or unsafe: $target/$LOCK"
         exec 8<>"$target/$LOCK"
+        opened_lock_ok 8 "$target/$LOCK" || {
+            exec 8>&-
+            die "target lock changed while opening: $target/$LOCK"
+        }
         flock -n 8 || die "target is already locked: $target"
         touch -- "$target/$MARKER"
         target_locked=true
@@ -313,10 +330,14 @@ with_lock() {
     target=$(canonical_existing "$target")
     owned_mode "$target" 700
     lock=$target/$LOCK
-    [ ! -L "$lock" ] || die "target lock is a symlink: $lock"
+    valid_lock "$lock" || die "target lock is missing or unsafe: $lock"
     # Keep the descriptor open for the complete child process.  A janitor can
     # therefore skip this target without guessing whether Cargo is active.
-    exec 9>"$lock"
+    exec 9<>"$lock"
+    opened_lock_ok 9 "$lock" || {
+        exec 9>&-
+        die "target lock changed while opening: $lock"
+    }
     flock -n 9 || die "target is already locked: $target"
     "$@"
 }

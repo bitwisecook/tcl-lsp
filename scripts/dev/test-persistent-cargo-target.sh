@@ -61,6 +61,21 @@ grep -q 'janitor_removed=' "$ROOT/prepare.log" || fail "janitor work was not rep
 report=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" bash "$HELPER" report "$target_a")
 grep -q 'target_bytes=' <<< "$report" || fail "final target size was not reported"
 grep -q 'free_kb=' <<< "$report" || fail "final free space was not reported"
+bash "$HELPER" with-lock "$target_a" true
+chmod 644 "$target_a/.tcl-lsp-cargo-target.lock"
+expect_failure bash "$HELPER" with-lock "$target_a" true
+chmod 600 "$target_a/.tcl-lsp-cargo-target.lock"
+rm -f "$target_a/.tcl-lsp-cargo-target.lock"
+ln -s "$ROOT/work-a" "$target_a/.tcl-lsp-cargo-target.lock"
+expect_failure bash "$HELPER" with-lock "$target_a" true
+rm -f "$target_a/.tcl-lsp-cargo-target.lock"
+mkdir -m 700 "$target_a/.tcl-lsp-cargo-target.lock"
+expect_failure bash "$HELPER" with-lock "$target_a" true
+rmdir "$target_a/.tcl-lsp-cargo-target.lock"
+(umask 077 && : > "$target_a/.tcl-lsp-cargo-target.lock")
+ln "$target_a/.tcl-lsp-cargo-target.lock" "$ROOT/hard-linked-lock"
+expect_failure bash "$HELPER" with-lock "$target_a" true
+rm -f "$ROOT/hard-linked-lock"
 
 target_a_again=$(prepare reg-a)
 [ "$target_a" = "$target_a_again" ] || fail "stable identity did not reuse the target"

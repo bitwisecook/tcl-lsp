@@ -13,11 +13,12 @@ uses the digest as the directory name beneath the dedicated target root:
 /home/runner/.cache/tcl-lsp/cargo-targets/<identity-sha256>/
 ```
 
-The root, target directory, and marker must be owned by the runner account,
-have mode `700`, and contain no symlink component. The marker has mode `600`
-and records all identity values. Existing targets are reused only when the
-marker matches exactly. Missing, malformed, redirected, or mismatched state
-fails closed.
+The root and target directory must be owned by the runner account, have mode
+`700`, and contain no symlink component. The identity marker and lock file are
+owned by the runner account, have mode `600`, and are regular, non-symlink
+files. The lock also has exactly one hard link. Existing targets are reused
+only when the marker matches exactly. Missing, malformed, redirected, or
+mismatched state fails closed.
 
 The registration identity comes from `TCL_LSP_TANK_REGISTRATION_ID`, then
 the stable `RUNNER_NAME` fallback. `RUNNER_TRACKING_ID` is deliberately not
