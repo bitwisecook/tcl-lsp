@@ -21,7 +21,7 @@ mkdir -p "$fixture/build"
 
 zip=$fixture/build/tcl-lsp-claude-skills-2.2.0.zip
 vsix=$fixture/build/tcl-lsp-vscode-2.2.0-universal.vsix
-sublime=$fixture/build/TclLsp.sublime-package
+sublime=$fixture/build/LSP-Tcl.sublime-package
 : > "$zip"
 : > "$vsix"
 : > "$sublime"
@@ -38,7 +38,7 @@ assert_resolves() {
 # Representative glob shapes from the shared action's real callers.
 assert_resolves "$fixture/build/tcl-lsp-claude-skills-*.zip" "$zip"
 assert_resolves "$fixture/build/tcl-lsp-vscode-*-universal.vsix" "$vsix"
-assert_resolves "$fixture/build/TclLsp*.sublime-package" "$sublime"
+assert_resolves "$fixture/build/LSP-Tcl*.sublime-package" "$sublime"
 
 if $RESOLVER "$fixture/build/missing-*.zip" >/dev/null 2>&1; then
     echo "resolver accepted a zero-match release glob" >&2

@@ -28,6 +28,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::TclVersion;
+
 use crate::errors::TclPkgError;
 
 pub const SUPPORTED_TCL_VERSIONS: [&str; 4] = ["8.4", "8.5", "8.6", "9.0"];
@@ -85,14 +87,30 @@ fn docker_error(message: impl Into<String>) -> TclPkgError {
     TclPkgError::new(message)
 }
 
-fn recipe(family: &str, version: &str) -> Option<&'static str> {
+/// The placeholder a source-build recipe carries where the pinned reference
+/// patchlevel goes, so the tarball name is never a second literal to drift.
+const PATCHLEVEL_PLACEHOLDER: &str = "@PATCHLEVEL@";
+
+/// The exact upstream patchlevel this project pins for `version`'s release
+/// line, from the `tcl-dialect` reference-toolchain manifest that the test
+/// harness, the session bootstrap, and the engines all read.
+fn pinned_patchlevel(version: &str) -> Option<&'static str> {
+    TclVersion::from_version_string(version).map(TclVersion::patchlevel)
+}
+
+fn recipe(family: &str, version: &str) -> Option<String> {
     let table: &[(&str, &str)] = match family {
         "debian" => DEBIAN_RECIPES,
         "alpine" => ALPINE_RECIPES,
         "redhat" => REDHAT_RECIPES,
         _ => return None,
     };
-    table.iter().find(|(v, _)| *v == version).map(|(_, r)| *r)
+    let template = table.iter().find(|(v, _)| *v == version).map(|(_, r)| *r)?;
+    if !template.contains(PATCHLEVEL_PLACEHOLDER) {
+        return Some(template.to_string());
+    }
+    let patchlevel = pinned_patchlevel(version)?;
+    Some(template.replace(PATCHLEVEL_PLACEHOLDER, patchlevel))
 }
 
 fn family_versions(family: &str) -> Option<&'static [(&'static str, &'static str)]> {
@@ -155,16 +173,14 @@ pub fn tcl_install_recipe(image: &str, tcl_version: &str) -> Result<String, TclP
             "no install recipe for image family: {family}"
         )));
     };
-    recipe(&family, tcl_version)
-        .map(ToString::to_string)
-        .ok_or_else(|| {
-            let mut available: Vec<&str> = versions.iter().map(|(v, _)| *v).collect();
-            available.sort_unstable();
-            docker_error(format!(
-                "no recipe for Tcl {tcl_version} on {family} (available: {})",
-                available.join(", ")
-            ))
-        })
+    recipe(&family, tcl_version).ok_or_else(|| {
+        let mut available: Vec<&str> = versions.iter().map(|(v, _)| *v).collect();
+        available.sort_unstable();
+        docker_error(format!(
+            "no recipe for Tcl {tcl_version} on {family} (available: {})",
+            available.join(", ")
+        ))
+    })
 }
 
 /// Return the Dockerfile snippet that installs what fetching and verifying the
@@ -473,11 +489,11 @@ pub fn write_dockerfile(
 const DEBIAN_RECIPES: &[(&str, &str)] = &[
     (
         "8.4",
-        "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        build-essential curl ca-certificates && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl8.4.20-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl8.4.20/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.4 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apt-get purge -y --auto-remove build-essential && \\\n    rm -rf /var/lib/apt/lists/*",
+        "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        build-essential curl ca-certificates && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.4 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apt-get purge -y --auto-remove build-essential && \\\n    rm -rf /var/lib/apt/lists/*",
     ),
     (
         "8.5",
-        "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        build-essential curl ca-certificates && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl8.5.19-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl8.5.19/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.5 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apt-get purge -y --auto-remove build-essential && \\\n    rm -rf /var/lib/apt/lists/*",
+        "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        build-essential curl ca-certificates && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.5 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apt-get purge -y --auto-remove build-essential && \\\n    rm -rf /var/lib/apt/lists/*",
     ),
     (
         "8.6",
@@ -485,39 +501,39 @@ const DEBIAN_RECIPES: &[(&str, &str)] = &[
     ),
     (
         "9.0",
-        "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        build-essential curl ca-certificates zlib1g-dev && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl9.0.1-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl9.0.1/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apt-get purge -y --auto-remove build-essential zlib1g-dev && \\\n    rm -rf /var/lib/apt/lists/*",
+        "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        build-essential curl ca-certificates zlib1g-dev && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apt-get purge -y --auto-remove build-essential zlib1g-dev && \\\n    rm -rf /var/lib/apt/lists/*",
     ),
 ];
 
 const ALPINE_RECIPES: &[(&str, &str)] = &[
     (
         "8.4",
-        "RUN apk add --no-cache build-base curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl8.4.20-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl8.4.20/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.4 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apk del build-base",
+        "RUN apk add --no-cache build-base curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.4 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apk del build-base",
     ),
     (
         "8.5",
-        "RUN apk add --no-cache build-base curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl8.5.19-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl8.5.19/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.5 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apk del build-base",
+        "RUN apk add --no-cache build-base curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.5 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apk del build-base",
     ),
     ("8.6", "RUN apk add --no-cache tcl"),
     (
         "9.0",
-        "RUN apk add --no-cache build-base curl zlib-dev && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl9.0.1-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl9.0.1/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apk del build-base zlib-dev",
+        "RUN apk add --no-cache build-base curl zlib-dev && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    apk del build-base zlib-dev",
     ),
 ];
 
 const REDHAT_RECIPES: &[(&str, &str)] = &[
     (
         "8.4",
-        "RUN dnf install -y gcc make curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl8.4.20-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl8.4.20/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.4 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    dnf remove -y gcc make && dnf clean all",
+        "RUN dnf install -y gcc make curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.4 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    dnf remove -y gcc make && dnf clean all",
     ),
     (
         "8.5",
-        "RUN dnf install -y gcc make curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl8.5.19-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl8.5.19/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.5 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    dnf remove -y gcc make && dnf clean all",
+        "RUN dnf install -y gcc make curl && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh8.5 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    dnf remove -y gcc make && dnf clean all",
     ),
     ("8.6", "RUN dnf install -y tcl && dnf clean all"),
     (
         "9.0",
-        "RUN dnf install -y gcc make curl zlib-devel && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl9.0.1-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl9.0.1/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    dnf remove -y gcc make zlib-devel && dnf clean all",
+        "RUN dnf install -y gcc make curl zlib-devel && \\\n    curl -fSL \"https://prdownloads.sourceforge.net/tcl/tcl@PATCHLEVEL@-src.tar.gz\" \\\n        -o /tmp/tcl.tar.gz && \\\n    tar -xzf /tmp/tcl.tar.gz -C /tmp && \\\n    cd /tmp/tcl@PATCHLEVEL@/unix && \\\n    ./configure --prefix=/usr/local && make -j\"$(nproc)\" && make install && \\\n    ln -sf /usr/local/bin/tclsh9.0 /usr/local/bin/tclsh && \\\n    rm -rf /tmp/tcl* && \\\n    dnf remove -y gcc make zlib-devel && dnf clean all",
     ),
 ];
 
@@ -543,6 +559,28 @@ mod tests {
         let r = tcl_install_recipe("alpine:3.19", "8.6").unwrap();
         assert_eq!(r, "RUN apk add --no-cache tcl");
         assert!(tcl_install_recipe("alpine:3.19", "7.0").is_err());
+    }
+
+    /// Every source build fetches the patchlevel the reference-toolchain
+    /// manifest pins, and leaves no placeholder behind for a shell to choke on.
+    #[test]
+    fn source_recipes_track_the_pinned_patchlevel() {
+        for image in ["debian:bookworm-slim", "alpine:3.19", "fedora:39"] {
+            for version in ["8.4", "8.5", "9.0"] {
+                let recipe = tcl_install_recipe(image, version).expect("recipe");
+                let patchlevel = pinned_patchlevel(version).expect("pinned patchlevel");
+                assert!(
+                    recipe.contains(&format!("tcl{patchlevel}-src.tar.gz")),
+                    "{image} Tcl {version} fetches an unpinned tarball: {recipe}"
+                );
+                assert!(
+                    recipe.contains(&format!("/tmp/tcl{patchlevel}/unix")),
+                    "{image} Tcl {version} builds an unpinned tree: {recipe}"
+                );
+                assert!(!recipe.contains(PATCHLEVEL_PLACEHOLDER));
+            }
+        }
+        assert_eq!(pinned_patchlevel("9.0"), Some("9.0.4"));
     }
 
     #[test]
