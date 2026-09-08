@@ -20,9 +20,12 @@ How do I look up the synopsis, switches, and valid events for a Tcl or iRules co
 ### tcl-lsp CLI
 
 ```
-tcl command-info HTTP::uri
-tcl command-info "string length" --json
+tcl command-info --dialect f5-irules HTTP::uri
+tcl command-info string --json
 ```
+
+Pass a bare command name; `--dialect` selects the registry to look it up in
+(default `tcl8.6`).
 
 ### MCP
 
@@ -39,16 +42,15 @@ The `/irule-event` skill provides command lookups as part of its event and comma
 ## Example
 
 ```
-$ tcl command-info "HTTP::uri"
-=== Command Info ===
-  Command: HTTP::uri
-  Summary: Returns or sets the URI part of the HTTP request.
-  Synopsis: HTTP::uri (URI)?
-  Switches: -normalized
-  Valid in: HTTP_REQUEST, HTTP_RESPONSE, and 54 more events
+$ tcl command-info --dialect f5-irules HTTP::uri
+command: HTTP::uri
+dialect: F5 iRules [f5-irules]
+summary: Returns or sets the URI part of the HTTP request.
+synopsis: HTTP::uri (URI)?
+switches: -normalized
 ```
 
-The `--json` flag returns the same data as structured JSON for scripting.
+`--json` returns the same data as structured JSON for scripting.
 
 ## Related
 

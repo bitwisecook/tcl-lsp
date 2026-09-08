@@ -58,7 +58,7 @@ Only the file name — `testUtilities.tcl` — is underlined, not the whole
 `[file join …]` substitution. The substitution is code, with its own
 highlighting; an editor paints a link range in one flat link colour, so
 underlining all of it would hide the colouring of `file`, `join`, and
-`$currentDir` (issue #775).
+`$currentDir`.
 
 ## Failure modes
 

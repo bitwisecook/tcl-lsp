@@ -27,12 +27,9 @@ name -get {...} -set {...}` form), and every explicit `constructor` /
 exist to that symbol across the workspace. Click the lens to open the Find
 References panel.
 
-The number shown is exactly the number of locations the click opens, and
-both match **Find All References** on the same declaration. That holds for a
-TclOO method or classmethod whose callers live in other files — an override
-in a sibling document, an inheriting subclass's own dispatch, or a
-pure-consumer file that only calls `$obj method` / `Class method` — which
-earlier releases counted and opened from the current file alone.
+The number shown is exactly the number of locations the click opens, and both
+match **Find All References** on the same declaration — including a `TclOO`
+method or classmethod whose callers live in other files.
 
 A property's count comes from a class-local scan of `my <property>` sites —
 properties have no `$obj property` dispatch shape and no inheritance model,
@@ -81,9 +78,8 @@ The lens updates as you type. If you rename or remove a call, the count adjusts 
 ## Failure modes
 
 - A method / classmethod / property / constructor / destructor lens above a
-  TclOO member always resolves to a clickable command, the same as a proc or
-  class lens — a lens that shows a count but does nothing when clicked is a
-  bug (issues #724, #956, #992), not expected behaviour.
+  `TclOO` member always resolves to a clickable command, the same as a proc or
+  class lens. A lens that shows a count but does nothing when clicked is a bug.
 - A `method` and a `classmethod` sharing the same name on one class are
   counted and resolved independently — the method's lens never picks up the
   classmethod's `ClassName foo` dispatch sites (or vice versa), even though

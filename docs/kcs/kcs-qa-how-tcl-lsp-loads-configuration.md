@@ -41,17 +41,11 @@ pins `[optimiser] disabled = O109` still inherits `[optimiser] profile
 
 ### Why project config wins over editor settings
 
-We copied this rule from **Pyright** (the Python language server
-behind Pylance), which silently overrides `python.analysis.*` editor
-settings whenever `pyrightconfig.json` or `pyproject.toml` is present.
-The TypeScript language server, ESLint, and clangd all follow the
-same convention for the same reason: the file checked into source
-control is authoritative, so what runs in CI agrees with what runs in
-everyone's editor. We surveyed how other mature language servers
-handle this and chose the convention with the fewest surprises — see
-[`docs/design/contracts/config-precedence.md`](../design/contracts/config-precedence.md)
-for the full rationale, the survey, and a list of which specific
-behaviours we copied from which tool.
+The file checked into source control is authoritative, so what runs in
+CI agrees with what runs in everyone's editor. Pyright, the TypeScript
+language server, ESLint, and clangd all resolve the same conflict the
+same way. The rationale and the survey behind it are in
+[`docs/design/contracts/config-precedence.md`](../design/contracts/config-precedence.md).
 
 If you want a personal override of a setting your team has pinned in
 `.tcl-lsp.ini`, the project file is the wrong layer to fight. Edit
@@ -78,13 +72,10 @@ takes precedence when set:
 - **MSYS2 and Cygwin:** `~/.config/tcl-lsp/config.ini`
 
 Both the global file and the project `.tcl-lsp.ini` use the same INI
-schema. The recognised sections today are `[diagnostics]`,
-`[optimiser]`, `[shimmer]`, `[xcDiagnostics]`, `[features]`,
-`[formatting]`, `[style]`, plus a location-specific top-level section:
-`[global]` in `config.ini` and `[project]` in `.tcl-lsp.ini`. Keys
-outside a known section are ignored. See
-[kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
-for the per-section key and value reference.
+schema, with one location-specific top-level section each: `[global]` in
+`config.ini` and `[project]` in `.tcl-lsp.ini`. Keys outside a known
+section are ignored. Every section and key is listed in
+[kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md).
 
 ### Each file is only read from its own location
 
@@ -99,19 +90,14 @@ one in its own designated place. They are not interchangeable:
   parent directories, and a `.tcl-lsp.ini` in your home directory is
   ignored.
 
-The two filenames are **deliberately different**. We could have used
-`tcl-lsp.ini` (or `config.ini`) for both, but distinct names mean a
-user who copies one file to the other location does not silently
-change which precedence layer it applies to. If you `cp ~/.config/tcl-lsp/config.ini
-./` thinking it will pin a project-level rule, the file will simply
-not be picked up — instead of being read at a higher priority than
-you expected and overriding a teammate's setting. The same applies in
-the other direction: dropping `.tcl-lsp.ini` into your home config
-directory is a no-op rather than a stealth promotion to global.
+The two filenames are **deliberately different** so that copying one to
+the other location cannot silently change which precedence layer it
+occupies. `cp ~/.config/tcl-lsp/config.ini ./` is a no-op, not a stealth
+promotion to project level, and the reverse is a no-op too.
 
 If you want a setting to follow you everywhere, put it in the global
-file. If you want it to travel with the project and apply to everyone
-who checks it out, put it in `.tcl-lsp.ini` and commit it.
+file. If you want it to travel with the project, put it in
+`.tcl-lsp.ini` and commit it.
 
 ### Multi-root workspaces (VS Code and others)
 
@@ -176,14 +162,12 @@ in this order:
 
 **1. Ask the server for the resolved value.** The server exposes a
 `tcl-lsp.getEffectiveConfig` command over `workspace/executeCommand`.
-Pass the URI of the file you are looking at and it returns the
-resolved `dialect`, `extra_commands`, `library_paths`, `line_length`,
-and the URI of the workspace folder the file matched. This is the
-single most reliable way to see what the server is actually applying:
+Pass the URI of the file you are looking at and it returns everything
+the server resolved for it — dialect, feature toggles, optimiser
+profile, library paths, line length — plus the URI of the workspace
+folder the file matched:
 
-```jsonc
-// VS Code: open the Command Palette and run "Developer: Inspect
-// Context Keys", or run from a script:
+```js
 await vscode.commands.executeCommand(
   "tcl-lsp.getEffectiveConfig",
   vscode.window.activeTextEditor.document.uri.toString()
@@ -221,21 +205,20 @@ still surprising, check each source from highest priority to lowest:
    line above each diagnostic for `# noqa`. These only affect
    diagnostics and dialect, but they explain unexpected suppression.
 
-**4. If nothing matches, the value is the built-in default.** Every
-setting has a default that applies when no layer sets it; those
-defaults live in the source ship docs alongside each feature. Run
-**Tcl: Export Settings to Config File** (or `tcl-lsp.exportConfig`)
-to dump the *current* effective settings to your global config file
-as an anchor for what is in play.
+**4. If nothing matches, the value is the built-in default.** Run
+**Tcl: Export Settings to Config File** (`tclLsp.exportConfig`) to dump
+the current effective settings to your global config file as an anchor
+for what is in play.
 
 ### When changes take effect
 
 Inline `# noqa` and the top-of-file directive apply as soon as you save
 the document. Editor-settings changes are picked up within a second on
-every editor that supports `workspace/configuration`. Project and global
-config files are re-read on server start; after editing one, run **Tcl:
-Restart Language Server** (or the equivalent for your editor) to pick
-the new values up. See
+every editor that supports `workspace/configuration`. A saved
+`.tcl-lsp.ini` is watched, so the server re-reads it and re-analyses the
+open documents without a restart. The global `config.ini` sits outside
+the workspace and is not watched: after editing it, run **Tcl: Restart
+Language Server** (or the equivalent for your editor). See
 [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) for
 the full list of changes that need a restart.
 

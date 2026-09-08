@@ -64,17 +64,12 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-smoke-fallback-does-not-match-nextest.md](kcs-issue-smoke-fallback-does-not-match-nextest.md)
   — the manifest-backed Cargo smoke fallback rejects a missing or ambiguous
   ownership row when cargo-nextest is unavailable.
-- [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
-  — the language server's memory use climbs with every keystroke and never
-  comes back down.
 - [kcs-issue-false-diagnostics-inside-a-multi-word-eval.md](kcs-issue-false-diagnostics-inside-a-multi-word-eval.md)
-  — a multi-word `eval`, `uplevel`, or `namespace eval` draws a false E002
-  "wrong number of arguments", and a variable the call sets is still
-  reported as read before it is set (W210).
+  — an E002 or W210 on a multi-word `eval`, `uplevel`, or `namespace eval`
+  is about the joined script, not the first word.
 - [kcs-issue-uplevel-injected-variable-is-reported-unset.md](kcs-issue-uplevel-injected-variable-is-reported-unset.md)
-  — a variable a helper assigns in an outer frame with `uplevel` is reported
-  as read before it is set (W210), and the `[list set $varName …]` word that
-  does it is reported as a name/value confusion (W212).
+  — when a write a helper makes in an outer frame through `uplevel` is
+  believed, and when the caller's read still draws W210 or W212.
 - [kcs-issue-always-true-condition-in-a-sourced-library-file.md](kcs-issue-always-true-condition-in-a-sourced-library-file.md)
   — I230 says a condition is always true in a library file whose procedure
   is really called with different values from another file.
@@ -275,9 +270,8 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — audit a config for orphans, naming-convention violations, port
   policy, partition leaks, and pool-member sanity using `f5 query`.
 - [kcs-howto-audit-server-certs-with-query.md](kcs-howto-audit-server-certs-with-query.md)
-  — verify the cert on each device's `sys file ssl-cert` matches
-  the cert each virtual is actually serving; find devices where a
-  cert push failed in a multi-tier deployment.
+  — compare the certificate each virtual is serving with the PEM you
+  expect, and find devices where a cert push failed.
 - [kcs-howto-reproduce-http-monitor-with-query.md](kcs-howto-reproduce-http-monitor-with-query.md)
   — reproduce an `ltm monitor http(s)` from your laptop, honouring
   the 5,120-byte response-check ceiling (F5 KB K3451) so the

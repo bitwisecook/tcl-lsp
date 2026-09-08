@@ -35,5 +35,6 @@ Produce small Tcl scripts that isolate one behaviour so failures are obvious.
 
 ## Storage guidance
 
-- Put reusable fixtures under `tests/fixtures/`.
-- Keep exploratory demos under `samples/for_screenshots/`.
+- Put reusable fixtures under the owning crate's `tests/fixtures/`.
+- Keep exploratory demos under `samples/tcl/`; `samples/for_screenshots/` is
+  for screenshot scenes only.

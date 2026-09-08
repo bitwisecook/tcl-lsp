@@ -50,18 +50,16 @@ highlighting, format-specifier hints, code folding, **formatting**, minifying,
 go-to-declaration, the call graph, parameter-usage inference, and — for
 iRules — which arguments name BIG-IP objects.
 
-Formatting is the most visible. Before this landed, a document that renamed a
-body-bearing command still had its calls laid out under the grammar of the
-command they no longer were:
+Formatting is the most visible:
 
 ```tcl
 rename if maybe
 maybe {$x} {puts a}
 ```
 
-The `maybe` call is now left exactly as written, because `maybe`'s argument is
-no longer the server's business — and a call to `if` through a proven alias is
-expanded onto its own lines exactly as `if` would be.
+The `maybe` call is left exactly as written — its argument is no longer the
+server's business — while a call to `if` through a proven alias is expanded
+onto its own lines exactly as `if` would be.
 
 ### What the server will not guess
 

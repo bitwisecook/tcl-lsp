@@ -39,8 +39,8 @@ puts "::i=[set ::i]  ::n1::i exists=[info exists ::n1::i]"
 
 | | `::i` afterwards | `::n1::i` created? |
 |---|---|---|
-| tclsh 8.6.18 | `foobaz` — the global was appended to | no |
-| tclsh 9.0.4 | `foo` — untouched | **yes**, set to `baz` |
+| tclsh 8.4.20, 8.5.19, 8.6.18 | `foobaz` — the global was appended to | no |
+| tclsh 9.0.4, 9.1b0 | `foo` — untouched | **yes**, set to `baz` |
 
 Three details catch people out:
 
@@ -73,8 +73,10 @@ which variable they mean.
   namespace." The fallback clause is deleted, and the same worked example now
   ends at "Tcl looks for `traceLevel` in the namespace `Debug`."
 
-In the C source the switch is `TCL_NAMESPACE_ONLY` (8.6 `generic/tclVar.c:757`
-versus 9.0 `generic/tclVar.c:935`).
+In the C source the switch is the `TCL_NAMESPACE_ONLY` flag in
+`TclLookupSimpleVar` (`generic/tclVar.c`): 8.x sets it only when the caller
+asked for it, so the lookup falls through to the global namespace, while 9.x
+sets it unconditionally.
 
 **How this project models it.** Both execution engines derive the behaviour
 from the Tcl release they are emulating, rather than hardcoding one release's
@@ -89,11 +91,8 @@ on for 8.4/8.5/8.6 and off for 9.0/9.1 in one place per engine.
 
 ### Limits of this note
 
-The output vectors are verified against tclsh **8.6.18** and **9.0.4**. The
-8.4 and 8.5 ends of the range are taken from the upstream documentation and C
-source rather than from a running interpreter — no 8.4/8.5 executable was
-available — so they are modelled as sharing 8.6's behaviour. Tcl 9.1 is
-modelled as sharing 9.0's.
+The output vectors are verified against real tclsh 8.4.20, 8.5.19, 8.6.18,
+9.0.4, and 9.1b0.
 
 This note covers *variable* name resolution only. **Command** name resolution
 is a different algorithm with its own version differences (notably the 8.5

@@ -45,7 +45,7 @@ speclib mypack 2.0 {
 }
 ```
 
-Two details are worth knowing:
+Two details:
 
 1. **The body is a script, so ordinary Tcl works in it.** Variables
    substitute, and a repetitive ladder can be a `foreach` — the same as
