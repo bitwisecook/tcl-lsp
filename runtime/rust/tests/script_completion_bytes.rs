@@ -19,6 +19,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use tcl_dialect::TclVersion;
 use tcl_host_native::NativeHost;
 use tcl_platform::{Capabilities, Clock, Env, Filesystem, Host, Process, StdIo};
 use tcl_runtime::interp::{Code, Interp};
@@ -144,6 +145,183 @@ fn raw_byte_puts_and_final_completion_share_the_lossless_boundary() {
     assert_eq!(completion.code, CompletionCode::Ok);
     assert!(completion.result.is_empty());
     assert_eq!(host.stdout(), NON_UTF8_VALUE);
+}
+
+#[test]
+fn binary_channel_output_uses_the_shared_tcl9_conversion_boundary() {
+    let host = Rc::new(CaptureHost::new());
+    let mut interp = Interp::new();
+    interp.set_runtime_version(TclVersion::V9_0);
+    interp.set_host(host.clone());
+
+    let completion = interp.eval_completion(
+        b"fconfigure stdout -translation binary; \
+          puts -nonewline [binary format H* ff41]",
+    );
+    assert_eq!(completion.code, CompletionCode::Ok);
+    assert_eq!(host.stdout(), [0xff, b'A']);
+}
+
+#[test]
+fn binary_open_mode_uses_the_shared_byte_preserving_configuration() {
+    let mut interp = Interp::new();
+    interp.set_runtime_version(TclVersion::V9_0);
+    let stem = format!("tcl-runtime-binary-open-{}", std::process::id());
+    let path = std::env::temp_dir().join(format!("{stem}-simple"));
+    let list_path = std::env::temp_dir().join(format!("{stem}-list"));
+    let rdwr_path = std::env::temp_dir().join(format!("{stem}-rdwr"));
+    let script = format!(
+        "set f [open {} wb]; \
+         puts -nonewline $f [binary format H* ff41]; close $f; \
+         set f [open {} {{WRONLY CREAT TRUNC {{BINARY}}}}]; \
+         puts -nonewline $f [binary format H* ff41]; close $f; \
+         set f [open {} {{RDWR CREAT TRUNC BINARY}}]; \
+         puts -nonewline $f [binary format H* ff41]; close $f",
+        tcl_syntax::list::list_element(&path.to_string_lossy()),
+        tcl_syntax::list::list_element(&list_path.to_string_lossy()),
+        tcl_syntax::list::list_element(&rdwr_path.to_string_lossy()),
+    );
+    let completion = interp.eval_completion(script.as_bytes());
+    assert_eq!(completion.code, CompletionCode::Ok);
+    for output in [&path, &list_path, &rdwr_path] {
+        assert_eq!(
+            std::fs::read(output).expect("read binary output"),
+            [0xff, b'A']
+        );
+        std::fs::remove_file(output).expect("remove binary output");
+    }
+}
+
+#[test]
+fn open_access_validation_tracks_the_runtime_release() {
+    let mut interp = Interp::new();
+    let path =
+        std::env::temp_dir().join(format!("tcl-runtime-open-release-{}", std::process::id()));
+    std::fs::write(&path, b"seed").expect("create access-mode fixture");
+
+    interp.set_runtime_version(TclVersion::V8_6);
+    let repeated = interp.eval_completion(
+        format!(
+            "set f [open {} {{RDONLY WRONLY}}]; \
+             puts -nonewline $f x; close $f",
+            tcl_syntax::list::list_element(&path.to_string_lossy()),
+        )
+        .as_bytes(),
+    );
+    assert_eq!(repeated.code, CompletionCode::Ok);
+    assert_eq!(
+        interp
+            .eval_completion(
+                b"set m \"\\{RDONLY\"; catch {open ignored $m} msg opts; \
+                  dict get $opts -errorcode"
+            )
+            .result,
+        b"TCL VALUE LIST BRACE"
+    );
+
+    interp.set_runtime_version(TclVersion::V9_0);
+    assert_eq!(
+        interp
+            .eval_completion(
+                b"set m \"\\{RDONLY\"; catch {open ignored $m} msg opts; \
+                  dict get $opts -errorcode"
+            )
+            .result,
+        b"TCL OPENMODE INVALID"
+    );
+    std::fs::remove_file(path).expect("remove access-mode fixture");
+}
+
+#[test]
+fn child_configuration_updates_the_shared_standard_channel_handle() {
+    let host = Rc::new(CaptureHost::new());
+    let mut interp = Interp::new();
+    interp.set_runtime_version(TclVersion::V9_0);
+    interp.set_host(host.clone());
+
+    let completion = interp.eval_completion(
+        b"interp create child; \
+          child eval {fconfigure stdout -translation binary}; \
+          puts -nonewline [binary format H* ff]",
+    );
+    assert_eq!(completion.code, CompletionCode::Ok);
+    assert_eq!(host.stdout(), [0xff]);
+}
+
+#[test]
+fn strict_conversion_writes_its_prefix_and_reports_structured_eilseq() {
+    let host = Rc::new(CaptureHost::new());
+    let mut interp = Interp::new();
+    interp.set_runtime_version(TclVersion::V9_0);
+    interp.set_host(host.clone());
+
+    let completion = interp.eval_completion(
+        b"fconfigure stdout -encoding iso8859-1 -profile strict; \
+          set c [catch {puts -nonewline \"A\\u0178B\"} m o]; \
+          set ::observedCode [dict get $o -errorcode]; set c",
+    );
+    assert_eq!(completion.code, CompletionCode::Ok);
+    assert_eq!(completion.result, b"1");
+    assert_eq!(host.stdout(), b"A");
+    assert_eq!(interp.eval_str(b"set m"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"error writing \"stdout\": invalid or incomplete multibyte or wide character"
+    );
+    assert_eq!(interp.eval_str(b"set ::observedCode"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"POSIX EILSEQ {invalid or incomplete multibyte or wide character}"
+    );
+}
+
+#[test]
+fn configuration_errors_keep_their_structured_tcl_identity() {
+    let mut interp = Interp::new();
+    interp.set_runtime_version(TclVersion::V9_0);
+    let completion = interp.eval_completion(
+        b"catch {fconfigure stdout -profile bogus} m o; \
+          list $m [dict get $o -errorcode]",
+    );
+    assert_eq!(completion.code, CompletionCode::Ok);
+    assert_eq!(
+        completion.result,
+        b"{bad profile name \"bogus\": must be replace, strict, or tcl8} {TCL ENCODING PROFILE bogus}"
+    );
+    assert_eq!(
+        interp
+            .eval_completion(b"encoding system ascii; encoding system {}; encoding system")
+            .result,
+        b"iso8859-1"
+    );
+}
+
+#[test]
+fn mutable_system_encoding_is_shared_and_only_seeds_future_channels() {
+    let host = Rc::new(CaptureHost::new());
+    let mut interp = Interp::new();
+    interp.set_runtime_version(TclVersion::V9_0);
+    interp.set_host(host);
+    let path = std::env::temp_dir().join(format!(
+        "tcl-runtime-system-encoding-{}",
+        std::process::id()
+    ));
+    let script = format!(
+        "set before [fconfigure stdout -encoding]; \
+         encoding system iso8859-1; \
+         interp create child; \
+         set childSystem [child eval {{encoding system}}]; \
+         set f [open {} w]; \
+         set opened [fconfigure $f -encoding]; \
+         puts -nonewline $f \\u00ff; close $f; \
+         list $before [fconfigure stdout -encoding] $childSystem $opened",
+        tcl_syntax::list::list_element(&path.to_string_lossy()),
+    );
+    let completion = interp.eval_completion(script.as_bytes());
+    assert_eq!(completion.code, CompletionCode::Ok);
+    assert_eq!(completion.result, b"utf-8 utf-8 iso8859-1 iso8859-1");
+    assert_eq!(std::fs::read(&path).expect("read encoded file"), [0xff]);
+    std::fs::remove_file(path).expect("remove encoded file");
 }
 
 #[test]

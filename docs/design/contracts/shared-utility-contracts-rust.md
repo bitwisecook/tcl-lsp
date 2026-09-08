@@ -49,6 +49,7 @@ entry point, or gate moves without this contract being updated.
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
+| channel output configuration / encoding | `rust/tcl-platform/src/lib.rs`; `rust/tcl-cmd-core/src/channel.rs`; `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | `SystemEncoding`; `Host::system_encoding`; `ChannelConfig`; `StandardChannelConfigs`; `OpenAccess`; `resolve_open_access_mode`; `ChannelDirection`; `ChannelEncoding`; `EncodingProfile`; `OutputTranslation`; `resolve_fconfigure_option`; `config_list`; `config_value`; `set_config_value`; `encode_output`; `encode_output_bytes`; `EncodedOutput`; `EILSEQ_ERROR_CODE` | system encoding per host locale and interpreter tree; option availability per dialect profile; open-access validation and profile/binary defaults per Tcl release; mutable direction-specific state per channel | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
@@ -479,6 +480,21 @@ entry point, or gate moves without this contract being updated.
 
 ### `tcl-cmd-core` — portable command logic
 
+- `channel` owns output-facing channel configuration and encoding. The host
+  supplies one typed `SystemEncoding`; `ChannelConfig` derives Tcl 8/Tcl 9
+  profile defaults, retains each channel's input/output translation and common
+  encoding, and `StandardChannelConfigs` owns the predefined handle defaults.
+  The command registry resolves the dialect-filtered `fconfigure` option into
+  a typed operation; `config_list`, `config_value`, and `set_config_value` own
+  its runtime-neutral state policy. `OpenAccess` and
+  `resolve_open_access_mode` normalise both simple and Tcl-list access modes so
+  handle permissions, creation flags, direction, and binary configuration
+  cannot diverge between adapters. `encode_output` and `encode_output_bytes`
+  return raw bytes together with a possible conversion error, preserving Tcl's
+  successfully converted prefix before `POSIX EILSEQ`. Runtime channel tables
+  own handles, sharing topology, and mutable instances of this state, but do
+  not reimplement access modes, encoders, binary mode, locale interpretation,
+  translation, option availability, or conversion-profile policy.
 - `namespace` — the pure `::` byte-ops `tail` / `qualifiers`
   (`last_sep_run`: colon runs are one separator) plus the
   `Namespaces`-generic cores. Runtime name resolution routes through

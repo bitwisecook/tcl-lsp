@@ -545,6 +545,13 @@ pub struct Vm {
     /// an interp boundary, exactly as C Tcl's non-NRE cross-interp eval
     /// (tclsh-pinned).
     pub(crate) activation_depth: usize,
+    /// Mutable standard-channel handles shared by every interpreter in this
+    /// VM, just like the process-wide handles in C Tcl.
+    pub(crate) standard_channels: RefCell<tcl_cmd_core::channel::StandardChannelConfigs>,
+    /// Mutable `encoding system` state shared by the interpreter tree. The
+    /// host supplies its initial value; changing it affects only channels
+    /// opened afterwards.
+    system_encoding: tcl_platform::SystemEncoding,
     /// Cross-interp alias records for the target-death sweep. Appended when a
     /// [`Command::CrossAlias`] registers; entries are validated lazily at
     /// sweep time (a stale entry — alias since removed or source dead — is
@@ -1123,7 +1130,7 @@ pub struct InterpState {
     ns_script_frames: Vec<usize>,
     // Shared with child interpreters (`interp create`): a child writes `puts`
     // output to the same sink and compiles dynamic scripts with the same
-    // (stateless) compile service, so both are `Rc` rather than owned.
+    // (stateless) compile service, so these are `Rc` rather than owned.
     out: Rc<RefCell<Box<dyn Write>>>,
     compiler: Option<Rc<dyn CompileService<Module = ModuleAsm>>>,
     /// Optional debug hook fired once per source command (the execution-control
@@ -1629,11 +1636,12 @@ impl Vm {
     /// availability point becomes the builtin command-surface filter
     /// ([`Self::builtin_command_visible_for_surface`]).
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        let profile_changed = !std::ptr::eq(self.dialect_profile, profile);
         // The 8.4 `namespace path` tier gate (M10.1) and the availability
         // gate change resolution outcomes, so the command-resolution memo
         // (M16.4) must not survive a version flip.
         self.bump_cmd_epoch();
-        if !std::ptr::eq(self.dialect_profile, profile) {
+        if profile_changed {
             self.profile_generation = self.profile_generation.wrapping_add(1);
             // Dynamic modules and their precompiled-proc sidecars may contain
             // profile-sensitive lowerings. ProcDef retains source and is
@@ -1650,6 +1658,14 @@ impl Vm {
         self.profile_registry =
             (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         self.runtime_version = profile.vm_runtime_version;
+        // Standard channels are VM-wide handles shared by the interpreter
+        // tree. Only a real profile change on the root establishes new
+        // release defaults: pinning a child must not replace the parent's
+        // live `fconfigure` state, and re-pinning the root to the same profile
+        // is not a channel lifecycle event.
+        if self.cur == ROOT_INTERP && profile_changed {
+            self.reset_standard_channel_configs();
+        }
         // Install the release's numeric grammar for this runtime: `0755` is 493
         // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
         // separators from 9.0. C settles this at build time (`KILL_OCTAL`), so
@@ -1843,9 +1859,15 @@ impl Vm {
     /// A VM writing to an already-shared output sink.
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         static NEXT_VM_OWNER: AtomicU64 = AtomicU64::new(1);
+        let state = Box::new(InterpState::fresh(out));
+        let standard_channels = RefCell::new(tcl_cmd_core::channel::StandardChannelConfigs::new(
+            state.runtime_version,
+            state.host.system_encoding(),
+        ));
+        let system_encoding = state.host.system_encoding();
         let mut vm = Self {
             owner_nonce: NEXT_VM_OWNER.fetch_add(1, Ordering::Relaxed),
-            state: Box::new(InterpState::fresh(out)),
+            state,
             cur: ROOT_INTERP,
             interps: vec![InterpSlot {
                 parked: None,
@@ -1854,6 +1876,8 @@ impl Vm {
                 parent: None,
             }],
             activation_depth: 0,
+            standard_channels,
+            system_encoding,
             alias_backrefs: Vec::new(),
         };
         register_builtins(&mut vm);
@@ -2599,7 +2623,15 @@ impl Vm {
     /// [`NativeHost::sandboxed`](crate::host_native::NativeHost::sandboxed) to exercise
     /// the WASM-posture "unsupported" paths natively.
     pub fn set_host(&mut self, host: Rc<dyn Host>) {
+        let system_encoding = host.system_encoding();
         self.host = host;
+        // A child has its own host capability object but shares the VM's
+        // standard channel handles. Replacing a child's host therefore must
+        // not reset configuration established by the root or another child.
+        if self.cur == ROOT_INTERP {
+            self.system_encoding = system_encoding;
+            self.reset_standard_channel_configs();
+        }
         self.rebootstrap_host_globals();
         if self.is_safe {
             self.scrub_host_globals_for_safe();
@@ -10486,13 +10518,65 @@ impl Vm {
         self.write_scalar_from(0, "::errorInfo", Value::string(info));
     }
 
-    pub(crate) fn write_output(&mut self, s: &str, newline: bool) {
+    fn reset_standard_channel_configs(&mut self) {
+        *self.standard_channels.borrow_mut() = tcl_cmd_core::channel::StandardChannelConfigs::new(
+            self.runtime_version,
+            self.system_encoding,
+        );
+    }
+
+    /// The current `encoding system` value shared by this VM's interpreter
+    /// tree.
+    #[must_use]
+    pub(crate) const fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.system_encoding
+    }
+
+    /// Set the system encoding used by channels opened in the future. Existing
+    /// standard and file channel handles retain their current configuration.
+    pub(crate) fn set_system_encoding(&mut self, encoding: tcl_platform::SystemEncoding) {
+        self.system_encoding = encoding;
+    }
+
+    pub(crate) fn write_output_bytes(&mut self, bytes: &[u8]) -> io::Result<()> {
         let mut out = self.out.borrow_mut();
-        let _ = out.write_all(s.as_bytes());
-        if newline {
-            let _ = out.write_all(b"\n");
+        out.write_all(bytes)?;
+        out.flush()
+    }
+
+    /// Write Tcl-originated text through the mutable `stdout` channel.
+    /// Embedders and CLI adapters use this instead of bypassing `fconfigure`.
+    ///
+    /// # Errors
+    /// A channel conversion or raw sink failure.
+    pub fn write_stdout_text(
+        &mut self,
+        text: &str,
+        newline: bool,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        crate::cmd_chan::chan_puts(self, "stdout", text, newline)
+    }
+
+    /// Write Tcl-originated diagnostics through the mutable `stderr` channel.
+    ///
+    /// # Errors
+    /// A channel conversion failure.
+    pub fn write_stderr_text(
+        &mut self,
+        text: &str,
+        newline: bool,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        crate::cmd_chan::chan_puts(self, "stderr", text, newline)
+    }
+
+    /// Report a diagnostic through `stderr`, including Tcl's fallback marker
+    /// when strict channel conversion can write only a representable prefix.
+    /// The marker itself takes the configured newline translation, just like
+    /// Tcl's `Tcl_Main` and background-error reporter.
+    pub fn report_stderr_text(&mut self, text: &str) {
+        if self.write_stderr_text(text, true).is_err() {
+            let _ = self.write_stderr_text("\n\t(encoding error in stderr)", true);
         }
-        let _ = out.flush();
     }
 
     /// Register a freshly opened channel, returning its minted id (`file3`, …).
@@ -10507,6 +10591,11 @@ impl Vm {
     /// std channels, which callers handle by name).
     pub(crate) fn channel_mut(&mut self, id: &str) -> Option<&mut crate::cmd_chan::Channel> {
         self.channels.get_mut(id)
+    }
+
+    /// Borrow an open channel by id without mutating its handle.
+    pub(crate) fn channel(&self, id: &str) -> Option<&crate::cmd_chan::Channel> {
+        self.channels.get(id)
     }
 
     /// Close and drop a channel by id, returning `true` if it existed.
@@ -11329,6 +11418,55 @@ mod family_b_tests {
         let completion = vm.eval_source(script).expect("script compiles");
         assert_eq!(completion.code, Code::Ok, "{script}: {completion:?}");
         completion.result.to_str().to_string()
+    }
+
+    #[test]
+    fn only_a_changed_root_profile_reestablishes_standard_channel_defaults() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let v90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        vm.set_dialect_profile(v90);
+
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "fconfigure stdout -encoding ascii -translation crlf -profile replace; \
+                 list [fconfigure stdout -encoding] [fconfigure stdout -translation] \
+                      [fconfigure stdout -profile]",
+            ),
+            "ascii crlf replace"
+        );
+
+        vm.set_dialect_profile(v90);
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "list [fconfigure stdout -encoding] [fconfigure stdout -translation] \
+                      [fconfigure stdout -profile]",
+            ),
+            "ascii crlf replace",
+            "re-pinning the root to the same profile reset live channel state"
+        );
+
+        let child = vm.create_child(Some("child".to_owned()), false);
+        assert!(vm.set_child_dialect_profile(&child, v86));
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "list [fconfigure stdout -encoding] [fconfigure stdout -translation] \
+                      [fconfigure stdout -profile]",
+            ),
+            "ascii crlf replace",
+            "pinning a child profile reset the VM-wide standard channel"
+        );
+
+        vm.set_dialect_profile(v86);
+        assert_eq!(
+            eval_value(&mut vm, "fconfigure stdout -translation"),
+            "lf",
+            "changing the root profile did not establish release defaults"
+        );
     }
 
     fn prepare_stale_hidden_proc(vm: &mut Vm) {

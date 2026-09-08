@@ -33,6 +33,10 @@
 //! `chan_.rs` documents for `chan`.
 
 use crate::prelude::*;
+use tcl_cmd_core::CmdError;
+use tcl_cmd_core::channel::ConfigOption;
+use tcl_cmd_core::prefix::OptionTable;
+use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -213,19 +217,6 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
     },
     OptionSpec {
-        name: "-translation",
-        value: OptionValue::Takes(OptionArg {
-            values: TRANSLATION_VALUES,
-            hint: "mode",
-            ..OptionArg::DEFAULT
-        }),
-        detail: "End-of-line translation mode; also accepts a {inTranslation outTranslation} two-element list to set input and output translation independently on a read-write channel (returned as a two-element list when queried). See the value list for per-mode behaviour and defaults.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
-    OptionSpec {
         name: "-profile",
         value: OptionValue::Takes(OptionArg {
             values: PROFILE_VALUES,
@@ -235,6 +226,19 @@ const OPTIONS: &[OptionSpec] = &[
         }),
         detail: "Encoding profile controlling how conversion errors on this channel's -encoding are handled (see PROFILES in encoding(n)). Defaults to strict.",
         surface: Some(SpecSurface::TCL90_PLUS),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-translation",
+        value: OptionValue::Takes(OptionArg {
+            values: TRANSLATION_VALUES,
+            hint: "mode",
+            ..OptionArg::DEFAULT
+        }),
+        detail: "End-of-line translation mode; also accepts a {inTranslation outTranslation} two-element list to set input and output translation independently on a read-write channel (returned as a two-element list when queried). See the value list for per-mode behaviour and defaults.",
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -277,6 +281,44 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+fn runtime_option(name: &str) -> Option<ConfigOption> {
+    match name {
+        "-blocking" => Some(ConfigOption::Blocking),
+        "-buffering" => Some(ConfigOption::Buffering),
+        "-buffersize" => Some(ConfigOption::BufferSize),
+        "-encoding" => Some(ConfigOption::Encoding),
+        "-eofchar" => Some(ConfigOption::EofChar),
+        "-profile" => Some(ConfigOption::Profile),
+        "-translation" => Some(ConfigOption::Translation),
+        _ => None,
+    }
+}
+
+/// Resolve an `fconfigure` option from the command registry's dialect-filtered
+/// descriptors, returning the typed operation consumed by both runtimes.
+///
+/// Channel-driver-specific options remain in the registry but are excluded
+/// here until a concrete runtime channel advertises the matching driver.
+///
+/// # Errors
+/// Tcl's canonical bad/ambiguous-option result for the active profile.
+pub fn resolve_fconfigure_option(
+    profile: &'static DialectProfile,
+    word: &str,
+) -> Result<ConfigOption, CmdError> {
+    let query = Some(profile.surface_query());
+    let available: Vec<&str> = OPTIONS
+        .iter()
+        .filter(|option| {
+            runtime_option(option.name).is_some()
+                && option.supports_dialect(query, Some(SpecSurface::ALL_TCL))
+        })
+        .map(|option| option.name)
+        .collect();
+    let index = OptionTable::abbreviating("option", &available).index_of_str(word)?;
+    Ok(runtime_option(available[index]).expect("runtime option list was filtered by this mapping"))
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
@@ -306,5 +348,26 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtime_options_are_resolved_from_the_active_registry_surface() {
+        let tcl9 = DialectProfile::find("tcl9.0").expect("Tcl 9 profile");
+        let tcl8 = DialectProfile::find("tcl8.6").expect("Tcl 8 profile");
+        assert_eq!(
+            resolve_fconfigure_option(tcl9, "-prof"),
+            Ok(ConfigOption::Profile)
+        );
+        assert_eq!(
+            resolve_fconfigure_option(tcl8, "-prof")
+                .expect_err("Tcl 8 has no profile option")
+                .message(),
+            "bad option \"-prof\": must be -blocking, -buffering, -buffersize, -encoding, -eofchar, or -translation"
+        );
     }
 }

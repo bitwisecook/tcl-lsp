@@ -2132,8 +2132,51 @@ mod tests {
     use crate::counters;
     use crate::interp::Code;
     use std::cell::RefCell;
+    use std::rc::Rc;
+    use tcl_dialect::TclVersion;
+    use tcl_host_native::NativeHost;
+    use tcl_platform::{Capabilities, Clock, Env, Filesystem, Host, Process, StdIo};
     use tcl_runtime_api::codegen_abi::{NATIVE_PROC_STATUS_DECLINED, NATIVE_PROC_STATUS_RAN};
     use tcl_runtime_api::guard::GuardDomain;
+
+    struct CaptureHost {
+        native: NativeHost,
+        stdout: Rc<RefCell<Vec<u8>>>,
+    }
+
+    impl StdIo for CaptureHost {
+        fn write_stdout(&self, bytes: &[u8]) {
+            self.stdout.borrow_mut().extend_from_slice(bytes);
+        }
+
+        fn write_stderr(&self, _bytes: &[u8]) {}
+    }
+
+    impl Host for CaptureHost {
+        fn capabilities(&self) -> Capabilities {
+            self.native.capabilities()
+        }
+
+        fn clock(&self) -> &dyn Clock {
+            self.native.clock()
+        }
+
+        fn stdio(&self) -> &dyn StdIo {
+            self
+        }
+
+        fn env(&self) -> &dyn Env {
+            self.native.env()
+        }
+
+        fn filesystem(&self) -> Option<&dyn Filesystem> {
+            self.native.filesystem()
+        }
+
+        fn process(&self) -> Option<&dyn Process> {
+            self.native.process()
+        }
+    }
 
     /// Run `body` under the alloc/free counters and assert zero residual — the
     /// codegen ABI's references must balance exactly like the rest of the runtime.
@@ -2782,6 +2825,47 @@ mod tests {
             // idempotent (unlike mixing it with individual handle releases).
             tcl_completion_release(&mut completion);
             release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn compiled_puts_uses_channel_conversion_and_balances_its_owned_value() {
+        leak_free(|| unsafe {
+            let stdout = Rc::new(RefCell::new(Vec::new()));
+            let interp = tcl_runtime_create_interp();
+            (*interp).set_runtime_version(TclVersion::V9_0);
+            (*interp).set_host(Rc::new(CaptureHost {
+                native: NativeHost::new(),
+                stdout: Rc::clone(&stdout),
+            }));
+            tcl_runtime_set_current_interp(interp);
+
+            assert_eq!(
+                tcl_eval_code(box_str(b"fconfigure stdout -translation binary")),
+                0
+            );
+            assert_eq!(tcl_codegen_puts(owned_word(&[0xff, b'A'])), 0);
+            assert_eq!(&*stdout.borrow(), &[0xff, b'A', b'\n']);
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"fconfigure stdout -translation lf -encoding iso8859-1 -profile strict"
+                )),
+                0
+            );
+            assert_eq!(tcl_codegen_puts(owned_word("A\u{0178}B".as_bytes())), 1);
+            assert_eq!(&*stdout.borrow(), &[0xff, b'A', b'\n', b'A']);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"error writing \"stdout\": invalid or incomplete multibyte or wide character"
+            );
+            assert_eq!(
+                (*interp).error_code(),
+                b"POSIX EILSEQ {invalid or incomplete multibyte or wide character}"
+            );
+
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
         });
