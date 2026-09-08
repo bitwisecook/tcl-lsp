@@ -441,6 +441,16 @@ are exactly what you would get in VS Code, Neovim, or JetBrains. The
 **Test** tab's Tcl sample gets the same treatment, opened under whichever
 dialect the selector at the top of the page names.
 
+That holds in the editor panes too. When the studio runs inside VS Code or
+JetBrains its sample is materialised as a real `test.tcl` under
+`.tcl-lsp/.spec-studio/`, which the language server would otherwise resolve as
+generic Tcl however the selector is set — so a pack whose commands only exist
+in, say, `f5-irules` would show no highlighting, completion or hover in the one
+buffer you are testing it with. Changing the selector now pins that document to
+the chosen dialect through `tcl-lsp.setDocumentDialectOverride`, and closing the
+studio releases it. Only the sample is pinned: every other buffer you have open
+keeps the dialect it resolved on its own (issue #1931).
+
 The status line under the editor says what is running. If the language
 server cannot start — an old browser, WebAssembly turned off, the page
 opened from `file://` — the page says so and falls back to a plain text

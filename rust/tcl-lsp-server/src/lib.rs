@@ -6442,6 +6442,24 @@ pub struct Backend {
     /// setting one changes nothing about which documents it can reach; it only
     /// changes how long it lasts.
     session_dialect_override: Mutex<Option<String>>,
+    /// Deliberate per-document dialect overrides, keyed by document URI
+    /// string, installed by `tcl-lsp.setDocumentDialectOverride`.
+    ///
+    /// The strongest tier in the ladder: a host that names a URI and a dialect
+    /// outright has made a choice no inference should second-guess, so this is
+    /// consulted ahead of the language id, the BIG-IP basename, and the
+    /// in-source `# tcl-dialect:` directive.  Every other override is either
+    /// session-wide ([`Backend::session_dialect_override`]) or folder-wide
+    /// ([`Backend::folder_dialects`]); re-tagging one buffer through either of
+    /// those re-tags every other buffer with it, which is exactly what
+    /// #1217 moved away from (issue #1931).
+    ///
+    /// Keyed by URI *string* rather than [`Uri`], matching how
+    /// `folder_dialect_for` compares folder URIs.  Survives a document
+    /// retirement: the entry belongs to the host session that installed it
+    /// (the Spec Studio panel), not to any one `didOpen`/`didClose` cycle, and
+    /// is removed only by a `null` argument to the command that set it.
+    document_dialect_overrides: Mutex<HashMap<String, String>>,
     /// Coalescing state for `workspace/didChangeConfiguration` — see
     /// [`Backend::coalesced_config_reload`].
     config_reload: Mutex<ConfigReloadSlot>,
@@ -8077,6 +8095,7 @@ impl Backend {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
             session_dialect_override: Mutex::new(None),
+            document_dialect_overrides: Mutex::new(HashMap::new()),
             config_reload: Mutex::new(ConfigReloadSlot::default()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
@@ -9907,6 +9926,22 @@ impl Backend {
         }
     }
 
+    /// Re-resolve one open document's dialect after a change that can only
+    /// affect it (a per-document override). Marking just this document keeps a
+    /// pinned buffer from disturbing every other one, which is the whole point
+    /// of the per-document tier.
+    async fn reresolve_open_document_dialect(&self, uri: &Uri) {
+        {
+            let mut docs = self.documents.lock("reresolve_open_document_dialect").await;
+            let Some(doc) = docs.get_mut(uri) else {
+                return;
+            };
+            doc.mark_dialect_resolution_dirty();
+        }
+        self.resolve_dirty_open_document_dialect(uri, "reresolve_open_document_dialect")
+            .await;
+    }
+
     /// Re-resolve every open document's dialect after a session/folder-default
     /// change. Mark all documents first so a concurrent edit carries the work
     /// forward; each resolver then retries until it consumes the exact current
@@ -10343,6 +10378,11 @@ impl Backend {
     ///
     /// Resolution order:
     ///
+    /// 0. A deliberate per-document override installed by
+    ///    `tcl-lsp.setDocumentDialectOverride`
+    ///    ([`Backend::document_dialect_overrides`]) — a host naming this exact
+    ///    URI outranks every inference below, including the in-source
+    ///    directive (issue #1931).
     /// 1. The LSP ``languageId`` field — when it names a known
     ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
     ///    ``"tcl9.0"`` / etc.), use it directly.
@@ -10357,9 +10397,33 @@ impl Backend {
     ///    dialect.
     /// 4. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Uri, language_id: &str, text: &str) -> String {
+        let document_override = self.document_dialect_override(uri).await;
         let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.session_dialect().await;
-        Self::dialect_for_open_sync(uri, language_id, text, &folder_dialects, &default_dialect)
+        Self::dialect_for_open_sync(
+            uri,
+            language_id,
+            text,
+            document_override.as_deref(),
+            &folder_dialects,
+            &default_dialect,
+        )
+    }
+
+    /// The deliberate per-document dialect in force for `uri`, if a host
+    /// installed one with `tcl-lsp.setDocumentDialectOverride`.
+    async fn document_dialect_override(&self, uri: &Uri) -> Option<String> {
+        self.document_dialect_overrides
+            .lock()
+            .await
+            .get(uri.as_str())
+            .cloned()
+    }
+
+    /// One snapshot of every per-document override, for a caller resolving
+    /// many URIs off-lock (the watched-files batch reindex, #1161).
+    async fn document_dialect_override_snapshot(&self) -> Arc<HashMap<String, String>> {
+        Arc::new(self.document_dialect_overrides.lock().await.clone())
     }
 
     /// The session-wide fallback dialect: the deliberate
@@ -10423,6 +10487,11 @@ impl Backend {
     ///
     /// Resolution order:
     ///
+    /// 0. A deliberate per-document override installed by
+    ///    `tcl-lsp.setDocumentDialectOverride`
+    ///    ([`Backend::document_dialect_overrides`]) — a host naming this exact
+    ///    URI outranks every inference below, including the in-source
+    ///    directive (issue #1931).
     /// 1. The LSP ``languageId`` field — when it names a known
     ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
     ///    ``"tcl9.0"`` / etc.), use it directly.
@@ -10440,9 +10509,15 @@ impl Backend {
         uri: &Uri,
         language_id: &str,
         text: &str,
+        document_override: Option<&str>,
         folder_dialects: &[(Uri, String)],
         default_dialect: &str,
     ) -> String {
+        // A host that named this URI outright has already decided; nothing
+        // inferred from the id, the basename or the text may overrule it.
+        if let Some(dialect) = document_override {
+            return dialect.to_owned();
+        }
         // An explicit BIG-IP language id (`tcl-bigip`, advertised by the VS
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
         // config dialect even when the basename is not a canonical
@@ -11424,6 +11499,7 @@ impl Backend {
     async fn scan_disk_file(
         store: &Arc<dyn vfs::SourceStore>,
         uri: Uri,
+        document_overrides: Arc<HashMap<String, String>>,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
         resource: Arc<ResourceAnalyserInputs>,
@@ -11442,8 +11518,13 @@ impl Backend {
             // the index with nothing said about it.
             let (raw, _) = store.read_source(&path).ok()?;
             let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
-            let dialect =
-                Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
+            let dialect = Self::dialect_for_closed_sync(
+                &uri,
+                &text,
+                document_overrides.get(uri.as_str()).map(String::as_str),
+                &folder_dialects,
+                &default_dialect,
+            );
             // The declared edges belong here as much as on the interactive
             // path: this analysis becomes the file's *index* entry, and
             // `workspace_index` harvests `package_requires` from it. Without
@@ -11485,6 +11566,7 @@ impl Backend {
         if uris.is_empty() {
             return;
         }
+        let document_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
         // No document in hand: this batch spans folders, so the global values
@@ -11496,6 +11578,7 @@ impl Backend {
             .iter()
             .cloned()
             .map(|uri| {
+                let document_overrides = Arc::clone(&document_overrides);
                 let folder_dialects = Arc::clone(&folder_dialects);
                 let default_dialect = Arc::clone(&default_dialect);
                 let store = Arc::clone(&self.store);
@@ -11504,6 +11587,7 @@ impl Backend {
                     let scanned = Self::scan_disk_file(
                         &store,
                         uri.clone(),
+                        document_overrides,
                         folder_dialects,
                         default_dialect,
                         resource,
@@ -11541,12 +11625,14 @@ impl Backend {
         // same on-disk population as the workspace index, so a proc defined in
         // a closed/never-opened file still suppresses W123 / drives the arity
         // error in its siblings.
+        let document_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
         let resource = Arc::new(self.resource_analyser_inputs(Some(uri)).await);
         let scanned = Self::scan_disk_file(
             &self.store,
             uri.clone(),
+            document_overrides,
             folder_dialects,
             default_dialect,
             resource,
@@ -11681,11 +11767,19 @@ impl Backend {
     fn dialect_for_closed_sync(
         uri: &Uri,
         text: &str,
+        document_override: Option<&str>,
         folder_dialects: &[(Uri, String)],
         default_dialect: &str,
     ) -> String {
         let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
-        Self::dialect_for_open_sync(uri, language_id, text, folder_dialects, default_dialect)
+        Self::dialect_for_open_sync(
+            uri,
+            language_id,
+            text,
+            document_override,
+            folder_dialects,
+            default_dialect,
+        )
     }
 
     /// Bump and return `uri`'s closed-file diagnostics generation (#865). Each
@@ -11783,6 +11877,9 @@ impl Backend {
             closed_diag_gen: _,
             closed_diag_order: _,
             semantic_tokens_convergence: _,
+            // Owned by the host session that installed it, not by any one
+            // document lifetime — cleared only by the command that set it.
+            document_dialect_overrides: _,
             // Owned by the SpecTcl reload path: watch registrations track the
             // configured pack roots, not any document's lifetime.
             external_pack_watch_globs: _,
@@ -16480,6 +16577,68 @@ impl Backend {
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": requested }),
         ))
+    }
+
+    /// Handle `tcl-lsp.setDocumentDialectOverride`: pin one document to a
+    /// dialect, or (with a `null` / absent second argument) release it.
+    ///
+    /// The per-document counterpart of
+    /// [`Self::set_session_dialect_override_command`], and the seam a host
+    /// needs when *one* buffer must differ from the session. Both existing
+    /// dialect commands are session-global, so a host using either to re-tag a
+    /// single buffer re-tags every other open buffer with it — the behaviour
+    /// #1217 deliberately moved away from. The Spec Studio's dialect selector
+    /// is the first caller: its sample surface is always materialised as
+    /// `test.tcl`, so without this the server resolves it as generic Tcl and a
+    /// pack whose commands only exist in, say, `f5-irules` shows no
+    /// highlighting, completion or hover in the very buffer the studio exists
+    /// to give feedback on (issue #1931).
+    ///
+    /// Arguments are `[uri, dialect]`; `dialect` absent or `null` clears.
+    /// Returns `{success, uri, dialect}` (`dialect: null` when cleared), or
+    /// `{success: false, error}` for a missing URI or an unknown dialect.
+    async fn set_document_dialect_override_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_arg) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(Some(serde_json::json!({
+                "success": false,
+                "error": "tcl-lsp.setDocumentDialectOverride needs a document URI as its first argument",
+            })));
+        };
+        let Ok(uri) = Uri::from_str(uri_arg) else {
+            return Ok(Some(serde_json::json!({
+                "success": false,
+                "error": format!("not a valid document URI: {uri_arg}"),
+            })));
+        };
+        let requested = args.get(1).and_then(serde_json::Value::as_str);
+        if let Some(dialect) = requested
+            && !is_known_dialect_name(dialect)
+        {
+            return Ok(Some(serde_json::json!({
+                "success": false,
+                "error": unknown_dialect_error(dialect),
+            })));
+        }
+        {
+            let mut overrides = self.document_dialect_overrides.lock().await;
+            match requested {
+                Some(dialect) => {
+                    overrides.insert(uri.as_str().to_owned(), dialect.to_owned());
+                }
+                None => {
+                    overrides.remove(uri.as_str());
+                }
+            }
+        }
+        self.reresolve_open_document_dialect(&uri).await;
+        Ok(Some(serde_json::json!({
+            "success": true,
+            "uri": uri.as_str(),
+            "dialect": requested,
+        })))
     }
 
     /// Handle `tcl-lsp.listDialects`: the dialect catalog as presentation data
@@ -23996,6 +24155,10 @@ impl LanguageServer for Backend {
                 self.set_session_dialect_override_command(&params.arguments)
                     .await
             }
+            "tcl-lsp.setDocumentDialectOverride" => {
+                self.set_document_dialect_override_command(&params.arguments)
+                    .await
+            }
             "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
             "tcl-lsp.compilerExplorerView" => {
                 self.compiler_explorer_view_command(&params.arguments).await
@@ -28808,6 +28971,7 @@ fn build_server_capabilities(
                 "tcl-lsp.listDialects".to_owned(),
                 "tcl-lsp.setDialect".to_owned(),
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
+                "tcl-lsp.setDocumentDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
                 "tcl-lsp.compilerExplorerView".to_owned(),
                 "tcl-lsp.tkPreview".to_owned(),
@@ -33994,6 +34158,7 @@ mod tests {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
             session_dialect_override: Mutex::new(None),
+            document_dialect_overrides: Mutex::new(HashMap::new()),
             config_reload: Mutex::new(ConfigReloadSlot::default()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
@@ -36194,6 +36359,100 @@ mod tests {
             "tcl9.0",
             "an explicit language id must still outrank the session tier",
         );
+    }
+
+    /// Issue #1931: a per-document override is the strongest tier — stronger
+    /// than an explicit language id and than the in-source directive — and it
+    /// reaches only the document it names.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_document_dialect_override_outranks_every_inference() {
+        let backend = test_backend();
+        let sample = Uri::from_str("file:///studio/test.tcl").unwrap();
+        let sibling = Uri::from_str("file:///studio/other.tcl").unwrap();
+        backend
+            .set_document_dialect_override_command(&[
+                serde_json::json!(sample.as_str()),
+                serde_json::json!("f5-irules"),
+            ])
+            .await
+            .expect("override command");
+
+        assert_eq!(
+            backend.dialect_for_open(&sample, "tcl", "set x 1\n").await,
+            "f5-irules",
+            "the named document takes the override",
+        );
+        assert_eq!(
+            backend
+                .dialect_for_open(&sample, "tcl90", "set x 1\n")
+                .await,
+            "f5-irules",
+            "an explicit language id does not outrank a named document",
+        );
+        assert_eq!(
+            backend
+                .dialect_for_open(&sample, "tcl", "# tcl-dialect: tcl8.4\n")
+                .await,
+            "f5-irules",
+            "an in-source directive does not outrank a named document",
+        );
+        assert_eq!(
+            backend.dialect_for_open(&sibling, "tcl", "set x 1\n").await,
+            "tcl8.6",
+            "no other buffer is re-tagged — the whole point of the tier",
+        );
+    }
+
+    /// Clearing releases the document back to ordinary resolution.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_document_dialect_override_is_released_by_a_null_argument() {
+        let backend = test_backend();
+        let sample = Uri::from_str("file:///studio/test.tcl").unwrap();
+        backend
+            .set_document_dialect_override_command(&[
+                serde_json::json!(sample.as_str()),
+                serde_json::json!("f5-irules"),
+            ])
+            .await
+            .expect("override command");
+        assert_eq!(
+            backend.dialect_for_open(&sample, "tcl", "set x 1\n").await,
+            "f5-irules",
+        );
+        backend
+            .set_document_dialect_override_command(&[serde_json::json!(sample.as_str())])
+            .await
+            .expect("clear command");
+        assert_eq!(
+            backend.dialect_for_open(&sample, "tcl", "set x 1\n").await,
+            "tcl8.6",
+            "a cleared document resolves normally again",
+        );
+        assert!(backend.document_dialect_overrides.lock().await.is_empty());
+    }
+
+    /// A missing URI and an unknown dialect are both reported rather than
+    /// installed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_document_dialect_override_rejects_bad_arguments() {
+        let backend = test_backend();
+        let missing_uri = backend
+            .set_document_dialect_override_command(&[])
+            .await
+            .expect("command")
+            .expect("a reply");
+        assert_eq!(missing_uri["success"], serde_json::json!(false));
+
+        let unknown = backend
+            .set_document_dialect_override_command(&[
+                serde_json::json!("file:///studio/test.tcl"),
+                serde_json::json!("tcl99"),
+            ])
+            .await
+            .expect("command")
+            .expect("a reply");
+        assert_eq!(unknown["success"], serde_json::json!(false), "{unknown}");
+        assert!(backend.document_dialect_overrides.lock().await.is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

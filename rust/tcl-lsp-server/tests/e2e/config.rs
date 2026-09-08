@@ -692,6 +692,66 @@ fn a_session_dialect_override_outlives_a_config_pull() {
     assert_eq!(cfg["session_dialect_override"], Value::Null, "{cfg}");
 }
 
+/// Issue #1931: a per-document override reaches only the document it names,
+/// and outranks every inference — including an explicit language id.
+///
+/// The Spec Studio's sample surface is always materialised as `test.tcl`, so
+/// without a per-document seam the server resolves it as generic Tcl however
+/// the studio's dialect selector is set. Both session-wide dialect commands
+/// would re-tag every other open buffer instead, which is what #1217 moved
+/// away from.
+#[test]
+fn a_document_dialect_override_reaches_only_the_document_it_names() {
+    let sample = unique_uri("studio-sample");
+    let sibling = unique_uri("studio-sibling");
+    let mut lsp = Lsp::tcl();
+    lsp.open_ready(&sample, "set x 1\n");
+    lsp.open_ready(&sibling, "set x 1\n");
+    lsp.apply_configuration_settle(json!({ "dialect": "tcl8.6" }), "", |cfg| {
+        cfg["dialect"] == json!("tcl8.6")
+    });
+
+    let set = lsp.execute_command(
+        "tcl-lsp.setDocumentDialectOverride",
+        json!([sample.clone(), "f5-irules"]),
+    );
+    assert_eq!(set["success"], json!(true), "{set}");
+
+    let pinned = lsp.effective_config(&sample);
+    assert_eq!(pinned["dialect"], json!("f5-irules"), "{pinned}");
+    let untouched = lsp.effective_config(&sibling);
+    assert_eq!(
+        untouched["dialect"],
+        json!("tcl8.6"),
+        "no other buffer may be re-tagged: {untouched}"
+    );
+    // The session tier is not what carried it.
+    assert_eq!(pinned["session_dialect_override"], Value::Null, "{pinned}");
+
+    let cleared = lsp.execute_command(
+        "tcl-lsp.setDocumentDialectOverride",
+        json!([sample.clone(), Value::Null]),
+    );
+    assert_eq!(cleared["success"], json!(true), "{cleared}");
+    let released = lsp.effective_config(&sample);
+    assert_eq!(released["dialect"], json!("tcl8.6"), "{released}");
+}
+
+/// An unknown dialect is reported rather than installed.
+#[test]
+fn a_document_dialect_override_rejects_an_unknown_dialect() {
+    let uri = unique_uri("studio-sample");
+    let mut lsp = Lsp::tcl();
+    lsp.open_ready(&uri, "set x 1\n");
+    let reply = lsp.execute_command(
+        "tcl-lsp.setDocumentDialectOverride",
+        json!([uri.clone(), "tcl99"]),
+    );
+    assert_eq!(reply["success"], json!(false), "{reply}");
+    let cfg = lsp.effective_config(&uri);
+    assert_eq!(cfg["dialect"], json!("tcl8.6"), "{cfg}");
+}
+
 /// Issue #1213: a burst of `didChangeConfiguration` notifications must produce
 /// **one** `workspace/configuration` pull, not one per notification.
 ///

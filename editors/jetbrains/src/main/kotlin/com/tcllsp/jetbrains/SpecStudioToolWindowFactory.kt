@@ -18,6 +18,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.platform.lsp.api.LspServer
 import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.platform.lsp.api.LspServerState
 import com.intellij.ui.content.ContentFactory
@@ -27,6 +28,7 @@ import com.intellij.ui.jcef.JBCefJSQuery
 import org.cef.browser.CefBrowser
 import org.cef.handler.CefLoadHandlerAdapter
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
+import org.eclipse.lsp4j.ExecuteCommandParams
 import org.eclipse.lsp4j.FileChangeType
 import org.eclipse.lsp4j.FileEvent
 import java.nio.file.Files
@@ -106,6 +108,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
                     materialise(surface!!, message["text"] as String)
                 }
                 "openSurface" -> if (surface in paths) openSurface(surface!!)
+                "dialectUpdate" -> applySampleDialect(message["dialect"] as? String)
             }
         } catch (error: Exception) {
             SPEC_LOG.warn("Could not handle Spec Studio message", error)
@@ -150,6 +153,41 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
         )
     }
 
+    /**
+     * Pin the sample surface to the studio's selected dialect, or release it
+     * when [dialect] is null.
+     *
+     * The sample is always materialised as `test.tcl`, so without this the
+     * server resolves it as generic Tcl however the studio's selector is set,
+     * and a pack whose commands only exist in another dialect shows no
+     * highlighting, completion or hover in the very buffer the studio exists
+     * to give feedback on.  The per-document override is the seam that leaves
+     * every other open buffer alone, unlike the two session-global dialect
+     * commands (issue #1931).
+     */
+    @Suppress("UnstableApiUsage")
+    private fun applySampleDialect(dialect: String?) {
+        val uri = paths.getValue("sample").toUri().toString()
+        // Releasing sends the URI alone rather than a null second argument:
+        // the server reads an absent dialect as a clear, and this keeps the
+        // argument list free of nulls across the Gson boundary.
+        val args: List<Any> = if (dialect == null) listOf(uri) else listOf(uri, dialect)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val server = LspServerManager.getInstance(project)
+                .getServersForProvider(TclLspServerSupportProvider::class.java)
+                .firstOrNull { it.state == LspServerState.Running } ?: return@executeOnPooledThread
+            try {
+                server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
+                    lsp4j.workspaceService.executeCommand(
+                        ExecuteCommandParams("tcl-lsp.setDocumentDialectOverride", args)
+                    )
+                }
+            } catch (error: Exception) {
+                SPEC_LOG.warn("Could not set the Spec Studio sample dialect", error)
+            }
+        }
+    }
+
     @Suppress("UnstableApiUsage")
     private fun notifyPack(path: Path, type: FileChangeType) {
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -167,6 +205,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
     override fun dispose() {
         if (disposed) return
         disposed = true
+        applySampleDialect(null)
         val pack = paths.getValue("dsl")
         val existed = Files.exists(pack)
         ApplicationManager.getApplication().executeOnPooledThread {
