@@ -403,6 +403,9 @@ are its rules, and what are the failure modes". One contract per file.
 - [test-tiers-and-ci-gates.md](contracts/test-tiers-and-ci-gates.md) — the
   smoke / deep / exhaustive tiers, the local gates before a push, the
   `#[ignore]` and xfail policies, and the CI redundancy contract.
+- [tank-persistent-cargo-target.md](contracts/tank-persistent-cargo-target.md)
+  — safe per-registration Cargo target reuse on the trusted Tank runner,
+  lock-aware cleanup, disk guard, telemetry, and hosted overflow boundaries.
 - [release-and-publish.md](contracts/release-and-publish.md) —
   the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
   invariant, and the release flow.

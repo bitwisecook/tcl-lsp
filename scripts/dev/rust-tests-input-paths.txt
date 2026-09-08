@@ -26,9 +26,11 @@ scripts/dev/rust-tests-path.sh
 scripts/dev/rust-tests-package-paths.txt
 scripts/dev/rust-tests-input-paths.txt
 scripts/dev/select-rust-tests-runner.sh
+scripts/dev/persistent-cargo-target.sh
 scripts/dev/test-already-green.sh
 scripts/dev/test-rust-tests-paths.sh
 scripts/dev/test-rust-tests-runner.sh
+scripts/dev/test-persistent-cargo-target.sh
 scripts/dev/tcl-reference-toolchains.sh
 scripts/dev/test-reference-tcl-toolchains.sh
 scripts/dev/wasm-cc-env.sh
