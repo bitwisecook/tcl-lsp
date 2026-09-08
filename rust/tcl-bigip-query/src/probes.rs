@@ -1211,11 +1211,11 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let Value::ObjectRef(obj) = &args[0] else {
         return Err(QueryError::builtin(
-            "ucs_cert: expects a `sys file ssl-cert` / `cm cert` object. The \
-             query projection covers the ltm, gtm and security kinds only, so \
-             there is no `.sys` / `.cm` container to reach one through yet; \
-             today the object has to arrive from the report pipeline, which \
-             builds it directly",
+            "ucs_cert: expects a projected `sys file ssl-cert` / `cm cert` \
+             object. The query projection builds objects for the ltm, gtm and \
+             security kinds only, and an `--input-json` stanza arrives as a \
+             plain object, so nothing can supply one: this builtin is not \
+             reachable from `f5 query` until those kinds are projected",
         ));
     };
     let full_path = obj.full_path.clone();

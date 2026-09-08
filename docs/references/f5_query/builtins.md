@@ -5740,9 +5740,11 @@ the archive.
 **Not reachable from the DSL yet.**  Like :func:`x509_from_config`,
 this needs a ``sys file ssl-cert`` / ``cm cert`` object, and the query
 projection covers the ``ltm``, ``gtm`` and ``security`` kinds only —
-there is no ``.sys`` / ``.cm`` container to pipe from.  The reader
-itself is wired and used by the report pipeline; the examples below
-are the shape a query will take once those kinds are projected.
+there is no ``.sys`` / ``.cm`` container to pipe from, and an
+``--input-json`` stanza arrives as a plain object, which this builtin
+rejects.  The UCS reader hook itself is wired and unit-tested in the
+f5 CLI; the examples below are the shape a query will take once those
+kinds are projected.
 
 Related: ``x509_from_config`` (stanza metadata only), ``x509_eq``,
 ``cert_load``, ``tls_handshake``.
@@ -6097,7 +6099,7 @@ Related: ``x509_parse``, ``x509_from_config``.
 
 ```
 x509_eq(tls_handshake("example.com", 443).peer_cert,
-        cert_load("/config/ssl/ssl.crt/example.crt"))
+        cert_load("./example.crt"))     # a PEM copied off the device
 x509_eq(x509_parse($peer_pem), x509_from_config($cert))
 ```
 
@@ -6125,8 +6127,8 @@ surface covers the ``ltm``, ``gtm`` and ``security`` kinds only, so
 ``.sys["file-ssl-cert"]`` / ``.cm.cert`` navigate into an empty
 container and a client-ssl profile's ``cert`` PathRef does not
 dereference.  Today the stanza has to arrive as an external input
-(``--input-json``) or from the report pipeline, which builds these
-objects directly.  The projections below are the ones this builtin
+(``--input-json``); unlike :func:`ucs_cert` this builtin reads plain
+objects, so that form works.  The projections below are the ones it
 understands once such an object reaches it:
 
 - ``sys file ssl-cert`` — cert / chain / bundle store, the
@@ -6165,7 +6167,7 @@ Related: ``x509_parse`` (parse a PEM string),
 ```
 $cert | x509_from_config(.)                       # $cert bound with --input-json
 x509_eq(x509_from_config($cert),
-        cert_load("/config/ssl/ssl.crt/example.crt"))
+        cert_load("./example.crt"))               # a PEM copied off the device
 x509_eq(x509_from_config($cert),
         tls_handshake("example.com", 443).peer_cert)
 ```
@@ -6370,6 +6372,11 @@ required:
 Tilde expansion is honoured.  Raises :class:`BuiltinError` for
 missing files, unreadable formats, or wrong passwords.  No
 network access — purely local file IO.
+
+*path* is read on the machine running ``f5 query``, not on the
+BIG-IP, so a device path such as
+``/config/ssl/ssl.crt/example.crt`` raises ``cert_load: file not
+found`` unless that file has been copied off the appliance first.
 
 Related: ``x509_parse`` (parse an in-memory PEM string),
 ``tls_handshake`` (peer cert pre-parsed in ``peer_cert``).
