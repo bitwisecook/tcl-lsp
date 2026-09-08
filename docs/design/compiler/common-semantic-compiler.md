@@ -488,27 +488,3 @@ Analysis cache keys include the command-registry profile/fingerprint and
 semantic ABI. Runtime mutation epochs are normally emitted guards, not static
 compiler cache keys. A sealed-environment snapshot may be part of a cache key
 when the compilation policy explicitly requests one.
-
-## Remaining stages
-
-Sequencing constraints for the work not yet connected; the current boundary
-is recorded above.
-
-1. Replace boolean-heavy interprocedural summaries with structured effects.
-2. Move SCCP, GVN, motion, DCE, taint, and escape consumers onto the common
-   operation and state facts.
-3. Widen the first guarded boxed intrinsic into general guarded semantic
-   specialisation and explicit materialisation, keeping every transform
-   disabled until its differential tests prove it sound.
-4. Migrate TclVM and WASM selection to backend registries, preserving emitted
-   bytecode and runtime behaviour during the transition.
-5. Feed resolved operations and common facts directly into BPF-Tcl's typed
-   BPF IR; retain its verifier-specific lattice and emitter.
-6. Widen native CPU lowering beyond the sealed i64-add demonstration only
-   after the runtime ABI, completion, ownership, and deoptimisation contracts
-   are stable. GPU and FPGA work begins with host/device region extraction,
-   not a full Tcl interpreter on the device.
-
-Every stage adds registry drift tests, focused compiler tests, differential
-runtime tests, and LSP consumer tests. No stage adds a command-name special
-case outside registry data, and no stage adds a Clippy allowance.

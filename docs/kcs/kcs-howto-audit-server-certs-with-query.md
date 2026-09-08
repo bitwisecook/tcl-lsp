@@ -105,6 +105,13 @@ f5 query --enable-probes --json '
 Every row is an endpoint serving something other than the cert you
 pushed.
 
+## How to tell it worked
+
+Step 1 lists a row per client-SSL virtual with a non-empty `cert`. With
+`--enable-probes`, step 2 fills in `subject` and `expires` from the live
+handshake, and `verify` reads `ok` for an endpoint whose chain and
+hostname check out.
+
 ## Operational context
 
 ### Reason taxonomy

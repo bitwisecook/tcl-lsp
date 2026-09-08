@@ -214,10 +214,11 @@ for what is in play.
 
 Inline `# noqa` and the top-of-file directive apply as soon as you save
 the document. Editor-settings changes are picked up within a second on
-every editor that supports `workspace/configuration`. Project and global
-config files are re-read on server start; after editing one, run **Tcl:
-Restart Language Server** (or the equivalent for your editor) to pick
-the new values up. See
+every editor that supports `workspace/configuration`. A saved
+`.tcl-lsp.ini` is watched, so the server re-reads it and re-analyses the
+open documents without a restart. The global `config.ini` sits outside
+the workspace and is not watched: after editing it, run **Tcl: Restart
+Language Server** (or the equivalent for your editor). See
 [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) for
 the full list of changes that need a restart.
 

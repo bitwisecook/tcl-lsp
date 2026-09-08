@@ -89,7 +89,7 @@ pack declares — matched case-sensitively, and answered as the resolved
 and detection falls through to the next tier rather than erroring.
 
 `tk` therefore resolves: it is a package plus an environment, never a
-dialect (§2), and the directive selects environments. `KNOWN_DIALECTS` feeds
+dialect, and the directive selects environments. `KNOWN_DIALECTS` feeds
 the CLI's `--dialect` choices and the MCP `dialect_schema` enum; it does not
 gate the directive.
 

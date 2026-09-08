@@ -19,9 +19,9 @@ flowchart LR
     ANA --> SP["7. Specialised Passes"]
     SP --> CG["8. Codegen<br/>FunctionAsm"]
 
-    SP --- OPT["Optimiser<br/>O100–O126"]
+    SP --- OPT["Optimiser<br/>O100–O130"]
     SP --- TAINT["Taint<br/>T100–T106"]
-    SP --- SHIM["Shimmer<br/>S100–S103"]
+    SP --- SHIM["Shimmer<br/>S100–S103, S110"]
     SP --- INTERP["Interprocedural<br/>ProcSummary"]
 ```
 

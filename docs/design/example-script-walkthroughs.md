@@ -3668,12 +3668,16 @@ ctx.place_label("entry_1")        → label at instruction 0
   ctx.emit(JUMP_FALSE4, "L_else") # → if_else_4
 
 ctx.place_label("if_then_3")
+  ctx.emit(START_COMMAND, …)      # then-body command frame
   ctx.emit(LOAD_SCALAR1, %v0)     # load n
   ctx.emit(UMINUS)                # negate
   ctx.emit(JUMP4, "L_end")        # → if_end_2
 
 ctx.place_label("L_else")        → if_else_4
-  ctx.emit(LOAD_SCALAR1, %v0)     # just return n
+  ctx.emit(START_COMMAND, …)      # else-body command frame
+  ctx.emit(PUSH1, lit("set"))     # `set n` has no specialised opcode
+  ctx.emit(PUSH1, lit("n"))
+  ctx.emit(INVOKE_STK1, 2)
 
 ctx.place_label("L_end")         → if_end_2
   ctx.emit(DONE)
@@ -3687,10 +3691,10 @@ offset fits in [-128, 127]:
 
 ```
 Pass 1:
-  JUMP_FALSE4 "L_else"  (offset: +12 bytes)
+  JUMP_FALSE4 "L_else"  (offset: +16 bytes)
   → fits in 1 byte → JUMP_FALSE1 "L_else"
 
-  JUMP4 "L_end"  (offset: +4 bytes)
+  JUMP4 "L_end"  (offset: +17 bytes)
   → fits in 1 byte → JUMP1 "L_end"
 ```
 
@@ -3703,54 +3707,66 @@ Final pass assigns concrete byte offsets:
 
 ```
 label_offsets = resolve_layout(instrs, labels)
-# {"entry_1": 0, "if_then_3": 8, "L_else": 14, "L_end": 16}
+# {"entry_1": 0, "if_then_3": 7, "L_else": 21, "L_end": 36}
 ```
 
 Jump operands are patched from label names to relative byte offsets.
 
 ### Step 6 — Peephole optimisation
 
-`_PeepholeMixin` applies tclsh-matching rewrites:
+`rust/tcl-compiler/src/codegen/peephole.rs` applies tclsh-matching
+rewrites, called from `emitter/generate.rs`:
 
-1. **`_remove_trailing_pop()`**: The last statement's result stays on
+1. **`remove_trailing_pop()`**: The last statement's result stays on
    the stack for `done` to return.  Strip `pop; done` → `done`.
 
-2. **`_fold_const_push_pop_nops()`**: Dead constant results (`push; pop`
+2. **`fold_const_push_pop_nops()`**: Dead constant results (`push; pop`
    pairs from folded branches) become `nop; nop; nop` — matching tclsh's
    3-nop pattern for folded constants.
 
-3. **`_dedup_push_literals()`**: After nop-folding, surviving `push`
+3. **`dedup_push_literals()`**: After nop-folding, surviving `push`
    instructions may reference duplicate literal slots.  Deduplicate
    to match tclsh's literal table interning.
 
 ### Step 7 — Literal table construction
 
-The `LiteralTable` interns strings as they are referenced:
+The `LiteralTable` interns strings as they are referenced, in first-use
+order.  A parameter is *not* a literal — `loadScalar1` addresses the LVT
+slot — so the table here holds only the words the body pushes:
 
 ```
 LiteralTable entries:
-  0 = "n"     (parameter name, also used in loadScalar1)
-  1 = "0"     (comparison constant)
+  0 = "0"     (comparison constant)
+  1 = "set"   (the else-body command name)
+  2 = "n"     (its argument word)
 ```
 
-Strings are deduplicated: if `"n"` is referenced twice, both get
-slot 0.
+Strings are deduplicated: a string referenced twice gets one slot.
 
 ### Final bytecode (matches tclsh 9.0)
 
+`set n` is a one-argument read, which has no specialised opcode, so it
+compiles to a generic `invokeStk1` rather than a `loadScalar1`.
+`startCommand` precedes each branch body's command, carrying the
+next-command offset `errorInfo` needs.
+
 ```
   LVT:  %v0="n"
-  Literals:  0="0"
+  Literals:  0="0"  1="set"  2="n"
 
-  (0)  loadScalar1 %v0  # load n
-  (2)  push1 0          # "0"
-  (4)  lt               # n < 0 ?
-  (5)  jumpFalse1 +5    # jump to pc 10
-  (7)  loadScalar1 %v0  # load n (then-body)
-  (9)  uminus           # negate
-  (10) jump1 +3         # jump to pc 13
-  (12) loadScalar1 %v0  # load n (else-body)
-  (14) done
+  (0)  loadScalar1 %v0     # load n
+  (2)  push1 0             # "0"
+  (4)  lt                  # n < 0 ?
+  (5)  jumpFalse1 +16      # → pc 21
+  (7)  startCommand +12 1  # then-body: next cmd at pc 19
+  (16) loadScalar1 %v0     # load n
+  (18) uminus              # negate
+  (19) jump1 +17           # → pc 36
+  (21) startCommand +15 1  # else-body: next cmd at pc 36
+  (30) push1 1             # "set"
+  (32) push1 2             # "n"
+  (34) invokeStk1 2        # set n
+  (36) done
 ```
 
 ---

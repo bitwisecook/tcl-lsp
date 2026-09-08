@@ -423,8 +423,8 @@ owns — `Trait`, `TaintColourAtom`, `SideEffectTarget`, `ArgRole`,
 `ByteArrayEffect`, `PatternType`, `FormatType` — carries a
 `DocumentationExample` per variant, and `variant_example` serialises it. The
 remaining pickers (`bodyKind`, `scriptTiming`, the hook ids, `dialects`, …)
-still introduce a value with their catalogue's snippet. That is the boundary
-; moving a vocabulary across it is the registry change described next.
+still introduce a value with their catalogue's snippet. That is the boundary;
+moving a vocabulary across it is the registry change described next.
 
 #### Where a vocabulary's example lives
 

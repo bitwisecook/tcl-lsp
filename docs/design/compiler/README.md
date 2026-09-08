@@ -67,7 +67,7 @@ User-facing compiler troubleshooting and how-tos live in
   — SCCP and type lattice.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
-  numeric tower) with its oracle corpus and phasing.
+  numeric tower) with its oracle corpus.
 - [def-use-chains.md](def-use-chains.md) — def-use chain construction
   and consumer contracts.
 - [memory-ssa.md](memory-ssa.md) — memory-SSA, alias detection, and
@@ -123,9 +123,9 @@ User-facing compiler troubleshooting and how-tos live in
   current `rbpf` codegen ABI, event/framework capabilities, verified design
   issues, real-world use cases, and the production-kernel roadmap.
 - [recursive-descent-depth-limits.md](recursive-descent-depth-limits.md) —
-  why deeply-nested Tcl source could crash the analyser (issue #996): the
-  depth-cap + generous-stack-budget model every recursive-descent walker
-  needs, the inventory of guarded walkers, and the known gaps.
+  the depth-cap + explicit-stack-budget model every recursive-descent walker
+  follows (`RecursionLimit`), the inventory of guarded walkers, and the rules
+  for adding one.
 
 ## Side-effects and effect classification
 

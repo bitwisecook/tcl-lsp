@@ -28,20 +28,28 @@ tracks.
 
 ```
 for f in samples/wasm/t*/*.tcl; do
-  d=$(dirname "$f"); b=$(basename "$f" .tcl)
-  tclsh9.0 "$f" > "samples/wasm/expected/$d/$b.out" 2>&1
+  tier=$(basename "$(dirname "$f")"); b=$(basename "$f" .tcl)
+  tclsh9.0 "$f" > "samples/wasm/expected/$tier/$b.out" 2>&1
 done
 ```
 
 ## Measuring what the compiler emits today
+
+`budgets.tsv` is the committed golden: one row per sample per compilation
+plan, counting the framing imports the emitted module still calls
+(`tcl_eval_code` — source re-parsed at run time, `tcl_invoke_argv` — compiled
+words with runtime dispatch, and the rest). `rust/tcl-compiler/tests/wasm_tiers.rs`
+gates it and the oracle comparison together:
+
+```
+cargo test -p tcl-compiler --test wasm_tiers
+UPDATE_WASM_BUDGETS=1 cargo test -p tcl-compiler --test wasm_tiers framing_budgets
+```
+
+To read one script's module by hand:
 
 ```
 cargo build -p tcl-compiler --example emit_wasm
 target/debug/examples/emit_wasm --wat            script.tcl out.wasm   # default plan
 target/debug/examples/emit_wasm --wat --analysis script.tcl out.wasm   # opt-in analysis tier
 ```
-
-Count `call <import>` sites in the `.wat` to see how much of the script is
-still `tcl_eval_code` (source re-parsed at run time), `tcl_invoke_argv`
-(compiled words, runtime dispatch), or native instructions. The plan document
-carries the baseline table for every script here.

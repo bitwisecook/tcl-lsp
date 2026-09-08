@@ -351,10 +351,12 @@ top.
 
 ## The general tier's leaf-command path
 
-Inside general structured mode, the **normal** path for a leaf
-`Statement::Call` is compiled word evaluation followed by `tcl_invoke_argv`.
-Source-span `tcl_eval_code` is the last-resort fallback, reached only when a
-word shape declines.
+With `SemanticOptimisationPassId::LegacyAnalysisSpecialisation` enabled, a
+leaf `Statement::Call` inside general structured mode is compiled word
+evaluation followed by `tcl_invoke_argv`; source-span `tcl_eval_code` is the
+last-resort fallback, reached only when a word shape declines. Without that
+pass the structured walk sends every leaf statement to `tcl_eval_code` over
+its source span (the `default` column of `samples/wasm/budgets.tsv`).
 
 Selection is per statement and stays registry-driven. `tcl-registry` resolves
 the statement's structured words to an `InvocationFacts` snapshot; the

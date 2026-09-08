@@ -372,4 +372,4 @@ accident, always in the same shape: strip two characters, call
   profile that carries `NumberSyntax`, and how one is resolved and threaded.
 - [runtime-variable-frame-model.md](runtime-variable-frame-model.md) and
   [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)
-  — the other two day-one contracts.
+  — the sibling runtime contracts.

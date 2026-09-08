@@ -325,7 +325,7 @@ scheme (`vscode-vfs:`), so by the rule above every upsert is discarded and only
 open documents are analysed. The host says so at startup rather than leaving it
 to be discovered. Closing it means teaching the store to key a URI that names
 no filesystem path — the alias table already exists, but `vfs_upsert`,
-`uri_norm`, and the workspace scan's folder walk all assume a path today.
+`uri_norm`, and the workspace scan's folder walk all assume a path.
 
 ## Two wasm-only constraints
 
