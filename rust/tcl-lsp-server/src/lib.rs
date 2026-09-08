@@ -1132,7 +1132,7 @@ struct DocumentsHolder {
     /// phase is its last one never retags again — without the release update
     /// the very shape most worth catching would be the one that leaves no
     /// trace. `None` until the first phase ends.
-    longest_phase: Option<(&'static str, std::time::Duration)>,
+    longest_phase: Option<PhaseSpan>,
 }
 
 impl DocumentsHolder {
@@ -1849,7 +1849,7 @@ fn describe_documents_contention(
             h.site,
             h.held.as_secs_f64(),
             h.in_phase.as_secs_f64(),
-            describe_longest_phase(h.longest_phase),
+            describe_longest_phase(h.longest_phase, Some(h.in_phase)),
         );
     }
     let last = after.last.map_or_else(
@@ -1858,7 +1858,7 @@ fn describe_documents_contention(
             format!(
                 "last held by {site}, whose hold began {:.1}s ago{}",
                 age.as_secs_f64(),
-                describe_longest_phase(longest),
+                describe_longest_phase(longest, None),
             )
         },
     );
@@ -1892,6 +1892,13 @@ fn held_for(h: &DocumentsHolder, now: crate::rt::Instant) -> HeldFor {
     }
 }
 
+/// A finished phase of a hold: where it ran, and for how long.
+type PhaseSpan = (&'static str, std::time::Duration);
+
+/// A released hold as the stall line reports it: its last site, how long ago
+/// its hold began, and its longest finished phase.
+type DepartedHolder = (&'static str, std::time::Duration, Option<PhaseSpan>);
+
 /// A live hold on the open-document map: where it is now, how long it has held
 /// in total, and how long it has been at that point.
 ///
@@ -1907,22 +1914,33 @@ struct HeldFor {
     /// The longest phase this hold has *finished*, and where — the third
     /// reading, and the one that names an earlier phase a retag has since
     /// relabelled away (issue #1678).
-    longest_phase: Option<(&'static str, std::time::Duration)>,
+    longest_phase: Option<PhaseSpan>,
 }
 
-/// Render a hold's high-water phase as a trailing clause, or nothing when the
-/// hold has not finished a phase yet.
+/// Render a hold's high-water phase as a trailing clause, or nothing when there
+/// is no earlier phase worth naming.
 ///
-/// Suppressed when it would only repeat the current phase: a hold still in its
-/// first phase has no earlier one to name, and saying so adds a number to
-/// squint at rather than a fact.
-fn describe_longest_phase(longest: Option<(&'static str, std::time::Duration)>) -> String {
-    longest.map_or_else(String::new, |(site, elapsed)| {
-        format!(
-            "; longest phase so far {site} ({:.1}s)",
-            elapsed.as_secs_f64()
-        )
-    })
+/// `live` is the phase running now, where there is one. The mark deliberately
+/// covers only *finished* phases, so a hold that is 70s into `publish send`
+/// after a 1s earlier phase would otherwise read `70.0s at this point;
+/// longest phase so far <earlier> (1.0s)` — false, and pointing an
+/// investigation at the wrong step (PR #1958 review). The clause is therefore
+/// suppressed unless the mark actually outlasts the live phase; when it does
+/// not, `in_phase` has already named the longest phase and repeating it adds a
+/// number to squint at rather than a fact. A hold still in its first phase has
+/// no mark at all, and a released one has no live phase — its final phase was
+/// folded in on drop, so the mark is the true longest.
+fn describe_longest_phase(longest: Option<PhaseSpan>, live: Option<std::time::Duration>) -> String {
+    let Some((site, elapsed)) = longest else {
+        return String::new();
+    };
+    if live.is_some_and(|live| live >= elapsed) {
+        return String::new();
+    }
+    format!(
+        "; longest phase so far {site} ({:.1}s)",
+        elapsed.as_secs_f64()
+    )
 }
 
 /// One instant's view of [`DocumentStore`] contention, for the stall line.
@@ -1931,11 +1949,7 @@ struct DocumentsContention {
     /// The last holder's site, how long ago its hold began, and its longest
     /// finished phase — the same third reading the live case reports, kept for
     /// a hold that has already released.
-    last: Option<(
-        &'static str,
-        std::time::Duration,
-        Option<(&'static str, std::time::Duration)>,
-    )>,
+    last: Option<DepartedHolder>,
     acquisitions: u64,
 }
 
@@ -41769,6 +41783,38 @@ proc p {} {
         assert!(
             line.contains("longest phase so far first"),
             "the line must name the phase that burned the time: {line}",
+        );
+    }
+
+    /// The mark covers finished phases only, so it must not be called the
+    /// longest while the phase running now has already outlasted it.
+    ///
+    /// PR #1958 review: a hold 70s into `publish send` after a 1s earlier phase
+    /// would have read `70.0s at this point; longest phase so far <earlier>
+    /// (1.0s)` — false, and pointing an investigation at the wrong step. The
+    /// live reading already names the longest phase in that case.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_line_does_not_call_an_earlier_phase_longest_than_the_running_one() {
+        let store = DocumentStore::default();
+        let before = store.contention();
+        let held = store.lock("quick").await;
+        held.retag("slow-and-still-running");
+        crate::rt::sleep(std::time::Duration::from_millis(120)).await;
+
+        let line = describe_documents_contention(&before, &store.contention());
+        assert!(line.contains("held by slow-and-still-running"), "{line}");
+        assert!(
+            !line.contains("longest phase"),
+            "the running phase has outlasted every finished one, so `at this \
+             point` is already the longest: {line}",
+        );
+
+        // Once it ends, the same phase becomes the mark like any other.
+        held.retag("next");
+        let line = describe_documents_contention(&before, &store.contention());
+        assert!(
+            line.contains("longest phase so far slow-and-still-running"),
+            "{line}",
         );
     }
 
