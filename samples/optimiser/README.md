@@ -30,7 +30,11 @@ Idiomatic Tcl rewrites only — no code removal or restructuring:
   `TclType::Int`, since `expr` promotes a float operand where `incr` errors
 - `[string length $s] == 0` &rarr; `$s eq ""` (O117)
 - `==`/`!=` on strings &rarr; `eq`/`ne` (O120)
-- Redundant nested `[expr {...}]` removed (O115)
+- Redundant nested `[expr {...}]` removed (O115) — in a branch condition **and**
+  in a `return` body (`propagation::try_fold_return_terminator`); a `set` value
+  position is the known gap. The sample's `return [expr {[expr {$x * 2}]}]` is
+  nevertheless left alone until `aggressive`, and the reason is elsewhere in
+  the file — see [O115 and the `factorial` stanza](#o115-and-the-factorial-stanza)
 - Unbraced `expr` bodies flagged (O111, paired with W100)
 - `end`-relative index rewrites (O128)
 
@@ -72,7 +76,13 @@ Adds dead-code elimination, code motion, and recursion transforms:
 - Dead stores removed (`set stale 1` before `set stale 2`)
 - Unreachable `if {0} { ... }` blocks removed
 - Unused variable assignments removed
-- Tail-recursive procs converted to `while` loops
+- Tail-recursive procs rewritten to `tailcall` (O121). **O122**'s loop
+  conversion accepts this shape too — `collect_tail_sites` parses an unbraced
+  `return [self …]` substitution and `emit_loop_conversion`'s parameter
+  reassignment preserves the recursive result — so the sample stops at
+  `tailcall` because *overlap selection* prefers the per-site rewrite over the
+  whole-proc one, not because O122 declined it. Both are faithful;
+  `tail_call_loop_conversion_o122` pins exactly this body and says so
 - Loop-invariant code hoisted
 - Single-use variables inlined
 
@@ -89,8 +99,17 @@ and re-analysed to find opportunities exposed by earlier passes. For example:
 1. Pass 1: Constant propagation replaces `$timeout` with `30` in expressions
 2. Pass 1: Expression folding simplifies `30 / 2` to `15`
 3. Pass 1: Dead store elimination removes the now-unused `set timeout 30`
-4. Pass 2: The three consecutive `set half 15; set threshold 40; set route 42`
-   are packed into `lassign {15 40 42} half threshold route` (O119)
+4. Pass 2: `set second beta` and `set colours {red green blue}` fold, now that
+   their arguments are literals
+
+The three folded assignments (`half`, `threshold`, `route`) are **not** packed
+into a `lassign`: O119 packs consecutive `set`s of *literals as written*, and
+these become literals only after folding. They are not consecutive either —
+the committed output reads `set half 15`, `set threshold 40`,
+`set candidate [expr {$request_count + 3}]`, `set route 42`, so the
+non-literal `candidate` assignment separates `route` from the other two. The
+`lassign` in the committed output is the O119 stanza's own
+`set a 1; set b 2; set c 3`.
 
 The aggressive profile finds **42 rewrites** on the sample input against 24 in
 single-pass `full`. It is the only profile that folds the arithmetic through:
@@ -109,6 +128,36 @@ fixpoint (no further changes).
 | CLI `optimize` | `full` | Explicit user action |
 | MCP `optimize` tool | `full` | AI-driven, explicit |
 | AI skills | `full` | Explicit |
+
+## O115 and the `factorial` stanza
+
+O115 fires on `proc double_expr {x} { return [expr {[expr {$x * 2}]}] }` under
+**every** profile when that proc is the whole file — `readability` included.
+In this sample it only survives to `aggressive`, and nothing about the proc or
+the profile explains it: the cause is 90 lines further down.
+
+O115 (like O101 and O129) is gated on `expr` being provably untouched across
+the whole module. A command head the analysis cannot resolve could `rename`
+`expr`, so an unresolvable head anywhere turns the gate off for the entire
+file. `factorial`'s `return [factorial …]` is such a head, and it suppresses
+O115 in `double_expr`. Measured on this input:
+
+| file | O115 under `readability` |
+| --- | --- |
+| `double_expr` alone | fires |
+| `double_expr` + a call to a defined proc or a builtin | fires |
+| `double_expr` + a call to an unresolvable head | **not reported** |
+| `input.tcl` with the `factorial` stanza removed | fires |
+| the committed `profile_full.tcl` output, re-optimised | fires |
+
+The last row is why `aggressive` gets it: `full` rewrites the recursion to
+`tailcall factorial …` in pass 1, which removes the command substitution; pass
+2 re-analyses, `expr` is trusted again, and O115 is reported. A single-pass
+profile never gets a second look.
+
+This is conservative rather than wrong — the gate exists so a renamed `expr`
+is never folded as if it were the builtin — but the blast radius is the whole
+module for a single unresolved head. Recorded as part of #1962.
 
 ## Design decisions
 
