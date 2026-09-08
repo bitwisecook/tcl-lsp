@@ -368,15 +368,16 @@ with_lock() {
     owned_mode "$target" 700
     lock=$target/$LOCK
     valid_lock "$lock" || die "target lock is missing or unsafe: $lock"
-    # Keep the descriptor open for the complete child process.  A janitor can
-    # therefore skip this target without guessing whether Cargo is active.
+    # Keep the descriptor open in this wrapper for the complete command.  The
+    # command itself must not inherit it: compiler-cache daemons can outlive
+    # Cargo and would otherwise retain the lock into the following CI step.
     exec 9<>"$lock"
     opened_lock_ok 9 "$lock" || {
         exec 9>&-
         die "target lock changed while opening: $lock"
     }
     flock -n 9 || die "target is already locked: $target"
-    "$@"
+    "$@" 9>&-
 }
 
 [ "$#" -ge 1 ] || die "usage: $SELF prepare|janitor|with-lock ..."
