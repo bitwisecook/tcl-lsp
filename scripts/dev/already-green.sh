@@ -139,7 +139,7 @@ green_pr_for_current_tree() {
 
     current_tree="$(git rev-parse 'HEAD^{tree}' 2>/dev/null || true)"
     valid_sha "$current_tree" || return 1
-    pr_tree="$(git rev-parse "$pr_head^{tree}" 2>/dev/null || true)"
+    pr_tree="$(git rev-parse -q --verify "$pr_head^{tree}" 2>/dev/null || true)"
     if [ -z "$pr_tree" ]; then
         pr_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$pr_head" \
             --jq '.tree.sha' 2>/dev/null || true)"
