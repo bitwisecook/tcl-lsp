@@ -23,7 +23,7 @@ all-editors, MCP, Claude skill, diagnostic, warning
 
 The analyser produces diagnostics in categories: errors (E-codes), security (S-codes), taint (T-codes), performance/style (W-codes), and optimiser suggestions (O-codes). Diagnostics are published on every document change via the LSP `textDocument/publishDiagnostics` notification (the default push model).
 
-Files matching a `tclLsp.diagnostics.exclude` glob (per workspace folder, gitignore-style; #1556) publish an empty diagnostic set instead — every other feature (hover, navigation, formatting, indexing) keeps working on them.
+Files matching a `tclLsp.diagnostics.exclude` glob (per workspace folder, gitignore-style) publish an empty diagnostic set instead — every other feature (hover, navigation, formatting, indexing) keeps working on them.
 
 The server also answers pull-model requests — `textDocument/diagnostic` for one document and `workspace/diagnostic` for the whole workspace — from the same cache, for clients that request them directly. Pull is not a user setting: switching delivery models changes the capability advertised during `initialize`, so it must be agreed by the client and server for a fresh session. Push publication remains the editor default.
 
@@ -32,11 +32,7 @@ The server also answers pull-model requests — `textDocument/diagnostic` for on
 - Diagnostics missing after a parse or analyser change.
 - Duplicate diagnostics from overlapping passes.
 
-## Screenshots
-
-- `01-diagnostics-overview` — squiggly underlines and Problems panel
-- `05-security-taint` — security and taint tracking diagnostics
-- `08-style-warnings` — style warning diagnostics
+## Example
 
 ![squiggly underlines and Problems panel](../screenshots/01-diagnostics-overview.png)
 ![security and taint tracking diagnostics](../screenshots/05-security-taint.png)

@@ -46,24 +46,25 @@ The `/irule-event` skill wraps both lookups.
 
 ```
 $ f5 irule event-info HTTP_REQUEST
-=== Event Info ===
-  Event: HTTP_REQUEST
-  Deprecated: no
-  Multiplicity: per_request
-  Side: client-side
-  Transport: tcp
-  Profiles: FASTHTTP, HTTP
-  Valid commands: 1236
+event: HTTP_REQUEST
+known: yes
+lifecycle: available
+multiplicity: per_request
+description: Fires when request headers are fully parsed (pre-LB). On keep-alive connections, fires once per HTTP transaction. Pipeline: L7 iRules layer.
+side: client-side
+transport: tcp
+profiles: FASTHTTP, HTTP
+valid commands: 800
 ```
 
 ### event-order
 
 ```
 $ f5 irule event-order my_irule.tcl
-=== Event Firing Order (3 events) ===
-  1. CLIENT_ACCEPTED  (per_connection)
-  2. HTTP_REQUEST     (per_request)
-  3. HTTP_RESPONSE    (per_request)
+event order: 3 event(s)
+  1. CLIENT_ACCEPTED (once_per_connection)
+  2. HTTP_REQUEST (per_request)
+  3. HTTP_RESPONSE (per_request)
 ```
 
 ## Related

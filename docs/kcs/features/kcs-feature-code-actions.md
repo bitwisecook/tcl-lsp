@@ -65,9 +65,7 @@ gated automatically.
   wrong command silently withholds it.
 - Safe-fix classification incorrect (destructive fix marked as safe).
 
-## Screenshots
-
-- `04-quickfix` — quick fix lightbulb menu
+## Example
 
 ![quick fix lightbulb menu](../screenshots/04-quickfix.png)
 

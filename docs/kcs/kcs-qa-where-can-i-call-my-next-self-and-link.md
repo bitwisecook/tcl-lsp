@@ -107,8 +107,8 @@ The editor follows exactly that: in an `initialise` body you get no
 `::oo::Helpers::link` (and `::oo::Helpers::next`, `…::nextto`, `…::self`,
 `…::classvariable`) *are* real commands in the global command table, so
 writing one of them draws no `W123` and hovers normally. Calling one
-outside a method still fails at run time, with a different message: `link
-may only be called from inside a method`.
+outside a method still fails at run time, with a different message:
+`::oo::Helpers::link may only be called from inside a method`.
 
 `my` has no qualified spelling: each object gets its own `my` command in
 its own namespace (`::oo::Obj22::my`), which no name written in a script

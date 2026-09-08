@@ -109,10 +109,9 @@ proc build {} {
 
 Find All References treats both as one variable, so asking from either the
 bare `options` on the `setdef` line or the `$options` read returns the same
-two locations. Linking them is the point of the idiom — without it the bare
-word looks unrelated to every read it feeds. Occurrences Tcl never
-substitutes (inside a comment, or inside a brace-quoted data word) are left
-out, exactly as they are for an ordinary variable.
+two locations. Occurrences Tcl never substitutes (inside a comment, or inside
+a brace-quoted data word) are left out, exactly as they are for an ordinary
+variable.
 
 Turning declarations off (`includeDeclaration: false`) drops only the call
 sites that **create** the variable. A helper that upvar-*reads* its caller's
@@ -246,10 +245,7 @@ that reason.
   namespace, so `::a::Factory create rex` and `::b::Widget create rex` are
   two different commands that coexist (tclsh 9.0 and 8.6 both dispatch `rex
   make` inside `::a` to `::a::rex` and inside `::b` to `::b::rex`), and the
-  two are never cross-linked. This was issue #981's object-command half,
-  closed by PR C3: previously the two were one flat name, so references on
-  one class's method counted the other's call site and a rename rewrote it.
-  Object commands created by a *registry* object factory (a Tk widget path,
+  two are never cross-linked. Object commands created by a *registry* object factory (a Tk widget path,
   a tcllib naming factory) still match by bare name — those carry no
   creating user class to attribute a dispatch to in the first place.
 - When two different classes bind the **same qualified** object command in

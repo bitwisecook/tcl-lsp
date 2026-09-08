@@ -3,16 +3,16 @@
 > **Audience:** User
 > **Type:** Functionality
 
-## Applies to
-
-all-editors, MCP, Claude skill, diagnostic, warning, shimmer
-
 ## Summary
 
 `S110` warns when binary data is forced through character-string semantics and
 then written back as bytes — a silent data-corruption bug. It is a correctness
 check, unlike the `S100`/`S101`/`S102` [shimmer](../../GLOSSARY.md#shimmer)
 performance warnings.
+
+## Applies to
+
+all-editors, MCP, Claude skill, diagnostic, warning, shimmer
 
 ## Why it matters
 

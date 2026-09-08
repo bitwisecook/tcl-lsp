@@ -130,7 +130,10 @@ combine them when more than one form helps:
 - [kcs-feature-f5-cli.md](kcs-feature-f5-cli.md)
 - [kcs-feature-f5-secret-crypto.md](kcs-feature-f5-secret-crypto.md)
 - [kcs-feature-f5-query-renderers.md](kcs-feature-f5-query-renderers.md)
-- [kcs-feature-f5-secret-crypto.md](kcs-feature-f5-secret-crypto.md)
+- [kcs-feature-tcl-pkg.md](kcs-feature-tcl-pkg.md)
+- [kcs-feature-tcl-venv.md](kcs-feature-tcl-venv.md)
+- [kcs-feature-tcl-docker.md](kcs-feature-tcl-docker.md)
+- [kcs-feature-bpf-tcl.md](kcs-feature-bpf-tcl.md)
 
 ## AI features
 
@@ -146,7 +149,3 @@ combine them when more than one form helps:
 - [kcs-feature-modernisation-tools.md](kcs-feature-modernisation-tools.md)
 - [kcs-feature-mcp-server.md](kcs-feature-mcp-server.md)
 - [kcs-feature-claude-code-skills.md](kcs-feature-claude-code-skills.md)
-- [kcs-feature-tcl-pkg.md](kcs-feature-tcl-pkg.md)
-- [kcs-feature-tcl-venv.md](kcs-feature-tcl-venv.md)
-- [kcs-feature-tcl-docker.md](kcs-feature-tcl-docker.md)
-- [kcs-feature-bpf-tcl.md](kcs-feature-bpf-tcl.md)

@@ -33,7 +33,7 @@ that would leak it into your shell history and the process list. The
 passphrase is resolved in this order:
 
 1. the `F5_UCS_PASSPHRASE` environment variable — or a variable you
-   name with `--passphrase-env VAR` (on `extract` / `convert`);
+   name with `--passphrase-env VAR`;
 2. a secure terminal prompt, shown only when the session is
    interactive (suppress it with `--no-passphrase-prompt`).
 
@@ -63,19 +63,20 @@ fast with a clear message instead of hanging.
 
 ### Scripts and CI — name your own variable, forbid the prompt
 
-`f5 extract` and `f5 convert` add two flags for unattended use:
+`cleanup`, `convert`, `extract`, `graph`, `grep`, `stats`, and the two
+secret verbs take two flags for unattended use:
 
 ```
 $ UCS_PW='s3cret!' f5 extract --passphrase-env UCS_PW prod.ucs -o prod.scf
 $ f5 extract --no-passphrase-prompt prod.ucs        # fails fast, never hangs
 error: this UCS archive is encrypted and requires a passphrase; set the
-F5_UCS_PASSPHRASE environment variable or run in an interactive terminal
-to be prompted
+F5_UCS_PASSPHRASE environment variable or pass it explicitly
 ```
 
 `--passphrase-env VAR` reads the passphrase from the variable you
 name; `--no-passphrase-prompt` makes the verb require the variable and
-refuse to prompt, which is what you want in a scheduled job.
+refuse to prompt, which is what you want in a scheduled job. `query`
+and `diff` read the environment variable only.
 
 ## How to tell it worked
 
@@ -85,7 +86,7 @@ fails cleanly:
 
 ```
 $ F5_UCS_PASSPHRASE='wrong' f5 query --raw '.ltm.virtual[].name' prod.ucs
-error: failed to decrypt UCS archive: gpg: decryption failed: Bad session key
+error: incorrect passphrase (quick-check failed)
 ```
 
 ## Operational context

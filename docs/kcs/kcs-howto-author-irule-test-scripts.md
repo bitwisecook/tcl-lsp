@@ -31,5 +31,5 @@ Create iRule scripts that are realistic enough for diagnostics and flow analysis
 
 ## Storage guidance
 
-- Put reusable analyser fixtures under `samples/for_screenshots/` or dedicated `tests/fixtures` subfolders.
+- Put reusable analyser fixtures under `samples/irules/`, or the owning crate's `tests/fixtures/`.
 - Keep generated or third-party corpora separated from hand-curated canonical fixtures.

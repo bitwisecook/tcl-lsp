@@ -14,7 +14,7 @@ how do I add a new platform?
 
 ## Before you start
 
-- A Rust toolchain (rustup, 1.95+) and Node.js with npm installed.
+- A Rust toolchain (rustup, 1.98+) and Node.js with npm installed.
 - Cross-compilation dependencies for your host: run `make
   ensure-server-cross-deps` (adds the rustup targets, and on Linux the
   cross-linkers plus QEMU).
@@ -52,8 +52,7 @@ package must contain it, a targeted package must not.
 ### What is in a package, and why it is large
 
 The universal package unpacks to roughly **430 MiB** and downloads as roughly
-**120-130 MiB**. That is expected, and it is worth knowing where it goes
-before someone tries to "fix" it:
+**120-130 MiB**. Where that goes:
 
 - Seven native `tcl-lsp-server` binaries, about 47 MiB each (13 MiB
   compressed) — the bulk of the package.
@@ -174,7 +173,7 @@ package — it should list exactly one `server/<dir>/` entry and no
 `server/wasm/`). After installing any of the seven `.vsix` files, the
 **Tcl Language Server** output channel shows `Using native
 tcl-lsp-server: .../server/<platform>-<arch>/tcl-lsp-server`, and
-diagnostics and hovers work with no Python on the `PATH`.
+diagnostics and hovers work.
 
 ## Related
 
