@@ -648,14 +648,15 @@ fn pop(f: &mut Frame) -> Value {
     f.stack.pop().unwrap_or_else(Value::empty)
 }
 
-/// Re-flatten `(key, value)` pairs back into a dict `Value`.
-fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
-    let mut v = Vec::with_capacity(ps.len() * 2);
+fn dict_from_pairs_with_hash_bucket_count(
+    ps: &[(String, Value)],
+    bucket_count: Option<usize>,
+) -> Value {
+    let mut v = Vec::with_capacity(ps.len());
     for (k, val) in ps {
-        v.push(Value::string(k.as_str()));
-        v.push(val.clone());
+        v.push((Value::string(k.as_str()), val.clone()));
     }
-    Value::list(v)
+    Value::dict_with_hash_bucket_count(v, bucket_count)
 }
 
 /// Re-word a list-parse failure as the **dict** failure C reports, and attach
@@ -737,6 +738,20 @@ impl Vm {
         keys: &[Value],
         value: Value,
     ) -> Result<Value, Completion<Value>> {
+        self.dict_set_path_cow(cur, keys, value, 2, false)
+    }
+
+    fn dict_set_path_cow(
+        &mut self,
+        cur: &Value,
+        keys: &[Value],
+        value: Value,
+        owned_references: usize,
+        parent_was_copied: bool,
+    ) -> Result<Value, Completion<Value>> {
+        let (bucket_count, copied) = cur
+            .dict_mutation_hash_state(owned_references, parent_was_copied)
+            .map_err(|e| dict_parse_err(&e.message))?;
         let mut ps = self.dict_pairs(cur)?;
         let k = keys[0].to_str().to_string();
         let newv = if keys.len() == 1 {
@@ -746,28 +761,43 @@ impl Vm {
                 .iter()
                 .find(|(pk, _)| pk == &k)
                 .map_or_else(Value::empty, |(_, v)| v.clone());
-            self.dict_set_path(&sub, &keys[1..], value)?
+            // The parent representation, its decoded traversal snapshot and
+            // `sub` are the immutable VM's three necessary handles here.
+            self.dict_set_path_cow(&sub, &keys[1..], value, 3, copied)?
         };
         if let Some(slot) = ps.iter_mut().find(|(pk, _)| pk == &k) {
             slot.1 = newv;
         } else {
             ps.push((k, newv));
         }
-        Ok(dict_from_pairs(&ps))
+        Ok(dict_from_pairs_with_hash_bucket_count(&ps, bucket_count))
     }
 
     /// Remove the nested `keys` path from dict `cur`. Returns the new top-level
     /// dict value (a no-op if the path is absent, matching `dict unset`).
     fn dict_unset_path(&mut self, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+        self.dict_unset_path_cow(cur, keys, 2, false)
+    }
+
+    fn dict_unset_path_cow(
+        &mut self,
+        cur: &Value,
+        keys: &[Value],
+        owned_references: usize,
+        parent_was_copied: bool,
+    ) -> Result<Value, Completion<Value>> {
+        let (bucket_count, copied) = cur
+            .dict_mutation_hash_state(owned_references, parent_was_copied)
+            .map_err(|e| dict_parse_err(&e.message))?;
         let mut ps = self.dict_pairs(cur)?;
         let k = keys[0].to_str().to_string();
         if keys.len() == 1 {
             ps.retain(|(pk, _)| pk != &k);
         } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
             let inner = ps[idx].1.clone();
-            ps[idx].1 = self.dict_unset_path(&inner, &keys[1..])?;
+            ps[idx].1 = self.dict_unset_path_cow(&inner, &keys[1..], 3, copied)?;
         }
-        Ok(dict_from_pairs(&ps))
+        Ok(dict_from_pairs_with_hash_bucket_count(&ps, bucket_count))
     }
 
     /// Update the single-level `key` of dict `cur` via `f` (given the current
@@ -779,6 +809,9 @@ impl Vm {
         key: &str,
         f: impl FnOnce(Option<&Value>) -> Result<Value, Completion<Value>>,
     ) -> Result<Value, Completion<Value>> {
+        let (bucket_count, _) = cur
+            .dict_mutation_hash_state(2, false)
+            .map_err(|e| dict_parse_err(&e.message))?;
         let mut ps = self.dict_pairs(cur)?;
         let newv = f(ps.iter().find(|(k, _)| k == key).map(|(_, v)| v))?;
         if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
@@ -786,7 +819,7 @@ impl Vm {
         } else {
             ps.push((key.to_string(), newv));
         }
-        Ok(dict_from_pairs(&ps))
+        Ok(dict_from_pairs_with_hash_bucket_count(&ps, bucket_count))
     }
 }
 
@@ -2284,6 +2317,13 @@ impl Vm {
                 .unwrap_or_else(|| f.last_result.clone())));
         }
         let instr = &asm.instructions[f.pc];
+        // Tcl resets the interpreter result at the start of every source
+        // command. `last_result` is this VM's result owner; releasing it here
+        // prevents the previous command from looking like a Tcl-level alias to
+        // copy-on-write operations in the next command.
+        if instr.source_command_boundary.is_start() {
+            f.last_result = Value::empty();
+        }
         if instr.op != Op::START_CMD
             && instr.source_command_boundary.is_start()
             && !f
@@ -3421,6 +3461,10 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 };
                 let cur = self.get_var(&dict_name).unwrap_or_else(Value::empty);
+                let (bucket_count, _) = match cur.dict_mutation_hash_state(2, false) {
+                    Ok(state) => state,
+                    Err(e) => return Tick::Return(dict_parse_err(&e.message)),
+                };
                 let mut ps = match self.dict_pairs(&cur) {
                     Ok(p) => p,
                     Err(c) => return Tick::Return(c),
@@ -3438,7 +3482,10 @@ impl Vm {
                         None => ps.retain(|(k, _)| k != key),
                     }
                 }
-                try_op!(self.set_var(&dict_name, dict_from_pairs(&ps)));
+                try_op!(self.set_var(
+                    &dict_name,
+                    dict_from_pairs_with_hash_bucket_count(&ps, bucket_count),
+                ));
             }
             Op::DICT_EXPAND => {
                 // Prologue of compiled `dict with`: expand every key of the dict
@@ -3474,6 +3521,16 @@ impl Vm {
                     Err(c) => return Tick::Return(c),
                 };
                 let cur = self.get_var(&dict_name).unwrap_or_else(Value::empty);
+                // `DICT_EXPAND` retains the original dictionary in a private
+                // temp, then `LOAD_SCALAR1` adds the operand moved into `state`.
+                // Discount both handles when the body left the variable pointing
+                // at that object; a distinct state owns none of the current value.
+                let owned_references = if cur.is_same_object(&state) { 4 } else { 2 };
+                let (bucket_count, _) = match cur.dict_mutation_hash_state(owned_references, false)
+                {
+                    Ok(state) => state,
+                    Err(e) => return Tick::Return(dict_parse_err(&e.message)),
+                };
                 let mut ps = match self.dict_pairs(&cur) {
                     Ok(p) => p,
                     Err(c) => return Tick::Return(c),
@@ -3490,7 +3547,10 @@ impl Vm {
                         None => ps.retain(|(k, _)| k != key),
                     }
                 }
-                try_op!(self.set_var(&dict_name, dict_from_pairs(&ps)));
+                try_op!(self.set_var(
+                    &dict_name,
+                    dict_from_pairs_with_hash_bucket_count(&ps, bucket_count),
+                ));
             }
 
             // -- dict validation: consumes the (dup'd) TOS, validates even length --

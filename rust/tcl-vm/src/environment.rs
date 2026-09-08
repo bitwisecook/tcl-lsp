@@ -98,6 +98,15 @@ pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static Co
     tcl_registry::model::static_context_for_profile(profile).commands()
 }
 
+/// The shared, dialect-agnostic command store used while the VM installs its
+/// builtin implementations. Availability is applied later from each VM's
+/// pinned [`command_surface_profile`](crate::Vm::command_surface_profile), so
+/// registration needs the universal specs and must not rebuild a private
+/// [`CommandRegistry`] for every interpreter.
+pub(crate) fn universal_store() -> &'static CommandRegistry {
+    store_for_profile(profile_for_dialect(""))
+}
+
 /// The point the builtin command-surface gate answers at for `profile` —
 /// the **document authoring point** of the profile's environment, rather
 /// than a direct `profile.surface_query()` read.

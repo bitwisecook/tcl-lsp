@@ -126,4 +126,26 @@ impl ValueOps for Vm {
             .map(|items| items.as_ref().clone())
             .map_err(|e| ValueError::BadList(e.message))
     }
+
+    fn dict_pairs(&mut self, v: &Value) -> Result<Vec<(Value, Value)>, ValueError> {
+        v.dict_pairs().map_err(|e| ValueError::BadList(e.message))
+    }
+
+    fn dict_hash_bucket_count(&mut self, v: &Value) -> Result<Option<usize>, ValueError> {
+        v.dict_hash_bucket_count()
+            .map(Some)
+            .map_err(|e| ValueError::BadList(e.message))
+    }
+
+    fn new_dict(&mut self, pairs: Vec<(Value, Value)>) -> Value {
+        Value::dict(pairs)
+    }
+
+    fn new_dict_with_hash_bucket_count(
+        &mut self,
+        pairs: Vec<(Value, Value)>,
+        bucket_count: usize,
+    ) -> Value {
+        Value::dict_with_hash_bucket_count(pairs, Some(bucket_count))
+    }
 }

@@ -68,7 +68,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::string::trimright", |vm, a| {
         string_op(vm, "trimright", a)
     });
-    let registry = tcl_registry::CommandRegistry::build_default();
+    let registry = crate::environment::universal_store();
     let spec = registry.get("string").expect("core string spec");
     vm.register_spec_builtin(spec, cmd_string);
 }
