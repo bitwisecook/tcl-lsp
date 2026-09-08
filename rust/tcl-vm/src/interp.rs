@@ -9207,15 +9207,10 @@ impl Vm {
         let Some(id) = resolved.id else {
             return false;
         };
-        let existed = self.var_arena.get(id).is_some_and(|cell| {
-            matches!(
-                cell.state(),
-                Local::Undefined | Local::Scalar(_) | Local::Array(_)
-            )
-        });
-        if !existed {
+        let Some(state) = self.var_arena.get(id).map(crate::vars::VarCell::state) else {
             return false;
-        }
+        };
+        let existed = matches!(state, Local::Scalar(_) | Local::Array(_));
         self.drop_array_descendant_traces(id);
         if matches!(
             self.var_arena.get(id).map(crate::vars::VarCell::state),
@@ -9679,16 +9674,13 @@ impl Vm {
         complain: bool,
     ) -> Result<(), Completion<Value>> {
         if let Some((array, key)) = elem_ref(name) {
+            let miss_reason = complain.then(|| self.array_element_unset_miss_reason(array));
             let existed = self.array_unset_elem_spelled(array, key);
-            if !existed && complain {
-                let what = if self.var_is_array(array) {
-                    "no such element in array"
-                } else if self.exists_var(array) {
-                    "variable isn't array"
-                } else {
-                    "no such variable"
-                };
-                return Err(err(format!("can't unset \"{name}\": {what}")));
+            if !existed && let Some(what) = miss_reason {
+                return Err(err_with_code(
+                    format!("can't unset \"{name}\": {what}"),
+                    "TCL UNSET VARNAME",
+                ));
             }
             return Ok(());
         }
@@ -9702,7 +9694,10 @@ impl Vm {
             return Ok(());
         }
         if !self.unset_var(name) && complain {
-            return Err(err(format!("can't unset \"{name}\": no such variable")));
+            return Err(err_with_code(
+                format!("can't unset \"{name}\": no such variable"),
+                "TCL UNSET VARNAME",
+            ));
         }
         Ok(())
     }
@@ -9762,7 +9757,7 @@ impl Vm {
     fn unbind_storage_resolved(&mut self, resolved: &ResolvedVar) -> bool {
         let id = resolved.id;
         let existed = self.unbind_resolved(resolved);
-        if existed && let Some(id) = id {
+        if let Some(id) = id {
             self.drop_var_traces(id);
         }
         existed
@@ -9783,6 +9778,20 @@ impl Vm {
             .and_then(|resolved| resolved.id)
             .and_then(|id| self.var_arena.get(id))
             .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
+    }
+
+    /// Classify an array-element unset miss before teardown starts. An unset
+    /// trace may delete or retype the parent array, but Tcl reports the lookup
+    /// failure that selected the original cell rather than the callback's
+    /// replacement state.
+    pub(crate) fn array_element_unset_miss_reason(&self, name: &str) -> &'static str {
+        if self.var_is_array(name) {
+            "no such element in array"
+        } else if self.exists_var(name) {
+            "variable isn't array"
+        } else {
+            "no such variable"
+        }
     }
 
     /// C's three-way read-miss message (`tclVar.c`): a scalar read of an array
@@ -10206,15 +10215,10 @@ impl Vm {
     }
 
     fn unbind_array_element(&mut self, base_id: VarId, key: &str, raw: VarId, id: VarId) -> bool {
-        let existed = self.var_arena.get(id).is_some_and(|cell| {
-            matches!(
-                cell.state(),
-                Local::Undefined | Local::Scalar(_) | Local::Array(_)
-            )
-        });
-        if !existed {
+        let Some(state) = self.var_arena.get(id).map(crate::vars::VarCell::state) else {
             return false;
-        }
+        };
+        let existed = matches!(state, Local::Scalar(_) | Local::Array(_));
         self.drop_array_descendant_traces(id);
         let _ = self.var_arena.unset_state(id);
         if matches!(
@@ -10223,12 +10227,12 @@ impl Vm {
         ) || self.var_arena.has_link_refs(id)
             || self.var_arena.has_operation_refs(id)
         {
-            return true;
+            return existed;
         }
         let _ = self.var_arena.array_remove(base_id, key);
         self.const_vars.remove(&id);
         self.var_arena.unbind(raw);
-        true
+        existed
     }
 
     fn resolve_array_elem_from(&self, start: usize, name: &str, key: &str) -> Option<ResolvedVar> {
@@ -10813,9 +10817,7 @@ impl VarStore for Vm {
 
     fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool {
         if frame.0 == self.current_level() {
-            let existed = self.get_array_elem(name, key).is_some();
-            self.array_unset_elem(name, key);
-            return existed;
+            return self.array_unset_elem(name, key);
         }
         self.unset_array_elem_from(frame.0, name, key)
     }
@@ -11951,6 +11953,27 @@ mod family_b_tests {
         assert!(vm.var_traces.is_empty());
         assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
         assert_eq!(vm.array_keys(GLOBAL_FRAME, "a"), Some(Vec::new()));
+        vm.pop_call_frame();
+    }
+
+    #[test]
+    fn noncurrent_varstore_unset_reports_trace_only_cells_missing() {
+        let mut vm = Vm::new();
+        let baseline = vm.var_arena.len();
+        vm.add_var_trace("x", vec!["unset".to_owned()], "callback".to_owned(), false);
+        assert!(vm.ensure_array("a").is_ok());
+        vm.add_var_trace(
+            "a(k)",
+            vec!["unset".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
+        vm.push_call_frame(Some("p".to_owned()), vec![Value::string("p")]);
+
+        assert!(!vm.unset(GLOBAL_FRAME, "x"));
+        assert!(!vm.unset_elem(GLOBAL_FRAME, "a", "k"));
+        assert!(vm.var_traces.is_empty());
+        assert_eq!(vm.var_arena.len(), baseline + 1, "the empty array remains");
         vm.pop_call_frame();
     }
 

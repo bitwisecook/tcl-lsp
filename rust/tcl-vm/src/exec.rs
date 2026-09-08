@@ -2099,17 +2099,14 @@ impl Vm {
         key: &str,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
-        if complain && self.get_array_elem(name, key).is_none() {
-            let what = if self.var_is_array(name) {
-                "no such element in array"
-            } else if self.exists_var(name) {
-                "variable isn't array"
-            } else {
-                "no such variable"
-            };
-            return Err(err(format!("can't unset \"{name}({key})\": {what}")));
+        let miss_reason = complain.then(|| self.array_element_unset_miss_reason(name));
+        let existed = self.array_unset_elem(name, key);
+        if !existed && let Some(what) = miss_reason {
+            return Err(crate::command::err_with_code(
+                format!("can't unset \"{name}({key})\": {what}"),
+                "TCL UNSET VARNAME",
+            ));
         }
-        self.array_unset_elem(name, key);
         Ok(())
     }
 
