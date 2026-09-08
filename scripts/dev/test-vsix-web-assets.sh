@@ -46,23 +46,63 @@ common=(
   "ROOT=$fixture/"
 )
 
-target_rule="$($make_cmd -f "$repo_root/Makefile" -qp 2>/dev/null |
-  awk '/^package-vsix-targets:/ { print; exit }' || :)"
-case " $target_rule " in
-  *" package-vsix-all "*) ;;
-  *)
-    echo "ERROR: package-vsix-targets must reuse the one-producer package-vsix-all path" >&2
-    echo "found: $target_rule" >&2
+make_database="$($make_cmd -f "$repo_root/Makefile" -qp 2>/dev/null || :)"
+rule_for() {
+  awk -v target="$1" '$1 == target ":" { print; exit }' <<<"$make_database"
+}
+require_prerequisite() {
+  target="$1"
+  prerequisite="$2"
+  rule="$(rule_for "$target")"
+  case " $rule " in
+    *" $prerequisite "*) ;;
+    *)
+      echo "ERROR: $target must depend on $prerequisite" >&2
+      echo "found: $rule" >&2
+      exit 1
+      ;;
+  esac
+}
+reject_prerequisite() {
+  target="$1"
+  prerequisite="$2"
+  rule="$(rule_for "$target")"
+  case " $rule " in
+    *" $prerequisite "*)
+      echo "ERROR: $target must not depend on $prerequisite" >&2
+      echo "found: $rule" >&2
+      exit 1
+      ;;
+  esac
+}
+
+require_prerequisite package-vsix-targets package-vsix-all
+reject_prerequisite package-vsix-targets package-vsix
+require_prerequisite package-vsix-all compile
+require_prerequisite package-vsix-all spec-studio-wasm
+require_prerequisite build-editors build-editor-vsix-targets
+reject_prerequisite build-editors build-editor-vsix
+for target in publish-vsix publish-vsix-targets publish-openvsx publish-openvsx-targets; do
+  case "$target" in
+    *-targets) require_prerequisite "$target" package-vsix-targets ;;
+    *) require_prerequisite "$target" package-vsix-all ;;
+  esac
+done
+
+# Recursive Make invocations are opaque to the parent dependency graph. The
+# public all-variants target must expose the shared builders, then suppress
+# only their recursive duplicates. A dry run catches either build returning.
+dry_run="$($make_cmd -f "$repo_root/Makefile" -n package-vsix-all 2>/dev/null)"
+for marker in \
+  "$repo_root/rust/tcl-lsp-server-wasm/build-wasm.sh" \
+  "$repo_root/rust/tcl-spec-studio-wasm/build-wasm.sh" \
+  'Building the spec studio front-end'; do
+  count="$(grep -F -c "$marker" <<<"$dry_run" || :)"
+  if [ "$count" -ne 1 ]; then
+    echo "ERROR: package-vsix-all dry run contains $count copies of: $marker" >&2
     exit 1
-    ;;
-esac
-case " $target_rule " in
-  *" package-vsix "*)
-    echo "ERROR: package-vsix-targets must not perform a separate universal preparation" >&2
-    echo "found: $target_rule" >&2
-    exit 1
-    ;;
-esac
+  fi
+done
 
 if "$make_cmd" "${common[@]}" _check-vsix-web-assets; then
   echo "ERROR: private VSIX web assets unexpectedly worked without state" >&2

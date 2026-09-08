@@ -343,7 +343,12 @@ the secret is reachable by no other job.
   compares the shared Studio/browser/spec payload across all seven packages
   before release signing. The prepared path is scoped to one temporary
   session, so it cannot be used to package stale web output directly. The
-  package lock records its PID, host, and start time under
+  public all-variant target exposes the Studio, browser-server, and extension
+  builders to its parent Make graph before entering the locked packaging
+  session. Parallel `release`, `build-editors`, and `publish-all` invocations
+  therefore share those builders instead of racing a second process against
+  the Studio output directory. The package lock records its PID, host, and
+  start time under
   `build/stamps/vsix-package.lock/owner`; normal shell exit removes it. After
   a hard interruption, inspect that owner and remove only its owner file and
   now-empty lock directory once the recorded process is confirmed dead.

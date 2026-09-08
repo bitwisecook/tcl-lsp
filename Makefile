@@ -243,14 +243,14 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
-build-editors: build-editor-vsix build-editor-vsix-targets build-editor-jetbrains build-editor-sublime build-editor-zed ## Build all editor extension artefacts (VS Code / JetBrains / Sublime / Zed)
+build-editors: build-editor-vsix-targets build-editor-jetbrains build-editor-sublime build-editor-zed ## Build all editor extension artefacts (VS Code / JetBrains / Sublime / Zed)
 
 build-editor-vsix: lint test package-vsix ## Build the .vsix (tests must pass first)
 install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
-publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (laptop fallback; CI is the primary path)
+publish-vsix: package-vsix-all ## Publish the .vsix to the VS Code Marketplace (laptop fallback; CI is the primary path)
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	@# Releases normally publish VSCE from CI (job publish-vsix-marketplace,
 	@# secrets.VSCE_PAT on the protected marketplace-vscode Environment).
@@ -276,7 +276,7 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (lapt
 		exit 1; \
 	fi
 
-publish-openvsx: package-vsix ## Publish the .vsix to Open VSX (code-server / openvscode-server / Gitpod / Theia; laptop fallback; CI is the primary path)
+publish-openvsx: package-vsix-all ## Publish the .vsix to Open VSX (code-server / openvscode-server / Gitpod / Theia; laptop fallback; CI is the primary path)
 	@echo "==> Publishing $(VSIX_FILE) to Open VSX"
 	@# Releases normally publish via ovsx from CI (job publish-vsix-openvsx,
 	@# secrets.OVSX_PAT on the protected marketplace-openvsx Environment).
@@ -537,10 +537,13 @@ build-editor-vsix-targets: lint test package-vsix-targets ## Build the six platf
 package-vsix-targets: package-vsix-all ## Package the six platform-targeted VSIXes (laptop fallback; skips lint/test)
 
 # Local release parity: one producer prepares the common assets once, then
-# serially stages the universal package and all six targeted packages. Keeping
-# this as one recipe restores the staging-directory ordering under `make -j`.
-package-vsix-all: ## Package the universal and six platform-targeted VSIXes
-	@$(MAKE) --no-print-directory _package-vsix-variants __VSIX_INCLUDE_UNIVERSAL=1
+# serially stages the universal package and all six targeted packages. Expose
+# the shared builders to the parent graph so parallel release/editor aggregates
+# cannot rebuild the Studio while another consumer copies it. The recursive
+# worker receives a private prebuilt flag and fingerprints those parent-built
+# outputs without running either phony builder again.
+package-vsix-all: compile spec-studio-wasm ## Package the universal and six platform-targeted VSIXes
+	@$(MAKE) --no-print-directory _package-vsix-variants __VSIX_INCLUDE_UNIVERSAL=1 __VSIX_WEB_ASSETS_PREBUILT=1
 
 _package-vsix-variants:
 	@set -euo pipefail; \
@@ -1889,9 +1892,15 @@ VSIX_WEB_OUTPUT_FILES := $(OUT_DIR)/extension.browser.js $(LSP_SERVER_WASM_DIR)/
 prepare-vsix-web-assets: compile spec-studio-wasm ## Build shared VSIX web assets for a standalone package
 
 # The prepared path is private: its random state directory comes only from
-# `_package-vsix-variants`. Its recipe runs after both phony builders complete,
-# including under an inherited jobserver, so it cannot record partial output.
-_prepare-vsix-web-assets: compile spec-studio-wasm
+# `_package-vsix-variants`. package-vsix-all exposes both phony builders to its
+# parent graph and passes the private prebuilt flag to the recursive worker;
+# every other caller keeps the self-contained prerequisites here.
+ifeq ($(strip $(__VSIX_WEB_ASSETS_PREBUILT)),1)
+VSIX_WEB_PREPARE_PREREQS :=
+else
+VSIX_WEB_PREPARE_PREREQS := compile spec-studio-wasm
+endif
+_prepare-vsix-web-assets: $(VSIX_WEB_PREPARE_PREREQS)
 	@set -euo pipefail; \
 		state="$(__VSIX_WEB_ASSETS_STATE)"; token="$(__VSIX_WEB_ASSETS_TOKEN)"; \
 		test -d "$$state" && test -f "$$token" && [ "$$(dirname "$$token")" = "$$state" ] && [ "$$(cat "$$token")" = "$$state" ] || { echo "ERROR: missing private VSIX asset state" >&2; exit 1; }; \
