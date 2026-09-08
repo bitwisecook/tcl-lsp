@@ -66,8 +66,7 @@ The analyser reports **`W305`** on the invisible character itself, immediately
 after the `#`.
 
 The same whole-source check runs in Tcl analysis, MCP `analyze`, `validate`, and
-`review`, BIG-IP configuration files, and iApp APL files. These surfaces share
-one producer, character table, message, and suppression rule.
+`review`, BIG-IP configuration files, and iApp APL files.
 
 ## Fix
 

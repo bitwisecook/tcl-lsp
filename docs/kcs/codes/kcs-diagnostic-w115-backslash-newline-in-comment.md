@@ -21,7 +21,9 @@ Tcl's parser treats backslash-newline as a line continuation even inside comment
 
 ## Symptoms
 
-- A yellow squiggle appears at the end of the comment, with the message "backslash-newline in comment swallows the next line".
+- A yellow squiggle over the comment and the line it swallows, with the message
+  "Backslash-newline in comment silently swallows the next line".
+- A **Convert to per-line comments** quick fix on the diagnostic.
 
 ## Example that triggers it
 
@@ -39,7 +41,8 @@ The analyser reports **`W115`** on the backslash at the end of the comment.
 set x 42
 ```
 
-Remove the trailing backslash from the comment line.
+Remove the trailing backslash, or apply the quick fix, which comments out
+every continued line instead.
 
 ## How to suppress
 

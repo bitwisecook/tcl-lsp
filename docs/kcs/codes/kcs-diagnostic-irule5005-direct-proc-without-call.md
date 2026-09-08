@@ -21,7 +21,9 @@ iRules procs must be invoked via `call` to maintain the execution model; direct 
 
 ## Symptoms
 
-- A squiggle appears under the proc name, with the message "direct proc invocation without call".
+- A red squiggle appears under the proc name, with the message "iRules procs
+  must be invoked with 'call': call helper", and a **Use 'call helper'** code
+  action.
 
 ## Example that triggers it
 

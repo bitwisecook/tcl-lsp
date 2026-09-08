@@ -18,37 +18,26 @@ Why does the analyser warn that a command is hidden in a safe interpreter?
 ## Why
 
 An interpreter created with `interp create -safe` hides the commands Tcl
-considers unsafe — `source`, `load`, `file`, `exec`, `open`, `socket`,
-`cd`, `pwd`, `glob`, `exit`, `fconfigure`, `encoding`, and `unload`
-(pinned against tclsh 9.0.4).  Calling one of them inside that
-interpreter's `interp eval` body raises `invalid command name` at run
-time — the command never executes.  The analyser models each
-interpreter's visible command set (safe state plus any explicit
-`interp hide` / `interp expose`), flags the call, and builds no
-[source](../../GLOSSARY.md#source-edge) or definition facts from it,
-because C Tcl never runs it.
+considers unsafe: `cd`, `encoding`, `exec`, `exit`, `fconfigure`, `file`,
+`glob`, `load`, `open`, `pwd`, `socket`, `source`, `unload`, and `zipfs`
+(pinned against tclsh 9.0.4). Calling one inside that interpreter's `interp
+eval` body raises `invalid command name` at run time — the command never
+executes. The analyser models each interpreter's visible command set (safe
+state plus any explicit `interp hide` / `interp expose`), flags the call, and
+builds no [source](../../GLOSSARY.md#source-edge) or definition facts from it.
 
-The check also follows a hidden command through `[...]` bracket-substitution
-indirection — a direct nested call (`set x [source b.tcl]`), `{*}` expansion
-of a built command, the pervasive `package ifneeded name ver [list apply
-{dir {...}} $dir]` deferred-command idiom (also seen as `-command [list
-apply {...} $x]`, `after idle [list apply {...} $x]`, `trace add ...
-command [list apply {...} $x]`), and a `namespace ensemble create`/`configure
--map` redirection to a hidden target — so a hidden `source` nested inside
-such a lambda body, or reached by calling an ensemble subcommand mapped to
-it, is flagged the same way a direct `source` call would be.  This applies
-equally whether the code is analysed as a whole file or incrementally by
-the running editor session.  The underlying runtime already refuses every
-one of these shapes at execution time regardless of whether this diagnostic
-catches it ahead of time — this check is early, editor-time feedback, not
-the enforcement mechanism itself.
+It follows a hidden command through bracket-substitution indirection too: a
+nested call (`set x [source b.tcl]`), `{*}` expansion of a built command, the
+`[list apply {dir {...}} $dir]` deferred-command idiom used by `package
+ifneeded`, `-command`, `after idle`, and `trace add`, and a `namespace
+ensemble create`/`configure -map` redirection to a hidden target.
 
 ## Symptoms
 
-- A yellow squiggle appears under a command inside an
-  `interp eval safeInterp { … }` body, with the message: "'source' is
-  hidden in this safe interpreter — the call raises `invalid command
-  name` unless it is exposed or invoked via `interp invokehidden`."
+- A yellow squiggle under a command inside an `interp eval safeInterp { … }`
+  body, with the message "'source' is hidden in this safe interpreter — the
+  call raises `invalid command name` unless it is exposed or invoked via
+  `interp invokehidden`".
 
 ## Example that triggers it
 
@@ -76,18 +65,29 @@ interp create -safe s
 interp invokehidden s source setup.tcl
 ```
 
-## Notes
+## When it does not fire
 
-An `interp hide` in a **normal** interpreter draws the same warning for
-the hidden name, and a dynamic `interp hide` / `interp expose` operand
-makes the visible set unknowable, so the analyser abstains entirely for
-that interpreter.
+- **A dynamic command word.** `{*}$cmdList`, or `set cmd source; $cmd b.tcl`,
+  cannot be proven to name a hidden command, so nothing is reported.
+- **A dynamic `interp hide` / `interp expose` operand.** The visible set
+  becomes unknowable and the analyser abstains for that interpreter entirely.
+- **Control-transfer commands.** `break`, `continue`, `yield`, `yieldto`, and
+  `tailcall` are not hidden by `interp create -safe`.
 
-A command reached only through an unresolvable dynamic value (`{*}$cmdList`,
-or `set cmd source; $cmd b.tcl`) is not flagged — its identity cannot be
-proven statically, and this diagnostic prefers a missed warning over a
-false one.
+An `interp hide` in a **normal** interpreter draws the same warning for the
+hidden name.
 
-The hidden set is exactly the list above. Tcl's control-transfer commands
-— `break`, `continue`, `yield`, `yieldto`, and `tailcall` — are **not**
-hidden by `interp create -safe` and never draw this warning.
+## How to suppress
+
+Add `# noqa: W129` on the line **above** the offending command. You can also
+turn the code off for a project with `disabled = W129` under `[diagnostics]`
+in `.tcl-lsp.ini`, or in your editor with `tclLsp.diagnostics.W129` set to
+`false`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
+
+## Related
+
+- [KCS codes index](README.md)
+- [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
+- Related codes: `W123`, `W128`, `T105`

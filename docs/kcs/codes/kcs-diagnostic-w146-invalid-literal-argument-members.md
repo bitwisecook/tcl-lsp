@@ -29,9 +29,9 @@ forms. Their operation argument is a concatenated string of the letters `r`,
 
 ## Symptoms
 
-- A yellow squiggle appears under the operation-list word.
-- The message names the invalid member and the operations legal for the
-  selected trace type.
+- A yellow squiggle under the operation-list word, with a message like
+  "Invalid member(s) 'rename' in variable trace operation list; expected one
+  or more of: array, read, unset, write".
 
 ## Example that triggers it
 
@@ -69,5 +69,6 @@ Add `# noqa: W146` on the line **above** the offending command.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W127` (value outside a closed set), `W145` (ambiguous
   keyword abbreviation), `E002` (too few arguments).

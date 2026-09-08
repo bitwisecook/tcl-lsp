@@ -21,13 +21,17 @@ An unused parameter may indicate a signature mismatch or missing logic that was 
 
 ## Symptoms
 
-- A yellow squiggle appears under the parameter name, with the message "proc parameter declared but never used".
+- The parameter name is faded out in the parameter list rather than squiggled —
+  W214 is a hint tagged as unnecessary code, so editors grey it instead of
+  underlining it.
+- The Problems panel carries a message like `Parameter 'greeting' of proc
+  '::greet' is unused`.
 
 ## Example that triggers it
 
 ```tcl
 proc greet {name greeting} {
-    puts "Hello"
+    puts "Hello, $name"
 }
 ```
 
@@ -41,9 +45,9 @@ Use the parameter or remove it from the signature:
 proc greet {name greeting} { puts "$greeting, $name" }
 ```
 
-## Where the squiggle lands, and which proc it names
+## Where the mark lands, and which proc it names
 
-The squiggle covers just the offending parameter's *name* inside the parameter
+The faded range covers just the offending parameter's *name* inside the parameter
 list, so each unused parameter gets its own tight range rather than stacking on
 the whole `proc` definition.
 
@@ -51,8 +55,7 @@ The fully-qualified name in the message is the proc's **defining** namespace,
 which for a proc created inside another proc's body is the namespace the
 *enclosing* proc is defined in — not the namespace the `proc` command was
 written in. Tcl resolves the name in the namespace current when the body
-executes, and a proc body executes in the namespace of the proc itself
-(verified identical on tclsh 9.0.4 and 8.6.16):
+executes, and a proc body executes in the namespace of the proc itself:
 
 ```tcl
 namespace eval ::a {}

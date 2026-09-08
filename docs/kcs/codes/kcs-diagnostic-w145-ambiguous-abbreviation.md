@@ -64,9 +64,9 @@ Write enough of the keyword to be unique — or all of it:
 puts [string length $s]
 ```
 
-One quick fix is offered per matching candidate ("Expand to `string last`",
-"Expand to `string length`"). They are **manual-pick** fixes: the tool
-cannot know which one you meant, so Fix All never applies them.
+One quick fix is offered per matching candidate — **Expand to 'string last'**,
+**Expand to 'string length'**. They are manual-pick fixes: the tool cannot
+know which one you meant, so Fix All never applies them.
 
 ## Where it does not fire
 
@@ -74,7 +74,8 @@ The check abstains rather than risk a false positive on legal code:
 
 - **Unique prefixes.** `string le`, `lsearch -noc`, and every other
   unambiguous abbreviation are legal and draw nothing (the formatter can
-  expand them to canonical spellings — see `tclLsp.format.expandAbbreviations`).
+  expand them to canonical spellings — see
+  `tclLsp.formatting.expandAbbreviations`).
 - **Strict tables.** A command whose dispatch opts out of prefix matching,
   and any ensemble the file configured with `namespace ensemble … -prefixes
   0`, treat an abbreviation as a plain unknown keyword — `W001` owns that.
@@ -91,5 +92,6 @@ Add `# noqa: W145` on the line **above** the offending command.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W001` (unknown subcommand), `W004` (option not available in
   the active dialect), `W123` (unknown command).

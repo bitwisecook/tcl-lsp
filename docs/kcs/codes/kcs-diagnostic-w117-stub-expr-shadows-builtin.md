@@ -13,39 +13,46 @@ default
 
 ## Question
 
-Why does the analyser warn that a stub expression function shadows a built-in?
+Why does the analyser warn that a stub expression function or operator shadows
+a built-in?
 
 ## Why
 
-Tcl's `expr` has built-in math functions like `sin`, `cos`, and `abs`. Defining a `tcl::mathfunc` with the same name replaces the built-in implementation, which can subtly change numerical results throughout the application.
+`expr` already provides `abs`, `sin`, `cos`, and the rest, plus its operator
+set. Declaring a stub under one of those names replaces the built-in's known
+signature with yours, so every expression using it is checked against the
+wrong shape.
 
 ## Symptoms
 
-- A yellow squiggle appears under the function name, with the message "stub expr function 'abs' shadows a built-in function".
+- A yellow squiggle under the stub declaration, with the message "Stub
+  expression function 'abs' shadows built-in function." — or "Stub expression
+  operator '…' shadows built-in operator." for an `expr-op` stub.
 
 ## Example that triggers it
 
 ```tcl
-proc tcl::mathfunc::abs {x} {
-    return [expr {$x < 0 ? -$x : $x}]
-}
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub expr-func abs 1
+# tcl-lsp: stubs-end
 ```
 
-The analyser reports **`W117`** on the `abs` function definition.
+The analyser reports **`W117`** on the stub line.
 
 ## Fix
 
 ```tcl
-proc tcl::mathfunc::my_abs {x} {
-    return [expr {$x < 0 ? -$x : $x}]
-}
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub expr-func clamp_abs 1
+# tcl-lsp: stubs-end
 ```
 
-Choose a function name that does not collide with a built-in math function.
+Choose a name no built-in function or operator uses. A stub that comes from a
+`.tcl.stubs` sidecar rather than an inline block is never flagged.
 
 ## How to suppress
 
-Add `# noqa: W117` on the line **above** the offending command.
+Add `# noqa: W117` on the line **above** the stub declaration.
 
 ## Related
 

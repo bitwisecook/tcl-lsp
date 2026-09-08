@@ -21,12 +21,15 @@ Names like `static::debug` or `static::timeout` collide with identically named v
 
 ## Symptoms
 
-- A hint squiggle appears under the variable name, with the message "generic static:: variable name".
+- A yellow squiggle appears under the variable name, with the message
+  "'static::debug' is a generic name that will collide with other iRules.
+  static:: variables are shared across every iRule on the BIG-IP system — prefix
+  with the application or rule name (e.g. 'static::<app>_debug')."
 
 ## Example that triggers it
 
 ```tcl
-set static::debug 0
+when RULE_INIT { set static::debug 0 }
 ```
 
 The analyser reports **`IRULE4002`** because `debug` is too generic and risks a collision.
@@ -36,7 +39,7 @@ The analyser reports **`IRULE4002`** because `debug` is too generic and risks a 
 Prefix the variable with the iRule name or a unique namespace:
 
 ```tcl
-set static::myirule_debug 0
+when RULE_INIT { set static::myirule_debug 0 }
 ```
 
 ## How to suppress

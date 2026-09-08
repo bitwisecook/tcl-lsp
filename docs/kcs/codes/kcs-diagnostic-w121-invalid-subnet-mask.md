@@ -21,12 +21,15 @@ A valid subnet mask must consist of contiguous 1-bits followed by contiguous 0-b
 
 ## Symptoms
 
-- A yellow squiggle appears under the mask literal, with the message "non-contiguous subnet mask bits".
+- A yellow squiggle under the mask literal, with the message "'255.0.255.0'
+  looks like a subnet mask but has non-contiguous bits. A valid mask must be
+  contiguous leading 1-bits followed by 0-bits. Did you mean '255.0.0.0'?"
 
 ## Example that triggers it
 
 ```tcl
 set mask "255.0.255.0"
+puts $mask
 ```
 
 The analyser reports **`W121`** on the subnet mask literal.
@@ -35,6 +38,7 @@ The analyser reports **`W121`** on the subnet mask literal.
 
 ```tcl
 set mask "255.255.255.0"
+puts $mask
 ```
 
 Use a valid contiguous subnet mask.
