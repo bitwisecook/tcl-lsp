@@ -145,7 +145,11 @@ code. The gate refuses when:
   already exists, a file in that namespace **computes a variable name**
   (`set $n 1`, `variable $n`) that might be this very cell, or a file
   **aliases a cell computed at run time** (`namespace upvar $ns v local`)
-  that could be this one;
+  that could be this one. A collision refusal **names the documents** the
+  cell was found in (up to three, then a count). The workspace the gate reads
+  is every scanned folder, not the files you have open, so without a name the
+  refusal is a claim you cannot check — and a refusal you cannot check is
+  indistinguishable from a bug;
 - the variable's **name can only be written quoted** — `set {$n} 1` creates a
   variable literally called `$n`, `set {a b} 1` one called `a b`. These are
   ordinary variables (tclsh: `info exists {$n}` is 1 while `info exists n` is
