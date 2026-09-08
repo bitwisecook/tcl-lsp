@@ -507,6 +507,74 @@ fn diag_reads_a_cr_terminated_sslictcl_document_the_way_the_editor_does() {
     );
 }
 
+/// Issue #1799 — every code on the `tcl diag` path, not only `SSLIC1xxx`,
+/// must read the analysis form of a lone-CR document.
+///
+/// The loader branch normalised for itself (#1794) and left the analyser and
+/// compiler-checks passes reading the raw bytes. That diverged from the editor
+/// twice over: the lexer treats a bare `\r` as horizontal whitespace, so the
+/// whole file parsed as one command — inventing findings and hiding real ones —
+/// and `LineIndex` starts a line only after a `\n`, so whatever survived was
+/// reported at line 1.
+///
+/// The reproducer is the issue's own: an unclosed bracket on the second line.
+#[test]
+fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
+    let lf = "set a 1\nset b [\nputs $a\n";
+    let cr = lf.replace('\n', "\r");
+
+    let lf_rows = tcl_diag_rows("lf", lf);
+    let cr_rows = tcl_diag_rows("cr", &cr);
+
+    assert!(
+        lf_rows.contains(&("E201".to_owned(), 2)),
+        "the `\\n` form is the reference reading: {lf_rows:?}"
+    );
+    assert_eq!(
+        cr_rows, lf_rows,
+        "a lone-CR document must read identically to the `\\n` one"
+    );
+    // The two specific ways the raw form diverged, named so a regression is
+    // legible rather than just "the vectors differ".
+    assert!(
+        cr_rows.iter().all(|(_, line)| *line > 1),
+        "no finding may collapse onto line 1: {cr_rows:?}"
+    );
+    assert!(
+        !cr_rows.iter().any(|(code, _)| code == "E003"),
+        "parsing the file as one command invents an arity error: {cr_rows:?}"
+    );
+}
+
+/// Run `tcl diag --json` over one `.tcl` document written to a scratch file and
+/// return every row as a `(code, line)` pair in report order.
+fn tcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("tcl-cli-cr-{tag}-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let path = dir.join("doc.tcl");
+    std::fs::write(&path, text).expect("write document");
+
+    let out = run_tcl_allow_failure(&["diag", path.to_str().expect("utf-8 path"), "--json"]);
+    let report: serde_json::Value = serde_json::from_slice(&out).expect("diag JSON");
+    let rows = report[0]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .map(|d| {
+            (
+                d["code"].as_str().expect("code").to_owned(),
+                d["line"].as_u64().expect("line"),
+            )
+        })
+        .collect();
+    std::fs::remove_dir_all(&dir).ok();
+    rows
+}
+
 /// Run `tcl diag --json` over one `.sslictcl` document written to a scratch
 /// file (so the dialect routes by extension, not by content signature), and
 /// return its `SSLIC*` rows as `(code, line)` pairs in report order.

@@ -243,3 +243,13 @@ in-source signals (comment directive, shebang, content), then the file
 extension, then the `tcl8.6` fallback decide.  This keeps `tcl diag`
 and the editor reporting the same set for the same file — an `.irul`
 input gets full iRules analysis without any flag.
+
+They also read the same *analysis form* of the document. `collect_rows`
+normalises lone `\r` once at the top (`tcl_lexer::normalise_lone_cr`) and
+derives both the line index and the analysis inputs from it, the way the
+server does at every entry point that reaches the analyser. A bare `\r` ends
+a command for `tclsh` but is horizontal whitespace to the lexer, so on the raw
+form an old-Mac document parses as one command — inventing findings, hiding
+real ones — and `LineIndex` (which starts a line only after a `\n`) reports
+whatever survives at line 1. The pass is byte-length preserving, so every span
+stays valid against the raw text (issue #1799).

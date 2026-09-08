@@ -205,7 +205,24 @@ fn collect_rows(
     disabled: &HashSet<String>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> Vec<Row> {
-    let source = document.source.as_str();
+    // The *analysis* form of the document, not the bytes on disk. A lone `\r`
+    // terminates a command for `tclsh` — `Tcl_OpenFileChannel` reads scripts
+    // under `-translation auto` — but the lexer treats it as horizontal
+    // whitespace, so an unnormalised CR-terminated file parses as one command:
+    // findings are invented, real ones hidden, and `LineIndex` (which starts a
+    // line only after a `\n`) reports every one of them on line 1, column *n*.
+    // The server normalises at every entry point that reaches the analyser
+    // (`DocumentState::normalised_for_analysis`), so without this the CLI and
+    // the editor disagree about the same file (issue #1799).
+    //
+    // Safe to apply here because `normalise_lone_cr` is byte-length preserving:
+    // every span stays valid against the raw text, and
+    // `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
+    // `LineIndex::new_lsp(t)`, so the lexer's line model and the client's
+    // coincide. An LF or CRLF document contains no lone `\r` and comes back
+    // borrowed, so this costs one scan and no allocation for almost every file.
+    let source = tcl_lexer::normalise_lone_cr(document.source.as_str());
+    let source = source.as_ref();
     let line_index = LineIndex::new(source);
     let mut rows: Vec<Row> = Vec::new();
 
@@ -309,25 +326,17 @@ fn collect_rows(
     }
 
     // The `SslicTcl` loader's own `SSLIC1xxx` findings, the same projection the
-    // server publishes. The loader reads the *analysis* form — a lone `\r`
-    // terminates a command for `tclsh`, but the lexer treats it as horizontal
-    // whitespace, so without this a CR-terminated document collapses into one
-    // command and the findings are nonsense. `normalise_lone_cr` rewrites each
-    // lone `\r` to `\n` byte-for-byte, so the spans it returns address the same
-    // offsets as `source`. They are mapped with a line index over that same
-    // normalised text, because `LineIndex` starts a line only after a `\n` —
-    // over the raw bytes every finding in a CR-terminated document would land
-    // on line 1. The editor shows these on the client's own lines, where a
-    // lone CR *is* an end of line, so this is what makes the two agree.
+    // server publishes. It reads the same normalised `source` and maps through
+    // the same `line_index` as every other code here — the loader used to
+    // normalise for itself (#1794), which was correct but left every other code
+    // on the raw form.
     if sslictcl {
-        let loader_text = tcl_lexer::normalise_lone_cr(source);
-        let loader_lines = LineIndex::new(&loader_text);
         for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(
-            &loader_text,
+            source,
             disabled,
             &result.suppressed_lines,
         ) {
-            let pos = loader_lines.position_at_utf16(d.span.start(), &loader_text);
+            let pos = line_index.position_at_utf16(d.span.start(), source);
             rows.push(Row {
                 line: pos.line + 1,
                 column: pos.character.get() + 1,
