@@ -182,17 +182,17 @@ janitor() {
             lock=$candidate/$LOCK
             # A running Cargo wrapper owns this advisory lock.  Never wait in
             # the janitor: a bounded sweep must preserve the active target.
-            if ! eval "exec 9>\"$lock\""; then
+            if ! exec 9>"$lock"; then
                 locked=$((locked + 1))
                 continue
             fi
             if ! flock -n 9; then
                 locked=$((locked + 1))
-                eval 'exec 9>&-'
+                exec 9>&-
                 continue
             fi
             rm -rf -- "$candidate"
-            eval 'exec 9>&-'
+            exec 9>&-
             removed=$((removed + 1))
         fi
     done
@@ -241,7 +241,7 @@ prepare() {
         owned_mode "$target" 700
         valid_marker "$target" "$expected" || die "target identity marker mismatch: $target"
         [ ! -L "$target/$LOCK" ] || die "target lock is a symlink: $target/$LOCK"
-        eval "exec 8>\"$target/$LOCK\""
+        exec 8>"$target/$LOCK"
         flock -n 8 || die "target is already locked: $target"
         touch -- "$target/$MARKER"
         target_locked=true
@@ -264,7 +264,7 @@ prepare() {
     printf 'persistent-cargo-target state=%s target=%s target_bytes=%s free_kb=%s %s\n' \
         "$state" "$target" "$size" "$free" "$janitor_line" >&2
     if [ "$target_locked" = true ]; then
-        eval 'exec 8>&-'
+        exec 8>&-
     fi
     printf '%s\n' "$target"
 }
@@ -280,7 +280,7 @@ with_lock() {
     [ ! -L "$lock" ] || die "target lock is a symlink: $lock"
     # Keep the descriptor open for the complete child process.  A janitor can
     # therefore skip this target without guessing whether Cargo is active.
-    eval "exec 9>\"$lock\""
+    exec 9>"$lock"
     flock -n 9 || die "target is already locked: $target"
     "$@"
 }
