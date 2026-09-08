@@ -52,6 +52,17 @@ pub enum DefKind {
 pub enum UseKind {
     /// Read as an operand of a statement.
     Operand,
+    /// Named by a statement rather than substituted into it: `incr a`,
+    /// `append a x`, `info exists a`, `unset a` — the cell is read (and often
+    /// written) through a variable-*name* argument, with no `$a` word.
+    ///
+    /// Split from [`Self::Operand`] because the two answer different questions
+    /// and a pass that conflates them is unsound. Liveness must count both: the
+    /// value really is consumed. A pass that *rewrites* the use must count only
+    /// `Operand`, because a name position has nothing to rewrite — forwarding
+    /// `a`'s single reaching literal into `incr a` yields `incr` over `1`,
+    /// which is neither an increment nor a command (issue #1934).
+    VariableName,
     /// Incoming edge of a phi node.
     PhiIncoming,
     /// Read by a branch condition (terminator).
@@ -260,8 +271,15 @@ pub fn build_def_use_chains(
                 let key = (ssa.var_name(*sym).to_owned(), *ver);
                 let class = if stmt.quoted_uses.contains(sym) {
                     UseClass::Quoted
+                } else if stmt.name_only_uses.contains(sym) {
+                    UseClass::Name
                 } else {
                     UseClass::Substituted
+                };
+                let kind = if class == UseClass::Name {
+                    UseKind::VariableName
+                } else {
+                    UseKind::Operand
                 };
                 add_use(
                     &mut chains,
@@ -269,7 +287,7 @@ pub fn build_def_use_chains(
                     key,
                     UseSite {
                         block: block.name.clone(),
-                        kind: UseKind::Operand,
+                        kind,
                         statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
                         variable: String::new(),
                         phi_version: 0,
@@ -494,6 +512,7 @@ mod tests {
             defs,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         }
     }
 
@@ -524,6 +543,7 @@ mod tests {
             defs: d,
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         }
     }
 

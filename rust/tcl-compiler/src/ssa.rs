@@ -120,6 +120,12 @@ pub struct SsaStatement {
     /// use is real for liveness (the text may be evaluated later) but is not
     /// a read *here*, so read-before-set must ignore it. See [`UseClass`].
     pub quoted_uses: HashSet<Symbol>,
+    /// The subset of [`Self::uses`] that are [`UseClass::Name`] — reached by
+    /// naming the cell (`incr a`, `append a x`, `info exists a`, `unset a`)
+    /// rather than by substituting a `$a` word. As real a read as any other,
+    /// but with no operand for a value-forwarding pass to rewrite; carried
+    /// through to [`crate::def_use::UseKind::VariableName`] (issue #1934).
+    pub name_only_uses: HashSet<Symbol>,
 }
 
 /// How a statement consumes a variable reference.
@@ -156,6 +162,18 @@ pub enum UseClass {
     /// which of them land here. Kept as a use so liveness stays conservative;
     /// ignored by read-before-set.
     Quoted,
+    /// Named rather than substituted: the statement reaches the cell through a
+    /// variable-*name* argument — `incr a`, `append a x`, `info exists a`,
+    /// `unset a` — with no `$a` word anywhere in it.
+    ///
+    /// As definite a read as [`Self::Substituted`], and read-before-set must
+    /// treat it as one: `incr a` really does read `a`. What separates it is
+    /// that there is **no operand to rewrite**. A value-forwarding pass that
+    /// splices a literal over such a use destroys the statement — the reaching
+    /// literal of `a` is `1`, and `incr 1` is neither an increment nor a
+    /// command (issue #1934). [`UseKind::VariableName`] is how the def-use
+    /// chains carry that distinction to those passes.
+    Name,
 }
 
 /// A CFG basic block in SSA form.
@@ -1473,6 +1491,7 @@ pub fn uses_of(
 struct ClassifiedUses {
     substituted: BTreeSet<String>,
     quoted: BTreeSet<String>,
+    by_name: BTreeSet<String>,
 }
 
 impl ClassifiedUses {
@@ -1483,6 +1502,7 @@ impl ClassifiedUses {
     fn merge(&mut self, other: ClassifiedUses) {
         self.substituted.extend(other.substituted);
         self.quoted.extend(other.quoted);
+        self.by_name.extend(other.by_name);
     }
 
     /// Absorb a classified name list (as [`uses_of_classified`] returns it).
@@ -1491,6 +1511,7 @@ impl ClassifiedUses {
             match class {
                 UseClass::Substituted => self.substituted.insert(name),
                 UseClass::Quoted => self.quoted.insert(name),
+                UseClass::Name => self.by_name.insert(name),
             };
         }
     }
@@ -1499,6 +1520,7 @@ impl ClassifiedUses {
     fn remove_defs(&mut self, defs: &HashSet<String>) {
         self.substituted.retain(|v| !defs.contains(v));
         self.quoted.retain(|v| !defs.contains(v));
+        self.by_name.retain(|v| !defs.contains(v));
     }
 }
 
@@ -1528,6 +1550,7 @@ pub fn uses_of_classified(
                 scanner,
                 registry,
                 &mut found.substituted,
+                &mut found.by_name,
                 &mut reads_own_def,
             );
         }
@@ -1603,16 +1626,24 @@ pub fn uses_of_classified(
     let defs: HashSet<String> = defs_of_with_registry(stmt, Some(registry))
         .into_iter()
         .collect();
-    // A name reached both ways is a definite read — the quoted mention adds
-    // nothing the substituted one does not already assert.
+    // A name reached more than one way keeps its most definite class, and the
+    // three are ordered by what a consumer may do with them: a substituted
+    // word is a read *and* an operand something may rewrite; a name argument
+    // is a read with nothing to rewrite; a quoted mention is neither. So
+    // `lappend a $a` is Substituted (there is an operand), `lappend a {$a}` is
+    // Name (the braced mention adds nothing to the name argument), and the
+    // weaker classes drop the name the stronger one already asserts.
     let ClassifiedUses {
         substituted,
         mut quoted,
+        mut by_name,
     } = found;
-    quoted.retain(|v| !substituted.contains(v));
+    by_name.retain(|v| !substituted.contains(v));
+    quoted.retain(|v| !substituted.contains(v) && !by_name.contains(v));
     substituted
         .into_iter()
         .map(|v| (v, UseClass::Substituted))
+        .chain(by_name.into_iter().map(|v| (v, UseClass::Name)))
         .chain(quoted.into_iter().map(|v| (v, UseClass::Quoted)))
         .filter(|(v, _)| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
         .collect()
@@ -1799,14 +1830,18 @@ fn uses_in_call(
             vars_found.insert(v);
         }
     }
+    // `reads` are the registry's `ArgRole::VarRead` positions and
+    // `reads_own_defs` its `READS_BEFORE_WRITE` targets: both name the cell
+    // rather than substituting it, so they are `UseClass::Name` — a real read
+    // with no operand word behind it (issue #1934).
     for name in reads {
         if !name.is_empty() {
-            vars_found.insert(name.clone());
+            found.by_name.insert(name.clone());
         }
     }
     if *reads_own_defs {
         for name in defs {
-            vars_found.insert(name.clone());
+            found.by_name.insert(name.clone());
             reads_own_def.insert(name.clone());
         }
     }
@@ -1822,7 +1857,7 @@ fn uses_in_call(
         });
     if destroys {
         for name in defs {
-            vars_found.insert(name.clone());
+            found.by_name.insert(name.clone());
             reads_own_def.insert(name.clone());
         }
     }
@@ -1833,6 +1868,7 @@ fn uses_in_assignment(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
     vars_found: &mut BTreeSet<String>,
+    by_name: &mut BTreeSet<String>,
     reads_own_def: &mut BTreeSet<String>,
 ) {
     // A brace-quoted target's `$` is part of a literal name, not a
@@ -1900,9 +1936,10 @@ fn uses_in_assignment(
             if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
+                // `incr a` names the cell it mutates; there is no `$a` word.
                 let norm = scanner.canonical_name_braced(name, *name_braced);
                 if !norm.is_empty() {
-                    vars_found.insert(norm.to_owned());
+                    by_name.insert(norm.to_owned());
                     reads_own_def.insert(norm.to_owned());
                 }
             }
@@ -2001,6 +2038,9 @@ fn scan_command_words(
             match class {
                 UseClass::Quoted => out.quoted.insert(name),
                 UseClass::Substituted => out.substituted.insert(name),
+                // `braced_word_class` classifies a *word*, and a word is
+                // never a name argument — those never reach the scanner.
+                UseClass::Name => out.by_name.insert(name),
             };
         }
     }
@@ -2205,6 +2245,7 @@ fn switch_reads(
     let mut reads = ClassifiedUses {
         substituted: scanner.scan_word(subject, registry),
         quoted: BTreeSet::new(),
+        by_name: BTreeSet::new(),
     };
     for arm in arms {
         // A pattern from the canonical single braced `{pat body …}` block is a
@@ -2850,6 +2891,7 @@ impl RenameWalk {
         let uses_list: Vec<String> = classified.iter().map(|(name, _)| name.clone()).collect();
         let mut uses_map: HashMap<Symbol, Version> = HashMap::new();
         let mut quoted_uses: HashSet<Symbol> = HashSet::new();
+        let mut name_only_uses: HashSet<Symbol> = HashSet::new();
         // A base read (`$a($i)`, `array get a`) reads every known
         // constant-keyed element — record their versions so the element chains
         // are live. A fanned element inherits its base's class: reached only
@@ -2866,8 +2908,14 @@ impl RenameWalk {
                 let base = &var[..var.find('(')?];
                 class_of.get(base).copied()
             });
-            if class == Some(UseClass::Quoted) {
-                quoted_uses.insert(sym);
+            match class {
+                Some(UseClass::Quoted) => {
+                    quoted_uses.insert(sym);
+                }
+                Some(UseClass::Name) => {
+                    name_only_uses.insert(sym);
+                }
+                Some(UseClass::Substituted) | None => {}
             }
         }
 
@@ -2904,6 +2952,7 @@ impl RenameWalk {
             defs: defs_map,
             may_defs,
             quoted_uses,
+            name_only_uses,
         }
     }
 
@@ -3234,6 +3283,7 @@ mod tests {
             defs: HashMap::from([(Symbol(0), 1)]),
             may_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
         };
         assert_eq!(stmt.defs[&Symbol(0)], 1);
         assert!(stmt.uses.is_empty());

@@ -205,34 +205,75 @@ impl LoopFacts {
     }
 
     /// Record the expected intrep of every `$var` argument at a shimmering
-    /// position of `stmt` (a direct call or a `[cmd …]` substitution
-    /// inside an assignment value).
+    /// position of `stmt` — its own words, and every `[cmd …]` nested in one.
+    ///
+    /// This reads a statement's arguments, and it must read them by the rules
+    /// the *emitting* passes use, or its answer disagrees with theirs about the
+    /// same code. Two rules were missing (issue #1851):
+    ///
+    /// - **Nested substitutions count.** `puts [list [llength $x]]` converts
+    ///   `x` to a list exactly as `llength $x` does — Tcl runs the inner
+    ///   command either way. Walking only the flat argument text saw the single
+    ///   word `[list [llength $x]]`, recorded nothing, and left `use_targets`
+    ///   short of the two distinct targets `effective_in_loop` needs, so a
+    ///   genuinely per-iteration conversion was downgraded to a one-time one.
+    ///   `use_site::check_lifted_calls` and `commit::push_lifted_reads` have
+    ///   consulted the same [`crate::word_subst::lifted_calls`] owner since
+    ///   #1826 / #1848; this was the last consumer on the flat path.
+    /// - **Braced words are inert.** A `Statement::Call`'s `args` are
+    ///   *de-braced*, so `lindex {$x} 0` looked like a live `$x` here even
+    ///   though Tcl substitutes nothing inside braces. #1850 gave the emitting
+    ///   passes that gate; this function was left alone because it does not
+    ///   emit, but a spurious target flips a loop-invariance judgement between
+    ///   S100 and S101 just the same.
+    ///
+    /// A lifted call needs no brace gate of its own: its argument words are
+    /// raw source with the braces still on, so the `$` test declines them —
+    /// the same reasoning [`inert_braced_args`] records for its own scope.
     fn record_use_targets(&mut self, stmt: &Statement, registry: &CommandRegistry) {
-        let mut record = |command: &str, args: &[String]| {
+        if let Statement::Call {
+            command,
+            args,
+            tokens,
+            ..
+        } = stmt
+        {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            for (i, word) in args.iter().enumerate() {
-                if !word.trim_start().starts_with('$') {
-                    continue;
-                }
-                if let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) {
-                    let var = element_var_name(word.trim()).to_owned();
-                    self.use_targets.entry(var).or_default().insert(expected);
-                }
+            let inert = inert_braced_args(registry, command, &arg_refs, tokens.as_ref());
+            self.record_invocation(command, args, &inert, registry);
+        }
+        let tokens = match stmt {
+            Statement::Call { tokens, .. } | Statement::AssignValue { tokens, .. } => {
+                tokens.as_ref()
             }
+            _ => return,
         };
-        match stmt {
-            Statement::Call { command, args, .. } => record(command, args),
-            Statement::AssignValue { value, .. } => {
-                if let Some((command, args)) =
-                    crate::value_shapes::parse_command_substitution_with_config(
-                        value.trim(),
-                        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-                    )
-                {
-                    record(&command, &args);
-                }
+        for lifted in crate::word_subst::lifted_calls(
+            tokens,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        ) {
+            self.record_invocation(&lifted.command, &lifted.args, &[], registry);
+        }
+    }
+
+    /// Record one invocation's shimmering `$var` arguments, skipping the
+    /// argument positions in `inert`.
+    fn record_invocation(
+        &mut self,
+        command: &str,
+        args: &[String],
+        inert: &[usize],
+        registry: &CommandRegistry,
+    ) {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        for (i, word) in args.iter().enumerate() {
+            if inert.contains(&i) || !word.trim_start().starts_with('$') {
+                continue;
             }
-            _ => {}
+            if let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) {
+                let var = element_var_name(word.trim()).to_owned();
+                self.use_targets.entry(var).or_default().insert(expected);
+            }
         }
     }
 
@@ -1370,6 +1411,66 @@ mod tests {
             w.unwrap().code,
             DiagCode::S100,
             "loop-invariant single-target use is one-time (S100): {warnings:?}"
+        );
+    }
+
+    /// Issue #1851 — a conversion performed by a *nested* `[cmd …]` is paid on
+    /// every iteration exactly as the direct spelling is, so it classifies the
+    /// same way.
+    ///
+    /// `record_use_targets` read only the flat argument text, so for
+    /// `puts [list [llength $x]]` the single word `[list [llength $x]]` did not
+    /// start with `$`, nothing was recorded, `use_targets` stayed below the two
+    /// distinct targets `effective_in_loop` needs, and a genuinely
+    /// per-iteration conversion was reported S100 instead of S101.
+    #[test]
+    fn a_nested_conversion_in_a_loop_classifies_as_s101_like_the_direct_one() {
+        for (first, second) in [
+            // Direct statements — the row that was already right.
+            ("llength $x", "dict size $x"),
+            // Nested inside a `Statement::Call`.
+            ("puts [list [llength $x]]", "puts [list [dict size $x]]"),
+            // Nested inside a `Statement::AssignValue`.
+            ("set a [list [llength $x]]", "set b [list [dict size $x]]"),
+        ] {
+            let src = format!(
+                "proc f {{l}} {{\n  set x [dict create a 1 b 2]\n  foreach i $l {{\n    \
+                 {first}\n    {second}\n  }}\n  return $x\n}}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &registry(), false);
+            let fu = cu.function("::f").unwrap();
+            let warnings = use_site_shimmers(fu, &registry());
+            let on_x: Vec<&ShimmerWarning> =
+                warnings.iter().filter(|w| w.variable == "x").collect();
+            assert!(
+                !on_x.is_empty(),
+                "expected shimmer warnings on x for {first:?} / {second:?}: {warnings:?}",
+            );
+            assert!(
+                on_x.iter().all(|w| w.code == DiagCode::S101),
+                "a per-iteration conversion is S101 however it is spelled; \
+                 {first:?} / {second:?} gave {on_x:?}",
+            );
+        }
+    }
+
+    /// The brace gate the emitting passes gained in #1850, applied here too: a
+    /// braced word substitutes nothing, so it contributes no use target and
+    /// cannot push a loop-invariant value over the two-target threshold.
+    #[test]
+    fn a_braced_argument_contributes_no_use_target() {
+        let src = "proc f {l} {\n  set x [dict create a 1 b 2]\n  foreach i $l {\n    \
+                   llength {$x}\n    dict size $x\n  }\n  return $x\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = use_site_shimmers(fu, &registry());
+        assert!(
+            warnings
+                .iter()
+                .filter(|w| w.variable == "x")
+                .all(|w| w.code != DiagCode::S101),
+            "`llength {{$x}}` reads nothing, so only one target is live and the \
+             conversion is one-time: {warnings:?}",
         );
     }
 

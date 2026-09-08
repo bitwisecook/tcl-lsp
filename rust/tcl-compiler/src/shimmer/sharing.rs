@@ -375,7 +375,9 @@ fn partner_read_after(
                 u.block == block_name
                     || reachable(ctx, block_name, &u.block) && executable(ctx, &u.block)
             }
-            UseKind::Operand => {
+            // A name position (`llength $x` vs `lappend x y`) is as much a
+            // later read of the partner as an operand is.
+            UseKind::Operand | UseKind::VariableName => {
                 if u.block == block_name {
                     usize::try_from(u.statement_index).is_ok_and(|i| i > stmt_idx)
                 } else {
@@ -428,7 +430,7 @@ fn executable(ctx: &SharingCtx<'_>, block: &str) -> bool {
 fn use_span(ctx: &SharingCtx<'_>, u: &UseSite) -> Option<Span> {
     let id = ctx.cfg.block_id(&u.block)?;
     match u.kind {
-        UseKind::Operand => {
+        UseKind::Operand | UseKind::VariableName => {
             let idx = usize::try_from(u.statement_index).ok()?;
             ctx.ssa
                 .blocks

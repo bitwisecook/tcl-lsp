@@ -6200,7 +6200,7 @@ mod tests {
     #[test]
     fn propagate_taints_gets_is_source() {
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let registry = CommandRegistry::build_default();
@@ -6230,13 +6230,7 @@ mod tests {
 
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let x = ssa.intern_var("x");
-        let ssa_stmt = SsaStatement {
-            statement: stmt,
-            uses: HashMap::new(),
-            defs: [(x, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+        let ssa_stmt = ssa_stmt(stmt, HashMap::new(), [(x, 1u32)].into_iter().collect());
         ssa.blocks.insert(
             entry,
             SsaBlock {
@@ -6259,7 +6253,7 @@ mod tests {
     #[test]
     fn find_taint_warnings_eval_with_tainted_var() {
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let registry = CommandRegistry::build_default();
@@ -6307,20 +6301,8 @@ mod tests {
 
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let x = ssa.intern_var("x");
-        let ssa_assign = SsaStatement {
-            statement: assign,
-            uses: HashMap::new(),
-            defs: [(x, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
-        let ssa_eval = SsaStatement {
-            statement: eval_call,
-            uses: [(x, 1u32)].into_iter().collect(),
-            defs: HashMap::new(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+        let ssa_assign = ssa_stmt(assign, HashMap::new(), [(x, 1u32)].into_iter().collect());
+        let ssa_eval = ssa_stmt(eval_call, [(x, 1u32)].into_iter().collect(), HashMap::new());
 
         ssa.blocks.insert(
             entry,
@@ -6358,7 +6340,7 @@ mod tests {
     /// T104 / T105 sink tests.
     fn warnings_for_tainted_sink(sink: Statement, sink_uses: &[(&str, u32)]) -> Vec<TaintWarning> {
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let registry = CommandRegistry::build_default();
@@ -6384,23 +6366,19 @@ mod tests {
             });
         }
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
-        let ssa_assign = SsaStatement {
-            statement: assign,
-            uses: HashMap::new(),
-            defs: [(ssa.intern_var("x"), 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
-        let ssa_sink = SsaStatement {
-            statement: sink,
-            uses: sink_uses
+        let ssa_assign = ssa_stmt(
+            assign,
+            HashMap::new(),
+            [(ssa.intern_var("x"), 1u32)].into_iter().collect(),
+        );
+        let ssa_sink = ssa_stmt(
+            sink,
+            sink_uses
                 .iter()
                 .map(|&(n, v)| (ssa.intern_var(n), v))
                 .collect(),
-            defs: HashMap::new(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+            HashMap::new(),
+        );
         ssa.blocks.insert(
             entry,
             SsaBlock {
@@ -6496,12 +6474,29 @@ mod tests {
         }
     }
 
+    /// A hand-built SSA statement with no may-defs, quoted uses or name-only
+    /// uses — the shape every fixture in this module wants.
+    fn ssa_stmt(
+        statement: Statement,
+        uses: HashMap<crate::ssa::Symbol, u32>,
+        defs: HashMap<crate::ssa::Symbol, u32>,
+    ) -> crate::ssa::SsaStatement {
+        crate::ssa::SsaStatement {
+            statement,
+            uses,
+            defs,
+            may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
+        }
+    }
+
     #[test]
     fn t106_double_encode_through_uri_encode() {
         // `set x [URI::encode $tainted]` stamps URL_ENCODED on x; passing
         // x back through `URI::encode` double-encodes → T106.
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let mut registry = CommandRegistry::build_default();
@@ -6545,27 +6540,13 @@ mod tests {
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let x = ssa.intern_var("x");
         let y = ssa.intern_var("y");
-        let ssa_s0 = SsaStatement {
-            statement: s0,
-            uses: HashMap::new(),
-            defs: [(x, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
-        let ssa_s1 = SsaStatement {
-            statement: s1,
-            uses: [(x, 1u32)].into_iter().collect(),
-            defs: [(y, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
-        let ssa_s2 = SsaStatement {
-            statement: s2,
-            uses: [(y, 1u32)].into_iter().collect(),
-            defs: HashMap::new(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+        let ssa_s0 = ssa_stmt(s0, HashMap::new(), [(x, 1u32)].into_iter().collect());
+        let ssa_s1 = ssa_stmt(
+            s1,
+            [(x, 1u32)].into_iter().collect(),
+            [(y, 1u32)].into_iter().collect(),
+        );
+        let ssa_s2 = ssa_stmt(s2, [(y, 1u32)].into_iter().collect(), HashMap::new());
         ssa.blocks.insert(
             entry,
             SsaBlock {
@@ -6681,6 +6662,7 @@ mod tests {
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
                 quoted_uses: std::collections::HashSet::new(),
+                name_only_uses: std::collections::HashSet::new(),
             }]
         });
         let d = w.iter().find(|w| w.code == DiagCode::W313).expect("W313");
@@ -6709,19 +6691,18 @@ mod tests {
         let w = w313_warnings(|ssa| {
             let base = ssa.intern_var("base");
             let p = ssa.intern_var("p");
-            let s0 = SsaStatement {
-                statement: assign,
-                uses: [(base, 0u32)].into_iter().collect(),
-                defs: [(p, 1u32)].into_iter().collect(),
-                may_defs: std::collections::HashSet::new(),
-                quoted_uses: std::collections::HashSet::new(),
-            };
+            let s0 = ssa_stmt(
+                assign,
+                [(base, 0u32)].into_iter().collect(),
+                [(p, 1u32)].into_iter().collect(),
+            );
             let s1 = SsaStatement {
                 statement: file_call(&["delete", "$p"]),
                 uses: [(p, 1u32)].into_iter().collect(),
                 defs: HashMap::new(),
                 may_defs: std::collections::HashSet::new(),
                 quoted_uses: std::collections::HashSet::new(),
+                name_only_uses: std::collections::HashSet::new(),
             };
             vec![s0, s1]
         });
@@ -6753,6 +6734,7 @@ mod tests {
                     defs: HashMap::new(),
                     may_defs: std::collections::HashSet::new(),
                     quoted_uses: std::collections::HashSet::new(),
+                    name_only_uses: std::collections::HashSet::new(),
                 }]
             })
             .is_empty()
@@ -6807,7 +6789,7 @@ mod tests {
     #[test]
     fn const_assignment_is_not_tainted() {
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let registry = CommandRegistry::build_default();
@@ -6835,13 +6817,7 @@ mod tests {
 
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let x = ssa.intern_var("x");
-        let ssa_stmt = SsaStatement {
-            statement: stmt,
-            uses: HashMap::new(),
-            defs: [(x, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+        let ssa_stmt = ssa_stmt(stmt, HashMap::new(), [(x, 1u32)].into_iter().collect());
         ssa.blocks.insert(
             entry,
             SsaBlock {
@@ -6865,7 +6841,7 @@ mod tests {
     #[test]
     fn t102_emitted_for_tainted_regexp_pattern() {
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let registry = CommandRegistry::build_default();
@@ -6913,20 +6889,16 @@ mod tests {
 
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let pattern = ssa.intern_var("pattern");
-        let ssa_assign = SsaStatement {
-            statement: assign,
-            uses: HashMap::new(),
-            defs: [(pattern, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
-        let ssa_regexp = SsaStatement {
-            statement: regexp_call,
-            uses: [(pattern, 1u32)].into_iter().collect(),
-            defs: HashMap::new(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+        let ssa_assign = ssa_stmt(
+            assign,
+            HashMap::new(),
+            [(pattern, 1u32)].into_iter().collect(),
+        );
+        let ssa_regexp = ssa_stmt(
+            regexp_call,
+            [(pattern, 1u32)].into_iter().collect(),
+            HashMap::new(),
+        );
 
         ssa.blocks.insert(
             entry,
@@ -6963,7 +6935,7 @@ mod tests {
     #[test]
     fn t102_suppressed_with_terminator() {
         use crate::cfg::{Function, Terminator};
-        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use crate::ssa::{SsaBlock, SsaFunction};
         use tcl_lexer::Span;
 
         let registry = CommandRegistry::build_default();
@@ -7011,20 +6983,16 @@ mod tests {
 
         let mut ssa = SsaFunction::trivial("::top", entry, cfg.block_names().to_vec());
         let pattern = ssa.intern_var("pattern");
-        let ssa_assign = SsaStatement {
-            statement: assign,
-            uses: HashMap::new(),
-            defs: [(pattern, 1u32)].into_iter().collect(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
-        let ssa_regexp = SsaStatement {
-            statement: regexp_call,
-            uses: [(pattern, 1u32)].into_iter().collect(),
-            defs: HashMap::new(),
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-        };
+        let ssa_assign = ssa_stmt(
+            assign,
+            HashMap::new(),
+            [(pattern, 1u32)].into_iter().collect(),
+        );
+        let ssa_regexp = ssa_stmt(
+            regexp_call,
+            [(pattern, 1u32)].into_iter().collect(),
+            HashMap::new(),
+        );
 
         ssa.blocks.insert(
             entry,

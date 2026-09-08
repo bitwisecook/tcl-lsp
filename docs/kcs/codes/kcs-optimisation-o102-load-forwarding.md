@@ -47,7 +47,11 @@ value-identical to the original read, in every one of these senses:
 
 - The variable has a **single reaching definition** on every path
   to the read, and that definition is a literal (not a computed
-  value).
+  value). A definition that *computes* its value is not O102's to
+  forward even when the result is knowable: `set a 1; incr a` leaves
+  `a` provably `2`, and inlining that constant is
+  [O100](kcs-optimisation-o100-constant-propagation.md)'s per-value
+  form.
 - The variable carries **no active variable trace**
   (`trace add variable`/`trace variable`, or the `remove`/`vdelete`
   spellings) anywhere in the module, and no dynamic
@@ -59,6 +63,12 @@ value-identical to the original read, in every one of these senses:
 - The variable is not **aliased** into another stack frame
   (`upvar`/`global`/`variable`) — a proc reached between the
   definition and the read could write it through the alias.
+- The read is an **operand**, not a variable *name* argument. `incr a`,
+  `append a x`, `info exists a` and `unset a` all read `a`, but they name
+  the cell rather than substituting it, so there is no word to rewrite —
+  splicing the literal over one destroys the statement. Those reads carry
+  their own `UseKind::VariableName` in the def-use chains precisely so no
+  forwarding pass can mistake them for operands.
 - No statement between the definition and the read (within the same
   block) is a **barrier** (`eval`/`uplevel`/`interp eval`/…) or a call
   the compiler cannot prove pure — including any call to a
@@ -78,6 +88,13 @@ related [O100](kcs-optimisation-o100-constant-propagation.md) path
 instead; a reference nested inside an arbitrary command substitution
 falls back to a **hint-only** suggestion covering the whole
 statement, with no automatic fix offered).
+
+A hint-only O102 carries **no replacement text**. Its span is the whole
+consuming statement, so the literal would not be a valid replacement for
+it, and recording one anyway is how a hint came to be read as a one-click
+rewrite: a surface that showed the payload without the flag presented
+`incr a → 1` as an offered fix. The compiler explorer now reports
+`hintOnly` alongside the range, as the language server always has.
 
 ## Related history
 
