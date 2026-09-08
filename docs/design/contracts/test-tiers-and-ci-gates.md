@@ -23,6 +23,15 @@ complete union before uploading artifacts;
 `scripts/dev/verify-nextest-partitions.py` also validates transferred digests
 and metadata.
 
+The archive and partitions run only when `lsp_e2e_changed` is true. Its
+fail-closed classifier covers `tcl-lsp-server`'s locked local Cargo dependency
+closure with all features, the archive configuration, the workflow and
+classifier inputs, embedded SpecTcl packs, and cross-package E2E fixtures. It reads the
+classifier and manifests from the PR base commit. An incomplete changed-file
+list, malformed closure, or absent base-copy runs the whole archive lane. The
+required aggregate job always reports a status; when the closure is unaffected,
+only its archive, partition, and proof-transfer steps are skipped.
+
 ## Decision rules / contracts
 
 1. **Fuzzing is always manual.** Campaigns (`make fuzz`, `tcl-fuzz`) and
@@ -185,6 +194,13 @@ CI skips only what demonstrably did not change. The rules live in
   (`make check-runtime-rust-paths`, part of `xtask-check`), so it cannot
   silently narrow. It is an additional semantic gate, not a replacement for
   the real link.
+- `lsp-e2e` runs its archive producer, three partition consumers, and
+  transferred-proof verification only when `lsp_e2e_changed` is true. Its
+  committed closure is `scripts/dev/lsp-e2e-{package,input}-paths.txt`, and
+  `scripts/dev/test-lsp-e2e-paths.sh` re-derives the local package set with
+  `cargo metadata --locked --all-features`. The `lsp-e2e` aggregate itself is
+  never skipped, preserving the required status context and explicit producer
+  and consumer result check.
 - `cargo-deny` never skips: new advisories arrive against unchanged trees.
 - Every skip fails safe: API/schema/network error, changed tree, stale result,
   or ambiguous PR association → run everything. `cargo-deny` is unconditional
@@ -248,6 +264,7 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 - `rust/xtask/src/smoke_targets.rs` — fail-closed smoke inventory validation
   and exact Cargo fallback execution.
 - `.github/workflows/ci.yml` — the `channel` and `pr-gate` jobs.
+- `scripts/dev/lsp-e2e-path.sh` — the fail-closed archive/partition classifier.
 
 ## Discoverability
 
