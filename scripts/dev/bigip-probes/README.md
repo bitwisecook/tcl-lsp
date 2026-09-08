@@ -104,11 +104,15 @@ so runtime event creation is impossible.
 `dynlab.conf` needs a virtual server and a client; see the traffic-lab notes
 above.
 
-## Cleanup contract
+## Cleanup
 
-Every object a probe creates carries the `__tcl_lsp_probe_*` prefix, with a
-collision check before each create, an `EXIT` trap, and an absence proof after
-each delete. `save sys config` is never run, so nothing a probe leaves behind
-survives a reboot. `lib/e4-context-probe.sh` and `irules/f3-matrix/`
-implement the contract; the measurements doc's methodology section states it
-in full.
+`lib/e4-context-probe.sh` and `irules/f3-matrix/` implement the cleanup
+contract: every object they create carries the `__tcl_lsp_probe_*` prefix,
+with a collision check before each create, an `EXIT` trap, and an absence
+proof after each delete. The other suites do not. `lib/runner.sh` merges a
+`probe_<id>` rule without checking that the name is free and deletes it
+unconditionally, and the traffic-lab fixtures create `lab_*` rules, pools, and
+virtuals with no trap, so run those only on an appliance where no object of
+those names exists and verify it is clean afterwards. No suite runs
+`save sys config`, so nothing a probe leaves behind survives a reboot. The
+measurements doc's methodology section states the contract in full.
