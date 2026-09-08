@@ -419,10 +419,12 @@ objects the query actually touches.
 ```
 
 `module_kinds` is the module → kind dispatch: a `match` on the module name
-returning one of the `LTM_KINDS` / `GTM_KINDS` / `SECURITY_KINDS` static
-`(label, tmsh_kind)` tables, empty for an uncovered module.
+returning one of the `LTM_KINDS` / `NET_KINDS` / `SYS_KINDS` / `CM_KINDS` /
+`GTM_KINDS` / `APM_KINDS` / `SECURITY_KINDS` static `(label, tmsh_kind)`
+tables, empty for an uncovered module (`pem`, `auth`, `vcmp`, `cli`,
+`api-protection`, `asm`, `ilx`, `wom`, `analytics`).
 `is_object_kind_alias` and `kind_to_label` scan `KIND_TABLES` (the slice of
-all three) for the kind-label vocabulary. `project_fields` is the per-kind
+all seven) for the kind-label vocabulary. `project_fields` is the per-kind
 field dispatch — a `match` on `(kind, ModelObject)` reaching a
 `project_<kind>` function per kind, so adding a kind is a compile-checked
 edit and a kind/model mismatch cannot compile.

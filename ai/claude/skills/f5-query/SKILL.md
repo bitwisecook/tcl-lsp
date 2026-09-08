@@ -106,6 +106,24 @@ retry unverified so the audit still gets body and peer cert, and report
 | every kind of object | `[.[]] \| count` |
 | unreferenced pools | use `f5 cleanup` |
 
+| Base system, network, HA, APM | Query |
+|---|---|
+| self-IPs with their VLAN and allow-service | `.net.self[] \| tsv(.name, .address, .vlan, join(."allow-service", ","))` |
+| a self-IP's VLAN tag (auto-deref) | `.net.self[].vlan.tag` |
+| every VLAN / route / route-domain | `.net.vlan[].name` / `.net.route[]` / `.net["route-domain"][]` |
+| the box's hostname / DNS / NTP (singletons — stream them) | `.sys["global-settings"][].hostname`, `.sys.dns[]."name-servers"[]`, `.sys.ntp[].servers[]` |
+| provisioned modules | `.sys.provision[] \| tsv(.name, .level)` |
+| HA cluster members | `.cm["device-group"][] \| tsv(.name, .type, join([.devices[].hostname], ","))` |
+| which device owns a traffic-group | `.cm["traffic-group"][]."default-device".hostname` |
+| APM policy summary / item walk | `.apm["access-policy"][] \| tsv(.name, ."start-item".caption)` / `.apm["access-policy"][].items[].caption` |
+| SNAT translation behind a snatpool member | `.ltm["snat-translation"][$member].address` |
+
+Projected modules: `ltm`, `net`, `sys`, `cm`, `gtm`, `apm`, `security`.
+`pem` / `auth` / `vcmp` / `cli` / `api-protection` / `asm` / `ilx` / `wom`
+/ `analytics` have no typed projection — `f5 query --help-dsl` lists the
+exact kinds each module covers, and anything outside them raises
+`<module>: no entry '<kind>'`.
+
 | Mutating (preview the diff first) | Query |
 |---|---|
 | rename pool old → new | `rename("/Common/old", "/Common/new")` |

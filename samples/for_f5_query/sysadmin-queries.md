@@ -20,7 +20,7 @@ directory:
 | [`apm.conf`](apm.conf)                                   | APM access-policy + items, attached via LTM `vpn_vs`             |
 | [`multitier/`](multitier/)                               | GTM → tier-1 LTM → 12× tier-2 LTM → tier-3 reaggregator          |
 | [`multitier/logs/`](multitier/logs/)                     | Syslog samples for every device                                  |
-| [`sysadmin/`](sysadmin/)                                 | Reusable `.f5q` scripts                                          |
+| [`sysadmin/`](sysadmin/)                                 | Reusable `.f5q` scripts, plus `lab_localhost.conf` (self-IPs / loopback) and `lab_platform.conf` (`sys` / `cm` / `net` base system, certs, HA cluster) |
 
 CLI:
 
@@ -313,6 +313,86 @@ throughout (matching §1.1 / §1.2) — pool members' `.name`
 already includes the canonical `host:port` so the join keys
 stay readable. Pipe through `column -t -s,` for an aligned
 terminal view.
+
+### 1.8 Platform, HA cluster, and cert inventory
+
+**Question.** *"What is this box, who is it clustered with, and
+what certs is it carrying?"* — the base-system half of an
+inventory, read from the `sys` / `cm` projections.
+
+The fixture [`sysadmin/lab_platform.conf`](sysadmin/lab_platform.conf)
+carries the `sys` / `cm` / `net` stanzas an SCF holds alongside the
+LTM config.
+
+Certs first — `x509_from_config` projects the metadata the stanza
+records into the same dict `x509_parse` produces, so `not_after` is
+a comparable ISO timestamp rather than the raw
+`Jun  4 12:00:00 2026 GMT`:
+
+```
+$ f5 query --raw '
+    .sys["file-ssl-cert"][]
+    | x509_from_config(.) as $x
+    | tsv(.name, $x.not_after, $x.key_size,
+          (if $x.not_after < "2026-01-01" then "EXPIRED"
+           elif $x.key_size < 2048 then "WEAK KEY"
+           else "ok" end))
+  ' sysadmin/lab_platform.conf
+```
+
+```
+app.example.test.crt	2026-06-04T12:00:00+00:00	2048	ok
+legacy.example.test.crt	2025-01-01T00:00:00+00:00	1024	EXPIRED
+```
+
+Swap the literal for `now()`-derived bounds to make this a
+"expiring within N days" gate in CI. `x509_from_config` reads only
+what the stanza records; on a UCS the stanza is often just file
+pointers, so pipe through `ucs_cert(.)` instead and the real PEM is
+read out of the archive's filestore:
+
+```
+$ f5 query --raw '
+    .sys["file-ssl-cert"][] | ucs_cert(.) | tsv(.subject, .not_after)
+  ' backup.ucs
+```
+
+Then the cluster — `device-group.devices[]` are PathRefs into
+`cm device`, so one chain gets each member's hostname:
+
+```
+$ f5 query --raw '
+    .cm.device[]
+    | tsv(.name, .hostname, ."management-ip", .version,
+          (if ."self-device" == "true" then "self" else "peer" end)) ;
+    .cm["device-group"][]
+    | tsv(.name, .type, ."auto-sync", join([.devices[].hostname], ","))
+  ' sysadmin/lab_platform.conf
+```
+
+```
+lab-a	lab-a.example.test	192.0.2.11	17.1.1	self
+lab-b	lab-b.example.test	192.0.2.12	17.1.1	peer
+lab-failover	sync-failover	enabled	lab-a.example.test,lab-b.example.test
+```
+
+And the base system. `sys dns` / `ntp` / `snmp` / `global-settings`
+are TMSH singletons — one unnamed stanza each — so they are read by
+streaming the container (`.sys.dns[]`) rather than by name:
+
+```
+$ f5 query --raw '
+    .sys["global-settings"][].hostname,
+    join([.sys.dns[]."name-servers"[]], ","),
+    join([.sys.ntp[].servers[]], ",")
+  ' sysadmin/lab_platform.conf
+```
+
+```
+lab-a.example.test
+10.1.0.53,10.1.0.54
+time1.example.test,time2.example.test
+```
 
 ---
 

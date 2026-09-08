@@ -1211,8 +1211,8 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let Value::ObjectRef(obj) = &args[0] else {
         return Err(QueryError::builtin(
-            "ucs_cert: expects a sys file ssl-cert object (pipe through \
-             .sys[\"file-ssl-cert\"][ref] first)",
+            "ucs_cert: expects a sys file ssl-cert / cm cert object (pipe through \
+             .sys[\"file-ssl-cert\"][] or .cm.cert[] first)",
         ));
     };
     let full_path = obj.full_path.clone();
