@@ -50,7 +50,7 @@ python3 .claude/skills/bytecode-compare/bytecode_compare.py [-v VERSION] <subcom
 
 | Subcommand | Arguments | What it does |
 |---|---|---|
-| `all` | | Compare all 72 fixtures, show summary table |
+| `all` | | Compare all 72 fixtures: the summary table, then a detailed diff per mismatch |
 | `diff` | `<snippet>` | Detailed instruction-by-instruction diff for one snippet (e.g. `while-simple`) |
 | `summary` | | One-line per snippet: match/mismatch with instruction counts |
 | `instructions` | `<snippet>` | Side-by-side normalised instruction listing |

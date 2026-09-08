@@ -46,10 +46,9 @@ subcommand. All line/col arguments are **0-based**.
 `definition`, `references`, `diagnostics`, `code-actions`, `context`, `all`,
 `completion`, and `code-lens` wait for the background workspace scan
 (`--scan-timeout`, default 30 s) before proceeding; otherwise cross-file
-results race the scan (#1094). A new cross-file check must call
-`client.wait_for_workspace_scan()` *before* `didOpen` — its docstring says
-why. `--also-open FILE` (repeatable) opens companion files after that wait
-and before `<file>` (#1111):
+results race the scan. A new cross-file check must call
+`client.wait_for_workspace_scan()` *before* `didOpen`. `--also-open FILE`
+(repeatable) opens companion files after that wait and before `<file>`:
 
 ```bash
 python3 .claude/skills/lsp-client/lsp_client.py --also-open lib.tcl definition consumer.tcl 3 10
