@@ -508,9 +508,19 @@ struct PackReport {
     synthesised_calls: usize,
     diagnostics: usize,
     optimisations: usize,
+    analysis_snapshots: Vec<AnalysisSnapshot>,
     load: Duration,
     analysis: Duration,
     unresolved: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AnalysisSnapshot {
+    /// A corpus path, or the deterministic range of synthesised calls in the
+    /// analysed batch.
+    input: String,
+    diagnostics: Vec<Diagnostic>,
+    optimisations: Vec<Optimisation>,
 }
 
 impl PackReport {
@@ -756,6 +766,19 @@ fn canonicalise_optimisations(optimisations: &mut [Optimisation]) {
     });
 }
 
+fn canonicalise_diagnostics(diagnostics: &mut [Diagnostic]) {
+    diagnostics.sort_by(|a, b| {
+        a.span
+            .start()
+            .cmp(&b.span.start())
+            .then_with(|| a.span.end().cmp(&b.span.end()))
+            .then_with(|| a.code.cmp(&b.code))
+            .then_with(|| a.severity.as_str().cmp(b.severity.as_str()))
+            .then_with(|| a.message.cmp(&b.message))
+            .then_with(|| format!("{:?}", a.fixes).cmp(&format!("{:?}", b.fixes)))
+    });
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AnalysisMode {
     Legacy,
@@ -856,6 +879,7 @@ struct PackSnapshot {
     synthesised_calls: usize,
     diagnostics: usize,
     optimisations: usize,
+    analysis_snapshots: Vec<AnalysisSnapshot>,
     unresolved: Vec<String>,
 }
 
@@ -880,6 +904,7 @@ impl PackReport {
             synthesised_calls: self.synthesised_calls,
             diagnostics: self.diagnostics,
             optimisations: self.optimisations,
+            analysis_snapshots: self.analysis_snapshots.clone(),
             unresolved: self.unresolved.clone(),
         }
     }
@@ -1114,30 +1139,54 @@ fn corpus_and_synthesis<'c>(
     (selected, synthesised)
 }
 
+#[derive(Debug, Default)]
+struct AnalysisSummary {
+    diagnostics: usize,
+    optimisations: usize,
+    snapshots: Vec<AnalysisSnapshot>,
+}
+
 /// Analyse and optimise every selected corpus file and every synthesised
-/// script, returning the diagnostic and optimisation counts and the wall clock
-/// it took.
+/// script, retaining canonical records so the differential proof can compare
+/// the actual results rather than only aggregate counts.
 fn analyse_all(
     selected: &[&CorpusFile],
     synthesised: &[String],
+    root: &Path,
     dialect: &str,
     overlay: u64,
     mode: AnalysisMode,
-) -> (usize, usize, Duration) {
-    let (mut diagnostics, mut optimisations) = (0usize, 0usize);
+) -> (AnalysisSummary, Duration) {
+    let mut summary = AnalysisSummary::default();
     let started = Instant::now();
     for file in selected {
-        let output = analyse_with_mode(&file.text, dialect, overlay, mode);
-        diagnostics += output.diagnostics.len();
-        optimisations += output.optimisations.len();
+        let mut output = analyse_with_mode(&file.text, dialect, overlay, mode);
+        canonicalise_diagnostics(&mut output.diagnostics);
+        canonicalise_optimisations(&mut output.optimisations);
+        summary.diagnostics += output.diagnostics.len();
+        summary.optimisations += output.optimisations.len();
+        summary.snapshots.push(AnalysisSnapshot {
+            input: relative(&file.path, root),
+            diagnostics: output.diagnostics,
+            optimisations: output.optimisations,
+        });
     }
-    for chunk in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT) {
+    for (chunk_index, chunk) in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT).enumerate() {
         let script = format!("{}\n", chunk.join("\n"));
-        let output = analyse_with_mode(&script, dialect, overlay, mode);
-        diagnostics += output.diagnostics.len();
-        optimisations += output.optimisations.len();
+        let mut output = analyse_with_mode(&script, dialect, overlay, mode);
+        canonicalise_diagnostics(&mut output.diagnostics);
+        canonicalise_optimisations(&mut output.optimisations);
+        summary.diagnostics += output.diagnostics.len();
+        summary.optimisations += output.optimisations.len();
+        let start = chunk_index * SYNTHESISED_CALLS_PER_SCRIPT;
+        let end = start + chunk.len();
+        summary.snapshots.push(AnalysisSnapshot {
+            input: format!("synthesised[{start}..{end}]"),
+            diagnostics: output.diagnostics,
+            optimisations: output.optimisations,
+        });
     }
-    (diagnostics, optimisations, started.elapsed())
+    (summary, started.elapsed())
 }
 
 fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackReport {
@@ -1181,8 +1230,8 @@ fn run_pack_with_mode(
     let (installed, gated_out, unresolved) = installation_of(&set, profile, &registry);
 
     let (selected, synthesised) = corpus_and_synthesis(&set, corpus, corpus_family(pack.dialect));
-    let (diagnostics, optimisations, analysis) =
-        analyse_all(&selected, &synthesised, pack.dialect, set.key, mode);
+    let (analysis_summary, analysis) =
+        analyse_all(&selected, &synthesised, root, pack.dialect, set.key, mode);
 
     let quarantined = slots
         .iter()
@@ -1216,8 +1265,9 @@ fn run_pack_with_mode(
             .map(|file| relative(&file.path, root))
             .collect(),
         synthesised_calls: synthesised.len(),
-        diagnostics,
-        optimisations,
+        diagnostics: analysis_summary.diagnostics,
+        optimisations: analysis_summary.optimisations,
+        analysis_snapshots: analysis_summary.snapshots,
         load,
         analysis,
         unresolved,
