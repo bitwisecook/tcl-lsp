@@ -100,8 +100,8 @@
 //!
 //! Set `SPECTCL_CORPUS_DIFF=1` to run the pre-#1940 two-unit path alongside the
 //! shared-unit path through the exact gate and compare a deterministic semantic
-//! snapshot of every per-pack report. This doubles the gate intentionally; the
-//! normal run remains single-path.
+//! snapshot of every per-pack report. This doubles the gate and its watchdog
+//! budget intentionally; the normal run remains single-path.
 //!
 //! ## Containment
 //!
@@ -509,6 +509,7 @@ struct PackReport {
     diagnostics: usize,
     optimisations: usize,
     analysis_snapshots: Vec<AnalysisSnapshot>,
+    analysis_fallbacks: Vec<String>,
     load: Duration,
     analysis: Duration,
     unresolved: Vec<String>,
@@ -644,10 +645,13 @@ fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
     (set, started.elapsed())
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AnalysisPath {
     Legacy,
     Shared,
+    SharedProfileMismatch,
+    SharedBuildFallback,
+    SharedAnalyserFallback,
     SharedDiagnosticsLegacyOptimiser,
 }
 
@@ -699,7 +703,9 @@ fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     // Keep the old two-unit path until both entry points can consume the same
     // profile without losing the Tk grammar contract.
     if !std::ptr::eq(unit_profile, optimiser_profile) {
-        return analyse_legacy(source, dialect, overlay);
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedProfileMismatch;
+        return output;
     }
 
     // Contain only the shared-unit operations. A malformed corpus document
@@ -712,7 +718,9 @@ fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
                 .with_interprocedural(&registry, Some(unit_profile)),
         )
     })) else {
-        return analyse_legacy(source, dialect, overlay);
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedBuildFallback;
+        return output;
     };
 
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
@@ -720,7 +728,9 @@ fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
         analyser.set_cu_override(Arc::clone(&unit));
         analyser.analyse(source, dialect)
     })) else {
-        return analyse_legacy(source, dialect, overlay);
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedAnalyserFallback;
+        return output;
     };
 
     let Ok(optimisations) = catch_unwind(AssertUnwindSafe(|| {
@@ -828,7 +838,7 @@ fn shared_unit_matches_legacy_for_representative_profiles() {
         (
             "tk",
             "package require Tk\nbutton .b\npack .b\nset ${a{b}c} 1\n",
-            AnalysisPath::Legacy,
+            AnalysisPath::SharedProfileMismatch,
         ),
     ];
 
@@ -848,6 +858,36 @@ fn shared_unit_matches_legacy_for_representative_profiles() {
         assert_eq!(
             shared_optimisations, legacy_optimisations,
             "{dialect} raw optimisations"
+        );
+    }
+}
+
+#[test]
+fn shared_analysis_fallbacks_are_never_silent() {
+    let cases = [
+        (AnalysisPath::Shared, false),
+        (AnalysisPath::SharedProfileMismatch, false),
+        (AnalysisPath::SharedBuildFallback, true),
+        (AnalysisPath::SharedAnalyserFallback, true),
+        (AnalysisPath::SharedDiagnosticsLegacyOptimiser, true),
+    ];
+
+    for (path, expected_fallback) in cases {
+        let mut summary = AnalysisSummary::default();
+        record_analysis(
+            &mut summary,
+            "fixture.tcl".to_owned(),
+            AnalysisOutput {
+                path,
+                diagnostics: Vec::new(),
+                optimisations: Vec::new(),
+            },
+            AnalysisMode::Shared,
+        );
+        assert_eq!(
+            !summary.fallbacks.is_empty(),
+            expected_fallback,
+            "{path:?} fallback classification"
         );
     }
 }
@@ -880,6 +920,7 @@ struct PackSnapshot {
     diagnostics: usize,
     optimisations: usize,
     analysis_snapshots: Vec<AnalysisSnapshot>,
+    analysis_fallbacks: Vec<String>,
     unresolved: Vec<String>,
 }
 
@@ -905,6 +946,7 @@ impl PackReport {
             diagnostics: self.diagnostics,
             optimisations: self.optimisations,
             analysis_snapshots: self.analysis_snapshots.clone(),
+            analysis_fallbacks: self.analysis_fallbacks.clone(),
             unresolved: self.unresolved.clone(),
         }
     }
@@ -998,6 +1040,13 @@ fn validate_reports(reports: &[PackReport]) -> Vec<String> {
                 "{}: installed but unresolvable in the registry: {}",
                 report.file,
                 report.unresolved.join(", ")
+            ));
+        }
+        if !report.analysis_fallbacks.is_empty() {
+            failures.push(format!(
+                "{}: shared compilation-unit analysis unexpectedly fell back for {}",
+                report.file,
+                report.analysis_fallbacks.join(", ")
             ));
         }
     }
@@ -1144,6 +1193,34 @@ struct AnalysisSummary {
     diagnostics: usize,
     optimisations: usize,
     snapshots: Vec<AnalysisSnapshot>,
+    fallbacks: Vec<String>,
+}
+
+fn record_analysis(
+    summary: &mut AnalysisSummary,
+    input: String,
+    mut output: AnalysisOutput,
+    mode: AnalysisMode,
+) {
+    if mode == AnalysisMode::Shared
+        && !matches!(
+            output.path,
+            AnalysisPath::Shared | AnalysisPath::SharedProfileMismatch
+        )
+    {
+        summary
+            .fallbacks
+            .push(format!("{input}: {:?}", output.path));
+    }
+    canonicalise_diagnostics(&mut output.diagnostics);
+    canonicalise_optimisations(&mut output.optimisations);
+    summary.diagnostics += output.diagnostics.len();
+    summary.optimisations += output.optimisations.len();
+    summary.snapshots.push(AnalysisSnapshot {
+        input,
+        diagnostics: output.diagnostics,
+        optimisations: output.optimisations,
+    });
 }
 
 /// Analyse and optimise every selected corpus file and every synthesised
@@ -1160,31 +1237,20 @@ fn analyse_all(
     let mut summary = AnalysisSummary::default();
     let started = Instant::now();
     for file in selected {
-        let mut output = analyse_with_mode(&file.text, dialect, overlay, mode);
-        canonicalise_diagnostics(&mut output.diagnostics);
-        canonicalise_optimisations(&mut output.optimisations);
-        summary.diagnostics += output.diagnostics.len();
-        summary.optimisations += output.optimisations.len();
-        summary.snapshots.push(AnalysisSnapshot {
-            input: relative(&file.path, root),
-            diagnostics: output.diagnostics,
-            optimisations: output.optimisations,
-        });
+        let output = analyse_with_mode(&file.text, dialect, overlay, mode);
+        record_analysis(&mut summary, relative(&file.path, root), output, mode);
     }
     for (chunk_index, chunk) in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT).enumerate() {
         let script = format!("{}\n", chunk.join("\n"));
-        let mut output = analyse_with_mode(&script, dialect, overlay, mode);
-        canonicalise_diagnostics(&mut output.diagnostics);
-        canonicalise_optimisations(&mut output.optimisations);
-        summary.diagnostics += output.diagnostics.len();
-        summary.optimisations += output.optimisations.len();
+        let output = analyse_with_mode(&script, dialect, overlay, mode);
         let start = chunk_index * SYNTHESISED_CALLS_PER_SCRIPT;
         let end = start + chunk.len();
-        summary.snapshots.push(AnalysisSnapshot {
-            input: format!("synthesised[{start}..{end}]"),
-            diagnostics: output.diagnostics,
-            optimisations: output.optimisations,
-        });
+        record_analysis(
+            &mut summary,
+            format!("synthesised[{start}..{end}]"),
+            output,
+            mode,
+        );
     }
     (summary, started.elapsed())
 }
@@ -1268,6 +1334,7 @@ fn run_pack_with_mode(
         diagnostics: analysis_summary.diagnostics,
         optimisations: analysis_summary.optimisations,
         analysis_snapshots: analysis_summary.snapshots,
+        analysis_fallbacks: analysis_summary.fallbacks,
         load,
         analysis,
         unresolved,
@@ -1408,6 +1475,26 @@ fn with_watchdog<T: Send + 'static>(
     }
 }
 
+fn corpus_watchdog_budget(include_tmp: bool, differential: bool) -> Duration {
+    let per_sweep = if include_tmp {
+        Duration::from_mins(30)
+    } else {
+        Duration::from_mins(10)
+    };
+    per_sweep.saturating_mul(if differential { 2 } else { 1 })
+}
+
+#[test]
+fn corpus_watchdog_scales_with_work_requested() {
+    assert_eq!(
+        corpus_watchdog_budget(false, false),
+        Duration::from_mins(10)
+    );
+    assert_eq!(corpus_watchdog_budget(false, true), Duration::from_mins(20));
+    assert_eq!(corpus_watchdog_budget(true, false), Duration::from_mins(30));
+    assert_eq!(corpus_watchdog_budget(true, true), Duration::from_mins(60));
+}
+
 // The tests
 
 /// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
@@ -1422,11 +1509,10 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
     // The watchdog bounds the work asked for, so it scales with the corpus
     // asked for: the samples-only default is seconds, the opt-in sweep is
     // hundreds of real-world files per pack.
-    let budget = if opted_into_tmp_corpus() {
-        Duration::from_mins(30)
-    } else {
-        Duration::from_mins(10)
-    };
+    let budget = corpus_watchdog_budget(
+        opted_into_tmp_corpus(),
+        std::env::var_os("SPECTCL_CORPUS_DIFF").is_some(),
+    );
     let (report, failures) = with_watchdog(
         "spectcl-corpus",
         budget,
