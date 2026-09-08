@@ -321,6 +321,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
             // A *value-parse* failure is re-worded to C's dict spelling and
             // given its `TCL VALUE DICTIONARY …` code; anything else (wrong #
             // args, unknown key) passes through unchanged (issue #1573).
+            Err(e) if e.error_code().is_some() => crate::command::completion_from_cmd_error(e),
             Err(e) => crate::exec::dict_parse_err(&e.into_message()),
         };
     }

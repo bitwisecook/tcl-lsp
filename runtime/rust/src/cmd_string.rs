@@ -156,7 +156,7 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(v);
                     Code::Ok
                 }
-                Err(e) => interp.set_error(e.message().as_bytes()),
+                Err(e) => interp.report_cmd_error(e),
             };
         }
     }
