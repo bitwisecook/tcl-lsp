@@ -67,6 +67,11 @@ User-facing compiler troubleshooting and how-tos live in
   and liveness.
 - [constant-folding-type-inference.md](constant-folding-type-inference.md)
   — SCCP and type lattice.
+- [value-transfers.md](value-transfers.md) — **proposal** for the
+  registry's dataflow axis (issue #1943): one `ValueTransfer` descriptor per
+  command replacing the per-command fold and `incr` arms in SCCP, its
+  SpecTcl `cell_fold` / `destructure_fold` families, the soundness gates,
+  and what changes for every analysis, optimisation, and diagnostic.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.

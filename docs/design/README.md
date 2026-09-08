@@ -52,6 +52,10 @@ passes, and ownership matrices.
   pipeline, with diagrams and cross-links to the stage documents.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
+- [value-transfers.md](compiler/value-transfers.md) — **proposal** for the
+  registry's dataflow axis (issue #1943): how a command invocation transforms
+  the constant lattice, declared once per command, authorable from a
+  `.tclspec` pack, and consumed generically by every pass and diagnostic.
 
 ## contracts/
 

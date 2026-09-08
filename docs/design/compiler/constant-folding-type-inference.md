@@ -34,12 +34,30 @@ live under `rust/tcl-compiler/src/optimiser/`.
 
 Note: tclsh emits `loadStk + add` (variables could be modified by traces),
 so the O101 suggestion is a diagnostic hint, not a bytecode transformation.
-Codegen (bytecode and WASM) upholds this separation structurally — it never
-reads `fu.sccp`/`LatticeValue`; it only sees the source text it is handed.
-A traced variable is therefore at risk only from the optimiser's *suggested
-source rewrite*, which gates on `Module::traced_variables` /
-`has_dynamic_variable_trace` and memory-SSA aliasing before proposing a
-forward (`optimiser/manager.rs`, `elimination.rs`, `chain_fold.rs`).
+The Rust `tcl-compiler` codegen keeps that separation structurally. The
+`TclVM` bytecode emitter never reads `fu.sccp` or a `LatticeValue`; it only
+ever sees whatever source text it is handed, literal or not. The WASM
+pipeline reads a `LatticeValue` in exactly one place —
+`selected_closed_native_coverage` in `rust/tcl-compiler/src/codegen/wasm/pipeline.rs`,
+which takes a `Const(Int)` as typed evidence for the default-off
+sealed-program native-integer plan of
+[semantic-aot-optimisation.md](semantic-aot-optimisation.md) — and never to
+shortcut a variable read. A traced variable is therefore not independently
+at risk from codegen: the risk is confined to the optimiser's own
+*suggested source rewrite* being wrong, and the propagation passes gate on
+the trace and alias facts before proposing one. The membership test is
+`sccp::is_externally_mutable` (a `::`-qualified name, a name in the
+function's escaping set, or any dynamic variable trace); the escaping set
+comes from `var_observability::analyse_var_observability` extended with
+`var_observability::scan_module_global_names` for the top-level body and
+with the whole-module `Module::traced_variables` carried by
+`sccp::TraceInputs`. SCCP applies that test to every def it evaluates, so a
+constant branch or a folded value never involves a traced or aliased name
+in the first place; `propagation::run_load_forwarding` (O102) applies it
+independently because its def-use walk never consults `fu.sccp`; and
+`propagation::run_store_to_load_forwarding` (O127) adds the memory-SSA
+half through `memory_ssa::compute_aliases` when the unit carries no
+`MemorySsa`. There is no separate bytecode-level shortcut to guard.
 
 ### When folding fails
 
