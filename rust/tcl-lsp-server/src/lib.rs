@@ -1117,6 +1117,35 @@ struct DocumentsHolder {
     /// [`TurnHolder`] has carried this pairing since #1667; this is the same
     /// idea, belatedly made consistent.
     phase_since: crate::rt::Instant,
+    /// The longest phase this hold has finished, and where it was.
+    ///
+    /// `site` + `phase_since` answer "is *this* step the slow one", which is
+    /// only ever about the phase running right now. A hold that spent a minute
+    /// in an earlier phase and then moved on reports a young `in_phase` and a
+    /// large `held`, and nothing says which of the phases behind it burned the
+    /// time — the retag overwrites the site (issue #1678: a capture read
+    /// `publish send (71.8s)` for a send that could not have taken more than
+    /// its 2s budget, so the time was spent in a phase that had already been
+    /// relabelled away).
+    ///
+    /// Recorded on every retag *and* on release, because a hold whose slowest
+    /// phase is its last one never retags again — without the release update
+    /// the very shape most worth catching would be the one that leaves no
+    /// trace. `None` until the first phase ends.
+    longest_phase: Option<(&'static str, std::time::Duration)>,
+}
+
+impl DocumentsHolder {
+    /// Fold the phase ending at `now` into [`Self::longest_phase`].
+    ///
+    /// Called when the phase is relabelled and again when the hold is released,
+    /// so the last phase counts like every other one.
+    fn close_phase(&mut self, now: crate::rt::Instant) {
+        let elapsed = now.duration_since(self.phase_since);
+        if self.longest_phase.is_none_or(|(_, longest)| elapsed > longest) {
+            self.longest_phase = Some((self.site, elapsed));
+        }
+    }
 }
 
 impl Default for DocumentStore {
@@ -1176,6 +1205,7 @@ impl DocumentStore {
             site,
             since: acquired,
             phase_since: acquired,
+            longest_phase: None,
         });
         drop(tracking);
         DocumentsGuard { docs, store: self }
@@ -1252,7 +1282,9 @@ impl DocumentStore {
             let tracking = self.tracking();
             (
                 tracking.holder.map(|h| held_for(&h, now)),
-                tracking.last.map(|h| (h.site, now.duration_since(h.since))),
+                tracking
+                    .last
+                    .map(|h| (h.site, now.duration_since(h.since), h.longest_phase)),
                 tracking.acquisitions,
                 tracking.waiters.clone(),
             )
@@ -1299,7 +1331,9 @@ impl DocumentStore {
             let tracking = self.tracking();
             (
                 tracking.holder.map(|h| held_for(&h, now)),
-                tracking.last.map(|h| (h.site, now.duration_since(h.since))),
+                tracking
+                    .last
+                    .map(|h| (h.site, now.duration_since(h.since), h.longest_phase)),
                 tracking.acquisitions,
             )
         };
@@ -1324,8 +1358,10 @@ impl DocumentStore {
     /// from under the guard.
     fn retag_held(&self, site: &'static str) {
         if let Some(holder) = self.tracking().holder.as_mut() {
+            let now = crate::rt::Instant::now();
+            holder.close_phase(now);
             holder.site = site;
-            holder.phase_since = crate::rt::Instant::now();
+            holder.phase_since = now;
         }
     }
 
@@ -1457,7 +1493,11 @@ impl Drop for DocumentsGuard<'_> {
         // start, so the reported age reads as "released, having held from N
         // seconds ago" — the release instant is recoverable from the pair.
         let mut tracking = self.store.tracking();
-        if let Some(departing) = tracking.holder.take() {
+        if let Some(mut departing) = tracking.holder.take() {
+            // The phase that was running at release is a finished phase like
+            // any other, and it is the one a hold whose *last* step is the slow
+            // one would otherwise never record (issue #1678).
+            departing.close_phase(crate::rt::Instant::now());
             tracking.last = Some(departing);
         }
     }
@@ -1795,23 +1835,27 @@ fn describe_documents_contention(
 ) -> String {
     let taken = after.acquisitions.saturating_sub(before.acquisitions);
     if let Some(h) = after.held_by {
-        // Both ages, never just the total: `held` says the hold is long,
-        // `in_phase` says whether *this* step is what is long. The counter is
-        // deliberately not printed here — nobody else can acquire a held map,
-        // so it is trivially zero and says nothing (issue #1657).
+        // Three readings, never fewer: `held` says the hold is long,
+        // `in_phase` says whether *this* step is what is long, and the
+        // high-water mark names the slowest step already behind it — which a
+        // retag would otherwise have relabelled away (issue #1678). The
+        // acquisition counter is deliberately not printed here — nobody else
+        // can acquire a held map, so it is trivially zero (issue #1657).
         return format!(
-            "the open-document map is held by {} — {:.1}s in total, {:.1}s at this point",
+            "the open-document map is held by {} — {:.1}s in total, {:.1}s at this point{}",
             h.site,
             h.held.as_secs_f64(),
             h.in_phase.as_secs_f64(),
+            describe_longest_phase(h.longest_phase),
         );
     }
     let last = after.last.map_or_else(
         || "never held".to_owned(),
-        |(site, age)| {
+        |(site, age, longest)| {
             format!(
-                "last held by {site}, whose hold began {:.1}s ago",
-                age.as_secs_f64()
+                "last held by {site}, whose hold began {:.1}s ago{}",
+                age.as_secs_f64(),
+                describe_longest_phase(longest),
             )
         },
     );
@@ -1841,6 +1885,7 @@ fn held_for(h: &DocumentsHolder, now: crate::rt::Instant) -> HeldFor {
         site: h.site,
         held: now.duration_since(h.since),
         in_phase: now.duration_since(h.phase_since),
+        longest_phase: h.longest_phase,
     }
 }
 
@@ -1856,12 +1901,34 @@ struct HeldFor {
     site: &'static str,
     held: std::time::Duration,
     in_phase: std::time::Duration,
+    /// The longest phase this hold has *finished*, and where — the third
+    /// reading, and the one that names an earlier phase a retag has since
+    /// relabelled away (issue #1678).
+    longest_phase: Option<(&'static str, std::time::Duration)>,
+}
+
+/// Render a hold's high-water phase as a trailing clause, or nothing when the
+/// hold has not finished a phase yet.
+///
+/// Suppressed when it would only repeat the current phase: a hold still in its
+/// first phase has no earlier one to name, and saying so adds a number to
+/// squint at rather than a fact.
+fn describe_longest_phase(longest: Option<(&'static str, std::time::Duration)>) -> String {
+    longest.map_or_else(String::new, |(site, elapsed)| {
+        format!(
+            "; longest phase so far {site} ({:.1}s)",
+            elapsed.as_secs_f64()
+        )
+    })
 }
 
 /// One instant's view of [`DocumentStore`] contention, for the stall line.
 struct DocumentsContention {
     held_by: Option<HeldFor>,
-    last: Option<(&'static str, std::time::Duration)>,
+    /// The last holder's site, how long ago its hold began, and its longest
+    /// finished phase — the same third reading the live case reports, kept for
+    /// a hold that has already released.
+    last: Option<(&'static str, std::time::Duration, Option<(&'static str, std::time::Duration)>)>,
     acquisitions: u64,
 }
 
@@ -8047,6 +8114,44 @@ struct ConsumerDoc {
     text: Arc<str>,
     dialect: String,
     line_index: tcl_lexer::LineIndex,
+}
+
+/// The collision gate's refusal for renaming `cell` onto `new_cell`, or `None`
+/// when nothing declares the target.
+///
+/// Split out to say *where* the collision is. "`::b` is already declared in
+/// this workspace" is a claim the user cannot check: the workspace the gate
+/// reads spans every scanned folder, not the files they have in mind, and a
+/// report against a project whose only Tcl file plainly contained no `b` left
+/// both the reporter and the investigation with nowhere to go (issue #1935).
+/// Naming the documents turns the refusal into something falsifiable in one
+/// glance.
+///
+/// At most three are listed, with a count for the rest: the reason renders as a
+/// single unwrapped line in some hosts (the report's screenshot), so the point
+/// is to be checkable, not exhaustive — one name is usually the whole answer,
+/// and the gate refuses on the first one regardless.
+fn describe_variable_collision(cell: &str, new_cell: &str, colliding: &[String]) -> Option<String> {
+    const SHOWN: usize = 3;
+    if colliding.is_empty() {
+        return None;
+    }
+    let listed = colliding
+        .iter()
+        .take(SHOWN)
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let rest = colliding.len().saturating_sub(SHOWN);
+    let where_ = if rest == 0 {
+        listed
+    } else {
+        format!("{listed} and {rest} more")
+    };
+    Some(format!(
+        "cannot rename `{cell}`: `{new_cell}` is already declared in {where_}, \
+         so renaming would merge two distinct namespace variables into one cell."
+    ))
 }
 
 impl Backend {
@@ -14844,17 +14949,26 @@ impl Backend {
             // A document that only *aliases* the target cell is proof it
             // exists just as much as a declaration is, and merging onto it is
             // just as destructive — so both tables gate the collision.
-            if !index
+            //
+            // The refusal names the documents it found, because "already
+            // declared in this workspace" is unfalsifiable from the editor: a
+            // report against a workspace whose only Tcl file demonstrably
+            // contained no `b` had no way to go further than disbelief, and
+            // neither did the investigation (issue #1935). The workspace the
+            // gate reads is not the set of files the user has in mind — it
+            // spans every scanned folder — so the one fact that makes the
+            // refusal checkable is *which* document declares the cell.
+            let mut colliding: Vec<String> = index
                 .variable_definitions_qualified(&new_cell, "")
-                .is_empty()
-                || !index.documents_aliasing_variable(&new_cell).is_empty()
-            {
+                .into_iter()
+                .map(|v| v.uri.clone())
+                .chain(index.documents_aliasing_variable(&new_cell))
+                .collect();
+            colliding.sort();
+            colliding.dedup();
+            if let Some(reason) = describe_variable_collision(&cell, &new_cell, &colliding) {
                 return Err(core_rename_safety::RenameRefusal {
-                    reason: format!(
-                        "cannot rename `{cell}`: `{new_cell}` is already declared in this \
-                         workspace, and renaming would merge two distinct namespace variables \
-                         into one cell."
-                    ),
+                    reason,
                     range: None,
                 });
             }
@@ -41552,6 +41666,124 @@ proc p {} {
         );
     }
 
+    /// Issue #1678 — the slowest phase of a hold must survive the retag that
+    /// relabels it away.
+    ///
+    /// A capture read `cache_and_deliver: publish send (71.8s)` for a send that
+    /// could not have exceeded its 2s budget, so the seventy seconds went to a
+    /// phase that had already been renamed. `site` and `phase_since` answer
+    /// only "is *this* step slow"; without a high-water mark nothing names an
+    /// earlier one.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_longest_phase_of_a_hold_survives_the_retag_that_renames_it() {
+        let store = DocumentStore::default();
+        let held = store.lock("slow-phase").await;
+
+        // Nothing has finished yet, so there is no high-water mark to report
+        // and the clause is suppressed rather than repeating the current phase.
+        assert!(store.holder().expect("held").longest_phase.is_none());
+
+        crate::rt::sleep(std::time::Duration::from_millis(120)).await;
+        held.retag("fast-phase");
+
+        let after = store.holder().expect("still held");
+        let (site, elapsed) = after.longest_phase.expect("the first phase closed");
+        assert_eq!(
+            site, "slow-phase",
+            "the high-water mark names the phase that burned the time, not the \
+             one running now",
+        );
+        assert!(
+            elapsed >= std::time::Duration::from_millis(100),
+            "and carries its duration: {elapsed:?}",
+        );
+        assert!(
+            after.in_phase < std::time::Duration::from_millis(100),
+            "the current phase is young — which is exactly the reading that was \
+             ambiguous before",
+        );
+
+        // A later, shorter phase does not displace it.
+        held.retag("third-phase");
+        assert_eq!(
+            store.holder().expect("still held").longest_phase.map(|(s, _)| s),
+            Some("slow-phase"),
+        );
+    }
+
+    /// The phase running at release is a finished phase like any other.
+    ///
+    /// A hold whose *last* step is the slow one never retags again, so without
+    /// closing the phase on drop the shape most worth catching would be the one
+    /// that leaves no trace.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_phase_running_at_release_is_recorded_too() {
+        let store = DocumentStore::default();
+        let held = store.lock("quick-phase").await;
+        held.retag("slow-final-phase");
+        crate::rt::sleep(std::time::Duration::from_millis(120)).await;
+        drop(held);
+
+        let contention = store.contention();
+        assert!(contention.held_by.is_none(), "released");
+        let (site, _, longest) = contention.last.expect("a departed holder");
+        assert_eq!(site, "slow-final-phase");
+        let (longest_site, elapsed) = longest.expect("the final phase closed on release");
+        assert_eq!(longest_site, "slow-final-phase");
+        assert!(
+            elapsed >= std::time::Duration::from_millis(100),
+            "{elapsed:?}",
+        );
+    }
+
+    /// The stall line reports all three readings, and says nothing about a
+    /// high-water mark it does not have.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_stall_line_names_the_longest_phase() {
+        let store = DocumentStore::default();
+        let before = store.contention();
+        let held = store.lock("first").await;
+
+        let fresh = describe_documents_contention(&before, &store.contention());
+        assert!(fresh.contains("held by first"), "{fresh}");
+        assert!(
+            !fresh.contains("longest phase"),
+            "a hold still in its first phase has no earlier phase to name: {fresh}",
+        );
+
+        crate::rt::sleep(std::time::Duration::from_millis(120)).await;
+        held.retag("second");
+        let line = describe_documents_contention(&before, &store.contention());
+        assert!(line.contains("held by second"), "{line}");
+        assert!(
+            line.contains("longest phase so far first"),
+            "the line must name the phase that burned the time: {line}",
+        );
+    }
+
+    /// The collision refusal names the documents, and says nothing at all when
+    /// there is no collision.
+    ///
+    /// Three at most, then a count: the reason renders as one unwrapped line in
+    /// some hosts, and the gate refuses on the first collision regardless, so
+    /// the list is there to be checkable rather than exhaustive (issue #1935).
+    #[test]
+    fn a_collision_refusal_names_where_the_cell_already_lives() {
+        assert!(describe_variable_collision("::a", "::b", &[]).is_none());
+
+        let one = describe_variable_collision("::a", "::b", &["file:///x.tcl".to_owned()])
+            .expect("a collision refuses");
+        assert!(one.contains("cannot rename `::a`"), "{one}");
+        assert!(one.contains("`::b` is already declared in file:///x.tcl"), "{one}");
+        assert!(!one.contains("more"), "one document needs no tail: {one}");
+
+        let many: Vec<String> = (0..5).map(|i| format!("file:///f{i}.tcl")).collect();
+        let listed = describe_variable_collision("::a", "::b", &many).expect("a collision refuses");
+        assert!(listed.contains("file:///f0.tcl, file:///f1.tcl, file:///f2.tcl"), "{listed}");
+        assert!(listed.contains("and 2 more"), "{listed}");
+        assert!(!listed.contains("file:///f3.tcl"), "the tail is a count, not a list: {listed}");
+    }
+
     /// A contention snapshot must describe one state, not several.
     ///
     /// Codex P2 on #1677. The three readings used to live behind two mutexes
@@ -41665,7 +41897,7 @@ proc p {} {
                 "the acquisition count went backwards",
             );
             previous = snap.acquisitions;
-            if let (Some(held), Some((last_site, _))) = (snap.held_by, snap.last) {
+            if let (Some(held), Some((last_site, _, _))) = (snap.held_by, snap.last) {
                 seen_both += 1;
                 assert_ne!(
                     held.site, last_site,
@@ -41946,6 +42178,7 @@ proc p {} {
             site: "deliver_if_current",
             held: std::time::Duration::from_secs(5),
             in_phase: std::time::Duration::from_secs(5),
+            longest_phase: None,
         };
         let waiter = |parked_ms: u64| WaiterSnapshot {
             telemetry_id: 2,

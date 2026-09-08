@@ -1018,3 +1018,34 @@ fn a_variable_renames_again_after_the_first_rename_was_undone() {
         "`::b` is not declared in any live document, so the rename must proceed",
     );
 }
+
+/// And when the gate does fire, the refusal says *where*.
+///
+/// "`::b` is already declared in this workspace" is a claim the editor cannot
+/// check. The workspace the gate reads spans every scanned folder, not the
+/// files the user has in mind, so a refusal that names no document leaves
+/// disbelief as the only available response — which is exactly where issue
+/// #1935's report, and the investigation into it, both stopped.
+#[test]
+fn a_refused_rename_names_the_document_it_collided_with() {
+    let mut lsp = Lsp::tcl();
+    let mine = unique_uri("tcl");
+    let theirs = unique_uri("tcl");
+    lsp.open_ready(&mine, "set a 1\nputs \"$a\"\n");
+    lsp.open_ready(&theirs, "set b 1\nputs \"$b\"\n");
+
+    let error = lsp.rename_error(&mine, 0, 4, "b");
+    let message = error["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("is already declared in"),
+        "the collision gate must fire — `::b` is live in the sibling: {error}",
+    );
+    assert!(
+        message.contains(theirs.as_str()),
+        "and must name the document holding it, so the claim can be checked: {message}",
+    );
+    assert!(
+        !message.contains("in this workspace,"),
+        "the unfalsifiable phrasing must be gone: {message}",
+    );
+}
