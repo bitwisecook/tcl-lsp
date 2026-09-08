@@ -27,7 +27,7 @@
 //! handshake reached the certificate message, else `null`.
 
 use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use indexmap::IndexMap;
@@ -155,7 +155,28 @@ fn classify_verify_kind(msg: &str) -> String {
     .to_owned()
 }
 
+/// Install the process-level `rustls` crypto provider, once.
+///
+/// Both providers are linked in — `rustls`'s own default features select
+/// `aws-lc-rs` and `ureq` pulls `ring` — so rustls cannot infer one from the
+/// feature set, and [`rustls::ClientConfig::builder`] panics with "Could not
+/// automatically determine the process-level `CryptoProvider`" until a default
+/// is installed. `aws-lc-rs` is the provider this crate's own `rustls`
+/// dependency asks for, so that is the one installed.
+///
+/// The default is process-wide state rustls owns, not configuration of ours:
+/// [`Once`] keeps two probes from racing the install, and an already-installed
+/// provider — another consumer of the same process got there first — is the
+/// wanted outcome, not a failure.
+fn install_crypto_provider() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    });
+}
+
 fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls::Error> {
+    install_crypto_provider();
     let mut roots = rustls::RootCertStore::empty();
     if let Some(path) = ca_bundle {
         if let Ok(pem) = std::fs::read(path) {
@@ -177,7 +198,43 @@ fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls
 
 #[cfg(test)]
 mod tests {
-    use super::classify_verify_kind;
+    use std::net::TcpListener;
+    use std::thread;
+
+    use super::{classify_verify_kind, client_config, handshake, install_crypto_provider};
+
+    /// Without an installed default provider `ClientConfig::builder()` panics
+    /// ("Could not automatically determine the process-level
+    /// `CryptoProvider`"), which is what every `tls_handshake` consumer hit in
+    /// a debug build. Installing twice must be a no-op, not a second install.
+    #[test]
+    fn the_crypto_provider_installs_once_and_a_client_config_builds() {
+        install_crypto_provider();
+        install_crypto_provider();
+        assert!(
+            client_config(None).is_ok(),
+            "a ClientConfig must build once the provider is installed"
+        );
+    }
+
+    /// The shared entry point, over a listener that accepts and hangs up: the
+    /// handshake cannot succeed, but it must *fail*, not panic — which is what
+    /// `tls_handshake` did before the provider was installed here. Local-only
+    /// and deterministic; no certificate or network is involved.
+    #[test]
+    fn a_handshake_against_a_closing_listener_reports_an_error_rather_than_panicking() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind a loopback listener");
+        let port = i64::from(listener.local_addr().expect("local addr").port());
+        let accepted = thread::spawn(move || drop(listener.accept()));
+
+        let result = handshake("127.0.0.1", port, "localhost", None);
+        accepted.join().expect("listener thread");
+
+        assert!(
+            result.is_err(),
+            "a peer that hangs up mid-handshake is a connection error, got {result:?}"
+        );
+    }
 
     #[test]
     fn classify_verify_kind_buckets_rustls_messages() {
