@@ -1045,7 +1045,10 @@ fn opt_leaf(o: &Value) -> ViewNode {
     let (tail, replacement) = if hint_only {
         (" (hint only)".to_owned(), "(none — hint only)".to_owned())
     } else {
-        (format!(" \u{2192} {}", s(o, "replacement")), s(o, "replacement"))
+        (
+            format!(" \u{2192} {}", s(o, "replacement")),
+            s(o, "replacement"),
+        )
     };
     ViewNode::leaf(
         format!("{} {}{tail}", s(o, "code"), s(o, "message")),
@@ -1061,12 +1064,7 @@ fn opt_leaf(o: &Value) -> ViewNode {
 }
 
 fn build_opt(d: &Value) -> Vec<ViewNode> {
-    let out: Vec<ViewNode> = arr(d, "optimisations")
-        .iter()
-        .map(|o| {
-            opt_leaf(o)
-        })
-        .collect();
+    let out: Vec<ViewNode> = arr(d, "optimisations").iter().map(opt_leaf).collect();
     if out.is_empty() {
         vec![ViewNode::note("(no optimiser rewrites)", "dim")]
     } else {
@@ -1187,12 +1185,7 @@ fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
     let out: Vec<ViewNode> = arr(d, "optimiserPasses")
         .iter()
         .map(|p| {
-            let opts: Vec<ViewNode> = arr(p, "optimisations")
-                .iter()
-                .map(|o| {
-                    opt_leaf(o)
-                })
-                .collect();
+            let opts: Vec<ViewNode> = arr(p, "optimisations").iter().map(opt_leaf).collect();
             let count = s(p, "count");
             ViewNode::branch(
                 format!("{} ({count})", s(p, "label")),
