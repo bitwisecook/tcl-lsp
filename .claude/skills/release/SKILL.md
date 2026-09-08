@@ -228,7 +228,7 @@ on that Environment — report it, do not work around it. The laptop targets
 only when a CI job itself failed (keyless `az login` for vsce; `OVSX_PAT`;
 `JETBRAINS_TOKEN`, first-ever upload is manual in the web UI).
 
-Sublime needs no step: Package Control resolves the `TclLsp.sublime-package`
+Sublime needs no step: Package Control resolves the `LSP-Tcl.sublime-package`
 asset on the release (`make publish-verify` checks it is there; registering
 the channel entry is a one-time PR the user raises —
 `editors/sublime-text/SUBMITTING.md`). Neovim and Helix are one-time

@@ -3,21 +3,16 @@
 Install the editor-specific artefact from
 [GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest).
 
-**No editor needs Python.** The server is a self-contained native
-`tcl-lsp-server` binary. The VS Code `.vsix` and the JetBrains `.zip`
+The server is a self-contained native `tcl-lsp-server` binary. The VS Code
+`.vsix` and the JetBrains `.zip`
 each bundle one binary per platform (macOS/Linux/Windows on x64 and
 arm64, plus Linux riscv64) and run the one matching your machine. The
 Sublime Text package and the Zed extension download the matching binary
 on first use.
 
-The Linux native binaries target glibc: x86_64 and arm64 require 2.28 or
-newer, while RISC-V requires 2.35 or newer. This covers the maintained GNU
-distribution families in the release matrix; Alpine does not run these native
-binaries. The separately published WASI server is independent of the host libc
-and is documented below for editors that can launch a WebAssembly runtime.
-
-On an architecture none of those seven covers, the same server is also
-published as a WebAssembly module — see
+The Linux binaries need glibc 2.28+ (x86_64, arm64) or 2.35+ (riscv64).
+Alpine and other non-glibc systems, and any architecture outside those seven,
+can run the WebAssembly build instead — see
 [No prebuilt binary for your platform?](#no-prebuilt-binary-for-your-platform)
 
 The standalone editors (Neovim, Emacs, Helix, and any other LSP-capable
@@ -143,7 +138,7 @@ file-types = ["tcl", "tk", "itcl", "tm", "tclspec", "irul", "irule", "iapp", "ia
 language-servers = ["tcl-lsp"]
 ```
 
-**Neovim** (`~/.config/nvim/server/tcl_lsp.lua`):
+**Neovim** (`~/.config/nvim/lsp/tcl_lsp.lua`):
 
 ```lua
 return {
@@ -186,11 +181,10 @@ every platform in one file, so it works regardless of your OS/architecture):
 code --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
 ```
 
-Configure under **Settings > Extensions > Tcl**. No Python interpreter
-is needed — the extension ships a native `tcl-lsp-server` binary for
-your platform and launches it automatically. There is no Python backend:
-to run against a local build, point `tclLsp.rustServerPath` at a
-`tcl-lsp-server` binary or `tclLsp.serverPath` at a checkout.
+Configure under **Settings > Extensions > Tcl**. The extension ships a
+native `tcl-lsp-server` binary for your platform and launches it
+automatically; to run a local build instead, point `tclLsp.rustServerPath`
+at a `tcl-lsp-server` binary or `tclLsp.serverPath` at a checkout.
 
 The `-universal` package works on **any** architecture, including ones with no
 prebuilt binary: it also carries the WebAssembly server, and falls back to it
@@ -234,7 +228,7 @@ What differs from the desktop:
   stayed clean.
 - **Cross-file analysis is limited on a virtual workspace.** The browser server
   has no filesystem, so the extension reads the workspace itself and hands the
-  files to the server. That transfer currently only carries files on the `file:`
+  files to the server. That transfer only carries files on the `file:`
   scheme, and github.dev / vscode.dev serve a repository on a virtual one
   (`vscode-vfs:`) — so on those hosts each open file is analysed in full, while
   results that depend on *un-opened* files (a definition in a sibling, the
@@ -262,31 +256,6 @@ cd editors/vscode && npm run test:web      # headless smoke test over testFixtur
 which downloads a VS Code web build and a Playwright Chromium. On a machine
 that already has Playwright's browsers elsewhere, point at them with
 `PLAYWRIGHT_BROWSERS_PATH=/path/to/browsers` instead of downloading again.
-
-### VS Code-compatible editors
-
-The `-universal` package works in editors that cannot use the Microsoft
-Marketplace (Cursor, Windsurf, VSCodium, Eclipse Theia, code-server /
-Coder, Gitpod, GitHub Codespaces Theia builds) — it bundles every
-platform's binary in one file, so there's no need to pick the right one
-by hand. Download it from the GitHub release and sideload through the
-editor's Extensions UI, or via the CLI:
-
-```sh
-cursor   --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
-codium   --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
-code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
-```
-
-(Windsurf, Theia, and Gitpod all surface the same drag-and-drop or
-"Install from VSIX" entry in their Extensions panel.)
-
-The extension is also published to **Open VSX**
-(<https://open-vsx.org/extension/bitwisecook/tcl-lsp>), the marketplace
-that code-server, openvscode-server, Gitpod, and Theia point at by
-default. Where one of those is configured with the Open VSX registry,
-install `tcl-lsp` from its built-in Extensions panel directly instead
-of sideloading a `.vsix`.
 
 ## Sublime Text
 
@@ -330,7 +299,7 @@ Language Server**.
 Install the server binary at `~/bin/tcl-lsp-server` (see
 [The server binary](#the-server-binary)).
 
-`~/.config/nvim/server/tcl_lsp.lua`:
+`~/.config/nvim/lsp/tcl_lsp.lua`:
 
 ```lua
 return {
@@ -416,9 +385,13 @@ and install with the editor's own CLI.
 | **Eclipse Theia** | Extensions side panel > **Install from VSIX…** |
 
 Settings UI, keybindings, and the compiler-explorer / Tk preview
-panels behave the same as in VS Code itself. The bundled native
-`tcl-lsp-server` binary is used automatically; no Python interpreter
-is involved.
+panels behave the same as in VS Code itself; the bundled native
+`tcl-lsp-server` binary is used automatically.
+
+The extension is also published to **Open VSX**
+(<https://open-vsx.org/extension/bitwisecook/tcl-lsp>), the registry
+code-server, openvscode-server, Gitpod, and Theia point at by default —
+install `tcl-lsp` from their Extensions panel instead of sideloading.
 
 ## Other LSP-capable editors
 

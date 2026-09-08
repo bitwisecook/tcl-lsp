@@ -15,7 +15,7 @@ iRules and iApps files too; this document covers what is F5-only.
 - [BIG-IP configuration support](#big-ip-configuration-support)
 - [The `f5` CLI](#the-f5-cli)
 - [`f5 query` — the query DSL](#f5-query--the-query-dsl)
-- [Scripting the query engine from Python (`f5q`)](#scripting-the-query-engine-from-python-f5q)
+- [Scripting the query engine from Python](#scripting-the-query-engine-from-python)
 - [BIG-IP report generator](#big-ip-report-generator)
 - [Secret handling](#secret-handling)
 - [APL (iApp Presentation Language)](#apl-iapp-presentation-language)
@@ -27,7 +27,7 @@ iRules and iApps files too; this document covers what is F5-only.
 
 ## Dialects and file types
 
-Four of the sixteen dialect profiles are F5:
+Four dialect profiles are F5:
 
 | Dialect | Covers | Detected from |
 |---|---|---|
@@ -61,8 +61,8 @@ and warning when a support milestone is within one year or has passed.
 
 The report's **Security** tab runs a small, offline set of high-confidence
 checks — factory/default `root`/`admin` credentials (verified against the
-stored password hash with no platform `crypt(3)` call, so the native, wasm,
-and any future backend agree), default/weak SNMP communities, disabled or
+stored password hash with no platform `crypt(3)` call, so the native and
+wasm backends agree), default/weak SNMP communities, disabled or
 weak password-policy enforcement, plaintext secrets, unprotected private-key
 material, and non-administrative shell access — and lists each as a
 stable-id, severity-ranked finding with remediation guidance. Detection never
@@ -92,8 +92,8 @@ the `tcl` CLI. Verbs:
 | `query` | The jq-shaped query/transform DSL over a config — see below |
 | `cleanup` | Emit a `tmsh delete` script for every unreferenced object |
 | `grep` | Walk the reference graph around an object, name, regex, or CIDR |
+| `explain` | Resolve one virtual or pool: profile chain, iRules, persistence, SNAT, pool, members |
 | `irule` | iRules-specific analysis (events, commands, references) |
-| `report` | Generate the standalone HTML BIG-IP report |
 | `extract` / `convert` | Read UCS/SCF archives, including passphrase-protected ones |
 
 Install it with the [one-line installer](INSTALL-cli.md), or build it from
@@ -159,18 +159,18 @@ f5 irule event-order samples/irules/policy.irule
 f5 irule event-info HTTP_REQUEST --json
 ```
 
-`f5` is a separate CLI from `tcl`.  The full verb list (today):
+The full verb list:
 
 | Group | Verbs |
 | --- | --- |
 | Acquisition | `fetch`, `extract` (UCS → SCF) |
-| Analysis | `stats`, `graph`, `explain`, `diff`, `grep`, `cleanup`, `validate` |
-| Transformation | `rename`, `redact`, `unredact`, `encrypt-secrets`, `decrypt-secrets`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
+| Analysis | `query`, `stats`, `graph`, `explain`, `explain-flow`, `diff`, `grep`, `cleanup`, `validate` |
+| Transformation | `rename`, `redact`, `unredact`, `encrypt-secrets`, `decrypt-secrets`, `pcap-remap`, `enrich-pcapng`, `enrich-wireshark`, `split`, `merge`, `convert`, `tmsh` |
 | Round-trip | `pull`, `push` |
-| iRules | `irule event-order`, `irule event-info`, `irule lint`, `irule trace`, `irule extract` |
-| Misc | `completion` |
+| iRules | `irule event-order`, `irule event-info`, `irule lint`, `irule trace`, `irule extract`, `irule format`, `irule minify`, `irule context` |
+| Misc | `registry-dump`, `completion` |
 
-Highlights of the newer verbs:
+Verb notes:
 
 - **`f5 fetch`** — pull SCF/UCS from a live BIG-IP via iControl REST or
   SSH (system `ssh`/`scp`).  Credentials resolve from CLI flags, env
@@ -268,12 +268,6 @@ Highlights of the newer verbs:
 - [Design — `f5 query` plugin contract](docs/design/f5-query-renderer-contract.md)
   — formal contracts, registration lifecycle, error mapping.
 
-**Install the `f5` CLI** — the released artefact is the native
-`f5-query` binary; no Python required.
-See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
-installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
-Fedora, shell completion setup, and source-build instructions.
-
 In VS Code, run the command palette entry **Tcl: Generate BIG-IP
 Cleanup Script** while a `bigip.conf` is open; the script and its JSON
 metadata report open side-by-side.  See
@@ -305,7 +299,7 @@ Worked how-tos, each a KCS note:
 | Read a passphrase-protected UCS | [read encrypted UCS archives](docs/kcs/kcs-howto-read-encrypted-ucs-archives.md) |
 | Pick between `query`, `grep`, and `rename` | [query vs grep vs rename](docs/kcs/kcs-qa-query-vs-grep-vs-rename.md) |
 
-## Scripting the query engine from Python (`f5q`)
+## Scripting the query engine from Python
 
 The query engine is also importable. The package is `f5report` under
 `rust/bigip-report-gen/python`, backed by the native `_engine` extension, so
@@ -344,7 +338,7 @@ build with `make report-wasm`.
 Passwords, keys, and other secret material in a config are treated as secrets
 throughout: findings never quote a password, hash, or salt, and the report's
 credential checks verify against the stored hash without calling the platform
-`crypt(3)`, so the native, WASM, and any future backend agree. See
+`crypt(3)`, so the native and WASM backends agree. See
 [kcs-feature-f5-secret-crypto.md](docs/kcs/features/kcs-feature-f5-secret-crypto.md).
 
 ## APL (iApp Presentation Language)
@@ -387,10 +381,10 @@ with recursive resolution and circular-include protection.
 
 ## tmsh commands
 
-The `f5-iapps` dialect includes 30+ `tmsh::` namespace commands
+The `f5-iapps` dialect includes the `tmsh::` namespace commands
 (`tmsh::create`, `tmsh::modify`, `tmsh::get_config`, `tmsh::get_field_value`,
-etc.) and 4 `script::` commands (`script::run`, `script::init`, etc.) with
-hover documentation and arity validation.
+…) and the `script::` commands (`script::run`, `script::init`, …) with hover
+documentation and arity validation.
 
 ## iRules-to-XC migration
 
@@ -433,7 +427,7 @@ behaviour in a standard `tclsh`.
 exit [::orch::done]
 ```
 
-The `generate-test` CLI command and `generate_irule_test` MCP tool analyse an
+The `generate-test` Claude Code skill and the `generate_irule_test` MCP tool analyse an
 iRule's control-flow graph to produce test cases automatically.  For iRules
 with CMP-sensitive patterns (`static::` writes in hot events, `table` shared
 state), multi-TMM scenarios using fakeCMP distribution are included.
@@ -522,6 +516,7 @@ triggering example and the fix.
 | `/migrate` | Convert nginx/Apache/HAProxy config to an iRule |
 | `/diagram` | Generate a Mermaid flowchart of the iRule's logic flow |
 | `/xc` | Translate the iRule to F5 Distributed Cloud configuration |
+| `/test` | Generate an Event Orchestrator test script for the iRule |
 
 ```
 User:   @irule /create rate limiter that allows 100 requests per minute per client IP

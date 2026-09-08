@@ -4,16 +4,17 @@ Per the porting method — when a value type has a real crossover question,
 **measure candidates compiled to WASM under `wasmtime`** (the real target —
 constant factors differ from the host) before committing to a representation.
 
-These programs are **throwaway** (like the spikes). The *decision* is recorded in
-the tracking doc's **Experiment log** and in the relevant module's
-representation-decision doc comment; the code here is reproducible evidence.
+These programs are **throwaway**. The decision each one settled is recorded in
+the module that implements it (`dict.rs`, `cmd_string.rs` / `obj.rs`,
+`bignum.rs`); the code here is the reproducible evidence behind it.
 
-Each file answers one question (stated in its header).
+Each file answers one question, stated in its header.
 
 | Experiment | Question | Decision |
 |---|---|---|
 | `dict_rep.rs` | Which structure for the insertion-ordered dict? | ordered `Vec` + FNV-hash index (EXP-DICT) |
 | `string_rep.rs` | Char-access + append without an O(n²) cliff? | ASCII fast path + lazy char-offset index; capacity-backed append (EXP-STRING) |
+| `bignum/` | Which bignum representation, and does libtommath build for wasm32? | libtommath `mp_int` with `-DMP_64BIT` on wasm32 (EXP-BIGNUM); see its own README |
 
 Run an experiment:
 

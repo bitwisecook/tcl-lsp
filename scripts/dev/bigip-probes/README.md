@@ -1,13 +1,10 @@
 # BIG-IP parser probes
 
 The iRules, drivers, controls and raw transcripts behind
-[`docs/design/bigip-irule-parser-measurements.md`](../../../docs/design/bigip-irule-parser-measurements.md),
-which supplies the live evidence that
-[`dialect-and-package-registry-redesign-bigip-evidence-review.md`](../../../docs/design/dialect-and-package-registry-redesign-bigip-evidence-review.md)
-§E3 was waiting on.
+[`docs/design/bigip-irule-parser-measurements.md`](../../../docs/design/bigip-irule-parser-measurements.md).
 
-Everything here is third-party-free, appliance-specific, and disposable. Nothing
-is a build input; nothing runs in CI.
+Everything here is appliance-specific and disposable. Nothing is a build
+input; nothing runs in CI.
 
 ## Layout
 
@@ -16,12 +13,12 @@ is a build input; nothing runs in CI.
 | `suites/*.probes` | Probe definitions: `@@ id \| WRAP\|RAW \| description` followed by a body. `WRAP` wraps the body in `when HTTP_REQUEST` (compiled, never executed); `RAW` is the whole rule. |
 | `suites/*.snippets` | Tab-separated `id<TAB>snippet` for word-formation probes; each becomes a `RULE_INIT` rule that logs `llength` and the value. |
 | `suites/09-tcl85-features.tcl` | The 25 Tcl 8.5-feature cases, shared verbatim between the tclsh controls, a `cli script`, and an iApp implementation. |
-| `irules/**/*.conf` | Materialised iRules, one per probe — 378 of them. Loadable directly with `tmsh load sys config merge file`. |
+| `irules/**/*.conf` | Materialised iRules, one per probe. Loadable directly with `tmsh load sys config merge file`. |
 | `lib/runner.sh` | Merge → classify (`ACCEPT` / `WARN` / `REJECT`) → delete driver for a `.probes` suite. |
 | `lib/wsrun.sh` | Same for word-formation suites, additionally scraping the logged word list. |
 | `lib/materialise.sh` | Expands a `.probes` suite into `.conf` iRules locally, using the same rules as `runner.sh`. |
 | `lib/gen-runtime-semantics.sh` | Emits the `RULE_INIT` rules that verify N-rule semantics by execution rather than compile acceptance. |
-| `suites/10-context-parity.cases` | The single 34-case list behind the four-context parity probe. One source, four wrappers, so any transcript difference is a real context difference. |
+| `suites/*.cases`, `suites/*.commands`, `suites/*.list` | Case lists a generator compiles into probes: `10-context-parity.cases` is the single source behind the four-context parity probe (one list, four wrappers, so any transcript difference is a real context difference); `11-proc-semantics.cases`, `07-event-context.commands` and `08-stock-84-builtins.list` feed their own drivers. |
 | `lib/gen-context-parity.py` | Compiles that case list into an iRule, a `cli script`, an iApp template+service, and a `tclsh` script. |
 | `lib/e4-context-probe.sh` | Runs all four contexts on the appliance under the §E4 contract: absence check before every create, `EXIT` trap, absence proof after every delete, virtual-server attachment check, APL recorded as `Unknown`, never `save sys config`. |
 | `lib/tclcheck.tcl` | Stock-Tcl acceptance checker. Stubs only iRule-specific commands. |
@@ -109,11 +106,13 @@ above.
 
 ## Cleanup
 
-The 2026-08-26 run used `probe_*` / `lab_*` prefixes and was verified clean
-afterwards (no residual rules, virtuals, pools, or `/var/tmp` files), but it did
-**not** implement the §E4 contract — no `__tcl_lsp_probe_*` prefix, no per-create
-absence check, no `EXIT` trap, and the traffic lab deliberately attached rules to
-virtual servers. `irules/f3-matrix/` is the exception: it uses the
-`__tcl_lsp_probe_*` prefix with a collision check before every create and an
-absence proof after every delete. `save sys config` was never run in any part of
-the run. See the measurements doc's methodology section for the full delta.
+`lib/e4-context-probe.sh` and `irules/f3-matrix/` implement the cleanup
+contract: every object they create carries the `__tcl_lsp_probe_*` prefix,
+with a collision check before each create, an `EXIT` trap, and an absence
+proof after each delete. The other suites do not. `lib/runner.sh` merges a
+`probe_<id>` rule without checking that the name is free and deletes it
+unconditionally, and the traffic-lab fixtures create `lab_*` rules, pools, and
+virtuals with no trap, so run those only on an appliance where no object of
+those names exists and verify it is clean afterwards. No suite runs
+`save sys config`, so nothing a probe leaves behind survives a reboot. The
+measurements doc's methodology section states the contract in full.

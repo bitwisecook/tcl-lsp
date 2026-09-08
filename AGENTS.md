@@ -1,13 +1,13 @@
 # AGENTS.md — development guide for AI agents
 
 tcl-lsp is a Tcl language server and toolchain: a native Rust workspace under
-`rust/` (~45 crates; `[workspace] members` in `Cargo.toml` is the list) that
-builds four binaries — `tcl-lsp-server`, `tcl`, `f5-query`, `tcl-mcp` — plus
+`rust/` (`[workspace] members` in `Cargo.toml` is the list) that builds the
+released binaries — `tcl-lsp-server`, `tcl`, `f5-query`, `tcl-mcp` — plus
 editor integrations under `editors/` (VS Code, Zed, JetBrains, Neovim, Emacs,
 Helix, Sublime) and the WASM runtime the compiler targets under
 `runtime/rust/`. It covers Tcl 8.4–9.1, F5 iRules/iApps, and the EDA dialects.
-Python is retired on this branch. `rust` is the only active branch;
-`legacy-py` is a locked archive — never branch, merge, or tag from it.
+`rust` is the only active branch; `legacy-py` is a locked archive — never
+branch, merge, or tag from it.
 
 Orientation: the crate map and dependency direction in
 [project-layout.md](docs/design/contracts/project-layout.md); the compiler
@@ -27,8 +27,7 @@ make prep-pr        # format + codegen + lint/typecheck + smoke tier
 
 - `rust-check` is the minimum for Rust-only changes; `prep-pr` is the gate
   before every `git push`. Fix failures, never skip them; commit the
-  formatting `prep-pr` applies and re-run. Every "pr-gate bounced on a
-  trivial lint" on this repo was a push that skipped this.
+  formatting `prep-pr` applies and re-run.
 - **CI carries the deep suites.** Rebase on `rust`, run `prep-pr`, open the
   PR, subscribe to its activity, fix forward. Do not block on the full suite
   locally. To reproduce a deep-tier failure: `make test` (workspace,
@@ -146,8 +145,8 @@ an interpreter-fallback path, or an explicit not-required classification.
 on an unclassified command; a real gap goes on `KNOWN_UNBACKED` in
 `rust/xtask/src/command_backing.rs` until it gains a handler. The
 `wasm_stdlib` feature embeds Tcl scripts and the Tcl-level `tcltest` package
-in the runtime VFS; it is not a port of the C `test*` commands, and
-package-driven extension bundling is future state only. Pipeline:
+in the runtime VFS; it is not a port of the C `test*` commands and does not
+bundle package-driven extensions. Pipeline:
 [wasm-codegen.md](docs/design/compiler/wasm-codegen.md); extensions:
 [wasm-extensions.md](docs/design/compiler/wasm-extensions.md).
 
@@ -163,8 +162,8 @@ trust it rather than re-deriving.
 
 ### Lexer, lowering, LSP
 
-- A stray `}` or `]` is `TokenType::ESC`; check `tok.kind`, not just
-  `tok.text` — a `}` typed `STR` is structural.
+- A stray `}` or `]` is `TokenType::Esc`; check `tok.kind`, not just
+  `tok.text` — a `}` typed `Str` is structural.
   [lexing-segmentation.md](docs/design/compiler/lexing-segmentation.md).
 - A lowering hook that cannot safely specialise a construct falls through to
   the generic call IR: the compiler only inlines what it can prove is safe,
@@ -215,7 +214,7 @@ glossary, and screenshot updates in the same PR
 
 ## Long-running lanes
 
-A lane keeps a tracking document under `docs/design/lanes/`, commits at every
-compiling milestone as `wip(<lane>):` with explicitly staged paths, never
-pushes (the orchestrator does), and never deletes `.git/index.lock`.
-Protocol: [lanes/README.md](docs/design/lanes/README.md).
+A lane keeps a tracking document under `docs/design/lanes/`, commits each
+coherent, compiling state as `wip(<lane>):` with explicitly staged paths,
+never pushes (the orchestrator does), and waits rather than deleting
+`.git/index.lock`. Rules: [lanes/README.md](docs/design/lanes/README.md).
