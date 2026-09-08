@@ -163,7 +163,7 @@ body, so a handler sees the versions live at the throw point.
 An `on`/`trap` handler body of `-` is a fallthrough — the same mechanism
 `switch` uses — sharing the next non-`-` handler's body. The lowerer marks it
 `TryHandler.fallthrough = true` with an empty body, so the `-` is not mistaken
-for a zero-argument command call (issue #703). `switch` and `try` are the only
+for a zero-argument command call. `switch` and `try` are the only
 two Tcl commands with this `-` fallthrough form.
 
 ### Key bytecode conventions matching tclsh

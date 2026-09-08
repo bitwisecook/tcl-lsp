@@ -14,6 +14,9 @@ tcl-lsp CLI
 
 ## How to use
 
+Build the binary with `cargo build -p tcl-debugger`; it is not part of the
+published toolchain.
+
 ```sh
 # Debug a script interactively (reads commands from stdin)
 tcl-debug script.tcl

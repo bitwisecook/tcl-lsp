@@ -522,8 +522,8 @@ The class's `new` / `create` constructor returns an object handle of
   the generic shape-based option highlighting rather than resolved unsoundly.
 - **Semantic tokens** resolve a `$var method …` / `[Class new] method …`
   dispatch against the class's `instance_methods` and colour the method plus
-  its declared options exactly like a built-in's — the object-handle half of
-  issue #748.  A method whose options are not modelled still resolves as a
+  its declared options exactly like a built-in's.  A method whose options are
+  not modelled still resolves as a
   method call; its `-option value` pairs fall through to the generic option
   highlighting.
 
