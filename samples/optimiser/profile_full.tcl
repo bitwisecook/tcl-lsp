@@ -27,9 +27,10 @@ proc greet {name} {
     }
 }
 
-# O115: redundant nested expr.  Only `aggressive` rewrites this: O115 as
-# implemented unwraps a nested `[expr …]` in a *branch condition*, and this one
-# is a `return` body (see the note in README.md).
+# O115: redundant nested expr.  O115 unwraps this `return` body — it is not
+# limited to branch conditions.  Only `aggressive` rewrites it *here*, and the
+# reason is elsewhere in this file: the `factorial` stanza below stops O115
+# being reported at all in a single pass (see README.md).
 proc double_expr {x} {
     return [expr {[expr {$x * 2}]}]
 }
@@ -105,10 +106,9 @@ proc format_name {first last} {
 
 # --- Recursion transforms (O121, O122, O123) ---
 
-# O121 only: the recursion is `return [factorial …]`, which O121 rewrites to
-# `tailcall`.  O122's loop conversion wants a bare self-call in tail position,
-# so it does not fire here — and making it fire would mean discarding the
-# recursive call's value, which is not what this proc does (see README.md).
+# O121 only: O122's loop conversion accepts this `return [factorial …]` shape
+# too, and overlap selection keeps the per-site `tailcall` rewrite instead.
+# Both are faithful; see README.md and `tail_call_loop_conversion_o122`.
 proc factorial {n {acc 1}} {
     if {$n <= 1} {
         return $acc
