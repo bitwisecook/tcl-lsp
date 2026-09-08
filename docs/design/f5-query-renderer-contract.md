@@ -143,8 +143,8 @@ evaluator:
 
 `lookup(name)` is the evaluator's dispatch hook; `all_specs()` returns
 every builtin sorted by `(category, name)` for `--help-builtins`. The
-category vocabulary orders that help output: stream, string, math, time,
-path, rename, net, graph, value.
+category vocabulary is `bigip`, `forensic`, `graph`, `math`, `net`, `path`,
+`rename`, `stream`, `string`, `time`, `value`.
 
 A plain builtin raises `QueryError::Builtin` for an argument-type mistake,
 so the CLI maps every one of them to `error:` uniformly.
@@ -166,8 +166,7 @@ pub struct InputFormatSpec {
 ```
 
 `list_input_formats()` returns the catalogue sorted by name — `csv`,
-`f5log`, `json`, `jsonl` — for `--help-inputs`. `zone` parses DNS zone
-files through the same dispatcher.
+`f5log`, `json`, `jsonl`, `zone` — for `--help-inputs`.
 
 An `InputSpec` is what a *call site* passes: `kind` names the format, and
 `csv_headers` carries the one per-format knob the CLI exposes
@@ -186,6 +185,9 @@ dict/list semantics:
   list, and missing columns become the empty string.
 - **f5log** — F5 syslog, one object per event, against the eight-value
   syslog severity vocabulary.
+- **zone** — an RFC 1035 DNS zone file as a list of resource records
+  (`name` / `ttl` / `class` / `type` / `rdata`; `A`/`AAAA` also carry
+  `address`).
 
 Every parser reports a bad document as a `QueryError` naming the format
 and the position, so a malformed side-input never surfaces as an
@@ -200,6 +202,7 @@ unhelpful evaluation error deep in the query.
 | `--help-renderers` | Print every `RendererSpec`'s name, summary, accepts hint, and details. |
 | `--help-builtins [NAME]` | Print the builtin catalogue, or one builtin's entry. |
 | `--input-{json,jsonl,csv,f5log} NAME=PATH` | Bind `$NAME` to a side-input parsed with that format. |
+| `--input KIND NAME=PATH` | The same, for any registered format (including `zone`). |
 
 A side input participates in the multi-file source count — a single config
 plus one side input renders with a per-file banner — but never iterates as

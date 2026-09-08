@@ -285,13 +285,14 @@ Two implementation notes on the abstentions:
 
 ## 7. The `package require` half (issue #1279)
 
-§4's measured reach was the reason to build this: over Tcl 9.0.4's `library/`,
-`samples/`, and the multi-file fixtures the `source` order changed **0**
-resolutions, because real Tcl writes `source [file join $tcl_library init.tcl]`
-and no static fold can place `$tcl_library`. Package-structured code writes its
-`source` statements the same way — inside a generated `pkgIndex.tcl`, against a
-`$dir` the package loader binds at run time — so the order it *does* have comes
-from `package`, not from `source`.
+§4's measured reach is why the `package` half exists: over Tcl 9.0.4's
+`library/`, `samples/`, and the multi-file fixtures the `source` order changes
+**0** resolutions, because real Tcl writes
+`source [file join $tcl_library init.tcl]` and no static fold can place
+`$tcl_library`. Package-structured code writes its `source` statements the same
+way — inside a generated `pkgIndex.tcl`, against a `$dir` the package loader
+binds at run time — so the order it *does* have comes from `package`, not from
+`source`.
 
 ### 7.1 The fact a `package require` establishes, and the one it does not
 
@@ -383,15 +384,15 @@ Tcl 9.0.4 `library/`, and the repository's `samples/` + `tests/`.
 | `pkgIndex.tcl` excluded | 805 | 1 419 | **704** | 237 136 | **122** | 0 |
 | tcllib `modules/` alone, `pkgIndex.tcl` excluded | 660 | 1 319 | 612 | 220 105 | 0 | 0 |
 
-Read honestly, that is three findings.
+Three things follow.
 
-**It moves numbers, where the `source` half moved none.** 704 provable edges
+**It moves numbers, where the `source` half moves none.** 704 provable edges
 against the `source` half's 3 resolvable statements, and 122 changed
 resolutions against 0.
 
 **Every change is a removal, and every removal is correct.** All 122 are the
-same shape: a bare call inside a *provider* file that used to resolve through a
-wildcard import written in some *consumer* file. The consumer requires the
+same shape: a bare call inside a *provider* file that would otherwise resolve
+through a wildcard import written in some *consumer* file. The consumer requires the
 package and only then imports, so the provider's whole body — the call
 included — ran before the import existed. Oracle: inside the provider's own
 body, `info commands ::helper` is empty; after the importer's `namespace import
@@ -411,23 +412,18 @@ effect becomes 0. That is the abstention working as specified — the registered
 script is what actually runs, and `[list source [file join $dir base64.tcl]]`
 does not tell us statically that it runs `base64.tcl`.
 
-The identified way to lift it, deliberately **not** taken here, is to fold
-`$dir` inside a `pkgIndex.tcl`: the package loader binds it to the directory
-holding that file, which is a documented Tcl contract rather than a guess. That
-would give the *`source`* half those edges, not this one, and it is a separate
-piece of work — the prize is the 657-edge gap between the two rows above.
+The way to lift it, deliberately **not** taken, is to fold `$dir` inside a
+`pkgIndex.tcl`: the package loader binds it to the directory holding that file,
+which is a documented Tcl contract rather than a guess. That would give the
+*`source`* half those edges, not this one — the prize is the 657-edge gap
+between the two rows above.
 
-### 7.4 What did **not** change
+The package half needs no filesystem knowledge: a `package require NAME` names
+its provider through the index's own `package provide` records, so an index
+with no resolver installed still derives package edges while the `source` half
+abstains.
 
-The `source` half is untouched: its whole unit suite passes unmodified, and a
-workspace with no `package provide` in it builds byte-identically the same
-order. An index with no resolver installed now still derives package edges —
-the package half needs no filesystem knowledge, because a `package require
-NAME` names its provider through the index's own `package provide` records —
-so `without_a_resolver_the_same_workspace_keeps_abstaining` continues to hold
-for the `source`-graph shape it pins.
-
-The two negatives in §4's table stay negative. A load order says *when* a
-statement ran; `package require` widens the set of pairs it can say it for, and
-says nothing new about a statement in a file nobody indexed (#1116 item 1) or
-about a script aborting part-way (#1116 item 4).
+§4's two negatives stay negative. A load order says *when* a statement ran;
+`package require` widens the set of pairs it can say it for, and says nothing
+about a statement in a file nobody indexed (#1116 item 1) or about a script
+aborting part-way (#1116 item 4).

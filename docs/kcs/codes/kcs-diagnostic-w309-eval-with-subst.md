@@ -21,7 +21,7 @@ Why does the analyser flag `eval [subst ...]` as an error?
 
 ## Symptoms
 
-- A red squiggle appears under the `eval` call, with the message "eval/uplevel with subst = double substitution".
+- A red squiggle appears under the substituted script argument, with the message *"eval with [subst] creates double substitution: subst expands $var and [cmd], then eval re-parses the result as Tcl. This is a code-injection risk. Use [format] or [string map] for safe templating."*
 
 ## Example that triggers it
 

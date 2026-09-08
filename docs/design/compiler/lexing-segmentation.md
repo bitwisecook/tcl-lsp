@@ -19,26 +19,27 @@ Source: `rust/tcl-lexer/src/lexer.rs` (`Lexer`, `LexerConfig`, `tokenise_all`),
 
 The lexer scans character-by-character and produces typed tokens:
 
-| TokenType | Trigger | Example |
+| `TokenType` | Trigger | Example |
 |-----------|---------|---------|
-| `ESC` | Plain word fragment (possibly escaped) | `set`, `42`, `hello` |
-| `STR` | Braced string `{…}` | `{hello world}` |
-| `CMD` | Command substitution `[…]` | `[expr {1+2}]` |
-| `VAR` | Variable substitution `$name` | `$x`, `${arr(idx)}` |
-| `SEP` | Whitespace separator | ` `, `\t` |
-| `EOL` | End-of-line / semicolon | `\n`, `;` |
-| `EOF` | End of input | |
-| `COMMENT` | Comment to end of line | `# ...` |
-| `EXPAND` | `{*}` expansion prefix | `{*}$list` |
+| `Esc` | Plain word fragment (possibly escaped) | `set`, `42`, `hello` |
+| `Str` | Braced string `{…}` | `{hello world}` |
+| `Cmd` | Command substitution `[…]` | `[expr {1+2}]` |
+| `Var` | Variable substitution `$name` | `$x`, `${arr(idx)}` |
+| `Sep` | Whitespace separator | ` `, `\t` |
+| `Eol` | End-of-line / semicolon | `\n`, `;` |
+| `Eof` | End of input | |
+| `Comment` | Comment to end of line | `# ...` |
+| `Expand` | `{*}` expansion prefix | `{*}$list` |
+| `ExprSugar` | JimTcl `$(…)` expression substitution (only under `VarSyntax::Jim`) | `$($a * 2)` |
 
 **Example** — `set x 42`:
 ```
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "x")  Token(SEP, " ")  Token(ESC, "42")  Token(EOF, "")
+Token(Esc, "set")  Token(Sep, " ")  Token(Esc, "x")  Token(Sep, " ")  Token(Esc, "42")  Token(Eof, "")
 ```
 
 **Example** — `set y $x`:
 ```
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "y")  Token(SEP, " ")  Token(VAR, "x")  Token(EOF, "")
+Token(Esc, "set")  Token(Sep, " ")  Token(Esc, "y")  Token(Sep, " ")  Token(Var, "x")  Token(Eof, "")
 ```
 
 Note: the `$` prefix is consumed by the lexer; `Token.text` contains the bare
@@ -46,10 +47,10 @@ variable name.
 
 **Stray punctuation convention** — a standalone `}` or `]` that appears
 outside its structural role (i.e. not closing a brace-group or command
-substitution) receives `TokenType.ESC`, not a special type. Downstream
+substitution) receives `TokenType::Esc`, not a special type. Downstream
 consumers that check for stray punctuation must test
-`tok.kind == TokenType::ESC` in addition to `tok.text` to distinguish stray
-characters from structural delimiters (which are part of `STR` or `CMD`
+`tok.kind == TokenType::Esc` in addition to `tok.text` to distinguish stray
+characters from structural delimiters (which are part of `Str` or `Cmd`
 tokens).
 
 **Line-tracking convention** — the lexer resolves line/column two ways that
@@ -71,10 +72,8 @@ position-tracking path must keep the two mechanisms in lock-step.
 the canonical lossless **red-green concrete syntax tree** for the region
 (`rust/tcl-compiler/src/parsing/syntax/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
-it.  The derivation matches the token loop field-for-field — `span`, `argv`,
-`texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
-`expand_word` (verified over the real-world corpus, 120k randomised
-differential cases, and nested-body anchoring) — so everything below
+it.  `rust/tcl-compiler/tests/differential_segment.rs` holds the derivation
+byte-identical to a frozen copy of the earlier token loop, so everything below
 describes the output shape.
 
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
@@ -105,12 +104,12 @@ Key fields:
 - Multi-token words (e.g. `"hello $name"`) are concatenated into `texts[i]`
 
 **Variable references in texts:**
-VAR tokens are wrapped in `${…}` form: `$x` → `texts[i] = "${x}"`.
+`Var` tokens are wrapped in `${…}` form: `$x` → `texts[i] = "${x}"`.
 
 ### Argument expansion `{*}` and dialect gating
 
 `{*}` is the Tcl 8.5+ argument-expansion prefix.  When enabled, the
-lexer emits a zero-width `EXPAND` token at word start, and the
+lexer emits a zero-width `Expand` token at word start, and the
 segmenter records `expand_word` flag `i` as `true` for the following word so
 that downstream passes can distinguish `{*}$list` (expanded to zero or
 more runtime args) from a literal `*${list}` word.
@@ -120,12 +119,13 @@ The `expand_syntax` field of `LexerConfig`
 is populated from the active dialect's `LexerGrammar`
 (`rust/tcl-dialect/src/profile.rs`):
 
-- **Enabled** by `GRAMMAR_TCL85`, `GRAMMAR_TCL86`, and `GRAMMAR_TCL9X` — all
-  Tcl 8.5 / 8.6 / 9.x profiles and every dialect whose base Tcl version is
-  at least 8.5 (f5-iapps, f5-tmsh, EDA vendors, Expect).
-- **Disabled** by `GRAMMAR_TCL84` and `GRAMMAR_IRULES` (`tcl8.4`,
-  `f5-irules`) because `{*}` did not exist in Tcl 8.4 — the lexer must
-  treat `{*}$x` as a braced literal `{*}` concatenated with `$x`.
+- **Enabled** by `GRAMMAR_TCL85`, `GRAMMAR_TCL86`, and `GRAMMAR_TCL9X` — the
+  Tcl 8.5 / 8.6 / 9.x profiles, the EDA vendors, and Expect.
+- **Disabled** by `GRAMMAR_TCL84` (`tcl8.4`) and `GRAMMAR_F5_TCL`
+  (`f5-irules`, `f5-iapps`, `f5-tmsh`) because `{*}` did not exist in the
+  Tcl 8.4 core those dialects are built on — the lexer must treat `{*}$x` as
+  a braced literal `{*}` concatenated with `$x`.  `GRAMMAR_F5_TCL` is also
+  the grammar that treats `}{` as a word separator.
 
 Arity checks at both the analyser (user-proc call sites) and the IR layer
 (`check_simple_arity` in
@@ -144,7 +144,7 @@ be **single-token** (so concatenations like `{*}$x$y` or
     `const_strings` map (`rust/tcl-compiler/src/analyser/state.rs`).
 - **IR layer (built-in commands)** can refine
   - braced literal lists (the segmenter strips the braces, so the
-    refinement uses the original `STR` token type to disambiguate
+    refinement uses the original `Str` token type to disambiguate
     the resulting text from a variable substitution),
   - literal `[list ...]` command substitutions via
     `extract_foreach_elements` (`rust/tcl-compiler/src/sccp.rs`).
@@ -164,41 +164,22 @@ arguments alone exceed the signature maximum.
 
 1. **IR lowering** reads `texts[0]` to identify the command, `argv[i].kind`
    to pattern-match on token types (e.g. `lower_set()` checks if the value
-   is `STR`, `ESC`, `CMD`, or `VAR`).
+   is `Str`, `Esc`, `Cmd`, or `Var`).
 2. **Error recovery** re-parses with virtual tokens injected, producing
    clean `SegmentedCommand` objects.
 3. **Semantic analysis** uses `span` for diagnostic positions and
    `all_tokens` for syntax highlighting/semantic tokens.
 
-### Proposed shared tokenisation memo
+### Who lexes
 
-The analysis pipeline lexes the same source bytes from several independent
-paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
-`compiler_checks`, and `var_refs` each tokenise overlapping regions, and
-nested braced bodies are re-lexed at every level of recursion.
-
-The following analysis-scoped intern index is the **green token tree
-proposal**, not the current implementation — see
-[green-token-tree.md](green-token-tree.md). No `TokenRegion` or intern index
-exists in the workspace today. Its proposed correctness rules are:
-
-- Keyed by `(base_offset, base_line, base_col, mode, text)` → a `TokenRegion`
-  carrying `(tokens, warnings)`. The `text` is part of the key so two distinct
-  substrings lexed at the same base offset (e.g. two bodies both lexed at
-  base 0) never collide.
-- Tokens are immutable, so the cached stream is shared read-only — consumers
-  build their own derived structures and never mutate it.
-- Regions lexed with error-recovery virtual insertions are never interned
-  (the insertions are request-specific).
-- The index is scoped to one analysis and discarded when that analysis
-  ends, so memory is bounded and the lexer-affecting context (dialect,
-  strict-quoting) is stable for its lifetime.
-
-`var_refs` (`rust/tcl-compiler/src/var_refs.rs`) lexes at base offset 0 (it
-extracts position-independent variable names) and keeps its own bounded LRU
-keyed by the scanned text and scan mode, which shares across the SSA / GVN /
-interprocedural scanners (and across documents). It does not consult a shared
-tree today.
+The segmenter builds the CST once per region and derives from it; the
+lowerer re-segments each nested braced body it descends into
+(`segment_commands_with_offset_and_config`), which builds a CST for that
+region.  One scanner lexes for itself: `var_refs`
+(`rust/tcl-compiler/src/var_refs.rs`) lexes at base offset 0 — it extracts
+position-independent variable names — behind a bounded LRU keyed by scanned
+text and scan mode, shared across the SSA / GVN / interprocedural scanners and
+across documents.  There is no shared tokenisation memo.
 
 ### Worked example — `set y $x`
 
@@ -207,7 +188,7 @@ tree today.
 SegmentedCommand {
     texts: vec!["set", "y", "${x}"],
     single_token_word: vec![true, true, true],
-    argv: vec![Token(ESC, "set"), Token(ESC, "y"), Token(VAR, "x")],
+    argv: vec![Token(Esc, "set"), Token(Esc, "y"), Token(Var, "x")],
     ..
 }
 

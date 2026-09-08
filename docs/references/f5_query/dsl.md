@@ -29,23 +29,27 @@ rust/tcl-bigip-query/src/
   parser.rs           # recursive-descent parser
   projection.rs       # BigipConfig → navigable Container tree
   eval.rs             # walks the AST, collects edits, returns values
-  builtins/           # plain + stream builtin function library (mod.rs + submodules)
+  builtins/           # plain + stream builtin library (mod.rs + submodules);
+                      # graph.rs holds refs / referenced_by / references_to
   special.rs          # special-form builtins (select / map / paths / getpath / …)
-  probes.rs           # network-probe + X.509 builtins (refs / referenced_by
-                       # forward into tcl-bigip's grep/graph support)
-  edit_plan.rs         # routes identity writes through rewrite::rename_object,
-                       # detects conflicts, applies bottom-up
+  probes.rs           # network-probe + X.509 builtins; probes/{http,tls}.rs are
+                      # the backends
+  edit_plan.rs        # routes identity writes through rewrite::rename_object,
+                      # detects conflicts, applies bottom-up
   rewrite.rs          # token-bounded rename engine used by edit_plan and the
-                       # rename* builtins
-  output.rs           # auto / scf / raw / paths / json renderers
+                      # rename* builtins
+  output.rs           # auto / scf / raw / paths / json / table renderers
+  jsonfmt.rs          # the JSON pretty-printer output.rs and --json use
+  renderers/          # --render plugins (mermaid / gantt / ascii-blocks)
   runner.rs           # high-level orchestration used by the CLI verb
   grammar.rs          # plain-text grammar for --help-dsl
   manual.rs           # combined --help-manual surface (grammar + builtins + examples)
   examples.rs         # worked-example cookbook for --help-examples
   architecture.rs     # multi-device architecture / tier detection
-  inputs.rs           # side-input parsers (--input-json / -jsonl / -csv / -f5log)
-rust/f5-cli/src/commands/query.rs
-                     # clap plumbing + help actions for the `f5 query` verb
+  inputs.rs           # side-input formats: the --input KIND registry plus the
+                      # --input-json / -jsonl / -csv / -f5log shorthands
+rust/f5-cli/src/{cli.rs, lib.rs, commands/query.rs}
+                      # clap definition, help-action dispatch, and the verb
 ```
 
 ## Grammar
@@ -400,11 +404,9 @@ Builtin functions are registered by calling `plain(...)` / `ctx(...)`
 `probes::registrations()`). Each registration captures the name,
 category, arity bounds, and whether it is a special form
 (evaluator-driven, like `select` / `map`) or needs the evaluator
-context (`ctx`, e.g. `refs` / `rename`). Unlike the retired Python
-registry, the Rust `BuiltinSpec` deliberately does **not** carry
-prose (summary / signatures / examples) — that content lives only in
-the hand-maintained [`builtins.md`](builtins.md), so there is no
-automated check that every builtin is documented there.
+context (`ctx`, e.g. `refs` / `rename`). `BuiltinSpec` deliberately
+carries no prose (summary / signatures / examples) — that content
+lives only in [`builtins.md`](builtins.md).
 
 The same registry feeds:
 
@@ -417,8 +419,10 @@ The same registry feeds:
 To add a builtin, add a `plain(...)` (or `ctx(...)` / `special(...)`)
 entry to the relevant submodule's `registrations()` function and
 implement the function it names. Then hand-write the corresponding
-entry in [`builtins.md`](builtins.md) — nothing keeps the two in sync
-automatically.
+entry in [`builtins.md`](builtins.md): `cargo xtask
+f5-query-builtins-doc --check` (in `make xtask-check`) fails when the
+set of registered names and the set of documented names diverge. It
+gates names only — the prose is a human's job.
 
 ### Categories
 
@@ -440,8 +444,16 @@ automatically.
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`, `str`
-- **graph** — `refs`, `referenced_by` (backed by `tcl_bigip::graph`, the
-  same edge model `f5 grep` walks)
+- **graph** — `refs`, `referenced_by`, `references_to` (backed by
+  `tcl_bigip::graph`, the same edge model `f5 grep` walks)
+- **math** — the C `libm` surface (`floor` … `atan2`, `fma`, `jn`)
+- **time** — `now`, `strftime` / `strptime`, `todate` / `fromdate`,
+  `dateadd` / `datesub`
+- **bigip** — `profile_default`, `profile_defaults`
+- **forensic** — `file`, `files`, `glob`, `grep` (read files beside
+  the config)
+
+`f5 query --help-builtins` prints the full per-category listing.
 
 ### Rename verb integration
 
@@ -599,15 +611,11 @@ source.  Cross-file behaviour comes in two shapes:
 
 ## Help layers
 
-The CLI verb exposes four kinds of help:
-
 - `f5 query --help` — clap-generated summary plus example block.
 - `f5 query --help-dsl` — grammar reference (this document, abridged).
-- `f5 query --help-builtins [NAME]` — function catalogue (generated
-  from the registry).
-- `f5 query --help-examples` — cookbook of common one-liners
-  (generated from `examples.rs`).
-
-The same content powers the KCS feature note and the design doc, so
-end-users get one consistent surface whether they read the terminal,
-the rendered docs, or the source.
+- `f5 query --help-builtins [NAME]` — function catalogue (name /
+  category / arity / flags, from the registry).
+- `f5 query --help-examples` — one-liner cookbook (`examples.rs`).
+- `f5 query --help-inputs` / `--help-renderers` — the registered
+  `--input` formats and `--render` plugins.
+- `f5 query --help-manual` — grammar + builtins + examples together.

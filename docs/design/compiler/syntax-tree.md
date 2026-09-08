@@ -26,14 +26,9 @@ The model is the Roslyn / rust-analyzer split:
   **lazily**, reproducing exactly the `Token` offsets/lines/columns the lexer
   emits.
 
-This is deliberately the model the *green token tree* proposal (issue #477,
-[`green-token-tree.md`](green-token-tree.md)) decided **not** to take: that
-design is a context-aware tokenisation memo whose tokens would carry
-**absolute** positions, because ~80 consumers read `Token.start.offset` as
-absolute. That proposal is unbuilt — nothing named `TokenRegion` exists in the
-workspace — so the CST under `parsing/syntax/` is the only tree there is. It
-does not change the absolute-offset consumers: `SyntaxToken::to_token`
-reproduces the lexer `Token` they already read.
+Consumers keep reading absolute offsets: `SyntaxToken::to_token` reproduces
+the lexer `Token` (absolute `start`/`end`) they already read, so the
+position-independent green layer costs them nothing.
 
 ## Node model
 
@@ -94,9 +89,9 @@ occupies — delimiters included — which sidesteps the inner-end / empty-delim
 
 `SyntaxTree(green, base…, text=…)` builds a region-relative line index (from the
 known `text`, or the green tree's own reconstruction) and resolves a region
-offset to an absolute `SourcePosition` exactly as `TclLexer._pos_at` does:
-region-relative line bisect, then shift line by `base_line` and the *first*
-line's column by `base_col`. A `SyntaxToken`'s raw start is `node_start +
+offset to an absolute `SourcePosition` exactly as the lexer's `LineIndex`
+does: region-relative line bisect, then shift line by `base_line` and the
+*first* line's column by `base_col`. A `SyntaxToken`'s raw start is `node_start +
 leading_width`; its `to_token()` reproduces the lexer `Token` (type, inner text,
 start, `end` via `end_rel`, `in_quote`). The red views are created lazily on
 walk, so nothing is materialised that a consumer does not visit.
@@ -172,14 +167,13 @@ There is no shared tokenisation memo: `build_document` runs a fresh
 `Lexer::with_source_map` each time. The descended stream is nonetheless
 **identical by construction** to a direct re-lex of the same region, because
 both tokenise the same inner text at the same anchor under the same
-`LexerConfig`; the parity is asserted directly (same child fragments, same
-terminated/recovered classification) over the corpus, 8 000 randomised nested
-cases, and multi-level descent (a substitution inside a descended body).
+`LexerConfig`; the unit tests assert the parity over the corpus, randomised
+nested cases, and multi-level descent.
 
 ## Verification
 
-The bar is byte-identity with a frozen copy of the pre-CST token loop, kept as
-a permanent regression net:
+The bar is byte-identity with a frozen copy of the token loop the tree
+replaced, kept as a permanent regression net:
 
 - **Losslessness** — `full_text == source` over the real-world corpus (157 Tcl
   8.6/9.0 library files + fixtures), 120k randomised sources, and the edge-case
@@ -202,16 +196,11 @@ a permanent regression net:
   `all_tokens`, `preceding_comment`, and `expand_word`, over the edge-case
   table, the `tmp/tcl{8.4,8.5,8.6,9.0}` corpus when present, and nested-body
   (non-zero base) anchoring.
-- **Full `make test-rust`** green with the segmenter on the tree — the
-  end-to-end proof that diagnostics, analysis, and AOT codegen agree.
 
 ## Performance
 
-Build + derive is ~1.55× the bespoke loop it replaced on a library-file corpus
-(build ~1.13×, derive ~0.42×). The dominant residual is the line index being
-built twice — once in the lexer, once in the red layer; sharing the lexer's
-index is the obvious follow-up. The overhead amortises as other consumers drop
-their own re-lexing onto the one tree.
+The line index is built twice — once in the lexer, once in the red layer;
+sharing the lexer's index is the open follow-up.
 
 ## Known gap — the minifier
 
@@ -247,6 +236,4 @@ tokenisers or cursor-local by nature, not duplicate segmenters.
 
 ## Related docs
 
-- [green-token-tree.md](green-token-tree.md) — the unbuilt proposal for a
-  context-aware tokenisation memo and incremental reparse.
 - [lexing-segmentation.md](lexing-segmentation.md) — lexer/segmenter contract.

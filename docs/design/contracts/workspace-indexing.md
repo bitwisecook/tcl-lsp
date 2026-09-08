@@ -73,12 +73,11 @@ item 1): a bare call written before its own `namespace import` reaches nothing
 install that has not run at the query point does not count.
 
 Ordering is the **workspace run order**
-(`tcl_lsp_core::source_graph::RunOrder`, issues #1104 item 3 and #1279).  A byte offset in
-the importing file and one in the calling file are unrelated numbers —
-comparing them let a `namespace forget` in the caller revoke a cross-file
-import purely because its local offset happened to be larger (issue #1116
-finding 1) — so two events in different documents are ordered only where a
-`source` path proves it.  Sourcing a file inlines its whole body at the
+(`tcl_lsp_core::source_graph::RunOrder`, issues #1104 item 3 and #1279).  A
+byte offset in the importing file and one in the calling file are unrelated
+numbers — compare them and a `namespace forget` in the caller revokes a
+cross-file import purely because its local offset is larger — so two events in
+different documents are ordered only where a `source` path proves it.  Sourcing a file inlines its whole body at the
 `source` statement's position, so the DFS of the `source` forest *is* the run
 order: each point is lifted to its root-ward path of `source`-statement
 offsets, and the deepest document the two paths share is where the ordinary
@@ -122,20 +121,17 @@ ships no imports rather than a map its own edges contradict).  The host
 installs a `ConstantFolder` alongside the `SourceResolver` so the index can
 compute what one document provides to those it sources.
 `None` folds to "abstain toward answering" in both decision functions: an
-unrankable install counts, an unrankable removal revokes nothing.  A workspace
-with no resolvable `source` edge therefore behaves exactly as it did before the
-order existed.
+unrankable install counts, an unrankable removal revokes nothing, so a
+workspace with no resolvable `source` edge loses nothing to the order.
 
 Within one document the comparison is `in_effect_within` on **both** sides
 too, which is why `CallSite` carries the call's own `enclosing_body` span and
-`invocations` rows store one.  A plain offset test was wrong in both
-directions: it left a body-local call resolving through a top-level
-`namespace forget` written before it (issue #1116 item 3, the lenient
-direction), and — once installs became order-gated — it would have dropped the
-alias of every proc body that calls a name its own file imports further down,
-which is the ordinary shape of a library module (tcllib's
-`modules/uev/uevent.tcl` writes its procs first and its `namespace import`s
-last).  The column is built with one stack sweep over each document's body
+`invocations` rows store one.  A plain offset test is wrong in both
+directions: it leaves a body-local call resolving through a top-level
+`namespace forget` written before it, and it drops the alias of every proc
+body that calls a name its own file imports further down — the ordinary shape
+of a library module (tcllib's `modules/uev/uevent.tcl` writes its procs first
+and its `namespace import`s last).  The column is built with one stack sweep over each document's body
 spans and call offsets rather than one `innermost_definition_body_span` per
 row, so the cost is `O((P + I) log (P + I))` per document instead of the
 `O(procs × invocations)` that kept the fact out of the index.
@@ -155,8 +151,7 @@ the *same* relation the gate uses, so the gate and the ranking cannot mean
 different things.  One consequence needs no `source` edge at all: two events
 written in one *foreign* file are ranked against each other (a file's
 statements run consecutively), so a `namespace export p` followed by a
-`namespace export -clear` there revokes, where the old encoding could only call
-both "unordered" and kept the export.
+`namespace export -clear` there revokes rather than being called "unordered".
 
 The **exact**-import link tier runs the same decision function with no call
 site (`WildcardImportIndex::link_alias_live`, issue #1116 finding 2): the
@@ -172,8 +167,8 @@ The import **conflict** rule is one function over both tables
 name; whether the import that installed it was spelled as a glob or as an
 exact pattern is a fact about the source text, not about the command table, so
 an earlier import of either spelling makes a later non-`-force` import of the
-other install nothing (issue #1116 item 7 — asking each side only about its own
-kind made the rule directional).  A same-source re-import is a silent no-op,
+other install nothing; asking each side only about its own kind would make the
+rule directional.  A same-source re-import is a silent no-op,
 never a conflict, and two imports in different documents conflict only where
 the `source` order ranks one strictly before the other (issue #1116 item 6).
 
@@ -194,11 +189,11 @@ and the unsafe one for a conflict — it would make both imports above cancel
 each other and the name resolve nowhere.
 
 A pattern rooted at the global namespace (`namespace import ::p`,
-`namespace import ::*`) splits to an *empty* source namespace, which both tiers
-once read as "no source" and skipped — the last import shape that bypassed the
-gate.  It is `::`, the same spelling a global-level `namespace export` record
-carries, and it is gated like any other (#1104's review note; oracle: an
-unexported global command makes the import a silent no-op).
+`namespace import ::*`) splits to an *empty* source namespace.  That is `::`,
+the same spelling a global-level `namespace export` record carries, and it is
+gated like any other — reading it as "no source" and skipping the gate is the
+mistake to avoid (oracle: an unexported global command makes the import a
+silent no-op).
 
 Resolution follows **import chains**: when the hop's source namespace does not
 itself define the name, the walk continues from there, bounded by
@@ -259,10 +254,9 @@ of its own *is* a namespace the workspace can see.
 Both halves of a namespace query are a **union**, not a fallback: the
 request's own analysis supplies the local sites and the index supplies every
 other document's, deduplicated by `(uri, span)`.  Returning as soon as the
-in-document provider answered — and excluding the request's own URI from the
-index lookup, which the first cut did — reported only the local half of a
-namespace reopened in two files, contradicting the contract that every
-declaring block is a target (issue #1088 review, finding 2).  Reading the
+in-document provider answers, or excluding the request's own URI from the
+index lookup, reports only the local half of a namespace reopened in two
+files, and every declaring block is a target.  Reading the
 local half from the analysis rather than the index is deliberate: a document
 that is unindexed, or has been edited since it was indexed, still answers.
 Hover counts the same merged set and states how many documents it counted, so
@@ -270,12 +264,9 @@ it cannot say "1 block" while go-to-definition offers three.
 
 A namespace-name position is also **definitive** in the server, not just in
 the providers: the query is answered by one branch taken before every other
-tier.  An empty answer must not reach the proc/class tiers — an empty local
-reference set (asking without declarations from a namespace's only declaring
-block) used to route the query to `workspace_resolved_references`, and an
-empty rename edit set falls through to the workspace-resolved rename branch
-by design, which renamed a same-spelled *proc* instead (issue #1088 review,
-finding 1).
+tier.  An empty answer must not reach the proc/class tiers: the workspace-resolved
+reference and rename branches below them would answer a namespace query with a
+same-spelled *proc*.
 
 ### The variable tier's rename half
 
@@ -336,11 +327,10 @@ and exposed as workspace-wide iterators that chain the slots in slot order —
 `procs()`, `classes()`, `invocations()` and the rest return an
 `impl Iterator`, not a slice.  That is what makes `remove_document` cost the
 removed document's own rows rather than a pass over the whole workspace
-(issue #1149): flat workspace-wide vectors made a removal fourteen
-`Vec::retain` passes with a `String` compare per element, over tables that
-hold one row per call site and per qualified variable occurrence — 10⁵–10⁶
-rows on tcllib — and the server re-indexes a document on every diagnostics
-publish.
+(issue #1149).  Flat workspace-wide vectors would make a removal fourteen
+`Vec::retain` passes with a `String` compare per element, over tables holding
+one row per call site and per qualified variable occurrence — 10⁵–10⁶ rows on
+tcllib — and the server re-indexes a document on every diagnostics publish.
 
 A removal clears the document's slot and returns it to a LIFO free list, so
 the remove-then-add of a publish hands the document straight back the slot it
@@ -351,10 +341,23 @@ accumulates (it does not replace): the M9 source-rehoming pass indexes one
 analysis per source-site namespace, and those views are several runtime
 identities of one physical file.
 
-An **edit** does not touch the index.  `did_change` commits the buffer splice
-and the salsa source only; `publish_diagnostics_result` then uses
-`replace_document` under the `documents` lock behind its `is_current` re-check,
-so it can only install the analysis of the revision the buffer actually holds.
+Three writers reach the index, and each installs only the analysis of a
+revision the buffer actually holds.
+
+`publish_diagnostics_result` holds the `documents` lock across its
+`replace_document`, behind `is_current`.  The closed-file transaction
+(`sync_disk_index`) is the same shape for files no buffer owns.
+
+The two live *seed* publishers — `publish_open_index_if_current` on `didOpen`
+and `publish_live_index_if_current` on `didChange` — cannot: holding
+`documents` while an index reader drains deadlocks the open path.  They take
+the index lock alone, keep the revision `replace_document_with_revision`
+returns, re-check currency under `documents`, and on a miss undo themselves
+with `remove_document_if_revision`.  The compare-and-remove is what makes an
+obsolete seed retract *its own* records and never a newer writer's
+replacement of the same URI.  A seed fills the slot until the diagnostics
+worker refines it.
+
 Replacement keeps the document's slot, its table allocations, and its
 workspace order.  It is intentionally distinct from remove + add: a temporary
 missing-definition state loses the information needed to recognise a
@@ -377,12 +380,10 @@ The rule is a single type, `Derived<T>`, rather than one hand-rolled
 `defined_command_names` readings (with and without the names links
 introduce — a consumer wants exactly one, since folding link names into the
 direct set would let rename rewrite a call that merely spells an imported
-name), the `command_link_map`, and the export snapshot.  `defined_command_names`
-was the motivating regression:
-`workspace_command_exists` rebuilt the whole set per call, and
-`follow_import_chain` asks it once per candidate per hop.  Measured on the
-same 400-file / 10 000-proc workspace, 10 000 existence checks take **870 µs**
-cached against **7.87 s** rebuilding per call.
+name), the `command_link_map`, and the export snapshot.  The cost is why:
+`follow_import_chain` asks `workspace_command_exists` once per candidate per
+hop, and on the same 400-file / 10 000-proc workspace 10 000 existence checks
+take **870 µs** cached against **7.87 s** rebuilt per call.
 
 The settled-target reverse index is deliberately more selective (issue #1319).
 It holds one contribution per document and a target-indexed `BTreeSet` of
@@ -432,8 +433,8 @@ change another file's answer retains the necessary whole-workspace cost.
    delegation, a browser worker supplies a host-filled `MemoryStore`), so a
    host that hands the server bytes gets the same index and the same package
    database it would get from a real tree. `scan_path` / `scan_tree` remain as
-   `NativeStore` wrappers over `scan_path_in` / `scan_tree_in` so native
-   callers and their tests did not move. See
+   `NativeStore` wrappers over `scan_path_in` / `scan_tree_in` for native
+   callers. See
    [lsp-source-store.md](lsp-source-store.md).
 8. Search-path and package facts follow real Tcl arity and version rules, not
    convenient approximations. `set auto_path` assigns a **list** (each element
@@ -488,6 +489,6 @@ change another file's answer retains the necessary whole-workspace cost.
 
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
-- [package loading](../../../docs/design/contracts/package-loading.md)
+- [Design doc index](../README.md)
+- [LSP feature providers](lsp-feature-providers.md)
+- [package loading](package-loading.md)

@@ -11,12 +11,6 @@ VS Code Copilot Chat participant for creating, explaining, fixing, validating, a
 
 Copilot Chat
 
-## Availability
-
-| Context | How |
-|---------|-----|
-| VS Code Copilot Chat | Type `@tcl` then a slash command or question |
-
 ## How to use
 
 Type `@tcl` in the Copilot Chat panel followed by a slash command:

@@ -22,9 +22,7 @@ inference treat its arguments correctly?
 - You have write access to the file that calls the command, or to a
   workspace-wide stubs file.
 
-## Before you start
-
-Stubs are the quick, legacy fallback: no subcommands, no arity checking,
+Stubs are the quick fallback: no subcommands, no arity checking,
 just enough for the analyser to stop calling a command unknown. For the
 full treatment — hover, options, subcommands, version gates — write a
 [SpecTcl pack](kcs-howto-write-a-tclspec-pack.md) instead. A pack's `arg

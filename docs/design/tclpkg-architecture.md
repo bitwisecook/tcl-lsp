@@ -125,13 +125,14 @@ tclpkg.tcl (manifest)
 
 ## CLI surface
 
-`tcl pkg` — `init`, `discover`, `install`, `list`, `tree`, `verify`, `info`, `add`,
-`remove`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`, `freeze`,
-`search`, `show`, plus the security verbs `policy`, `hooks`, `audit`,
-`trust`, and `build` documented in
+`tcl pkg` — `init`, `discover` (alias `scan`), `install`, `list`, `tree`,
+`verify`, `info`, `add`, `remove`, `update`, `sync`, `outdated`, `why`,
+`vendor`, `run`, `freeze`, `search`, plus the security verbs `policy`,
+`hooks`, `audit`, `trust`, and `build` documented in
 [`tclpkg-security.md`](tclpkg-security.md).
 
-`tcl venv` — `create`, `delete`, `info`, `activate`, `deactivate`, `list`.
+`tcl venv` — `create`, `delete`, `info`, `activate`, `deactivate`, `list`,
+`update`, `run`.
 
 `ui.rs` centralises the output conventions every subcommand shares: ANSI
 colour, the check/cross/warning symbols, and the canonical `--json` mode.

@@ -86,11 +86,7 @@ Shared in `tcl-cmd-core`:
   namespace into an unqualified `info commands`; `InfoProcsCmd` never merges, so
   `procs` lists the current namespace only). The runtime implements the rungs over
   its namespace arena's command table; the VM over its flat command map (keyed by
-  canonical name, so direct membership is a prefix test). This lifted the VM from a
-  flat "all command keys" listing (which leaked namespaced names into the global
-  scope and mishandled `::ns::*` patterns) to the correct behaviour, and **fixed a
-  runtime bug** (`info procs` in a namespace wrongly merged global procs). The
-  variable-listing subcommands stay per-adapter for now (see `info::{vars,…}`).
+  canonical name, so direct membership is a prefix test).
 - `info::{vars, locals, globals}` — the variable-listing subcommands, over a new
   `Namespaces::vars_in` (a namespace's variables, the variable analogue of
   `commands_in`) plus two active-frame `Frames` rungs (`in_proc()` and
@@ -105,9 +101,7 @@ Shared in `tcl-cmd-core`:
   This resolved the "VM has no namespace variables" block: the VM *does* store
   them — in the global frame keyed by qualified name (`foo::v`), exactly as it
   keys commands — so `vars_in` is the same direct-membership prefix test as
-  `commands_in`, and the frame rungs read the active frame's table. Routing split
-  `info vars` from `info locals` on the VM (it had aliased them, so `info vars` in
-  a proc dropped its links) and gave `info globals` the global-only filter.
+  `commands_in`, and the frame rungs read the active frame's table.
   `info::consts` adds the binding-specific constant rungs
   (`Frames::const_names`/`Namespaces::consts_in`). They inspect the direct
   binding rather than following an ordinary link: `info constant alias` follows
@@ -135,8 +129,8 @@ Shared in `tcl-cmd-core`:
   stays per-adapter (`VarStore::set_elem` is storage-only, like `incr`/`append`);
   `array default`/`array for` stay per-adapter (TIP 508 state / Family-B
   iteration), with shared storage rungs for physical search keys, live candidate
-  existence, and active-search revision. Routing fixed a VM bug: `array unset a` with no pattern now removes
-  the **whole array** (was: iterate-and-unset elements, leaving an empty array).
+  existence, and active-search revision. `array unset a` with no pattern removes
+  the **whole array**.
 - `prefix::{OptionTable, scan}` — the `Tcl_GetIndexFromObjStruct` port: one
   unique-prefix matcher and one `bad <noun> "X": must be …` formatter for every
   option and subcommand table, static or runtime-built.
@@ -157,16 +151,14 @@ Shared in `tcl-cmd-core`:
   handles via its `ns_arena`/`ns_intern` id arena (every namespace interned on
   creation, so the `&self` nav methods are pure lookups). `export`/`import`/
   `eval`/`delete` stay per-adapter (namespace *state*/control, needing heavier
-  surface). Routing also fixed two VM bugs: `namespace children` ignored its
-  `?pattern?`, and `parent`/`children` on a missing namespace returned a computed
-  result instead of erroring `namespace "X" not found`.
-- `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
-  (platform-independent), replacing the VM's old `std::path::Path` versions.
+  surface). `namespace children` honours its `?pattern?`, and `parent`/`children`
+  on a missing namespace errors `namespace "X" not found`.
+- `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core,
+  platform-independent.
 - `mathop::eval` — `::tcl::mathop::*` (every `expr` operator as a command) over
   the existing `ExprOps` seam, so **no new value
   seam**: the fold/identity/chain logic is shared, each primitive going through
   each runtime's `ExprOps` (the WASM runtime's bignum tower, the VM's i64+double).
-  The VM had no `mathop` at all; it now has the full operator set.
 - `sort::{key_compare, dictionary_compare, parse_wide, parse_real}` — the
   `lsort`/`lsearch` comparison modes (`-ascii`/`-dictionary`/`-integer`/`-real`,
   `-nocase`), pure `&[u8] → Ordering`. The subtle `DictionaryCompare` port lives
@@ -180,9 +172,7 @@ Shared in `tcl-cmd-core`:
   full non-command sort+build), `sort_command` (the reentrant stable merge sort
   over the adapter's comparator, **no `ValueOps`**), and `build_command`. The VM's
   comparator goes through `vm.dispatch` (argv-based, so an element containing
-  `$`/`[` is passed literally); the runtime's through `interp.dispatch`. This
-  lifted the VM from a flat-comparison-only `lsort` to `-index`/`-stride`/
-  `-indices`/`-command`.
+  `$`/`[` is passed literally); the runtime's through `interp.dispatch`.
 - `lsearch` — the **whole** `lsearch` command (every option: `-exact`/`-glob`/
   `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the four `-ascii`/
   `-dictionary`/`-integer`/`-real` types, `-nocase`, `-increasing`/`-decreasing`,
@@ -190,9 +180,8 @@ Shared in `tcl-cmd-core`:
   and the stride / sub-index result shapes — over `ValueOps` + the `RegexEngine`
   provider (`-regexp` reuses the engine seam: the real ARE engine on the runtime,
   the `regex` crate on the VM). `lsearch` never writes a variable, so it is a pure
-  value→value function; the adapter only maps the result/error. The `-index` path
-  resolution moved to the shared `index::{resolve_opt, encodable}`. This lifted
-  the VM from a `-exact`/`-glob`-only stub to the full command.
+  value→value function; the adapter only maps the result/error. `-index` path
+  resolution goes through the shared `index::{resolve_opt, encodable}`.
 - `clock::dispatch` — the **net-new** `clock` command (neither runtime had it),
   written once over `ValueOps`: `seconds`/`milliseconds`/`microseconds`/`clicks`,
   `format` (the civil-date strftime specifiers — incl. Tcl's quirks: `%D`/`%x`
@@ -217,10 +206,7 @@ Shared in `tcl-cmd-core`:
   `bad operation` catalogue. `trace` is heavily stateful (each runtime owns its
   trace tables and the firing wired into variable/command/execution access), so
   only the decoding is shared; the runtime folds the canonical op names into its
-  bitset, the VM keeps the name list. This fixed two VM bugs: it did **no** op
-  validation (`trace add variable v bogus cmd` was silently accepted) and used the
-  wrong type error (`bad type "X": must be command, execution, or variable` vs C's
-  `bad option "X": must be execution, command, or variable`). The trace *engines*
+  bitset, the VM keeps the name list. The trace *engines*
   (the VM fires variable traces only; the runtime fires all three) stay
   per-adapter. (`catch` was assessed and **kept per-adapter**: its body eval +
   completion→`(code,result,options)` mapping and the `-errorcode`/`-errorinfo`/
@@ -237,23 +223,18 @@ Shared in `tcl-cmd-core`:
   line tracking), the `-` fall-through resolution, the trace-aware variable
   writes, and the transparent body eval. The runtime's list-form patterns are
   sub-strings of a literal (no `Tcl_Obj`), so the adapter mints temporary objects
-  for `select` and frees them (leak-gate-validated). This lifted the VM from a
-  basic exact/glob `switch` (regexp fell back to exact; `default` matched
-  anywhere; no `-matchvar`/`-indexvar`) to the full superset, and deduplicated the
-  runtime's 770-line implementation down to its per-target edges. The shared
+  for `select` and frees them (leak-gate-validated). The shared
   `select` is exercised on the VM via `-glob`/`-regexp` (exact switches are
   codegen-inlined), and on the runtime (a tree-walker, always calling the builtin)
   across the whole option/error surface — both pinned vs tclsh 9.0.
-- `string::word_bound` — `string wordstart`/`wordend` (the word-boundary scan
-  over the Unicode word-char + connector-punctuation classification), added to the
-  shared `string` dispatch. The VM lacked these entirely (it errored "not yet
-  implemented"); the runtime's hand-rolled `str_word` is deleted.
+- `string::word_bound` — `string wordstart`/`wordend`, the word-boundary scan
+  over the Unicode word-char + connector-punctuation classification, in the
+  shared `string` dispatch.
 - `dict::filter` — `dict filter key|value ?glob ...?` (the pure glob-filter half).
   The `script` filter type evaluates a body per pair (Family-B) and stays in each
-  adapter, so the core returns `None` for it. The VM had no `dict filter` at all;
-  it now has key/value (shared) plus a small script adapter. Routing also fixed a
-  runtime ordering bug — the filterType is now validated **before** the dict is
-  parsed (`dict filter {a b c} bogus` → "bad filterType", not the dict error).
+  adapter, so the core returns `None` for it. The filterType is validated
+  **before** the dict is parsed (`dict filter {a b c} bogus` → "bad filterType",
+  not the dict error).
 - `binary::{hex,base64,uu}_{encode,decode}` + `format`/`scan` — value-model-free
   `&[u8]` codecs and the pack/unpack grammars. Each adapter bridges its value to
   bytes (the runtime's raw `obj_bytes`, the VM's byte-array `U+00xx` convention),
@@ -272,8 +253,7 @@ Shared in `tcl-cmd-core`:
   value-ops *is* its interp runs the eval callback first (interp borrowed by the
   closure) and the generation second (interp borrowed as the ops) without a borrow
   conflict. `lseq` is `i64`-based on both runtimes (C's `assignNumber` rejects
-  `TCL_NUMBER_BIG`), so the shared `Num` carries a fixed `i64`/`f64` pair. This
-  lifted the VM from **no `lseq` at all** to the full command.
+  `TCL_NUMBER_BIG`), so the shared `Num` carries a fixed `i64`/`f64` pair.
 - `regex::{regexp, regsub}` — the `regexp`/`regsub` **command plumbing** (option
   parsing, the match/advance loop, `-indices`/`-inline`/`-start`/`-all` handling,
   submatch-variable assignment, the `regsub` substitution-spec expansion, and the
@@ -286,10 +266,7 @@ Shared in `tcl-cmd-core`:
   engine translates byte↔char behind it (`captures_at` for context-correct `^`/`\b`
   at resumed offsets — the `notbol` hint is then unneeded). The var writes (match
   vars / result var, with the const check) stay per-adapter (Family-B). The pure
-  `decode_utf8` moved here as the canonical copy (the runtime's `regex.rs` re-exports
-  it). This lifted the VM substantially: it gained `-indices`/`-start`, the full
-  option set, char-correct offsets, the tclsh error messages, and the
-  vars-untouched-on-no-match rule it was getting wrong.
+  `decode_utf8` is canonical here (the runtime's `regex.rs` re-exports it).
 - `var::append_bytes` / `var::lappend_value` — the COW-aware *value computation*
   for `append`/`lappend`, over two new `ValueOps` rungs: a **byte-exact** seam
   (`as_bytes`/`new_bytes` + `try_append_bytes_in_place`) so `append` never routes
@@ -311,7 +288,7 @@ forms.
 
 ## 3. What stays in the per-runtime adapter (the value/state split)
 
-There is no longer a command family that *cannot* be shared at all — `incr`,
+No command family is entirely unshareable — `incr`,
 `append`, and `lappend` (the var-mutating commands) all route their **value
 computation** through `tcl-cmd-core`. What stays per-runtime is the **state
 mutation**, which is the point: a shared core that never names a runtime's frame
@@ -326,10 +303,10 @@ per-runtime or per-command:
   contract's `VarStore::set` is storage-only (it discards the trace outcome),
   whereas a write trace that errors must store the value yet fail the command
   (C's `TclObjCallVarTraces`). The adapter maps that to its own protocol
-  (`Completion` on the VM, set-result + `Code` on the runtime). "Always store,
-  even when grown in place" is what fixes the runtime's old in-place-skips-the-
-  trace bug; `store_scalar` is retain-then-release, so storing the in-place object
-  back onto itself is alias-safe.
+  (`Completion` on the VM, set-result + `Code` on the runtime). The store happens
+  even when the value grew in place, so the trace always fires; `store_scalar` is
+  retain-then-release, so storing the in-place object back onto itself is
+  alias-safe.
 - **The const-variable check** (`const x` then `append x …`) — a runtime-only
   concept the VM has no notion of.
 - **The no-argument read forms** — `append x` reads (erroring if unset),

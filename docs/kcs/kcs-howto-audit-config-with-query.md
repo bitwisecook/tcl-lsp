@@ -88,15 +88,15 @@ A pool in `/Tenant_A/` that's attached to a VS in `/Tenant_B/` is a leak — fin
 ```
 # Offending VS names:
 $ f5 query --raw '.ltm.virtual[]
-  | select(partition(.name) != partition(.pool))
+  | select(.pool != "" and partition(."full-path") != partition(.pool))
   | .name' bigip.conf
 
 # Or as JSON with both endpoints of the leak (the VS object + its `.pool` ref):
 $ f5 query --json '.ltm.virtual[]
-  | select(partition(.name) != partition(.pool))' bigip.conf
+  | select(.pool != "" and partition(."full-path") != partition(.pool))' bigip.conf
 ```
 
-`--json` renders each matched VS as a structured record with every projected field, so the offending `name` and `pool` are both in the JSON payload — useful when you want to feed the report to another tool.
+`partition(...)` needs a full path — `.name` is the bare name, so comparing it would report every virtual.  `--json` renders each matched VS as a structured record with every projected field, so the offending `full-path` and `pool` are both in the payload.
 
 ### Pool-member sanity checks
 
@@ -168,7 +168,7 @@ Save the queries you care about in a file and run with `-f`:
 # audits.fq
 .ltm.pool[]    | select(referenced_by(.) | count == 0) | .name ;
 .ltm.virtual[] | select(.pool == "") | .name ;
-.ltm.virtual[] | select(.pool != "" and partition(.name) != partition(.pool)) | .name ;
+.ltm.virtual[] | select(.pool != "" and partition(."full-path") != partition(.pool)) | .name ;
 .ltm.rule[]    | select(referenced_by(.) | count == 0) | .name
 ```
 
@@ -182,7 +182,7 @@ Each statement is evaluated against the evolving source.  In the current runner 
 $ for q in \
     '.ltm.pool[]    | select(referenced_by(.) | count == 0) | .name' \
     '.ltm.virtual[] | select(.pool == "") | .name' \
-    '.ltm.virtual[] | select(.pool != "" and partition(.name) != partition(.pool)) | .name' \
+    '.ltm.virtual[] | select(.pool != "" and partition(."full-path") != partition(.pool)) | .name' \
     '.ltm.rule[]    | select(referenced_by(.) | count == 0) | .name'
 do
     echo "=== $q ==="

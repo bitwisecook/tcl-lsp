@@ -84,23 +84,18 @@ child under the strongest available **confinement tier**:
   allow-list with a sensitive-name denylist (`*_TOKEN`, `AWS_*`, `SSH_*`,
   `GITHUB_*`, `NETRC`, …), working-directory pinning, output capture, and a
   wall-clock timeout that kills runaways.
-- **OS-native (per platform, layered via the [`Confinement`] trait):** Landlock
-  + seccomp on Linux, Seatbelt on macOS, `pledge`/`unveil` on OpenBSD, Capsicum
-  on FreeBSD, restricted tokens + Job Objects on Windows. `detect_confinement()`
-  returns the strongest tier the host can provide; the achieved
-  [`IsolationLevel`] is recorded and reported.
+- **OS-native (per platform):** the [`Confinement`] trait is the seam where
+  Landlock + seccomp on Linux, Seatbelt on macOS, `pledge`/`unveil` on OpenBSD,
+  Capsicum on FreeBSD and restricted tokens + Job Objects on Windows are
+  layered in. **No host implementation is wired**, so `detect_confinement()`
+  returns `Baseline` everywhere; the achieved [`IsolationLevel`] is recorded
+  and reported, `tcl pkg build` warns, and a `fail-closed` policy refuses
+  rather than under-confine.
 
 If a policy marks a floor mandatory (e.g. `require-network-deny`) and the host
 cannot enforce it, `run()` **fails closed** rather than running weaker than
-promised. The crate writes no `unsafe`: OS tiers are driven through wrapper
-crates (`landlock`, `seccompiler`, `rlimit`, `win32job`, …) so the workspace
-`unsafe_code = "forbid"` lint holds.
-
-> The baseline tier and the capability/policy-floor model are the enforced
-> floor everywhere. The OS-native tiers are declared behind the
-> `Confinement` trait but no host implementation is wired, so execution
-> runs at `baseline` isolation and says so: `tcl pkg build` prints a
-> warning, and a `fail-closed` policy refuses rather than under-confine.
+promised. The crate writes no `unsafe`, which the workspace
+`unsafe_code = "forbid"` lint holds it to.
 
 ### Layered, lockable policy (`rust/tcl-pkg/src/policy.rs`)
 
@@ -233,11 +228,9 @@ reported.
 These are the edges of what the sandbox promises, and they matter when
 reasoning about a threat:
 
-- **Isolation is baseline-only in practice.** The OS-native tiers have a
-  home behind `Confinement` but no host implementation, so the enforced
-  confinement is environment scrubbing, cwd pinning, output capture, and
-  the wall-clock timeout. A policy that needs more must set
-  `fail-closed`.
+- **Isolation is baseline-only.** The enforced confinement is environment
+  scrubbing, cwd pinning, output capture, and the wall-clock timeout. A
+  policy that needs more must set `fail-closed`.
 - **Only the project's own build script runs.** The resolver does not read
   a dependency's manifest for a declared build phase, so a dependency's
   `build` directive is inert.

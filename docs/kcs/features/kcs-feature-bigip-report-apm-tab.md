@@ -60,9 +60,9 @@ Full Resource Assign ─webtop▶ Webtop mycave_rdp
 
 ## Why it is built this way
 
-The `f5-query` DSL projection only covers the `ltm` module, and the parsed
-model keeps APM objects as *minimal* records that drop the linking fields the
-walk needs — the profile's `access-policy` pointer, an item's `next-item`
+The `f5-query` DSL projection covers the `ltm`, `gtm`, and `security` modules,
+and the parsed model keeps APM objects as *minimal* records that drop the
+linking fields the walk needs — the profile's `access-policy` pointer, an item's `next-item`
 edges, and a resource-assign agent's assigned resources. So the APM walk reads
 the `apm …` stanzas straight from the config text, the same file-first approach
 the SSL-certificate and secrets tabs take for their non-LTM data.

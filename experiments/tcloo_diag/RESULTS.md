@@ -84,7 +84,7 @@ Corpus: the same ~305 OO files as `tcloo_dispatch` (tcllib, tklib, georgtree).
 
 ## Roadmap consequence
 
-Priority order revised by evidence, highest corpus impact first:
+Priority order by corpus impact, highest first:
 
 1. **snit dialect model** (Phase 3) — **done**: `$self`/`$this` self-dispatch
    (~doubling the rate), named-constructor typing (`set o [foo create x]`),
@@ -97,7 +97,8 @@ Priority order revised by evidence, highest corpus impact first:
    `object_collection_classes` to a workspace union (mirrors
    `project_class_index`), reaching the cross-file half of `param`/`unbound`.
 3. **Method return-type summaries**: `set x [$typed m]` / `[my m]` where `m`
-   returns an object — the flow-sensitive VTA edge we do not yet have.
+   returns an object — **done**: the `ObjectFlowEdge::MethodReturn` VTA edge in
+   `rust/tcl-compiler/src/object_types.rs`.
 4. Signature stubs / explicit abstention to deflate the `cmd-return` denominator.
 
 Within-CU proc/ctor/alias edges (Phase 2) are **landed and sound** but are not

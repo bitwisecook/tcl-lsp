@@ -58,12 +58,11 @@ layers:
    with `base64` Basic-auth encoding and self-signed-cert handling via
    `TlsConfig::disable_verification`), credential resolution with XDG
    config (`auth.rs`), single-object pull/push request shaping
-   (`object_io.rs`), and an SSH transport slot (`ssh.rs`).  SSH/scp is
-   currently a clean deferral stub — an in-process client would pull in
-   `unsafe`/C dependencies the workspace forbids — so `--transport ssh`
-   (and any `auto` fallback that reaches it) returns a deferral error;
-   `--transport rest` is the supported path.  These verbs (`fetch` /
-   `push` / `pull`) are shared by the credential resolver and REST agent.
+   (`object_io.rs`), and an in-process SSH client (`ssh.rs`, `russh` +
+   `russh-sftp`: `tmsh save …` over an exec channel, the artefact fetched
+   over SFTP, driven on a private current-thread Tokio runtime).
+   `--transport auto` tries REST first and falls back to SSH.  The `fetch` /
+   `push` / `pull` verbs share the credential resolver.
 
 ## Verb taxonomy
 
@@ -71,24 +70,26 @@ The verbs cover the operator workflow end-to-end:
 
 ```
 acquire ─→ analyse ─→ transform ─→ round-trip
-fetch       stats       rename       pull
-extract     graph       redact       push
-            explain     unredact
-            diff        pcap-remap
-            grep        split / merge
-            cleanup     convert (UCS↔SCF / SCF→AS3)
-            query       tmsh (SCF→tmsh script)
-            validate    query (DSL-driven property edits)
+fetch       stats         rename                pull
+extract     graph         redact / unredact     push
+            explain       pcap-remap
+            explain-flow  split / merge
+            diff          convert (UCS↔SCF / SCF→AS3)
+            grep          tmsh (SCF→tmsh script)
+            cleanup       query (DSL-driven property edits)
+            query         encrypt-secrets / decrypt-secrets
+            validate      enrich-pcapng / enrich-wireshark
+            registry-dump
             irule …
 ```
 
 `query` straddles the analyse + transform columns — it is both a
 read-only filter / projector (replacing some `grep` / `stats`
 patterns when the predicate is property-shaped) and a write-back
-engine that supersedes `rename` for any DSL-expressible identity
-or property edit.  `f5 rename` is now a thin shell that constructs
-a `rename(OLD, NEW)` expression and runs it through the query
-engine, so the two verbs share one rewrite path.
+engine that covers any DSL-expressible identity or property edit.
+`f5 rename` is a thin shell that constructs a `rename(OLD, NEW)`
+expression and runs it through the query engine, so the two verbs share
+one rewrite path.
 
 `irule` is a sub-command group rather than a top-level verb: the
 `IruleCommand` sub-enum in `rust/f5-cli/src/cli.rs` hosts its sub-verbs
@@ -211,7 +212,8 @@ rust/f5-cli/                          ← the `f5-query` binary crate
     └── remote/                        ← network/auth
         ├── auth.rs                     credential resolution + XDG
         ├── rest.rs                     iControl REST client (ureq+rustls)
-        ├── ssh.rs                      ssh transport slot (deferral stub)
+        ├── ssh.rs                      in-process SSH/SFTP client (russh)
+        ├── json_compat.rs              iControl JSON shape helpers
         └── object_io.rs                single-object pull/push
 
 rust/tcl-bigip/src/                   ← BIG-IP object model + parser

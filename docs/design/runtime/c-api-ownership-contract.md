@@ -234,7 +234,7 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 
 | Function | Obj args | Return | Errors | Notes |
 |---|---|---|---|---|
-| `Tcl_CreateThread` | n/a | `status` | `no-error` | `proc` is a shared-table index; `clientData` opaque. WASM mapping per [`c-extension-abi.md`](c-extension-abi.md) §11. |
+| `Tcl_CreateThread` | n/a | `status` | `no-error` | `proc` is a shared-table index; `clientData` opaque. WASM mapping per [`c-extension-abi.md`](c-extension-abi.md) §10. |
 | `Tcl_JoinThread` | n/a | `status` | `no-error` | |
 | `Tcl_MutexLock` / `Tcl_MutexUnlock` | n/a | `void` | `no-error` | |
 | `Tcl_ConditionWait` / `Tcl_ConditionNotify` | n/a | `void` | `no-error` | |

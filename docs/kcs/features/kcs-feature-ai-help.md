@@ -9,7 +9,7 @@ Feature catalogue and full-text search across every tcl-lsp feature, served by t
 
 ## Applies to
 
-VS Code Copilot Chat, tcl-lsp CLI, MCP, Claude skill
+Copilot Chat, tcl-lsp CLI, MCP, Claude skill
 
 ## Question
 
@@ -41,18 +41,17 @@ Use the `/ai-help` skill.
 ## Example
 
 ```
-$ tcl help "taint"
-
-=== LSP + AI Features ===
-
-  Diagnostics
-    Errors, warnings, security, taint tracking, and style checks shown as you type.
-
-  iRule Review
-    Security-focused analysis: security warnings, taint findings, and thread-safety concerns.
+$ tcl help --limit 2 "taint"
+2 matches for 'taint':
+- AI Help [Claude Code Skills]
+  Feature catalogue and full-text search across every tcl-lsp feature, served by the KCS help database.
+  file: kcs-feature-ai-help.md
+- Semantic Graphs [Claude Code Skills]
+  Structured call graph, symbol graph, and data-flow graph extraction from Tcl and iRules source code.
+  file: kcs-feature-semantic-graphs.md
 ```
 
-The help tool queries the KCS feature database with full-text search, groups results by category, and returns summaries with pointers to the relevant KCS feature pages.
+Run `tcl help` with no query to list every feature grouped by category.
 
 ## Related
 

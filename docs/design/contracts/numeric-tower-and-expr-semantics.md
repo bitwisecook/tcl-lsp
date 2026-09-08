@@ -181,8 +181,8 @@ operator token there, and only withholds it when a bareword byte (`_` or a
 digit) follows and the run would otherwise fuse. This is not merely an
 optimisation: **W003 exists to say "this operator is Tcl 9.0+ (TIP 461)", and
 it can only say that about an operator it can still see.** Gating the token
-unconditionally silenced the diagnostic on precisely the dialects it targets —
-nine e2e tests and the iRules `in`/`ni` suite caught it. A diagnostic that
+unconditionally would silence the diagnostic on precisely the dialects it
+targets. A diagnostic that
 reports unavailability needs the *maximal* vocabulary; only the boundary needs
 the release's actual one.
 
@@ -281,10 +281,9 @@ that backwards is the trap:
 The last two rows of the middle pair are the same predicate pointing opposite
 ways: one claims "this **is** a number" and so needs proof under every release;
 the other refuses an optimisation because a value "could still be a number" and
-so needs only one release to say yes. Both were previously the ambient grammar,
-which is neither, and under 9.0 rules `08` reads as numeric — so an
-arithmetic-identity rewrite could fire on an operand that is a `bad octal` error
-on an 8.x target.
+so needs only one release to say yes. The ambient grammar is neither: under
+9.0 rules `08` reads as numeric, so an arithmetic-identity rewrite decided by
+it could fire on an operand that is a `bad octal` error on an 8.x target.
 
 Abstaining is cheap: an unfolded expression is evaluated later by something that
 *does* know its release. Guessing is not — it bakes one release's answer into a
@@ -301,8 +300,8 @@ source text cannot duplicate semantics; code review and those executed tests
 remain the semantic backstop. Parsing a prefix out
 of something that is *not* Tcl script text — a packet field, a hex colour, a
 hex-encoded byte string — is legitimate and carries a `// number-drift-ok:`
-waiver. The value-parser gate exists because the rule was broken six independent
-times, each with the identical shape: strip two characters, call
+waiver. The value-parser gate exists because the rule is easy to break by
+accident, always in the same shape: strip two characters, call
 `from_str_radix`.
 
 ## Numeric semantics that are tested verbatim

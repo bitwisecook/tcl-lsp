@@ -81,7 +81,7 @@ validation.
 
 ## Failure modes
 
-- APL-specific tokens not emitted when `is_apl=False` (language detection miss).
+- APL-specific tokens not emitted when the file is not detected as APL.
 - Cross-file diagnostics not triggered when files are in different directories.
 - `#include` resolution fails if the included file uses a different encoding.
 - New APL keywords not recognised after spec changes.

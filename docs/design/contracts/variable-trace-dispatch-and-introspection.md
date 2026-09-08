@@ -144,8 +144,8 @@ Where C commits the operation around the trace, the runtime must too:
   an existing shell does not invalidate the search and can make a later row
   visible.
   `array for` validates its two-variable list before firing, as Tcl does. Tcl
-  9's `array default` is not yet in the adapter surface. This describes the VM
-  change only; tree-walker parity remains tracked separately.
+  9's `array default` is not in the adapter surface. The tree-walker's parity
+  here is tracked separately.
 * **A trace a callback removes does not fire in the same pass**, whether it is
   older and not yet reached or newer and already run; one a callback adds does
   not fire until the next access. `trace info` reflects both at once. This
@@ -201,7 +201,7 @@ interpreter can't see by name can't be traced.
 | Read/write error stops further trace firing; whole-array before element; LIFO | **Contract** | Ordering is observable. |
 | Value stored before write trace; ordinary unset detaches the old cell before tracing | **Contract** | Mutation is not gated on trace outcome. A failed write keeps the new value; an unset callback may create a distinct replacement cell that survives ordinary unset. Owner teardown forcibly purges such recreation. |
 | `trace info` op order is C's fixed per-kind order, not the spelled order | **Contract** | `array read write unset` / `rename delete` / `enter leave enterstep leavestep`. |
-| 8.x `trace variable`/`vdelete`/`vinfo` exist ≤8.6 and are `bad option` at 9.0+ | **Contract** | The registry's `DialectSet::TCL8X` gate states the boundary; the option enumeration follows it. |
+| 8.x `trace variable`/`vdelete`/`vinfo` exist ≤8.6 and are `bad option` at 9.0+ | **Contract** | The registry's `SpecSurface::TCL8X` row states the boundary; the option enumeration follows it. |
 | An old-style-installed callback gets the `rwua` letter, not the op word | **Contract** | `TCL_TRACE_OLD_STYLE`; matching still ignores the flag. |
 | `trace remove` deletes the **newest** of several identical registrations | **Contract** | Observable in the survivors' firing order and in `trace info`. |
 | Fire-through-`upvar`/`global` links; re-entrancy terminates | **Contract** | Acts on the target cell. |
@@ -219,8 +219,8 @@ interpreter can't see by name can't be traced.
 
 ## See also
 
-- [runtime-variable-frame-model.md](runtime-variable-frame-model.md) — traces
-  live on the cell; this is the firing contract for them.
+- [runtime-variable-frame-model.md](runtime-variable-frame-model.md) — the
+  cell a trace fires against, and why the trace table is not on it.
 - [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md) —
   why a traced var can't be a raw slot and why `info` is a live query.
 - [runtime/trace-implementation.md](../runtime/trace-implementation.md) —

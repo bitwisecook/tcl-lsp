@@ -127,10 +127,10 @@ in-body self-dispatch in this corpus) but sound and free — it also flips the
 ## Phase 3c — snit `install NAME using TYPE` component typing
 
 A snit component installed with `install NAME using TYPE …` types the component
-variable `NAME` as `TYPE`, so `$NAME method …` in the snit body resolves.  snit
-method bodies are **not** lowered into the compiler CFG (only token-walked, like
-the `$self` path), so this is a *source scan* (`augment_install_component_handles`)
-feeding the handle map — the same technique the loop-var scan uses.
+variable `NAME` as `TYPE`, so `$NAME method …` in the snit body resolves. The
+binding is registry data — the definer's `MemberBodyCommand.binds_handle`
+(`tcl_registry::handle_binding::HandleBindingSpec`) — read by the analyser's
+handle map, not a per-command branch in a consumer.
 
 | mode | after named-ctor | after install | Δ |
 |---|--:|--:|--:|

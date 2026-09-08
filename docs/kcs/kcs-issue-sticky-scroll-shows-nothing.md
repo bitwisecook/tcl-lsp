@@ -30,20 +30,14 @@ extension sets `editor.stickyScroll.defaultModel` to
 the folding provider without data blanks sticky scroll while the rest
 of the extension keeps working.
 
-1. Update the extension to 2.1.16 or later. Earlier versions can answer
-   a folding request with an empty list — for example when
-   `editor.folding` is switched off — and VS Code treats an empty
-   folding answer as final: sticky scroll shows nothing rather than
-   falling back to its indentation heuristic.
-2. Check you have not set `tclLsp.features.folding` to `false`
+1. Check you have not set `tclLsp.features.folding` to `false`
    (**File > Preferences > Settings**, search for `tclLsp folding`).
    That switch turns off the server's folding ranges entirely; sticky
    scroll then falls back to VS Code's indentation model, which pins on
    indent depth rather than real block boundaries. Leave it unset (or
-   `true`) for brace-accurate sticky scroll. `editor.folding` only
-   hides the fold arrows in the gutter — it no longer affects sticky
-   scroll.
-3. The extension detects this automatically once, shortly after it starts:
+   `true`) for brace-accurate sticky scroll. `editor.folding` only hides
+   the fold arrows in the gutter and does not affect sticky scroll.
+2. The extension detects this automatically once, shortly after it starts:
    when another installed extension has caused VS Code to drop our
    sticky-scroll default for Tcl, it shows a one-time notification offering
    a **Restore** button — click it and the default is written back for
@@ -57,7 +51,7 @@ of the extension keeps working.
    "[tcl]": { "editor.stickyScroll.defaultModel": "foldingProviderModel" }
    ```
 
-4. Success signal: scroll into the middle of any multi-line proc or
+3. Success signal: scroll into the middle of any multi-line proc or
    class body — its header line stays pinned at the top of the editor.
 
 If the steps above do not fix the problem, collect the output channel log

@@ -42,18 +42,14 @@ answered:
    hover did. A hover's reply travels the whole client → server → client path,
    so it contradicts a wedge outright; the run continues. Treat it as latency,
    and read the per-question timings below the verdict to see how close the
-   budget was. Before
-   [issue #1600](https://github.com/bitwisecook/tcl-lsp/issues/1600) this
-   combination reported `SERVER WEDGED` and skipped the rest of the run — once
-   at 687/899, where a byte-identical re-run then passed 899/899.
+   budget was.
 3. **`DOCUMENT PIPELINE WEDGED`** — the server answers a document-free request
    but no document request at all. Document intake is stuck for every document,
    so suspect the shared intake path rather than anything the failing test did.
 4. **`THIS DOCUMENT'S QUEUE WEDGED`** — another document answers and this one
-   still does not. The stall is specific to this document — the hypothesis
-   [issue #1294](https://github.com/bitwisecook/tcl-lsp/issues/1294) was filed
-   to test. A run that reports this verdict is the evidence that ticket asked
-   for; attach the whole failure block to it.
+   still does not. Suspect that one document's intake rather than the shared
+   path. Every wedge investigated so far has proved server-wide instead, so
+   this verdict is worth an issue with the whole failure block attached.
 5. **`REQUEST DROPPED, NOT WEDGED`** — a retry of the same request on the same
    document answered. The queue is draining and the original request was lost
    or merely slower than its budget, so treat it as a latency problem, not a
@@ -129,9 +125,8 @@ The line reads, in order:
 2. **`The turn is held by X for T on U (ticket K)`** — which notification is at
    the head of the queue and has not finished, for how long, and on which file.
    `held by nobody` instead means the queue is stuck on a place in line whose
-   handler disappeared before it reached the front — a different fault, fixed in
-   [issue #1657](https://github.com/bitwisecook/tcl-lsp/issues/1657) by making
-   the place in line release itself.
+   handler disappeared before it reached the front — a different fault, and one
+   the queue is meant to step over by itself.
 3. **`suspended at P for S`** — the **phase marker**: the exact point inside that
    handler where it paused, and how long it has been there. This is the reading
    to act on. Compare `S` with `T` from the previous field: if they are the same,

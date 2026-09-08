@@ -17,25 +17,38 @@ Why does the analyser report that an iRules command is deprecated?
 
 ## Why
 
-The command is no longer supported and may not work on current BIG-IP versions. Continued use risks runtime errors after a BIG-IP upgrade.
+The command registry records a replacement for it. The old spelling still works, but it is frozen, so a BIG-IP upgrade can take it away.
 
 ## Symptoms
 
-- A squiggle appears on the deprecated command, with the message "deprecated iRules command".
+- The command is struck through and carries a yellow squiggle, with the message
+  "'remote_addr' is deprecated in iRules. Use 'IP::remote_addr' instead."
 
 ## Example that triggers it
 
 ```tcl
-when HTTP_REQUEST {
-  use deprecated_command_here
+when CLIENT_ACCEPTED {
+  log local0. [remote_addr]
 }
 ```
 
-The analyser reports **`IRULE2002`** on the deprecated command token.
+The analyser reports **`IRULE2002`** on `remote_addr`.
 
 ## Fix
 
-Replace the deprecated command with its modern equivalent, as indicated by the diagnostic message.
+Use the replacement the message names:
+
+```tcl
+when CLIENT_ACCEPTED {
+  log local0. [IP::remote_addr]
+}
+```
+
+Where the replacement takes the same arguments, the editor offers a **Replace
+with '…'** code action that swaps the name for you. Where it restructures the
+arguments — `matchclass`, reported as
+[`IRULE2001`](kcs-diagnostic-irule2001-deprecated-matchclass.md) — no automatic
+fix is offered.
 
 ## How to suppress
 
