@@ -138,7 +138,7 @@ pub(crate) fn current_coroutine(vm: &Vm) -> Value {
         // then reports `[info coroutine]` as empty (coroutine-3.5).
         Some(h) => match h.key.key() {
             Some(key) if vm.coro.live.contains_key(&key) => {
-                Value::string(format!("::{}", key.name()))
+                Value::string(format!("::{}", vm.command_sidecar_display(&key)))
             }
             _ => Value::empty(),
         },
@@ -204,7 +204,6 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"coroutine name command ?arg ...?\"");
     }
     let name = args[0].to_str();
-    let fqn = vm.qualify_name(&name);
     // C's `coroutine` (re)creates the command, *replacing* whatever already
     // exists under that name (a proc, or a leftover coroutine) — it does not
     // error. `register_command` below is the single lifecycle owner: it tears
@@ -240,9 +239,9 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // command (coroutine-4.4).
         let cxt = vm.current_ns().to_string();
         if !cxt.is_empty()
-            && let Some(fqn) = vm.resolve_command_fqn(&cxt, &args[1].to_str())
+            && let Some(key) = vm.resolve_command_fqn(&cxt, &args[1].to_str())
         {
-            w[0] = Value::string(format!("::{fqn}"));
+            w[0] = Value::string(format!("::{}", vm.command_display_key(&key)));
         }
         w
     };
@@ -266,7 +265,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // teardown mistake the new state for the old command's state and remove
     // it. Once the replacement is complete, install the state atomically from
     // the coroutine subsystem's perspective and start it below.
-    vm.register_command(&fqn, Command::Native(Rc::new(CoroResumeCommand)));
+    let fqn = vm.register_written_command(&name, Command::Native(Rc::new(CoroResumeCommand)));
     vm.coro.live.insert(
         CommandSidecarKey::visible(&fqn),
         CoroState {
@@ -393,6 +392,10 @@ fn resume(
         Some(message) => vm.unwind_stale_coroutine(&mut acts, message),
         None => vm.drive_coro(&mut acts),
     };
+
+    if matches!(exit, RunExit::Done(_)) {
+        vm.finish_coroutine_flow();
+    }
 
     vm.coro.stack.pop();
     // Swap the resumer's flow back in; `parked` again holds the coroutine's flow.
@@ -544,7 +547,9 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name, cmd, rest @ ..] = args else {
         return err("wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"");
     };
-    let fqn = vm.qualify_name(&name.to_str());
+    let Some(fqn) = vm.resolve_command_fqn(vm.current_ns(), &name.to_str()) else {
+        return err("can only inject a probe command into a coroutine");
+    };
     // Take the coroutine's parked flow out; it must be suspended.
     let mut parked = {
         let Some(state) = vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) else {
@@ -586,7 +591,9 @@ fn cmd_coroinject(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name, _cmd, _rest @ ..] = args else {
         return err("wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
     };
-    let fqn = vm.qualify_name(&name.to_str());
+    let Some(fqn) = vm.resolve_command_fqn(vm.current_ns(), &name.to_str()) else {
+        return err("can only inject a command into a coroutine");
+    };
     match vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) {
         Some(state) if state.status == CoroStatus::Suspended => {
             state.injections.push(args[1..].to_vec());
@@ -603,7 +610,9 @@ fn cmd_corotype(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name] = args else {
         return err("wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
     };
-    let fqn = vm.qualify_name(&name.to_str());
+    let Some(fqn) = vm.resolve_command_fqn(vm.current_ns(), &name.to_str()) else {
+        return err("can only get coroutine type of a coroutine");
+    };
     match vm.coro.live.get(&CommandSidecarKey::visible(&fqn)) {
         None => err("can only get coroutine type of a coroutine"),
         Some(s) if s.status == CoroStatus::Running => ok(Value::string("active")),

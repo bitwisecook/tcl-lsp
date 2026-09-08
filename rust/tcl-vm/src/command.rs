@@ -71,6 +71,12 @@ pub struct Param {
 pub struct ProcDef {
     /// Canonical (namespace-qualified, no leading `::`) proc name.
     pub name: String,
+    /// Stable namespace-table token and simple tail that bind the command.
+    /// Kept separate from the body namespace because `apply`'s private proc is
+    /// stored under `::tcl::apply` while its body runs in the lambda namespace.
+    pub command_ns_id: tcl_core_types::NsId,
+    /// Simple command-table name paired with [`Self::command_ns_id`].
+    pub simple_name: String,
     /// The namespace the body executes in (canonical; `""` = global).
     pub namespace: String,
     /// That namespace's **token** — C's `procPtr->cmdPtr->nsPtr`, which is what
@@ -438,8 +444,14 @@ pub(crate) fn build_lambda_proc(
 
     let name = fresh_apply_name();
     let ns_id = vm.definition_namespace_token(&namespace);
+    let command_ns_id = vm.definition_namespace_token("tcl::apply");
     vm.define_proc(ProcDef {
         name: name.clone(),
+        command_ns_id,
+        simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
+            name.as_bytes(),
+        ))
+        .into_owned(),
         namespace,
         ns_id,
         params: params_vec,
@@ -502,7 +514,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let new_name = new.to_str();
     // Tcl rejects a rename onto an existing command (leaving both intact), so
     // check the destination before removing the source.
-    if !new_name.is_empty() && vm.lookup_command(&new_name).is_some() {
+    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
         return err(format!(
             "can't rename to \"{new_name}\": command already exists"
         ));
@@ -541,11 +553,15 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // is used as given, normalised to the key form (separator runs
         // collapse, the root drops — `rename p a:::q` creates `::a::q`,
         // tclsh8.6-verified; the raw name used to register a `a:::q` key).
-        let key = if tcl_syntax::naming::is_qualified(new_name.as_bytes()) {
+        let display_key = if tcl_syntax::naming::is_qualified(new_name.as_bytes()) {
             crate::interp::canonical_cmd_key(&new_name).into_owned()
         } else {
             vm.qualify_name(&new_name)
         };
+        // Reserve the exact `(namespace token, simple name)` destination.
+        // Its Tcl display can collide with another legal command (#1778), so
+        // every lifecycle map below uses this private injective key.
+        let key = vm.note_rename_destination(&new_name);
         if is_coro {
             crate::cmd_coro::on_command_renamed(vm, &old_key, &key);
         }
@@ -556,16 +572,22 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // so the shared qualifier split yields its namespace directly.
         let cmd = match cmd {
             Command::Proc(def) => {
-                // The destination namespace is the key's construction-inverse
-                // holder — the written-name colon-run split would collapse a
-                // lone-colon segment (#934).
-                let (new_ns, _tail) = crate::interp::key_holder_and_tail_unrooted(&key);
-                if new_ns == def.namespace && key == def.name {
+                let (new_ns_id, simple_name) = vm
+                    .command_slot_parts(&key)
+                    .expect("rename destination carries an exact command slot");
+                let new_ns = tcl_runtime_api::Namespaces::name(vm, new_ns_id)
+                    .strip_prefix("::")
+                    .unwrap_or_default()
+                    .to_owned();
+                if new_ns_id == def.command_ns_id && simple_name == def.simple_name {
                     Command::Proc(def)
                 } else {
                     let mut relocated = (*def).clone();
                     relocated.namespace = new_ns;
-                    relocated.name.clone_from(&key);
+                    relocated.ns_id = new_ns_id;
+                    relocated.command_ns_id = new_ns_id;
+                    relocated.simple_name = simple_name;
+                    relocated.name = display_key;
                     Command::Proc(Rc::new(relocated))
                 }
             }
@@ -574,7 +596,6 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // C creates the destination's hash entry before `TclPreventAliasLoop`
         // and deletes it again on a refusal, so the resize that transient entry
         // triggers outlives the rejected rename.
-        vm.note_rename_destination(&key);
         let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
@@ -584,14 +605,17 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // delete callbacks and trace/deoptimisation state that cannot be
         // rolled back after `register_command` observes an overwrite.
         if is_alias && vm.alias_chain_loops_for_rename(&key, &cmd) {
+            let tail = vm
+                .command_slot_parts(&key)
+                .map_or_else(String::new, |(_, tail)| tail);
             vm.forget_rename_destination(&key);
-            let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
             ));
         }
         vm.install_renamed_command(&mut rename, &key, cmd);
         vm.commit_renamed_command(&rename);
+        let key = rename.new_key().to_owned();
         // The rename happened: move every trace to the new key so it keeps
         // firing under the new name, then fire the command's `rename` traces
         // (`callback ::old ::new rename`, both fully qualified — tclsh-pinned).
@@ -1314,7 +1338,11 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `reg_name` is an already-constructed unrooted key. Invert it through the
     // key owner rather than parsing it again as a written word: a literal `:`
     // namespace begins with colons but is not a root separator (#934).
-    let namespace = key_holder_and_tail_unrooted(&reg_name).0;
+    let namespace = if tcl_syntax::naming::is_qualified(name_s.as_bytes()) {
+        key_holder_and_tail_unrooted(&reg_name).0
+    } else {
+        vm.current_ns().to_owned()
+    };
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
@@ -1337,9 +1365,18 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(body) => body,
         Err(error) => return completion_from_tcl_error(error),
     };
-    let ns_id = vm.definition_namespace_token(&namespace);
+    let ns_id = if tcl_syntax::naming::is_qualified(name_s.as_bytes()) {
+        vm.procedure_definition_namespace_token(&namespace, name_s.starts_with("::"))
+    } else {
+        tcl_runtime_api::Namespaces::current(vm)
+    };
     vm.define_proc(ProcDef {
         name: reg_name,
+        command_ns_id: ns_id,
+        simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
+            name_s.as_bytes(),
+        ))
+        .into_owned(),
         namespace,
         ns_id,
         params: params_vec,

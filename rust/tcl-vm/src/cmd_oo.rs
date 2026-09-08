@@ -1433,6 +1433,8 @@ fn run_step_inner(
     let ns_id = vm.definition_namespace_token(&obj_ns);
     let proc = ProcDef {
         name: format!("{obj_ns}::{method}"),
+        command_ns_id: ns_id,
+        simple_name: method.clone(),
         namespace: obj_ns.clone(),
         ns_id,
         params: m.params.clone(),

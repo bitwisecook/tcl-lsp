@@ -2530,6 +2530,22 @@ fn a_retained_token_takes_relative_definitions_only() {
 }
 
 #[test]
+fn an_absolute_proc_definition_targets_the_live_recreation() {
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {}
+                     proc ::N::fresh {} {return [namespace current]}
+                     list [::N::fresh] [info commands fresh]
+                 }
+             }
+             ::N::p"),
+        "::N {}"
+    );
+}
+
+#[test]
 fn a_retained_token_keeps_its_children() {
     // The child stays reachable relatively and by no absolute name at all. The
     // absolute name is built at run time on purpose: a literal would measure
@@ -2625,6 +2641,31 @@ fn retained_and_recreated_namespace_variable_traces_are_isolated() {
              namespace delete ::N
              list $inside $after $events"),
         "{0 old new} {1 new {{old 1 ::N::v {} unset}} {{unset {::rec new}}}} {{old 1 ::N::v {} unset} {new 0 ::N::v {} unset}}"
+    );
+}
+
+#[test]
+fn a_suspended_coroutine_releases_its_retained_namespace_on_completion() {
+    // A parked coroutine owns its exact namespace activation. Deletion
+    // unpublishes that token without tearing its command table down; ordinary
+    // completion later pops the parked frame and performs deferred teardown.
+    // Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc q {} {return Q}
+                 trace add command q delete ::rec
+                 coroutine ::co apply {{} {
+                     yield ready
+                     list [q] [namespace exists ::N] [namespace current]
+                 } ::N}
+             }
+             namespace delete ::N
+             set before [list [namespace exists ::N] [llength $::log]]
+             set resumed [co]
+             list $before $resumed $log"),
+        "{0 0} {Q 0 ::N} {{::N::q delete}}"
     );
 }
 

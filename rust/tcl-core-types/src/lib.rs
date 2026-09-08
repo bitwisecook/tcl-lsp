@@ -22,7 +22,7 @@
 //! These are the value-less types every Tcl runtime agrees on regardless of its
 //! value representation or execution model: the completion [`Code`], the generic
 //! [`Completion`] container, and the opaque arena handles
-//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`VarId`]). It also holds the editor
+//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`CommandSlot`]/[`VarId`]). It also holds the editor
 //! vocabulary the analysis and LSP layers share — the diagnostic [`Severity`] —
 //! so the analyser, compiler-checks, CLI, and server name one type rather than
 //! each maintaining its own copy.
@@ -153,6 +153,28 @@ pub struct FrameId(pub usize);
 /// A command handle (arena id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CommandId(pub u32);
+
+/// The injective location of a command in a runtime command table.
+///
+/// Tcl's fully-qualified display spelling is not an identity: legal lone-colon
+/// segment edges can make two different `(namespace, simple name)` pairs render
+/// to the same bytes. Runtimes and command consumers keep this pair structured
+/// and render it only at Tcl-facing boundaries. `S` is the runtime's owned or
+/// interned representation of a simple command name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CommandSlot<S> {
+    /// Stable namespace-table owner.
+    pub namespace: NsId,
+    /// Simple command name within that table.
+    pub simple: S,
+}
+
+impl<S> CommandSlot<S> {
+    /// Construct a structured command-table slot.
+    pub const fn new(namespace: NsId, simple: S) -> Self {
+        Self { namespace, simple }
+    }
+}
 
 /// A variable-cell handle (arena id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -290,6 +312,14 @@ mod tests {
     fn frame_and_namespace_constants() {
         assert_eq!(GLOBAL_FRAME, FrameId(0));
         assert_eq!(ROOT_NS, NsId(0));
+    }
+
+    #[test]
+    fn command_slots_keep_namespace_and_simple_identity_separate() {
+        let first = CommandSlot::new(NsId(1), ":p");
+        let second = CommandSlot::new(NsId(2), "p");
+        assert_ne!(first, second);
+        assert_eq!(first.simple, ":p");
     }
 
     #[test]
