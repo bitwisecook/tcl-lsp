@@ -192,6 +192,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   skips, base-keyed policy checks.
 - [kcs-howto-work-on-fuzz-findings.md](kcs-howto-work-on-fuzz-findings.md)
   — triage, fix, test, and close a differential-fuzzer finding.
+- [kcs-howto-audit-the-analyser-against-c-tcl.md](kcs-howto-audit-the-analyser-against-c-tcl.md)
+  — check an analyser finding on real-world Tcl against a reference `tclsh`
+  through the server's JSON-RPC, and classify the result.
 - [kcs-howto-author-tcl-test-scripts.md](kcs-howto-author-tcl-test-scripts.md)
   — write small Tcl scripts for parser, analysis, and bytecode tests.
 - [kcs-howto-author-irule-test-scripts.md](kcs-howto-author-irule-test-scripts.md)
