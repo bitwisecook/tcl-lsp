@@ -59,6 +59,7 @@ expect_relevant scripts/dev/lsp-e2e-input-paths.txt
 expect_relevant scripts/dev/lsp-e2e-package-paths.txt
 expect_relevant scripts/dev/test-lsp-e2e-paths.sh
 expect_relevant scripts/dev/test-lsp-e2e-partitions.sh
+expect_relevant scripts/dev/verify-nextest-partitions.py
 expect_relevant editors/vscode/testFixture/variableContexts.tcl
 expect_relevant samples/sslictcl/example.sslictcl
 expect_relevant specs/sdc_base.tclspec
