@@ -387,10 +387,10 @@ info — this is what the conservative principle buys.
 
 ## 7. The elision pass
 
-This pass does not exist yet; the bookkeeping is emitted unconditionally today.
-When it lands, it is the one place information may be dropped: per the
-conservative principle, an optimisation stage may **drop frame/source
-bookkeeping it can prove unobservable**. A compiled proc may elide:
+**Not built:** the bookkeeping is emitted unconditionally. This pass is the one
+place information may ever be dropped — per the conservative principle, an
+optimisation stage may **drop frame/source bookkeeping it can prove
+unobservable**. A compiled proc could then elide:
 
 - the `CmdFrame` push / per-command line updates **iff** no reachable code can
   observe them: no `error`/`catch` that inspects options, no `info frame`/`info

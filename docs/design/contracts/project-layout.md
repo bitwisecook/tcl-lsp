@@ -23,7 +23,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query`, `tcl-f5mku`, `bigip-report-gen` | F5 BIG-IP object model + config parser, config I/O, the `f5 query` DSL engine, the `f5mku` SecureVault envelope, and the standalone HTML estate report generator. |
 | `tcl-irules`, `f5-xc`, `tcl-diagram` | iRules metadata + analysis, the iRules → F5 Distributed Cloud translator, and the LSP-independent structural / control-flow diagram extractor. |
 | `tcl-lsp-core`, `tcl-lsp-db` | Pure LSP feature providers (folding, symbols, diagnostics projection, …) + the LSP-side doc/registry DB. |
-| `tcl-lsp-server` | Native LSP server binary (`tcl-lsp-server`), on tower-lsp. |
+| `tcl-lsp-server` | Native LSP server binary (`tcl-lsp-server`), on `tower-lsp-server` 0.23. |
 | `tcl-cli`, `tcl-cli-support` | The unified `tcl` CLI binary + shared CLI plumbing. |
 | `f5-cli` | The `f5-query` CLI binary (F5 BIG-IP tooling). |
 | `tcl-mcp` | Native MCP server binary (`tcl-mcp`) — the tool surface Claude skills / Codex call. |
@@ -67,7 +67,7 @@ dependency graph (a crate can only use what it declares in
    codegen or the optimiser.
 4. **LSP feature logic lives in `tcl-lsp-core`; transport lives in
    `tcl-lsp-server`.**  Feature providers are pure and reusable; the
-   server crate owns the tower-lsp wiring and the `ServerCapabilities`
+   server crate owns the `tower-lsp-server` wiring and the `ServerCapabilities`
    advertised during `initialize`.
 
    One crate reaches *up* into `tcl-lsp-core` deliberately: `tcl-spectcl`,

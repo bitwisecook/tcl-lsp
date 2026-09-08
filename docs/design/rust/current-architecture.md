@@ -170,8 +170,6 @@ built binary and assert its output.
   single-parse, cascading, MVCC destination.
 - [`incremental-analysis.md`](incremental-analysis.md) — the per-item analyser
   walk, the query graph, and the fallback contract.
-- [`incremental-analysis-experiments.md`](incremental-analysis-experiments.md) —
-  the corpus and the measurements behind that design.
 - [`lsp-performance.md`](lsp-performance.md) — how the server hits its latency
   targets, and how to measure it.
 - [`salsa-interned-gc.md`](salsa-interned-gc.md) — the interning invariant the

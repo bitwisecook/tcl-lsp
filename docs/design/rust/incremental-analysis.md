@@ -6,12 +6,10 @@ firewall that makes it sound, the query graph it runs on, the offset invariants
 that make the memo hit, the fallbacks that keep it byte-identical to the
 whole-file walk, and where the remaining per-edit cost sits.
 
-Companions: [`incremental-analysis-experiments.md`](incremental-analysis-experiments.md)
-(the corpus and the measurements this design rests on),
-[`lsp-performance.md`](lsp-performance.md) (how the results are delivered to the
-editor), [`current-architecture.md`](current-architecture.md) (the runtime
-model), and [`target-architecture.md`](target-architecture.md) (Layer 4, the
-general cascade this is one instance of).
+Companions: [`lsp-performance.md`](lsp-performance.md) (how the results are
+delivered to the editor), [`current-architecture.md`](current-architecture.md)
+(the runtime model), and [`target-architecture.md`](target-architecture.md)
+(Layer 4, the general cascade this is one instance of).
 
 ## Why
 
@@ -141,6 +139,10 @@ resolves it once the file's facts are merged:
 - **W120** (missing `package require`) anchors at each command's *source-earliest*
   invocation rather than the first in walk order, which makes it independent of
   whole-file-DFS versus per-item shell order.
+- **W210 / W211** (global read-before-set, set-but-unused) span procedures: a
+  top-level read is suppressed when a helper proc writes that global, so
+  `globals_written_by_procs` is merged from the grafted bodies before the
+  top-level pass runs.
 - **W103/W300 `$var` classification**, widget-dispatch sites, constant-dispatch
   sites, instance-creation sites, scoped command regions, and the alias / rename
   / deletion tables are all carried on the body fragment and rebased at graft;
@@ -255,9 +257,11 @@ unconditional, and rests on the gates rather than on the heuristic:
 
 - **Corpus differentials.** `per_item_corpus` (per-item walk vs `analyse`),
   `file_analysis_corpus` (`file_analysis_incremental` vs `analyse`), and
-  `compiler_check_corpus` (memoised vs uncached compiler checks) run over the
-  `tmp/` corpus; a non-`#[ignore]`d `samples/**/*.tcl` slice runs in every
-  `cargo test` so the gate cannot rot silently.
+  `compiler_check_corpus` (memoised vs uncached compiler checks) sweep the
+  `library/` trees of the pinned Tcl releases plus `tmp/tcllib-2.0/modules` —
+  around a thousand files of real, idiomatic Tcl; a non-`#[ignore]`d
+  `samples/**/*.tcl` slice runs in every `cargo test` so the gate cannot rot
+  silently.
 - **Edit fuzzers.** `per_item_matches_analyse_under_edits` and
   `differential_incremental` assert `incremental == fresh` under random edits —
   the property a static corpus cannot check — plus a corpus-scale multi-file

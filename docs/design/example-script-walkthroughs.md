@@ -2451,11 +2451,11 @@ as an `invokeStk` call.
 
 **Top-level (proc registration):**
 ```
-  Literals:  0="proc"  1="add"  2="{a b}"  3="{\n    expr {$a + $b}\n}"
+  Literals:  0="proc"  1="add"  2="a b"  3="\n    expr {$a + $b}\n"
 
   (0)  push1 0       # "proc"
   (2)  push1 1       # "add"
-  (4)  push1 2       # "{a b}"
+  (4)  push1 2       # "a b"   — the braces are word delimiters, not content
   (6)  push1 3       # body source
   (8)  invokeStk1 4  # proc add {a b} {...}
   (10) done
