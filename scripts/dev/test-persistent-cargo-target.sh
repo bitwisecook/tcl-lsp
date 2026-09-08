@@ -132,8 +132,8 @@ bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/preserved.out"
 [ -L "$symlink_target" ] || fail "symlinked target was removed"
 
 # The expired target is deliberately sorted after a prefix of fresh,
-# unmarked, and malformed directories. The janitor scans all bounded direct
-# children, so that prefix must not starve the eligible target.
+# unmarked, and malformed directories. The janitor scans all direct children,
+# so that prefix must not starve the eligible target.
 starved="$TARGET_ROOT/zz-starved"
 mkdir -m 700 "$starved"
 (umask 077 && : > "$starved/.tcl-lsp-cargo-target.lock")

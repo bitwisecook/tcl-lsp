@@ -31,21 +31,20 @@ only a compatibility fallback; it must not be shared by two registrations.
 The runner job concurrency group remains `tank`, with `queue: max` and
 `cancel-in-progress: false`. Cargo commands hold the target's advisory
 `flock`; the bounded janitor examines only old, correctly marked direct
-children of the dedicated root. It scans every direct child up to the
-`TCL_LSP_TANK_JANITOR_SCAN_LIMIT` ceiling (256 by default), but removes at
+children of the dedicated root. It scans every direct child, but removes at
 most `TCL_LSP_TANK_JANITOR_LIMIT` eligible targets per run. This avoids
-starving an old target behind fresh or unmarked entries while bounding a
-malicious fan-out. It never waits for a lock, follows a symlink, or removes
-an unmarked directory. The free-space floor is checked after janitor work and
-before the target is handed to Cargo.
+starving an old target behind fresh or unmarked entries while bounding
+destructive work. It never waits for a target lock, follows a symlink, or
+removes an unmarked directory. The private root lock serialises the short
+scan and creation work; the free-space floor is checked after janitor work
+and before the target is handed to Cargo.
 
-`TCL_LSP_TANK_RETENTION_DAYS`, `TCL_LSP_TANK_JANITOR_LIMIT`,
-`TCL_LSP_TANK_JANITOR_SCAN_LIMIT`, and `TCL_LSP_TANK_MIN_FREE_KB` are
-explicit, non-negative integer controls. The default floor is 20 GiB. A
-malformed control or failed filesystem check is a hard error. The helper
-reports `new` versus `reused` state, target bytes, free KiB, and janitor
-counts, including when the scan ceiling was reached. Its `report TARGET`
-operation emits final size and free-space telemetry after the test attempt.
+`TCL_LSP_TANK_RETENTION_DAYS`, `TCL_LSP_TANK_JANITOR_LIMIT`, and
+`TCL_LSP_TANK_MIN_FREE_KB` are explicit, non-negative integer controls. The
+default floor is 20 GiB. A malformed control or failed filesystem check is a
+hard error. The helper reports `new` versus `reused` state, target bytes, free
+KiB, and janitor counts. Its `report TARGET` operation emits final size and
+free-space telemetry after the test attempt.
 The existing sccache step reports compiler cache statistics independently;
 sccache remains an optimisation and its failure never changes test
 correctness.

@@ -17,7 +17,6 @@ ROOT=${TCL_LSP_TANK_TARGET_ROOT:-/home/runner/.cache/tcl-lsp/cargo-targets}
 MIN_FREE_KB=${TCL_LSP_TANK_MIN_FREE_KB:-20971520}
 RETENTION_DAYS=${TCL_LSP_TANK_RETENTION_DAYS:-14}
 JANITOR_LIMIT=${TCL_LSP_TANK_JANITOR_LIMIT:-8}
-JANITOR_SCAN_LIMIT=${TCL_LSP_TANK_JANITOR_SCAN_LIMIT:-256}
 MARKER=.tcl-lsp-cargo-target
 LOCK=.tcl-lsp-cargo-target.lock
 ROOT_LOCK=.tcl-lsp-cargo-target.root.lock
@@ -37,7 +36,6 @@ number() {
 number "$MIN_FREE_KB" || die "TCL_LSP_TANK_MIN_FREE_KB must be a non-negative integer"
 number "$RETENTION_DAYS" || die "TCL_LSP_TANK_RETENTION_DAYS must be a non-negative integer"
 number "$JANITOR_LIMIT" || die "TCL_LSP_TANK_JANITOR_LIMIT must be a non-negative integer"
-number "$JANITOR_SCAN_LIMIT" || die "TCL_LSP_TANK_JANITOR_SCAN_LIMIT must be a non-negative integer"
 
 cleanup() {
     local status=$?
@@ -180,24 +178,19 @@ opened_lock_ok() {
 }
 
 janitor() {
-    local removed locked unsafe inspected bounded candidate marker lock
+    local removed locked unsafe inspected candidate marker lock
     removed=0
     locked=0
     unsafe=0
     inspected=0
-    bounded=0
     [ -d "$ROOT" ] || {
-        printf 'janitor_removed=0 janitor_locked=0 janitor_unsafe=0 janitor_inspected=0 janitor_bounded=0\n'
+        printf 'janitor_removed=0 janitor_locked=0 janitor_unsafe=0 janitor_inspected=0\n'
         return
     }
     owned_mode "$ROOT" 700
     for candidate in "$ROOT"/*; do
         [ -d "$candidate" ] || continue
         inspected=$((inspected + 1))
-        if [ "$inspected" -gt "$JANITOR_SCAN_LIMIT" ]; then
-            bounded=1
-            break
-        fi
         [ ! -L "$candidate" ] || continue
         [ "$(readlink -f -- "$candidate")" = "$candidate" ] || continue
         marker=$candidate/$MARKER
@@ -215,8 +208,8 @@ janitor() {
         # itself changes the directory mtime and must not make an old target
         # look young.
         if find "$marker" -maxdepth 0 -mtime +"$RETENTION_DAYS" -print -quit | grep -q .; then
-            # Scan all bounded direct children, but cap destructive work per
-            # invocation. Fresh/unmarked entries must not starve old targets.
+            # Scan every direct child, but cap destructive work per invocation.
+            # Fresh/unmarked entries must not starve old targets.
             [ "$removed" -lt "$JANITOR_LIMIT" ] || continue
             lock=$candidate/$LOCK
             # A running Cargo wrapper owns this advisory lock.  Never wait in
@@ -244,7 +237,7 @@ janitor() {
             removed=$((removed + 1))
         fi
     done
-    printf 'janitor_removed=%s janitor_locked=%s janitor_unsafe=%s janitor_inspected=%s janitor_bounded=%s\n' "$removed" "$locked" "$unsafe" "$inspected" "$bounded"
+    printf 'janitor_removed=%s janitor_locked=%s janitor_unsafe=%s janitor_inspected=%s\n' "$removed" "$locked" "$unsafe" "$inspected"
 }
 
 root_lock() {
@@ -260,7 +253,7 @@ root_lock() {
         exec 7>&-
         die "root lock changed while opening: $root_lock_path"
     }
-    flock -n 7 || {
+    flock 7 || {
         exec 7>&-
         die "root lock is already held: $root_lock_path"
     }
