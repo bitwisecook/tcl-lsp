@@ -20,9 +20,10 @@ marker matches exactly. Missing, malformed, redirected, or mismatched state
 fails closed.
 
 The registration identity comes from `TCL_LSP_TANK_REGISTRATION_ID`, then
-`RUNNER_TRACKING_ID`, then `RUNNER_NAME`. Runner images should set the first
-value to an immutable registration identifier. A name is only a compatibility
-fallback; it must not be shared by two registrations.
+the stable `RUNNER_NAME` fallback. `RUNNER_TRACKING_ID` is deliberately not
+used: it describes a job/process and can change on every run. Runner images
+should set the first value to an immutable registration identifier. A name is
+only a compatibility fallback; it must not be shared by two registrations.
 
 ## Lifecycle safety
 
@@ -35,11 +36,12 @@ after janitor work and before the target is handed to Cargo.
 
 `TCL_LSP_TANK_RETENTION_DAYS`, `TCL_LSP_TANK_JANITOR_LIMIT`, and
 `TCL_LSP_TANK_MIN_FREE_KB` are explicit, non-negative integer controls. The
-default floor is 10 GiB. A malformed control or failed filesystem check is a
+default floor is 20 GiB. A malformed control or failed filesystem check is a
 hard error. The helper reports `new` versus `reused` state, target bytes,
-free KiB, and janitor counts. The existing sccache step reports compiler
-cache statistics independently; sccache remains an optimisation and its
-failure never changes test correctness.
+free KiB, and janitor counts. Its `report TARGET` operation emits final size
+and free-space telemetry after the test attempt. The existing sccache step
+reports compiler cache statistics independently; sccache remains an
+optimisation and its failure never changes test correctness.
 
 ## Hosted and policy boundaries
 

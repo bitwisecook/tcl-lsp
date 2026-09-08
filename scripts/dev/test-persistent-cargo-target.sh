@@ -24,6 +24,12 @@ prepare() {
         TCL_LSP_TANK_JANITOR_LIMIT=8 \
         bash "$HELPER" prepare tank owner/repo "$checkout" "$registration" 2>"$log"
 }
+prepare_repository() {
+    local repository=$1 registration=$2 log=$ROOT/prepare.log
+    TCL_LSP_TANK_TARGET_ROOT=$TARGET_ROOT \
+        TCL_LSP_TANK_MIN_FREE_KB=1 \
+        bash "$HELPER" prepare tank "$repository" "$ROOT/work-a" "$registration" 2>"$log"
+}
 expect_failure() {
     if "$@" >"$ROOT/unexpected.out" 2>"$ROOT/unexpected.err"; then
         fail "expected failure: $*"
@@ -33,6 +39,10 @@ expect_failure() {
 hosted=$(bash "$HELPER" prepare hosted owner/repo "$ROOT/missing" reg-a 2>"$ROOT/hosted.err")
 [ "$hosted" = "" ] || [ "$hosted" = "persistent-cargo-target state=hosted-noop" ] || fail "hosted output changed"
 [ ! -e "$TARGET_ROOT" ] || fail "hosted mode created a target root"
+expect_failure env -u TCL_LSP_TANK_REGISTRATION_ID -u RUNNER_NAME bash "$HELPER" prepare tank owner/repo "$ROOT/work-a"
+fallback=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 RUNNER_NAME=stable-runner bash "$HELPER" prepare tank owner/repo "$ROOT/work-a")
+fallback_again=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 RUNNER_NAME=stable-runner bash "$HELPER" prepare tank owner/repo "$ROOT/work-a")
+[ "$fallback" = "$fallback_again" ] || fail "stable runner-name fallback did not reuse the target"
 
 target_a=$(prepare reg-a)
 [ -d "$target_a" ] || fail "new target was not created"
@@ -43,6 +53,14 @@ grep -q 'janitor_removed=' "$ROOT/prepare.log" || fail "janitor work was not rep
 [ "$(stat -c '%a' "$TARGET_ROOT")" = 700 ] || fail "target root permissions"
 [ "$(stat -c '%a' "$target_a")" = 700 ] || fail "target permissions"
 [ "$(stat -c '%a' "$target_a/.tcl-lsp-cargo-target")" = 600 ] || fail "marker permissions"
+[ -f "$target_a/.tcl-lsp-cargo-target.lock" ] || fail "target lock was not created"
+[ ! -L "$target_a/.tcl-lsp-cargo-target.lock" ] || fail "target lock is a symlink"
+[ "$(stat -c '%u' "$target_a/.tcl-lsp-cargo-target.lock")" = "$(id -u)" ] || fail "target lock owner"
+[ "$(stat -c '%a' "$target_a/.tcl-lsp-cargo-target.lock")" = 600 ] || fail "target lock permissions"
+
+report=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" bash "$HELPER" report "$target_a")
+grep -q 'target_bytes=' <<< "$report" || fail "final target size was not reported"
+grep -q 'free_kb=' <<< "$report" || fail "final free space was not reported"
 
 target_a_again=$(prepare reg-a)
 [ "$target_a" = "$target_a_again" ] || fail "stable identity did not reuse the target"
@@ -51,6 +69,19 @@ target_registration=$(prepare reg-b)
 target_checkout=$(prepare reg-a "$ROOT/work-b")
 [ "$target_a" != "$target_registration" ] || fail "registrations shared a target"
 [ "$target_a" != "$target_checkout" ] || fail "checkout roots shared a target"
+
+target_repository=$(prepare_repository owner/other-repo repo-a)
+[ "$target_a" != "$target_repository" ] || fail "repositories shared a target"
+expect_failure env TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 bash "$HELPER" prepare tank owner/../repo "$ROOT/work-a" reg-a
+expect_failure env TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 bash "$HELPER" prepare tank ../owner/repo "$ROOT/work-a" reg-a
+expect_failure env TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" TCL_LSP_TANK_MIN_FREE_KB=1 bash "$HELPER" prepare tank 'owner/repo name' "$ROOT/work-a" reg-a
+
+lock="$target_a/.tcl-lsp-cargo-target.lock"
+rm -f "$lock"
+ln -s "$ROOT/work-a" "$lock"
+expect_failure prepare reg-a
+rm -f "$lock"
+(umask 077 && : > "$lock")
 
 printf 'version=1\nregistration=wrong\n' > "$target_a/.tcl-lsp-cargo-target"
 chmod 600 "$target_a/.tcl-lsp-cargo-target"
@@ -68,6 +99,19 @@ touch -d '30 days ago' "$old/.tcl-lsp-cargo-target"
 bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/janitor.out"
 grep -q 'janitor_removed=1' "$ROOT/janitor.out" || fail "old target was not removed"
 [ ! -e "$old" ] || fail "old target survived janitor"
+fresh=$(prepare fresh-reg)
+mkdir -m 700 "$TARGET_ROOT/unmarked"
+mkdir -m 700 "$TARGET_ROOT/malformed"
+printf 'not-a-marker\n' > "$TARGET_ROOT/malformed/.tcl-lsp-cargo-target"
+chmod 600 "$TARGET_ROOT/malformed/.tcl-lsp-cargo-target"
+symlink_target="$TARGET_ROOT/symlinked"
+ln -s "$ROOT/work-a" "$symlink_target"
+touch -d '30 days ago' "$TARGET_ROOT/unmarked" "$TARGET_ROOT/malformed/.tcl-lsp-cargo-target"
+bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/preserved.out"
+[ -e "$fresh" ] || fail "fresh target was removed"
+[ -e "$TARGET_ROOT/unmarked" ] || fail "unmarked target was removed"
+[ -e "$TARGET_ROOT/malformed" ] || fail "malformed target was removed"
+[ -L "$symlink_target" ] || fail "symlinked target was removed"
 locked=$(prepare locked-reg)
 touch -d '30 days ago' "$locked/.tcl-lsp-cargo-target"
 exec 8>"$locked/.tcl-lsp-cargo-target.lock"
@@ -76,6 +120,14 @@ bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/locked.out"
 grep -q 'janitor_locked=1' "$ROOT/locked.out" || fail "locked target was not reported"
 [ -e "$locked" ] || fail "locked target was removed"
 exec 8>&-
+
+unsafe=$(prepare unsafe-reg)
+touch -d '30 days ago' "$unsafe/.tcl-lsp-cargo-target"
+rm -f "$unsafe/.tcl-lsp-cargo-target.lock"
+ln -s "$ROOT/work-a" "$unsafe/.tcl-lsp-cargo-target.lock"
+bash "$HELPER" janitor "$TARGET_ROOT" >"$ROOT/unsafe.out"
+grep -q 'janitor_unsafe=1' "$ROOT/unsafe.out" || fail "unsafe lock was not reported"
+[ -e "$unsafe" ] || fail "unsafe-lock target was removed"
 
 expect_failure env TCL_LSP_TANK_MIN_FREE_KB=999999999999 bash "$HELPER" prepare tank owner/repo "$ROOT/work-a" floor-reg
 

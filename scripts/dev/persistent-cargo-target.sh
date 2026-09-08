@@ -14,7 +14,7 @@ set -eu
 
 SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/$(basename -- "$0")
 ROOT=${TCL_LSP_TANK_TARGET_ROOT:-/home/runner/.cache/tcl-lsp/cargo-targets}
-MIN_FREE_KB=${TCL_LSP_TANK_MIN_FREE_KB:-10485760}
+MIN_FREE_KB=${TCL_LSP_TANK_MIN_FREE_KB:-20971520}
 RETENTION_DAYS=${TCL_LSP_TANK_RETENTION_DAYS:-14}
 JANITOR_LIMIT=${TCL_LSP_TANK_JANITOR_LIMIT:-8}
 MARKER=.tcl-lsp-cargo-target
@@ -148,13 +148,22 @@ valid_marker() {
     [ "$actual" = "$expected" ]
 }
 
+valid_lock() {
+    local lock=$1
+    [ -f "$lock" ] || return 1
+    [ ! -L "$lock" ] || return 1
+    [ "$(stat -c '%u' -- "$lock")" = "$(id -u)" ] || return 1
+    [ "$(stat -c '%a' -- "$lock")" = 600 ]
+}
+
 janitor() {
-    local removed locked inspected candidate marker lock
+    local removed locked unsafe inspected candidate marker lock
     removed=0
     locked=0
+    unsafe=0
     inspected=0
     [ -d "$ROOT" ] || {
-        printf 'janitor_removed=0 janitor_locked=0 janitor_inspected=0\n'
+        printf 'janitor_removed=0 janitor_locked=0 janitor_unsafe=0 janitor_inspected=0\n'
         return
     }
     owned_mode "$ROOT" 700
@@ -182,8 +191,12 @@ janitor() {
             lock=$candidate/$LOCK
             # A running Cargo wrapper owns this advisory lock.  Never wait in
             # the janitor: a bounded sweep must preserve the active target.
-            if ! exec 9>"$lock"; then
-                locked=$((locked + 1))
+            if ! valid_lock "$lock"; then
+                unsafe=$((unsafe + 1))
+                continue
+            fi
+            if ! exec 9<>"$lock"; then
+                unsafe=$((unsafe + 1))
                 continue
             fi
             if ! flock -n 9; then
@@ -196,16 +209,16 @@ janitor() {
             removed=$((removed + 1))
         fi
     done
-    printf 'janitor_removed=%s janitor_locked=%s janitor_inspected=%s\n' "$removed" "$locked" "$inspected"
+    printf 'janitor_removed=%s janitor_locked=%s janitor_unsafe=%s janitor_inspected=%s\n' "$removed" "$locked" "$unsafe" "$inspected"
 }
 
 prepare() {
-    local runner repository checkout registration janitor_line free key target state expected size marker_tmp
+    local runner repository checkout registration janitor_line free key target state expected size marker_tmp lock_tmp
     local target_locked=false
     runner=$1
     repository=$2
     checkout=$3
-    registration=$4
+    registration=${4:-${TCL_LSP_TANK_REGISTRATION_ID:-${RUNNER_NAME:-}}}
     case "$runner" in
         hosted)
             echo 'persistent-cargo-target state=hosted-noop'
@@ -240,8 +253,8 @@ prepare() {
         no_symlink_path "$target"
         owned_mode "$target" 700
         valid_marker "$target" "$expected" || die "target identity marker mismatch: $target"
-        [ ! -L "$target/$LOCK" ] || die "target lock is a symlink: $target/$LOCK"
-        exec 8>"$target/$LOCK"
+        valid_lock "$target/$LOCK" || die "target lock is missing or unsafe: $target/$LOCK"
+        exec 8<>"$target/$LOCK"
         flock -n 8 || die "target is already locked: $target"
         touch -- "$target/$MARKER"
         target_locked=true
@@ -253,6 +266,12 @@ prepare() {
     if [ "$state" = new ]; then
         (umask 077 && mkdir -- "$target") || die "cannot create target: $target"
         owned_mode "$target" 700
+        lock_tmp=$target/$LOCK.tmp.$$
+        (umask 077 && : > "$lock_tmp" && mv -- "$lock_tmp" "$target/$LOCK") || {
+            rm -f -- "$lock_tmp"
+            die "cannot create target lock"
+        }
+        valid_lock "$target/$LOCK" || die "created target lock is unsafe"
         marker_tmp=$target/$MARKER.tmp.$$
         (umask 077 && marker_contents "$registration" "$repository" "$checkout" "$target" > "$marker_tmp" && mv -- "$marker_tmp" "$target/$MARKER") || {
             rm -f -- "$marker_tmp"
@@ -269,12 +288,29 @@ prepare() {
     printf '%s\n' "$target"
 }
 
+report() {
+    local target size free
+    target=$(canonical_existing "$1")
+    no_symlink_path "$ROOT"
+    ROOT=$(canonical_existing "$ROOT")
+    case "$target" in
+        "$ROOT"/*) ;;
+        *) die "target is outside the dedicated root: $target" ;;
+    esac
+    owned_mode "$target" 700
+    marked_target "$target" || die "target marker is invalid: $target"
+    valid_lock "$target/$LOCK" || die "target lock is missing or unsafe: $target/$LOCK"
+    size=$(target_size "$target")
+    free=$(free_kb)
+    printf 'persistent-cargo-target report target=%s target_bytes=%s free_kb=%s\n' "$target" "$size" "$free"
+}
+
 with_lock() {
     local target lock
     target=$1
     shift
     [ "$#" -gt 0 ] || die "with-lock requires a command"
-        target=$(canonical_existing "$target")
+    target=$(canonical_existing "$target")
     owned_mode "$target" 700
     lock=$target/$LOCK
     [ ! -L "$lock" ] || die "target lock is a symlink: $lock"
@@ -288,8 +324,8 @@ with_lock() {
 [ "$#" -ge 1 ] || die "usage: $SELF prepare|janitor|with-lock ..."
 case "$1" in
     prepare)
-        [ "$#" -eq 5 ] || die "usage: $SELF prepare RUNNER REPOSITORY CHECKOUT REGISTRATION"
-        prepare "$2" "$3" "$4" "$5"
+        { [ "$#" -eq 4 ] || [ "$#" -eq 5 ]; } || die "usage: $SELF prepare RUNNER REPOSITORY CHECKOUT [REGISTRATION]"
+        prepare "$2" "$3" "$4" "${5:-}"
         ;;
     janitor)
         [ "$#" -eq 2 ] || die "usage: $SELF janitor ROOT"
@@ -301,6 +337,10 @@ case "$1" in
     with-lock)
         [ "$#" -ge 3 ] || die "usage: $SELF with-lock TARGET COMMAND [ARG ...]"
         with_lock "$2" "${@:3}"
+        ;;
+    report)
+        [ "$#" -eq 2 ] || die "usage: $SELF report TARGET"
+        report "$2"
         ;;
     *) die "unknown operation: $1" ;;
 esac

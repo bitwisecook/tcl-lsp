@@ -18,8 +18,9 @@ permissions. Hosted overflow does not use the retained target. Tank remains
 serialised with `queue: max` and `cancel-in-progress: false`.
 
 Before Cargo starts, a bounded janitor removes only old, marked targets. It
-skips locked targets and checks a free-space floor. The workflow reports reuse,
-disk, cleanup, and compiler-cache statistics.
+skips locked targets and checks a 20 GiB free-space floor. An always-run final
+step reports the target size and free space, while compiler-cache statistics
+remain independent.
 
 For the implementation contract, see [persistent Cargo targets on
 Tank](../design/contracts/tank-persistent-cargo-target.md).

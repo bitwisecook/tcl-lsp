@@ -1018,7 +1018,7 @@ jobs:
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.rust_tests_runner == 'tank'
         shell: bash
         run: |
-          registration="${TCL_LSP_TANK_REGISTRATION_ID:-${RUNNER_TRACKING_ID:-${RUNNER_NAME:-}}}"
+          registration="${TCL_LSP_TANK_REGISTRATION_ID:-${RUNNER_NAME:-}}"
           target=$(bash scripts/dev/persistent-cargo-target.sh prepare tank "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE" "$registration")
           printf 'CARGO_TARGET_DIR=%s\n' "$target" >> "$GITHUB_ENV"
 
@@ -1106,6 +1106,19 @@ jobs:
           write_errors=$(printf '%s\n' "$stats" | awk '$1 == "Cache" && $2 == "write" && $3 == "errors" { print $NF; exit }')
           if [[ -n "$write_errors" && "$write_errors" != 0 ]]; then
             echo "::warning::sccache reported $write_errors cache write errors"
+          fi
+
+      # Keep final target telemetry independent from test correctness.  This
+      # runs after every Tank attempt, including failed Cargo commands.
+      - name: Report final Tank Cargo target
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.rust_tests_runner == 'tank'
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+            bash scripts/dev/persistent-cargo-target.sh report "$CARGO_TARGET_DIR"
+          else
+            echo '::warning::persistent Cargo target was not prepared; final telemetry unavailable'
           fi
 
   # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,

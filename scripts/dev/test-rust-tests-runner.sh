@@ -244,8 +244,10 @@ END {
          "persistent Cargo target setup must be Tank-only")
     contains("jobs.rust-tests.steps." target_step ".run", "persistent-cargo-target.sh prepare tank",
              "Tank setup must use the persistent Cargo target helper")
-    contains("jobs.rust-tests.steps." target_step ".run", "RUNNER_TRACKING_ID",
-             "target identity must include the runner registration fallback")
+    contains("jobs.rust-tests.steps." target_step ".run", "TCL_LSP_TANK_REGISTRATION_ID",
+             "target identity must prefer the explicit registration id")
+    contains("jobs.rust-tests.steps." target_step ".run", "RUNNER_NAME",
+             "target identity must use only the stable runner-name fallback")
     sccache = step("jobs.rust-tests", "name", "Set up sccache")
     need(sccache >= 0 && index(values["jobs.rust-tests.steps." sccache ".uses"], "mozilla-actions/sccache-action@") == 1 && values["jobs.rust-tests.steps." sccache ".with.version"] == "v0.17.0", "rust-tests must retain the pinned sccache setup")
     need(values["jobs.rust-tests.steps." sccache ".with.disable_annotations"] == "true",
@@ -271,6 +273,13 @@ END {
     need(doctest >= 0, "rust-tests must retain the workspace doctest step")
     contains("jobs.rust-tests.steps." doctest ".run", "persistent-cargo-target.sh with-lock",
              "Tank doctests must hold the persistent target lock")
+    report = step("jobs.rust-tests", "name", "Report final Tank Cargo target")
+    need(report >= 0 && values["jobs.rust-tests.steps." report ".if"] == "always() && " changed " && needs.channel.outputs.rust_tests_runner == '\''tank'\''",
+         "final target telemetry must be Tank-only and always run")
+    need(values["jobs.rust-tests.steps." report ".continue-on-error"] == "true",
+         "final target telemetry must not change test correctness")
+    contains("jobs.rust-tests.steps." report ".run", "persistent-cargo-target.sh report",
+             "final target telemetry must report the retained target")
     stats = step("jobs.rust-tests", "name", "Report sccache statistics")
     need(stats > enable && values["jobs.rust-tests.steps." stats ".if"] == "always() && " changed,
          "sccache reuse must be measured after every affected test attempt")
