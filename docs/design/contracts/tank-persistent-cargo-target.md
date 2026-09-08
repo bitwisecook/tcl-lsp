@@ -28,6 +28,11 @@ only a compatibility fallback; it must not be shared by two registrations.
 
 ## Lifecycle safety
 
+The wrapper process retains the target lock for each Cargo command, but closes
+the descriptor in the command process. Compiler-cache daemons and other
+descendants may outlive Cargo without retaining the target lock into the next
+CI step.
+
 The runner job concurrency group remains `tank`, with `queue: max` and
 `cancel-in-progress: false`. Cargo commands hold the target's advisory
 `flock`; the bounded janitor examines only old, correctly marked direct

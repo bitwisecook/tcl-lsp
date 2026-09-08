@@ -82,6 +82,24 @@ report=$(TCL_LSP_TANK_TARGET_ROOT="$TARGET_ROOT" bash "$HELPER" report "$target_
 grep -q 'target_bytes=' <<< "$report" || fail "final target size was not reported"
 grep -q 'free_kb=' <<< "$report" || fail "final free space was not reported"
 bash "$HELPER" with-lock "$target_a" true
+# The wrapper, rather than the command descriptor, owns the lock for the
+# command's lifetime.
+ready=$ROOT/with-lock-ready
+bash "$HELPER" with-lock "$target_a" bash -c 'touch "$1"; sleep 1' -- "$ready" &
+holder=$!
+for _ in $(seq 1 100); do
+    [ -e "$ready" ] && break
+    sleep 0.01
+done
+[ -e "$ready" ] || fail "with-lock command did not start"
+expect_failure bash "$HELPER" with-lock "$target_a" true
+wait "$holder"
+# A command may leave a long-lived helper behind.  That descendant must not
+# inherit the advisory descriptor after the wrapper command has returned.
+bash "$HELPER" with-lock "$target_a" bash -c 'sleep 2 &'
+if ! bash "$HELPER" with-lock "$target_a" true; then
+    fail "a surviving command descendant retained the target lock"
+fi
 chmod 644 "$target_a/.tcl-lsp-cargo-target.lock"
 expect_failure bash "$HELPER" with-lock "$target_a" true
 chmod 600 "$target_a/.tcl-lsp-cargo-target.lock"
