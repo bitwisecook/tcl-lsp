@@ -2427,6 +2427,17 @@ fn callback_targets_from_command(
         let Some(&body_tok) = cmd.argv.get(idx + 1) else {
             continue;
         };
+        // `{*}` splices the word's value into the argument list, so the
+        // registry's role indices no longer describe where anything landed:
+        // `lsort -command {*}[list [self] compare] $items` runs the *object
+        // command* as the comparator and passes `compare` as a separate
+        // argument. Reading the word as if it were the callback slot invents a
+        // reference to `compare` — and Rename would rewrite it. The compiler's
+        // own prefix scan has gated on this since #978
+        // (`signature_scan::command_prefix`); this scan had not.
+        if word_is_expanded(cmd, idx + 1) {
+            continue;
+        }
         if body_tok.kind == TokenType::Var && cmd.single_token_word.get(idx + 1) == Some(&true) {
             // A stored callback is accepted only when exactly one static
             // assignment to this local spelling precedes the use.  The
@@ -2461,6 +2472,17 @@ fn callback_targets_from_command(
         out.extend(command_prefix_targets_from_word(ctx, &body_tok, 0));
     }
     out
+}
+
+/// Whether word `word_idx` of `cmd` is `{*}`-expanded.
+///
+/// `expand_word` is `None` for the overwhelming majority of commands — no word
+/// uses expansion — and a per-word flag list otherwise.
+fn word_is_expanded(cmd: &tcl_compiler::segmenter::SegmentedCommand, word_idx: usize) -> bool {
+    cmd.expand_word
+        .as_ref()
+        .and_then(|flags| flags.get(word_idx).copied())
+        .unwrap_or(false)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -6399,6 +6421,103 @@ mod tests {
         );
     }
 
+    /// Issues #1703 / #1704 asked for "at least one tcllib-shaped fixture",
+    /// and the suite met that only with hand-written imitations. This reads
+    /// the real files the issues cite.
+    ///
+    /// Gated on corpus presence with a loud skip, matching
+    /// `rust/tcl-lsp-db/tests/compiler_check_corpus.rs`.
+    #[test]
+    fn the_real_tcllib_callback_shapes_resolve_to_their_methods() {
+        let corpus = std::env::var_os("TCLLIB_2_0_DIR").map_or_else(
+            || std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/tcllib-2.0"),
+            std::path::PathBuf::from,
+        );
+        // (file, method declared in the file, a method named by a callback
+        // prefix inside it). `cat.tcl` is the `after … [namespace code [list
+        // my Post $c]]` shape from #1703; `httpd.tcl` is the `socket -server
+        // [namespace code [list my connect]]` CommandPrefix shape.
+        // `httpd.tcl` carries the `socket -server [namespace code [list my
+        // connect]]` shape the issues also cite, but it defines its classes
+        // with `::clay::define`, which the analyser records no class for at
+        // all — `all_classes` is empty for that file, so there is no method to
+        // navigate from and the shape is unreachable for reasons that have
+        // nothing to do with callback prefixes. Filed as #1956 rather than
+        // asserted here.
+        let (relative, method) = ("modules/virtchannel_base/cat.tcl", "Post");
+        {
+            let path = corpus.join(relative);
+            let Ok(src) = std::fs::read_to_string(&path) else {
+                eprintln!(
+                    "skip: {} not present (fetch tcllib 2.0 under tmp/, or set TCLLIB_2_0_DIR)",
+                    path.display()
+                );
+                return;
+            };
+            let analysis = analyse(&src);
+            let declaration = src
+                .find(&format!("method {method} "))
+                .unwrap_or_else(|| panic!("{relative} declares `method {method}`"));
+            let line = u32::try_from(src[..declaration].lines().count() - 1).expect("line fits");
+            let column = u32::try_from(
+                src[..declaration]
+                    .rsplit('\n')
+                    .next()
+                    .unwrap_or_default()
+                    .len()
+                    + "method ".len(),
+            )
+            .expect("column fits");
+            let refs = references(
+                &src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                line,
+                column,
+                &analysis,
+                true,
+            );
+            assert!(
+                refs.len() > 1,
+                "{relative}: `{method}` must reach its callback prefix as well as its \
+                 declaration, got {refs:?}"
+            );
+        }
+    }
+
+    /// Issue #1704 — a `{*}`-expanded callback word must abstain.
+    ///
+    /// `{*}` splices the word's value into the argument list, so the registry's
+    /// role indices no longer describe where anything landed. Reading the word
+    /// as if it were the callback slot is not merely unjustified, it invents
+    /// references: after expansion `lsort -command {*}[list [self] compare]
+    /// $items` runs the bare *object command* as the comparator and passes
+    /// `compare` as a separate argument, so `compare` is not dispatched at all
+    /// — and Rename would have rewritten it.
+    #[test]
+    fn an_expanded_callback_word_invents_no_reference() {
+        for src in [
+            // The comparator is the object command; `compare` is an argument.
+            "oo::class create C {\n    method compare {a b} { return 0 }\n    method sort {items} {\n        lsort -command {*}[list [self] compare] $items\n    }\n}\n",
+            // Same rule for a Body slot, where the arity happens to work out.
+            "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle {*}[list [self] tick]\n    }\n}\n",
+        ] {
+            let refs = references(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                1,
+                11,
+                &analyse(src),
+                true,
+            );
+            assert!(
+                !refs.iter().any(|r| r.start_line == 3),
+                "an expanded word is not a callback slot: {src:?} gave {refs:?}"
+            );
+        }
+    }
+
+    /// The gate is about expansion, not about the shape around it: the same
+    /// prefix written as a sole substitution still resolves.
     #[test]
     fn references_reach_a_list_built_self_command_prefix() {
         // CommandPrefix is distinct from Body: the registry says this word is
