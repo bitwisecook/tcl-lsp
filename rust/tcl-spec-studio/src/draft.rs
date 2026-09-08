@@ -1616,6 +1616,60 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
 }
 
+/// The iRules event descriptors: what the surrounding event must provide, what
+/// running the command raises, and the collect/release and handler facts.
+///
+/// Split out of [`command_options`] because that seeder crossed
+/// `clippy::too_many_lines` when the emission fields were added, and this is
+/// the group that comes out whole — every field here is one dialect's event
+/// model, and `relations.rs` already clusters them together for the editor.
+fn command_irules_events(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
+    d.insert(
+        "event_requires".into(),
+        lost.expr("event_requires", spec.event_requires.is_some()),
+    );
+    d.insert(
+        "event_requirement_forms".into(),
+        lost.expr(
+            "event_requirement_forms",
+            !spec.event_requirement_forms.is_empty(),
+        ),
+    );
+    d.insert(
+        "event_emits".into(),
+        lost.expr("event_emits", spec.event_emits.is_some()),
+    );
+    d.insert(
+        "event_emission_forms".into(),
+        lost.expr(
+            "event_emission_forms",
+            !spec.event_emission_forms.is_empty(),
+        ),
+    );
+    d.insert(
+        "data_collection".into(),
+        lost.expr("data_collection", spec.data_collection.is_some()),
+    );
+    d.insert(
+        "side_switch_target".into(),
+        lost.expr("side_switch_target", spec.side_switch_target.is_some()),
+    );
+    d.insert(
+        "event_handler_priority".into(),
+        lost.expr(
+            "event_handler_priority",
+            spec.event_handler_priority.is_some(),
+        ),
+    );
+    d.insert(
+        "irules_top_level_effect".into(),
+        lost.expr(
+            "irules_top_level_effect",
+            spec.irules_top_level_effect.is_some(),
+        ),
+    );
+}
+
 /// Options, enumerable values, and availability gating.
 fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("required_package".into(), opt_str(spec.required_package));
@@ -1642,39 +1696,7 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "closed_value_args".into(),
         index_list(spec.closed_value_args),
     );
-    d.insert(
-        "event_requires".into(),
-        lost.expr("event_requires", spec.event_requires.is_some()),
-    );
-    d.insert(
-        "event_requirement_forms".into(),
-        lost.expr(
-            "event_requirement_forms",
-            !spec.event_requirement_forms.is_empty(),
-        ),
-    );
-    d.insert(
-        "data_collection".into(),
-        lost.expr("data_collection", spec.data_collection.is_some()),
-    );
-    d.insert(
-        "side_switch_target".into(),
-        lost.expr("side_switch_target", spec.side_switch_target.is_some()),
-    );
-    d.insert(
-        "event_handler_priority".into(),
-        lost.expr(
-            "event_handler_priority",
-            spec.event_handler_priority.is_some(),
-        ),
-    );
-    d.insert(
-        "irules_top_level_effect".into(),
-        lost.expr(
-            "irules_top_level_effect",
-            spec.irules_top_level_effect.is_some(),
-        ),
-    );
+    command_irules_events(d, spec, lost);
     d.insert("options".into(), option_rows(spec.options, lost));
     let option_relations = if spec.option_relations.is_empty() {
         Value::Null

@@ -805,6 +805,18 @@ iRules only: what the surrounding event context must provide for this command to
 
 iRules only: overrides of the event requirements for specific argument spellings — when `CMD mode-a` is valid in different events than `CMD mode-b`. Named descriptor, like the event requirements themselves.
 
+### `event_emits` — Event emissions
+
+*command only* — The iRules events this command raises. The mirror of event_requires: that says where a command may be written, this says what running it starts.
+
+iRules only: which events running this command can raise. The mirror of the event requirements — those say where the command may be *written*, this says what running it *starts*. Feeds cross-event reachability. Named descriptor; record whether the emission is definite, possible, or asynchronous.
+
+### `event_emission_forms` — Event emission forms
+
+*command only* — Argument-prefix-specific emissions that override the command-level one. A form declaring no events is a positive fact, not an absence.
+
+iRules only: emissions for specific argument spellings, when `CMD mode-a` raises an event and `CMD mode-b` does not. A form declaring *no* events is a real answer, not a blank — it stops that spelling inheriting the command-level emission.
+
 ### `data_collection` — Data collection
 
 *command only* — Registry descriptor for a collect, release, or payload operation.

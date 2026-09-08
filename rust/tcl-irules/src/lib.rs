@@ -48,7 +48,8 @@ pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
 
 mod executable;
 pub use executable::{
-    IrulesExecutableCommand, irules_event_executable_closure, irules_executable_commands,
+    IrulesEventEmissionEdge, IrulesExecutableCommand, irules_event_emission_edges,
+    irules_event_executable_closure, irules_event_reachable_closure, irules_executable_commands,
 };
 #[cfg(feature = "test-instrumentation")]
 pub use executable::{
